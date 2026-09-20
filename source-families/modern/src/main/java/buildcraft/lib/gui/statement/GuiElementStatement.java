@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 package buildcraft.lib.gui.statement;
 
 import java.util.ArrayList;
@@ -22,12 +23,13 @@ import buildcraft.lib.statement.FullStatement;
 import buildcraft.lib.statement.StatementContext;
 import buildcraft.lib.statement.StatementContext.StatementGroup;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
+import buildcraft.lib.compat.RenderCompat;
 
 public class GuiElementStatement<S extends IStatement> extends GuiElementSimple
     implements IInteractionElement, IReference<S> {
 
-    public static final ResourceLocation TEXTURE_SELECTOR;
+    public static final Identifier TEXTURE_SELECTOR;
 
     public static final GuiIcon SLOT_COLOUR;
     public static final GuiIcon ICON_SLOT_BLOCKED;
@@ -37,7 +39,7 @@ public class GuiElementStatement<S extends IStatement> extends GuiElementSimple
     public static final SpriteNineSliced SELECTION_HOVER;
 
     static {
-        TEXTURE_SELECTOR = ResourceLocation.parse("buildcraftlib:textures/gui/misc_slots.png");
+        TEXTURE_SELECTOR = Identifier.parse("buildcraftlib:textures/gui/misc_slots.png");
         SLOT_COLOUR = new GuiIcon(TEXTURE_SELECTOR, 0, 0, 18, 18);
         ICON_SLOT_BLOCKED = SLOT_COLOUR.offset(18, 0);
         ICON_SLOT_NOT_SET = ICON_SLOT_BLOCKED.offset(18, 0);
@@ -59,35 +61,29 @@ public class GuiElementStatement<S extends IStatement> extends GuiElementSimple
 
     // IReference
 
-    @Override
     public S get() {
         return ref.get();
     }
 
-    @Override
     public void set(S to) {
         ref.set(to);
         ref.postSetFromGui(-1);
     }
 
-    @Override
     public boolean canSet(S value) {
         return ref.canSet(value);
     }
 
-    @Override
     public S convertToType(Object value) {
         return ref.convertToType(value);
     }
 
-    @Override
     public Class<S> getHeldType() {
         return ref.getHeldType();
     }
 
     // ITooltipElement
 
-    @Override
     public void addToolTips(List<ToolTip> tooltips) {
         if (contains(gui.mouse)) {
             S s = get();
@@ -99,9 +95,7 @@ public class GuiElementStatement<S extends IStatement> extends GuiElementSimple
 
     // IGuiElement
 
-    @Override
     public void drawBackground(GuiGraphics guiGraphics, float partialTicks) {
-        PoseStack pose = guiGraphics.pose();
         if (draw) {
             S statement = ref.get();
             double x = getX();
@@ -115,13 +109,12 @@ public class GuiElementStatement<S extends IStatement> extends GuiElementSimple
 
     // IInteractionElement
 
-    @Override
     public void onMouseClicked(int button) {
         if (!contains(gui.mouse)) {
             return;
         }
         if (ref.canInteract && button == 0) {
-            if (Screen.hasShiftDown()) {
+            if (RenderCompat.hasInputShiftDown()) {
                 set(null);
                 return;
             }

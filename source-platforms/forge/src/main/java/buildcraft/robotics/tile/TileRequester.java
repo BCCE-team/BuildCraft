@@ -10,6 +10,7 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import buildcraft.lib.internal.core.EnumPipePart;
+import buildcraft.lib.logic.request.RequestMath;
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.item.ItemTransferResult;
 import buildcraft.api.v2.request.ItemRequest;
@@ -121,7 +122,7 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
         ItemStack existing = inv.getStackInSlot(index);
         return !existing.isEmpty()
                 && StackUtil.isMatchingItemOrList(template, existing)
-                && existing.getCount() >= template.getCount();
+                && RequestMath.fulfilled(template.getCount(), existing.getCount());
     }
 
     private ItemStack getRequest(int index) {
@@ -138,8 +139,12 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
             return ItemStack.EMPTY;
         }
 
-        request.shrink(existing.getCount());
-        return request.getCount() > 0 ? request : ItemStack.EMPTY;
+        int missing = RequestMath.missingAmount(request.getCount(), existing.getCount());
+        if (missing <= 0) {
+            return ItemStack.EMPTY;
+        }
+        request.setCount(missing);
+        return request;
     }
 
     private ItemStack offerItem(int index, ItemStack stack, boolean simulate) {
@@ -157,7 +162,7 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
 
         ItemStack existing = inv.getStackInSlot(index);
         if (existing.isEmpty()) {
-            int accepted = Math.min(stack.getCount(), template.getCount());
+            int accepted = RequestMath.acceptedAmount(stack.getCount(), template.getCount(), 0);
             if (!simulate) {
                 ItemStack inserted = stack.copy();
                 inserted.setCount(accepted);
@@ -170,12 +175,10 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
             return stack;
         }
 
-        int missing = template.getCount() - existing.getCount();
-        if (missing <= 0) {
+        int accepted = RequestMath.acceptedAmount(stack.getCount(), template.getCount(), existing.getCount());
+        if (accepted <= 0) {
             return stack;
         }
-
-        int accepted = Math.min(stack.getCount(), missing);
         if (!simulate) {
             ItemStack updated = existing.copy();
             updated.grow(accepted);
@@ -234,30 +237,20 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
     }
 
     public int getComparatorSignal() {
-        int countedSlots = 0;
-        int nonEmptySlots = 0;
-        float power = 0.0F;
-
+        int[] requested = new int[NB_ITEMS];
+        int[] existingCounts = new int[NB_ITEMS];
+        boolean[] matching = new boolean[NB_ITEMS];
         for (int slot = 0; slot < NB_ITEMS; slot++) {
             ItemStack template = getRequestTemplate(slot);
-            if (template.isEmpty()) {
-                continue;
-            }
-            countedSlots++;
+            if (template.isEmpty()) continue;
+            requested[slot] = template.getCount();
             ItemStack existing = inv.getStackInSlot(slot);
             if (!existing.isEmpty() && StackUtil.isMatchingItemOrList(template, existing)) {
-                nonEmptySlots++;
-                int requested = Math.max(1, template.getCount());
-                int satisfied = Math.min(existing.getCount(), requested);
-                power += (float) satisfied / (float) requested;
+                existingCounts[slot] = existing.getCount();
+                matching[slot] = true;
             }
         }
-
-        if (countedSlots <= 0) {
-            return 0;
-        }
-        power /= countedSlots;
-        return (int) Math.floor(power * 14.0F) + (nonEmptySlots > 0 ? 1 : 0);
+        return RequestMath.comparatorSignal(requested, existingCounts, matching);
     }
 
     @Override
@@ -285,12 +278,7 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
             return ItemStack.EMPTY;
         }
         ItemStack copy = stack.copy();
-        int max = Math.min(copy.getMaxStackSize(), 64);
-        if (copy.getCount() <= 0) {
-            copy.setCount(1);
-        } else if (copy.getCount() > max) {
-            copy.setCount(max);
-        }
+        copy.setCount(RequestMath.sanitizeTemplateCount(copy.getCount(), copy.getMaxStackSize()));
         return copy;
     }
 

@@ -1,10 +1,10 @@
+//? source if >=1.21.1
 package buildcraft.lib.gui.statement;
 
 import java.util.Arrays;
 import java.util.List;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.GuiGraphics;
 import buildcraft.lib.internal.statement.IGuiSlot;
 import buildcraft.lib.client.sprite.SpriteNineSliced;
@@ -15,6 +15,7 @@ import buildcraft.lib.gui.elem.ToolTip;
 import buildcraft.lib.gui.pos.GuiRectangle;
 import buildcraft.lib.gui.pos.IGuiArea;
 import buildcraft.lib.misc.data.IReference;
+import buildcraft.lib.compat.RenderCompat;
 
 public class GuiElementStatementVariant extends GuiElementSimple implements IMenuElement {
     public static final SpriteNineSliced SELECTION_HOVER = GuiElementStatement.SELECTION_HOVER;
@@ -75,31 +76,24 @@ public class GuiElementStatementVariant extends GuiElementSimple implements IMen
 
     // IGuiElement
 
-    @Override
     public void drawBackground(GuiGraphics guiGraphics, float partialTicks) {
-        PoseStack pose = guiGraphics.pose();
-    	pose.pushPose();
-        // Render above items in the players inventory
-    	pose.translate(0, 0, 1000);
-        RenderSystem.setShaderColor(1, 1, 1, 1);
-        SELECTION_HOVER.draw(pose, this);
+        // Deferred GUI rendering has no Z-bearing PoseStack in 1.21.11. Submit this popup in a later stratum so it
+        // renders above inventory items.
+        guiGraphics.nextStratum();
+        RenderCompat.setShaderColor(1, 1, 1, 1);
+        SELECTION_HOVER.draw(guiGraphics, this);
         iteratePossible((pos, slot) -> {
             double x = pos.getX();
             double y = pos.getY();
             GuiElementStatementSource.drawGuiSlot(guiGraphics, slot, x, y);
         });
-        pose.popPose();
     }
 
-    @Override
     public void drawForeground(GuiGraphics guiGraphics, float partialTicks) {
-        PoseStack pose = guiGraphics.pose();
-
     }
 
     // ITooltipElement
 
-    @Override
     public void addToolTips(List<ToolTip> tooltips) {
         iteratePossible((pos, slot) -> {
             if (pos.contains(gui.mouse)) {
@@ -110,7 +104,6 @@ public class GuiElementStatementVariant extends GuiElementSimple implements IMen
 
     // IInteractionElement
 
-    @Override
     public void onMouseReleased(int button) {
         gui.currentMenu = null;
         iteratePossible((pos, slot) -> {

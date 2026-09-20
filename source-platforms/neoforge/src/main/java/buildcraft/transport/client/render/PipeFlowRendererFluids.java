@@ -23,11 +23,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.Direction.Axis;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.fluids.FluidStack;
-
-@OnlyIn(Dist.CLIENT)
 public enum PipeFlowRendererFluids implements IPipeFlowRenderer<PipeFlowFluids> {
 	INSTANCE;
 

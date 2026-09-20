@@ -30,7 +30,12 @@ public class MultiBlockItem<E extends Enum<E> & StringRepresentable> extends Blo
 
 	@Override
 	public Component getName(ItemStack p_41458_) {
-		return Component.translatable(getDescriptionId()+"_" + type.getSerializedName());
+		//? if >=1.21.11 {
+        // The registry ID already includes the variant. Its canonical ITEM_NAME was set by RegistryCompat.
+        return super.getName(p_41458_);
+        //?} else {
+        return Component.translatable(getDescriptionId()+"_" + type.getSerializedName());
+        //?}
 	}
 	
 	public E getType() {

@@ -47,9 +47,9 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvider{
 
@@ -217,9 +217,9 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 buffer.writeBoolean(selected != null);
                 if (selected != null) {
@@ -253,9 +253,9 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 if (buffer.readBoolean()) {
                     selected = new Snapshot.Key(buffer);
@@ -324,7 +324,7 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
                 }
             }
         }
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_UP) {
                 ServerPlayer sender = ctx != null && ctx.player() instanceof ServerPlayer player ? player : null;
                 if (sender == null) {
@@ -361,7 +361,7 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
                     buffer.readBytes(part);
 
                     // A client may have only one in-flight upload for this library. Changing selection
-                    // abandons the old transfer rather than retaining attacker-controlled partial buffers.
+                    // abandons the partial transfer state rather than retaining attacker-controlled buffers.
                     upSnapshotsParts.entrySet().removeIf(entry ->
                         entry.getKey().getLeft().equals(playerId) && !entry.getKey().equals(pair)
                     );

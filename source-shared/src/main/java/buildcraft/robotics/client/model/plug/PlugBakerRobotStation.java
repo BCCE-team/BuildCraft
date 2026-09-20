@@ -15,8 +15,8 @@ import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.core.Direction;
 
 /**
- * Robot stations use the same geometry in every state, but the old BuildCraft renderer changed the station texture:
- * free stations were green, reserved stations yellow and linked/main stations red.
+ * Robot stations use shared geometry while their texture encodes state: free stations are green, reserved stations
+ * are yellow, and linked/main stations are red.
  */
 public final class PlugBakerRobotStation implements IPluggableStaticBaker<KeyRobotStation> {
     private final Map<RobotStationState, ModelHolderStatic> models = new EnumMap<>(RobotStationState.class);

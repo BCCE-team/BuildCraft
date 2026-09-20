@@ -73,11 +73,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TileFiller extends TileBC_Neptune 
     implements IDebuggable, ITileForTemplateBuilder, IFillerStatementContainer, IControllable, MenuProvider {
@@ -146,9 +144,8 @@ public class TileFiller extends TileBC_Neptune
     /**
      * Tries to attach this filler to a marker or volume box next to it.
      *
-     * BC8 only checked the block in front of the machine at placement time. That is fragile in the port because the
-     * facing direction is easy to get wrong and it made the filler appear broken even when a valid marker/volume box was
-     * directly adjacent. The port now prefers the original facing-adjacent position, then falls back to every side.
+     * The facing-adjacent position has priority, then every other side is checked for a valid marker or volume box.
+     * This keeps directional placement deterministic while accepting any directly adjacent area definition.
      */
     public boolean refreshAreaFromMarkers(@Nullable LivingEntity placer) {
         if (level == null || level.isClientSide || hasBox()) {
@@ -305,9 +302,9 @@ public class TileFiller extends TileBC_Neptune
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 builder.writeToByteBuf(buffer);
                 writePayload(NET_BOX, buffer, side);
@@ -339,9 +336,9 @@ public class TileFiller extends TileBC_Neptune
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 builder.readFromByteBuf(buffer);
                 readPayload(NET_BOX, buffer, side, ctx);
@@ -378,7 +375,7 @@ public class TileFiller extends TileBC_Neptune
                 patternStatement.readFromBuffer(buffer);
             }
         }
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_CAN_EXCAVATE) {
                 canExcavate = buffer.readBoolean();
                 sendNetworkGuiUpdate(NET_CAN_EXCAVATE);
@@ -510,13 +507,11 @@ public class TileFiller extends TileBC_Neptune
 
     @Nonnull
     @Override
-    @OnlyIn(Dist.CLIENT)
     public AABB getRenderBoundingBox() {
         return BoundingBoxUtil.makeFrom(worldPosition, addon != null ? addon.volumeBox.box : box);
     }
 /*
     @Override
-    @OnlyIn(Dist.CLIENT)
     public double getMaxRenderDistanceSquared() {
         return Double.MAX_VALUE;
     }*/

@@ -45,7 +45,7 @@ public final class StringUtilBC {
     public static List<String> splitIntoLines(String string) {
         // Legacy .lang files store line breaks as the two characters "\\n",
         // while JSON translations decode "\n" into an actual newline. Support
-        // both forms so ported and newly written translations behave identically.
+        // both forms so legacy and current translations behave identically.
         String normalized = string.replace("\\n", "\n").replace("\r\n", "\n").replace('\r', '\n');
         return newLineSplitter.splitToList(normalized);
     }

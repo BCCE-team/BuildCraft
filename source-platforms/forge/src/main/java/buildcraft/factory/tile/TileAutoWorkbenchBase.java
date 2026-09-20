@@ -37,9 +37,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 
 public abstract class TileAutoWorkbenchBase extends TileBC_Neptune
     implements IHasWork, IMjRedstoneReceiver, IAutoCraft {
@@ -166,9 +166,9 @@ public abstract class TileAutoWorkbenchBase extends TileBC_Neptune
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_GUI_TICK) {
                 buffer.writeLong(powerStored);
             } else if (id == NET_GUI_DATA) {
@@ -180,9 +180,9 @@ public abstract class TileAutoWorkbenchBase extends TileBC_Neptune
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_GUI_TICK) {
                 powerStoredLast = powerStored;
                 powerStored = buffer.readLong();

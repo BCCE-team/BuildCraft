@@ -22,8 +22,8 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public abstract class PipeBehaviour implements ICapabilityProvider {
     public final IPipe pipe;
@@ -41,9 +41,9 @@ public abstract class PipeBehaviour implements ICapabilityProvider {
         return nbt;
     }
 
-    public void writePayload(FriendlyByteBuf buffer, LogicalSide side) {}
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {}
 
-    public void readPayload(FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {}
+    public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {}
 
     /** @deprecated Replaced by {@link #getTextureData(Direction)}. */
     @Deprecated

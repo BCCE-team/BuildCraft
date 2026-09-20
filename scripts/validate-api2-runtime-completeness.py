@@ -6,7 +6,9 @@ import sys
 import re
 from pathlib import Path
 
-from source_layout import ROOT, load_properties, preprocess_text, target_ids, target_layout
+from source_layout import ROOT, load_properties, preprocess_text, resolve_effective_source, target_ids, target_layout
+from source_preprocessor import strip_source_condition
+from source_lookup import resolve_source_path
 
 ERRORS: list[str] = []
 
@@ -17,7 +19,16 @@ def fail(message: str) -> None:
 
 def require(path: Path, *tokens: str) -> str:
     if not path.is_file():
-        fail(f"missing {path.relative_to(ROOT)}")
+        try:
+            path = resolve_source_path(path.relative_to(ROOT))
+        except ValueError:
+            pass
+    if not path.is_file():
+        try:
+            label = path.relative_to(ROOT)
+        except ValueError:
+            label = path
+        fail(f"missing {label}")
         return ""
     text = path.read_text(encoding="utf-8")
     for token in tokens:
@@ -29,12 +40,13 @@ def require(path: Path, *tokens: str) -> str:
 def effective_java(target: str, rel: str, props: dict[str, str]) -> str:
     layout = target_layout(target, props)
     logical = Path("src/main/java") / rel
-    path = layout.resolve(logical)
+    path = resolve_effective_source(layout, props, logical)
     if path is None:
         fail(f"{target}: missing effective {logical.as_posix()}")
         return ""
+    source, _selector = strip_source_condition(path.read_text(encoding="utf-8"))
     return preprocess_text(
-        path.read_text(encoding="utf-8"),
+        source,
         minecraft=props[f"target.{target}.deps.minecraft"],
         family=layout.family,
         platform=layout.platform,

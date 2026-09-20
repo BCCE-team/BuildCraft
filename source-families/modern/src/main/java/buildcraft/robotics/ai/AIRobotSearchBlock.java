@@ -28,10 +28,9 @@ import net.minecraft.world.phys.Vec3;
 /**
  * Searches for a matching work block and returns a path to a soft block adjacent to it.
  *
- * <p>The first robotics port used a pure reachable-air BFS and checked only blocks adjacent to every visited air node.
- * In open areas that meant the search budget was spent on the volume of air around the robot before it ever reached
- * trees a few chunks away. The original BuildCraft logic did the opposite: scan candidate blocks in an expanding area,
- * then pathfind only to real targets. This implementation keeps that behavior while using the modern soft-block checks.</p>
+ * <p>Candidate blocks are scanned in an expanding area and pathfinding runs only for matching targets.
+ * This avoids spending the search budget traversing open air before distant candidates are considered, while
+ * preserving BuildCraft's target-first search order with the current soft-block checks.</p>
  */
 public class AIRobotSearchBlock extends AIRobot {
     private static final int DEFAULT_RANGE = 96;
@@ -611,7 +610,7 @@ public class AIRobotSearchBlock extends AIRobot {
                 );
             }
 
-            // Unknown IZone implementations do not expose bounds, so keep the old 96 block safety range and filter by contains().
+            // Unknown IZone implementations do not expose bounds, so use the 96-block safety range and filter by contains().
             return new ScanBounds(
                     start.getX() - range,
                     levelMinY,

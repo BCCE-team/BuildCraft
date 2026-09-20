@@ -17,6 +17,9 @@ import buildcraft.lib.item.ICreativeTabItemProvider;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+//? if >=1.21.5 {
+import net.minecraft.world.item.component.TooltipDisplay;
+//?}
 import net.minecraft.world.level.Level;
 
 public class ItemRedstoneBoard extends Item implements ICreativeTabItemProvider {
@@ -50,16 +53,21 @@ public class ItemRedstoneBoard extends Item implements ICreativeTabItemProvider 
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
+    //? if >=1.21.5 {
+	public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display, Consumer<Component> tooltip, TooltipFlag flag) {
+    //?} else {
+	public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltipLines, TooltipFlag flag) {
+        Consumer<Component> tooltip = tooltipLines::add;
+    //?}
         BoardEntry board = BCRoboticsBoards.getBoard(stack);
         if (board != BCRoboticsBoards.EMPTY) {
             String legacyKey = board.legacyLangKey();
-            tooltip.add(Component.translatable("buildcraft." + legacyKey).withStyle(ChatFormatting.BOLD));
-            tooltip.add(Component.translatable("buildcraft." + legacyKey + ".desc").withStyle(ChatFormatting.GRAY));
+            tooltip.accept(Component.translatable("buildcraft." + legacyKey).withStyle(ChatFormatting.BOLD));
+            tooltip.accept(Component.translatable("buildcraft." + legacyKey + ".desc").withStyle(ChatFormatting.GRAY));
             if (board.isInDev()) {
-                tooltip.add(Component.translatable("tooltip.buildcraftrobotics.in_dev").withStyle(ChatFormatting.RED));
+                tooltip.accept(Component.translatable("tooltip.buildcraftrobotics.in_dev").withStyle(ChatFormatting.RED));
             }
-            tooltip.add(Component.translatable("tooltip.buildcraftrobotics.board.energy", BCRoboticsBoards.formatBoardEnergyCost(board.energyCost())).withStyle(ChatFormatting.GRAY));
+            tooltip.accept(Component.translatable("tooltip.buildcraftrobotics.board.energy", BCRoboticsBoards.formatBoardEnergyCost(board.energyCost())).withStyle(ChatFormatting.GRAY));
         }
     }
 }

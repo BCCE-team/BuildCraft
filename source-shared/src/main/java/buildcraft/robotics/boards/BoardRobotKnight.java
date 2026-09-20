@@ -19,7 +19,7 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SwordItem;
 
-/** BuildCraft 7.1.x knight board port: fetches a sword, then hunts hostile mobs and angry wolves in the work zone. */
+/** Knight board that fetches a sword, then hunts hostile mobs and angry wolves in the work zone. */
 public class BoardRobotKnight extends RedstoneBoardRobot {
     private static final float SEARCH_RANGE = 250.0F;
 

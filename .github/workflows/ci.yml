@@ -21,17 +21,41 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      - name: Set up Java for offline compatibility probes
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Validate independent Stonecutter builds
         run: python scripts/validate-stonecutter.py
 
       - name: Validate hybrid source layout
         run: python scripts/validate-source-families.py
+
+      - name: Enforce architecture budgets and trend
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          args=(
+            --json build/reports/source-architecture/architecture-hardening.json
+            --markdown build/reports/source-architecture/architecture-hardening.md
+          )
+          if [[ -n "${BASE_SHA:-}" ]]; then
+            args+=(--budget-ref "$BASE_SHA")
+          fi
+          python scripts/validate-architecture-hardening.py "${args[@]}"
+          cat build/reports/source-architecture/architecture-hardening.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate API v2 boundary
         run: python scripts/validate-api-v2.py
@@ -42,17 +66,33 @@ jobs:
       - name: Validate API2 runtime completeness
         run: python scripts/validate-api2-runtime-completeness.py
 
+      - name: Validate API2 module contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/validate-core-misc-api2.py
+          python scripts/validate-energy-api2.py
+          python scripts/validate-facades-lists-map-api2.py
+          python scripts/validate-robots-api2.py
+          python scripts/validate-schematics-api2.py
+          python scripts/validate-signals-automation-api2.py
+          python scripts/validate-statements-api2.py
+          python scripts/validate-transport-api2.py
+
       - name: Validate repository cleanliness
         run: python scripts/validate-repository-cleanliness.py
 
       - name: Validate Forge 1.20.1 port invariants
-        run: python scripts/validate-1.20.1-port.py --source-root version-src/1.20.1-forge
+        run: python scripts/validate-1.20.1-target.py --source-root version-src/1.20.1-forge
 
       - name: Validate cross-version gameplay parity
         run: python scripts/validate-behavior-parity.py
 
-      - name: Validate post-API2 gameplay and render regressions
-        run: python scripts/validate-post-api2-regressions.py
+      - name: Validate 1.21.11 parity
+        run: python scripts/validate-12111-parity.py
+
+      - name: Validate Zone Planner block preview parity
+        run: python scripts/validate-zone-planner-preview.py
 
       - name: Validate FE compatibility
         run: python scripts/validate-fe-compat.py
@@ -60,41 +100,56 @@ jobs:
       - name: Validate FE Engine and MJ Dynamo parity
         run: python scripts/validate-fe-mj-engine-parity.py
 
-      - name: Validate render and Jade follow-up regressions
-        run: python scripts/validate-render-jade-followups.py
+      - name: Validate JEI crafting layout parity
+        run: python scripts/validate-jei-crafting-layouts.py
 
-      - name: Validate P2 regression and performance guards
-        run: python scripts/validate-p2-regressions.py
-
-      - name: Validate P3 gameplay and parity guards
-        run: python scripts/validate-p3-regressions.py
-
-      - name: Validate TODO-audit P1 completion guards
-        run: python scripts/validate-todo-p1-regressions.py
-
-      - name: Validate TODO-audit P2 completion guards
-        run: python scripts/validate-todo-p2-regressions.py
-
-      - name: Validate current bug-backlog P0 regressions
-        run: python scripts/validate-bugbacklog-p0-regressions.py
-
-      - name: Validate scary P1 regressions
-        run: python scripts/validate-scary-p1-regressions.py
-
-      - name: Validate remaining P1 regressions
-        run: python scripts/validate-remaining-p1-regressions.py
-
-      - name: Validate current bug-backlog P1 regressions
-        run: python scripts/validate-bugbacklog-p1-regressions.py
-
-      - name: Validate current bug-backlog P2 regressions
-        run: python scripts/validate-bugbacklog-p2-regressions.py
-
-      - name: Validate current bug-backlog P3 regressions
-        run: python scripts/validate-bugbacklog-p3-regressions.py
+      - name: Validate gameplay, render and performance regressions
+        run: python scripts/validate-regressions.py
 
       - name: Validate guidebook runtime claims
         run: python scripts/validate-guide-runtime-claims.py
+
+      - name: Test internal Minecraft compatibility boundaries
+        run: python -m unittest discover -s scripts/tests -p test_minecraft_compat.py -v
+
+      - name: Test actor tickets and client registration boundaries
+        run: python -m unittest discover -s scripts/tests -p test_actor_client_boundaries.py -v
+
+      - name: Test loader-neutral packet boundaries
+        run: python -m unittest discover -s scripts/tests -p test_loader_boundaries.py -v
+
+      - name: Test storage, event, registry and config boundaries
+        run: python -m unittest discover -s scripts/tests -p test_platform_boundaries.py -v
+
+      - name: Test capability lifecycle invalidation and revival
+        run: python -m unittest discover -s scripts/tests -p test_capability_lifecycle.py -v
+
+      - name: Test platform contracts
+        run: python -m unittest discover -s scripts/tests -p test_platform_contracts.py -v
+
+      - name: Test pure Java gameplay algorithms
+        run: python -m unittest discover -s scripts/tests -p test_pure_logic.py -v
+
+      - name: Test pipe items, recipe book and optional client integrations
+        run: python -m unittest discover -s scripts/tests -p test_client_integrations.py -v
+
+      - name: Test GUI regressions
+        run: python -m unittest discover -s scripts/tests -p test_gui_regressions.py -v
+
+      - name: Test blueprint inventory-copy edge cases
+        run: python -m unittest discover -s scripts/tests -p test_inventory_copy_edge_cases.py -v
+
+      - name: Test Silicon recipe discovery and selection
+        run: python -m unittest discover -s scripts/tests -p test_silicon_recipe_book.py -v
+
+      - name: Test Guide Book filtering pagination and live previews
+        run: python -m unittest discover -s scripts/tests -p test_guide_book_features.py -v
+
+      - name: Test ownership persistence and ledgers
+        run: python -m unittest discover -s scripts/tests -p test_ownership_ledgers.py -v
+
+      - name: Test canonical resource pipeline
+        run: python -m unittest discover -s scripts/tests -p test_resource_pipeline.py -v
 
       - name: Validate resources, metadata and build hygiene
         run: python scripts/validate-cross-target-integrity.py
@@ -280,7 +335,7 @@ jobs:
         run: |
           set -euo pipefail
           key="target.${STONECUTTER_TARGET}.deps.${PROFILE}"
-          dependency="$(awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' builds/legacy/targets.properties)"
+          dependency="$(awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' build-config/targets.properties)"
           if [[ -n "$dependency" ]]; then
             echo "supported=true" >> "$GITHUB_OUTPUT"
           else

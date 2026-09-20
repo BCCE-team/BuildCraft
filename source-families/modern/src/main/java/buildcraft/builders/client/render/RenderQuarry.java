@@ -8,6 +8,7 @@ import org.joml.Matrix4f;
 import buildcraft.builders.BCBuildersSprites;
 import buildcraft.builders.tile.TileQuarry;
 import buildcraft.core.client.BuildCraftLaserManager;
+import buildcraft.lib.client.render.laser.LegacyLaserBlockEntityRenderer;
 import buildcraft.lib.client.render.laser.LaserBoxRenderer;
 import buildcraft.lib.client.render.laser.LaserData_BC8;
 import buildcraft.lib.client.render.laser.LaserRenderer_BC8;
@@ -22,7 +23,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-public class RenderQuarry implements BlockEntityRenderer<TileQuarry>{
+public class RenderQuarry implements BlockEntityRenderer<TileQuarry>, LegacyLaserBlockEntityRenderer<TileQuarry>{
     public static final LaserData_BC8.LaserType FRAME;
     public static final LaserData_BC8.LaserType FRAME_BOTTOM;
     public static final LaserData_BC8.LaserType DRILL;
@@ -68,6 +69,11 @@ public class RenderQuarry implements BlockEntityRenderer<TileQuarry>{
 
 	@Override
 	public void render(TileQuarry tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
+		renderLasers(tile, partialTicks, matrix, buffer, light, overlay);
+	}
+
+	@Override
+	public void renderLasers(TileQuarry tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
 		matrix.pushPose();
 		// The quarry frame texture contains one-pixel lattice lines repeated over long beams.
 		// RenderType.cutout() disables mipmapping, which makes those lines alias and shimmer when

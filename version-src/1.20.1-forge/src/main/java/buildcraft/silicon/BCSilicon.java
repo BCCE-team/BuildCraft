@@ -6,6 +6,12 @@
 
 package buildcraft.silicon;
 
+import buildcraft.lib.platform.client.PlatformClientModels;
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.lib.platform.registry.RegistryBinding;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
+import buildcraft.lib.platform.config.ConfigBinding;
 import java.util.List;
 
 import buildcraft.lib.internal.module.BCModules;
@@ -18,11 +24,9 @@ import buildcraft.silicon.plug.FacadeBlockStateInfo;
 import buildcraft.silicon.plug.FacadeInstance;
 import buildcraft.silicon.plug.FacadeStateManager;
 import buildcraft.transport.BCTransport;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.CreativeModeTab;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
@@ -40,8 +44,6 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.RegistryObject;
 
 @Mod(BCSilicon.MODID)
 public class BCSilicon {
@@ -51,9 +53,9 @@ public class BCSilicon {
     public static final CreativeTabBC tabFacades = CreativeTabManager.createTab("buildcraft.facades")
         .setRecipeFolderName("facades");
 
-    private static final DeferredRegister<CreativeModeTab> CREATIVE_TABS =
-        DeferredRegister.create(Registries.CREATIVE_MODE_TAB, "buildcraft");
-    public static final RegistryObject<CreativeModeTab> FACADES_TAB = CREATIVE_TABS.register("facades", () ->
+    private static final BCDeferredRegister<CreativeModeTab> CREATIVE_TABS =
+        BCDeferredRegister.create("minecraft:creative_mode_tab", "buildcraft");
+    public static final BCRegistryEntry<CreativeModeTab> FACADES_TAB = CREATIVE_TABS.register("facades", () ->
         CreativeModeTab.builder()
             .title(Component.translatable("itemGroup.buildcraft.facades"))
             .icon(tabFacades::makeIcon)
@@ -65,8 +67,8 @@ public class BCSilicon {
         modEventBus.addListener(BCSilicon::commonSetup);
         modEventBus.addListener(BCSilicon::postInit);
         modEventBus.addListener(BCSilicon::gatherData);
-        modEventBus.addListener(BCSiliconConfig::onLoadConfig);
-        modEventBus.addListener(BCSiliconConfig::onReloadConfig);
+        ConfigBinding.listen(modEventBus, BCSiliconConfig::onLoadConfig, BCSiliconConfig::onReloadConfig);
+
 
 
         BuildCraftApi.registry(BuildCraftRegistries.FACADE_MATERIAL_ADAPTERS).register(
@@ -75,14 +77,14 @@ public class BCSilicon {
         );
 
         BCSiliconConfig.preInit();
-        ModLoadingContext.get().registerConfig(Type.COMMON, BCSiliconConfig.config);
+        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCSiliconConfig.config));
         BCSiliconStatements.preInit();
         BCSiliconPlugs.preInit();
-        BCSiliconBlocks.registry(modEventBus);
-        BCSiliconItems.registry(modEventBus);
-        BCSiliconGuis.preInit(modEventBus);
-        BCSiliconRecipes.preInit(modEventBus);
-        CREATIVE_TABS.register(modEventBus);
+        BCSiliconBlocks.registry(RegistryBinding.on(modEventBus));
+        BCSiliconItems.registry(RegistryBinding.on(modEventBus));
+        BCSiliconGuis.preInit(RegistryBinding.on(modEventBus));
+        BCSiliconRecipes.preInit(RegistryBinding.on(modEventBus));
+        RegistryBinding.register(CREATIVE_TABS, modEventBus);
 
         BCCore.BUILDCRAFT_TAB.addItemProvider(BCSiliconItems::getMainTabItems);
         tabPlugs.addItemProvider(BCSiliconItems::getPlugTabItems);
@@ -128,26 +130,22 @@ public class BCSilicon {
 
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
-            BCSiliconClientGuis.clientInit(event);
+            PlatformClientRegistration.screens(event, BCSiliconClientGuis::clientInit);
             event.enqueueWork(() -> {
                 BCSiliconItems.registerItemProperties();
                 BCSiliconModels.init();
-                ItemBlockRenderTypes.setRenderLayer(BCSiliconBlocks.ASSEMBLY_TABLE_BLOCK.get(), RenderType.cutout());
-                ItemBlockRenderTypes.setRenderLayer(BCSiliconBlocks.ADVANCED_CRAFTING_TABLE_BLOCK.get(), RenderType.cutout());
-                ItemBlockRenderTypes.setRenderLayer(BCSiliconBlocks.INTERGRATION_TABLE_BLOCK.get(), RenderType.cutout());
-                ItemBlockRenderTypes.setRenderLayer(BCSiliconBlocks.CHARGING_TABLE_BLOCK.get(), RenderType.cutout());
-                ItemBlockRenderTypes.setRenderLayer(BCSiliconBlocks.PROGRAMMING_TABLE_BLOCK.get(), RenderType.translucent());
+                BCSiliconClientRenderers.layers(PlatformClientRegistration.layers());
             });
         }
 
         @SubscribeEvent
         public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
-            BCSiliconModels.onBlockEntityRender(event);
+            BCSiliconModels.onBlockEntityRender(PlatformClientRegistration.renderers(event));
         }
 
         @SubscribeEvent
         public static void registerItemColors(RegisterColorHandlersEvent.Item event) {
-            BCSiliconModels.registerItemColor(event);
+            BCSiliconModels.registerItemColor(PlatformClientRegistration.itemColours(event));
         }
 
         @SubscribeEvent
@@ -160,7 +158,7 @@ public class BCSilicon {
 
         @SubscribeEvent
         public static void onModelBake(ModifyBakingResult event) {
-            BCSiliconModels.onModelBake(event);
+            BCSiliconModels.onModelBake(PlatformClientModels.models(event));
         }
     }
 }

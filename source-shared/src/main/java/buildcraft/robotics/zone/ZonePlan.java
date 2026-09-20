@@ -16,6 +16,7 @@ import java.util.function.Predicate;
 import com.google.common.collect.ImmutableList;
 
 import buildcraft.lib.internal.area.IZone;
+import buildcraft.lib.logic.zone.ChunkGridMath;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.lib.net.NetworkSecurity;
 import net.minecraft.core.BlockPos;
@@ -39,8 +40,8 @@ public class ZonePlan implements IZone {
     }
 
     public boolean get(int x, int z) {
-        int xChunk = x >> 4;
-        int zChunk = z >> 4;
+        int xChunk = ChunkGridMath.chunkCoordinate(x);
+        int zChunk = ChunkGridMath.chunkCoordinate(z);
         ChunkPos chunkId = new ChunkPos(xChunk, zChunk);
         ZoneChunk property;
 
@@ -48,13 +49,13 @@ public class ZonePlan implements IZone {
             return false;
         } else {
             property = chunkMapping.get(chunkId);
-            return property.get(x & 0xF, z & 0xF);
+            return property.get(ChunkGridMath.localCoordinate(x), ChunkGridMath.localCoordinate(z));
         }
     }
 
     public void set(int x, int z, boolean val) {
-        int xChunk = x >> 4;
-        int zChunk = z >> 4;
+        int xChunk = ChunkGridMath.chunkCoordinate(x);
+        int zChunk = ChunkGridMath.chunkCoordinate(z);
         ChunkPos chunkId = new ChunkPos(xChunk, zChunk);
         ZoneChunk property;
 
@@ -69,7 +70,7 @@ public class ZonePlan implements IZone {
             property = chunkMapping.get(chunkId);
         }
 
-        property.set(x & 0xF, z & 0xF, val);
+        property.set(ChunkGridMath.localCoordinate(x), ChunkGridMath.localCoordinate(z), val);
 
         if (property.isEmpty()) {
             chunkMapping.remove(chunkId);
@@ -80,7 +81,10 @@ public class ZonePlan implements IZone {
         ImmutableList.Builder<Vec2> builder = ImmutableList.builder();
         chunkMapping.forEach((chunkPos, zoneChunk) -> {
             for (Vec2 p : zoneChunk.getAll()) {
-                builder.add(new Vec2(p.x + chunkPos.getMinBlockX(), p.y + chunkPos.getMinBlockZ()));
+                builder.add(new Vec2(
+                    p.x + ChunkGridMath.minBlock(chunkPos.x),
+                    p.y + ChunkGridMath.minBlock(chunkPos.z)
+                ));
             }
         });
         return builder.build();
@@ -156,10 +160,9 @@ public class ZonePlan implements IZone {
         double maxSqrDistance = Double.MAX_VALUE;
 
         for (Map.Entry<ChunkPos, ZoneChunk> e : chunkMapping.entrySet()) {
-            double dx = ((e.getKey().x << 4) + 8) - index.getX();
-            double dz = ((e.getKey().z << 4) + 8) - index.getZ();
-
-            double sqrDistance = dx * dx + dz * dz;
+            double sqrDistance = ChunkGridMath.squaredDistanceToChunkCenter(
+                index.getX(), index.getZ(), e.getKey().x, e.getKey().z
+            );
 
             if (sqrDistance < maxSqrDistance) {
                 maxSqrDistance = sqrDistance;
@@ -188,8 +191,8 @@ public class ZonePlan implements IZone {
         for (Map.Entry<ChunkPos, ZoneChunk> e : chunkMapping.entrySet()) {
             if (chunkId == 0) {
                 BlockPos i = e.getValue().getRandomBlockPos(rand);
-                int x = (e.getKey().x << 4) + i.getX();
-                int z = (e.getKey().z << 4) + i.getZ();
+                int x = ChunkGridMath.minBlock(e.getKey().x) + i.getX();
+                int z = ChunkGridMath.minBlock(e.getKey().z) + i.getZ();
 
                 return new BlockPos(x, i.getY(), z);
             }

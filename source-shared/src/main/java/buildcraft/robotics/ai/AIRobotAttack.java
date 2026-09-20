@@ -9,7 +9,7 @@ import buildcraft.robotics.entity.EntityRobot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 
-/** BuildCraft 7.1.x AIRobotAttack port. Moves into melee range and attacks with the equipped robot tool. */
+/** Moves into melee range and attacks with the equipped robot tool. */
 public class AIRobotAttack extends AIRobot {
     private static final int ATTACK_DELAY_TICKS = 12;
     private Entity target;

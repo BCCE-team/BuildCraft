@@ -6,6 +6,7 @@
 
 package buildcraft.core;
 
+import buildcraft.lib.platform.client.ClientAtlas;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -22,7 +23,6 @@ import buildcraft.lib.client.sprite.SpriteHolderRegistry;
 import buildcraft.lib.client.sprite.SpriteHolderRegistry.SpriteHolder;
 
 import net.minecraft.world.inventory.InventoryMenu;
-import net.minecraftforge.client.event.TextureStitchEvent;
 
 public class BCCoreSprites {
     private static final List<SpriteHolder> ALL_SPRITES = new ArrayList<>();
@@ -155,7 +155,7 @@ public class BCCoreSprites {
      * CarbonConfig can trigger a resource reload early enough for that ordering bug to
      * leave every core laser sprite out of the block atlas.
      */
-    public static void onTextureStitchPre(TextureStitchEvent.Pre event) {
+    public static void onTextureStitchPre(ClientAtlas.Before event) {
         if (!InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
             return;
         }

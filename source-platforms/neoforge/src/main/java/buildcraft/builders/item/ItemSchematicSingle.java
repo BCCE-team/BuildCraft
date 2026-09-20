@@ -6,6 +6,7 @@ package buildcraft.builders.item;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -34,6 +35,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+//? if >=1.21.5 {
+import net.minecraft.world.item.component.TooltipDisplay;
+//?}
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
@@ -154,7 +158,7 @@ public class ItemSchematicSingle extends Item {
                                         )
                                     );
                                 }
-                                fillDeferredInventory(schematicBlock, world, placePos, itemTransactor, player.isCreative());
+                                fillDeferredInventory(schematicBlock, world, placePos, itemTransactor, player);
                                 SoundUtil.playBlockPlace(world, placePos);
                                 player.swing(context.getHand());
                                 return InteractionResult.SUCCESS;
@@ -191,8 +195,9 @@ public class ItemSchematicSingle extends Item {
         Level world,
         BlockPos blockPos,
         InventoryWrapper playerInventory,
-        boolean creative
+        Player player
     ) {
+        boolean creative = player.isCreative();
         List<ItemStack> missingItems = schematicBlock.computeMissingDeferredRequiredItems(world, blockPos);
         for (ItemStack missing : missingItems) {
             ItemStack stillNeeded = missing.copy();
@@ -225,7 +230,12 @@ public class ItemSchematicSingle extends Item {
                 ItemStack overflow = schematicBlock.insertDeferredItem(world, blockPos, supplied, false);
                 int inserted = supplied.getCount() - overflow.getCount();
                 if (!overflow.isEmpty() && !creative) {
-                    playerInventory.insert(overflow, false, false);
+                    ItemStack refundRemainder = playerInventory.insert(overflow, false, false);
+                    if (!refundRemainder.isEmpty()) {
+                        // A nonstandard handler may accept less than it advertised during simulation. If the
+                        // player's inventory filled in the meantime, drop the exact remainder instead of deleting it.
+                        player.drop(refundRemainder, false);
+                    }
                 }
                 if (inserted <= 0) {
                     break;
@@ -262,33 +272,38 @@ public class ItemSchematicSingle extends Item {
     }
 
     @Override
-    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
+    //? if >=1.21.5 {
+	public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display, Consumer<Component> tooltip, TooltipFlag flag) {
+    //?} else {
+	public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltipLines, TooltipFlag flag) {
+        Consumer<Component> tooltip = tooltipLines::add;
+    //?}
         Level world = context.level();
         if (!isUsed(stack)) {
-            tooltip.add(Component.translatable("item.buildcraftbuilders.schematic_single.blank").withStyle(ChatFormatting.GRAY));
-            tooltip.add(Component.translatable("item.buildcraftbuilders.schematic_single.blank_hint").withStyle(ChatFormatting.DARK_GRAY));
+            tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.blank").withStyle(ChatFormatting.GRAY));
+            tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.blank_hint").withStyle(ChatFormatting.DARK_GRAY));
             return;
         }
         ISchematicBlock schematic = getSchematicSafe(stack);
         if (schematic == null) {
-            tooltip.add(Component.translatable("item.buildcraftbuilders.schematic_single.invalid").withStyle(ChatFormatting.RED));
+            tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.invalid").withStyle(ChatFormatting.RED));
             return;
         }
-        tooltip.add(Component.translatable("item.buildcraftbuilders.schematic_single.used").withStyle(ChatFormatting.GRAY));
+        tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.used").withStyle(ChatFormatting.GRAY));
         if (world != null) {
             try {
                 List<ItemStack> items = StackUtil.mergeSameItems(schematic.computeRequiredItems(world));
                 if (!items.isEmpty()) {
-                    tooltip.add(Component.translatable(
+                    tooltip.accept(Component.translatable(
                         "item.buildcraftbuilders.schematic_single.contains",
                         formatItemList(items)
                     ).withStyle(ChatFormatting.DARK_GRAY));
                 }
             } catch (RuntimeException ignored) {
-                tooltip.add(Component.translatable("item.buildcraftbuilders.schematic_single.invalid").withStyle(ChatFormatting.RED));
+                tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.invalid").withStyle(ChatFormatting.RED));
             }
         }
-        tooltip.add(Component.translatable("item.buildcraftbuilders.schematic_single.clear_hint").withStyle(ChatFormatting.DARK_GRAY));
+        tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.clear_hint").withStyle(ChatFormatting.DARK_GRAY));
     }
 
     public static boolean isUsed(@Nonnull ItemStack stack) {

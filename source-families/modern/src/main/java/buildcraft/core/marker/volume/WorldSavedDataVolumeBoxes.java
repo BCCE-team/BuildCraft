@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -96,7 +97,6 @@ public class WorldSavedDataVolumeBoxes extends SavedData {
         }
     }
 
-    @Override
     public void setDirty() {
         super.setDirty();
         if (!(world instanceof ServerLevel serverLevel)) {
@@ -132,7 +132,6 @@ public class WorldSavedDataVolumeBoxes extends SavedData {
         lastPlayerCount = playerCount;
     }
 
-    @Override
     public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         nbt.put("volumeBoxes", NBTUtilBC.writeObjectList(volumeBoxes.stream().map(VolumeBox::writeToNBT)));
         return nbt;
@@ -142,12 +141,6 @@ public class WorldSavedDataVolumeBoxes extends SavedData {
         if (!(world instanceof ServerLevel serverLevel)) {
             throw new IllegalArgumentException("Tried to access volume-box saved data on the client");
         }
-        DimensionDataStorage storage = serverLevel.getDataStorage();
-        SavedData.Factory<WorldSavedDataVolumeBoxes> factory = new SavedData.Factory<>(
-            () -> new WorldSavedDataVolumeBoxes(world),
-            (nbt, registries) -> new WorldSavedDataVolumeBoxes(world, nbt),
-            DataFixTypes.LEVEL
-        );
-        return storage.computeIfAbsent(factory, DATA_NAME);
+        return new WorldSavedDataVolumeBoxes(world);
     }
 }

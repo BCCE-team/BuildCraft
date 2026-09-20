@@ -22,7 +22,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.FriendlyByteBuf;
 import io.netty.handler.codec.DecoderException;
 import net.minecraft.world.item.DyeColor;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class MessageMultiPipeItem {
 
@@ -131,7 +131,7 @@ public class MessageMultiPipeItem {
         }
     }
 
-    public static final BiConsumer<MessageMultiPipeItem, Supplier<IPayloadContext>> HANDLER = (message, ctx) -> {
+    public static final BiConsumer<MessageMultiPipeItem, Supplier<BCPacketContext>> HANDLER = (message, ctx) -> {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ClientAccess.handle(message, ctx);
         }
@@ -139,7 +139,7 @@ public class MessageMultiPipeItem {
 
     @OnlyIn(Dist.CLIENT)
     private static final class ClientAccess {
-        private static void handle(MessageMultiPipeItem message, Supplier<IPayloadContext> ctx) {
+        private static void handle(MessageMultiPipeItem message, Supplier<BCPacketContext> ctx) {
             MessageMultiPipeItemClientHandler.handle(message, ctx);
         }
     }

@@ -6,14 +6,15 @@
 
 package buildcraft.lib.misc;
 
+import buildcraft.lib.platform.storage.StorageAdapters;
+import buildcraft.lib.platform.storage.FilteredFluidStorage;
+import buildcraft.lib.platform.storage.FluidStorage;
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.annotation.Nullable;
 
 import buildcraft.lib.internal.debug.BCLog;
-import buildcraft.lib.internal.core.IFluidFilter;
-import buildcraft.lib.internal.core.IFluidHandlerAdv;
 import buildcraft.compat.CompatCapTransfromer;
 import buildcraft.core.BCCoreItems;
 import buildcraft.core.item.ItemFragileFluidContainer;
@@ -49,28 +50,28 @@ public class FluidUtilBC {
             if (target == null) {
                 continue;
             }
-            IFluidHandler handler = CompatCapTransfromer.INSTANCE
+            FluidStorage<FluidStack> handler = StorageAdapters.fromNativeFluids(CompatCapTransfromer.INSTANCE
                 .getCap(target, CapUtil.CAP_FLUIDS, side.getOpposite())
-                .orElse(null);
+                .orElse(null));
             if (handler == null) {
                 continue;
             }
 
             int accepted = Math.min(available.getAmount(), Math.max(0,
-                handler.fill(available.copy(), FluidAction.SIMULATE)));
+                handler.fill(available.copy(), true)));
             if (accepted <= 0) {
                 continue;
             }
 
-            // Drain the source before filling the destination. The old order could create fluid when the source
-            // changed between simulation and execution.
+            // Drain the source before filling the destination so a handler change between simulation and execution
+            // cannot create fluid.
             FluidStack drained = tank.drainInternal(available.copyWithAmount(accepted), FluidAction.EXECUTE);
             if (drained.isEmpty() || drained.getAmount() <= 0) {
                 continue;
             }
 
             int actuallyAccepted = Math.min(drained.getAmount(), Math.max(0,
-                handler.fill(drained.copy(), FluidAction.EXECUTE)));
+                handler.fill(drained.copy(), false)));
             if (actuallyAccepted < drained.getAmount()) {
                 FluidStack remainder = drained.copyWithAmount(drained.getAmount() - actuallyAccepted);
                 int restored = tank.fillInternal(remainder, FluidAction.EXECUTE);
@@ -120,49 +121,53 @@ public class FluidUtilBC {
      * @return The fluidstack that was moved, or null if no fluid was moved. */
     @Nullable
     public static FluidStack move(IFluidHandler from, IFluidHandler to, int max) {
+        return moveStorage(StorageAdapters.fromNativeFluids(from), StorageAdapters.fromNativeFluids(to), max);
+    }
+
+    public static FluidStack moveStorage(FluidStorage<FluidStack> from, FluidStorage<FluidStack> to, int max) {
         if (from == null || to == null || max <= 0) {
             return FluidStack.EMPTY;
         }
 
         FluidStack potential;
-        if (from instanceof IFluidHandlerAdv) {
-            IFluidFilter filter = fluid -> to.fill(fluid, FluidAction.SIMULATE) > 0;
-            potential = ((IFluidHandlerAdv) from).drain(filter, max, FluidAction.SIMULATE);
+        if (from instanceof FilteredFluidStorage<FluidStack>) {
+            java.util.function.Predicate<FluidStack> filter = fluid -> to.fill(fluid, true) > 0;
+            potential = ((FilteredFluidStorage<FluidStack>) from).drain(filter, max, true);
         } else {
-            potential = from.drain(max, FluidAction.SIMULATE);
+            potential = from.drain(max, true);
         }
         if (potential.isEmpty() || potential.getAmount() <= 0) {
             return FluidStack.EMPTY;
         }
 
         int accepted = Math.min(potential.getAmount(), Math.max(0,
-            to.fill(potential.copy(), FluidAction.SIMULATE)));
+            to.fill(potential.copy(), true)));
         if (accepted <= 0) {
             return FluidStack.EMPTY;
         }
 
         FluidStack requested = potential.copyWithAmount(accepted);
-        FluidStack stillAvailable = from.drain(requested.copy(), FluidAction.SIMULATE);
+        FluidStack stillAvailable = from.drain(requested.copy(), true);
         if (!sameFluidAndAmount(requested, stillAvailable)) {
             return FluidStack.EMPTY;
         }
 
-        // Source-first execution removes the old fill-before-drain duplication path. If the destination accepts less
+        // Source-first execution keeps the transfer conservative. If the destination accepts less
         // than it simulated, return the remainder to the source.
-        FluidStack drained = from.drain(requested.copy(), FluidAction.EXECUTE);
+        FluidStack drained = from.drain(requested.copy(), false);
         if (drained.isEmpty() || drained.getAmount() <= 0) {
             return FluidStack.EMPTY;
         }
         if (!FluidCompatRegistry.areEquivalent(requested, drained)) {
-            restoreFluid(from, drained, "source returned a different fluid");
+            restoreFluid(StorageAdapters.toNativeFluids(from), drained, "source returned a different fluid");
             return FluidStack.EMPTY;
         }
 
         int actuallyAccepted;
         try {
-            actuallyAccepted = to.fill(drained.copy(), FluidAction.EXECUTE);
+            actuallyAccepted = to.fill(drained.copy(), false);
         } catch (RuntimeException exception) {
-            restoreFluid(from, drained, "destination threw while accepting fluid");
+            restoreFluid(StorageAdapters.toNativeFluids(from), drained, "destination threw while accepting fluid");
             BCLog.logger.warn("A destination fluid handler threw while BuildCraft was moving fluid", exception);
             return FluidStack.EMPTY;
         }
@@ -170,7 +175,7 @@ public class FluidUtilBC {
 
         if (actuallyAccepted < drained.getAmount()) {
             FluidStack remainder = drained.copyWithAmount(drained.getAmount() - actuallyAccepted);
-            restoreFluid(from, remainder, "destination accepted less than it simulated");
+            restoreFluid(StorageAdapters.toNativeFluids(from), remainder, "destination accepted less than it simulated");
         }
         return actuallyAccepted <= 0 ? FluidStack.EMPTY : drained.copyWithAmount(actuallyAccepted);
     }
@@ -262,12 +267,12 @@ public class FluidUtilBC {
             player.containerMenu.broadcastFullState();
         }
     }
-    
+
     public static ItemStack getFragileFluid(FluidStack fluid) {
     //	if(fluid.isEmpty())
  //   		return ItemStack.EMPTY;
-    	ItemStack item = new ItemStack(BCCoreItems.FRAGILE_FLUID_SHARD.get());
-    	ItemFragileFluidContainer.setFluid(item, fluid);
-    	return item;
+        ItemStack item = new ItemStack(BCCoreItems.FRAGILE_FLUID_SHARD.get());
+        ItemFragileFluidContainer.setFluid(item, fluid);
+        return item;
     }
 }

@@ -6,6 +6,8 @@
 
 package buildcraft.silicon.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
 
 import java.io.IOException;
@@ -39,9 +41,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TileAdvancedCraftingTable extends TileLaserTableBase implements IAutoCraft, MenuProvider, IMjRedstoneReceiver {
     private static final long POWER_REQ = 500 * MjAmount.MICRO_MJ_PER_MJ;
@@ -65,14 +67,16 @@ public class TileAdvancedCraftingTable extends TileLaserTableBase implements IAu
     }
 
     @Override
-    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+    protected void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.writeData(bcData);
         crafting.writeSelection(nbt);
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
+    protected void readData(BCValueInput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.readData(bcData);
         crafting.readSelection(nbt);
     }
 
@@ -113,9 +117,9 @@ public class TileAdvancedCraftingTable extends TileLaserTableBase implements IAu
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_GUI_DATA) {
                 recipeSelectionIndexClient = buffer.readInt();
                 recipeSelectionCountClient = buffer.readInt();
@@ -124,9 +128,9 @@ public class TileAdvancedCraftingTable extends TileLaserTableBase implements IAu
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_GUI_DATA) {
                 resultClient.setStackInSlot(0, crafting.getAssumedResult());
                 buffer.writeInt(crafting.getSelectedRecipeIndex());

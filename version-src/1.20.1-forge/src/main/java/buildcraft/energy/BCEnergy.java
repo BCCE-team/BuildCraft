@@ -1,5 +1,10 @@
 package buildcraft.energy;
 
+import buildcraft.lib.platform.events.PlatformEvents;
+import buildcraft.lib.platform.events.BCEvents;
+import buildcraft.lib.platform.registry.RegistryBinding;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
+import buildcraft.lib.platform.config.ConfigBinding;
 import buildcraft.core.BCCore;
 import buildcraft.energy.tile.TileSpringOil;
 import buildcraft.lib.misc.AdvancementUtil;
@@ -14,9 +19,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.data.event.GatherDataEvent;
-import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -25,8 +28,6 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig.Type;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
 
 @Mod(BCEnergy.MODID)
 public class BCEnergy {
@@ -37,29 +38,29 @@ public class BCEnergy {
     private static final int OIL_SPOT_CHECK_RADIUS_XZ = 12;
     private static final int OIL_SPOT_CHECK_RADIUS_Y = 8;
 
-    public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, MODID);
-    public static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(ForgeRegistries.MENU_TYPES, MODID);
+    public static final BCDeferredRegister<Item> ITEMS = BCDeferredRegister.create("minecraft:item", MODID);
+    public static final BCDeferredRegister<MenuType<?>> MENUS = BCDeferredRegister.create("minecraft:menu", MODID);
 
     public BCEnergy() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::commonSetup);
-        modEventBus.addListener(BCEnergyConfig::onLoadConfig);
-        modEventBus.addListener(BCEnergyConfig::onReloadConfig);
+        ConfigBinding.listen(modEventBus, BCEnergyConfig::onLoadConfig, BCEnergyConfig::onReloadConfig);
+
         modEventBus.addListener(this::gatherData);
 
         BCEnergyFluids.registry(modEventBus);
-        BCEnergyBlocks.init(modEventBus);
+        BCEnergyBlocks.init(RegistryBinding.on(modEventBus));
         BCEnergyGuis.init();
-        BCEnergyWorldGen.preInit(modEventBus);
+        BCEnergyWorldGen.preInit(RegistryBinding.on(modEventBus));
         BCEnergyConfig.preInit();
 
         BCCore.BUILDCRAFT_TAB.addItemProvider(BCEnergyBlocks::getCreativeTabItems);
         BCCore.tabFluids.addItemProvider(BCEnergyFluids::getCreativeTabItems);
 
-        ModLoadingContext.get().registerConfig(Type.COMMON, BCEnergyConfig.config);
-        ITEMS.register(modEventBus);
-        MENUS.register(modEventBus);
-        MinecraftForge.EVENT_BUS.register(this);
+        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCEnergyConfig.config));
+        RegistryBinding.register(ITEMS, modEventBus);
+        RegistryBinding.register(MENUS, modEventBus);
+        registerGameplayEvents();
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -77,12 +78,12 @@ public class BCEnergy {
         event.getGenerator().addProvider(event.includeClient(), new BCEnergyProvider.ItemModel(output, event.getExistingFileHelper()));
     }
 
-    @SubscribeEvent
-    public void onPlayerTick(TickEvent.PlayerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || event.player.level().isClientSide) {
+
+    public void onPlayerTick(BCEvents.PlayerTick event) {
+        if (event.phase() != BCEvents.Phase.END || event.player().level().isClientSide) {
             return;
         }
-        if (!(event.player instanceof ServerPlayer player)) {
+        if (!(event.player() instanceof ServerPlayer player)) {
             return;
         }
         if (player.tickCount % OIL_SPOT_CHECK_INTERVAL != 0) {
@@ -137,5 +138,11 @@ public class BCEnergy {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
+    }
+    private boolean gameplayEventsRegistered;
+    public synchronized void registerGameplayEvents() {
+        if (gameplayEventsRegistered) return;
+        gameplayEventsRegistered = true;
+        PlatformEvents.playerTick(BCEvents.Phase.END, this::onPlayerTick);
     }
 }

@@ -4,6 +4,7 @@
  */
 package buildcraft.compat.jade;
 
+import buildcraft.lib.platform.registry.BCRegistryEntry;
 import javax.annotation.Nullable;
 
 import buildcraft.api.v2.energy.MjAmount;
@@ -70,7 +71,6 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.neoforged.neoforge.registries.DeferredHolder;
 import snownee.jade.api.Accessor;
 import snownee.jade.api.BlockAccessor;
 import snownee.jade.api.EntityAccessor;
@@ -154,7 +154,7 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         registration.registerProgressClient(ProgressProvider.INSTANCE);
 
         registration.usePickedResult(BCCoreBlocks.ENGINE_BC8.get());
-        for (DeferredHolder<Block, LiquidBlock> block : BCEnergyFluids.OIL_BLOCK) {
+        for (BCRegistryEntry<LiquidBlock> block : BCEnergyFluids.OIL_BLOCK) {
             try {
                 registration.usePickedResult(block.get());
             } catch (IllegalStateException ignored) {

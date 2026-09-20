@@ -15,7 +15,7 @@ final class RobotBoardUtil {
      *
      * <p>This is used when a board finds an item that it cannot use. Keeping that item equipped can otherwise make the
      * board repeatedly fail its work search forever, while replacing it through setItemInUse would silently delete the
-     * old stack.</p>
+     * held stack.</p>
      */
     static boolean dropHeldItem(EntityRobotBase robot) {
         if (robot == null) {

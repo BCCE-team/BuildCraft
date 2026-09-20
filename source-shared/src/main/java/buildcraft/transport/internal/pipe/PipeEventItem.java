@@ -1,7 +1,6 @@
 package buildcraft.transport.internal.pipe;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -12,6 +11,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
+import buildcraft.lib.logic.routing.PriorityGroups;
 
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -28,7 +29,7 @@ public abstract class PipeEventItem extends PipeEvent {
         this.flow = flow;
     }
 
-    /** @deprecated Because cancellation is going to be removed (at some point in the future) */
+    /** @deprecated Cancellation is not part of the stable pipe-event contract. */
     @Deprecated
     protected PipeEventItem(boolean canBeCancelled, IPipeHolder holder, IFlowItems flow) {
         super(canBeCancelled, holder);
@@ -255,48 +256,19 @@ public abstract class PipeEventItem extends PipeEvent {
         }
 
         public List<EnumSet<Direction>> getOrder() {
-            // Skip the calculations if the size is simple
-            switch (allowed.size()) {
-                case 0:
-                    return ImmutableList.of();
-                case 1:
-                    return ImmutableList.of(allowed);
-                default:
+            boolean[] allowedSides = new boolean[Direction.values().length];
+            for (Direction face : allowed) {
+                allowedSides[face.ordinal()] = true;
             }
-            priority_search: {
-                int val = priority[0];
-                for (int i = 1; i < priority.length; i++) {
-                    if (priority[i] != val) {
-                        break priority_search;
-                    }
+            List<EnumSet<Direction>> result = new ArrayList<>();
+            for (int[] group : PriorityGroups.group(priority, allowedSides)) {
+                EnumSet<Direction> faces = EnumSet.noneOf(Direction.class);
+                for (int ordinal : group) {
+                    faces.add(Direction.values()[ordinal]);
                 }
-                // No need to work out the order when all destinations have the same priority
-                return ImmutableList.of(allowed);
+                result.add(faces);
             }
-
-            int[] ordered = Arrays.copyOf(priority, 6);
-            Arrays.sort(ordered);
-            int last = 0;
-            List<EnumSet<Direction>> list = Lists.newArrayList();
-            for (int i = 0; i < 6; i++) {
-                int current = ordered[i];
-                if (i != 0 && current == last) {
-                    continue;
-                }
-                last = current;
-                EnumSet<Direction> set = EnumSet.noneOf(Direction.class);
-                for (Direction face : Direction.values()) {
-                    if (allowed.contains(face)) {
-                        if (priority[face.ordinal()] == current) {
-                            set.add(face);
-                        }
-                    }
-                }
-                if (set.size() > 0) {
-                    list.add(set);
-                }
-            }
-            return list;
+            return List.copyOf(result);
         }
     }
 

@@ -16,6 +16,8 @@ import buildcraft.lib.internal.mj.IMjRedstoneReceiver;
 import buildcraft.lib.internal.mj.MjCapabilityHelper;
 import buildcraft.lib.tile.item.ItemHandlerManager;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
+import buildcraft.lib.platform.storage.EnergyStorage;
+import buildcraft.lib.platform.storage.PlatformStorage;
 import buildcraft.silicon.BCSiliconBlocks;
 import buildcraft.silicon.container.ContainerChargingTable;
 import net.minecraft.core.BlockPos;
@@ -31,9 +33,7 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.network.NetworkHooks;
 
 public class TileChargingTable extends TileLaserTableBase implements MenuProvider, IMjRedstoneReceiver {
@@ -51,18 +51,16 @@ public class TileChargingTable extends TileLaserTableBase implements MenuProvide
         if (stack.isEmpty()) {
             return true;
         }
-        return stack.getCapability(ForgeCapabilities.ENERGY)
-            .map(energy -> energy.canReceive() && energy.getMaxEnergyStored() > 0)
-            .orElse(false);
+        EnergyStorage energy = PlatformStorage.energy(stack);
+        return energy != null && energy.canReceive() && energy.getMaxEnergyStored() > 0;
     }
 
     private static int getEnergyRequested(ItemStack stack) {
         if (stack.isEmpty()) {
             return 0;
         }
-        return stack.getCapability(ForgeCapabilities.ENERGY)
-            .map(energy -> Math.max(0, energy.getMaxEnergyStored() - energy.getEnergyStored()))
-            .orElse(0);
+        EnergyStorage energy = PlatformStorage.energy(stack);
+        return energy == null ? 0 : Math.max(0, energy.getMaxEnergyStored() - energy.getEnergyStored());
     }
 
     @Override
@@ -83,10 +81,11 @@ public class TileChargingTable extends TileLaserTableBase implements MenuProvide
             return;
         }
 
-        stack.getCapability(ForgeCapabilities.ENERGY).ifPresent(energy -> chargeItem(stack, energy));
+        EnergyStorage energy = PlatformStorage.energy(stack);
+        if (energy != null) chargeItem(stack, energy);
     }
 
-    private void chargeItem(ItemStack stack, IEnergyStorage energy) {
+    private void chargeItem(ItemStack stack, EnergyStorage energy) {
         if (!energy.canReceive()) {
             return;
         }

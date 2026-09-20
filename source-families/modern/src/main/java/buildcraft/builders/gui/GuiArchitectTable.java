@@ -26,7 +26,7 @@ import buildcraft.lib.gui.help.GuiHelpUtil;
 public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
 	private static final ResourceLocation TEXTURE_BASE = ResourceLocation.parse(
 			"buildcraftbuilders:textures/gui/architect.png");
-	private static final int SIZE_X = 256, SIZE_Y = 166;
+	private static final int SIZE_X = ContainerArchitectTable.GUI_WIDTH, SIZE_Y = ContainerArchitectTable.GUI_HEIGHT;
 	private static final GuiIcon ICON_GUI = new GuiIcon(TEXTURE_BASE, 0, 0, SIZE_X, SIZE_Y);
 	private static final GuiIcon ICON_PROGRESS = new GuiIcon(TEXTURE_BASE, 0, 166, 24, 17);
 	private static final GuiRectangle RECT_PROGRESS = new GuiRectangle(159, 34, 24, 17);
@@ -67,9 +67,15 @@ public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
 
 	@Override
 	public void init() {
+		// Screen.resize() rebuilds the widget tree after a window-size or GUI-scale change.
+		// Preserve the live edit draft and focus instead of snapping back to the last tile update.
+		String currentName = nameField == null ? container.tile.name : nameField.getValue();
+		boolean focusName = nameField == null || nameField.isFocused();
+
 		super.init();
 		nameField = new EditBox(font, leftPos + NAME_X, topPos + NAME_Y, NAME_W, NAME_H, Component.empty());
-		nameField.setValue(container.tile.name);
+		nameField.setMaxLength(ContainerArchitectTable.MAX_BLUEPRINT_NAME_LENGTH);
+		nameField.setValue(currentName);
 		nameField.setResponder((s) -> container.sendNameToServer(s.trim()));
 		
 		int p = container.setting.get();
@@ -111,7 +117,9 @@ public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
                             sendSettingsToServer();
 						}));
 		this.addWidget(nameField);
-		setInitialFocus(nameField);
+		if (focusName) {
+			setInitialFocus(nameField);
+		}
 	}
 
     private boolean canUseCreativeSetting() {

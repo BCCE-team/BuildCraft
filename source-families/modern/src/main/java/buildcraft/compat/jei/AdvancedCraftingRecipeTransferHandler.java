@@ -8,7 +8,11 @@ import buildcraft.silicon.BCSiliconGuis;
 import buildcraft.silicon.container.ContainerAdvancedCraftingTable;
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
+//? if >=1.21.11 {
+/*import mezz.jei.api.recipe.types.IRecipeType;*/
+//? } else {
 import mezz.jei.api.recipe.RecipeType;
+//? }
 import mezz.jei.api.recipe.transfer.IRecipeTransferError;
 import mezz.jei.api.recipe.transfer.IRecipeTransferHandler;
 import net.minecraft.world.entity.player.Player;
@@ -29,7 +33,11 @@ final class AdvancedCraftingRecipeTransferHandler
     }
 
     @Override
+    //? if >=1.21.11 {
+    /*public IRecipeType<RecipeHolder<CraftingRecipe>> getRecipeType() {*/
+    //? } else {
     public RecipeType<RecipeHolder<CraftingRecipe>> getRecipeType() {
+    //? }
         return RecipeTypes.CRAFTING;
     }
 

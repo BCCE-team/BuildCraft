@@ -1,50 +1,47 @@
+//? source if >=1.21.1
 package buildcraft.lib.gui.recipe;
 
-import java.lang.reflect.Field;
 import java.util.List;
 
-import net.minecraft.client.gui.screens.recipebook.RecipeBookPage;
-import net.minecraft.client.gui.screens.recipebook.RecipeButton;
-import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
 
-public class RecipeBookPagePhantom extends RecipeBookPage {
+/** Pagination state for the 1.21.11 phantom crafting recipe panel. */
+public final class RecipeBookPagePhantom {
+    public static final int ENTRIES_PER_PAGE = 20;
 
-    public final GuiRecipeBookPhantom gui;
+    private List<RecipeDisplayEntry> entries = List.of();
+    private int page;
 
-    public RecipeBookPagePhantom(GuiRecipeBookPhantom gui) throws ReflectiveOperationException {
-        super();
-        this.gui = gui;
-
-        for (Field fld : RecipeBookPage.class.getDeclaredFields()) {
-            if (fld.getType() == List.class) {
-                fld.setAccessible(true);
-                List list = (List) fld.get(this);
-                if (list == null || list.isEmpty()) {
-                    continue;
-                }
-                Object first = list.get(0);
-                if (first.getClass() == RecipeButton.class) {
-                    for (int i = 0; i < list.size(); i++) {
-                        list.set(i, new GuiButtonRecipePhantom());
-                    }
-                }
-            }
-        }
+    public void setEntries(List<RecipeDisplayEntry> entries) {
+        this.entries = List.copyOf(entries);
+        page = Math.min(page, Math.max(0, pageCount() - 1));
     }
-    
 
-
-	@Override
-    public boolean mouseClicked(double mouseX, double mouseY, int mouseButton, int p_194196_4_, int p_194196_5_,
-        int p_194196_6_, int p_194196_7_) {
-        if (super.mouseClicked(mouseX, mouseY, mouseButton, p_194196_4_, p_194196_5_, p_194196_6_, p_194196_7_)) {
-            RecipeHolder<?> recipe = getLastClickedRecipe();
-            if (recipe != null && recipe.value() instanceof CraftingRecipe craftingRecipe) {
-                gui.recipeSetter.accept(craftingRecipe);
-            }
-            return true;
+    public List<RecipeDisplayEntry> visibleEntries() {
+        int start = page * ENTRIES_PER_PAGE;
+        if (start >= entries.size()) {
+            return List.of();
         }
-        return false;
+        return entries.subList(start, Math.min(entries.size(), start + ENTRIES_PER_PAGE));
+    }
+
+    public int page() {
+        return page;
+    }
+
+    public int pageCount() {
+        return Math.max(1, (entries.size() + ENTRIES_PER_PAGE - 1) / ENTRIES_PER_PAGE);
+    }
+
+    public boolean previous() {
+        if (page <= 0) return false;
+        page--;
+        return true;
+    }
+
+    public boolean next() {
+        if (page + 1 >= pageCount()) return false;
+        page++;
+        return true;
     }
 }

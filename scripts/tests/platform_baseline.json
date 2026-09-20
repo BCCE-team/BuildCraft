@@ -1,0 +1,987 @@
+{
+  "description": "Platform contract fingerprints with native config type/event vocabulary normalized; defaults and registration names remain exact.",
+  "targets": {
+    "1.19.2-forge": {
+      "config": {
+        "core/BCCoreConfig": "0bc3ffcdf63c92bfb1ad909353ef37c1a4dc17a776f42dc0537c40900d859b5e",
+        "builders/BCBuildersConfig": "27d100a8bf815519e2ce7856fb913b1404ad30a2d599f903136fec06d7685a92",
+        "energy/BCEnergyConfig": "14facc3a6cfe399fd1fc93a65cb18b270e110167783b053fbd5ef1556170e221",
+        "silicon/BCSiliconConfig": "6959ca9c8a139d4518dae08fa961b41274c2d4f7bb06f71e154b3b68860fc37c",
+        "transport/BCTransportConfig": "99f4448a6aaa0150a3e4ccd5e45afc7585e722071551e2ba90ebc5871dd8006d"
+      },
+      "catalog": {
+        "factory/BCFactoryBlocks.java": [
+          "BLOCKS:\"pump\"",
+          "BLOCKS:\"tank\"",
+          "BLOCKS:\"chute\"",
+          "BLOCKS:\"flood_gate\"",
+          "BLOCKS:\"tube\"",
+          "BLOCKS:\"mining_well\"",
+          "BLOCKS:\"distiller\"",
+          "BLOCKS:\"heat_exchange\"",
+          "BLOCKS:\"water_gel\"",
+          "BLOCKS:\"autoworkbench_item\"",
+          "BLOCK_ENTITYS:\"entity_tank\"",
+          "BLOCK_ENTITYS:\"entity_pump\"",
+          "BLOCK_ENTITYS:\"entity_flood_gate\"",
+          "BLOCK_ENTITYS:\"entity_mining_well\"",
+          "BLOCK_ENTITYS:\"entity_distiller\"",
+          "BLOCK_ENTITYS:\"entity_heat_exchange\"",
+          "BLOCK_ENTITYS:\"entity_autoworkbench_item\"",
+          "BLOCK_ENTITYS:\"entity_chute\""
+        ],
+        "factory/BCFactoryItems.java": [
+          "ITEMS:\"pump\"",
+          "ITEMS:\"tank\"",
+          "ITEMS:\"chute\"",
+          "ITEMS:\"flood_gate\"",
+          "ITEMS:\"mining_well\"",
+          "ITEMS:\"distiller\"",
+          "ITEMS:\"heat_exchange\"",
+          "ITEMS:\"autoworkbench_item\"",
+          "ITEMS:\"water_gel\"",
+          "ITEMS:\"gel\""
+        ],
+        "factory/BCFactoryGuis.java": [
+          "MENUS:\"menu.autoworkbench_item\"",
+          "MENUS:\"menu.heat_exchange\"",
+          "MENUS:\"menu.chute\"",
+          "MENUS:\"menu.tank\""
+        ],
+        "energy/BCEnergyBiomeModifiers.java": [
+          "SERIALIZERS:\"oil_feature_injection\""
+        ],
+        "energy/BCEnergyBlocks.java": [
+          "BCEnergy.ITEMS:\"engine_stone\"",
+          "BCEnergy.ITEMS:\"engine_iron\"",
+          "BCEnergy.ITEMS:\"engine_fe\"",
+          "BLOCKS:\"mj_dynamo\"",
+          "BCEnergy.ITEMS:\"mj_dynamo\"",
+          "BLOCK_ENTITYS:\"entity_stone_engine\"",
+          "BLOCK_ENTITYS:\"entity_iron_engine\"",
+          "BLOCK_ENTITYS:\"entity_fe_engine\"",
+          "BLOCK_ENTITYS:\"entity_mj_dynamo\"",
+          "BLOCK_ENTITYS:\"entity_spring\""
+        ],
+        "energy/BCEnergyGuis.java": [
+          "BCEnergy.MENUS:\"engine_stone_menu\"",
+          "BCEnergy.MENUS:\"engine_iron_menu\"",
+          "BCEnergy.MENUS:\"engine_fe_menu\"",
+          "BCEnergy.MENUS:\"dynamo_mj_menu\""
+        ],
+        "energy/BCEnergyWorldGen.java": [
+          "FEATURE_REGISTER:\"worldgen.feature.oil\""
+        ],
+        "silicon/BCSiliconGuis.java": [
+          "MENUS:\"advanced_crafting_table_menu\"",
+          "MENUS:\"charging_table_menu\"",
+          "MENUS:\"assembly_table_menu\"",
+          "MENUS:\"gate_menu\"",
+          "MENUS:\"integration_table_menu\"",
+          "MENUS:\"programming_table_menu\""
+        ],
+        "silicon/BCSiliconRecipes.java": [
+          "TYPES:\"assembly\"",
+          "SERIALIZERS:\"assembly\"",
+          "SERIALIZERS:\"gate_logic_change\"",
+          "SERIALIZERS:\"facade\"",
+          "SERIALIZERS:\"facade_swap\""
+        ],
+        "silicon/BCSiliconItems.java": [
+          "ITEMS:\"redstone_crystal\"",
+          "ITEMS:\"plug/gate\"",
+          "ITEMS:\"plug/facade\"",
+          "ITEMS:\"plug/lens\"",
+          "ITEMS:\"plug/light_sensor\"",
+          "ITEMS:\"plug/timer\"",
+          "ITEMS:\"plug/pulsar\"",
+          "ITEMS:\"gate_copier\"",
+          "ITEMS:\"laser\"",
+          "ITEMS:\"assembly_table\"",
+          "ITEMS:\"charging_table\"",
+          "ITEMS:\"integration_table\"",
+          "ITEMS:\"advanced_crafting_table\"",
+          "ITEMS:\"programming_table\""
+        ],
+        "silicon/BCSiliconBlocks.java": [
+          "BLOCKS:\"laser\"",
+          "BLOCKS:\"assembly_table\"",
+          "BLOCKS:\"charging_table\"",
+          "BLOCKS:\"integration_table\"",
+          "BLOCKS:\"advanced_crafting_table\"",
+          "BLOCKS:\"programming_table\"",
+          "BLOCK_ENTITYS:\"entity_laser\"",
+          "BLOCK_ENTITYS:\"entity_assembly_table\"",
+          "BLOCK_ENTITYS:\"entity_charging_table\"",
+          "BLOCK_ENTITYS:\"entity_integration_table\"",
+          "BLOCK_ENTITYS:\"entity_advanced_crafting_table\"",
+          "BLOCK_ENTITYS:\"entity_programming_table\""
+        ],
+        "transport/BCTransportBlocks.java": [
+          "BLOCKS:\"filtered_buffer\"",
+          "BLOCKS:\"pipe_holder\"",
+          "BET:\"entity_filtered_buffer\"",
+          "BET:\"entity_pipe_holder\"",
+          "BCTransportItems.ITEMS:\"filtered_buffer\""
+        ],
+        "transport/BCTransportGuis.java": [
+          "MENUS:\"pipe_diawood_menu\"",
+          "MENUS:\"pipe_diamond_menu\"",
+          "MENUS:\"pipe_filtered_buffer\"",
+          "MENUS:\"pipe_emzuli_menu\""
+        ],
+        "transport/BCTransportRecipes.java": [
+          "SERIALIZERS:\"pipe\""
+        ],
+        "transport/BCTransportItems.java": [
+          "ITEMS:\"waterproof\"",
+          "ITEMS:\"plug_blocker\"",
+          "ITEMS:\"plug_power_adaptor\""
+        ],
+        "robotics/BCRoboticsItems.java": [
+          "ITEMS:\"robot\"",
+          "ITEMS:\"robot_station\"",
+          "ITEMS:\"redstone_board\"",
+          "ITEMS:\"zone_planner\"",
+          "ITEMS:\"requester\""
+        ],
+        "robotics/BCRoboticsBlocks.java": [
+          "BLOCKS:\"zone_planner\"",
+          "BLOCKS:\"requester\"",
+          "BLOCK_ENTITYS:\"entity_zone_planner\"",
+          "BLOCK_ENTITYS:\"entity_requester\""
+        ],
+        "robotics/BCRoboticsEntities.java": [
+          "ENTITIES:\"robot\""
+        ],
+        "robotics/BCRoboticsGuis.java": [
+          "MENUS:\"menu.zone_planner\"",
+          "MENUS:\"menu.requester\""
+        ],
+        "core/BCCore.java": [
+          "MENUS:\"list_menu\""
+        ],
+        "core/BCCoreItems.java": [
+          "ITEMS:\"wrench\"",
+          "ITEMS:\"gears/gear_wood\"",
+          "ITEMS:\"gears/gear_stone\"",
+          "ITEMS:\"gears/gear_iron\"",
+          "ITEMS:\"gears/gear_gold\"",
+          "ITEMS:\"gears/gear_diamond\"",
+          "ITEMS:\"paintbrush/clean\"",
+          "ITEMS:\"marker_connector\"",
+          "ITEMS:\"volume_box\"",
+          "ITEMS:\"map_location\"",
+          "ITEMS:\"list\"",
+          "ITEMS:\"fragile_fluid_shard\"",
+          "ITEMS:\"engine_redstone\"",
+          "ITEMS:\"engine_creative\"",
+          "ITEMS:\"spring_water\"",
+          "ITEMS:\"spring_oil\"",
+          "ITEMS:\"marker_path\"",
+          "ITEMS:\"marker_volume\""
+        ],
+        "core/BCCoreBlocks.java": [
+          "BLOCKS:\"engine\"",
+          "BLOCKS:\"spring\"",
+          "BLOCKS:\"marker_path\"",
+          "BLOCKS:\"marker_volume\"",
+          "BLOCK_ENTITYS:\"entity_engine_redstone\"",
+          "BLOCK_ENTITYS:\"entity_engine_creative\"",
+          "BLOCK_ENTITYS:\"entity_marker_path\"",
+          "BLOCK_ENTITYS:\"entity_marker_volume\""
+        ],
+        "builders/BCBuildersGuis.java": [
+          "MENUS:\"architect_menu\"",
+          "MENUS:\"builder_menu\"",
+          "MENUS:\"elibrary_menu\"",
+          "MENUS:\"filler_menu\"",
+          "MENUS:\"replacer_menu\""
+        ],
+        "builders/BCBuildersItems.java": [
+          "ITEMS:\"blueprint\"",
+          "ITEMS:\"template\"",
+          "ITEMS:\"schematic_single\"",
+          "ITEMS:\"filler_planner\"",
+          "ITEMS:\"filler\"",
+          "ITEMS:\"builder\"",
+          "ITEMS:\"architect\"",
+          "ITEMS:\"library\"",
+          "ITEMS:\"replacer\"",
+          "ITEMS:\"marker_construction\"",
+          "ITEMS:\"frame\"",
+          "ITEMS:\"quarry\""
+        ],
+        "builders/BCBuildersBlocks.java": [
+          "BLOCKS:\"filler\"",
+          "BLOCKS:\"builder\"",
+          "BLOCKS:\"architect\"",
+          "BLOCKS:\"library\"",
+          "BLOCKS:\"replacer\"",
+          "BLOCKS:\"marker_construction\"",
+          "BLOCKS:\"frame\"",
+          "BLOCKS:\"quarry\"",
+          "BLOCKS:\"quarry_drill_collision\"",
+          "BLOCK_ENTITYS:\"entity_filler\"",
+          "BLOCK_ENTITYS:\"entity_builder\"",
+          "BLOCK_ENTITYS:\"entity_architect\"",
+          "BLOCK_ENTITYS:\"entity_library\"",
+          "BLOCK_ENTITYS:\"entity_replacer\"",
+          "BLOCK_ENTITYS:\"entity_marker_construction\"",
+          "BLOCK_ENTITYS:\"entity_quarry\"",
+          "BLOCK_ENTITYS:\"entity_quarry_drill_collision\""
+        ],
+        "lib/BCLibItems.java": [
+          "ITEMS:\"guide\""
+        ]
+      }
+    },
+    "1.20.1-forge": {
+      "config": {
+        "core/BCCoreConfig": "0bc3ffcdf63c92bfb1ad909353ef37c1a4dc17a776f42dc0537c40900d859b5e",
+        "builders/BCBuildersConfig": "27d100a8bf815519e2ce7856fb913b1404ad30a2d599f903136fec06d7685a92",
+        "energy/BCEnergyConfig": "14facc3a6cfe399fd1fc93a65cb18b270e110167783b053fbd5ef1556170e221",
+        "silicon/BCSiliconConfig": "6959ca9c8a139d4518dae08fa961b41274c2d4f7bb06f71e154b3b68860fc37c",
+        "transport/BCTransportConfig": "99f4448a6aaa0150a3e4ccd5e45afc7585e722071551e2ba90ebc5871dd8006d"
+      },
+      "catalog": {
+        "factory/BCFactoryBlocks.java": [
+          "BLOCKS:\"pump\"",
+          "BLOCKS:\"tank\"",
+          "BLOCKS:\"chute\"",
+          "BLOCKS:\"flood_gate\"",
+          "BLOCKS:\"tube\"",
+          "BLOCKS:\"mining_well\"",
+          "BLOCKS:\"distiller\"",
+          "BLOCKS:\"heat_exchange\"",
+          "BLOCKS:\"water_gel\"",
+          "BLOCKS:\"autoworkbench_item\"",
+          "BLOCK_ENTITYS:\"entity_tank\"",
+          "BLOCK_ENTITYS:\"entity_pump\"",
+          "BLOCK_ENTITYS:\"entity_flood_gate\"",
+          "BLOCK_ENTITYS:\"entity_mining_well\"",
+          "BLOCK_ENTITYS:\"entity_distiller\"",
+          "BLOCK_ENTITYS:\"entity_heat_exchange\"",
+          "BLOCK_ENTITYS:\"entity_autoworkbench_item\"",
+          "BLOCK_ENTITYS:\"entity_chute\""
+        ],
+        "factory/BCFactoryItems.java": [
+          "ITEMS:\"pump\"",
+          "ITEMS:\"tank\"",
+          "ITEMS:\"chute\"",
+          "ITEMS:\"flood_gate\"",
+          "ITEMS:\"mining_well\"",
+          "ITEMS:\"distiller\"",
+          "ITEMS:\"heat_exchange\"",
+          "ITEMS:\"autoworkbench_item\"",
+          "ITEMS:\"water_gel\"",
+          "ITEMS:\"gel\""
+        ],
+        "factory/BCFactoryGuis.java": [
+          "MENUS:\"menu.autoworkbench_item\"",
+          "MENUS:\"menu.heat_exchange\"",
+          "MENUS:\"menu.chute\"",
+          "MENUS:\"menu.tank\""
+        ],
+        "energy/BCEnergyBiomeModifiers.java": [
+          "SERIALIZERS:\"oil_feature_injection\""
+        ],
+        "energy/BCEnergyBlocks.java": [
+          "BCEnergy.ITEMS:\"engine_stone\"",
+          "BCEnergy.ITEMS:\"engine_iron\"",
+          "BCEnergy.ITEMS:\"engine_fe\"",
+          "BLOCKS:\"mj_dynamo\"",
+          "BCEnergy.ITEMS:\"mj_dynamo\"",
+          "BLOCK_ENTITYS:\"entity_stone_engine\"",
+          "BLOCK_ENTITYS:\"entity_iron_engine\"",
+          "BLOCK_ENTITYS:\"entity_fe_engine\"",
+          "BLOCK_ENTITYS:\"entity_mj_dynamo\"",
+          "BLOCK_ENTITYS:\"entity_spring\""
+        ],
+        "energy/BCEnergyGuis.java": [
+          "BCEnergy.MENUS:\"engine_stone_menu\"",
+          "BCEnergy.MENUS:\"engine_iron_menu\"",
+          "BCEnergy.MENUS:\"engine_fe_menu\"",
+          "BCEnergy.MENUS:\"dynamo_mj_menu\""
+        ],
+        "energy/BCEnergyWorldGen.java": [
+          "FEATURE_REGISTER:\"worldgen.feature.oil\""
+        ],
+        "silicon/BCSiliconGuis.java": [
+          "MENUS:\"advanced_crafting_table_menu\"",
+          "MENUS:\"charging_table_menu\"",
+          "MENUS:\"assembly_table_menu\"",
+          "MENUS:\"gate_menu\"",
+          "MENUS:\"integration_table_menu\"",
+          "MENUS:\"programming_table_menu\""
+        ],
+        "silicon/BCSilicon.java": [
+          "CREATIVE_TABS:\"facades\""
+        ],
+        "silicon/BCSiliconRecipes.java": [
+          "TYPES:\"assembly\"",
+          "SERIALIZERS:\"assembly\"",
+          "SERIALIZERS:\"gate_logic_change\"",
+          "SERIALIZERS:\"facade\"",
+          "SERIALIZERS:\"facade_swap\""
+        ],
+        "silicon/BCSiliconItems.java": [
+          "ITEMS:\"redstone_crystal\"",
+          "ITEMS:\"plug/gate\"",
+          "ITEMS:\"plug/facade\"",
+          "ITEMS:\"plug/lens\"",
+          "ITEMS:\"plug/light_sensor\"",
+          "ITEMS:\"plug/timer\"",
+          "ITEMS:\"plug/pulsar\"",
+          "ITEMS:\"gate_copier\"",
+          "ITEMS:\"laser\"",
+          "ITEMS:\"assembly_table\"",
+          "ITEMS:\"charging_table\"",
+          "ITEMS:\"integration_table\"",
+          "ITEMS:\"advanced_crafting_table\"",
+          "ITEMS:\"programming_table\""
+        ],
+        "silicon/BCSiliconBlocks.java": [
+          "BLOCKS:\"laser\"",
+          "BLOCKS:\"assembly_table\"",
+          "BLOCKS:\"charging_table\"",
+          "BLOCKS:\"integration_table\"",
+          "BLOCKS:\"advanced_crafting_table\"",
+          "BLOCKS:\"programming_table\"",
+          "BLOCK_ENTITYS:\"entity_laser\"",
+          "BLOCK_ENTITYS:\"entity_assembly_table\"",
+          "BLOCK_ENTITYS:\"entity_charging_table\"",
+          "BLOCK_ENTITYS:\"entity_integration_table\"",
+          "BLOCK_ENTITYS:\"entity_advanced_crafting_table\"",
+          "BLOCK_ENTITYS:\"entity_programming_table\""
+        ],
+        "transport/BCTransportBlocks.java": [
+          "BLOCKS:\"filtered_buffer\"",
+          "BLOCKS:\"pipe_holder\"",
+          "BET:\"entity_filtered_buffer\"",
+          "BET:\"entity_pipe_holder\"",
+          "BCTransportItems.ITEMS:\"filtered_buffer\""
+        ],
+        "transport/BCTransportGuis.java": [
+          "MENUS:\"pipe_diawood_menu\"",
+          "MENUS:\"pipe_diamond_menu\"",
+          "MENUS:\"pipe_filtered_buffer\"",
+          "MENUS:\"pipe_emzuli_menu\""
+        ],
+        "transport/BCTransportRecipes.java": [
+          "SERIALIZERS:\"pipe\""
+        ],
+        "transport/BCTransportItems.java": [
+          "ITEMS:\"waterproof\"",
+          "ITEMS:\"plug_blocker\"",
+          "ITEMS:\"plug_power_adaptor\""
+        ],
+        "transport/BCTransport.java": [
+          "CREATIVE_TABS:\"pipes\"",
+          "CREATIVE_TABS:\"plugs\""
+        ],
+        "robotics/BCRoboticsItems.java": [
+          "ITEMS:\"robot\"",
+          "ITEMS:\"robot_station\"",
+          "ITEMS:\"redstone_board\"",
+          "ITEMS:\"zone_planner\"",
+          "ITEMS:\"requester\""
+        ],
+        "robotics/BCRoboticsBlocks.java": [
+          "BLOCKS:\"zone_planner\"",
+          "BLOCKS:\"requester\"",
+          "BLOCK_ENTITYS:\"entity_zone_planner\"",
+          "BLOCK_ENTITYS:\"entity_requester\""
+        ],
+        "robotics/BCRoboticsEntities.java": [
+          "ENTITIES:\"robot\""
+        ],
+        "robotics/BCRobotics.java": [
+          "CREATIVE_TABS:\"boards\""
+        ],
+        "robotics/BCRoboticsGuis.java": [
+          "MENUS:\"menu.zone_planner\"",
+          "MENUS:\"menu.requester\""
+        ],
+        "core/BCCore.java": [
+          "CREATIVE_TABS:\"main\"",
+          "CREATIVE_TABS:\"fluid\"",
+          "MENUS:\"list_menu\""
+        ],
+        "core/BCCoreItems.java": [
+          "ITEMS:\"wrench\"",
+          "ITEMS:\"gears/gear_wood\"",
+          "ITEMS:\"gears/gear_stone\"",
+          "ITEMS:\"gears/gear_iron\"",
+          "ITEMS:\"gears/gear_gold\"",
+          "ITEMS:\"gears/gear_diamond\"",
+          "ITEMS:\"paintbrush/clean\"",
+          "ITEMS:\"marker_connector\"",
+          "ITEMS:\"volume_box\"",
+          "ITEMS:\"map_location\"",
+          "ITEMS:\"list\"",
+          "ITEMS:\"fragile_fluid_shard\"",
+          "ITEMS:\"engine_redstone\"",
+          "ITEMS:\"engine_creative\"",
+          "ITEMS:\"spring_water\"",
+          "ITEMS:\"spring_oil\"",
+          "ITEMS:\"marker_path\"",
+          "ITEMS:\"marker_volume\""
+        ],
+        "core/BCCoreBlocks.java": [
+          "BLOCKS:\"engine\"",
+          "BLOCKS:\"spring\"",
+          "BLOCKS:\"marker_path\"",
+          "BLOCKS:\"marker_volume\"",
+          "BLOCK_ENTITYS:\"entity_engine_redstone\"",
+          "BLOCK_ENTITYS:\"entity_engine_creative\"",
+          "BLOCK_ENTITYS:\"entity_marker_path\"",
+          "BLOCK_ENTITYS:\"entity_marker_volume\""
+        ],
+        "builders/BCBuildersGuis.java": [
+          "MENUS:\"architect_menu\"",
+          "MENUS:\"builder_menu\"",
+          "MENUS:\"elibrary_menu\"",
+          "MENUS:\"filler_menu\"",
+          "MENUS:\"replacer_menu\""
+        ],
+        "builders/BCBuildersItems.java": [
+          "ITEMS:\"blueprint\"",
+          "ITEMS:\"template\"",
+          "ITEMS:\"schematic_single\"",
+          "ITEMS:\"filler_planner\"",
+          "ITEMS:\"filler\"",
+          "ITEMS:\"builder\"",
+          "ITEMS:\"architect\"",
+          "ITEMS:\"library\"",
+          "ITEMS:\"replacer\"",
+          "ITEMS:\"marker_construction\"",
+          "ITEMS:\"frame\"",
+          "ITEMS:\"quarry\""
+        ],
+        "builders/BCBuildersBlocks.java": [
+          "BLOCKS:\"filler\"",
+          "BLOCKS:\"builder\"",
+          "BLOCKS:\"architect\"",
+          "BLOCKS:\"library\"",
+          "BLOCKS:\"replacer\"",
+          "BLOCKS:\"marker_construction\"",
+          "BLOCKS:\"frame\"",
+          "BLOCKS:\"quarry\"",
+          "BLOCKS:\"quarry_drill_collision\"",
+          "BLOCK_ENTITYS:\"entity_filler\"",
+          "BLOCK_ENTITYS:\"entity_builder\"",
+          "BLOCK_ENTITYS:\"entity_architect\"",
+          "BLOCK_ENTITYS:\"entity_library\"",
+          "BLOCK_ENTITYS:\"entity_replacer\"",
+          "BLOCK_ENTITYS:\"entity_marker_construction\"",
+          "BLOCK_ENTITYS:\"entity_quarry\"",
+          "BLOCK_ENTITYS:\"entity_quarry_drill_collision\""
+        ],
+        "lib/BCLibItems.java": [
+          "ITEMS:\"guide\""
+        ]
+      }
+    },
+    "1.21.1-neoforge": {
+      "config": {
+        "core/BCCoreConfig": "0bc3ffcdf63c92bfb1ad909353ef37c1a4dc17a776f42dc0537c40900d859b5e",
+        "builders/BCBuildersConfig": "27d100a8bf815519e2ce7856fb913b1404ad30a2d599f903136fec06d7685a92",
+        "energy/BCEnergyConfig": "490a9664354e59b878fd755f97014b78353bc06044a5075b83cfaf68957bdd89",
+        "silicon/BCSiliconConfig": "6959ca9c8a139d4518dae08fa961b41274c2d4f7bb06f71e154b3b68860fc37c",
+        "transport/BCTransportConfig": "99f4448a6aaa0150a3e4ccd5e45afc7585e722071551e2ba90ebc5871dd8006d"
+      },
+      "catalog": {
+        "factory/BCFactoryBlocks.java": [
+          "BLOCKS:\"pump\"",
+          "BLOCKS:\"tank\"",
+          "BLOCKS:\"chute\"",
+          "BLOCKS:\"flood_gate\"",
+          "BLOCKS:\"tube\"",
+          "BLOCKS:\"mining_well\"",
+          "BLOCKS:\"distiller\"",
+          "BLOCKS:\"heat_exchange\"",
+          "BLOCKS:\"water_gel\"",
+          "BLOCKS:\"autoworkbench_item\"",
+          "BLOCK_ENTITYS:\"entity_tank\"",
+          "BLOCK_ENTITYS:\"entity_pump\"",
+          "BLOCK_ENTITYS:\"entity_flood_gate\"",
+          "BLOCK_ENTITYS:\"entity_mining_well\"",
+          "BLOCK_ENTITYS:\"entity_distiller\"",
+          "BLOCK_ENTITYS:\"entity_heat_exchange\"",
+          "BLOCK_ENTITYS:\"entity_autoworkbench_item\"",
+          "BLOCK_ENTITYS:\"entity_chute\""
+        ],
+        "factory/BCFactoryItems.java": [
+          "ITEMS:\"pump\"",
+          "ITEMS:\"tank\"",
+          "ITEMS:\"chute\"",
+          "ITEMS:\"flood_gate\"",
+          "ITEMS:\"mining_well\"",
+          "ITEMS:\"distiller\"",
+          "ITEMS:\"heat_exchange\"",
+          "ITEMS:\"autoworkbench_item\"",
+          "ITEMS:\"water_gel\"",
+          "ITEMS:\"gel\""
+        ],
+        "factory/BCFactoryGuis.java": [
+          "MENUS:\"menu.autoworkbench_item\"",
+          "MENUS:\"menu.heat_exchange\"",
+          "MENUS:\"menu.chute\"",
+          "MENUS:\"menu.tank\""
+        ],
+        "energy/BCEnergyBiomeModifiers.java": [
+          "SERIALIZERS:\"oil_feature_injection\""
+        ],
+        "energy/BCEnergyBlocks.java": [
+          "BCEnergy.ITEMS:\"engine_stone\"",
+          "BCEnergy.ITEMS:\"engine_iron\"",
+          "BCEnergy.ITEMS:\"engine_fe\"",
+          "BLOCKS:\"mj_dynamo\"",
+          "BCEnergy.ITEMS:\"mj_dynamo\"",
+          "BLOCK_ENTITYS:\"entity_stone_engine\"",
+          "BLOCK_ENTITYS:\"entity_iron_engine\"",
+          "BLOCK_ENTITYS:\"entity_fe_engine\"",
+          "BLOCK_ENTITYS:\"entity_mj_dynamo\"",
+          "BLOCK_ENTITYS:\"entity_spring\""
+        ],
+        "energy/BCEnergyGuis.java": [
+          "BCEnergy.MENUS:\"engine_stone_menu\"",
+          "BCEnergy.MENUS:\"engine_iron_menu\"",
+          "BCEnergy.MENUS:\"engine_fe_menu\"",
+          "BCEnergy.MENUS:\"dynamo_mj_menu\""
+        ],
+        "energy/BCEnergyWorldGen.java": [
+          "FEATURE_REGISTER:\"worldgen.feature.oil\""
+        ],
+        "silicon/BCSiliconGuis.java": [
+          "MENUS:\"advanced_crafting_table_menu\"",
+          "MENUS:\"charging_table_menu\"",
+          "MENUS:\"assembly_table_menu\"",
+          "MENUS:\"gate_menu\"",
+          "MENUS:\"integration_table_menu\"",
+          "MENUS:\"programming_table_menu\""
+        ],
+        "silicon/BCSilicon.java": [
+          "CREATIVE_TABS:\"facades\""
+        ],
+        "silicon/BCSiliconRecipes.java": [
+          "TYPES:\"assembly\"",
+          "SERIALIZERS:\"assembly\"",
+          "SERIALIZERS:\"gate_logic_change\"",
+          "SERIALIZERS:\"facade\"",
+          "SERIALIZERS:\"facade_swap\""
+        ],
+        "silicon/BCSiliconItems.java": [
+          "ITEMS:\"redstone_crystal\"",
+          "ITEMS:\"plug/gate\"",
+          "ITEMS:\"plug/facade\"",
+          "ITEMS:\"plug/lens\"",
+          "ITEMS:\"plug/light_sensor\"",
+          "ITEMS:\"plug/timer\"",
+          "ITEMS:\"plug/pulsar\"",
+          "ITEMS:\"gate_copier\"",
+          "ITEMS:\"laser\"",
+          "ITEMS:\"assembly_table\"",
+          "ITEMS:\"charging_table\"",
+          "ITEMS:\"integration_table\"",
+          "ITEMS:\"advanced_crafting_table\"",
+          "ITEMS:\"programming_table\""
+        ],
+        "silicon/BCSiliconBlocks.java": [
+          "BLOCKS:\"laser\"",
+          "BLOCKS:\"assembly_table\"",
+          "BLOCKS:\"charging_table\"",
+          "BLOCKS:\"integration_table\"",
+          "BLOCKS:\"advanced_crafting_table\"",
+          "BLOCKS:\"programming_table\"",
+          "BLOCK_ENTITYS:\"entity_laser\"",
+          "BLOCK_ENTITYS:\"entity_assembly_table\"",
+          "BLOCK_ENTITYS:\"entity_charging_table\"",
+          "BLOCK_ENTITYS:\"entity_integration_table\"",
+          "BLOCK_ENTITYS:\"entity_advanced_crafting_table\"",
+          "BLOCK_ENTITYS:\"entity_programming_table\""
+        ],
+        "transport/BCTransportBlocks.java": [
+          "BLOCKS:\"filtered_buffer\"",
+          "BLOCKS:\"pipe_holder\"",
+          "BET:\"entity_filtered_buffer\"",
+          "BET:\"entity_pipe_holder\"",
+          "BCTransportItems.ITEMS:\"filtered_buffer\""
+        ],
+        "transport/BCTransportGuis.java": [
+          "MENUS:\"pipe_diawood_menu\"",
+          "MENUS:\"pipe_diamond_menu\"",
+          "MENUS:\"pipe_filtered_buffer\"",
+          "MENUS:\"pipe_emzuli_menu\""
+        ],
+        "transport/BCTransportRecipes.java": [
+          "SERIALIZERS:\"pipe\""
+        ],
+        "transport/BCTransportItems.java": [
+          "ITEMS:\"waterproof\"",
+          "ITEMS:\"plug_blocker\"",
+          "ITEMS:\"plug_power_adaptor\""
+        ],
+        "transport/BCTransport.java": [
+          "CREATIVE_TABS:\"pipes\"",
+          "CREATIVE_TABS:\"plugs\""
+        ],
+        "robotics/BCRoboticsItems.java": [
+          "ITEMS:\"robot\"",
+          "ITEMS:\"robot_station\"",
+          "ITEMS:\"redstone_board\"",
+          "ITEMS:\"zone_planner\"",
+          "ITEMS:\"requester\""
+        ],
+        "robotics/BCRoboticsBlocks.java": [
+          "BLOCKS:\"zone_planner\"",
+          "BLOCKS:\"requester\"",
+          "BLOCK_ENTITYS:\"entity_zone_planner\"",
+          "BLOCK_ENTITYS:\"entity_requester\""
+        ],
+        "robotics/BCRoboticsEntities.java": [
+          "ENTITIES:\"robot\""
+        ],
+        "robotics/BCRobotics.java": [
+          "CREATIVE_TABS:\"boards\""
+        ],
+        "robotics/BCRoboticsGuis.java": [
+          "MENUS:\"menu.zone_planner\"",
+          "MENUS:\"menu.requester\""
+        ],
+        "core/BCCore.java": [
+          "CREATIVE_TABS:\"main\"",
+          "CREATIVE_TABS:\"fluid\"",
+          "MENUS:\"list_menu\""
+        ],
+        "core/BCCoreItems.java": [
+          "ITEMS:\"wrench\"",
+          "ITEMS:\"gears/gear_wood\"",
+          "ITEMS:\"gears/gear_stone\"",
+          "ITEMS:\"gears/gear_iron\"",
+          "ITEMS:\"gears/gear_gold\"",
+          "ITEMS:\"gears/gear_diamond\"",
+          "ITEMS:\"paintbrush/clean\"",
+          "ITEMS:\"marker_connector\"",
+          "ITEMS:\"volume_box\"",
+          "ITEMS:\"map_location\"",
+          "ITEMS:\"list\"",
+          "ITEMS:\"fragile_fluid_shard\"",
+          "ITEMS:\"engine_redstone\"",
+          "ITEMS:\"engine_creative\"",
+          "ITEMS:\"spring_water\"",
+          "ITEMS:\"spring_oil\"",
+          "ITEMS:\"marker_path\"",
+          "ITEMS:\"marker_volume\""
+        ],
+        "core/BCCoreBlocks.java": [
+          "BLOCKS:\"engine\"",
+          "BLOCKS:\"spring\"",
+          "BLOCKS:\"marker_path\"",
+          "BLOCKS:\"marker_volume\"",
+          "BLOCK_ENTITYS:\"entity_engine_redstone\"",
+          "BLOCK_ENTITYS:\"entity_engine_creative\"",
+          "BLOCK_ENTITYS:\"entity_marker_path\"",
+          "BLOCK_ENTITYS:\"entity_marker_volume\""
+        ],
+        "builders/BCBuildersGuis.java": [
+          "MENUS:\"architect_menu\"",
+          "MENUS:\"builder_menu\"",
+          "MENUS:\"elibrary_menu\"",
+          "MENUS:\"filler_menu\"",
+          "MENUS:\"replacer_menu\""
+        ],
+        "builders/BCBuildersItems.java": [
+          "ITEMS:\"blueprint\"",
+          "ITEMS:\"template\"",
+          "ITEMS:\"schematic_single\"",
+          "ITEMS:\"filler_planner\"",
+          "ITEMS:\"filler\"",
+          "ITEMS:\"builder\"",
+          "ITEMS:\"architect\"",
+          "ITEMS:\"library\"",
+          "ITEMS:\"replacer\"",
+          "ITEMS:\"marker_construction\"",
+          "ITEMS:\"frame\"",
+          "ITEMS:\"quarry\""
+        ],
+        "builders/BCBuildersBlocks.java": [
+          "BLOCKS:\"filler\"",
+          "BLOCKS:\"builder\"",
+          "BLOCKS:\"architect\"",
+          "BLOCKS:\"library\"",
+          "BLOCKS:\"replacer\"",
+          "BLOCKS:\"marker_construction\"",
+          "BLOCKS:\"frame\"",
+          "BLOCKS:\"quarry\"",
+          "BLOCKS:\"quarry_drill_collision\"",
+          "BLOCK_ENTITYS:\"entity_filler\"",
+          "BLOCK_ENTITYS:\"entity_builder\"",
+          "BLOCK_ENTITYS:\"entity_architect\"",
+          "BLOCK_ENTITYS:\"entity_library\"",
+          "BLOCK_ENTITYS:\"entity_replacer\"",
+          "BLOCK_ENTITYS:\"entity_marker_construction\"",
+          "BLOCK_ENTITYS:\"entity_quarry\"",
+          "BLOCK_ENTITYS:\"entity_quarry_drill_collision\""
+        ],
+        "lib/BCLibItems.java": [
+          "ITEMS:\"guide\""
+        ],
+        "lib/recipe/BCLibIngredientTypes.java": [
+          "INGREDIENT_TYPES:\"strict_nbt\""
+        ]
+      }
+    },
+    "1.21.11-neoforge": {
+      "config": {
+        "core/BCCoreConfig": "0bc3ffcdf63c92bfb1ad909353ef37c1a4dc17a776f42dc0537c40900d859b5e",
+        "builders/BCBuildersConfig": "27d100a8bf815519e2ce7856fb913b1404ad30a2d599f903136fec06d7685a92",
+        "energy/BCEnergyConfig": "f0346911d03a5b1e081362cd62e815548e9a4c5e75634830a0e29dda0371e77b",
+        "silicon/BCSiliconConfig": "6959ca9c8a139d4518dae08fa961b41274c2d4f7bb06f71e154b3b68860fc37c",
+        "transport/BCTransportConfig": "99f4448a6aaa0150a3e4ccd5e45afc7585e722071551e2ba90ebc5871dd8006d"
+      },
+      "catalog": {
+        "factory/BCFactoryBlocks.java": [
+          "BLOCKS:\"pump\"",
+          "BLOCKS:\"tank\"",
+          "BLOCKS:\"chute\"",
+          "BLOCKS:\"flood_gate\"",
+          "BLOCKS:\"tube\"",
+          "BLOCKS:\"mining_well\"",
+          "BLOCKS:\"distiller\"",
+          "BLOCKS:\"heat_exchange\"",
+          "BLOCKS:\"water_gel\"",
+          "BLOCKS:\"autoworkbench_item\"",
+          "BLOCK_ENTITYS:\"entity_tank\"",
+          "BLOCK_ENTITYS:\"entity_pump\"",
+          "BLOCK_ENTITYS:\"entity_flood_gate\"",
+          "BLOCK_ENTITYS:\"entity_mining_well\"",
+          "BLOCK_ENTITYS:\"entity_distiller\"",
+          "BLOCK_ENTITYS:\"entity_heat_exchange\"",
+          "BLOCK_ENTITYS:\"entity_autoworkbench_item\"",
+          "BLOCK_ENTITYS:\"entity_chute\""
+        ],
+        "factory/BCFactoryItems.java": [
+          "ITEMS:\"pump\"",
+          "ITEMS:\"tank\"",
+          "ITEMS:\"chute\"",
+          "ITEMS:\"flood_gate\"",
+          "ITEMS:\"mining_well\"",
+          "ITEMS:\"distiller\"",
+          "ITEMS:\"heat_exchange\"",
+          "ITEMS:\"autoworkbench_item\"",
+          "ITEMS:\"water_gel\"",
+          "ITEMS:\"gel\""
+        ],
+        "factory/BCFactoryGuis.java": [
+          "MENUS:\"menu.autoworkbench_item\"",
+          "MENUS:\"menu.heat_exchange\"",
+          "MENUS:\"menu.chute\"",
+          "MENUS:\"menu.tank\""
+        ],
+        "energy/BCEnergyBiomeModifiers.java": [
+          "SERIALIZERS:\"oil_feature_injection\""
+        ],
+        "energy/BCEnergyBlocks.java": [
+          "BCEnergy.ITEMS:\"engine_stone\"",
+          "BCEnergy.ITEMS:\"engine_iron\"",
+          "BCEnergy.ITEMS:\"engine_fe\"",
+          "BLOCKS:\"mj_dynamo\"",
+          "BCEnergy.ITEMS:\"mj_dynamo\"",
+          "BLOCK_ENTITYS:\"entity_stone_engine\"",
+          "BLOCK_ENTITYS:\"entity_iron_engine\"",
+          "BLOCK_ENTITYS:\"entity_fe_engine\"",
+          "BLOCK_ENTITYS:\"entity_mj_dynamo\"",
+          "BLOCK_ENTITYS:\"entity_spring\""
+        ],
+        "energy/BCEnergyGuis.java": [
+          "BCEnergy.MENUS:\"engine_stone_menu\"",
+          "BCEnergy.MENUS:\"engine_iron_menu\"",
+          "BCEnergy.MENUS:\"engine_fe_menu\"",
+          "BCEnergy.MENUS:\"dynamo_mj_menu\""
+        ],
+        "energy/BCEnergyWorldGen.java": [
+          "FEATURE_REGISTER:\"worldgen.feature.oil\""
+        ],
+        "silicon/BCSiliconGuis.java": [
+          "MENUS:\"advanced_crafting_table_menu\"",
+          "MENUS:\"charging_table_menu\"",
+          "MENUS:\"assembly_table_menu\"",
+          "MENUS:\"gate_menu\"",
+          "MENUS:\"integration_table_menu\"",
+          "MENUS:\"programming_table_menu\""
+        ],
+        "silicon/BCSilicon.java": [
+          "CREATIVE_TABS:\"facades\""
+        ],
+        "silicon/BCSiliconRecipes.java": [
+          "TYPES:\"assembly\"",
+          "SERIALIZERS:\"assembly\"",
+          "SERIALIZERS:\"gate_logic_change\"",
+          "SERIALIZERS:\"facade\"",
+          "SERIALIZERS:\"facade_swap\""
+        ],
+        "silicon/BCSiliconItems.java": [
+          "ITEMS:\"redstone_crystal\"",
+          "ITEMS:\"plug/gate\"",
+          "ITEMS:\"plug/facade\"",
+          "ITEMS:\"plug/lens\"",
+          "ITEMS:\"plug/light_sensor\"",
+          "ITEMS:\"plug/timer\"",
+          "ITEMS:\"plug/pulsar\"",
+          "ITEMS:\"gate_copier\"",
+          "ITEMS:\"laser\"",
+          "ITEMS:\"assembly_table\"",
+          "ITEMS:\"charging_table\"",
+          "ITEMS:\"integration_table\"",
+          "ITEMS:\"advanced_crafting_table\"",
+          "ITEMS:\"programming_table\""
+        ],
+        "silicon/BCSiliconBlocks.java": [
+          "BLOCKS:\"laser\"",
+          "BLOCKS:\"assembly_table\"",
+          "BLOCKS:\"charging_table\"",
+          "BLOCKS:\"integration_table\"",
+          "BLOCKS:\"advanced_crafting_table\"",
+          "BLOCKS:\"programming_table\"",
+          "BLOCK_ENTITYS:\"entity_laser\"",
+          "BLOCK_ENTITYS:\"entity_assembly_table\"",
+          "BLOCK_ENTITYS:\"entity_charging_table\"",
+          "BLOCK_ENTITYS:\"entity_integration_table\"",
+          "BLOCK_ENTITYS:\"entity_advanced_crafting_table\"",
+          "BLOCK_ENTITYS:\"entity_programming_table\""
+        ],
+        "transport/BCTransportBlocks.java": [
+          "BLOCKS:\"filtered_buffer\"",
+          "BLOCKS:\"pipe_holder\"",
+          "BET:\"entity_filtered_buffer\"",
+          "BET:\"entity_pipe_holder\"",
+          "BCTransportItems.ITEMS:\"filtered_buffer\""
+        ],
+        "transport/BCTransportGuis.java": [
+          "MENUS:\"pipe_diawood_menu\"",
+          "MENUS:\"pipe_diamond_menu\"",
+          "MENUS:\"pipe_filtered_buffer\"",
+          "MENUS:\"pipe_emzuli_menu\""
+        ],
+        "transport/BCTransportRecipes.java": [
+          "SERIALIZERS:\"pipe\""
+        ],
+        "transport/BCTransportItems.java": [
+          "ITEMS:\"waterproof\"",
+          "ITEMS:\"plug_blocker\"",
+          "ITEMS:\"plug_power_adaptor\""
+        ],
+        "transport/BCTransport.java": [
+          "CREATIVE_TABS:\"pipes\"",
+          "CREATIVE_TABS:\"plugs\""
+        ],
+        "robotics/BCRoboticsItems.java": [
+          "ITEMS:\"robot\"",
+          "ITEMS:\"robot_station\"",
+          "ITEMS:\"redstone_board\"",
+          "ITEMS:\"zone_planner\"",
+          "ITEMS:\"requester\""
+        ],
+        "robotics/BCRoboticsBlocks.java": [
+          "BLOCKS:\"zone_planner\"",
+          "BLOCKS:\"requester\"",
+          "BLOCK_ENTITYS:\"entity_zone_planner\"",
+          "BLOCK_ENTITYS:\"entity_requester\""
+        ],
+        "robotics/BCRoboticsEntities.java": [
+          "ENTITIES:\"robot\""
+        ],
+        "robotics/BCRobotics.java": [
+          "CREATIVE_TABS:\"boards\""
+        ],
+        "robotics/BCRoboticsGuis.java": [
+          "MENUS:\"menu.zone_planner\"",
+          "MENUS:\"menu.requester\""
+        ],
+        "core/BCCore.java": [
+          "CREATIVE_TABS:\"main\"",
+          "CREATIVE_TABS:\"fluid\"",
+          "MENUS:\"list_menu\""
+        ],
+        "core/BCCoreItems.java": [
+          "ITEMS:\"wrench\"",
+          "ITEMS:\"gears/gear_wood\"",
+          "ITEMS:\"gears/gear_stone\"",
+          "ITEMS:\"gears/gear_iron\"",
+          "ITEMS:\"gears/gear_gold\"",
+          "ITEMS:\"gears/gear_diamond\"",
+          "ITEMS:\"paintbrush/clean\"",
+          "ITEMS:\"marker_connector\"",
+          "ITEMS:\"volume_box\"",
+          "ITEMS:\"map_location\"",
+          "ITEMS:\"list\"",
+          "ITEMS:\"fragile_fluid_shard\"",
+          "ITEMS:\"engine_redstone\"",
+          "ITEMS:\"engine_creative\"",
+          "ITEMS:\"spring_water\"",
+          "ITEMS:\"spring_oil\"",
+          "ITEMS:\"marker_path\"",
+          "ITEMS:\"marker_volume\""
+        ],
+        "core/BCCoreBlocks.java": [
+          "BLOCKS:\"engine\"",
+          "BLOCKS:\"spring\"",
+          "BLOCKS:\"marker_path\"",
+          "BLOCKS:\"marker_volume\"",
+          "BLOCK_ENTITYS:\"entity_engine_redstone\"",
+          "BLOCK_ENTITYS:\"entity_engine_creative\"",
+          "BLOCK_ENTITYS:\"entity_marker_path\"",
+          "BLOCK_ENTITYS:\"entity_marker_volume\""
+        ],
+        "builders/BCBuildersGuis.java": [
+          "MENUS:\"architect_menu\"",
+          "MENUS:\"builder_menu\"",
+          "MENUS:\"elibrary_menu\"",
+          "MENUS:\"filler_menu\"",
+          "MENUS:\"replacer_menu\""
+        ],
+        "builders/BCBuildersItems.java": [
+          "ITEMS:\"blueprint\"",
+          "ITEMS:\"template\"",
+          "ITEMS:\"schematic_single\"",
+          "ITEMS:\"filler_planner\"",
+          "ITEMS:\"filler\"",
+          "ITEMS:\"builder\"",
+          "ITEMS:\"architect\"",
+          "ITEMS:\"library\"",
+          "ITEMS:\"replacer\"",
+          "ITEMS:\"marker_construction\"",
+          "ITEMS:\"frame\"",
+          "ITEMS:\"quarry\""
+        ],
+        "builders/BCBuildersBlocks.java": [
+          "BLOCKS:\"filler\"",
+          "BLOCKS:\"builder\"",
+          "BLOCKS:\"architect\"",
+          "BLOCKS:\"library\"",
+          "BLOCKS:\"replacer\"",
+          "BLOCKS:\"marker_construction\"",
+          "BLOCKS:\"frame\"",
+          "BLOCKS:\"quarry\"",
+          "BLOCKS:\"quarry_drill_collision\"",
+          "BLOCK_ENTITYS:\"entity_filler\"",
+          "BLOCK_ENTITYS:\"entity_builder\"",
+          "BLOCK_ENTITYS:\"entity_architect\"",
+          "BLOCK_ENTITYS:\"entity_library\"",
+          "BLOCK_ENTITYS:\"entity_replacer\"",
+          "BLOCK_ENTITYS:\"entity_marker_construction\"",
+          "BLOCK_ENTITYS:\"entity_quarry\"",
+          "BLOCK_ENTITYS:\"entity_quarry_drill_collision\""
+        ],
+        "lib/BCLibItems.java": [
+          "ITEMS:\"guide\""
+        ],
+        "lib/recipe/BCLibIngredientTypes.java": [
+          "INGREDIENT_TYPES:\"strict_nbt\""
+        ]
+      }
+    }
+  }
+}

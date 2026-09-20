@@ -42,8 +42,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidUtil;
@@ -136,7 +134,7 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
     public final void readFromNBT(CompoundTag nbt) {
     	FluidStack fluid = FluidCompatRegistry.canonicalize(FluidStack.loadFluidStackFromNBT(nbt));
         if (nbt.contains(name)) {
-            // Old style of saving + loading
+            // Named-tank compatibility format
             CompoundTag tankData = nbt.getCompound(name);
             this.fluid = fluid;
             readTankFromNBT(tankData);
@@ -309,8 +307,6 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
         }
         buffer.writeInt(getFluidAmount());
     }
-
-    @OnlyIn(Dist.CLIENT)
     public void readFromBuffer(FriendlyByteBuf buffer) {
         if (buffer.readBoolean()) {
             clientFluid = BuildCraftObjectCaches.CACHE_FLUIDS.client().retrieve(buffer.readInt());

@@ -1,0 +1,608 @@
+{
+  "1.19.2-forge": {
+    "renderers": {
+      "transport/BCTransportModels.java": [
+        [
+          "BlockEntityRenderer",
+          "BCTransportBlocks.PIPE_HOLDER_BE.get(),RenderPipeHolder::new"
+        ]
+      ],
+      "silicon/BCSiliconModels.java": [
+        [
+          "BlockEntityRenderer",
+          "BCSiliconBlocks.LASER_TILE.get(),RenderLaser::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCSiliconBlocks.PROGRAMMING_TABLE_TILE.get(),RenderProgrammingTable::new"
+        ]
+      ],
+      "energy/BCEnergyClientProxy.java": [
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_IRON_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_STONE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_FE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.DYNAMO_MJ_TILE.get(),RenderDynamoMJ::new"
+        ]
+      ],
+      "robotics/BCRobotics.java": [
+        [
+          "EntityRenderer",
+          "BCRoboticsEntities.ROBOT.get(),RenderRobot::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCRoboticsBlocks.ZONE_PLANNER_TILE.get(),RenderZonePlanner::new"
+        ]
+      ],
+      "factory/BCFactory.java": [
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKTANK.get(),RenderTank::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKPUMP.get(),RenderPump::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKMININGWELL.get(),RenderMiningWell::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKDISTILLER.get(),RenderDistiller::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKHEATEXCHANGE.get(),RenderHeatExchange::new"
+        ]
+      ],
+      "core/BCCore.java": [
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.ENGINE_REDSTONE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.ENGINE_CREATIVE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.MARKER_VOLUME_TILE_BC8.get(),RenderMarkerVolume::new"
+        ]
+      ],
+      "builders/BCBuilders.java": [
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.QUARRY_TILE_BC8.get(),RenderQuarry::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.ARCHITECT_TILE_BC8.get(),RenderArchitectTable::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.FILLER_TILE_BC8.get(),RenderFiller::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.BUILDER_TILE_BC8.get(),RenderBuilder::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.CONSTRUCTION_MARKER_TILE_BC8.get(),RenderConstructionMarker::new"
+        ]
+      ]
+    },
+    "screens": {
+      "builders/BCBuildersClientGuis.java": [
+        "BCBuildersGuis.MENU_ARCHITECT_TABLE.get(),GuiArchitectTable::new",
+        "BCBuildersGuis.MENU_BUILDER.get(),GuiBuilder::new",
+        "BCBuildersGuis.MENU_ELIBRARY.get(),GuiElectronicLibrary::new",
+        "BCBuildersGuis.MENU_FILLER.get(),GuiFiller::new",
+        "BCBuildersGuis.MENU_REPLACER.get(),ScreenReplacer::new"
+      ],
+      "factory/BCFactoryClientGuis.java": [
+        "BCFactoryGuis.MENU_AUTOWORK_BENCH_ITEM.get(),GuiAutoCraftItems::new",
+        "BCFactoryGuis.MENU_HEAT_EXCHANGE.get(),ScreenHeatExchange::new",
+        "BCFactoryGuis.MENU_CHUTE.get(),GuiChute::new",
+        "BCFactoryGuis.MENU_TANK.get(),GuiTank::new"
+      ],
+      "robotics/BCRoboticsClientGuis.java": [
+        "BCRoboticsGuis.MENU_ZONE_PLANNER.get(),GuiZonePlanner::new",
+        "BCRoboticsGuis.MENU_REQUESTER.get(),GuiRequester::new"
+      ],
+      "silicon/BCSiliconClientGuis.java": [
+        "BCSiliconGuis.MENU_AD_CRAFTING_TABLE.get(),GuiAdvancedCraftingTable::new",
+        "BCSiliconGuis.MENU_ASSEMBLY_TABLE.get(),GuiAssemblyTable::new",
+        "BCSiliconGuis.MENU_CHARGING_TABLE.get(),GuiChargingTable::new",
+        "BCSiliconGuis.MENU_GATE.get(),GuiGate::new",
+        "BCSiliconGuis.MENU_INTEGRATION_TABLE.get(),GuiIntegrationTable::new",
+        "BCSiliconGuis.MENU_PROGRAMMING_TABLE.get(),GuiProgrammingTable::new"
+      ],
+      "transport/BCTransportClientGuis.java": [
+        "BCTransportGuis.MENU_PIPE_DIAMOND_WOOD.get(),GuiDiamondWoodPipe::new",
+        "BCTransportGuis.MENU_PIPE_DIAMOND.get(),GuiDiamondPipe::new",
+        "BCTransportGuis.MENU_FILTERED_BUFFER.get(),GuiFilteredBuffer::new",
+        "BCTransportGuis.MENU_PIPE_EMZULI.get(),GuiEmzuliPipe_BC8::new"
+      ]
+    },
+    "extra_screens": {
+      "energy/BCEnergyClientProxy.java": [
+        "BCEnergyGuis.MENU_STONE.get(),GuiEngineStone_BC8::new",
+        "BCEnergyGuis.MENU_IRON.get(),GuiEngineIron_BC8::new",
+        "BCEnergyGuis.MENU_FE.get(),GuiEngineFE::new",
+        "BCEnergyGuis.MENU_DYNAMO_MJ.get(),GuiDynamoMJ::new"
+      ],
+      "core/BCCore.java": [
+        "LIST_MENU.get(),GuiList::new"
+      ],
+      "compat/forestry/pipe/client/ForestryCompatClient.java": [
+        "ForestryPipes.PROPOLIS_PIPE_MENU.get(),GuiPropolisPipe::new"
+      ]
+    }
+  },
+  "1.20.1-forge": {
+    "renderers": {
+      "transport/BCTransportModels.java": [
+        [
+          "BlockEntityRenderer",
+          "BCTransportBlocks.PIPE_HOLDER_BE.get(),RenderPipeHolder::new"
+        ]
+      ],
+      "silicon/BCSiliconModels.java": [
+        [
+          "BlockEntityRenderer",
+          "BCSiliconBlocks.LASER_TILE.get(),RenderLaser::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCSiliconBlocks.PROGRAMMING_TABLE_TILE.get(),RenderProgrammingTable::new"
+        ]
+      ],
+      "energy/BCEnergyClientProxy.java": [
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_IRON_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_STONE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_FE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.DYNAMO_MJ_TILE.get(),RenderDynamoMJ::new"
+        ]
+      ],
+      "robotics/BCRobotics.java": [
+        [
+          "EntityRenderer",
+          "BCRoboticsEntities.ROBOT.get(),RenderRobot::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCRoboticsBlocks.ZONE_PLANNER_TILE.get(),RenderZonePlanner::new"
+        ]
+      ],
+      "factory/BCFactory.java": [
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKTANK.get(),RenderTank::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKPUMP.get(),RenderPump::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKMININGWELL.get(),RenderMiningWell::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKDISTILLER.get(),RenderDistiller::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKHEATEXCHANGE.get(),RenderHeatExchange::new"
+        ]
+      ],
+      "core/BCCore.java": [
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.ENGINE_REDSTONE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.ENGINE_CREATIVE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.MARKER_VOLUME_TILE_BC8.get(),RenderMarkerVolume::new"
+        ]
+      ],
+      "builders/BCBuilders.java": [
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.QUARRY_TILE_BC8.get(),RenderQuarry::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.ARCHITECT_TILE_BC8.get(),RenderArchitectTable::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.FILLER_TILE_BC8.get(),RenderFiller::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.BUILDER_TILE_BC8.get(),RenderBuilder::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.CONSTRUCTION_MARKER_TILE_BC8.get(),RenderConstructionMarker::new"
+        ]
+      ]
+    },
+    "screens": {
+      "builders/BCBuildersClientGuis.java": [
+        "BCBuildersGuis.MENU_ARCHITECT_TABLE.get(),GuiArchitectTable::new",
+        "BCBuildersGuis.MENU_BUILDER.get(),GuiBuilder::new",
+        "BCBuildersGuis.MENU_ELIBRARY.get(),GuiElectronicLibrary::new",
+        "BCBuildersGuis.MENU_FILLER.get(),GuiFiller::new",
+        "BCBuildersGuis.MENU_REPLACER.get(),ScreenReplacer::new"
+      ],
+      "factory/BCFactoryClientGuis.java": [
+        "BCFactoryGuis.MENU_AUTOWORK_BENCH_ITEM.get(),GuiAutoCraftItems::new",
+        "BCFactoryGuis.MENU_HEAT_EXCHANGE.get(),ScreenHeatExchange::new",
+        "BCFactoryGuis.MENU_CHUTE.get(),GuiChute::new",
+        "BCFactoryGuis.MENU_TANK.get(),GuiTank::new"
+      ],
+      "robotics/BCRoboticsClientGuis.java": [
+        "BCRoboticsGuis.MENU_ZONE_PLANNER.get(),GuiZonePlanner::new",
+        "BCRoboticsGuis.MENU_REQUESTER.get(),GuiRequester::new"
+      ],
+      "silicon/BCSiliconClientGuis.java": [
+        "BCSiliconGuis.MENU_AD_CRAFTING_TABLE.get(),GuiAdvancedCraftingTable::new",
+        "BCSiliconGuis.MENU_ASSEMBLY_TABLE.get(),GuiAssemblyTable::new",
+        "BCSiliconGuis.MENU_CHARGING_TABLE.get(),GuiChargingTable::new",
+        "BCSiliconGuis.MENU_GATE.get(),GuiGate::new",
+        "BCSiliconGuis.MENU_INTEGRATION_TABLE.get(),GuiIntegrationTable::new",
+        "BCSiliconGuis.MENU_PROGRAMMING_TABLE.get(),GuiProgrammingTable::new"
+      ],
+      "transport/BCTransportClientGuis.java": [
+        "BCTransportGuis.MENU_PIPE_DIAMOND_WOOD.get(),GuiDiamondWoodPipe::new",
+        "BCTransportGuis.MENU_PIPE_DIAMOND.get(),GuiDiamondPipe::new",
+        "BCTransportGuis.MENU_FILTERED_BUFFER.get(),GuiFilteredBuffer::new",
+        "BCTransportGuis.MENU_PIPE_EMZULI.get(),GuiEmzuliPipe_BC8::new"
+      ]
+    },
+    "extra_screens": {
+      "energy/BCEnergyClientProxy.java": [
+        "BCEnergyGuis.MENU_STONE.get(),GuiEngineStone_BC8::new",
+        "BCEnergyGuis.MENU_IRON.get(),GuiEngineIron_BC8::new",
+        "BCEnergyGuis.MENU_FE.get(),GuiEngineFE::new",
+        "BCEnergyGuis.MENU_DYNAMO_MJ.get(),GuiDynamoMJ::new"
+      ],
+      "core/BCCore.java": [
+        "LIST_MENU.get(),GuiList::new"
+      ],
+      "compat/forestry/pipe/client/ForestryCompatClient.java": [
+        "ForestryPipes.PROPOLIS_PIPE_MENU.get(),GuiPropolisPipe::new"
+      ]
+    }
+  },
+  "1.21.1-neoforge": {
+    "renderers": {
+      "transport/BCTransportModels.java": [
+        [
+          "BlockEntityRenderer",
+          "BCTransportBlocks.PIPE_HOLDER_BE.get(),RenderPipeHolder::new"
+        ]
+      ],
+      "silicon/BCSiliconModels.java": [
+        [
+          "BlockEntityRenderer",
+          "BCSiliconBlocks.LASER_TILE.get(),RenderLaser::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCSiliconBlocks.PROGRAMMING_TABLE_TILE.get(),RenderProgrammingTable::new"
+        ]
+      ],
+      "energy/BCEnergyClientProxy.java": [
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_IRON_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_STONE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_FE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.DYNAMO_MJ_TILE.get(),RenderDynamoMJ::new"
+        ]
+      ],
+      "robotics/BCRobotics.java": [
+        [
+          "EntityRenderer",
+          "BCRoboticsEntities.ROBOT.get(),RenderRobot::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCRoboticsBlocks.ZONE_PLANNER_TILE.get(),RenderZonePlanner::new"
+        ]
+      ],
+      "factory/BCFactory.java": [
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKTANK.get(),RenderTank::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKPUMP.get(),RenderPump::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKMININGWELL.get(),RenderMiningWell::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKDISTILLER.get(),RenderDistiller::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKHEATEXCHANGE.get(),RenderHeatExchange::new"
+        ]
+      ],
+      "builders/BCBuilders.java": [
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.QUARRY_TILE_BC8.get(),RenderQuarry::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.ARCHITECT_TILE_BC8.get(),RenderArchitectTable::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.FILLER_TILE_BC8.get(),RenderFiller::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.BUILDER_TILE_BC8.get(),RenderBuilder::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.CONSTRUCTION_MARKER_TILE_BC8.get(),RenderConstructionMarker::new"
+        ]
+      ],
+      "core/client/BCCoreClientModEvents.java": [
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.ENGINE_REDSTONE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.ENGINE_CREATIVE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.MARKER_VOLUME_TILE_BC8.get(),RenderMarkerVolume::new"
+        ]
+      ]
+    },
+    "screens": {
+      "builders/BCBuildersClientGuis.java": [
+        "BCBuildersGuis.MENU_ARCHITECT_TABLE.get(),GuiArchitectTable::new",
+        "BCBuildersGuis.MENU_BUILDER.get(),GuiBuilder::new",
+        "BCBuildersGuis.MENU_ELIBRARY.get(),GuiElectronicLibrary::new",
+        "BCBuildersGuis.MENU_FILLER.get(),GuiFiller::new",
+        "BCBuildersGuis.MENU_REPLACER.get(),ScreenReplacer::new"
+      ],
+      "factory/BCFactoryClientGuis.java": [
+        "BCFactoryGuis.MENU_AUTOWORK_BENCH_ITEM.get(),GuiAutoCraftItems::new",
+        "BCFactoryGuis.MENU_HEAT_EXCHANGE.get(),ScreenHeatExchange::new",
+        "BCFactoryGuis.MENU_CHUTE.get(),GuiChute::new",
+        "BCFactoryGuis.MENU_TANK.get(),GuiTank::new"
+      ],
+      "robotics/BCRoboticsClientGuis.java": [
+        "BCRoboticsGuis.MENU_ZONE_PLANNER.get(),GuiZonePlanner::new",
+        "BCRoboticsGuis.MENU_REQUESTER.get(),GuiRequester::new"
+      ],
+      "silicon/BCSiliconClientGuis.java": [
+        "BCSiliconGuis.MENU_AD_CRAFTING_TABLE.get(),GuiAdvancedCraftingTable::new",
+        "BCSiliconGuis.MENU_ASSEMBLY_TABLE.get(),GuiAssemblyTable::new",
+        "BCSiliconGuis.MENU_CHARGING_TABLE.get(),GuiChargingTable::new",
+        "BCSiliconGuis.MENU_GATE.get(),GuiGate::new",
+        "BCSiliconGuis.MENU_INTEGRATION_TABLE.get(),GuiIntegrationTable::new",
+        "BCSiliconGuis.MENU_PROGRAMMING_TABLE.get(),GuiProgrammingTable::new"
+      ],
+      "transport/BCTransportClientGuis.java": [
+        "BCTransportGuis.MENU_PIPE_DIAMOND_WOOD.get(),GuiDiamondWoodPipe::new",
+        "BCTransportGuis.MENU_PIPE_DIAMOND.get(),GuiDiamondPipe::new",
+        "BCTransportGuis.MENU_FILTERED_BUFFER.get(),GuiFilteredBuffer::new",
+        "BCTransportGuis.MENU_PIPE_EMZULI.get(),GuiEmzuliPipe_BC8::new"
+      ]
+    },
+    "extra_screens": {
+      "energy/BCEnergyClientProxy.java": [
+        "BCEnergyGuis.MENU_STONE.get(),GuiEngineStone_BC8::new",
+        "BCEnergyGuis.MENU_IRON.get(),GuiEngineIron_BC8::new",
+        "BCEnergyGuis.MENU_FE.get(),GuiEngineFE::new",
+        "BCEnergyGuis.MENU_DYNAMO_MJ.get(),GuiDynamoMJ::new"
+      ],
+      "core/client/BCCoreClientModEvents.java": [
+        "BCCore.LIST_MENU.get(),GuiList::new"
+      ]
+    }
+  },
+  "1.21.11-neoforge": {
+    "renderers": {
+      "transport/BCTransportModels.java": [
+        [
+          "BlockEntityRenderer",
+          "BCTransportBlocks.PIPE_HOLDER_BE.get(),RenderPipeHolder::new"
+        ]
+      ],
+      "silicon/BCSiliconModels.java": [
+        [
+          "BlockEntityRenderer",
+          "BCSiliconBlocks.LASER_TILE.get(),RenderLaser::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCSiliconBlocks.PROGRAMMING_TABLE_TILE.get(),RenderProgrammingTable::new"
+        ]
+      ],
+      "energy/BCEnergyClientProxy.java": [
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_IRON_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_STONE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.ENGINE_FE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCEnergyBlocks.DYNAMO_MJ_TILE.get(),RenderDynamoMJ::new"
+        ]
+      ],
+      "robotics/BCRobotics.java": [
+        [
+          "EntityRenderer",
+          "BCRoboticsEntities.ROBOT.get(),RenderRobot::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCRoboticsBlocks.ZONE_PLANNER_TILE.get(),RenderZonePlanner::new"
+        ]
+      ],
+      "factory/BCFactory.java": [
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKTANK.get(),RenderTank::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKPUMP.get(),RenderPump::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKMININGWELL.get(),RenderMiningWell::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKDISTILLER.get(),RenderDistiller::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCFactoryBlocks.ENTITYBLOCKHEATEXCHANGE.get(),RenderHeatExchange::new"
+        ]
+      ],
+      "builders/BCBuilders.java": [
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.QUARRY_TILE_BC8.get(),RenderQuarry::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.ARCHITECT_TILE_BC8.get(),RenderArchitectTable::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.FILLER_TILE_BC8.get(),RenderFiller::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.BUILDER_TILE_BC8.get(),RenderBuilder::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCBuildersBlocks.CONSTRUCTION_MARKER_TILE_BC8.get(),RenderConstructionMarker::new"
+        ]
+      ],
+      "core/client/BCCoreClientModEvents.java": [
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.ENGINE_REDSTONE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.ENGINE_CREATIVE_TILE_BC8.get(),RenderEngine_BC8::new"
+        ],
+        [
+          "BlockEntityRenderer",
+          "BCCoreBlocks.MARKER_VOLUME_TILE_BC8.get(),RenderMarkerVolume::new"
+        ]
+      ]
+    },
+    "screens": {
+      "builders/BCBuildersClientGuis.java": [
+        "BCBuildersGuis.MENU_ARCHITECT_TABLE.get(),GuiArchitectTable::new",
+        "BCBuildersGuis.MENU_BUILDER.get(),GuiBuilder::new",
+        "BCBuildersGuis.MENU_ELIBRARY.get(),GuiElectronicLibrary::new",
+        "BCBuildersGuis.MENU_FILLER.get(),GuiFiller::new",
+        "BCBuildersGuis.MENU_REPLACER.get(),ScreenReplacer::new"
+      ],
+      "factory/BCFactoryClientGuis.java": [
+        "BCFactoryGuis.MENU_AUTOWORK_BENCH_ITEM.get(),GuiAutoCraftItems::new",
+        "BCFactoryGuis.MENU_HEAT_EXCHANGE.get(),ScreenHeatExchange::new",
+        "BCFactoryGuis.MENU_CHUTE.get(),GuiChute::new",
+        "BCFactoryGuis.MENU_TANK.get(),GuiTank::new"
+      ],
+      "robotics/BCRoboticsClientGuis.java": [
+        "BCRoboticsGuis.MENU_ZONE_PLANNER.get(),GuiZonePlanner::new",
+        "BCRoboticsGuis.MENU_REQUESTER.get(),GuiRequester::new"
+      ],
+      "silicon/BCSiliconClientGuis.java": [
+        "BCSiliconGuis.MENU_AD_CRAFTING_TABLE.get(),GuiAdvancedCraftingTable::new",
+        "BCSiliconGuis.MENU_ASSEMBLY_TABLE.get(),GuiAssemblyTable::new",
+        "BCSiliconGuis.MENU_CHARGING_TABLE.get(),GuiChargingTable::new",
+        "BCSiliconGuis.MENU_GATE.get(),GuiGate::new",
+        "BCSiliconGuis.MENU_INTEGRATION_TABLE.get(),GuiIntegrationTable::new",
+        "BCSiliconGuis.MENU_PROGRAMMING_TABLE.get(),GuiProgrammingTable::new"
+      ],
+      "transport/BCTransportClientGuis.java": [
+        "BCTransportGuis.MENU_PIPE_DIAMOND_WOOD.get(),GuiDiamondWoodPipe::new",
+        "BCTransportGuis.MENU_PIPE_DIAMOND.get(),GuiDiamondPipe::new",
+        "BCTransportGuis.MENU_FILTERED_BUFFER.get(),GuiFilteredBuffer::new",
+        "BCTransportGuis.MENU_PIPE_EMZULI.get(),GuiEmzuliPipe_BC8::new"
+      ]
+    },
+    "extra_screens": {
+      "energy/BCEnergyClientProxy.java": [
+        "BCEnergyGuis.MENU_STONE.get(),GuiEngineStone_BC8::new",
+        "BCEnergyGuis.MENU_IRON.get(),GuiEngineIron_BC8::new",
+        "BCEnergyGuis.MENU_FE.get(),GuiEngineFE::new",
+        "BCEnergyGuis.MENU_DYNAMO_MJ.get(),GuiDynamoMJ::new"
+      ],
+      "core/client/BCCoreClientModEvents.java": [
+        "BCCore.LIST_MENU.get(),GuiList::new"
+      ]
+    }
+  }
+}

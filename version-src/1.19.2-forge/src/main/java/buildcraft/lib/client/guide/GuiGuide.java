@@ -112,9 +112,8 @@ public final class GuiGuide extends Screen {
     /**
      * Logical category order for the Community Edition guide.
      * <p>
-     * The old implementation sorted translated subtype and entry names alphabetically. That scattered related
-     * progression chains (gears, engines, pipes, robotics and refining products) across the contents pages. The
-     * manifest is authored in gameplay order, while this table controls the order of the category headings.
+     * The manifest is authored in gameplay progression order, while this table controls category-heading order so
+     * related chains such as gears, engines, pipes, robotics and refining products remain grouped together.
      */
     private static final Map<String, List<String>> SUBTYPE_ORDER = Map.of(
         "action", List.of("basic", "automation", "pipe_plug", "pipe_item", "robot", "robot_station"),

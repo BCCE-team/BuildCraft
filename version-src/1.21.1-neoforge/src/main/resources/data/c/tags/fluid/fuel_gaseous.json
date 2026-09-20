@@ -1,7 +1,0 @@
-{
-  "replace": false,
-  "values": [
-    "buildcraftenergy:fuel_gaseous",
-    "buildcraftenergy:fuel_gaseous_flowing"
-  ]
-}

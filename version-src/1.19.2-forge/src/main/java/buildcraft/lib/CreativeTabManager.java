@@ -71,8 +71,8 @@ public class CreativeTabManager {
     private static Map<String, Map<String, Integer>> createItemOrders() {
         Map<String, Map<String, Integer>> orders = new HashMap<>();
 
-        // BuildCraft 8 main tab order. Items unavailable in the port are deliberately omitted.
-        // Port-only items are placed beside the closest original group.
+        // BuildCraft 8 main-tab order, limited to items registered by this target.
+        // Target-specific items are placed beside the closest original group.
         addOrder(orders, "buildcraft.main",
             // Core blocks and area-planning tools
             "buildcraftcore:marker_volume",

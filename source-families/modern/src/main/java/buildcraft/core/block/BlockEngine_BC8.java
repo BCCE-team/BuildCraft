@@ -38,7 +38,11 @@ public class BlockEngine_BC8 extends BlockEngineBase_BC8<EnumEngineType> {
 	
 	
 	@Override
+    //? if >=1.21.4 {
+	public ItemStack getCloneItemStack(LevelReader p_49823_, BlockPos p_49824_, BlockState state, boolean includeData) {
+    //?} else {
 	public ItemStack getCloneItemStack(LevelReader p_49823_, BlockPos p_49824_, BlockState state) {
+    //?}
 		return new ItemStack(BCCoreItems.ENGINE_ITEM_MAP.get(state.getValue(getEngineProperty())));
 	}
 

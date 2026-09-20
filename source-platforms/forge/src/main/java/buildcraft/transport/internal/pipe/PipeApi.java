@@ -110,7 +110,7 @@ public final class PipeApi {
         /**
          * Internal per-section buffer. The buffer must hold at least one bucket and at least one complete
          * configured transfer-delay window, so custom high-rate/slow pipes cannot overflow merely because their
-         * delay differs from BuildCraft's historical 10-tick default.
+         * delay differs from BuildCraft's 10-tick baseline.
          */
         public final int bufferCapacity;
 

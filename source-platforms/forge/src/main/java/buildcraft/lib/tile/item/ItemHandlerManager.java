@@ -24,6 +24,8 @@ import buildcraft.lib.internal.inventory.IItemTransactor;
 import buildcraft.lib.inventory.ItemHandlerWrapper;
 import buildcraft.lib.misc.CapUtil;
 import buildcraft.lib.misc.InventoryUtil;
+import buildcraft.lib.platform.storage.ItemStorage;
+import buildcraft.lib.platform.storage.StorageAdapters;
 
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
@@ -126,13 +128,15 @@ public class ItemHandlerManager implements ICapabilityProvider, INBTSerializable
         }
     }
 
+    public ItemStorage getItemStorage(Direction facing) {
+        Wrapper wrapper = wrappers.get(EnumPipePart.fromFacing(facing));
+        return wrapper == null || wrapper.combined == null ? null : StorageAdapters.fromNativeItems(wrapper.combined);
+    }
+
 
     @Override
     public <T> @NotNull LazyOptional<T> getCapability(@Nonnull Capability<T> capability, Direction facing) {
         Wrapper wrapper = wrappers.get(EnumPipePart.fromFacing(facing));
-        if (capability == CapUtil.CAP_ITEMS) {
-            return wrapper.combined == null ? LazyOptional.empty() : LazyOptional.of(() -> wrapper.combined).cast();
-        }
         if (capability == CapUtil.CAP_ITEM_TRANSACTOR) {
             return wrapper.transactor == null ? LazyOptional.empty() : LazyOptional.of(() -> wrapper.transactor).cast();
         }

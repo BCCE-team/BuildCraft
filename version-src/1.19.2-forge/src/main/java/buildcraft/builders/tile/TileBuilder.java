@@ -97,9 +97,9 @@ import net.minecraft.world.phys.AABB;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fluids.FluidType;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileForTemplateBuilder, ITileForBlueprintBuilder, IRobotBuilderTarget, MenuProvider {
     public static final IdAllocator IDS = TileBC_Neptune.IDS.makeChild("builder");
@@ -216,7 +216,7 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
             tankManager.add(tanks[i]);
         }
         caps.addProvider(new MjCapabilityHelper(new MjBatteryReceiver(battery)));
-        caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, tankManager, EnumPipePart.VALUES);
+        caps.addFluidStorage(tankManager, EnumPipePart.VALUES);
         caps.addCapabilityInstance(TilesAPI.CAP_HAS_WORK, () -> !invSnapshot.isEmpty(), EnumPipePart.VALUES);
     }
 
@@ -577,9 +577,9 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     // Networking
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 buffer.writeInt(path == null ? 0 : path.size());
                 if (path != null) {
@@ -608,9 +608,9 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
     	super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 path = new ArrayList<>();
                 int pathSize = buffer.readInt();
@@ -647,7 +647,7 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
                 }
             }
         }
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_CAN_EXCAVATE) {
                 canExcavate = buffer.readBoolean();
                 sendNetworkUpdate(NET_CAN_EXCAVATE);

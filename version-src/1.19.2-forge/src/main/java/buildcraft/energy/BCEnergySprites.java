@@ -6,8 +6,8 @@
 
 package buildcraft.energy;
 
+import buildcraft.lib.platform.client.ClientAtlas;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.client.event.TextureStitchEvent;
 
 public class BCEnergySprites {
 
@@ -31,7 +31,7 @@ public class BCEnergySprites {
 	public static final ResourceLocation ENGINE_FE_GUI = new ResourceLocation("buildcraftenergy:textures/gui/fe_engine_gui.png");
 	public static final ResourceLocation DYNAMO_MJ_GUI = new ResourceLocation("buildcraftenergy:textures/gui/mj_dynamo_gui.png");
 	
-    public static void onTextureStitchPre(TextureStitchEvent.Pre event) {
+    public static void onTextureStitchPre(ClientAtlas.Before event) {
        
         if("textures/atlas/blocks.png".equals(event.getAtlas().location().getPath())) {
 //    		

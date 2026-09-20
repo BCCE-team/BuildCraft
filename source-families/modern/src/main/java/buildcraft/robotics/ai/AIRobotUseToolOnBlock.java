@@ -18,7 +18,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
-/** BuildCraft 7.1.x AIRobotUseToolOnBlock port. Used by the farmer board to hoe dirt into farmland. */
+/** Uses the equipped tool on a target block; the farmer board uses it to hoe dirt into farmland. */
 public class AIRobotUseToolOnBlock extends AIRobot {
     private static final int USE_DELAY_TICKS = 12;
 

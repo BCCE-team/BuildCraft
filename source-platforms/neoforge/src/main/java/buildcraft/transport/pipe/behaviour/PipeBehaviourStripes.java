@@ -55,9 +55,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.Rotation;
 import net.neoforged.neoforge.capabilities.BlockCapability;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.fml.util.thread.SidedThreadGroups;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput, IMjRedstoneReceiver {
     private final MjBattery battery = new MjBattery(256 * MjAmount.MICRO_MJ_PER_MJ);
@@ -103,13 +103,13 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
     }
 
     @Override
-    public void readPayload(FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(buffer, side, ctx);
         direction = MessageUtil.readEnumOrNull(buffer, Direction.class);
     }
 
     @Override
-    public void writePayload(FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(buffer, side);
         MessageUtil.writeEnumOrNull(buffer, direction);
     }

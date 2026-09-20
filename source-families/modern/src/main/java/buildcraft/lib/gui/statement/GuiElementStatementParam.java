@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 package buildcraft.lib.gui.statement;
 
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import buildcraft.lib.compat.RenderCompat;
 
 public class GuiElementStatementParam extends GuiElementSimple
     implements IInteractionElement, IReference<IStatementParameter> {
@@ -41,30 +43,25 @@ public class GuiElementStatementParam extends GuiElementSimple
 
     // IReference
 
-    @Override
     public IStatementParameter get() {
         return ref.get(paramIndex);
     }
 
-    @Override
     public void set(IStatementParameter to) {
         ref.set(paramIndex, to);
         ref.postSetFromGui(paramIndex);
     }
 
-    @Override
     public boolean canSet(IStatementParameter value) {
         return ref.canSet(paramIndex, value);
     }
 
-    @Override
     public Class<IStatementParameter> getHeldType() {
         return IStatementParameter.class;
     }
 
     // ITooltipElement
 
-    @Override
     public void addToolTips(List<ToolTip> tooltips) {
         if (contains(gui.mouse)) {
             IStatementParameter s = get();
@@ -76,9 +73,7 @@ public class GuiElementStatementParam extends GuiElementSimple
 
     // IGuiElement
 
-    @Override
     public void drawBackground(GuiGraphics guiGraphics, float partialTicks) {
-        PoseStack pose = guiGraphics.pose();
         if (draw) {
             IStatement slot = ref.get();
             int max = slot == null ? 0 : slot.maxParameters();
@@ -96,7 +91,6 @@ public class GuiElementStatementParam extends GuiElementSimple
 
     // IInteractionElement
 
-    @Override
     public void onMouseClicked(int button) {
         if (!ref.canInteract || !contains(gui.mouse) || (button != 0 && button != 1)) {
             return;
@@ -106,7 +100,7 @@ public class GuiElementStatementParam extends GuiElementSimple
         if (param == null) {
             return;
         }
-        StatementMouseClick clickEvent = new StatementMouseClick(button, Screen.hasShiftDown());
+        StatementMouseClick clickEvent = new StatementMouseClick(button, RenderCompat.hasInputShiftDown());
 
         final ItemStack heldStack;
         Player currentPlayer = Minecraft.getInstance().player;

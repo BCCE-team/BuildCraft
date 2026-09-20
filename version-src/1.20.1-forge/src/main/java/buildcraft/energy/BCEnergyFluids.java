@@ -1,5 +1,8 @@
 package buildcraft.energy;
 
+import buildcraft.lib.platform.registry.RegistryBinding;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,9 +26,7 @@ import net.minecraft.world.level.material.PushReaction;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fluids.FluidType;
 import net.minecraftforge.fluids.ForgeFlowingFluid;
-import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
 
 public final class BCEnergyFluids {
     public static final int COOL_TEM = 300;
@@ -61,13 +62,13 @@ public final class BCEnergyFluids {
         { 300, 500, 0, 10, 0xFA_F6_30, 0xE0_D9_00, 0, 100, 250 }
     };
 
-    public static final List<RegistryObject<BCFluidType>> OIL_TYPE = new ArrayList<>();
-    public static final List<RegistryObject<BCFluid>> OIL_SOURCE = new ArrayList<>();
-    public static final List<RegistryObject<BucketItem>> OIL_BUCKET = new ArrayList<>();
-    public static final List<RegistryObject<LiquidBlock>> OIL_BLOCK = new ArrayList<>();
+    public static final List<BCRegistryEntry<BCFluidType>> OIL_TYPE = new ArrayList<>();
+    public static final List<BCRegistryEntry<BCFluid>> OIL_SOURCE = new ArrayList<>();
+    public static final List<BCRegistryEntry<BucketItem>> OIL_BUCKET = new ArrayList<>();
+    public static final List<BCRegistryEntry<LiquidBlock>> OIL_BLOCK = new ArrayList<>();
 
-    public static final DeferredRegister<Fluid> FLUIDS = DeferredRegister.create(ForgeRegistries.FLUIDS, BCEnergy.MODID);
-    public static final DeferredRegister<FluidType> FLUID_TYPES = DeferredRegister.create(ForgeRegistries.Keys.FLUID_TYPES, BCEnergy.MODID);
+    public static final BCDeferredRegister<Fluid> FLUIDS = BCDeferredRegister.create("minecraft:fluid", BCEnergy.MODID);
+    public static final BCDeferredRegister<FluidType> FLUID_TYPES = BCDeferredRegister.create(ForgeRegistries.Keys.FLUID_TYPES, BCEnergy.MODID);
 
     public static final TagKey<Fluid> IS_OIL = TagKey.create(Registries.FLUID, new ResourceLocation(BCEnergy.MODID, "is_oil"));
     public static final TagKey<Fluid> IS_FUEL = TagKey.create(Registries.FLUID, new ResourceLocation(BCEnergy.MODID, "is_fuel"));
@@ -82,8 +83,8 @@ public final class BCEnergyFluids {
 
     public static void registry(IEventBus bus) {
         registryFluid();
-        FLUID_TYPES.register(bus);
-        FLUIDS.register(bus);
+        RegistryBinding.register(FLUID_TYPES, bus);
+        RegistryBinding.register(FLUIDS, bus);
     }
 
     public static void init() {
@@ -121,7 +122,7 @@ public final class BCEnergyFluids {
 
     public static List<ItemStack> getCreativeTabItems() {
         List<ItemStack> items = new ArrayList<>(OIL_BUCKET.size());
-        for (RegistryObject<BucketItem> bucket : OIL_BUCKET) {
+        for (BCRegistryEntry<BucketItem> bucket : OIL_BUCKET) {
             items.add(bucket.get().getDefaultInstance());
         }
         return items;
@@ -153,7 +154,7 @@ public final class BCEnergyFluids {
         int tint = 0xFFFFFFFF;
         String texture = BCEnergy.MODID + ":blocks/fluids/" + name + "/" + HEAT_NAMES[heat];
 
-        RegistryObject<BCFluidType> type = FLUID_TYPES.register(fullName, () -> new BCFluidType(
+        BCRegistryEntry<BCFluidType> type = FLUID_TYPES.register(fullName, () -> new BCFluidType(
             FluidType.Properties.create()
                 .canSwim(false)
                 .density(boilAdjustedDensity)
@@ -165,17 +166,14 @@ public final class BCEnergyFluids {
             tint
         ));
 
-        RegistryObject<BCFluid> source = RegistryObject.create(
-            new ResourceLocation(BCEnergy.MODID, fullName), ForgeRegistries.Keys.FLUIDS, BCEnergy.MODID
-        );
-        RegistryObject<BCFluid> flowing = RegistryObject.create(
-            new ResourceLocation(BCEnergy.MODID, fullName + "_flowing"), ForgeRegistries.Keys.FLUIDS, BCEnergy.MODID
-        );
-        RegistryObject<BucketItem> bucket = BCEnergy.ITEMS.register(
+        FluidReferences refs = new FluidReferences();
+        java.util.function.Supplier<BCFluid> source = () -> refs.source.get();
+        java.util.function.Supplier<BCFluid> flowing = () -> refs.flowing.get();
+        BCRegistryEntry<BucketItem> bucket = BCEnergy.ITEMS.register(
             name + "/" + HEAT_NAMES[heat] + "_bucket",
             () -> new BucketItem(source, new Item.Properties().stacksTo(1).craftRemainder(Items.BUCKET))
         );
-        RegistryObject<LiquidBlock> block = BCEnergyBlocks.BLOCKS.register(fullName, () -> new BCLiquidBlock(
+        BCRegistryEntry<LiquidBlock> block = BCEnergyBlocks.BLOCKS.register(fullName, () -> new BCLiquidBlock(
             source,
             BlockBehaviour.Properties.of()
                 .mapColor(MapColor.COLOR_BLACK)
@@ -195,11 +193,15 @@ public final class BCEnergyFluids {
             .block(block)
             .tickRate(10 + 10 * (2 - heat));
 
-        FLUIDS.register(fullName, () -> new BCFluid.Source(properties).setHeat(heat));
-        FLUIDS.register(fullName + "_flowing", () -> new BCFluid.Flowing(properties).setHeat(heat));
+        refs.source = FLUIDS.register(fullName, () -> new BCFluid.Source(properties).setHeat(heat));
+        refs.flowing = FLUIDS.register(fullName + "_flowing", () -> new BCFluid.Flowing(properties).setHeat(heat));
         OIL_TYPE.add(type);
-        OIL_SOURCE.add(source);
+        OIL_SOURCE.add(refs.source);
         OIL_BUCKET.add(bucket);
         OIL_BLOCK.add(block);
+    }
+    private static final class FluidReferences {
+        private BCRegistryEntry<BCFluid> source;
+        private BCRegistryEntry<BCFluid> flowing;
     }
 }

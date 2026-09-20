@@ -2,9 +2,7 @@ package buildcraft.transport.plug;
 
 import buildcraft.lib.internal.mj.MjCapabilities;
 
-import net.minecraftforge.api.distmarker.OnlyIn;
 
-import net.minecraftforge.api.distmarker.Dist;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,7 +64,6 @@ public class PluggablePowerAdaptor extends PipePluggable {
 
     @Override
     @Nullable
-    @OnlyIn(Dist.CLIENT)
     public PluggableModelKey getModelRenderKey(RenderType layer) {
         if (layer == RenderType.cutout()) {
             return new KeyPlugPowerAdaptor(side);

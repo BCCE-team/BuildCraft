@@ -27,6 +27,7 @@ import buildcraft.lib.misc.EntityUtil;
 import buildcraft.lib.tile.item.ItemHandlerManager.EnumAccess;
 import buildcraft.lib.tile.item.IItemHandlerAdv;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
+import buildcraft.lib.platform.storage.EnergyStorage;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -44,12 +45,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.energy.IEnergyStorage;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 /** BuildCraft 8 FE Engine: consumes Forge Energy and produces MJ. */
 public class TileEngineFE extends TileEngineBase_BC8 implements MenuProvider {
@@ -62,7 +59,7 @@ public class TileEngineFE extends TileEngineBase_BC8 implements MenuProvider {
     private int currentFe;
     public final ItemHandlerSimple invUpgrades;
 
-    private final IEnergyStorage feStorage = new FeStorage();
+    private final EnergyStorage feStorage = new FeStorage();
     private final ExternalEnergyPort api2FeInputPort = new ExternalEnergyPort() {
         @Override public long insert(long offered, OperationMode mode) {
             int accepted = feStorage.receiveEnergy((int) Math.min(Integer.MAX_VALUE, Math.max(0L, offered)), mode == OperationMode.SIMULATE);
@@ -74,14 +71,13 @@ public class TileEngineFE extends TileEngineBase_BC8 implements MenuProvider {
         @Override public boolean canInsert() { return true; }
         @Override public boolean canExtract() { return false; }
     };
-    private final LazyOptional<IEnergyStorage> feCapability = LazyOptional.of(() -> feStorage);
-
     public TileEngineFE(BlockPos pos, BlockState state) {
         super(BCEnergyBlocks.ENGINE_FE_TILE_BC8.get(), pos, state);
         invUpgrades = itemManager.addInvHandler(
             "upgrades", 4, (slot, stack) -> isValidUpgrade(stack), EnumAccess.NONE
         ).setLimitedInsertor(1);
         caps.addProvider(itemManager);
+        caps.addEnergyStorage(feStorage, buildcraft.lib.internal.core.EnumPipePart.VALUES);
     }
 
     private static void ensureUpgradeMap() {
@@ -140,17 +136,17 @@ public class TileEngineFE extends TileEngineBase_BC8 implements MenuProvider {
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
+        if (side == BCNetworkSide.CLIENT && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
             currentFe = buffer.readVarInt();
         }
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
+        if (side == BCNetworkSide.SERVER && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
             buffer.writeVarInt(currentFe);
         }
     }
@@ -236,21 +232,7 @@ public class TileEngineFE extends TileEngineBase_BC8 implements MenuProvider {
         return new ContainerEngineFE(id, inventory, invUpgrades, ContainerLevelAccess.create(level, worldPosition));
     }
 
-    @Override
-    public <T> @NotNull LazyOptional<T> getCapability(@Nonnull Capability<T> capability, Direction facing) {
-        if (capability == ForgeCapabilities.ENERGY) {
-            return feCapability.cast();
-        }
-        return super.getCapability(capability, facing);
-    }
-
-    @Override
-    public void invalidateCaps() {
-        super.invalidateCaps();
-        feCapability.invalidate();
-    }
-
-    private final class FeStorage implements IEnergyStorage {
+    private final class FeStorage implements EnergyStorage {
         @Override
         public int receiveEnergy(int maxReceive, boolean simulate) {
             if (maxReceive <= 0) return 0;

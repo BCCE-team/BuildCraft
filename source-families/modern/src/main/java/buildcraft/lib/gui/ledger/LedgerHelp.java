@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -9,8 +10,6 @@ package buildcraft.lib.gui.ledger;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.GuiGraphics;
 
 import buildcraft.lib.internal.core.render.ISprite;
@@ -24,9 +23,8 @@ import buildcraft.lib.gui.elem.GuiElementContainerHelp;
 import buildcraft.lib.gui.help.ElementHelpInfo.HelpPosition;
 import buildcraft.lib.gui.pos.IGuiArea;
 import buildcraft.lib.misc.GuiUtil;
-import buildcraft.lib.misc.RenderUtil;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 public class LedgerHelp extends Ledger_Neptune {
 
@@ -49,9 +47,10 @@ public class LedgerHelp extends Ledger_Neptune {
     public LedgerHelp(BuildCraftGui gui, boolean expandPositive) {
         super(gui, 0xFF_CC_99_FF, expandPositive);
         title = Component.translatable("gui.ledger.help");
+        showHint();
         calculateMaxSize();
 
-        ResourceLocation id = ResourceLocation.parse("buildcraftlib:base");
+        Identifier id = Identifier.parse("buildcraftlib:base");
         setOpenProperty(GuiConfigManager.getOrAddBoolean(id, "ledger.help.is_open", false));
     }
 
@@ -88,9 +87,7 @@ public class LedgerHelp extends Ledger_Neptune {
 
     @Override
     public void drawForeground(GuiGraphics guiGraphics, float partialTicks) {
-        PoseStack pose = guiGraphics.pose();
         super.drawForeground(guiGraphics, partialTicks);
-        RenderSystem.enableBlend();
         if (!shouldDrawOpen()) {
             return;
         }
@@ -114,10 +111,9 @@ public class LedgerHelp extends Ledger_Neptune {
             boolean isHovered = rect.contains(gui.mouse);
             boolean isSelected = sameTarget(info, selected);
             SpriteNineSliced split = SPRITE_HELP_SPLIT[isHovered ? 1 : 0][isSelected ? 1 : 0];
-            RenderUtil.setGLColorFromInt(info.info.colour);
-            split.draw(pose, rect);
+            split.draw(guiGraphics, rect, 0xFF000000 | (info.info.colour & 0x00FFFFFF));
         }
-        RenderSystem.setShaderColor(1, 1, 1, 1);
+
     }
 
     private List<HelpPosition> collectHelpPositions() {
@@ -141,13 +137,22 @@ public class LedgerHelp extends Ledger_Neptune {
     }
 
     private void clearSelected() {
-        if (selected == null && openElements.size() <= 1) {
+        if (selected == null) {
             return;
         }
         selected = null;
         removeSelectedContainer();
         title = Component.translatable("gui.ledger.help");
+        showHint();
         calculateMaxSize();
+    }
+
+    private void showHint() {
+        GuiElementContainerHelp container = new GuiElementContainerHelp(gui, positionLedgerInnerStart);
+        buildcraft.lib.gui.help.ElementHelpInfo hint = new buildcraft.lib.gui.help.ElementHelpInfo(
+            "gui.ledger.help", 0xFFCC99FF, "gui.ledger.help.hint");
+        hint.addGuiElements(container);
+        openElements.add(container);
     }
 
     private void removeSelectedContainer() {

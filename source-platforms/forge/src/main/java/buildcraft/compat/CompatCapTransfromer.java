@@ -9,7 +9,7 @@ import java.util.function.BiFunction;
 import buildcraft.lib.misc.CapUtil;
 import net.minecraft.core.Direction;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.CapabilityProvider;
+import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 
@@ -19,7 +19,7 @@ public enum CompatCapTransfromer {
     private final Map<Class<?>, BiFunction<Object, Direction, IFluidHandler>> fluidCapRegistry = new HashMap<>();
     private final List<BiFunction<Object, Direction, IFluidHandler>> fluidCapFallbacks = new ArrayList<>();
 
-    public <T extends CapabilityProvider<?>> IFluidHandler transfromFluidCap(T provider, Direction face) {
+    public IFluidHandler transfromFluidCap(ICapabilityProvider provider, Direction face) {
         BiFunction<Object, Direction, IFluidHandler> function = fluidCapRegistry.get(provider.getClass());
         if (function != null) {
             IFluidHandler handler = function.apply(provider, face);
@@ -47,7 +47,7 @@ public enum CompatCapTransfromer {
         }
     }
 
-    public <T extends CapabilityProvider<?>, E> LazyOptional<E> getCap(T provider, Capability<E> capability, Direction face) {
+    public <E> LazyOptional<E> getCap(ICapabilityProvider provider, Capability<E> capability, Direction face) {
         if (capability == CapUtil.CAP_FLUIDS) {
             // Compatibility wrappers must get first chance: an optional mod may expose a native
             // Forge handler but still require fluid-ID translation at the integration boundary.

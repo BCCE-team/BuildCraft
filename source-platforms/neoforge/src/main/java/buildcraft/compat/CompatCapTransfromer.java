@@ -17,7 +17,7 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandler;
  * Compatibility layer for block capabilities that need an adapter before they are exposed to BuildCraft.
  *
  * <p>NeoForge block capabilities are queried through the level, rather than directly from the block entity.
- * This class keeps the old optional-returning call shape so modules can be ported independently.</p>
+ * This class presents BuildCraft's Optional-style capability view over level-based NeoForge lookups.</p>
  */
 public enum CompatCapTransfromer {
     INSTANCE;
@@ -71,6 +71,22 @@ public enum CompatCapTransfromer {
                 E value = (E) transformed;
                 return Optional.of(value);
             }
+
+            @SuppressWarnings("unchecked")
+            E value = (E) CapUtil.getFluidHandler(provider.getLevel(), provider.getBlockPos(), face);
+            return Optional.ofNullable(value);
+        }
+
+        if (capability == CapUtil.CAP_ITEMS) {
+            @SuppressWarnings("unchecked")
+            E value = (E) CapUtil.getItemHandler(provider.getLevel(), provider.getBlockPos(), face);
+            return Optional.ofNullable(value);
+        }
+
+        if (capability == CapUtil.CAP_FE) {
+            @SuppressWarnings("unchecked")
+            E value = (E) CapUtil.getEnergyStorage(provider.getLevel(), provider.getBlockPos(), face);
+            return Optional.ofNullable(value);
         }
 
         return Optional.ofNullable(

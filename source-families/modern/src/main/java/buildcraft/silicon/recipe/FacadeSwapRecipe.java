@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -22,7 +23,7 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
 import net.minecraft.world.item.crafting.CraftingInput;
@@ -30,6 +31,9 @@ import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeInput;
+import net.minecraft.world.item.crafting.PlacementInfo;
 
 public enum FacadeSwapRecipe implements CraftingRecipe, IRecipeViewable.IViewableGrid {
     INSTANCE;
@@ -38,17 +42,15 @@ public enum FacadeSwapRecipe implements CraftingRecipe, IRecipeViewable.IViewabl
     private static final ChangingItemStack[] INPUTS = { null };
     private static ChangingItemStack outputs;
 
-    public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(BCSilicon.MODID, "special/facade_swap");
+    public static final Identifier ID = Identifier.fromNamespaceAndPath(BCSilicon.MODID, "special/facade_swap");
     private static final MapCodec<FacadeSwapRecipe> CODEC = MapCodec.unit(INSTANCE);
     private static final StreamCodec<RegistryFriendlyByteBuf, FacadeSwapRecipe> STREAM_CODEC =
         StreamCodec.unit(INSTANCE);
     public static final RecipeSerializer<FacadeSwapRecipe> SERIALIZER = new RecipeSerializer<>() {
-        @Override
         public MapCodec<FacadeSwapRecipe> codec() {
             return CODEC;
         }
 
-        @Override
         public StreamCodec<RegistryFriendlyByteBuf, FacadeSwapRecipe> streamCodec() {
             return STREAM_CODEC;
         }
@@ -75,7 +77,6 @@ public enum FacadeSwapRecipe implements CraftingRecipe, IRecipeViewable.IViewabl
         }
     }
 
-    @Override
     public boolean matches(CraftingInput inventory, Level level) {
         if (!BCSiliconConfig.enableFacades) {
             return false;
@@ -83,7 +84,6 @@ public enum FacadeSwapRecipe implements CraftingRecipe, IRecipeViewable.IViewabl
         return !assemble(inventory, level.registryAccess()).isEmpty();
     }
 
-    @Override
     public ItemStack assemble(CraftingInput inventory, HolderLookup.Provider registries) {
         if (!BCSiliconConfig.enableFacades) {
             return StackUtil.EMPTY;
@@ -106,12 +106,10 @@ public enum FacadeSwapRecipe implements CraftingRecipe, IRecipeViewable.IViewabl
         return BCSiliconItems.PLUG_FACADE_ITEM.get().createItemStack(states);
     }
 
-    @Override
     public ItemStack getResultItem(HolderLookup.Provider registries) {
         return StackUtil.EMPTY;
     }
 
-    @Override
     public ChangingItemStack[] getRecipeInputs() {
         if (!BCSiliconConfig.enableFacades) {
             return new ChangingItemStack[0];
@@ -122,7 +120,6 @@ public enum FacadeSwapRecipe implements CraftingRecipe, IRecipeViewable.IViewabl
         return INPUTS;
     }
 
-    @Override
     public ChangingItemStack getRecipeOutputs() {
         if (!BCSiliconConfig.enableFacades) {
             return new ChangingItemStack(net.minecraft.core.NonNullList.<ItemStack>create());
@@ -138,32 +135,30 @@ public enum FacadeSwapRecipe implements CraftingRecipe, IRecipeViewable.IViewabl
             .createItemStack(FacadeInstance.createSingle(info, isHollow));
     }
 
-    @Override
     public int getRecipeWidth() {
         return 1;
     }
 
-    @Override
     public int getRecipeHeight() {
         return 1;
     }
 
-    @Override
     public boolean canCraftInDimensions(int width, int height) {
         return width >= 1 && height >= 1;
     }
 
-    @Override
-    public RecipeSerializer<?> getSerializer() {
+    public RecipeSerializer<? extends CraftingRecipe> getSerializer() {
         return BCSiliconRecipes.FACADE_SWAP_SERIALIZER.get();
     }
 
-    @Override
     public RecipeType<CraftingRecipe> getType() {
         return RecipeType.CRAFTING;
     }
 
-    @Override
+    public PlacementInfo placementInfo() {
+        return PlacementInfo.NOT_PLACEABLE;
+    }
+
     public CraftingBookCategory category() {
         return CraftingBookCategory.MISC;
     }

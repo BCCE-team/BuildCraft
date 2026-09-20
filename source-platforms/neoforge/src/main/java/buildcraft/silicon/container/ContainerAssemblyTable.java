@@ -41,10 +41,4 @@ public class ContainerAssemblyTable extends ContainerBCTile<TileAssemblyTable> {
         }
     }
 
-    //Moved to TileAssemblyTable
-/*    private ItemStack getDisplay(int index) {
-        return index < tile.recipesStates.size()
-                ? new ArrayList<>(tile.recipesStates.keySet()).get(index).output
-                : ItemStack.EMPTY;
-    }*/
 }

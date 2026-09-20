@@ -16,6 +16,7 @@ import org.jetbrains.annotations.NotNull;
 
 import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
+import buildcraft.lib.internal.core.EnumPipePart;
 import buildcraft.lib.internal.permission.IPlayerOwned;
 import buildcraft.lib.cache.CachedChunk;
 import buildcraft.lib.cache.IChunkCache;
@@ -77,14 +78,11 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.NetworkEvent.Context;
+import buildcraft.lib.net.BCPacketContext;
 
 public abstract class TileBC_Neptune extends BlockEntity implements IPayloadReceiver, IAdvDebugTarget, IPlayerOwned {
 
@@ -147,15 +145,15 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     public TileBC_Neptune(BlockEntityType<?> p_155228_, BlockPos p_155229_, BlockState p_155230_) {
 		super(p_155228_, p_155229_, p_155230_);
 		caps.addProvider(itemManager);
+		caps.addItemStorage(itemManager::getItemStorage, EnumPipePart.VALUES);
 	}
 
     // ##################################################
     //
     // Local blockstate + tile entity getters
     //
-    // Some of these (may) use a cached version
-    // at some point in the future, or are already
-    // based on a cache.
+    // Some getters use cached state when available; callers should treat returned values as
+    // snapshots of the currently loaded world state.
     //
     // ##################################################
 
@@ -169,8 +167,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     }
 
     public final BlockState getNeighbourState(Direction offset) {
-        // In the future it is plausible that we might cache block states here.
-        // However, until that is implemented, just call the level directly.
+        // Neighbour state reads are intentionally uncached so world changes are observed immediately.
         return getOffsetState(offset.getNormal());
     }
 
@@ -371,6 +368,18 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
         }
         return super.getCapability(cap, side);
 	}
+
+    @Override
+    public void invalidateCaps() {
+        super.invalidateCaps();
+        caps.invalidate();
+    }
+
+    @Override
+    public void reviveCaps() {
+        super.reviveCaps();
+        caps.revive();
+    }
     
     
     // Item caps
@@ -460,7 +469,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
             if (level.isClientSide()) {
                 // NET_REDRAW is also the model-data invalidation path for dynamic baked models (engines, pipes, etc.).
                 // Flags=0 does not reliably dirty the client render section, which can leave the static half of an
-                // engine in its old orientation while the block-entity renderer already uses the new facing.
+                // engine in its previous orientation while the block-entity renderer already uses the new facing.
                 requestModelDataUpdate();
                 BlockState state = level.getBlockState(worldPosition);
                 level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
@@ -518,7 +527,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
 
     public final MessageUpdateTile createNetworkUpdate(final int id) {
         if (hasLevel()) {
-            final LogicalSide side = level.isClientSide ? LogicalSide.CLIENT : LogicalSide.SERVER;
+            final BCNetworkSide side = level.isClientSide ? BCNetworkSide.CLIENT : BCNetworkSide.SERVER;
             return createMessage(id, (buffer) -> writePayload(id, buffer, side));
         } else {
             BCLog.logger.warn("Did not have a level at " + worldPosition + "!");
@@ -586,7 +595,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
         try {
             buf.writeShort(NET_RENDER_DATA);
             writePayload(NET_RENDER_DATA, new FriendlyByteBuf(buf),
-                level.isClientSide ? LogicalSide.CLIENT : LogicalSide.SERVER);
+                level.isClientSide ? BCNetworkSide.CLIENT : BCNetworkSide.SERVER);
             byte[] bytes = new byte[buf.readableBytes()];
             buf.readBytes(bytes);
 
@@ -617,7 +626,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
         try {
             int id = buf.readUnsignedShort();
             FriendlyByteBuf buffer = new FriendlyByteBuf(buf);
-            readPayload(id, buffer, level.isClientSide ? LogicalSide.CLIENT : LogicalSide.SERVER, null);
+            readPayload(id, buffer, level.isClientSide ? BCNetworkSide.CLIENT : BCNetworkSide.SERVER, null);
             // Make sure that we actually read the entire message rather than just discarding it
             MessageUtil.ensureEmpty(buffer, false, getClass() + ", id = " + getIdAllocator().getNameFor(id));
             spawnReceiveParticles(id);
@@ -646,17 +655,17 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     }
 
     @Override
-    public final void receivePayload(NetworkEvent.Context ctx, FriendlyByteBuf buffer) throws IOException {
+    public final void receivePayload(BCPacketContext ctx, FriendlyByteBuf buffer) throws IOException {
         int id = buffer.readUnsignedShort();
         if (!getIdAllocator().isAllocated(id)) {
             throw new io.netty.handler.codec.DecoderException("Unknown tile payload id " + id + " for " + getClass().getName());
         }
 
-        LogicalSide direction = ctx.getDirection().getReceptionSide();
+        BCNetworkSide direction = ctx.side();
         readPayload(id, buffer, direction, ctx);
         NetworkSecurity.requireFullyRead(buffer, getClass().getName() + "#" + getIdAllocator().getNameFor(id));
 
-        if (direction == LogicalSide.CLIENT) {
+        if (direction == BCNetworkSide.CLIENT) {
             spawnReceiveParticles(id);
         }
     }
@@ -667,17 +676,17 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     //
     // ######################
 
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         // write render data with gui data
         if (id == NET_GUI_DATA) {
 
             writePayload(NET_RENDER_DATA, buffer, side);
 
-            if (side == LogicalSide.SERVER) {
+            if (side == BCNetworkSide.SERVER) {
                 MessageUtil.writeGameProfile(buffer, owner);
             }
         }
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 deltaManager.writeDeltaState(false, buffer);
             } else if (id == NET_GUI_DATA) {
@@ -688,16 +697,16 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
 
     /** @param ctx The context. Will be null if this is a generic update payload
      * @throws IOException if something went wrong */
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         // read render data with gui data
         if (id == NET_GUI_DATA) {
             readPayload(NET_RENDER_DATA, buffer, side, ctx);
 
-            if (side == LogicalSide.CLIENT) {
+            if (side == BCNetworkSide.CLIENT) {
                 owner = MessageUtil.readGameProfile(buffer);
             }
         }
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) deltaManager.receiveDeltaData(false, EnumDeltaMessage.CURRENT_STATE, buffer);
             else if (id == NET_GUI_DATA) deltaManager.receiveDeltaData(true, EnumDeltaMessage.CURRENT_STATE, buffer);
             else if (id == NET_REN_DELTA_SINGLE) deltaManager.receiveDeltaData(
@@ -815,7 +824,6 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     }
 
     @Override
-    @OnlyIn(Dist.CLIENT)
     public IDetachedRenderer getDebugRenderer() {
         return null;
     }

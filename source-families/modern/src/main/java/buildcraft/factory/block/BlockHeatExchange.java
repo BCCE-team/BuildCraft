@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -34,6 +35,10 @@ import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.level.redstone.Orientation;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ScheduledTickAccess;
+import net.minecraft.util.RandomSource;
 
 public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPipeConnection, IBlockWithFacing {
 
@@ -44,7 +49,6 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
 
         private final String lowerCaseName = name().toLowerCase(Locale.ROOT);
 
-        @Override
         public String getSerializedName() {
             return lowerCaseName;
         }
@@ -73,7 +77,6 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
             .setValue(PROP_CONNECTED_RIGHT, false));
     }
 
-    @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> properties) {
         super.createBlockStateDefinition(properties);
         properties.add(PROP_PART);
@@ -82,7 +85,6 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
         properties.add(PROP_CONNECTED_RIGHT);
     }
 
-    @Override
     public BlockState getStateForPlacement(BlockPlaceContext context) {
         BlockState state = super.getStateForPlacement(context);
         if (state == null) {
@@ -91,21 +93,19 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
         return withActualState(state, context.getLevel(), context.getClickedPos());
     }
 
-    @Override
-    public BlockState updateShape(BlockState state, Direction direction, BlockState neighbourState,
-        LevelAccessor world, BlockPos pos, BlockPos neighbourPos) {
+    protected BlockState updateShape(BlockState state, LevelReader world, ScheduledTickAccess scheduledTickAccess, BlockPos pos, Direction direction, BlockPos neighbourPos, BlockState neighbourState, RandomSource random) {
         return withActualState(state, world, pos);
     }
 
     @Override
-    public void neighborChanged(BlockState state, Level level, BlockPos pos, Block block, BlockPos fromPos,
-        boolean isMoving) {
+    protected void neighborChanged(BlockState state, Level level, BlockPos pos, Block block,
+            Orientation orientation, boolean notify) {
         BlockState actual = withActualState(state, level, pos);
         if (actual != state) {
             level.setBlock(pos, actual, Block.UPDATE_ALL);
             state = actual;
         }
-        super.neighborChanged(state, level, pos, block, fromPos, isMoving);
+        super.neighborChanged(state, level, pos, block, orientation, notify);
     }
 
     public static BlockState withActualState(BlockState state, BlockGetter world, BlockPos pos) {
@@ -130,14 +130,13 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
 
     private static boolean doesNeighbourConnect(BlockGetter world, BlockPos pos, Direction thisFacing,
         Direction dir) {
-        BlockState neighbour = world.getBlockState(pos.offset(dir.getNormal()));
+        BlockState neighbour = world.getBlockState(pos.offset(dir.getUnitVec3i()));
         if (neighbour.getBlock() == BCFactoryBlocks.HEATEXCHANGE_BLOCK.get()) {
             return neighbour.getValue(PROP_FACING) == thisFacing;
         }
         return false;
     }
 
-    @Override
     public BlockState rotate(BlockState state, LevelAccessor world, BlockPos pos, Rotation axis) {
         BlockEntity tile = world.getBlockEntity(pos);
         if (tile instanceof TileHeatExchange exchange) {
@@ -147,12 +146,10 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
         return state;
     }
 
-    @Override
     public TileHeatExchange newBlockEntity(BlockPos pos, BlockState state) {
         return new TileHeatExchange(pos, state);
     }
 
-    @Override
     public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
         switch (state.getValue(PROP_FACING)) {
             case NORTH:
@@ -166,27 +163,22 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
         }
     }
 
-    @Override
     public boolean isCollisionShapeFullBlock(BlockState state, BlockGetter world, BlockPos pos) {
         return false;
     }
 
-    @Override
     public VoxelShape getOcclusionShape(BlockState state, BlockGetter world, BlockPos pos) {
         return Shapes.empty();
     }
 
-    @Override
     public boolean isOcclusionShapeFullBlock(BlockState state, BlockGetter world, BlockPos pos) {
         return false;
     }
 
-    @Override
     public float getExtension(Level world, BlockPos pos, Direction face, BlockState state) {
         return 0;
     }
 
-    @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state,
         BlockEntityType<T> blockEntityType) {
         return blockEntityType == BCFactoryBlocks.ENTITYBLOCKHEATEXCHANGE.get() ? ($0, pos, $1, blockEntity) -> {

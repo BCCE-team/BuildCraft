@@ -15,7 +15,7 @@ import net.minecraft.world.phys.Vec3;
 /**
  * Context for a paint interaction.
  *
- * <p>The colour may be {@code null}: BuildCraft historically uses a null colour to mean
+ * <p>The colour may be {@code null}: BuildCraft uses a null colour to mean
  * "clear the paint". Hit information is carried explicitly so multipart blocks such as
  * pipes can preserve their classic side/part-sensitive behaviour through API2.
  */

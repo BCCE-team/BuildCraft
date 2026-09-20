@@ -12,6 +12,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import org.joml.Matrix4f;
 
 import buildcraft.core.client.BuildCraftLaserManager;
@@ -34,8 +35,15 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
     @Override
 	public void render(PoseStack pose, Matrix4f matrix, Player player, float partialTicks) {
     	
-    	LaserRenderer_BC8.setupLaserRenderState();
-    	BufferBuilder bb = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
+        LaserRenderer_BC8.setupLaserRenderState();
+        //? if >=1.21.9 {
+        // The 1.21.11 compatibility BufferUploader is intentionally inert. Append volume-box laser/addon
+        // geometry to the live level buffer instead; DetachedRenderer flushes it after the complete batch.
+        VertexConsumer bb = Minecraft.getInstance().renderBuffers().bufferSource()
+            .getBuffer(buildcraft.lib.compat.RenderCompat.solid());
+        //?} else {
+        BufferBuilder bb = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
+        //?}
         ClientVolumeBoxes.INSTANCE.volumeBoxes.forEach(volumeBox -> {
             // Volume boxes are synchronized independently of client chunk lifetime. Keep the cached box so it can
             // reappear intact after a render-distance unload, but never draw it while any chunk intersecting the
@@ -62,11 +70,13 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
                 ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(addon, player, partialTicks, bb)
             );
         });
+        //? if <1.21.9 {
         LaserRenderer_BC8.setupLaserRenderState();
         var mesh = bb.build();
         if (mesh != null) {
             BufferUploader.drawWithShader(mesh);
         }
+        //?}
 		
 	}
 

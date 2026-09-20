@@ -28,8 +28,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.util.INBTSerializable;
 import net.minecraftforge.fluids.FluidStack;
 
@@ -216,8 +214,6 @@ public class TankManager extends ForwardingList<Tank> implements IFluidHandlerAd
             tank.writeToBuffer(buffer);
         }
     }
-
-    @OnlyIn(Dist.CLIENT)
     public void readData(FriendlyByteBuf buffer) {
         for (Tank tank : tanks) {
             tank.readFromBuffer(buffer);

@@ -17,12 +17,12 @@ import buildcraft.api.v2.platform.ItemTransfer;
 import buildcraft.api.v2.platform.PlatformServices;
 import buildcraft.lib.fluid.FuelApiBridge;
 import buildcraft.lib.internal.api.v2.BuildCraftApiRuntime;
+import buildcraft.lib.misc.CapUtil;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.energy.IEnergyStorage;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
@@ -55,7 +55,7 @@ public final class PlatformApi2Bootstrap {
         @Override
         public Optional<ItemPort> find(Level level, BlockPos pos, Direction side) {
             if (level == null || pos == null) return Optional.empty();
-            IItemHandler handler = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, side);
+            IItemHandler handler = CapUtil.getItemHandler(level, pos, side);
             return handler == null ? Optional.empty() : Optional.of(new NeoForgeItemPort(handler));
         }
     }
@@ -65,7 +65,7 @@ public final class PlatformApi2Bootstrap {
         @Override
         public Optional<FluidPort> find(Level level, BlockPos pos, Direction side) {
             if (level == null || pos == null) return Optional.empty();
-            IFluidHandler handler = level.getCapability(Capabilities.FluidHandler.BLOCK, pos, side);
+            IFluidHandler handler = CapUtil.getFluidHandler(level, pos, side);
             return handler == null ? Optional.empty() : Optional.of(new NeoForgeFluidPort(handler));
         }
     }
@@ -75,7 +75,7 @@ public final class PlatformApi2Bootstrap {
         @Override
         public Optional<ExternalEnergyPort> find(Level level, BlockPos pos, Direction side) {
             if (level == null || pos == null) return Optional.empty();
-            IEnergyStorage storage = level.getCapability(Capabilities.EnergyStorage.BLOCK, pos, side);
+            IEnergyStorage storage = CapUtil.getEnergyStorage(level, pos, side);
             return storage == null ? Optional.empty() : Optional.of(new NeoForgeEnergyPort(storage));
         }
     }

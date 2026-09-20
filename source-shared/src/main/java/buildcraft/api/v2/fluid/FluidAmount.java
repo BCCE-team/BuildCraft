@@ -5,8 +5,8 @@ import java.util.Objects;
 /**
  * Non-negative fluid amount measured in milliBuckets (mB).
  *
- * The stable API intentionally keeps BuildCraft's historical mB unit while
- * using a wide integer representation. Platform bridges must report any
+ * The stable API uses BuildCraft's canonical mB unit with a wide integer
+ * representation. Platform bridges must report any
  * conversion remainder rather than silently rounding.
  */
 public final class FluidAmount implements Comparable<FluidAmount> {

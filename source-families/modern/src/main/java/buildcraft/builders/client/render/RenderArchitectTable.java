@@ -13,6 +13,7 @@ import org.joml.Matrix4f;
 
 import buildcraft.builders.tile.TileArchitectTable;
 import buildcraft.core.client.BuildCraftLaserManager;
+import buildcraft.lib.client.render.laser.LegacyLaserBlockEntityRenderer;
 import buildcraft.lib.client.render.laser.LaserBoxRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -21,13 +22,18 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 
-public class RenderArchitectTable implements BlockEntityRenderer<TileArchitectTable> {
+public class RenderArchitectTable implements BlockEntityRenderer<TileArchitectTable>, LegacyLaserBlockEntityRenderer<TileArchitectTable> {
    
 	public RenderArchitectTable(BlockEntityRendererProvider.Context bpc) {
 	}
 	
 	@Override
     public void render(TileArchitectTable tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
+        renderLasers(tile, partialTicks, matrix, buffer, light, overlay);
+    }
+
+	@Override
+    public void renderLasers(TileArchitectTable tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
         if (!tile.markerBox) {
             return;
         }

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import buildcraft.lib.internal.debug.BCLog;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
 import buildcraft.compat.CompatCapTransfromer;
 import buildcraft.energy.BCEnergy;
 import buildcraft.energy.BCEnergyFluids;
@@ -13,11 +14,10 @@ import ic2.api.tiles.IFluidMachine;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.minecraftforge.registries.RegistryObject;
 
 /** Optional IC2 Classic integration. This class must only be loaded when IC2 is present. */
 public final class Ic2Compat {
-    private static final List<RegistryObject<Item>> FLUID_CELLS = new ArrayList<>();
+    private static final List<BCRegistryEntry<? extends Item>> FLUID_CELLS = new ArrayList<>();
     private static boolean itemsRegistered;
     private static boolean initialized;
 

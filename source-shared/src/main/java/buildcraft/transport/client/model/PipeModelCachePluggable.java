@@ -38,6 +38,12 @@ public class PipeModelCachePluggable {
         cacheTranslucentAll = new ModelCacheMultipleSame<>(PluggableKey::getKeys, cacheTranslucentSingle);
     }
 
+    /** Clears every cached pluggable quad after a model/resource reload. */
+    public static void clear() {
+        cacheCutoutAll.clear();
+        cacheTranslucentAll.clear();
+    }
+
     private static <K extends PluggableModelKey> List<BakedQuad> generate(K key) {
         if (key == null) {
             return ImmutableList.of();

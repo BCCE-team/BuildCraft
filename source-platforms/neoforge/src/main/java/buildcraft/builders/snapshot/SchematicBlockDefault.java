@@ -6,6 +6,9 @@
 
 package buildcraft.builders.snapshot;
 
+import buildcraft.lib.platform.storage.PlatformStorage;
+import buildcraft.lib.platform.storage.MutableItemStorage;
+import buildcraft.lib.platform.storage.ItemStorage;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -26,12 +29,12 @@ import buildcraft.builders.internal.schematic.legacy.SchematicBlockContext;
 import buildcraft.lib.misc.BlockUtil;
 import buildcraft.lib.misc.ItemStackUtil;
 import buildcraft.lib.misc.NBTUtilBC;
+import buildcraft.lib.tile.TileBC_Neptune;
 import buildcraft.builders.BuildersNbtUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
@@ -48,11 +51,7 @@ import net.minecraft.world.level.block.entity.StructureBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.Property;
-import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.fluids.FluidStack;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.IItemHandlerModifiable;
-import net.neoforged.neoforge.items.wrapper.InvWrapper;
 
 public class SchematicBlockDefault implements ISchematicBlock {
     @SuppressWarnings("WeakerAccess")
@@ -67,6 +66,8 @@ public class SchematicBlockDefault implements ISchematicBlock {
     protected final List<DeferredInventoryItem> deferredInventoryItems = new ArrayList<>();
     @SuppressWarnings("WeakerAccess")
     protected boolean deferInventoryContents;
+    @SuppressWarnings("WeakerAccess")
+    protected boolean deferInventoryRuntimeClear;
     @SuppressWarnings("WeakerAccess")
     protected Rotation tileRotation = Rotation.NONE;
     @SuppressWarnings("WeakerAccess")
@@ -131,6 +132,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
         tileNbt = null;
         deferredInventoryItems.clear();
         deferInventoryContents = false;
+        deferInventoryRuntimeClear = false;
         if (context.blockState.hasBlockEntity()) {
             BlockEntity tileEntity = context.world.getBlockEntity(context.pos);
             if (tileEntity != null) {
@@ -154,13 +156,19 @@ public class SchematicBlockDefault implements ISchematicBlock {
                         tileNbt = emptiedNbt;
                         InventoryContentPolicy.stripCopiedBlockContent(context.blockState, tileNbt, rules);
                     } else {
-                        deferInventoryContents = false;
+                        tileNbt = originalTileNbt.copy();
+                        deferInventoryRuntimeClear = true;
                     }
                 }
                 if (!deferInventoryContents) {
                     tileNbt = originalTileNbt.copy();
                     deferredInventoryItems.clear();
+                    deferInventoryRuntimeClear = false;
                     InventoryContentPolicy.stripDisallowedBlockContent(context.blockState, tileNbt, rules);
+                }
+                if (tileNbt != null && tileEntity instanceof TileBC_Neptune) {
+                    // Ownership is attribution for the placement actor, not copied machine state.
+                    tileNbt.remove("owner");
                 }
             }
         }
@@ -173,29 +181,70 @@ public class SchematicBlockDefault implements ISchematicBlock {
         // Prefer the block entity's own inventory. A chest's unsided Forge capability may wrap the
         // combined double chest and would incorrectly include the neighbouring block's slots.
         if (blockEntity instanceof Container container) {
-            for (int slot = 0; slot < container.getContainerSize(); slot++) {
-                ItemStack stack = container.getItem(slot);
-                if (!stack.isEmpty()) {
-                    deferredInventoryItems.add(new DeferredInventoryItem(slot, stack.copy()));
-                }
-            }
-            return true;
+            return captureDeferredInventory(PlatformStorage.localInventory(container), null);
         }
 
         Level level = blockEntity.getLevel();
-        IItemHandler handler = level == null ? null : level.getCapability(
-            Capabilities.ItemHandler.BLOCK, blockEntity.getBlockPos(), null
-        );
-        if (handler == null) {
+        DeferredInventoryAccess access = findDeferredInventory(level, blockEntity.getBlockPos());
+        return access != null && captureDeferredInventory(access.storage(), access.side());
+    }
+
+    private boolean captureDeferredInventory(ItemStorage handler, Direction accessSide) {
+        int start = deferredInventoryItems.size();
+        try {
+            int slots = handler.getSlots();
+            if (slots < 0) {
+                return false;
+            }
+            for (int slot = 0; slot < slots; slot++) {
+                ItemStack stack = handler.getStackInSlot(slot);
+                if (stack != null && !stack.isEmpty()) {
+                    deferredInventoryItems.add(new DeferredInventoryItem(slot, accessSide, stack));
+                }
+            }
+            return true;
+        } catch (RuntimeException ignored) {
+            deferredInventoryItems.subList(start, deferredInventoryItems.size()).clear();
             return false;
         }
-        for (int slot = 0; slot < handler.getSlots(); slot++) {
-            ItemStack stack = handler.getStackInSlot(slot);
-            if (!stack.isEmpty()) {
-                deferredInventoryItems.add(new DeferredInventoryItem(slot, stack.copy()));
+    }
+
+    /** Prefer an unsided capability. If a mod exposes only sided views, use the richest stable view. */
+    private static DeferredInventoryAccess findDeferredInventory(Level level, BlockPos blockPos) {
+        try {
+            ItemStorage unsided = PlatformStorage.items(level, blockPos, null);
+            if (unsided != null) {
+                return new DeferredInventoryAccess(null, unsided);
+            }
+        } catch (RuntimeException ignored) {
+        }
+
+        DeferredInventoryAccess best = null;
+        int bestSlots = -1;
+        int bestNonEmpty = -1;
+        for (Direction side : Direction.values()) {
+            try {
+                ItemStorage candidate = PlatformStorage.items(level, blockPos, side);
+                if (candidate == null) {
+                    continue;
+                }
+                int slots = candidate.getSlots();
+                int nonEmpty = 0;
+                for (int slot = 0; slot < slots; slot++) {
+                    ItemStack stack = candidate.getStackInSlot(slot);
+                    if (stack != null && !stack.isEmpty()) {
+                        nonEmpty++;
+                    }
+                }
+                if (slots > bestSlots || slots == bestSlots && nonEmpty > bestNonEmpty) {
+                    best = new DeferredInventoryAccess(side, candidate);
+                    bestSlots = slots;
+                    bestNonEmpty = nonEmpty;
+                }
+            } catch (RuntimeException ignored) {
             }
         }
-        return true;
+        return best;
     }
 
     private static CompoundTag createInventoryClearedNbt(
@@ -206,74 +255,69 @@ public class SchematicBlockDefault implements ISchematicBlock {
         // "copy" also mutates the actual chest in the world. Work only on copied NBT instead.
         CompoundTag emptiedNbt = originalNbt.copy();
         InventoryContentPolicy.stripCopiedBlockContent(state, emptiedNbt, rules);
-        removeSerializedDeferredItems(emptiedNbt, deferredItems);
 
-        // Unknown mod inventories may serialize their slots in a custom format that cannot be
-        // recognised safely. Fall back to the old pre-filled-NBT behaviour rather than duplicate
-        // items or touch the live block entity.
+        // Unknown ItemStack-shaped compounds can be components/configuration, so do not recursively delete them.
+        // Opaque inventories are cleared from the live block entity immediately after placement instead.
         if (!deferredItems.isEmpty() && emptiedNbt.equals(originalNbt)) {
             return null;
         }
         return emptiedNbt;
     }
 
-    private static void removeSerializedDeferredItems(Tag tag, List<DeferredInventoryItem> deferredItems) {
-        if (tag instanceof CompoundTag compoundTag) {
-            for (String key : new ArrayList<>(compoundTag.getAllKeys())) {
-                Tag child = compoundTag.get(key);
-                if (child instanceof CompoundTag childCompound && isDeferredItemStack(childCompound, deferredItems)) {
-                    compoundTag.remove(key);
-                } else if (child != null) {
-                    removeSerializedDeferredItems(child, deferredItems);
-                }
-            }
-        } else if (tag instanceof ListTag listTag) {
-            for (int index = listTag.size() - 1; index >= 0; index--) {
-                Tag child = listTag.get(index);
-                if (child instanceof CompoundTag childCompound && isDeferredItemStack(childCompound, deferredItems)) {
-                    listTag.remove(index);
-                } else {
-                    removeSerializedDeferredItems(child, deferredItems);
-                }
-            }
+    private static ItemStack insertIntoExactSlot(ItemStorage handler, int slot, ItemStack stack, boolean simulate) {
+        if (handler == null || slot < 0 || stack.isEmpty()) {
+            return stack;
         }
-    }
-
-    private static boolean isDeferredItemStack(
-        CompoundTag tag, List<DeferredInventoryItem> deferredItems
-    ) {
-        if (!tag.contains("id", Tag.TAG_STRING)) {
-            return false;
-        }
+        ItemStack beforeSlot;
         try {
-            ItemStack serialized = ItemStackUtil.parseOptional(ItemStackUtil.requireActiveRegistryProvider(), tag);
-            return !serialized.isEmpty() && deferredItems.stream()
-                .anyMatch(entry -> ItemStack.isSameItemSameComponents(entry.stack, serialized));
+            if (slot >= handler.getSlots()) {
+                return stack;
+            }
+            ItemStack observed = handler.getStackInSlot(slot);
+            beforeSlot = observed == null ? ItemStack.EMPTY : observed.copy();
         } catch (RuntimeException ignored) {
-            return false;
+            return stack;
         }
-    }
 
-    private static ItemStack insertIntoExactSlot(IItemHandler handler, int slot, ItemStack stack, boolean simulate) {
         ItemStack remaining = stack.copy();
-        int before = remaining.getCount();
-        if (handler instanceof IItemHandlerModifiable modifiable) {
+        if (handler instanceof MutableItemStorage modifiable) {
             remaining = insertIntoModifiableSlot(modifiable, slot, remaining, simulate);
         }
-        if (!remaining.isEmpty() && remaining.getCount() == before) {
-            remaining = handler.insertItem(slot, remaining, simulate);
+        if (remaining.isEmpty() || remaining.getCount() != stack.getCount()) {
+            return remaining;
         }
-        return remaining;
+
+        try {
+            ItemStack nativeRemainder = handler.insertItem(slot, remaining, simulate);
+            if (nativeRemainder != null && (nativeRemainder.isEmpty()
+                || ItemStack.isSameItemSameComponents(nativeRemainder, remaining)
+                    && nativeRemainder.getCount() <= remaining.getCount())) {
+                return nativeRemainder;
+            }
+        } catch (RuntimeException ignored) {
+            if (simulate) {
+                return stack;
+            }
+        }
+        return observedInsertRemainder(handler, slot, stack, beforeSlot, simulate);
     }
 
     private static ItemStack insertIntoModifiableSlot(
-        IItemHandlerModifiable handler, int slot, ItemStack stack, boolean simulate
+        MutableItemStorage handler, int slot, ItemStack stack, boolean simulate
     ) {
-        ItemStack current = handler.getStackInSlot(slot);
-        if (!current.isEmpty() && !ItemStack.isSameItemSameComponents(current, stack)) {
+        ItemStack current;
+        int limit;
+        try {
+            ItemStack observed = handler.getStackInSlot(slot);
+            current = observed == null ? ItemStack.EMPTY : observed.copy();
+            if (!current.isEmpty() && !ItemStack.isSameItemSameComponents(current, stack)) {
+                return stack;
+            }
+            limit = Math.min(handler.getSlotLimit(slot), stack.getMaxStackSize());
+        } catch (RuntimeException ignored) {
             return stack;
         }
-        int limit = Math.min(handler.getSlotLimit(slot), stack.getMaxStackSize());
+
         int currentCount = current.isEmpty() ? 0 : current.getCount();
         int accepted = Math.min(stack.getCount(), Math.max(0, limit - currentCount));
         if (accepted <= 0) {
@@ -290,15 +334,122 @@ public class SchematicBlockDefault implements ISchematicBlock {
         try {
             handler.setStackInSlot(slot, updated);
         } catch (RuntimeException ignored) {
-            return stack;
+            // Some nonstandard handlers throw after mutating. First try to put the exact previous slot back; if that
+            // cannot be proven, observe the slot and account for what was actually inserted instead of refunding
+            // the full stack and creating a duplicate.
+            try {
+                handler.setStackInSlot(slot, current.copy());
+                ItemStack restored = handler.getStackInSlot(slot);
+                if (sameStackAndCount(current, restored)) {
+                    return stack;
+                }
+            } catch (RuntimeException rollbackFailure) {
+                // Fall through to observation.
+            }
+            return observedInsertRemainder(handler, slot, stack, current, false);
         }
-        ItemStack after = handler.getStackInSlot(slot);
-        int inserted = !after.isEmpty() && ItemStack.isSameItemSameComponents(after, stack)
-            ? Math.max(0, after.getCount() - currentCount)
-            : 0;
-        ItemStack remaining = stack.copy();
-        remaining.shrink(Math.min(inserted, stack.getCount()));
-        return remaining;
+
+        try {
+            ItemStack observed = handler.getStackInSlot(slot);
+            ItemStack after = observed == null ? ItemStack.EMPTY : observed;
+            int afterCount = !after.isEmpty() && ItemStack.isSameItemSameComponents(after, stack)
+                ? after.getCount() : 0;
+            int inserted = Math.min(stack.getCount(), Math.max(0, afterCount - currentCount));
+            ItemStack remaining = stack.copy();
+            remaining.shrink(inserted);
+            return remaining;
+        } catch (RuntimeException ignored) {
+            // Direct mutation returned normally. If the handler refuses a verification read, honour the mutable
+            // contract and account for the amount that was set rather than refunding an item that may be present.
+            ItemStack expectedRemainder = stack.copy();
+            expectedRemainder.shrink(accepted);
+            return expectedRemainder;
+        }
+    }
+
+    private static ItemStack observedInsertRemainder(
+        ItemStorage handler, int slot, ItemStack insertedStack, ItemStack beforeSlot, boolean simulate
+    ) {
+        try {
+            ItemStack observed = handler.getStackInSlot(slot);
+            ItemStack after = observed == null ? ItemStack.EMPTY : observed;
+            int beforeCount = !beforeSlot.isEmpty()
+                && ItemStack.isSameItemSameComponents(beforeSlot, insertedStack) ? beforeSlot.getCount() : 0;
+            int afterCount = !after.isEmpty()
+                && ItemStack.isSameItemSameComponents(after, insertedStack) ? after.getCount() : 0;
+            int inserted = Math.min(insertedStack.getCount(), Math.max(0, afterCount - beforeCount));
+            ItemStack remaining = insertedStack.copy();
+            remaining.shrink(inserted);
+            return remaining;
+        } catch (RuntimeException ignored) {
+            // Simulation has not reserved anything yet, so reject it. During execution an unobservable mutation
+            // cannot safely be refunded: consuming the reservation is preferable to duplicating the item.
+            return simulate ? insertedStack : ItemStack.EMPTY;
+        }
+    }
+
+    private static boolean sameStackAndCount(ItemStack expected, ItemStack actual) {
+        if (actual == null || expected.isEmpty() != actual.isEmpty()) {
+            return false;
+        }
+        return expected.isEmpty() || expected.getCount() == actual.getCount()
+            && ItemStack.isSameItemSameComponents(expected, actual);
+    }
+
+    private boolean clearRuntimeDeferredInventory(Level level, BlockPos blockPos, BlockEntity blockEntity) {
+        for (DeferredInventoryItem entry : deferredInventoryItems) {
+            ItemStorage handler = getDeferredInventoryHandler(level, blockPos, blockEntity, entry.accessSide);
+            if (handler == null || entry.slot < 0) {
+                return false;
+            }
+            try {
+                if (entry.slot >= handler.getSlots()) {
+                    return false;
+                }
+                ItemStack current = handler.getStackInSlot(entry.slot);
+                if (current == null || current.isEmpty()) {
+                    continue;
+                }
+                if (!ItemStack.isSameItemSameComponents(entry.stack, current)) {
+                    return false;
+                }
+                int remove = Math.min(entry.stack.getCount(), current.getCount());
+                if (remove <= 0) {
+                    continue;
+                }
+                if (handler instanceof MutableItemStorage mutable) {
+                    ItemStack replacement = current.copy();
+                    replacement.shrink(remove);
+                    mutable.setStackInSlot(entry.slot, replacement.isEmpty() ? ItemStack.EMPTY : replacement);
+                    ItemStack after = handler.getStackInSlot(entry.slot);
+                    int afterCount = after == null || after.isEmpty() ? 0 : after.getCount();
+                    if (afterCount != current.getCount() - remove) {
+                        return false;
+                    }
+                } else {
+                    ItemStack extracted = handler.extractItem(entry.slot, remove, false);
+                    if (extracted == null
+                        || extracted.getCount() != remove
+                        || !ItemStack.isSameItemSameComponents(entry.stack, extracted)) {
+                        return false;
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                return false;
+            }
+        }
+        blockEntity.setChanged();
+        return true;
+    }
+
+    private static void rollbackOpaqueInventoryPlacement(Level level, BlockPos blockPos) {
+        // Detach the copied block entity before replacing its block. Container blocks normally drop their contents
+        // from onRemove; leaving the failed, pre-filled block entity attached here would turn a restore failure into
+        // free dropped items. SnapshotBuilder can then restore the original world state without duplicated contents.
+        if (level.getBlockEntity(blockPos) != null) {
+            level.removeBlockEntity(blockPos);
+        }
+        level.setBlock(blockPos, Blocks.AIR.defaultBlockState(), 3);
     }
 
     private List<ItemStack> getConfiguredInventoryItems(BlockState state, Set<JsonRule> rules, Level level) {
@@ -494,11 +645,52 @@ public class SchematicBlockDefault implements ISchematicBlock {
      * Deferred schematic entries store local slot numbers for each half, so use the local Container
      * whenever one is available.
      */
-    private static IItemHandler getDeferredInventoryHandler(Level level, BlockPos blockPos, BlockEntity blockEntity) {
+    private static ItemStorage getDeferredInventoryHandler(
+        Level level, BlockPos blockPos, BlockEntity blockEntity, Direction accessSide
+    ) {
         if (blockEntity instanceof Container container) {
-            return new InvWrapper(container);
+            return PlatformStorage.localInventory(container);
         }
-        return level.getCapability(Capabilities.ItemHandler.BLOCK, blockPos, null);
+        if (accessSide != null) {
+            try {
+                // Sided handlers may remap their exposed slots, so a saved side must keep using the same view.
+                // Falling back to another face could restore an item into a different physical slot.
+                return PlatformStorage.items(level, blockPos, accessSide);
+            } catch (RuntimeException ignored) {
+                return null;
+            }
+        }
+        try {
+            ItemStorage unsided = PlatformStorage.items(level, blockPos, null);
+            if (unsided != null) {
+                return unsided;
+            }
+        } catch (RuntimeException ignored) {
+            // Blueprints without side metadata fall through to a conservative sided lookup.
+        }
+        DeferredInventoryAccess fallback = findDeferredInventory(level, blockPos);
+        return fallback == null ? null : fallback.storage();
+    }
+
+    private static int getMissingDeferredCount(
+        Level level, BlockPos blockPos, BlockEntity blockEntity, DeferredInventoryItem entry
+    ) {
+        ItemStorage handler = getDeferredInventoryHandler(level, blockPos, blockEntity, entry.accessSide);
+        if (handler == null || entry.slot < 0) {
+            return entry.stack.getCount();
+        }
+        try {
+            if (entry.slot >= handler.getSlots()) {
+                return entry.stack.getCount();
+            }
+            ItemStack present = handler.getStackInSlot(entry.slot);
+            if (present == null || present.isEmpty() || !ItemStack.isSameItemSameComponents(entry.stack, present)) {
+                return entry.stack.getCount();
+            }
+            return Math.max(0, entry.stack.getCount() - present.getCount());
+        } catch (RuntimeException ignored) {
+            return entry.stack.getCount();
+        }
     }
 
     @Nonnull
@@ -511,32 +703,9 @@ public class SchematicBlockDefault implements ISchematicBlock {
         if (blockEntity == null) {
             return computeDeferredRequiredItems(level);
         }
-        IItemHandler handler = getDeferredInventoryHandler(level, blockPos, blockEntity);
-        if (handler == null) {
-            return computeDeferredRequiredItems(level);
-        }
-
-        List<ItemStack> available = new ArrayList<>();
-        for (int slot = 0; slot < handler.getSlots(); slot++) {
-            ItemStack stack = handler.getStackInSlot(slot);
-            if (!stack.isEmpty()) {
-                available.add(stack.copy());
-            }
-        }
-
         List<ItemStack> missing = new ArrayList<>();
         for (DeferredInventoryItem entry : deferredInventoryItems) {
-            int remaining = entry.stack.getCount();
-            for (ItemStack present : available) {
-                if (remaining <= 0) {
-                    break;
-                }
-                if (ItemStack.isSameItemSameComponents(entry.stack, present)) {
-                    int used = Math.min(remaining, present.getCount());
-                    remaining -= used;
-                    present.shrink(used);
-                }
-            }
+            int remaining = getMissingDeferredCount(level, blockPos, blockEntity, entry);
             if (remaining > 0) {
                 ItemStack stack = entry.stack.copy();
                 stack.setCount(remaining);
@@ -556,27 +725,29 @@ public class SchematicBlockDefault implements ISchematicBlock {
         if (blockEntity == null) {
             return stack;
         }
-        IItemHandler handler = getDeferredInventoryHandler(level, blockPos, blockEntity);
-        if (handler == null) {
-            return stack;
-        }
-
         ItemStack remaining = stack.copy();
-        Set<Integer> preferredSlots = deferredInventoryItems.stream()
-            .filter(entry -> ItemStack.isSameItemSameComponents(entry.stack, stack))
-            .map(entry -> entry.slot)
-            .filter(slot -> slot >= 0 && slot < handler.getSlots())
-            .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
-
-        for (int slot : preferredSlots) {
-            remaining = insertIntoExactSlot(handler, slot, remaining, simulate);
+        for (DeferredInventoryItem entry : deferredInventoryItems) {
+            if (!ItemStack.isSameItemSameComponents(entry.stack, stack)) {
+                continue;
+            }
+            int missing = getMissingDeferredCount(level, blockPos, blockEntity, entry);
+            if (missing <= 0) {
+                continue;
+            }
+            ItemStorage handler = getDeferredInventoryHandler(level, blockPos, blockEntity, entry.accessSide);
+            if (handler == null) {
+                continue;
+            }
+            int attemptCount = Math.min(missing, remaining.getCount());
+            ItemStack attempt = remaining.copy();
+            attempt.setCount(attemptCount);
+            ItemStack rejected = insertIntoExactSlot(handler, entry.slot, attempt, simulate);
+            int inserted = attemptCount - (rejected == null ? attemptCount : rejected.getCount());
+            if (inserted > 0) {
+                remaining.shrink(Math.min(inserted, remaining.getCount()));
+            }
             if (remaining.isEmpty()) {
                 break;
-            }
-        }
-        for (int slot = 0; slot < handler.getSlots() && !remaining.isEmpty(); slot++) {
-            if (!preferredSlots.contains(slot)) {
-                remaining = handler.insertItem(slot, remaining, simulate);
             }
         }
         if (!simulate && remaining.getCount() != stack.getCount()) {
@@ -610,6 +781,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
         schematicBlock.ignoredProperties.addAll(ignoredProperties);
         schematicBlock.tileNbt = tileNbt;
         schematicBlock.deferInventoryContents = deferInventoryContents;
+        schematicBlock.deferInventoryRuntimeClear = deferInventoryRuntimeClear;
         deferredInventoryItems.stream()
             .map(DeferredInventoryItem::copy)
             .forEach(schematicBlock.deferredInventoryItems::add);
@@ -736,7 +908,18 @@ public class SchematicBlockDefault implements ISchematicBlock {
                 if (tileEntity != null) {
                     tileEntity.setLevel(level);
                     level.setBlockEntity(tileEntity);
-
+                    if (actor != null && tileEntity instanceof TileBC_Neptune bcTile) {
+                        bcTile.setOwnerProfile(actor.getGameProfile());
+                    }
+                    if (deferInventoryRuntimeClear && !clearRuntimeDeferredInventory(level, blockPos, tileEntity)) {
+                        level.getProfiler().pop();
+                        rollbackOpaqueInventoryPlacement(level, blockPos);
+                        return false;
+                    }
+                } else if (deferInventoryRuntimeClear) {
+                    level.getProfiler().pop();
+                    rollbackOpaqueInventoryPlacement(level, blockPos);
+                    return false;
                 }
                 level.getProfiler().pop();
             }
@@ -828,6 +1011,9 @@ public class SchematicBlockDefault implements ISchematicBlock {
         if (deferInventoryContents) {
             nbt.putBoolean("deferInventoryContents", true);
         }
+        if (deferInventoryRuntimeClear) {
+            nbt.putBoolean("deferInventoryRuntimeClear", true);
+        }
         if (!deferredInventoryItems.isEmpty()) {
             nbt.put(
                 "deferredInventoryItems",
@@ -868,11 +1054,23 @@ public class SchematicBlockDefault implements ISchematicBlock {
             tileNbt = nbt.getCompound("tileNbt");
         }
         deferInventoryContents = nbt.getBoolean("deferInventoryContents");
+        deferInventoryRuntimeClear = nbt.getBoolean("deferInventoryRuntimeClear");
+        if (deferInventoryRuntimeClear && !deferInventoryContents) {
+            throw new InvalidInputDataException("Runtime inventory clear requires deferred inventory contents");
+        }
         deferredInventoryItems.clear();
-        NBTUtilBC.readCompoundList(nbt.get("deferredInventoryItems"))
-            .map(DeferredInventoryItem::new)
-            .filter(entry -> !entry.stack.isEmpty())
-            .forEach(deferredInventoryItems::add);
+        for (CompoundTag entryNbt : NBTUtilBC.readCompoundList(nbt.get("deferredInventoryItems")).toList()) {
+            DeferredInventoryItem entry = new DeferredInventoryItem(entryNbt);
+            if (entry.slot < 0 || entry.stack.isEmpty()) {
+                throw new InvalidInputDataException(
+                    "Deferred inventory entry contains an invalid slot or an unavailable/missing item"
+                );
+            }
+            deferredInventoryItems.add(entry);
+        }
+        if (deferInventoryContents && deferredInventoryItems.isEmpty()) {
+            deferInventoryRuntimeClear = false;
+        }
         tileRotation = NBTUtilBC.readEnum(nbt.get("tileRotation"), Rotation.class);
         ResourceLocation placeBlockId = ResourceLocation.parse(nbt.getString("placeBlock"));
         placeBlock = BuiltInRegistries.BLOCK.getOptional(placeBlockId)
@@ -901,6 +1099,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
             ignoredProperties.equals(that.ignoredProperties) &&
             (tileNbt != null ? tileNbt.equals(that.tileNbt) : that.tileNbt == null) &&
             deferInventoryContents == that.deferInventoryContents &&
+            deferInventoryRuntimeClear == that.deferInventoryRuntimeClear &&
             deferredInventoryItems.equals(that.deferredInventoryItems) &&
             tileRotation == that.tileRotation &&
             placeBlock.equals(that.placeBlock) &&
@@ -915,6 +1114,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
         result = 31 * result + ignoredProperties.hashCode();
         result = 31 * result + (tileNbt != null ? tileNbt.hashCode() : 0);
         result = 31 * result + Boolean.hashCode(deferInventoryContents);
+        result = 31 * result + Boolean.hashCode(deferInventoryRuntimeClear);
         result = 31 * result + deferredInventoryItems.hashCode();
         result = 31 * result + tileRotation.hashCode();
         result = 31 * result + placeBlock.hashCode();
@@ -925,25 +1125,35 @@ public class SchematicBlockDefault implements ISchematicBlock {
 
     protected static final class DeferredInventoryItem {
         private final int slot;
+        private final Direction accessSide;
         private final ItemStack stack;
 
-        private DeferredInventoryItem(int slot, ItemStack stack) {
+        private DeferredInventoryItem(int slot, Direction accessSide, ItemStack stack) {
             this.slot = slot;
+            this.accessSide = accessSide;
             this.stack = stack.copy();
         }
 
         private DeferredInventoryItem(CompoundTag nbt) {
             this.slot = nbt.getInt("slot");
+            String sideName = nbt.getString("side");
+            this.accessSide = Stream.of(Direction.values())
+                .filter(side -> side.getName().equals(sideName))
+                .findFirst()
+                .orElse(null);
             this.stack = ItemStackUtil.parseOptional(ItemStackUtil.requireActiveRegistryProvider(), nbt.getCompound("stack"));
         }
 
         private DeferredInventoryItem copy() {
-            return new DeferredInventoryItem(slot, stack);
+            return new DeferredInventoryItem(slot, accessSide, stack);
         }
 
         private CompoundTag serializeNBT() {
             CompoundTag nbt = new CompoundTag();
             nbt.putInt("slot", slot);
+            if (accessSide != null) {
+                nbt.putString("side", accessSide.getName());
+            }
             nbt.put("stack", ItemStackUtil.saveOptional(stack, ItemStackUtil.requireActiveRegistryProvider()));
             return nbt;
         }
@@ -957,13 +1167,19 @@ public class SchematicBlockDefault implements ISchematicBlock {
                 return false;
             }
             return slot == other.slot
+                && accessSide == other.accessSide
                 && stack.getCount() == other.stack.getCount()
                 && ItemStack.isSameItemSameComponents(stack, other.stack);
         }
 
         @Override
         public int hashCode() {
-            return 31 * slot + ItemStack.hashItemAndComponents(stack);
+            int result = 31 * slot + (accessSide == null ? 0 : accessSide.hashCode());
+            result = 31 * result + stack.getCount();
+            return 31 * result + ItemStack.hashItemAndComponents(stack);
         }
+    }
+
+    private record DeferredInventoryAccess(Direction side, ItemStorage storage) {
     }
 }

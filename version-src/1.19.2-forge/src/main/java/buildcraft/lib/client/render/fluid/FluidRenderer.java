@@ -6,6 +6,7 @@
 
 package buildcraft.lib.client.render.fluid;
 
+import buildcraft.lib.platform.client.ClientAtlas;
 import java.lang.reflect.Field;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -44,7 +45,6 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.event.TextureStitchEvent;
 import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.IFluidTank;
@@ -82,7 +82,7 @@ public class FluidRenderer {
         }
     }
 
-    public static void onTextureStitchPre(TextureStitchEvent.Pre event) {
+    public static void onTextureStitchPre(ClientAtlas.Before event) {
         clearSpriteCache();
         frozenMap.clear();
         pack.clear();
@@ -110,7 +110,7 @@ public class FluidRenderer {
         }
     }
     
-    public static void onTextureStitchPost(TextureStitchEvent.Post event) {
+    public static void onTextureStitchPost(ClientAtlas.After event) {
         clearSpriteCache();
         blockTexMap = event.getAtlas()::getSprite;
     }

@@ -57,8 +57,8 @@ import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 import net.minecraftforge.network.NetworkHooks;
 
 public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvider{
@@ -113,7 +113,7 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
     private int penaltyCooling = 0;
     private boolean lastPowered = false;
     private double burnTime;
-    /** Fractional residue below one mB, plus any legacy hidden backlog loaded from older saves. */
+    /** Fractional residue below one mB, plus any persisted legacy hidden backlog. */
     private double residueAmount = 0;
     private boolean residueBlocked;
     private FuelProfile currentFuel;
@@ -121,7 +121,7 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
     public TileEngineIron_BC8(BlockPos pos, BlockState state) {
     	super(BCEnergyBlocks.ENGINE_IRON_TILE_BC8.get(), pos, state);
         tankManager.addAll(tankFuel, tankCoolant, tankResidue);
-        caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, fluidHandler, EnumPipePart.VALUES);
+        caps.addFluidStorage(fluidHandler, EnumPipePart.VALUES);
     }
 
     // BlockEntity overrides
@@ -150,9 +150,9 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_GUI_DATA || id == NET_GUI_TICK) {
                 tankManager.readData(buffer);
             }
@@ -160,9 +160,9 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_GUI_DATA || id == NET_GUI_TICK) {
                 tankManager.writeData(buffer);
             }
@@ -259,9 +259,8 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
     }
 
     /**
-     * Backpressure is checked before another mB of fuel is consumed. New runtime state therefore keeps
-     * residueAmount fractional; older saves with a large hidden debt are blocked until that debt is drained
-     * into the visible residue tank.
+     * Backpressure is checked before another mB of fuel is consumed. residueAmount remains fractional; any persisted
+     * legacy debt is blocked from further fuel consumption until it drains into the visible residue tank.
      */
     private boolean canConsumeFuelWithResidue() {
         if (currentFuel == null || !currentFuel.hasResidue()) {

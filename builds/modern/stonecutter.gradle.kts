@@ -4,33 +4,40 @@ plugins {
     id("dev.kikugie.stonecutter")
 }
 
-val targetConfiguration = Properties().apply {
+val repositoryRoot = rootProject.file("../..").canonicalFile
+val targetRegistry = Properties().apply {
+    repositoryRoot.resolve("build-config/targets.properties").inputStream().use { load(it) }
+}
+val generationConfiguration = Properties().apply {
     rootProject.file("targets.properties").inputStream().use { load(it) }
 }
+val generation = generationConfiguration.getProperty("generation")?.trim()?.takeIf(String::isNotEmpty)
+    ?: error("Missing generation in targets.properties")
+val targets = targetRegistry.getProperty("targets")
+    ?.split(',')?.map(String::trim)?.filter(String::isNotEmpty)
+    ?.filter { target -> targetRegistry.getProperty("target.$target.build.generation")?.trim() == generation }
+    ?: error("Missing non-empty targets in build-config/targets.properties")
 
-stonecutter active "1.21.1-neoforge" /* [SC] DO NOT EDIT */
+stonecutter active "1.21.11-neoforge" /* [SC] DO NOT EDIT */
 
 stonecutter {
     parameters {
         val target = node.metadata.project
-        val loader = target.substringAfterLast('-')
+        val loader = targetRegistry.getProperty("target.$target.source.platform")?.trim()
+            ?: error("Missing source.platform for $target")
         constants += listOf(
             "forge" to (loader == "forge"),
             "neoforge" to (loader == "neoforge"),
             "fabric" to (loader == "fabric"),
-            "legacy" to false,
-            "modern" to true,
+            "legacy" to (generation == "legacy"),
+            "modern" to (generation == "modern"),
         )
     }
 }
 
-val targets = targetConfiguration.getProperty("targets")
-    ?.split(',')?.map(String::trim)?.filter(String::isNotEmpty)
-    ?: error("Missing non-empty targets in targets.properties")
-
 tasks.register("buildAndCollect") {
     group = "build"
-    description = "Build every modern BuildCraft target and collect release jars"
+    description = "Build every $generation BuildCraft target and collect release jars"
     dependsOn(targets.map { target -> ":$target:buildAndCollect" })
 }
 

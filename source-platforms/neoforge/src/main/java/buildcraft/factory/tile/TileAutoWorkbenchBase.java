@@ -6,6 +6,8 @@
 
 package buildcraft.factory.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
 
 import java.io.IOException;
@@ -38,9 +40,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public abstract class TileAutoWorkbenchBase extends TileBC_Neptune
     implements IHasWork, IMjRedstoneReceiver, IAutoCraft {
@@ -89,16 +91,18 @@ public abstract class TileAutoWorkbenchBase extends TileBC_Neptune
     }
 
     @Override
-    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
-        nbt.putLong("powerStored", powerStored);
+    protected void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.writeData(bcData);
+        bcData.writeLong("powerStored", powerStored);
         crafting.writeSelection(nbt);
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
-        powerStored = Math.max(0, Math.min(POWER_REQUIRED, nbt.getLong("powerStored")));
+    protected void readData(BCValueInput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.readData(bcData);
+        powerStored = Math.max(0, Math.min(POWER_REQUIRED, bcData.readLong("powerStored")));
         powerStoredLast = powerStored;
         persistedPowerStored = powerStored;
         crafting.readSelection(nbt);
@@ -161,9 +165,9 @@ public abstract class TileAutoWorkbenchBase extends TileBC_Neptune
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_GUI_TICK) {
                 buffer.writeLong(powerStored);
             } else if (id == NET_GUI_DATA) {
@@ -175,9 +179,9 @@ public abstract class TileAutoWorkbenchBase extends TileBC_Neptune
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_GUI_TICK) {
                 powerStoredLast = powerStored;
                 powerStored = buffer.readLong();

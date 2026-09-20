@@ -3,11 +3,12 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+from source_lookup import resolve_source_path
 errors = []
 
 
 def text(rel):
-    path = ROOT / rel
+    path = resolve_source_path(rel)
     if not path.is_file():
         errors.append(f"missing {rel}")
         return ""
@@ -65,13 +66,14 @@ require(
 # FE Engine parity: FE enters on every side, MJ exits through the normal engine head, max chain = four additional engines.
 for platform in ("forge", "neoforge"):
     rel = f"source-platforms/{platform}/src/main/java/buildcraft/energy/tile/TileEngineFE.java"
-    require(rel, "return Optional.of(api2FeInputPort);", "getMaxChainLength() { return 4; }")
-if "return feCapability.cast();" not in text("source-platforms/forge/src/main/java/buildcraft/energy/tile/TileEngineFE.java"):
-    errors.append("Forge FE Engine no longer exposes its FE input capability on every face")
-if "caps.addCapabilityInstance(Capabilities.EnergyStorage.BLOCK, feStorage, EnumPipePart.VALUES);" not in text(
-    "source-platforms/neoforge/src/main/java/buildcraft/energy/tile/TileEngineFE.java"
-):
-    errors.append("NeoForge FE Engine no longer exposes its FE input capability on every face")
+    require(
+        rel,
+        "return Optional.of(api2FeInputPort);",
+        "getMaxChainLength() { return 4; }",
+        "caps.addEnergyStorage(feStorage,",
+        "EnumPipePart.VALUES",
+    )
+    forbid(rel, "return feCapability.cast();", "Capabilities.EnergyStorage.BLOCK")
 
 # MJ Dynamo parity: MJ only enters non-output faces; FE only exits currentDirection; aligned chain length is three.
 for platform in ("forge", "neoforge"):
@@ -87,13 +89,14 @@ for platform in ("forge", "neoforge"):
 
 require(
     "source-platforms/forge/src/main/java/buildcraft/energy/tile/TileDynamoMJ.java",
-    "return side == currentDirection ? feCapability.cast() : LazyOptional.empty();",
-    "tile.getCapability(ForgeCapabilities.ENERGY, side.getOpposite())",
+    "caps.addEnergyStorage(side -> side == currentDirection ? feStorage : null,",
+    "PlatformStorage.energy(tile, side.getOpposite())",
 )
 require(
     "source-platforms/neoforge/src/main/java/buildcraft/energy/tile/TileDynamoMJ.java",
-    "return side == currentDirection ? (T) feStorage : null;",
-    "Capabilities.EnergyStorage.BLOCK, tile.getBlockPos(), side.getOpposite()",
+    "caps.addEnergyStorage(side -> side == currentDirection ? feStorage : null,",
+    "PlatformStorage.energy(",
+    "level, tile.getBlockPos(), side.getOpposite()",
 )
 
 # Jade must treat the standalone Dynamo as a Dynamo rather than the generic engine block.
@@ -111,6 +114,11 @@ for rel in (
         "LocaleUtil.localizeFeFlow(output)",
         "LocaleUtil.localizeMjFlow(output)",
     )
+
+# Remote FE lookup is delegated, not removed. Keep native side-aware behavior below the lib boundary.
+require("source-platforms/forge/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java", "provider.getCapability(CapUtil.CAP_FE, face).orElse(null)")
+require("source-platforms/neoforge/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java", "CapUtil.getEnergyStorage(level, pos, face)")
+
 
 if errors:
     for error in errors:

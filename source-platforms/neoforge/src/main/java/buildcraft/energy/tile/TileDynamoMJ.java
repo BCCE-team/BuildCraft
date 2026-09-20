@@ -1,5 +1,9 @@
 package buildcraft.energy.tile;
 
+import buildcraft.lib.platform.storage.PlatformStorage;
+import buildcraft.lib.platform.storage.EnergyStorage;
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.lib.internal.mj.MjCapabilities;
 
@@ -36,6 +40,8 @@ import buildcraft.lib.internal.mj.MjBatteryReceiver;
 import buildcraft.lib.tile.item.ItemHandlerManager.EnumAccess;
 import buildcraft.lib.tile.item.IItemHandlerAdv;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
+import buildcraft.lib.platform.storage.EnergyStorage;
+
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -55,11 +61,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.neoforge.capabilities.BlockCapability;
-import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.energy.IEnergyStorage;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 /** BuildCraft 8 MJ Dynamo: consumes MJ and produces Forge Energy. */
 public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
@@ -80,7 +84,7 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
     private int persistedFeState;
     private long persistedMjState;
     private boolean energyStateCaptured;
-    private final IEnergyStorage feStorage = new FeStorage();
+    private final EnergyStorage feStorage = new FeStorage();
     private final ExternalEnergyPort api2FeOutputPort = new ExternalEnergyPort() {
         @Override public long insert(long offered, OperationMode mode) { return 0; }
         @Override public long extract(long requested, OperationMode mode) {
@@ -103,7 +107,7 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
             "upgrades", 4, (slot, stack) -> isValidUpgrade(stack), EnumAccess.NONE
         ).setLimitedInsertor(1);
         caps.addProvider(itemManager);
-        caps.addCapabilityInstance(Capabilities.EnergyStorage.BLOCK, feStorage, EnumPipePart.VALUES);
+        caps.addEnergyStorage(side -> side == currentDirection ? feStorage : null, EnumPipePart.VALUES);
     }
 
     private static void ensureUpgradeMap() {
@@ -243,7 +247,7 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
 
     @Override
     protected long getPowerToExtract(boolean doExtract) {
-        IEnergyStorage receiver = getFeReceiver(currentDirection);
+        EnergyStorage receiver = getFeReceiver(currentDirection);
         if (receiver == null) return 0;
         int offered = (int) Math.min(Integer.MAX_VALUE, Math.min(currentFe, maxPowerExtracted()));
         if (offered <= 0) return 0;
@@ -258,7 +262,7 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
 
     @Override
     protected void sendPower() {
-        IEnergyStorage receiver = getFeReceiver(currentDirection);
+        EnergyStorage receiver = getFeReceiver(currentDirection);
         if (receiver == null) return;
         int offered = (int) Math.min(Integer.MAX_VALUE, Math.min(currentFe, maxPowerExtracted()));
         if (offered <= 0) return;
@@ -281,16 +285,14 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
     }
 
     @Nullable
-    private IEnergyStorage getFeReceiver(BlockEntity tile, Direction side) {
+    private EnergyStorage getFeReceiver(BlockEntity tile, Direction side) {
         if (tile == null || level == null) return null;
-        IEnergyStorage receiver = level.getCapability(
-            Capabilities.EnergyStorage.BLOCK, tile.getBlockPos(), side.getOpposite()
-        );
+        EnergyStorage receiver = PlatformStorage.energy(level, tile.getBlockPos(), side.getOpposite());
         return receiver != null && receiver.canReceive() ? receiver : null;
     }
 
     @Nullable
-    private IEnergyStorage getFeReceiver(Direction side) {
+    private EnergyStorage getFeReceiver(Direction side) {
         TileDynamoMJ dynamo = this;
         BlockEntity next = null;
         for (int len = 0; len <= getMaxChainLength(); len++) {
@@ -337,33 +339,36 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
     public boolean isRedstonePowered() { return isRedstonePowered; }
 
     @Override
-    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.saveAdditional(tag, registries);
-        tag.putInt("currentFE", currentFe);
+    protected void writeData(BCValueOutput bcData) {
+        CompoundTag tag = bcData.tag();
+        HolderLookup.Provider registries = bcData.registries();
+        super.writeData(bcData);
+        bcData.writeInt("currentFE", currentFe);
         tag.put("mj", mjBattery.serializeNBT(registries));
     }
 
     @Override
-    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.loadAdditional(tag, registries);
-        currentFe = Math.max(0, Math.min(MAX_FE, tag.getInt("currentFE")));
-        if (tag.contains("mj")) mjBattery.deserializeNBT(registries, tag.getCompound("mj"));
+    protected void readData(BCValueInput bcData) {
+        HolderLookup.Provider registries = bcData.registries();
+        super.readData(bcData);
+        currentFe = Math.max(0, Math.min(MAX_FE, bcData.readInt("currentFE")));
+        if (bcData.has("mj")) mjBattery.deserializeNBT(registries, bcData.readCompound("mj"));
         captureEnergyState();
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
+        if (side == BCNetworkSide.SERVER && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
             buffer.writeVarInt(currentFe);
             buffer.writeLong(mjBattery.getStored());
         }
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
+        if (side == BCNetworkSide.CLIENT && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
             currentFe = buffer.readVarInt();
             CompoundTag battery = new CompoundTag();
             battery.putLong("stored", buffer.readLong());
@@ -403,10 +408,6 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
     @Nullable
     @SuppressWarnings("unchecked")
     public <T> T getCapability(BlockCapability<T, Direction> capability, @Nullable Direction side) {
-        if (capability == Capabilities.EnergyStorage.BLOCK) {
-            // Match BC8: powerMode never turns the MJ Dynamo into an FE input.
-            return side == currentDirection ? (T) feStorage : null;
-        }
         if (side != currentDirection) {
             T mj = inputMjCaps.getCapability(capability, side);
             if (mj != null) return mj;
@@ -416,7 +417,7 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
         return super.getCapability(capability, side);
     }
 
-    private final class FeStorage implements IEnergyStorage {
+    private final class FeStorage implements EnergyStorage {
         @Override public int receiveEnergy(int maxReceive, boolean simulate) { return 0; }
         @Override public int extractEnergy(int maxExtract, boolean simulate) {
             int extracted = Math.min(Math.max(0, maxExtract), currentFe);

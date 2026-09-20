@@ -21,7 +21,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.fml.loading.FMLEnvironment;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class MessageVolumeBoxes {
     private static final int MAX_BOXES = 4096;
@@ -121,7 +121,7 @@ public class MessageVolumeBoxes {
         msg.removedIds.forEach(buf::writeUUID);
     }
 
-    public static final BiConsumer<MessageVolumeBoxes, Supplier<IPayloadContext>> HANDLER = (message, ctx) -> {
+    public static final BiConsumer<MessageVolumeBoxes, Supplier<BCPacketContext>> HANDLER = (message, ctx) -> {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ClientAccess.handle(message, ctx);
         }
@@ -129,7 +129,7 @@ public class MessageVolumeBoxes {
 
     @OnlyIn(Dist.CLIENT)
     private static final class ClientAccess {
-        private static void handle(MessageVolumeBoxes message, Supplier<IPayloadContext> ctx) {
+        private static void handle(MessageVolumeBoxes message, Supplier<BCPacketContext> ctx) {
             MessageVolumeBoxesClientHandler.handle(message, ctx);
         }
     }

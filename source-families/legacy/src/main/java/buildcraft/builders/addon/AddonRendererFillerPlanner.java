@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import buildcraft.core.marker.volume.IFastAddonRenderer;
 import net.minecraft.client.Minecraft;
@@ -26,7 +26,7 @@ import net.minecraft.world.phys.Vec3;
 
 public class AddonRendererFillerPlanner implements IFastAddonRenderer<AddonFillerPlanner> {
     @Override
-    public void renderAddonFast(AddonFillerPlanner addon, Player player, float partialTicks, BufferBuilder vb) {
+    public void renderAddonFast(AddonFillerPlanner addon, Player player, float partialTicks, VertexConsumer vb) {
         if (addon.buildingInfo == null) {
             return;
         }

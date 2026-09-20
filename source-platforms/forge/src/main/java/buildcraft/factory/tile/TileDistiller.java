@@ -46,13 +46,11 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidType;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TileDistiller extends TileBC_Neptune implements IDebuggable, MachineRuntimeView {
 
@@ -118,9 +116,9 @@ public class TileDistiller extends TileBC_Neptune implements IDebuggable, Machin
         smoothedTankGasOut = new FluidSmoother(createSender(NET_TANK_GAS_OUT), tankGasOut);
         smoothedTankLiquidOut = new FluidSmoother(createSender(NET_TANK_LIQUID_OUT), tankLiquidOut);
 
-        caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, tankIn, EnumPipePart.HORIZONTALS);
-        caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, tankGasOut, EnumPipePart.UP);
-        caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, tankLiquidOut, EnumPipePart.DOWN);
+        caps.addFluidStorage(tankIn, EnumPipePart.HORIZONTALS);
+        caps.addFluidStorage(tankGasOut, EnumPipePart.UP);
+        caps.addFluidStorage(tankLiquidOut, EnumPipePart.DOWN);
         caps.addCapabilityInstance(TilesAPI.CAP_HAS_WORK, () -> !tankIn.isEmpty(), EnumPipePart.VALUES);
         caps.addProvider(new MjCapabilityHelper(new MjBatteryReceiver(mjBattery)));
     }
@@ -158,9 +156,9 @@ public class TileDistiller extends TileBC_Neptune implements IDebuggable, Machin
 
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 writePayload(NET_TANK_IN, buffer, side);
                 writePayload(NET_TANK_GAS_OUT, buffer, side);
@@ -181,9 +179,9 @@ public class TileDistiller extends TileBC_Neptune implements IDebuggable, Machin
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 readPayload(NET_TANK_IN, buffer, side, ctx);
                 readPayload(NET_TANK_GAS_OUT, buffer, side, ctx);
@@ -372,8 +370,6 @@ public class TileDistiller extends TileBC_Neptune implements IDebuggable, Machin
         left.add("Rate = " + LocaleUtil.localizeMjFlow(powerAvgClient));
         left.add("CurrRecipe = " + currentRecipe);
     }
-
-    @OnlyIn(Dist.CLIENT)
     @Override
     public void getClientDebugInfo(List<String> left, List<String> right, Direction side) {
         setClientModelVariables(1);
@@ -390,4 +386,3 @@ public class TileDistiller extends TileBC_Neptune implements IDebuggable, Machin
     }
 
 }
-

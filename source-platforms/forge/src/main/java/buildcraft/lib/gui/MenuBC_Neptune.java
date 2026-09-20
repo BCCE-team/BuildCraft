@@ -39,10 +39,10 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 
 public abstract class MenuBC_Neptune extends AbstractContainerMenu {
     public static final boolean DEBUG = BCDebugging.shouldDebugLog("lib.container");
@@ -142,10 +142,10 @@ public abstract class MenuBC_Neptune extends AbstractContainerMenu {
 
     public final void sendMessage(int id) {
         //? if <1.20 {
-        LogicalSide side = playerInventory.player.level.isClientSide ? LogicalSide.CLIENT : LogicalSide.SERVER;
+        BCNetworkSide side = playerInventory.player.level.isClientSide ? BCNetworkSide.CLIENT : BCNetworkSide.SERVER;
         //?} else {
         /*?
-        LogicalSide side = playerInventory.player.level().isClientSide ? LogicalSide.CLIENT : LogicalSide.SERVER;
+        BCNetworkSide side = playerInventory.player.level().isClientSide ? BCNetworkSide.CLIENT : BCNetworkSide.SERVER;
         ?*/
         //?}
         sendMessage(id, (buffer) -> writeMessage(id, buffer, side));
@@ -167,22 +167,22 @@ public abstract class MenuBC_Neptune extends AbstractContainerMenu {
         }
     }
 
-    public void writeMessage(int id, FriendlyByteBuf buffer, LogicalSide side) {}
+    public void writeMessage(int id, FriendlyByteBuf buffer, BCNetworkSide side) {}
 
-    public void readMessage(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readMessage(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         if (id == NET_WIDGET) {
             int widgetId = buffer.readUnsignedShort();
             if (widgetId < 0 || widgetId >= widgets.size()) {
                 throw new DecoderException("Unknown widget id " + widgetId + " for " + getClass().getName());
             } else {
                 Widget_Neptune<?> widget = widgets.get(widgetId);
-                if (side == LogicalSide.SERVER) {
+                if (side == BCNetworkSide.SERVER) {
                     widget.handleWidgetDataServer(ctx, buffer);
-                } else if (side == LogicalSide.CLIENT) {
+                } else if (side == BCNetworkSide.CLIENT) {
                     widget.handleWidgetDataClient(ctx, buffer);
                 }
             }
-        } else if (side == LogicalSide.SERVER) {
+        } else if (side == BCNetworkSide.SERVER) {
             if (id == NET_SET_PHANTOM) {
                 readSingleSetPhantom(buffer, ctx);
             } else if (id == NET_SET_PHANTOM_MULTI) {
@@ -195,7 +195,7 @@ public abstract class MenuBC_Neptune extends AbstractContainerMenu {
         }
     }
 
-    private void readSingleSetPhantom(FriendlyByteBuf buffer, NetworkEvent.Context ctx) throws IOException {
+    private void readSingleSetPhantom(FriendlyByteBuf buffer, BCPacketContext ctx) throws IOException {
         int idx = buffer.readVarInt();
         ItemStack stack = buffer.readItem();
         if (idx >= 0 && idx < slots.size()) {

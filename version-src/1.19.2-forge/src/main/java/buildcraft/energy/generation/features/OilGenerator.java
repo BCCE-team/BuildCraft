@@ -219,9 +219,8 @@ public class OilGenerator {
                 structures.add(createSpout(new BlockPos(x, wellY, z), height, radius));
             }
 
-            // Generate a spring at the bottom. The old 1.12 code assumed
-            // minY == 0 and passed the absolute well Y as the tube length. With
-            // negative world heights that mirrored the tube below the world.
+            // Anchor the spring to the configured world bottom and derive tube length from relative Y distance,
+            // which keeps the structure inside worlds with negative minimum heights.
             if (type == GenType.LARGE) {
                 BlockPos springPos = new BlockPos(x, bottomY, z);
                 BlockPos tubeStart = springPos.above();

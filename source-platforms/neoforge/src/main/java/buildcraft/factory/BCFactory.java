@@ -1,5 +1,8 @@
 package buildcraft.factory;
 
+import buildcraft.factory.BCFactoryClientRenderers;
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.lib.internal.mj.MjCapabilities;
 
 import buildcraft.lib.internal.capabilities.BCCapabilityRegistration;
@@ -34,9 +37,9 @@ public class BCFactory {
         modEventBus.addListener(this::gatherData);
         modEventBus.addListener(this::registerCapabilities);
 
-        BCFactoryBlocks.registry(modEventBus);
-        BCFactoryItems.registry(modEventBus);
-        BCFactoryGuis.registry(modEventBus);
+        BCFactoryBlocks.registry(RegistryBinding.on(modEventBus));
+        BCFactoryItems.registry(RegistryBinding.on(modEventBus));
+        BCFactoryGuis.registry(RegistryBinding.on(modEventBus));
         BCCore.BUILDCRAFT_TAB.addItemProvider(BCFactoryItems::getCreativeTabItems);
 
         validateNetworkIds();
@@ -112,16 +115,12 @@ public class BCFactory {
 
         @SubscribeEvent
         public static void registerMenuScreens(RegisterMenuScreensEvent event) {
-            BCFactoryClientGuis.clientInit(event);
+            BCFactoryClientGuis.clientInit(PlatformClientRegistration.screens(event));
         }
 
         @SubscribeEvent
-        public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
-            event.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKTANK.get(), RenderTank::new);
-            event.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKPUMP.get(), RenderPump::new);
-            event.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKMININGWELL.get(), RenderMiningWell::new);
-            event.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKDISTILLER.get(), RenderDistiller::new);
-            event.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKHEATEXCHANGE.get(), RenderHeatExchange::new);
-        }
+    public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        BCFactoryClientRenderers.register(PlatformClientRegistration.renderers(event));
+    }
     }
 }

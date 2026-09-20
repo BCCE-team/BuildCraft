@@ -84,10 +84,9 @@ public abstract class TileMarker<C extends MarkerConnection<C>> extends TileBC_N
     /**
      * Removes a marker as part of a machine claiming its area/path.
      *
-     * This intentionally drops the marker item even if the player who placed the machine is in creative mode. BC7/BC8
-     * always returned consumed markers, and relying on {@code destroyBlock(pos, true)} made the port behave like a
-     * normal player break instead. The machine is not "breaking" the marker; it is converting the marker-defined area
-     * into its own saved box/path and returning the reusable marker item.
+     * This intentionally drops the marker item even if the player who placed the machine is in creative mode. Claiming
+     * converts the marker-defined area into the machine's saved box/path and returns the reusable marker item; it is not
+     * treated as a normal player break.
      */
     protected void removeClaimedMarkerBlock(BlockPos pos) {
         if (level == null || level.isClientSide) {

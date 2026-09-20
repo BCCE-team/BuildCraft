@@ -21,7 +21,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.FriendlyByteBuf;
 import io.netty.handler.codec.DecoderException;
 import net.minecraft.world.item.DyeColor;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 
 public class MessageMultiPipeItem {
 
@@ -130,7 +130,7 @@ public class MessageMultiPipeItem {
         }
     }
 
-    public static final BiConsumer<MessageMultiPipeItem, Supplier<NetworkEvent.Context>> HANDLER = (message, ctx) -> {
+    public static final BiConsumer<MessageMultiPipeItem, Supplier<BCPacketContext>> HANDLER = (message, ctx) -> {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> MessageMultiPipeItemClientHandler.handle(message, ctx));
     };
 }

@@ -105,9 +105,9 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
     private static final EntityDataAccessor<Integer> ROBOT_DOCK_SIDE = SynchedEntityData.defineId(EntityRobot.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> ROBOT_ENERGY = SynchedEntityData.defineId(EntityRobot.class, EntityDataSerializers.INT);
     /**
-     * The 1.7.10 robot position is the centre of the 0.5x0.5x0.5 cube. Modern LivingEntity positions are normally
-     * feet-based, so the port keeps the old centre-based position and forces a centred bounding box after every snap
-     * or direct movement. This prevents one-tick sinking and keeps docked robots aligned to the station.
+     * BuildCraft robot coordinates use the centre of the 0.5x0.5x0.5 cube, while modern LivingEntity positions are
+     * normally feet-based. A centred bounding box is therefore restored after every snap or direct movement to prevent
+     * one-tick sinking and keep docked robots aligned to the station.
      */
 
     public static final int MAX_WEARABLES = 8;
@@ -174,7 +174,7 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
     /**
      * Converts the robotics internal charge unit into BuildCraft power units.
      *
-     * <p>The robot battery intentionally stores old robotics charge units for AI costs and balancing. Display code and
+     * <p>The robot battery intentionally stores legacy robotics charge units for AI costs and balancing. Display code and
      * {@link buildcraft.lib.internal.mj.IMjReadable} implementations must expose real BuildCraft micro-MJ instead.</p>
      */
     public static long robotEnergyToMicroMj(long robotEnergy) {
@@ -215,8 +215,8 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
     }
 
     /**
-     * Matches the old BuildCraft renderer flag: sleeping/shutdown robots render only their base texture with the dark
-     * centre, while working robots render the red/cyan active overlay. Inventory rendering is always active.
+     * Sleeping/shutdown robots render only their base texture with the dark centre, while working robots render
+     * the red/cyan active overlay. Inventory rendering is always active.
      */
     public boolean isAsleepForRendering() {
         if (level().isClientSide) {
@@ -326,7 +326,7 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
     }
 
     /**
-     * Returns the identity used by this robot for block/tool/entity interaction events. Old robots without a saved
+     * Returns the identity used by this robot for block/tool/entity interaction events. Robots without a saved
      * owner inherit the owner of their main robot-station pipe when possible.
      */
     public GameProfile getOwnerProfile() {
@@ -382,9 +382,8 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
                 mainAI.start();
             }
             validateLinkedStation();
-            // Never freeze the AI merely because the station chunk unloaded. The old branch skipped cycle() while
-            // keeping the previous delta movement, so a working robot could continue flying in a straight line until
-            // it crossed several chunks and appeared to vanish. Lost-station recovery now owns this state explicitly.
+            // Station availability must not gate the AI cycle. Lost-station recovery owns station loss explicitly,
+            // while the normal cycle remains responsible for updating movement every tick.
             mainAI.cycle();
             entityData.set(ROBOT_ASLEEP, isAsleepOrShutdownOnServer());
             entityData.set(ROBOT_AIM_YAW, aimYaw);
@@ -584,9 +583,9 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
             }
         }
 
-        // Older builds could already have put a detached robot into the non-terminating shutdown AI. Once its station
-        // is visible again, replace that stale shutdown with the same emergency return path instead of leaving it where
-        // it happened to fall. A robot that is already docked may remain shut down normally.
+        // A detached robot can persist in shutdown while its station is unavailable. Once the station is visible,
+        // replace that stale shutdown with the emergency return path. A robot that is already docked may remain shut
+        // down normally.
         if (mainAI != null
                 && mainAI.getDelegateAI() instanceof AIRobotShutdown
                 && dockingStation != linkedStation
@@ -614,8 +613,8 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
             return false;
         }
 
-        // Backward compatibility for robots that were already stranded by an older build: their entity NBT may no
-        // longer contain the station coordinates, while the persistent registry still knows which main dock owns id.
+        // If entity NBT lacks station coordinates, recover ownership from the persistent robot registry, which
+        // retains the main dock associated with this robot id.
         if (lastMainStationIndex == null) {
             DockingStation nearest = null;
             double nearestDistance = Double.MAX_VALUE;
@@ -651,8 +650,8 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
     }
 
     private void returnToLastKnownStation(String reason) {
-        // Kill any movement left by the previous work AI immediately. This is the part that prevented robots from
-        // coasting out of their work area while their station chunk was unavailable.
+        // Clear movement from the previous work AI before station recovery so the robot cannot coast outside its
+        // work area while the station is unavailable.
         setDeltaMovement(Vec3.ZERO);
 
         if (lastMainStationIndex == null) {

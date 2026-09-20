@@ -30,11 +30,11 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 import net.minecraftforge.network.NetworkHooks;
 
-/** Modern port of BuildCraft Compat's original Apiarist's Pipe behaviour. */
+/** Apiarist's Pipe behaviour based on the original BuildCraft Compat implementation. */
 public final class PipeBehaviourPropolis extends PipeBehaviour
         implements MenuProvider, ILocationProvider, IFilterLogic.INetworkHandler {
     private final PropolisFilterLogic filter;
@@ -65,15 +65,15 @@ public final class PipeBehaviourPropolis extends PipeBehaviour
     }
 
     @Override
-    public void writePayload(FriendlyByteBuf buffer, LogicalSide side) {
-        if (side == LogicalSide.SERVER) {
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
+        if (side == BCNetworkSide.SERVER) {
             buffer.writeNbt(filter.write(new CompoundTag()));
         }
     }
 
     @Override
-    public void readPayload(FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
-        if (side == LogicalSide.CLIENT) {
+    public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
+        if (side == BCNetworkSide.CLIENT) {
             CompoundTag tag = buffer.readNbt();
             if (tag != null) {
                 filter.read(tag);

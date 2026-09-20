@@ -67,6 +67,13 @@ public class ItemPluggableLens extends Item implements IItemPluggable, ICreative
         return new PluggableLens(def, holder, side, data.colour, data.isFilter);
     }
 
+    //? if >=1.21.11 {
+    @Override
+    public net.minecraft.network.chat.Component getName(ItemStack stack) {
+        return net.minecraft.network.chat.Component.translatable(getDescriptionId(stack));
+    }
+    //?}
+
     @Override
 	public String getDescriptionId(ItemStack stack) {
         LensData data = getData(stack);
@@ -106,7 +113,7 @@ public class ItemPluggableLens extends Item implements IItemPluggable, ICreative
             if (data != null && data.contains("Damage")) {
                 return data.getInt("Damage");
             }
-            // Migration fallback for stacks created by an earlier 1.21.1 port.
+            // Compatibility fallback for 1.21.1 stacks that use the legacy component layout.
             return stack.getDamageValue();
         }
 

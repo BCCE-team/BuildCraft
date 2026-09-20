@@ -6,6 +6,8 @@
 
 package buildcraft.builders.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
 
 import java.io.IOException;
@@ -106,8 +108,8 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 
 
@@ -241,8 +243,8 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
 
     @Nonnull
     private BoxIterator createBoxIterator() {
-        // BlockPos already provides a stable 64-bit packing of all three coordinates.
-        // The previous int-based shift by 32 discarded Z and caused many quarries to share a seed.
+        // BlockPos provides a stable 64-bit packing of all three coordinates, giving each quarry position a
+        // deterministic seed that includes X, Y and Z.
         Random rand = new Random(getBlockPos().asLong());
         EnumAxisOrder axisOrder = rand.nextBoolean() ? EnumAxisOrder.XZY : EnumAxisOrder.ZXY;
         AxisOrder.Inversion inv = AxisOrder.Inversion.getFor(rand.nextBoolean(), rand.nextBoolean(), false);
@@ -1192,8 +1194,10 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+    public void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+        HolderLookup.Provider registries = bcData.registries();
+        super.writeData(bcData);
         nbt.put("box", miningBox.writeToNBT());
         nbt.put("frame", frameBox.writeToNBT());
         if (boxIterator != null) {
@@ -1201,10 +1205,10 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
         }
         nbt.put("battery", battery.serializeNBT(registries));
         if (pendingTaskPowerRefund > 0) {
-            nbt.putLong("pendingTaskPowerRefund", pendingTaskPowerRefund);
+            bcData.writeLong("pendingTaskPowerRefund", pendingTaskPowerRefund);
         }
         if (currentTask != null) {
-            nbt.putByte(
+            bcData.writeByte(
                 "currentTaskId", (byte) Arrays.stream(EnumTaskType.values()).filter(
                     type -> type.clazz == currentTask.getClass()
                 ).findFirst().orElseThrow(IllegalStateException::new).ordinal()
@@ -1214,34 +1218,36 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
         if (drillPos != null) {
             nbt.put("drillPos", NBTUtilBC.writeVec3(drillPos));
         }
-        nbt.putBoolean("firstChecked", firstChecked);
+        bcData.writeBoolean("firstChecked", firstChecked);
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
-        miningBox.initialize(nbt.getCompound("box"));
-        frameBox.initialize(nbt.getCompound("frame"));
-        boxIterator = BoxIterator.readFromNbt(nbt.getCompound("boxIterator"));
-        battery.deserializeNBT(registries, nbt.getCompound("battery"));
-        pendingTaskPowerRefund = Math.max(0, nbt.getLong("pendingTaskPowerRefund"));
-        if (nbt.contains("currentTaskId") && nbt.contains("currentTaskData")) {
-            int currentTaskId = Byte.toUnsignedInt(nbt.getByte("currentTaskId"));
+    protected void readData(BCValueInput bcData) {
+        CompoundTag nbt = bcData.tag();
+        HolderLookup.Provider registries = bcData.registries();
+        super.readData(bcData);
+        miningBox.initialize(bcData.readCompound("box"));
+        frameBox.initialize(bcData.readCompound("frame"));
+        boxIterator = BoxIterator.readFromNbt(bcData.readCompound("boxIterator"));
+        battery.deserializeNBT(registries, bcData.readCompound("battery"));
+        pendingTaskPowerRefund = Math.max(0, bcData.readLong("pendingTaskPowerRefund"));
+        if (bcData.has("currentTaskId") && bcData.has("currentTaskData")) {
+            int currentTaskId = Byte.toUnsignedInt(bcData.readByte("currentTaskId"));
             if (currentTaskId >= 0 && currentTaskId < EnumTaskType.values().length) {
                 currentTask = EnumTaskType.values()[currentTaskId].supplier.apply(this);
-                currentTask.readFromNBT(nbt.getCompound("currentTaskData"));
+                currentTask.readFromNBT(bcData.readCompound("currentTaskData"));
                 if (!currentTask.valid) {
                     cancelCurrentTaskWithRefund();
                 }
             } else {
-                queueTaskPowerRefund(readSerializedTaskReservedPower(nbt.getCompound("currentTaskData")));
+                queueTaskPowerRefund(readSerializedTaskReservedPower(bcData.readCompound("currentTaskData")));
                 currentTask = null;
             }
         } else {
             currentTask = null;
         }
         drillPos = NBTUtilBC.readVec3(nbt.get("drillPos"));
-        firstChecked = nbt.getBoolean("firstChecked");
+        firstChecked = bcData.readBoolean("firstChecked");
         if (drillPos != null && drillPos.distanceToSqr(worldPosition.getX(), worldPosition.getY(), worldPosition.getZ()) > 1024 * 1024) {
             drillPos = null;
         }
@@ -1299,9 +1305,9 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 frameBox.writeData(buffer);
                 miningBox.writeData(buffer);
@@ -1324,9 +1330,9 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 frameBox.readData(buffer);
                 miningBox.readData(buffer);
@@ -1486,8 +1492,8 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
 
         void readFromNBT(CompoundTag nbt) {
             power = Math.max(0, nbt.getLong("power"));
-            // Older saves only tracked effective progress. Treat it as the refundable floor rather than inventing
-            // more energy; new saves persist the exact physical withdrawal.
+            // Save data without reservedPower tracks only effective progress. Use it as the refundable floor rather than
+            // inventing energy; reservedPower records the exact physical withdrawal when present.
             reservedPower = Math.max(0, nbt.contains("reservedPower") ? nbt.getLong("reservedPower") : power);
         }
 

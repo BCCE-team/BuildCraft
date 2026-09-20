@@ -16,11 +16,17 @@ import buildcraft.lib.block.BlockBCBase_Neptune;
 import buildcraft.transport.block.BlockPipeHolder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+//? if >=1.21.5 {
+import net.minecraft.util.RandomSource;
+//?}
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
+//? if >=1.21.5 {
+import net.minecraft.world.level.ScheduledTickAccess;
+//?}
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -69,9 +75,23 @@ public class BlockFrame extends BlockBCBase_Neptune {
         }
         return state;
 	}
-    
-    
-    
+
+    //? if >=1.21.5 {
+    /**
+     * Minecraft 1.21.11 no longer drives this regular block through the legacy
+     * neighborChanged signature. The quarry places frame blocks one at a time, so
+     * without this callback only the newly placed frame sees its existing neighbour;
+     * the existing frame never gains the reciprocal connection and the structure is
+     * rendered as separated centre cubes with gaps between them.
+     */
+    @Override
+    protected BlockState updateShape(BlockState state, LevelReader world, ScheduledTickAccess scheduledTickAccess,
+            BlockPos pos, Direction direction, BlockPos neighbourPos, BlockState neighbourState, RandomSource random) {
+        Block neighbour = neighbourState.getBlock();
+        return state.setValue(CONNECTED_MAP.get(direction),
+            neighbour instanceof BlockFrame || neighbour instanceof BlockQuarry);
+    }
+    //?} else {
 	@Override
 	public void neighborChanged(BlockState state, Level level, BlockPos pos, Block block,
 			BlockPos fromPos, boolean p_60514_) {
@@ -80,6 +100,7 @@ public class BlockFrame extends BlockBCBase_Neptune {
 		Direction d = Direction.fromDelta(delta.getX(), delta.getY(), delta.getZ());
 		level.setBlockAndUpdate(pos, state.setValue(CONNECTED_MAP.get(d), b instanceof BlockFrame || b instanceof BlockQuarry));
 	}
+    //?}
 
 	@Override
 	public boolean isCollisionShapeFullBlock(BlockState p_181242_, BlockGetter p_181243_, BlockPos p_181244_) {

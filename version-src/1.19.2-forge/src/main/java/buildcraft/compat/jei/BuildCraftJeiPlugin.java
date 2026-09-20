@@ -1099,7 +1099,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
 
         IntegrationCategory(IGuiHelper guiHelper) {
             this.guiHelper = guiHelper;
-            // Exact BuildCraft 7 integration-table JEI crop requested for the classic layout.
+            // Use the exact BuildCraft 7 integration-table JEI crop for the classic layout.
             background = guiHelper.createDrawable(TEXTURE, 17, 22, 153, 71);
             icon = guiHelper.createDrawableItemStack(new ItemStack(BCSiliconItems.INTERGRATION_TABLE_ITEM.get()));
             progressDrawable = guiHelper.createDrawable(TEXTURE, 176, 17, 4, 69);

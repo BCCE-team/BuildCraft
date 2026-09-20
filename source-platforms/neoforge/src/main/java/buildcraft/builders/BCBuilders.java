@@ -4,6 +4,10 @@
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.builders;
 
+import buildcraft.builders.BCBuildersClientRenderers;
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.lib.platform.registry.RegistryBinding;
+import buildcraft.lib.platform.config.ConfigBinding;
 import buildcraft.lib.internal.mj.MjCapabilities;
 
 import org.slf4j.Logger;
@@ -35,8 +39,10 @@ import buildcraft.lib.net.MessageManager;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+//? if >=1.21.4 {
+import net.neoforged.neoforge.client.event.RegisterRangeSelectItemModelPropertyEvent;
+//?}
 import net.neoforged.neoforge.client.event.ModelEvent.RegisterAdditional;
-import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.data.event.GatherDataEvent;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -63,16 +69,16 @@ public class BCBuilders {
         modEventBus.addListener(BCBuilders::commonSetup);
         modEventBus.addListener(this::registerCapabilities);
 //        modEventBus.addListener(this::gatherData); // DataGenerator
-        BCBuildersBlocks.registry(modEventBus);
-        BCBuildersItems.registry(modEventBus);
+        BCBuildersBlocks.registry(RegistryBinding.on(modEventBus));
+        BCBuildersItems.registry(RegistryBinding.on(modEventBus));
         BCCore.BUILDCRAFT_TAB.addItemProvider(BCBuildersItems::getCreativeTabItems);
         BCBuildersSchematics.preInit();
         BCBuildersConfig.preInit();
         BCBuildersRegistries.preInit();
-        BCBuildersGuis.preInit(modEventBus);
-        modContainer.registerConfig(Type.COMMON, BCBuildersConfig.config);
-        modEventBus.addListener(BCBuildersConfig::onLoadConfig);
-        modEventBus.addListener(BCBuildersConfig::onReloadConfig);
+        BCBuildersGuis.preInit(RegistryBinding.on(modEventBus));
+        modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCBuildersConfig.config));
+        ConfigBinding.listen(modEventBus, BCBuildersConfig::onLoadConfig, BCBuildersConfig::onReloadConfig);
+
 
         MessageManager.registerMessageClass(BCModules.BUILDERS, MessageSnapshotRequest.class,
             MessageSnapshotRequest.HANDLER, MessageSnapshotRequest::toBytes, MessageSnapshotRequest::new,
@@ -82,7 +88,7 @@ public class BCBuilders {
             Dist.CLIENT);
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
-            NeoForge.EVENT_BUS.register(BCBuildersEventDist.class);
+            BCBuildersEventDist.registerGameplayEvents();
         }
         BCBuildersStatements.preInit();
     }
@@ -129,9 +135,9 @@ public class BCBuilders {
     }
 
     public static void commonSetup(final FMLCommonSetupEvent event) {
-    	BCBuildersConfig.reloadConfig(MODID);
-    	BCBuildersRegistries.init();
-    	RulesLoader.loadAll();
+        BCBuildersConfig.reloadConfig(MODID);
+        BCBuildersRegistries.init();
+        RulesLoader.loadAll();
     }
 
 
@@ -140,29 +146,33 @@ public class BCBuilders {
     {
         @SubscribeEvent
         public static void registerMenuScreens(RegisterMenuScreensEvent event) {
-            BCBuildersClientGuis.clientInit(event);
+            BCBuildersClientGuis.clientInit(PlatformClientRegistration.screens(event));
         }
 
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event){
-        	BCBuildersSprites.init();
+            BCBuildersSprites.init();
 
-        	event.enqueueWork(BCBuildersItems::registerItemProperties);
+        //? if <1.21.4 {
+            event.enqueueWork(BCBuildersItems::registerItemProperties);
+        //?}
         }
 
+        //? if >=1.21.4 {
         @SubscribeEvent
-        public static void registryRender(EntityRenderersEvent.RegisterRenderers e) {
-
-        	e.registerBlockEntityRenderer(BCBuildersBlocks.QUARRY_TILE_BC8.get(), RenderQuarry::new);
-        	e.registerBlockEntityRenderer(BCBuildersBlocks.ARCHITECT_TILE_BC8.get(), RenderArchitectTable::new);
-        	e.registerBlockEntityRenderer(BCBuildersBlocks.FILLER_TILE_BC8.get(), RenderFiller::new);
-        	e.registerBlockEntityRenderer(BCBuildersBlocks.BUILDER_TILE_BC8.get(), RenderBuilder::new);
-            e.registerBlockEntityRenderer(BCBuildersBlocks.CONSTRUCTION_MARKER_TILE_BC8.get(), RenderConstructionMarker::new);
+        public static void registerItemModelProperties(RegisterRangeSelectItemModelPropertyEvent event) {
+            BCBuildersItems.registerItemModelProperties(PlatformClientRegistration.rangeProperties(event));
         }
-        
+
+        //?}
+        @SubscribeEvent
+    public static void registryRender(EntityRenderersEvent.RegisterRenderers e) {
+        BCBuildersClientRenderers.register(PlatformClientRegistration.renderers(e));
+    }
+
         @SubscribeEvent
         public static void onModelBakePre(RegisterAdditional event) {
         }
-        
+
     }
 }

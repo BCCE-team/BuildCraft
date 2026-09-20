@@ -7,6 +7,7 @@
 package buildcraft.factory.client.render;
 
 import buildcraft.factory.tile.TileMiner;
+import buildcraft.lib.client.render.laser.LegacyLaserBlockEntityRenderer;
 import buildcraft.lib.client.render.laser.LaserData_BC8;
 import buildcraft.lib.client.render.laser.LaserData_BC8.LaserType;
 import buildcraft.lib.client.render.laser.LaserRenderer_BC8;
@@ -22,7 +23,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 
-public class RenderTube implements BlockEntityRenderer<TileMiner> {
+public class RenderTube implements BlockEntityRenderer<TileMiner>, LegacyLaserBlockEntityRenderer<TileMiner> {
     private final LaserType laserType;
 
     public RenderTube(LaserType laserType) {
@@ -31,6 +32,12 @@ public class RenderTube implements BlockEntityRenderer<TileMiner> {
 
     @Override
 	public void render(TileMiner tile, float partialTicks, PoseStack matrix, MultiBufferSource builder,
+			int light, int overlay) {
+		renderLasers(tile, partialTicks, matrix, builder, light, overlay);
+	}
+
+    @Override
+	public void renderLasers(TileMiner tile, float partialTicks, PoseStack matrix, MultiBufferSource builder,
 			int light, int overlay) {
         if (tile.isComplete()) {
             return;

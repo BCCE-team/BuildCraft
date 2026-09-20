@@ -7,9 +7,10 @@
 package buildcraft.transport.pipe.flow;
 
 import buildcraft.lib.internal.mj.MjCapabilities;
+import buildcraft.lib.logic.distribution.WeightedAllocation;
+import buildcraft.lib.logic.energy.EnergyMath;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -57,7 +58,7 @@ import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
 import net.minecraftforge.energy.IEnergyStorage;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 
 public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
     private static final long DEFAULT_MAX_POWER = MjAmount.MICRO_MJ_PER_MJ * 10;
@@ -128,9 +129,9 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_POWER_AMOUNTS || id == NET_ID_FULL_STATE) {
                 for (Direction face : Direction.values()) {
                     Section s = sections.get(face);
@@ -142,9 +143,9 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) throws IOException {
         super.readPayload(id, buffer, side);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_POWER_AMOUNTS || id == NET_ID_FULL_STATE) {
                 for (Direction face : Direction.values()) {
                     Section s = sections.get(face);
@@ -380,19 +381,12 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
                     for (Direction candidate : routeCandidates) routeWeights.put(candidate, 1L);
                 }
 
-                BigInteger totalPowerQuery = BigInteger.ZERO;
+                WeightedAllocation allocation = new WeightedAllocation();
                 for (Direction face2 : routeCandidates) {
-                    long powerQuery = sections.get(face2).powerQuery;
-                    long weight = routeWeights.getOrDefault(face2, 0L);
-                    if (powerQuery > 0 && weight > 0) {
-                        totalPowerQuery = totalPowerQuery.add(
-                            BigInteger.valueOf(powerQuery).multiply(BigInteger.valueOf(weight))
-                        );
-                    }
+                    allocation.add(sections.get(face2).powerQuery, routeWeights.getOrDefault(face2, 0L));
                 }
 
-                if (totalPowerQuery.signum() > 0) {
-                    BigInteger unusedPowerQuery = totalPowerQuery;
+                if (allocation.hasDemand()) {
                     for (Direction face2 : Direction.values()) {
                         if (face == face2) {
                             continue;
@@ -400,14 +394,7 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
                         Section s2 = sections.get(face2);
                         long routeWeight = routeWeights.getOrDefault(face2, 0L);
                         if (s2.powerQuery > 0 && routeWeight > 0) {
-                            BigInteger sidePowerQuery = BigInteger.valueOf(s2.powerQuery)
-                                .multiply(BigInteger.valueOf(routeWeight));
-                            long offeredInput = Math.min(
-                                BigInteger.valueOf(s.internalPower).multiply(sidePowerQuery).divide(
-                                    unusedPowerQuery
-                                ).longValue(), s.internalPower
-                            );
-                            unusedPowerQuery = unusedPowerQuery.subtract(sidePowerQuery);
+                            long offeredInput = allocation.offer(s.internalPower, s2.powerQuery, routeWeight);
 
                             long offeredAfterLoss = applyResistance(offeredInput);
                             if (offeredAfterLoss <= 0) {
@@ -462,7 +449,7 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
 
         // Compute local consumers requesting power. This includes both external tiles and internal pluggables such as
         // robot stations. A robot station blocks the pipe side, so it never appears as ConnectedType.TILE, but it still
-        // needs to contribute a request to the power network just like the old 1.7 pluggable IEnergyReceiver did.
+        // must contribute a request to the power network to preserve pluggable energy-receiver semantics.
         for (Direction face : Direction.values()) {
             IMjReceiver recv = getPowerSink(face);
             if (recv != null && recv.canReceive()) {
@@ -602,43 +589,15 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
     }
 
     private long applyResistance(long input) {
-        if (input <= 0) {
-            return 0;
-        }
-        if (powerResistance <= 0) {
-            return input;
-        }
-        if (powerResistance >= MjAmount.MICRO_MJ_PER_MJ) {
-            return 0;
-        }
-        BigInteger retained = BigInteger.valueOf(input)
-            .multiply(BigInteger.valueOf(MjAmount.MICRO_MJ_PER_MJ - powerResistance))
-            .divide(BigInteger.valueOf(MjAmount.MICRO_MJ_PER_MJ));
-        return Math.max(1, retained.longValue());
+        return EnergyMath.applyResistance(input, powerResistance, MjAmount.MICRO_MJ_PER_MJ);
     }
 
     private long getInputForDelivered(long delivered, long maxInput) {
-        if (delivered <= 0 || maxInput <= 0) {
-            return 0;
-        }
-        if (powerResistance <= 0) {
-            return Math.min(delivered, maxInput);
-        }
-        long retainedRatio = MjAmount.MICRO_MJ_PER_MJ - powerResistance;
-        if (retainedRatio <= 0) {
-            return maxInput;
-        }
-        BigInteger numerator = BigInteger.valueOf(delivered).multiply(BigInteger.valueOf(MjAmount.MICRO_MJ_PER_MJ));
-        BigInteger denominator = BigInteger.valueOf(retainedRatio);
-        long required = numerator.add(denominator).subtract(BigInteger.ONE).divide(denominator).longValue();
-        return Math.min(required, maxInput);
+        return EnergyMath.inputForDelivered(delivered, maxInput, powerResistance, MjAmount.MICRO_MJ_PER_MJ);
     }
 
     private static long saturatingAdd(long a, long b) {
-        if (b <= 0) {
-            return a;
-        }
-        return a > Long.MAX_VALUE - b ? Long.MAX_VALUE : a + b;
+        return EnergyMath.saturatingAdd(a, b);
     }
 
     public double getMaxTransferForRender(float partialTicks) {

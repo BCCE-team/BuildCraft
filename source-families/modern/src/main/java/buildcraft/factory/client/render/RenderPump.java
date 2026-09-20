@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -6,7 +7,8 @@
 
 package buildcraft.factory.client.render;
 
-
+import buildcraft.lib.compat.minecraft.render.BCRenderTypes;
+import buildcraft.lib.compat.minecraft.render.BCGeometryRenderer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.PoseStack.Pose;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -17,12 +19,11 @@ import buildcraft.factory.BCFactorySprites;
 import buildcraft.factory.tile.TilePump;
 import buildcraft.lib.client.render.fluid.FluidRenderer;
 import buildcraft.lib.client.render.fluid.FluidSpriteType;
+import buildcraft.lib.client.render.laser.LegacyLaserBlockEntityRenderer;
 import buildcraft.lib.client.render.laser.LaserData_BC8.LaserRow;
 import buildcraft.lib.client.render.laser.LaserData_BC8.LaserType;
 import buildcraft.lib.client.render.tile.RenderPartCube;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -30,7 +31,7 @@ import net.minecraft.core.Direction.Axis;
 import net.minecraft.world.phys.Vec3;
 
 
-public class RenderPump implements BlockEntityRenderer<TilePump> {
+public class RenderPump implements BCGeometryRenderer<TilePump>, LegacyLaserBlockEntityRenderer<TilePump> {
     private static final int[] COLOUR_POWER = new int[16];
     private static final int COLOUR_STATUS_ON = 0xFF_77_DD_77; // a light green
     private static final int COLOUR_STATUS_OFF = 0xFF_1f_10_1b; // black-ish
@@ -112,9 +113,9 @@ public class RenderPump implements BlockEntityRenderer<TilePump> {
     
     
     @Override
-	public void render(TilePump tile, float partialTicks, PoseStack matrix, MultiBufferSource builder,
+	public void renderContents(TilePump tile, float partialTicks, PoseStack matrix, MultiBufferSource builder,
 			int combinedLight, int overlay) {
-    	VertexConsumer buffer = builder.getBuffer(RenderType.cutoutMipped());
+        VertexConsumer buffer = builder.getBuffer(BCRenderTypes.cutoutMipped());
     	Pose p = matrix.last();
     	Matrix4f pose = p.pose();
     	Matrix3f normalMatrix = p.normal();
@@ -131,7 +132,7 @@ public class RenderPump implements BlockEntityRenderer<TilePump> {
             // Get the light level of a direction
 
             Direction dir = Direction.from2DDataValue(i);
-            BlockPos pos = tile.getBlockPos().offset(dir.getNormal());
+            BlockPos pos = tile.getBlockPos().relative(dir);
             int block = combinedLight >> 4;
             int sky = combinedLight >> 20;
 
@@ -148,7 +149,7 @@ public class RenderPump implements BlockEntityRenderer<TilePump> {
 
         var pumpedFluid = tile.getFluidStackForRender();
         if (!pumpedFluid.isEmpty()) {
-            VertexConsumer fluidBuffer = builder.getBuffer(RenderType.translucent());
+            VertexConsumer fluidBuffer = builder.getBuffer(BCRenderTypes.translucent());
             FluidRenderer.renderFluid(
                 FluidSpriteType.STILL, pumpedFluid, pumpedFluid.getAmount(), tile.getFluidCapacityForRender(),
                 new Vec3(5.5 / 16.0, 4.0 / 16.0, 5.5 / 16.0),
@@ -157,13 +158,20 @@ public class RenderPump implements BlockEntityRenderer<TilePump> {
             );
         }
 
-        tubeRenderer.render(tile, partialTicks, matrix, builder, statusLight, overlay);
+        renderLasers(tile, partialTicks, matrix, builder, statusLight, overlay);
 
 		
 	}
 
     @Override
-	public boolean shouldRenderOffScreen(TilePump p_112306_) {
+    public void renderLasers(TilePump tile, float partialTicks, PoseStack matrix, MultiBufferSource builder,
+            int combinedLight, int overlay) {
+        tubeRenderer.renderLasers(tile, partialTicks, matrix, builder, combinedLight, overlay);
+    }
+
+
+    @Override
+	public boolean renderOffScreen() {
 		return true;
 	}
 

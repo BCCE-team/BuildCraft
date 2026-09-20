@@ -1,5 +1,9 @@
+//? source if >=1.21.1
 package buildcraft.builders.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
+import buildcraft.lib.compat.minecraft.persistence.BCBlockEntity;
 import buildcraft.builders.BCBuildersBlocks;
 import buildcraft.builders.BuildersNbtUtil;
 import net.minecraft.core.BlockPos;
@@ -10,7 +14,10 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
-public class TileQuarryDrillCollision extends BlockEntity {
+public class TileQuarryDrillCollision extends BCBlockEntity {
+    protected boolean storesMachineDataAtRoot() { return true; }
+    protected boolean requiresPersistenceRegistries() { return false; }
+
     private static final String NBT_OWNER = "owner";
 
     private BlockPos owner;
@@ -29,7 +36,7 @@ public class TileQuarryDrillCollision extends BlockEntity {
     }
 
     public void update() {
-        if (level == null || level.isClientSide) {
+        if (level == null || level.isClientSide()) {
             return;
         }
         if (owner == null) {
@@ -48,17 +55,13 @@ public class TileQuarryDrillCollision extends BlockEntity {
         }
     }
 
-    @Override
-    public void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+    protected void writeData(BCValueOutput bcData) {
         if (owner != null) {
-            nbt.put(NBT_OWNER, NbtUtils.writeBlockPos(owner));
+            bcData.writeIntArray(NBT_OWNER, new int[] {owner.getX(), owner.getY(), owner.getZ()});
         }
     }
 
-    @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
-        owner = nbt.contains(NBT_OWNER) ? BuildersNbtUtil.readBlockPos(nbt, NBT_OWNER) : null;
+    protected void readData(BCValueInput bcData) {
+        owner = bcData.decode(NBT_OWNER, BlockPos.CODEC).map(BlockPos::immutable).orElse(null);
     }
 }

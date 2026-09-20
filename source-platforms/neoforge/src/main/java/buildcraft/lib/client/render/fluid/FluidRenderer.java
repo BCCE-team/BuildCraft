@@ -6,6 +6,7 @@
 
 package buildcraft.lib.client.render.fluid;
 
+import buildcraft.lib.platform.client.ClientAtlas;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,9 +37,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
-import net.neoforged.neoforge.client.event.TextureAtlasStitchedEvent;
 import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.IFluidTank;
@@ -48,7 +46,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
  * you can't use this to render off large multiblocks. Not thread safe -- this uses static variables so you should only
  * call this from the main client thread. */
 // Perhaps move this into IModelRenderer? And that way we get the buffer, force shaders to cope with fluids (?!), etc
-@OnlyIn(Dist.CLIENT)
 public class FluidRenderer {
 
     private static final EnumMap<FluidSpriteType, Map<String, TextureAtlasSprite>> fluidSprites =
@@ -74,7 +71,7 @@ public class FluidRenderer {
     }
 
     /** Refreshes all fluid sprites after the 1.20 block atlas has been uploaded. */
-    public static void onTextureStitchPost(TextureAtlasStitchedEvent event) {
+    public static void onTextureStitchPost(ClientAtlas.After event) {
         if (!InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
             return;
         }

@@ -56,11 +56,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCPacketContext;
+import buildcraft.lib.net.BCNetworkSide;
 
 /**
  * BuildCraft 7 style construction marker.
@@ -316,9 +314,9 @@ public class TileConstructionMarker extends TileBC_Neptune implements IDebuggabl
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER && id == NET_RENDER_DATA) {
+        if (side == BCNetworkSide.SERVER && id == NET_RENDER_DATA) {
             buffer.writeEnum(direction);
             buffer.writeItem(invBlueprint.getStackInSlot(0));
             buffer.writeBoolean(blueprintBuildingInfo != null);
@@ -330,9 +328,9 @@ public class TileConstructionMarker extends TileBC_Neptune implements IDebuggabl
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT && id == NET_RENDER_DATA) {
+        if (side == BCNetworkSide.CLIENT && id == NET_RENDER_DATA) {
             direction = buffer.readEnum(Direction.class);
             clientBlueprint = buffer.readItem();
             if (buffer.readBoolean()) {
@@ -420,15 +418,12 @@ public class TileConstructionMarker extends TileBC_Neptune implements IDebuggabl
     public void releaseRobotBuildTask(EntityRobotBase robot, RobotBuildTask task) {
         blueprintBuilder.releaseRobotTask(robot, task);
     }
-
-    @OnlyIn(Dist.CLIENT)
     public Box getBox() {
         return currentBox;
     }
 
     @Nonnull
     @Override
-    @OnlyIn(Dist.CLIENT)
     public AABB getRenderBoundingBox() {
         return BoundingBoxUtil.makeFrom(getBlockPos(), getBox());
     }

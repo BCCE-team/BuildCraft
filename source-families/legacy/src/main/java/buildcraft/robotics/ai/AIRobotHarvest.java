@@ -17,7 +17,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 
-/** Harvests one mature crop block and drops the crop output at the robot. Ported from BuildCraft 7.1.x AIRobotHarvest. */
+/** Harvests one mature crop block and drops the crop output at the robot, matching BuildCraft 7.1.x behavior. */
 public class AIRobotHarvest extends AIRobot {
     private static final int HARVEST_DELAY_TICKS = 12;
     private BlockIndex blockFound;

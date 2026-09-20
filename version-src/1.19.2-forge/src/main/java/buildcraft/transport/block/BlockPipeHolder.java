@@ -596,9 +596,8 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 			return ItemStack.EMPTY;
 		}
 
-		// Forge calls this overload for pick-block. The old port left the actual sub-part picker in a
-		// getPickBlock method, which is no longer an override in 1.19.2, so vanilla always fell back to
-		// the three-argument getCloneItemStack method and selected the pipe itself.
+		// Forge calls this overload for pick-block. The selected pipe sub-part must be resolved here;
+		// the three-argument getCloneItemStack fallback selects the pipe body instead of attachments.
 		int subHit = 0;
 		if (player != null) {
 			BCBlockHitResult trace = rayTrace(world, pos, player);
@@ -860,7 +859,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 	}
 
 	@Override
-	public List<ItemStack> getDrops(BlockState p_60537_, Builder builder) {// TODO: Move pipe-specific drop assembly into TilePipeHolder.
+	public List<ItemStack> getDrops(BlockState p_60537_, Builder builder) {// Pipe-holder drops include the pipe and all attached pluggables/wires.
 		NonNullList<ItemStack> toDrop = NonNullList.create();
 		BlockEntity blockEntity = builder.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
 		if (blockEntity != null && blockEntity instanceof TilePipeHolder tile) {

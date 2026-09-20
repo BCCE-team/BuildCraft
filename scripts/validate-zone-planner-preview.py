@@ -1,42 +1,27 @@
 #!/usr/bin/env python3
+"""Verify existing local block-preview rendering on each selected API generation."""
 from pathlib import Path
+from source_lookup import resolve_target_source
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def require(path: str, *needles: str) -> None:
-    text = (ROOT / path).read_text(encoding="utf-8")
+TARGETS = ('1.19.2-forge','1.20.1-forge','1.21.1-neoforge','1.21.11-neoforge')
+for target in TARGETS:
+    path = resolve_target_source(target,'src/main/java/buildcraft/robotics/client/render/RenderZonePlanner.java')
+    text = path.read_text(encoding='utf-8')
+    needles = ['TEXTURE_WIDTH = 10','TEXTURE_HEIGHT = 8','BLOCKS_PER_PIXEL = 4', 'new ZonePlannerMapChunk(', 'LightTexture.FULL_BRIGHT', 'expireAfterAccess(30, TimeUnit.SECONDS)']
+    if target.startswith('1.21.11'):
+        needles += ['level.dimension().identifier().toString()', 'RenderCompat.entityCutoutNoCull(texture)', 'collector.submitCustomGeometry']
+    else:
+        needles += ['level.dimension().location().hashCode()', 'RenderType.entityCutoutNoCull(preview.location)']
     missing = [needle for needle in needles if needle not in text]
     if missing:
-        raise SystemExit(f"{path}: missing " + ", ".join(repr(item) for item in missing))
-
-
-for family in ("legacy", "modern"):
-    renderer = f"source-families/{family}/src/main/java/buildcraft/robotics/client/render/RenderZonePlanner.java"
-    require(
-        renderer,
-        "TEXTURE_WIDTH = 10",
-        "TEXTURE_HEIGHT = 8",
-        "BLOCKS_PER_PIXEL = 4",
-        "new ZonePlannerMapChunk(",
-        "level.dimension().location().hashCode()",
-        "LightTexture.FULL_BRIGHT",
-        "RenderType.entityCutoutNoCull(preview.location)",
-        "expireAfterAccess(30, TimeUnit.SECONDS)",
-    )
-    text = (ROOT / renderer).read_text(encoding="utf-8")
-    if "ZonePlannerMapDataClient" in text or "MessageZoneMapRequest" in text:
-        raise SystemExit(f"{renderer}: block preview must not use remote GUI-map requests")
-
-for path in (
-    "version-src/1.19.2-forge/src/main/java/buildcraft/robotics/BCRobotics.java",
-    "version-src/1.20.1-forge/src/main/java/buildcraft/robotics/BCRobotics.java",
-    "source-platforms/neoforge/src/main/java/buildcraft/robotics/BCRobotics.java",
-):
-    require(
-        path,
-        "import buildcraft.robotics.client.render.RenderZonePlanner;",
-        "event.registerBlockEntityRenderer(BCRoboticsBlocks.ZONE_PLANNER_TILE.get(), RenderZonePlanner::new);",
-    )
-
-print("Zone Planner block preview parity OK: 10x8 BC8-style local terrain preview registered on all maintained targets")
+        raise SystemExit(f'{target}: local preview lost {missing}')
+    if 'ZonePlannerMapDataClient' in text or 'MessageZoneMapRequest' in text:
+        raise SystemExit(f'{target}: block preview must not use remote GUI-map requests')
+    bootstrap = resolve_target_source(target,'src/main/java/buildcraft/robotics/BCRobotics.java').read_text(encoding='utf-8')
+    if 'BCRoboticsClientRenderers.register(PlatformClientRegistration.renderers(event));' not in bootstrap:
+        raise SystemExit(f'{target}: Zone Planner client renderer catalogue is not wired into loader registration')
+    renderers = resolve_target_source(target,'src/main/java/buildcraft/robotics/BCRoboticsClientRenderers.java').read_text(encoding='utf-8')
+    if 'registry.registerBlockEntityRenderer(BCRoboticsBlocks.ZONE_PLANNER_TILE.get(), RenderZonePlanner::new);' not in renderers:
+        raise SystemExit(f'{target}: Zone Planner block preview renderer is not registered')
+print('Zone Planner block preview parity OK: local 10x8 terrain preview registered for all four targets')

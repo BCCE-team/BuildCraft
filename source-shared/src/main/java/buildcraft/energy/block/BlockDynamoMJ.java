@@ -17,7 +17,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-/** MJ -> Forge Energy converter restored from BuildCraft 8. */
+/** MJ -> Forge Energy converter block. */
 public class BlockDynamoMJ extends BlockBCTile_Neptune implements EntityBlock, ICustomRotationHandler {
     private static final VoxelShape UP = Shapes.or(
         Block.box(0, 0, 0, 16, 4, 16), Block.box(4, 4, 4, 12, 16, 12)

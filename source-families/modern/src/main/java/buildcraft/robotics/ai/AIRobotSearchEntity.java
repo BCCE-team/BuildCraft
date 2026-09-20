@@ -9,7 +9,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-/** BuildCraft 7.1.x AIRobotSearchEntity port. Finds the closest matching reachable entity in the work zone. */
+/** Finds the closest matching reachable entity in the work zone using BuildCraft 7.1.x search semantics. */
 public class AIRobotSearchEntity extends AIRobot {
     public Entity target;
 

@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
  * 
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -19,16 +20,17 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.material.MapColor;
+import buildcraft.lib.compat.RegistryCompat;
 
 public class BlockBCBase_Neptune extends Block {
-    public static final DirectionProperty PROP_FACING = BlockStateProperties.HORIZONTAL_FACING;
-    public static final DirectionProperty BLOCK_FACING_6 = BlockStateProperties.FACING;
+    public static final EnumProperty<Direction> PROP_FACING = BlockStateProperties.HORIZONTAL_FACING;
+    public static final EnumProperty<Direction> BLOCK_FACING_6 = BlockStateProperties.FACING;
 
     public BlockBCBase_Neptune(BlockBehaviour.Properties prop) {
-    	super(prop);
+    	super(RegistryCompat.blockProperties(prop));
     	if (this instanceof IBlockWithFacing) {
             EnumProperty<Direction> facingProp = ((IBlockWithFacing) this).getFacingProperty();
     		this.registerDefaultState(this.stateDefinition.any().setValue(facingProp, Direction.NORTH));
@@ -41,14 +43,12 @@ public class BlockBCBase_Neptune extends Block {
 
     // BlockState
 
-    @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> bs) {
         if (this instanceof IBlockWithFacing) 
             bs.add(((IBlockWithFacing) this).getFacingProperty());
 		super.createBlockStateDefinition(bs);
     }
 
-    @Override
     public BlockState rotate(BlockState state, Rotation rot) {
         if (this instanceof IBlockWithFacing) {
             EnumProperty<Direction> prop = ((IBlockWithFacing) this).getFacingProperty();
@@ -58,7 +58,6 @@ public class BlockBCBase_Neptune extends Block {
         return state;
     }
 
-    @Override
     public BlockState mirror(BlockState state, Mirror mirror) {
     	
         if (this instanceof IBlockWithFacing) {
@@ -71,7 +70,6 @@ public class BlockBCBase_Neptune extends Block {
 
     // Others
 
-    @Override
 	public BlockState getStateForPlacement(BlockPlaceContext bpc) {
     	LivingEntity placer = bpc.getPlayer();
     	BlockPos pos = bpc.getClickedPos();
@@ -103,7 +101,6 @@ public class BlockBCBase_Neptune extends Block {
     
     
 
-	@Override
     public BlockState rotate(BlockState state, LevelAccessor world, BlockPos pos, Rotation axis) {
         if(world.getBlockEntity(pos) instanceof TileBC_Neptune tile) 
         	tile.rotate(axis);

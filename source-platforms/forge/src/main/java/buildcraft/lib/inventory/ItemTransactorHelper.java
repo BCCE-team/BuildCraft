@@ -17,6 +17,8 @@ import buildcraft.lib.misc.BlockUtil;
 import buildcraft.lib.misc.CapUtil;
 import buildcraft.lib.misc.InventoryUtil;
 import buildcraft.lib.misc.StackUtil;
+import buildcraft.lib.platform.storage.ItemStorage;
+import buildcraft.lib.platform.storage.PlatformStorage;
 
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
@@ -30,7 +32,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.ICapabilityProvider;
-import net.minecraftforge.items.IItemHandler;
 
 public class ItemTransactorHelper {
     @Nonnull
@@ -51,8 +52,8 @@ public class ItemTransactorHelper {
             }
         }
 
-        IItemHandler handler = provider.getCapability(CapUtil.CAP_ITEMS, face).orElse(null);
-        if (handler == null) {
+        ItemStorage storage = PlatformStorage.items(provider, face);
+        if (storage == null) {
             if (provider instanceof ISidedInventory) {
                 return new SidedInventoryWrapper((ISidedInventory) provider, face);
             }
@@ -61,10 +62,7 @@ public class ItemTransactorHelper {
             }
             return NoSpaceTransactor.INSTANCE;
         }
-        if (handler instanceof IItemTransactor) {
-            return (IItemTransactor) handler;
-        }
-        return new ItemHandlerWrapper(handler);
+        return new ItemStorageTransactor(storage);
     }
 
     @Nonnull

@@ -6,6 +6,10 @@
 
 package buildcraft.transport;
 
+import buildcraft.lib.platform.client.PlatformClientModels;
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.lib.platform.events.PlatformEvents;
+import buildcraft.lib.platform.events.BCEvents;
 import buildcraft.transport.internal.pipe.PipeApiClient;
 import buildcraft.transport.client.PipeRegistryClient;
 import buildcraft.transport.client.model.ModelPipe;
@@ -25,8 +29,6 @@ import net.minecraftforge.client.event.TextureStitchEvent;
 import net.minecraftforge.client.event.ModelEvent.BakingCompleted;
 import net.minecraftforge.client.event.ModelEvent.ModifyBakingResult;
 import net.minecraftforge.client.event.ModelEvent.RegisterAdditional;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.level.ChunkWatchEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
@@ -36,9 +38,9 @@ public class BCTransportEventDist {
     @Mod.EventBusSubscriber(modid = BCTransport.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static class ClientModEvents
     {
-    	public static final ResourceLocation TRUNK_LIGHT = new ResourceLocation("buildcraftcore:blocks/engine/trunk_light");
-    	public static final ResourceLocation CHAMBER = new ResourceLocation("buildcraftcore:blocks/engine/chamber_base");
-    	
+        public static final ResourceLocation TRUNK_LIGHT = new ResourceLocation("buildcraftcore:blocks/engine/trunk_light");
+        public static final ResourceLocation CHAMBER = new ResourceLocation("buildcraftcore:blocks/engine/chamber_base");
+
         private static void ensureClientRegistry() {
             if (PipeApiClient.registry == null) {
                 PipeApiClient.registry = PipeRegistryClient.INSTANCE;
@@ -50,29 +52,29 @@ public class BCTransportEventDist {
         public static void onClientSetup(FMLClientSetupEvent event)
         {
             ensureClientRegistry();
-            BCTransportClientGuis.clientInit(event);
+            PlatformClientRegistration.screens(event, BCTransportClientGuis::clientInit);
         }
-        
+
         @SubscribeEvent
         public static void registryRender(EntityRenderersEvent.RegisterRenderers e) {
-        	BCTransportModels.onBlockEntityRender(e);
+            BCTransportModels.onBlockEntityRender(PlatformClientRegistration.renderers(e));
         }
-        
+
         @SubscribeEvent
         public static void onBlockColor(RegisterColorHandlersEvent.Block event) {
-        	BCTransportModels.onBlockColor(event);
+            BCTransportModels.onBlockColor(PlatformClientRegistration.blockColours(event));
         }
-        
+
         @SubscribeEvent
         public static void onModelBakePre(RegisterAdditional event) {
             ensureClientRegistry();
-            BCTransportModels.onModelBakePre(event);
+            BCTransportModels.onModelBakePre(PlatformClientModels.additional(event));
         }
-        
+
         @SubscribeEvent
         public static void onModelBake(ModifyBakingResult event) {
             ensureClientRegistry();
-            BCTransportModels.onModelBake(event);
+            BCTransportModels.onModelBake(PlatformClientModels.models(event));
         }
 
         @SubscribeEvent
@@ -97,23 +99,33 @@ public class BCTransportEventDist {
             PipeFlowRendererPower.clearTextureCache();
             PipeFlowRendererFE.clearTextureCache();
         }
-        
-        
+
+
     }
-    @SubscribeEvent
-    public static void onWorldTick(TickEvent.LevelTickEvent event) {
-        if (!event.level.isClientSide && event.level.getServer() != null) {
-            WorldSavedDataWireSystems.get(event.level).tick();
+
+    public static void onWorldTick(BCEvents.LevelTick event) {
+        if (!event.level().isClientSide && event.level().getServer() != null) {
+            WorldSavedDataWireSystems.get(event.level()).tick();
         }
     }
 
-    @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
+
+    public static void onServerTick(BCEvents.ServerTick event) {
         PipeItemMessageQueue.serverTick();
     }
 
-    @SubscribeEvent
-    public static void onChunkWatch(ChunkWatchEvent.Watch event) {
+
+    public static void onChunkWatch(BCEvents.ChunkWatch event) {
         WorldSavedDataWireSystems.get(event.getLevel()).changedPlayers.add(event.getPlayer());
+    }
+    private static boolean gameplayEventsRegistered;
+    public static synchronized void registerGameplayEvents() {
+        if (gameplayEventsRegistered) return;
+        gameplayEventsRegistered = true;
+        PlatformEvents.levelTick(BCEvents.Phase.END, BCTransportEventDist::onWorldTick);
+        PlatformEvents.levelTick(BCEvents.Phase.START, BCTransportEventDist::onWorldTick);
+        PlatformEvents.serverTick(BCEvents.Phase.END, BCTransportEventDist::onServerTick);
+        PlatformEvents.serverTick(BCEvents.Phase.START, BCTransportEventDist::onServerTick);
+        PlatformEvents.chunkWatch(BCTransportEventDist::onChunkWatch);
     }
 }

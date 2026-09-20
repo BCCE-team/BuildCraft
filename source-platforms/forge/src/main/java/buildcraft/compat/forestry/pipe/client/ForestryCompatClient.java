@@ -1,5 +1,6 @@
 package buildcraft.compat.forestry.pipe.client;
 
+import buildcraft.lib.platform.client.PlatformClientRegistration;
 import buildcraft.compat.BuildCraftCompat;
 import buildcraft.compat.forestry.pipe.ContainerPropolisPipe;
 import buildcraft.compat.forestry.pipe.ForestryPipes;
@@ -34,7 +35,7 @@ public final class ForestryCompatClient {
     }
 
     public static void registerScreens() {
-        MenuScreens.register(ForestryPipes.PROPOLIS_PIPE_MENU.get(), GuiPropolisPipe::new);
+        PlatformClientRegistration.directScreens().register(ForestryPipes.PROPOLIS_PIPE_MENU.get(), GuiPropolisPipe::new);
     }
 
     //? if <1.20 {

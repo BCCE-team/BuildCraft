@@ -6,6 +6,8 @@
 
 package buildcraft.lib.engine;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.OperationMode;
@@ -62,13 +64,11 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.client.model.data.ModelData;
 import net.neoforged.neoforge.client.model.data.ModelProperty;
 import net.neoforged.neoforge.capabilities.BlockCapability;
-import net.neoforged.fml.LogicalSide;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebuggable, EngineView, MjPortProvider {
 
@@ -159,6 +159,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         syncRenderProgressFromProgress();
         if (level != null && level.isClientSide) {
             refreshEngineModelData();
+        } else if (level != null) {
+            // Revalidate the output after chunk load. The target capability can be restored after the engine NBT,
+            // and relying solely on a later neighbour event leaves an engine permanently aimed at an absent endpoint.
+            rotateIfInvalid();
         }
     }
 
@@ -182,37 +186,39 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
+    protected void readData(BCValueInput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.readData(bcData);
         currentDirection = NBTUtilBC.readEnum(nbt.get("currentDirection"), Direction.class);
         if (currentDirection == null) {
             currentDirection = Direction.UP;
         }
-        isRedstonePowered = nbt.getBoolean("isRedstonePowered");
-        heat = nbt.getDouble("heat");
-        power = nbt.getLong("power");
-        progress = nbt.getFloat("progress");
+        isRedstonePowered = bcData.readBoolean("isRedstonePowered");
+        heat = bcData.readDouble("heat");
+        power = bcData.readLong("power");
+        progress = bcData.readFloat("progress");
         lastProgress = progress;
-        progressPart = nbt.getInt("progressPart");
+        progressPart = bcData.readInt("progressPart");
         syncRenderProgressFromProgress();
         capturePersistedState();
     }
 
     @Override
-    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+    protected void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.writeData(bcData);
         nbt.put("currentDirection", NBTUtilBC.writeEnum(currentDirection));
-        nbt.putBoolean("isRedstonePowered", isRedstonePowered);
-        nbt.putDouble("heat", heat);
-        nbt.putLong("power", power);
-        nbt.putFloat("progress", progress);
-        nbt.putInt("progressPart", progressPart);
+        bcData.writeBoolean("isRedstonePowered", isRedstonePowered);
+        bcData.writeDouble("heat", heat);
+        bcData.writeLong("power", power);
+        bcData.writeFloat("progress", progress);
+        bcData.writeInt("progressPart", progressPart);
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 isPumping = buffer.readBoolean();
                 Direction newDir = buffer.readEnum(Direction.class);
@@ -242,9 +248,9 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 buffer.writeBoolean(isPumping);
                 buffer.writeEnum(currentDirection);
@@ -272,7 +278,9 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
                 if (currentDirection != current) {
                     Direction previousDirection = currentDirection;
                     currentDirection = current;
-                    // makeTileCache();
+                    // The MJ/FE output capability is sided by currentDirection. Invalidate NeoForge capability
+                    // caches whenever that side changes so queries see the current output face.
+                    level.invalidateCapabilities(worldPosition);
                     sendNetworkUpdate(NET_RENDER_DATA);
                     redrawBlock();
                     markChunkDirty();
@@ -404,7 +412,11 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     public void neighbourBlockChanged(BlockState state, BlockPos nehighbour, boolean a) {
     	super.onNeighbourBlockChanged(state, nehighbour);
         isRedstonePowered = level.hasNeighborSignal(worldPosition);
-        
+        if (!level.isClientSide) {
+            // Target blocks may be placed/removed after the engine. Re-evaluate immediately instead of keeping the
+            // direction chosen when the engine itself was first placed.
+            rotateIfInvalid();
+        }
     }
 
     public void update() {
@@ -697,25 +709,37 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
 
     /** Returns the API2 MJ endpoint reached through a valid same-engine chain. */
     public MjPort getPortToPower(Direction side) {
+        if (level == null || side == null) {
+            return null;
+        }
+
         TileEngineBase_BC8 engine = this;
-        BlockEntity next = null;
+        BlockPos targetPos = engine.worldPosition.relative(side);
         for (int len = 0; len <= getMaxChainLength(); len++) {
-            next = engine.getTileBuffer(side).getTile();
-            if (next == null) return null;
-            if (next.getClass() == getClass() && side != ((TileEngineBase_BC8) next).currentDirection) return null;
-            if (next instanceof TileEngineBase_BC8) {
-                if (next.getClass() != getClass()) return null;
-                engine = (TileEngineBase_BC8) next;
-            } else {
+            // Endpoint availability is capability-driven on 1.21.11, so resolve the block entity directly instead
+            // of using a neighbour cache that may be stale.
+            BlockEntity next = level.getBlockEntity(targetPos);
+            if (!(next instanceof TileEngineBase_BC8 nextEngine)) {
                 break;
             }
+            // Preserve the original BC8 chain limit: len==max is reserved for the final non-engine endpoint.
+            if (len >= getMaxChainLength()) {
+                return null;
+            }
+            if (nextEngine.getClass() != getClass() || side != nextEngine.currentDirection) {
+                return null;
+            }
+            engine = nextEngine;
+            targetPos = engine.worldPosition.relative(side);
         }
-        if (next == null || next instanceof TileEngineBase_BC8) return null;
+
+        // The final endpoint does not have to own a BlockEntity. NeoForge 1.21.11 block capabilities are positional,
+        // and BuildCraft's API2 EnergyService already knows how to bridge MJ and the modern FE handler.
         var energy = BuildCraftApi.service(BuildCraftServices.ENERGY);
-        MjPort remotePort = energy.port(level, next.getBlockPos(), side.getOpposite()).orElse(null);
+        MjPort remotePort = energy.port(level, targetPos, side.getOpposite()).orElse(null);
         if (remotePort == null) return null;
         Optional<MjPortDescriptor> localDescriptor = engine.mjPortDescriptor(side);
-        Optional<MjPortDescriptor> remoteDescriptor = energy.descriptor(level, next.getBlockPos(), side.getOpposite());
+        Optional<MjPortDescriptor> remoteDescriptor = energy.descriptor(level, targetPos, side.getOpposite());
         if (localDescriptor.isPresent() && remoteDescriptor.isPresent()
             && !energy.canConnect(new MjConnectionContext(level, engine.worldPosition, side,
                 localDescriptor.get(), remoteDescriptor.get()))) {
@@ -757,8 +781,6 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     public boolean isEngineOn() {
         return isPumping;
     }
-
-    @OnlyIn(Dist.CLIENT)
     public float getProgressClient(float partialTicks) {
         float last = lastProgress;
         float now = progress;
@@ -769,8 +791,6 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         float interp = last * (1 - partialTicks) + now * partialTicks;
         return interp % 1;
     }
-
-    @OnlyIn(Dist.CLIENT)
     public float getRenderProgress(float partialTicks) {
         return computeRenderProgress(getProgressClient(partialTicks));
     }
@@ -841,8 +861,6 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         left.add("progress = " + progress);
         left.add("last = " + (lastPower));
     }
-
-    @OnlyIn(Dist.CLIENT)
     @Override
     public void getClientDebugInfo(List<String> left, List<String> right, Direction side) {
         left.add("Current Model Variables:");

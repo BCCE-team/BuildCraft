@@ -1,47 +1,65 @@
+//? source if >=1.21.11
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
- * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
  */
-
 package buildcraft.transport.client.model;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import buildcraft.transport.internal.pipe.EnumPipeColourType;
-import buildcraft.transport.internal.pipe.IItemPipe;
-import buildcraft.transport.internal.pipe.PipeDefinition;
-import buildcraft.transport.internal.pipe.PipeFaceTex;
+import org.joml.Vector3f;
+
 import buildcraft.lib.client.model.ModelItemSimple;
 import buildcraft.lib.client.model.ModelUtil;
 import buildcraft.lib.client.model.ModelUtil.UvFaceData;
 import buildcraft.lib.client.model.MutableQuad;
+import buildcraft.lib.compat.minecraft.model.NativeItemModelBuilder;
 import buildcraft.lib.misc.ColourUtil;
 import buildcraft.lib.misc.ItemStackUtil;
 import buildcraft.lib.misc.SpriteUtil;
-import buildcraft.transport.item.ItemPipeHolder;
 import buildcraft.transport.BCTransportSprites;
-import com.google.common.collect.ImmutableList;
-import org.joml.Vector3f;
+import buildcraft.transport.internal.pipe.EnumPipeColourType;
+import buildcraft.transport.internal.pipe.PipeDefinition;
+import buildcraft.transport.internal.pipe.PipeFaceTex;
 
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.block.model.BakedQuad;
-import net.minecraft.client.renderer.block.model.ItemOverrides;
-import net.minecraft.client.renderer.block.model.ItemTransforms;
+import net.minecraft.client.renderer.Sheets;
+import net.minecraft.client.renderer.item.CompositeModel;
+import net.minecraft.client.renderer.item.ItemModel;
+import net.minecraft.client.renderer.item.ItemModelResolver;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Direction.Axis;
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ItemOwner;
 import net.minecraft.world.item.DyeColor;
-import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.state.BlockState;
 
-public enum ModelPipeItem implements BakedModel {
-    INSTANCE;
+/** Native item model; one instance per pipe definition and resource reload. */
+public final class ModelPipeItem implements ItemModel {
+    private final PipeDefinition definition;
+    private final ItemModel[] colours = new ItemModel[17];
+
+    public ModelPipeItem(PipeDefinition definition) {
+        this.definition = definition;
+    }
+
+    @Override
+    public void update(ItemStackRenderState state, ItemStack stack, ItemModelResolver resolver,
+        ItemDisplayContext context, ClientLevel level, ItemOwner owner, int seed) {
+        int colour = ItemStackUtil.getCustomData(stack).getIntOr("color", 0);
+        if (colour < 0 || colour >= colours.length) {
+            colour = 0;
+        }
+        ItemModel model = colours[colour];
+        if (model == null) {
+            model = bake(colour);
+            colours[colour] = model;
+        }
+        model.update(state, stack, resolver, context, level, owner, seed);
+    }
 
     private static final MutableQuad[] QUADS_SAME;
     private static final MutableQuad[] QUADS_TOP, QUADS_CENTER, QUADS_BOTTOM;
@@ -96,148 +114,69 @@ public enum ModelPipeItem implements BakedModel {
         return quads;
     }
 
-    @Override
-    public List<BakedQuad> getQuads(BlockState state, Direction side, RandomSource rand) {
-        return ImmutableList.of();
-    }
 
-    private static List<BakedQuad> getQuads(PipeFaceTex center, PipeFaceTex top, PipeFaceTex bottom,
-        TextureAtlasSprite[] sprites, int colour, EnumPipeColourType colourType) {
-        List<BakedQuad> quads = new ArrayList<>();
-
+    private ItemModel bake(int colour) {
+        TextureAtlasSprite[] sprites = PipeModelCacheBase.generator.getItemSprites(definition);
+        List<MutableQuad> cutout = new ArrayList<>();
+        PipeFaceTex center = definition.itemModelCenter;
+        PipeFaceTex top = definition.itemModelTop;
+        PipeFaceTex bottom = definition.itemModelBottom;
         if (center.equals(top) && center.equals(bottom)) {
-            addQuads(QUADS_SAME, sprites, quads, center);
+            addQuads(QUADS_SAME, sprites, cutout, center);
         } else {
-            addQuads(QUADS_TOP, sprites, quads, top);
-            addQuads(QUADS_CENTER, sprites, quads, center);
-            addQuads(QUADS_BOTTOM, sprites, quads, bottom);
+            addQuads(QUADS_TOP, sprites, cutout, top);
+            addQuads(QUADS_CENTER, sprites, cutout, center);
+            addQuads(QUADS_BOTTOM, sprites, cutout, bottom);
         }
 
-        if (colour > 0 && colour <= 16) {
-            DyeColor rColour = DyeColor.byId(colour - 1);
-            int rgb = 0xFF_00_00_00 | ColourUtil.swapArgbToAbgr(ColourUtil.getLightHex(rColour));
-            if (colourType == EnumPipeColourType.TRANSLUCENT) {
-                TextureAtlasSprite sprite = BCTransportSprites.PIPE_COLOUR.getSprite();
-                addQuadsColoured(QUADS_COLOUR, quads, sprite, rgb);
-            } else if (colourType == EnumPipeColourType.BORDER_OUTER) {
-                TextureAtlasSprite sprite = BCTransportSprites.PIPE_COLOUR_BORDER_OUTER.getSprite();
-                addQuadsColoured(QUADS_SAME, quads, sprite, rgb);
-            } else if (colourType == EnumPipeColourType.BORDER_INNER) {
-                TextureAtlasSprite sprite = BCTransportSprites.PIPE_COLOUR_BORDER_INNER.getSprite();
-                addQuadsColoured(QUADS_SAME, quads, sprite, rgb);
+        List<MutableQuad> translucent = new ArrayList<>();
+        if (colour > 0) {
+            // MutableQuad and native BakedColors both use ARGB. Do not swap red/blue.
+            int argb = 0xFF000000 | ColourUtil.getLightHex(DyeColor.byId(colour - 1));
+            EnumPipeColourType type = definition.getColourType();
+            if (type == EnumPipeColourType.TRANSLUCENT) {
+                addColoured(QUADS_COLOUR, translucent, BCTransportSprites.PIPE_COLOUR.getSprite(), argb);
+            } else if (type == EnumPipeColourType.BORDER_OUTER) {
+                addColoured(QUADS_SAME, cutout, BCTransportSprites.PIPE_COLOUR_BORDER_OUTER.getSprite(), argb);
+            } else if (type == EnumPipeColourType.BORDER_INNER) {
+                addColoured(QUADS_SAME, cutout, BCTransportSprites.PIPE_COLOUR_BORDER_INNER.getSprite(), argb);
             }
         }
 
-        return quads;
+        ItemModel body = NativeItemModelBuilder.layer(cutout, ModelItemSimple.TRANSFORM_BLOCK,
+            Sheets.cutoutBlockSheet(), true);
+        if (translucent.isEmpty()) {
+            return body;
+        }
+        return new CompositeModel(List.of(body,
+            NativeItemModelBuilder.layer(translucent, ModelItemSimple.TRANSFORM_BLOCK,
+                Sheets.translucentBlockItemSheet(), true)));
     }
 
-    private static void addQuads(MutableQuad[] from, TextureAtlasSprite[] sprites, List<BakedQuad> to,
-        PipeFaceTex face) {
-        MutableQuad copy = new MutableQuad();
-        for (int i = 0; i < face.getCount(); i++) {
-            int colour = face.getColour(i);
-            int spriteIndex = face.getTexture(i);
-            TextureAtlasSprite sprite = getSprite(sprites, spriteIndex);
-            for (MutableQuad f : from) {
-                if (f == null) {
-                    continue;
-                }
-                copy.copyFrom(f);
-                copy.texFromSprite(sprite);
-                copy.normalf(0,0,0);//FIX Render bug
-                to.add(copy.toBakedItem());
-            }
+    private static void addQuads(MutableQuad[] templates, TextureAtlasSprite[] sprites,
+        List<MutableQuad> target, PipeFaceTex face) {
+        for (int layer = 0; layer < face.getCount(); layer++) {
+            int index = face.getTexture(layer);
+            TextureAtlasSprite sprite = sprites != null && index >= 0 && index < sprites.length
+                && sprites[index] != null ? sprites[index] : SpriteUtil.missingSprite();
+            addColoured(templates, target, sprite, 0xFF000000 | face.getColour(layer));
         }
     }
 
-    private static TextureAtlasSprite getSprite(TextureAtlasSprite[] sprites, int spriteIndex) {
-        TextureAtlasSprite sprite;
-        if (sprites == null || spriteIndex < 0 || spriteIndex >= sprites.length || sprites[spriteIndex] == null) {
+    private static void addColoured(MutableQuad[] templates, List<MutableQuad> target,
+        TextureAtlasSprite sprite, int colour) {
+        if (sprite == null) {
             sprite = SpriteUtil.missingSprite();
-        } else {
-            sprite = sprites[spriteIndex];
         }
-        return sprite;
-    }
-
-    private static void addQuadsColoured(MutableQuad[] from, List<BakedQuad> to, TextureAtlasSprite sprite,
-        int colour) {
-        for (MutableQuad f : from) {
-            if (f == null) {
-                continue;
+        for (MutableQuad template : templates) {
+            if (template != null) {
+                // Never mutate the templates: instances are reused across definitions and dyes.
+                MutableQuad quad = new MutableQuad(template);
+                quad.texFromSprite(sprite);
+                quad.colouri(colour);
+                quad.setTint(-1);
+                target.add(quad);
             }
-            MutableQuad copy = new MutableQuad(f);
-            copy.texFromSprite(sprite);
-            copy.colouri(colour);
-            to.add(copy.toBakedItem());
         }
     }
-
-    @Override
-    public boolean useAmbientOcclusion() {
-        return false;
-    }
-
-    @Override
-    public boolean isGui3d() {
-        return true;
-    }
-
-    @Override
-    public boolean isCustomRenderer() {
-        return false;
-    }
-
-    @Override
-    public TextureAtlasSprite getParticleIcon() {
-        return SpriteUtil.missingSprite();
-    }
-
-    @Override
-    public ItemTransforms getTransforms() {
-        return ItemTransforms.NO_TRANSFORMS;
-    }
-
-    @Override
-    public ItemOverrides getOverrides() {
-        return PipeItemOverride.PIPE_OVERRIDE;
-    }
-
-    private static class PipeItemOverride extends ItemOverrides {
-        public static final PipeItemOverride PIPE_OVERRIDE = new PipeItemOverride();
-
-        public PipeItemOverride() {
-            super();
-        }
-
-        @Override
-        public BakedModel resolve(BakedModel originalModel, ItemStack stack, ClientLevel world,
-            LivingEntity entity,int i) {
-            Item item = stack.getItem();
-            PipeFaceTex center = PipeFaceTex.NO_SPRITE;
-            PipeFaceTex top = center;
-            PipeFaceTex bottom = center;
-            TextureAtlasSprite[] sprites = { SpriteUtil.missingSprite() };
-
-            EnumPipeColourType type;
-            if (item instanceof IItemPipe) {
-                PipeDefinition def = ((IItemPipe) item).getDefinition();
-                top = def.itemModelTop;
-                center = def.itemModelCenter;
-                bottom = def.itemModelBottom;
-                type = def.getColourType();
-                sprites = PipeModelCacheBase.generator.getItemSprites(def);
-            } else {
-                type = EnumPipeColourType.TRANSLUCENT;
-            }
-            List<BakedQuad> quads = getQuads(center, top, bottom, sprites,
-                ItemStackUtil.hasCustomData(stack) ? ItemStackUtil.getCustomData(stack).getInt("color") : 0, type);
-            return new ModelItemSimple(quads, ModelItemSimple.TRANSFORM_BLOCK, true);
-        }
-    }
-
-	@Override
-	public boolean usesBlockLight() {
-		return true;
-	}
 }

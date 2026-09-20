@@ -1,9 +1,10 @@
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
- * 
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.lib;
 
+import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.module.ModuleInfo;
@@ -79,7 +80,7 @@ public class BCLib {
                 BCLog.logger.info("  - " + module.id().getPath());
             }
         }
-        BCLibItems.registry(modEventBus);
+        BCLibItems.registry(RegistryBinding.on(modEventBus));
         BCLibRegistries.fmlPreInit();
 
         ExpressionDebugManager.logger = BCLog.logger::info;
@@ -88,7 +89,8 @@ public class BCLib {
 
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(BCLibEventDist.class);
-        
+        BCLibEventDist.registerGameplayEvents();
+
     }
 
     public void gatherData(GatherDataEvent event) {
@@ -98,12 +100,12 @@ public class BCLib {
 
     public void init(final FMLCommonSetupEvent event) {
         event.enqueueWork(ChunkLoaderManager::init);
-    	BCLibRegistries.fmlInit();
-    	BCLibProxy.MessageRegistry();
+        BCLibRegistries.fmlInit();
+        BCLibProxy.MessageRegistry();
         VanillaListHandlers.fmlInit();
         VanillaRotationHandlers.fmlInit();
     }
-    
+
     public void postInit(FMLLoadCompleteEvent evt) {
         initOptionalCompat("ic2", "buildcraft.compat.ic2.Ic2Compat");
         initOptionalCompat("forestry", "buildcraft.compat.forestry.ForestryCompat");

@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -17,6 +18,8 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.tuple.Pair;
 
+import com.mojang.serialization.Codec;
+
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftRegistries;
@@ -30,22 +33,26 @@ import buildcraft.transport.internal.pipe.IPipeHolder;
 import buildcraft.lib.net.MessageManager;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.saveddata.SavedData;
-import net.minecraft.world.level.storage.DimensionDataStorage;
+import net.minecraft.world.level.saveddata.SavedDataType;
+import buildcraft.lib.compat.NbtCompat;
 
 public class WorldSavedDataWireSystems extends SavedData {
     public static final String DATA_NAME = "buildcraft_wire_systems";
+    public static final Codec<WorldSavedDataWireSystems> CODEC = CompoundTag.CODEC.xmap(
+        WorldSavedDataWireSystems::new, WorldSavedDataWireSystems::saveToTag
+    );
+    public static final SavedDataType<WorldSavedDataWireSystems> TYPE =
+        new SavedDataType<>(DATA_NAME, WorldSavedDataWireSystems::new, CODEC, null);
     public Level world;
     public final Map<WireSystem, Boolean> wireSystems = new HashMap<>();
     public boolean gatesChanged = true;
@@ -56,6 +63,11 @@ public class WorldSavedDataWireSystems extends SavedData {
     private final Map<WireSystem.WireElement, List<WireSystem>> elementsToWireSystemsIndex = new HashMap<>();
 
     public WorldSavedDataWireSystems() {}
+
+    private WorldSavedDataWireSystems(CompoundTag nbt) {
+        this();
+        readFromTag(nbt);
+    }
 
     public void markStructureChanged() {
         structureChanged = true;
@@ -127,7 +139,7 @@ public class WorldSavedDataWireSystems extends SavedData {
         if (!world.isLoaded(externalPos)) return null;
         BlockEntity blockEntity = world.getBlockEntity(externalPos);
         if (!(blockEntity instanceof SignalPortProvider provider)) return null;
-        ResourceLocation channelId = BuildCraftSignalChannels.id(color);
+        Identifier channelId = BuildCraftSignalChannels.id(color);
         SignalChannelType<?> expected = BuildCraftApi.registry(BuildCraftRegistries.SIGNAL_CHANNEL_TYPES).get(channelId);
         if (expected == null) return null;
         SignalPort<?> port = provider.signalPort(element.emitterSide.getOpposite(), channelId).orElse(null);
@@ -159,7 +171,7 @@ public class WorldSavedDataWireSystems extends SavedData {
             });
         }
         //to debug
-        if(!world.isClientSide)
+        if(!world.isClientSide())
         ((ServerLevel)world).players().forEach(player -> {
             Map<Integer, WireSystem> changedWires = this.wireSystems.keySet().stream()
                     .filter(wireSystem -> wireSystem.isPlayerWatching(player) && (structureChanged || changedPlayers.contains(player)))
@@ -186,47 +198,39 @@ public class WorldSavedDataWireSystems extends SavedData {
         changedPlayers.clear();
     }
 
-    @Override
-    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
+    public CompoundTag saveToTag() {
+        CompoundTag nbt = new CompoundTag();
         ListTag entriesList = new ListTag();
-        List<CompoundTag> temp = new ArrayList<>();
-        wireSystems.forEach((wireSystem, powered) -> {
+        for (Map.Entry<WireSystem, Boolean> system : wireSystems.entrySet()) {
             CompoundTag entry = new CompoundTag();
-            entry.put("wireSystem", wireSystem.writeToNBT());
-            entry.putBoolean("powered", powered);
-            temp.add(entry);
-        });
-        int conter = 0;
-        for(CompoundTag t : temp)
-        	entriesList.add(conter++, t);
+            entry.put("wireSystem", system.getKey().writeToNBT());
+            entry.putBoolean("powered", system.getValue());
+            entriesList.add(entry);
+        }
         nbt.put("entries", entriesList);
         return nbt;
     }
 
-    public static WorldSavedDataWireSystems load(CompoundTag nbt, HolderLookup.Provider registries) {
-    	WorldSavedDataWireSystems wsds = new WorldSavedDataWireSystems();
-        wsds.wireSystems.clear();
-        wsds.elementsToWireSystemsIndex.clear();
-
-        ListTag entriesList = nbt.getList("entries", Tag.TAG_COMPOUND);
-        for(int i = 0; i < entriesList.size(); i++) {
-            CompoundTag entry = entriesList.getCompound(i);
-            wsds.addWireSystem(new WireSystem(entry.getCompound("wireSystem")), entry.getBoolean("powered"));
+    private void readFromTag(CompoundTag nbt) {
+        wireSystems.clear();
+        elementsToWireSystemsIndex.clear();
+        ListTag entriesList = NbtCompat.getList(nbt, "entries");
+        for (int i = 0; i < entriesList.size(); i++) {
+            CompoundTag entry = NbtCompat.getCompound(entriesList, i);
+            addWireSystem(new WireSystem(NbtCompat.getCompound(entry, "wireSystem")), NbtCompat.getBoolean(entry, "powered"));
         }
-        return wsds;
+        // A loaded network is authoritative persisted state, not a newly-built transient graph.
+        structureChanged = false;
+        gatesChanged = true;
+        changedSystems.clear();
+        changedPlayers.clear();
     }
 
     public static WorldSavedDataWireSystems get(Level world) {
-        if(world.isClientSide()) {
+        if (world.isClientSide()) {
             throw new UnsupportedOperationException("Attempted to get LevelSavedDataWireSystems on the client!");
         }
-        DimensionDataStorage storage = ((ServerLevel)world).getDataStorage();
-        SavedData.Factory<WorldSavedDataWireSystems> factory = new SavedData.Factory<>(
-            WorldSavedDataWireSystems::new,
-            WorldSavedDataWireSystems::load,
-            DataFixTypes.LEVEL
-        );
-        WorldSavedDataWireSystems instance = storage.computeIfAbsent(factory, DATA_NAME);
+        WorldSavedDataWireSystems instance = ((ServerLevel) world).getDataStorage().computeIfAbsent(TYPE);
         instance.world = world;
         return instance;
     }

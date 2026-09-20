@@ -73,7 +73,7 @@ public class MessageManager {
 
         /** The handler to register, or null if this isn't handled in this physical side. */
         @Nullable
-        BiConsumer<I, Supplier<NetworkEvent.Context>> clientHandler, serverHandler;
+        BiConsumer<I, Supplier<BCPacketContext>> clientHandler, serverHandler;
 
         PerMessageInfo(PerModHandler modHandler, Class<I> messageClass, BiConsumer<I, FriendlyByteBuf> enCoder, Function<FriendlyByteBuf, I> deCoder) {
             this.modHandler = modHandler;
@@ -101,7 +101,7 @@ public class MessageManager {
 
 
     public static synchronized <I> void registerMessageClass(IBuildCraftMod module, Class<I> messageClass,
-    	BiConsumer<I, Supplier<NetworkEvent.Context>> messageHandler,
+        BiConsumer<I, Supplier<BCPacketContext>> messageHandler,
     	BiConsumer<I, FriendlyByteBuf> enCoder,
     	Function<FriendlyByteBuf, I> deCoder, Dist... sides) {
         //PerModHandler modHandler = MOD_HANDLERS.computeIfAbsent(module, PerModHandler::new);
@@ -149,7 +149,7 @@ public class MessageManager {
      *
      * @param side The side that the given handler will receive messages on. */
     public static <I> void setHandler(Class<I> messageClass,
-    	BiConsumer<I, Supplier<NetworkEvent.Context>> messageHandler, Dist side) {
+        BiConsumer<I, Supplier<BCPacketContext>> messageHandler, Dist side) {
         PerMessageInfo<I> messageInfo = (PerMessageInfo<I>) MESSAGE_HANDLERS.get(messageClass);
         if (messageInfo == null) {
             throw new IllegalArgumentException("Cannot set handler for unregistered message: " + messageClass);
@@ -186,7 +186,7 @@ public class MessageManager {
 
         Class<I> msgClass = info.messageClass;
         if (cl && sv && info.clientHandler == info.serverHandler) {
-            handler.netWrapper.registerMessage(id++, msgClass, info.enCoder, info.deCoder, info.clientHandler);
+            handler.netWrapper.registerMessage(id++, msgClass, info.enCoder, info.deCoder, (message, context) -> info.clientHandler.accept(message, () -> new ForgePacketContext(context.get())));
         } else {
             if (cl) {
                 handler.netWrapper.registerMessage(
@@ -217,7 +217,7 @@ public class MessageManager {
         }
     }
 
-    private static <I> BiConsumer<I, Supplier<NetworkEvent.Context>> wrapHandler(BiConsumer<I, Supplier<NetworkEvent.Context>> messageHandler,
+    private static <I> BiConsumer<I, Supplier<NetworkEvent.Context>> wrapHandler(BiConsumer<I, Supplier<BCPacketContext>> messageHandler,
         Class<I> messageClass, boolean isToClient) {
         if (messageHandler == null) {
             return (message, context) -> {
@@ -237,7 +237,7 @@ public class MessageManager {
                     context.get().enqueueWork(() ->
                         DistExecutor.unsafeRunWhenOn(
                             Dist.CLIENT,
-                            () -> () -> messageHandler.accept(message, context)
+                            () -> () -> messageHandler.accept(message, () -> new ForgePacketContext(context.get()))
                         )
                     );
                     context.get().setPacketHandled(true);
@@ -251,7 +251,7 @@ public class MessageManager {
                     }
                     context.get().enqueueWork(() -> {
                         try {
-                            messageHandler.accept(message, context);
+                            messageHandler.accept(message, () -> new ForgePacketContext(context.get()));
                         } catch (RuntimeException exception) {
                             BCLog.logger.debug("[lib.messages] Dropped invalid client payload {}", messageClass.getName(), exception);
                         }

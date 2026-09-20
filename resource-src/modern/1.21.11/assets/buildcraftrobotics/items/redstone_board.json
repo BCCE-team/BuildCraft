@@ -1,0 +1,40 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "buildcraftrobotics:board",
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "buildcraftrobotics:item/board/clean"
+    },
+    "entries": [
+      {
+        "threshold": 0.1,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/board/green"
+        }
+      },
+      {
+        "threshold": 0.2,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/board/blue"
+        }
+      },
+      {
+        "threshold": 0.3,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/board/red"
+        }
+      },
+      {
+        "threshold": 0.4,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/board/yellow"
+        }
+      }
+    ]
+  }
+}

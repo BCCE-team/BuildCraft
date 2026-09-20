@@ -6,6 +6,9 @@
 
 package buildcraft.silicon;
 
+import buildcraft.lib.platform.registry.BCRegistryBinder;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
 import buildcraft.lib.recipe.AssemblyRecipe;
 import buildcraft.lib.recipe.AssemblyRecipeBasic;
 import buildcraft.silicon.recipe.FacadeAssemblyRecipes;
@@ -15,28 +18,24 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.SimpleRecipeSerializer;
-import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
 
 @Mod.EventBusSubscriber(modid = BCSilicon.MODID)
 public class BCSiliconRecipes {
-    public static final DeferredRegister<RecipeType<?>> TYPES = DeferredRegister.create(ForgeRegistries.RECIPE_TYPES, BCSilicon.MODID);
-    public static final DeferredRegister<RecipeSerializer<?>> SERIALIZERS = DeferredRegister.create(ForgeRegistries.RECIPE_SERIALIZERS, BCSilicon.MODID);
-    public static final RegistryObject<RecipeType<AssemblyRecipeBasic>> ASSEMBLY_TYPE = TYPES.register("assembly", () -> RecipeType.simple(new ResourceLocation("buildcraftsilicon:assembly")));
-    public static final RegistryObject<RecipeSerializer<AssemblyRecipe>> ASSEMBLY_SERIALIZER = SERIALIZERS.register("assembly", AssemblyRecipe.Serializer::new);
-    public static final RegistryObject<SimpleRecipeSerializer<GateLogicChangeRecipe>> GATE_CHANGE_SERIALIZER = SERIALIZERS.register("gate_logic_change", () -> new SimpleRecipeSerializer<GateLogicChangeRecipe>(GateLogicChangeRecipe::new));
-    public static final RegistryObject<SimpleRecipeSerializer<FacadeAssemblyRecipes>> FACADE_SERIALIZER = SERIALIZERS.register("facade", () -> new SimpleRecipeSerializer<FacadeAssemblyRecipes>(FacadeAssemblyRecipes::getInstance)); 
-    
-	public static void preInit(IEventBus modEventBus) {
-		SERIALIZERS.register("facade_swap", () -> FacadeSwapRecipe.SERIALIZER);
-		TYPES.register(modEventBus);
-		SERIALIZERS.register(modEventBus);
-		
-	}
-    
+    public static final BCDeferredRegister<RecipeType<?>> TYPES = BCDeferredRegister.create("minecraft:recipe_type", BCSilicon.MODID);
+    public static final BCDeferredRegister<RecipeSerializer<?>> SERIALIZERS = BCDeferredRegister.create("minecraft:recipe_serializer", BCSilicon.MODID);
+    public static final BCRegistryEntry<RecipeType<AssemblyRecipeBasic>> ASSEMBLY_TYPE = TYPES.register("assembly", () -> RecipeType.simple(new ResourceLocation("buildcraftsilicon:assembly")));
+    public static final BCRegistryEntry<RecipeSerializer<AssemblyRecipe>> ASSEMBLY_SERIALIZER = SERIALIZERS.register("assembly", AssemblyRecipe.Serializer::new);
+    public static final BCRegistryEntry<SimpleRecipeSerializer<GateLogicChangeRecipe>> GATE_CHANGE_SERIALIZER = SERIALIZERS.register("gate_logic_change", () -> new SimpleRecipeSerializer<GateLogicChangeRecipe>(GateLogicChangeRecipe::new));
+    public static final BCRegistryEntry<SimpleRecipeSerializer<FacadeAssemblyRecipes>> FACADE_SERIALIZER = SERIALIZERS.register("facade", () -> new SimpleRecipeSerializer<FacadeAssemblyRecipes>(FacadeAssemblyRecipes::getInstance));
+
+    public static void preInit(BCRegistryBinder modEventBus) {
+        SERIALIZERS.register("facade_swap", () -> FacadeSwapRecipe.SERIALIZER);
+        TYPES.register(modEventBus);
+        SERIALIZERS.register(modEventBus);
+
+    }
+
     public static void registerRecipes() {
 
     }

@@ -6,6 +6,8 @@
 
 package buildcraft.factory.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.permission.WorldOperationKind;
 import java.io.IOException;
@@ -53,8 +55,8 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
 import net.neoforged.neoforge.fluids.FluidUtil;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
     private static final Vec3i[] SEARCH_NORMAL = new Vec3i[] { //
@@ -91,7 +93,7 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
     public TileFloodGate(BlockPos pos, BlockState state) {
     	super(BCFactoryBlocks.ENTITYBLOCKFLOODGATE.get(), pos, state);
     	tankManager.addLast(tank);
-        caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, tankManager, EnumPipePart.VALUES);
+        caps.addFluidStorage(tankManager, EnumPipePart.VALUES);
         
     }
 
@@ -154,7 +156,7 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
             }
 
             if (canFill(toCheck)) {
-                // Keep the old nearest-first consumption order: push at the front, consume from the back.
+                // Preserve nearest-first consumption order: push at the front, consume from the back.
                 queue.addFirst(toCheck);
             }
 
@@ -280,20 +282,21 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
     // NBT
 
     @Override
-    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+    protected void writeData(BCValueOutput bcData) {
+        super.writeData(bcData);
         byte b = 0;
         for (Direction face : Direction.values()) {
             if (openSides.contains(face)) {
                 b |= 1 << face.get3DDataValue();
             }
         }
-        nbt.putByte("openLogicalSides", b);
+        bcData.writeByte("openLogicalSides", b);
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
+    protected void readData(BCValueInput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.readData(bcData);
         Tag open = nbt.get("openLogicalSides");
         if (open instanceof NumericTag) {
             byte sides = ((NumericTag) open).getAsByte();
@@ -321,9 +324,9 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
     // Networking
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 // tank.writeToBuffer(buffer);
                 MessageUtil.writeEnumSet(buffer, openSides, Direction.class);
@@ -332,9 +335,9 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 // tank.readFromBuffer(buffer);
                 EnumSet<Direction> _new = MessageUtil.readEnumSet(buffer, Direction.class);

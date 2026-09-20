@@ -6,6 +6,8 @@
 
 package buildcraft.silicon.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.content.BuildCraftContentIds;
 import buildcraft.api.v2.energy.MjAmount;
@@ -37,8 +39,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public abstract class TileLaserTableBase extends TileBC_Neptune implements LaserTarget, IDebuggable {
     private static final long MJ_FLOW_ROUND = MjAmount.MICRO_MJ_PER_MJ / 10;
@@ -112,22 +114,22 @@ public abstract class TileLaserTableBase extends TileBC_Neptune implements Laser
     }
 
     @Override
-    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
-        nbt.putLong("power", power);
+    protected void writeData(BCValueOutput bcData) {
+        super.writeData(bcData);
+        bcData.writeLong("power", power);
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
-        power = nbt.getLong("power");
+    protected void readData(BCValueInput bcData) {
+        super.readData(bcData);
+        power = bcData.readLong("power");
     }
 
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_GUI_TICK) {
                 buffer.writeLong(power);
                 buffer.writeLong(getTarget());
@@ -142,9 +144,9 @@ public abstract class TileLaserTableBase extends TileBC_Neptune implements Laser
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_GUI_TICK) {
                 power = buffer.readLong();
                 targetClient = buffer.readLong();

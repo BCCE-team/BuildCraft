@@ -4,18 +4,17 @@
  */
 package buildcraft.lib;
 
+import buildcraft.lib.platform.registry.BCRegistryBinder;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
 import buildcraft.lib.item.ItemGuide;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
 
 /** Items owned by the BuildCraft library module. */
 public final class BCLibItems {
-    public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, BCLib.MODID);
+    public static final BCDeferredRegister<Item> ITEMS = BCDeferredRegister.create("minecraft:item", BCLib.MODID);
 
-    public static final RegistryObject<ItemGuide> GUIDE = ITEMS.register(
+    public static final BCRegistryEntry<ItemGuide> GUIDE = ITEMS.register(
         "guide",
         () -> new ItemGuide(new Item.Properties()
             .tab(CreativeTabManager.createTab("buildcraft.main"))
@@ -25,7 +24,7 @@ public final class BCLibItems {
     private BCLibItems() {
     }
 
-    static void registry(IEventBus bus) {
+    static void registry(BCRegistryBinder bus) {
         ITEMS.register(bus);
     }
 }

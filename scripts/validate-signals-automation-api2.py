@@ -6,19 +6,20 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+from source_lookup import resolve_source_path
 SKIP = {"build", ".gradle", ".git"}
 errors: list[str] = []
 
 
 def text(rel: str) -> str:
-    path = ROOT / rel
+    path = resolve_source_path(rel)
     if not path.is_file():
         errors.append(f"missing {rel}")
         return ""
     return path.read_text(encoding="utf-8", errors="ignore")
 
 
-# The temporary BC8 wire/Stripes interfaces must stay gone. They were implementation details,
+# Retired BC8 wire/Stripes interfaces must stay absent; they were implementation details,
 # not a second API beside buildcraft.api.v2.
 retired_names = {
     "IWireEmitter", "IWireManager", "IStripesActivator", "IStripesRegistry",

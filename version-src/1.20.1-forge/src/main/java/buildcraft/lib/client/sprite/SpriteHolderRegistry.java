@@ -5,6 +5,7 @@
  */
 package buildcraft.lib.client.sprite;
 
+import buildcraft.lib.platform.client.ClientAtlas;
 import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.internal.core.render.ISprite;
@@ -18,7 +19,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.event.TextureStitchEvent;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
@@ -37,7 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Keeps stable references to sprites in the block atlas.
  *
- * <p>Since 1.20 Forge no longer exposes {@code TextureStitchEvent.Pre}. Sprite inclusion is therefore declared through
+ * <p>Since 1.20 Forge no longer exposes {@code ClientAtlas.Before}. Sprite inclusion is therefore declared through
  * {@code assets/minecraft/atlases/blocks.json}; this registry only refreshes the resolved atlas entries after a reload.</p>
  */
 @OnlyIn(Dist.CLIENT)
@@ -118,7 +118,7 @@ public final class SpriteHolderRegistry {
         }
     }
 
-    public static void onTextureStitchPost(TextureStitchEvent.Post event) {
+    public static void onTextureStitchPost(ClientAtlas.After event) {
         TextureAtlas atlas = event.getAtlas();
         if (!InventoryMenu.BLOCK_ATLAS.equals(atlas.location())) {
             return;

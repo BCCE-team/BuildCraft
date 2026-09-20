@@ -1,13 +1,8 @@
-/*
- * Copyright (c) 2017 SpaceToad and the BuildCraft team
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
- * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/
- */
-
+//? source if >=1.21.1
+/* Copyright (c) 2017 SpaceToad and the BuildCraft team */
 package buildcraft.builders.client.render;
 
 import java.util.List;
-
 import javax.annotation.Nonnull;
 
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -17,53 +12,62 @@ import org.joml.Matrix4f;
 
 import buildcraft.builders.tile.TileBuilder;
 import buildcraft.core.client.BuildCraftLaserManager;
-import buildcraft.lib.block.BlockBCBase_Neptune;
+import buildcraft.lib.client.render.compat.LegacyBlockEntityRenderer;
+import buildcraft.lib.client.render.laser.LegacyLaserBlockEntityRenderer;
 import buildcraft.lib.client.render.laser.LaserBoxRenderer;
 import buildcraft.lib.client.render.laser.LaserData_BC8;
 import buildcraft.lib.client.render.laser.LaserRenderer_BC8;
+import buildcraft.lib.compat.LevelCompat;
+import buildcraft.lib.compat.RenderCompat;
 import buildcraft.lib.misc.VecUtil;
 import buildcraft.lib.misc.data.Box;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.client.renderer.entity.ItemRenderer;
+import net.minecraft.client.renderer.state.CameraRenderState;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-public class RenderBuilder implements BlockEntityRenderer<TileBuilder> {
+public class RenderBuilder implements LegacyBlockEntityRenderer<TileBuilder>, LegacyLaserBlockEntityRenderer<TileBuilder> {
     private static final double OFFSET = 0.1;
 
-	protected final ItemRenderer itemRenderer; 
-	
-	public RenderBuilder(BlockEntityRendererProvider.Context bpc) {
-		itemRenderer = bpc.getItemRenderer();
-	}
-    
-    @Override
-    public void render(@Nonnull TileBuilder tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
-        Minecraft.getInstance().getProfiler().push("bc");
-        Minecraft.getInstance().getProfiler().push("builder");
+    public RenderBuilder(BlockEntityRendererProvider.Context context) {
+    }
+
+    public void render(@Nonnull TileBuilder tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer,
+        int light, int overlay) {
+        renderLasers(tile, partialTicks, matrix, buffer, light, overlay);
+    }
+
+    public void submit(LegacyRenderState<TileBuilder> state, PoseStack matrix, SubmitNodeCollector collector,
+        CameraRenderState cameraState) {
+        LegacyBlockEntityRenderer.super.submit(state, matrix, collector, cameraState);
+        TileBuilder tile = state.blockEntity();
+        if (tile == null || tile.getLevel() == null || tile.getBuilder() == null) return;
         matrix.pushPose();
-		VertexConsumer bb = buffer.getBuffer(RenderType.cutout());
-		BlockPos pos = tile.getBlockPos();
-		int posx = pos.getX();
-		int posy = pos.getY();
-		int posz = pos.getZ();
-		Direction face = tile.getBlockState().getValue(BlockBCBase_Neptune.PROP_FACING);
-		
-		Matrix4f pose = matrix.last().pose();
-		Matrix3f normal = matrix.last().normal();
-        Minecraft.getInstance().getProfiler().push("box");
+        RenderSnapshotBuilder.submit(
+            tile.getBuilder(), tile.getLevel(), tile.getBlockPos(), state.partialTick(), matrix, collector
+        );
+        matrix.popPose();
+    }
+
+    public void renderLasers(@Nonnull TileBuilder tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer,
+        int light, int overlay) {
+        LevelCompat.profilerPush(Minecraft.getInstance(), "bc");
+        LevelCompat.profilerPush(Minecraft.getInstance(), "builder");
+        matrix.pushPose();
+        VertexConsumer bb = buffer.getBuffer(RenderCompat.cutout());
+        BlockPos pos = tile.getBlockPos();
+        Matrix4f pose = matrix.last().pose();
+        Matrix3f normal = matrix.last().normal();
+        LevelCompat.profilerPush(Minecraft.getInstance(), "box");
         Box box = tile.getBox();
-        matrix.translate(-posx, -posy, -posz);
+        matrix.translate(-pos.getX(), -pos.getY(), -pos.getZ());
         LaserBoxRenderer.renderLaserBoxDynamic(box, BuildCraftLaserManager.STRIPES_WRITE, pose, normal, bb, true);
-     //   matrix.translate(posx + 0.5 - face.getStepX(),posy + 0.5 - face.getStepY(),posz + 0.5 - face.getStepZ());
-        Minecraft.getInstance().getProfiler().popPush("path");
-        
+        LevelCompat.profilerPopPush(Minecraft.getInstance(), "path");
+
         List<BlockPos> path = tile.path;
         if (path != null) {
             BlockPos last = null;
@@ -71,45 +75,26 @@ public class RenderBuilder implements BlockEntityRenderer<TileBuilder> {
                 if (last != null) {
                     Vec3 from = Vec3.atCenterOf(last);
                     Vec3 to = Vec3.atCenterOf(p);
-                    Vec3 one = offset(from, to);
-                    Vec3 two = offset(to, from);
-                    LaserData_BC8 data = new LaserData_BC8(BuildCraftLaserManager.STRIPES_WRITE_DIRECTION, one, two, 1 / 16.1, true);
+                    LaserData_BC8 data = new LaserData_BC8(
+                        BuildCraftLaserManager.STRIPES_WRITE_DIRECTION,
+                        offset(from, to), offset(to, from), 1 / 16.1, true
+                    );
                     LaserRenderer_BC8.renderLaserDynamic(pose, normal, data, bb);
                 }
                 last = p;
             }
         }
-
-     //   matrix.translate(posx, posy, posz);
-        Minecraft.getInstance().getProfiler().pop();
-
-        matrix.translate(posx, posy, posz);
-  //      matrix.translate(posx + 0.5 ,posy + 0.5 - face.getStepY(),posz + 0.5 - face.getStepZ());
-        if (tile.getBuilder() != null) {
-            RenderSnapshotBuilder.render(tile.getBuilder(), tile.getLevel(), tile.getBlockPos(), partialTicks, matrix, buffer, itemRenderer);
-        }
+        LevelCompat.profilerPop(Minecraft.getInstance());
         matrix.popPose();
-        Minecraft.getInstance().getProfiler().pop();
-        Minecraft.getInstance().getProfiler().pop();
+        LevelCompat.profilerPop(Minecraft.getInstance());
+        LevelCompat.profilerPop(Minecraft.getInstance());
     }
 
     private static Vec3 offset(Vec3 from, Vec3 to) {
-        Vec3 dir = to.subtract(from).normalize();
-        return from.add(VecUtil.scale(dir, OFFSET));
+        return from.add(VecUtil.scale(to.subtract(from).normalize(), OFFSET));
     }
 
-    @Override
-    public boolean shouldRenderOffScreen(TileBuilder te) {
-        return true;
-    }
-
-	@Override
-	public int getViewDistance() {
-		return 256;
-	}
-    
-    @Override
-    public AABB getRenderBoundingBox(TileBuilder tile) {
-        return tile.getRenderBoundingBox();
-    }
+    public boolean shouldRenderOffScreen(TileBuilder tile) { return true; }
+    public int getViewDistance() { return 256; }
+    public AABB getRenderBoundingBox(TileBuilder tile) { return tile.getRenderBoundingBox(); }
 }

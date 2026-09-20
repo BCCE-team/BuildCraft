@@ -113,14 +113,14 @@ def loot_inventory(target: str) -> dict[str, Any]:
 
 def validate_tick_cadence() -> None:
     rel = "src/main/java/buildcraft/transport/BCTransportEventDist.java"
-    value = require("1.20.1-forge", rel, "WorldSavedDataWireSystems.get(event.level).tick();", "PipeItemMessageQueue.serverTick();")
+    value = require("1.20.1-forge", rel, "WorldSavedDataWireSystems.get(event.level()).tick();", "PipeItemMessageQueue.serverTick();")
     if "event.phase" in value:
         fail("1.20.1-forge: transport ticks must not filter START/END phases")
-    require("1.21.1-neoforge", rel,
-            "onWorldTick(LevelTickEvent.Pre event)",
-            "onWorldTick(LevelTickEvent.Post event)",
-            "onServerTick(ServerTickEvent.Pre event)",
-            "onServerTick(ServerTickEvent.Post event)")
+    for target in NEWER:
+        require(target, rel,
+                "onWorldTick(BCEvents.LevelTick event)", "onServerTick(BCEvents.ServerTick event)",
+                "PlatformEvents.levelTick(BCEvents.Phase.START", "PlatformEvents.levelTick(BCEvents.Phase.END",
+                "PlatformEvents.serverTick(BCEvents.Phase.START", "PlatformEvents.serverTick(BCEvents.Phase.END")
 
 
 def validate_java_invariants() -> None:
@@ -137,8 +137,7 @@ def validate_java_invariants() -> None:
     frame = "src/main/java/buildcraft/builders/block/BlockFrame.java"
 
     # The Iron Engine exposes three real tanks through IFluidHandler: fuel, coolant and residue.
-    # Keep this contract valid on every maintained loader/version instead of freezing the old
-    # off-by-one bug as a parity invariant.
+    # Assert that contract independently on every maintained loader/version.
     for target in TARGETS:
         engine_text = require(target, engine,
             "public int getTanks()",
@@ -341,7 +340,7 @@ def validate_persistence_and_reload_invariants() -> None:
         fail("1.21.1-neoforge: saved builder tasks must be refunded before forcing a rescan")
 
     # Builder/Filler/Quarry work is transactional: reserve exact physical power/materials, mutate the world,
-    # then commit or refund. These guards catch the historical progress-as-MJ dupe and partial-reservation losses.
+    # then commit or refund. These guards catch progress-as-MJ duplication and partial-reservation losses.
     blueprint_rel = "src/main/java/buildcraft/builders/snapshot/BlueprintBuilder.java"
     quarry_rel = "src/main/java/buildcraft/builders/tile/TileQuarry.java"
     quarry_render_rel = "src/main/java/buildcraft/builders/client/render/RenderQuarry.java"
@@ -408,7 +407,7 @@ def validate_persistence_and_reload_invariants() -> None:
     require("1.21.1-neoforge", holder_rel,
             "else if (unknownData != null)",
             'nbt.put("pipe", unknownData.copy());',
-            'CompoundTag pipeData = nbt.getCompound("pipe");',
+            'CompoundTag pipeData = bcData.readCompound("pipe");',
             "catch (InvalidInputDataException | RuntimeException e)",
             "unknownData = pipeData.copy();")
     forbid("1.21.1-neoforge", holder_rel, "unknownData = nbt.copy();")
@@ -419,7 +418,7 @@ def validate_persistence_and_reload_invariants() -> None:
     for target in NEWER:
         schematic = require(target, schematic_rel,
                             "blockEntity instanceof Container container",
-                            "new InvWrapper(container)",
+                            "PlatformStorage.localInventory(container)",
                             "getDeferredInventoryHandler")
         if schematic.count("getDeferredInventoryHandler(") < 3:
             fail(f"{target}: deferred blueprint inventory helper must be used by both missing-item and insert paths")
@@ -462,7 +461,7 @@ def validate_persistence_and_reload_invariants() -> None:
             "broadcastFullState()")
 
     # These GameTests use an actual BuildCraft light-fuel bucket/shard and the combustion-engine GUI cursor path.
-    # They guard behaviour rather than the implementation shape that previously let this regression survive.
+    # They validate observable behavior rather than implementation shape.
     engine_test_rel = "src/gametest/java/buildcraft/gametest/BuildCraftLogicGameTests.java"
     for target in TARGETS:
         require(target, engine_test_rel,
@@ -491,8 +490,8 @@ def validate_persistence_and_reload_invariants() -> None:
     # Distiller refunds and progress are persistent state, including corruption-safe non-negative clamps.
     distiller_rel = "src/main/java/buildcraft/factory/tile/TileDistiller.java"
     require("1.21.1-neoforge", distiller_rel,
-            'distillPower = Math.max(0, nbt.getLong("distillPower"));',
-            'pendingPowerRefund = Math.max(0, nbt.getLong("pendingPowerRefund"));')
+            'distillPower = Math.max(0, bcData.readLong("distillPower"));',
+            'pendingPowerRefund = Math.max(0, bcData.readLong("pendingPowerRefund"));')
 
     # Resource reloads invalidate expression nodes before reparsing variable models.
     event_rel = "src/main/java/buildcraft/lib/BCLibEventDist.java"
@@ -798,8 +797,7 @@ def validate_forge_atlas_reload_caches() -> None:
                 "InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())",
                 "BCSiliconModels.clearAtlasDependentCaches();")
 
-    # Keep the same invariant explicit for the reference/NeoForge paths so future
-    # source-family moves do not accidentally remove the already-correct handlers.
+    # Assert the same atlas-cache invalidation invariant explicitly on the reference targets.
     require("1.19.2-forge", transport,
             "TextureStitchEvent.Post",
             "PipeBaseModelGenStandard.loadSpritesCache(event.getAtlas())")
@@ -954,24 +952,29 @@ def validate_network_hardening() -> None:
 
 
 def validate_gametest_runtime_guards() -> None:
-    expected_tests = 94
+    expected_tests = {
+        "1.19.2-forge": 94,
+        "1.20.1-forge": 94,
+        "1.21.1-neoforge": 95,
+    }
     for target in TARGETS:
         test_root = TARGETS[target] / "src/gametest/java"
         count = 0
         if test_root.is_dir():
             for path in test_root.rglob("*.java"):
                 count += path.read_text(encoding="utf-8").count("@GameTest(")
-        if count != expected_tests:
-            fail(f"{target}: expected {expected_tests} @GameTest methods, found {count}")
+        expected = expected_tests[target]
+        if count != expected:
+            fail(f"{target}: expected {expected} @GameTest methods, found {count}")
 
-        todo_p1_suite = text(target, "src/gametest/java/buildcraft/gametest/TodoP1GameTests.java")
+        core_integrity_suite = text(target, "src/gametest/java/buildcraft/gametest/CoreIntegrityGameTests.java")
         for method in (
             "unavailableBlueprintElementsRoundTripLosslessly",
             "relatedGateActionVariantsTargetOneSetting",
             "jsonInlineCopiesAreIndependent",
         ):
-            if method not in todo_p1_suite:
-                fail(f"{target}: missing TODO-P1 GameTest {method}")
+            if method not in core_integrity_suite:
+                fail(f"{target}: missing core integrity GameTest {method}")
 
         regression_suite = text(target, "src/gametest/java/buildcraft/gametest/BuildCraftLogicGameTests.java")
         for method in (
@@ -1086,7 +1089,7 @@ def validate_gametest_runtime_guards() -> None:
     # runGameTestServer. Separate main/gameTest modules create split packages on
     # modern loader runtimes, while the reflection registrar cannot see the second
     # module on older Forge. The Gradle files are checked directly below.
-    forge_path = ROOT / "builds/legacy/build.forge.gradle"
+    forge_path = ROOT / "build-logic/loaders/forge-target.gradle"
     forge_gradle = forge_path.read_text(encoding="utf-8")
     require_tokens = (
         "def gameTestRunRequested",
@@ -1100,7 +1103,7 @@ def validate_gametest_runtime_guards() -> None:
     if "source sourceSets.gameTest" in forge_gradle:
         fail(f"{forge_path.relative_to(ROOT)}: GameTest runtime still loads sourceSets.gameTest as a second module")
 
-    neoforge_path = ROOT / "builds/modern/build.neoforge.gradle"
+    neoforge_path = ROOT / "build-logic/loaders/neoforge-target.gradle"
     neoforge_gradle = neoforge_path.read_text(encoding="utf-8")
     for token in (
         "def gameTestRunRequested",
@@ -1128,7 +1131,7 @@ def validate_gametest_runtime_guards() -> None:
             "BCSiliconConfig::onLoadConfig",
             "BCSiliconConfig::onReloadConfig",
             "BCSiliconConfig.preInit()",
-            "registerConfig(Type.COMMON, BCSiliconConfig.config)",
+            "registerConfig(Type.COMMON, ConfigBinding.bind(BCSiliconConfig.config))",
             "BCSiliconConfig.reloadConfig(MODID)",
         ):
             if required not in silicon:

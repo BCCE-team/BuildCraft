@@ -6,6 +6,10 @@
 
 package buildcraft.silicon;
 
+import buildcraft.lib.platform.client.PlatformClientModels;
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.lib.platform.registry.RegistryBinding;
+import buildcraft.lib.platform.config.ConfigBinding;
 import buildcraft.lib.internal.module.BCModules;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftRegistries;
@@ -39,14 +43,14 @@ public class BCSilicon {
 
     public static CreativeTabBC tabPlugs = BCTransport.tabPlugs;
     public static CreativeTabBC tabFacades = (CreativeTabBC) CreativeTabManager.createTab("buildcraft.facades").setRecipeFolderName("facades");
-    
+
     public BCSilicon() {
-    	IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
-    	modEventBus.addListener(BCSilicon::commonSetup);
-    	modEventBus.addListener(BCSilicon::postInit);
-    	modEventBus.addListener(BCSilicon::gatherData);
-	modEventBus.addListener(BCSiliconConfig::onLoadConfig);
-	modEventBus.addListener(BCSiliconConfig::onReloadConfig);
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        modEventBus.addListener(BCSilicon::commonSetup);
+        modEventBus.addListener(BCSilicon::postInit);
+        modEventBus.addListener(BCSilicon::gatherData);
+    ConfigBinding.listen(modEventBus, BCSiliconConfig::onLoadConfig, BCSiliconConfig::onReloadConfig);
+
 
         BuildCraftApi.registry(BuildCraftRegistries.FACADE_MATERIAL_ADAPTERS).register(
             java.util.Objects.requireNonNull(net.minecraft.resources.ResourceLocation.tryParse("buildcraft:facade_materials/builtin")),
@@ -54,14 +58,14 @@ public class BCSilicon {
         );
 
         BCSiliconConfig.preInit();
-        ModLoadingContext.get().registerConfig(Type.COMMON, BCSiliconConfig.config);
+        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCSiliconConfig.config));
         BCSiliconStatements.preInit();
         BCSiliconPlugs.preInit();
-        BCSiliconBlocks.registry(modEventBus);
-        BCSiliconItems.registry(modEventBus);
-        BCSiliconGuis.preInit(modEventBus);
-        BCSiliconRecipes.preInit(modEventBus);
-        
+        BCSiliconBlocks.registry(RegistryBinding.on(modEventBus));
+        BCSiliconItems.registry(RegistryBinding.on(modEventBus));
+        BCSiliconGuis.preInit(RegistryBinding.on(modEventBus));
+        BCSiliconRecipes.preInit(RegistryBinding.on(modEventBus));
+
 
 
         MinecraftForge.EVENT_BUS.register(this);
@@ -97,34 +101,33 @@ public class BCSilicon {
     public static class ClientModEvents
     {
         static {
-            // Ensure sprite/model holders are created before texture stitching.
-            // The subscriber class is loaded by Forge, but its constructor is never guaranteed to run.
-            // Previously timer trigger icons were created too late, so the atlas stitched missing-texture squares.
+            // Ensure sprite/model holders exist before texture stitching. Forge loads the subscriber class
+            // without guaranteeing constructor execution, so registration belongs in static initialization.
             BCSiliconSprites.fmlPreInit();
         }
-        
-    	@SubscribeEvent
+
+        @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event)
         {
-    		BCSiliconClientGuis.clientInit(event);
+            PlatformClientRegistration.screens(event, BCSiliconClientGuis::clientInit);
             event.enqueueWork(BCSiliconItems::registerItemProperties);
-    		BCSiliconModels.init();
+            BCSiliconModels.init();
         }
-        
+
         @SubscribeEvent
         public static void registryRender(EntityRenderersEvent.RegisterRenderers e) {
-        	BCSiliconModels.onBlockEntityRender(e);
-        	
+            BCSiliconModels.onBlockEntityRender(PlatformClientRegistration.renderers(e));
+
         }
-        
+
         @SubscribeEvent
         public static void RegisterItemColor(RegisterColorHandlersEvent.Item event) {
-        	BCSiliconModels.RegisterItemColor(event);
+            BCSiliconModels.RegisterItemColor(PlatformClientRegistration.itemColours(event));
         }
-        
+
         @SubscribeEvent
         public static void onModelBake(BakingCompleted event) {
-        	BCSiliconModels.onModelBake(event);
+            BCSiliconModels.onModelBake(PlatformClientModels.completed(event));
         }
 
         @SubscribeEvent
@@ -133,7 +136,7 @@ public class BCSilicon {
                 BCSiliconModels.clearAtlasDependentCaches();
             }
         }
-        	
+
     }
 
 

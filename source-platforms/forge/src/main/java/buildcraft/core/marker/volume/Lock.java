@@ -23,8 +23,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public class Lock {
@@ -272,21 +270,17 @@ public class Lock {
 
             public enum EnumType {
                 STRIPES_WRITE {
-                    @OnlyIn(Dist.CLIENT)
                     @Override
                     public LaserData_BC8.LaserType getLaserType() {
                         return BuildCraftLaserManager.STRIPES_WRITE;
                     }
                 },
                 STRIPES_READ {
-                    @OnlyIn(Dist.CLIENT)
                     @Override
                     public LaserData_BC8.LaserType getLaserType() {
                         return BuildCraftLaserManager.STRIPES_READ;
                     }
                 };
-
-                @OnlyIn(Dist.CLIENT)
                 public abstract LaserData_BC8.LaserType getLaserType();
             }
         }

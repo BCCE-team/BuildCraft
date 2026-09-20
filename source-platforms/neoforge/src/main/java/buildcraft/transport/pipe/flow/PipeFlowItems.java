@@ -54,11 +54,9 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.capabilities.BlockCapability;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 
 public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     private static final double EXTRACT_SPEED = 0.08;
@@ -92,9 +90,8 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     }
 
     /**
-     * Block entities are deserialized before their Level is assigned. Older code tried
-     * to resolve registry-aware ItemStacks immediately and caused Minecraft to skip the
-     * complete pipe block entity. Defer that work until the first tick instead.
+     * Block entities are deserialized before their Level is assigned. Registry-aware ItemStack decoding therefore
+     * waits until the pipe has a Level on its first tick.
      */
     private void loadPendingItems() {
         if (pendingItems == null) {
@@ -156,9 +153,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     // Network
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide msgSide) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide msgSide) throws IOException {
 //    	BCLog.d("rece");
-        if (msgSide == LogicalSide.CLIENT) {
+        if (msgSide == BCNetworkSide.CLIENT) {
             if (id == NET_CREATE_ITEM) {
                 int stackId = buffer.readInt();
                 Supplier<ItemStack> link = BuildCraftObjectCaches.retrieveItemStack(stackId);
@@ -237,8 +234,10 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             return 0;
         }
 
-        BlockEntity tile = pipe.getConnectedTile(from);
-        IItemTransactor trans = ItemTransactorHelper.getTransactor(tile, from.getOpposite());
+        Level level = pipe.getHolder().getPipeWorld();
+        BlockPos targetPos = pipe.getHolder().getPipePos().relative(from);
+        BlockEntity tile = level.getBlockEntity(targetPos);
+        IItemTransactor trans = ItemTransactorHelper.getTransactor(level, targetPos, from.getOpposite(), tile);
 
         ItemStack possible = trans.extract(filter, 1, count, true);
 
@@ -335,6 +334,11 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     @Override
     public boolean canConnect(Direction face, BlockEntity oTile) {
         return ItemTransactorHelper.getTransactor(oTile, face.getOpposite()) != NoSpaceTransactor.INSTANCE;
+    }
+
+    @Override
+    public boolean canConnect(Direction face, Level level, BlockPos pos, @Nullable BlockEntity oTile) {
+        return ItemTransactorHelper.getTransactor(level, pos, face.getOpposite(), oTile) != NoSpaceTransactor.INSTANCE;
     }
 
     @Override
@@ -525,13 +529,15 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                     break;
                 }
                 case TILE: {
-                    BlockEntity tile = pipe.getConnectedTile(item.side);
-                    IInjectable injectable = ItemTransactorHelper.getInjectable(tile, oppositeSide);
+                    Level level = pipe.getHolder().getPipeWorld();
+                    BlockPos targetPos = pipe.getHolder().getPipePos().relative(item.side);
+                    BlockEntity tile = level.getBlockEntity(targetPos);
+                    IInjectable injectable = ItemTransactorHelper.getInjectable(level, targetPos, oppositeSide);
                     ItemStack before = excess;
                     excess = injectable.injectItem(excess.copy(), true, oppositeSide, item.colour, item.speed);
 
                     if (!excess.isEmpty()) {
-                        IItemTransactor transactor = ItemTransactorHelper.getTransactor(tile, oppositeSide);
+                        IItemTransactor transactor = ItemTransactorHelper.getTransactor(level, targetPos, oppositeSide, tile);
                         excess = transactor.insert(excess, false, false);
                     }
                     ItemStack inserted = before.copy();
@@ -856,8 +862,6 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             return 0.25;
         }
     }
-
-    @OnlyIn(Dist.CLIENT)
     public List<TravellingItem> getAllItemsForRender() {
         loadPendingItems();
         List<TravellingItem> all = new ArrayList<>();

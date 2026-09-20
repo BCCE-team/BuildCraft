@@ -105,7 +105,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
             (int) area.getEndY(), startColor, endColor);
     }
 
-    /** TODO: Remove this compatibility hook after all screens use GuiGraphics directly. */
+    /** Compatibility hook for screens that consume the legacy matrix path. */
     @Deprecated
     public void drawGradientRect(PoseStack pose, IGuiArea area, int startColor, int endColor) {
         drawGradientRect(requireGraphics(), area, startColor, endColor);
@@ -238,11 +238,11 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
         return true;
     }
 
-    /** Legacy drawing hook retained so the module GUIs can be ported independently from lib. */
+    /** Legacy drawing hook used by module GUIs through the lib compatibility path. */
     protected void drawBackgroundLayer(PoseStack pose, int mouseX, int mouseY, float partialTicks) {
     }
 
-    /** Legacy drawing hook retained so the module GUIs can be ported independently from lib. */
+    /** Legacy drawing hook used by module GUIs through the lib compatibility path. */
     protected void drawForegroundLayer(PoseStack pose, int mouseX, int mouseY) {
     }
 

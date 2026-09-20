@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate independent legacy/modern Gradle roots and Stonecutter targets."""
+"""Validate independent build roots, canonical targets and loader build adapters."""
 from __future__ import annotations
 
 import argparse
@@ -8,7 +8,9 @@ import sys
 from pathlib import Path
 
 from source_layout import (
+    resolve_effective_source,
     ROOT,
+    TARGETS_PROPERTIES,
     generation_config_paths,
     generation_targets,
     load_properties,
@@ -19,7 +21,7 @@ from source_layout import (
 )
 
 ACTIVE_PATTERN = re.compile(r'^\s*stonecutter\s+active\s+"([^"]+)"', re.MULTILINE)
-PLACEHOLDER_PATTERN = re.compile(r"\$\{([A-Za-z0-9_.-]+)}")
+PLACEHOLDER_PATTERN = re.compile(r"\$\{([A-Za-z0-9_.-]+)\}")
 RESOURCE_KEY_PATTERN = re.compile(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:', re.MULTILINE)
 
 COMMON_REQUIRED = (
@@ -56,7 +58,7 @@ def value(props: dict[str, str], target: str, key: str, *, allow_empty: bool = F
 
 
 def resource_placeholders(target: str, props: dict[str, str]) -> set[str]:
-    loader = target.rsplit("-", 1)[1]
+    loader = target_layout(target, props).platform
     candidates = {
         "forge": ("src/main/resources/META-INF/mods.toml", "src/main/resources/pack.mcmeta"),
         "neoforge": ("src/main/resources/META-INF/neoforge.mods.toml", "src/main/resources/pack.mcmeta"),
@@ -65,7 +67,7 @@ def resource_placeholders(target: str, props: dict[str, str]) -> set[str]:
     result: set[str] = set()
     layout = target_layout(target, props)
     for relative in candidates.get(loader, ()):
-        path = layout.resolve(relative)
+        path = resolve_effective_source(layout, props, relative)
         if path:
             result.update(PLACEHOLDER_PATTERN.findall(path.read_text(encoding="utf-8")))
     return result
@@ -97,19 +99,22 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
 
     if local.get("generation") != generation:
         fail(f"{generation}: targets.properties declares {local.get('generation')!r}")
-    local_targets = [x.strip() for x in local.get("targets", "").split(",") if x.strip()]
-    if local_targets != targets:
-        fail(f"{generation}: configured targets {local_targets} != repository matrix {targets}")
+    if set(local) - {"generation", "vcsTarget"}:
+        fail(f"{generation}: targets.properties must be a selector only; target metadata belongs in build-config/targets.properties")
     if 'file("../..").canonicalFile' not in settings:
         fail(f"{generation}: settings must resolve the repository root independently")
+    if 'build-config/targets.properties' not in settings:
+        fail(f"{generation}: settings must load the canonical target registry")
     if 'id("dev.kikugie.stonecutter") version ' not in settings:
         fail(f"{generation}: settings must apply a versioned Stonecutter plugin")
     if "kotlinController = true" not in settings:
         fail(f"{generation}: Stonecutter 0.7 requires kotlinController = true")
-    if 'file("targets.properties")' not in settings:
-        fail(f"{generation}: settings must use its local target matrix")
+    if 'target.$targetId.build.generation' not in settings:
+        fail(f"{generation}: settings must derive its target list from build.generation")
     if 'tasks.register("buildAndCollect")' not in controller:
         fail(f"{generation}: controller must expose buildAndCollect")
+    if 'build-config/targets.properties' not in controller:
+        fail(f"{generation}: controller must use the canonical target registry")
 
     active_match = ACTIVE_PATTERN.search(controller)
     if not active_match:
@@ -125,35 +130,50 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
     if generation == "legacy" and not gradle.startswith("8."):
         fail(f"legacy build must stay on Gradle 8 while ForgeGradle 6 is used, got {gradle}")
 
+    common_adapter = ROOT / "build-logic/common-target.gradle"
+    if not common_adapter.is_file():
+        fail("missing build-logic/common-target.gradle")
+    common_text = common_adapter.read_text(encoding="utf-8")
+    for token in (
+        "build-config/targets.properties", "familyPlatformSourceRoot",
+        "sourceLayers = [sharedSourceRoot, familySourceRoot, platformSourceRoot, familyPlatformSourceRoot, targetOverlayRoot]",
+        "scripts/source_preprocessor.py", "scripts/transforms", "prepareEffectiveSource",
+    ):
+        if token not in common_text:
+            fail(f"build-logic/common-target.gradle lacks {token!r}")
+
     for target in targets:
         if target_build_root(target, props) != build_root.resolve():
-            fail(f"{target}: source matrix points at the wrong build root")
-        loader = target.rsplit("-", 1)[1]
-        script = build_root / f"build.{loader}.gradle"
-        if not script.is_file():
-            fail(f"{target}: missing {script.relative_to(ROOT)}")
-        text = script.read_text(encoding="utf-8")
-        for token in (
-            "source.platform_root", "sourceLayoutScript", "prepareEffectiveSource",
-            "effectiveSourceRoot", "platformSourceRoot", "buildGeneration",
-            "'--config', targetConfigFile.absolutePath",
-        ):
-            if token not in text:
-                fail(f"{script.relative_to(ROOT)} lacks hybrid source support token {token!r}")
-        if "layeredDirs(" in text:
-            fail(f"{script.relative_to(ROOT)} still compiles maintained source layers directly")
-        if "dependsOn prepareEffectiveSource" not in text:
-            fail(f"{script.relative_to(ROOT)} does not gate compilation/resources on preprocessing")
+            fail(f"{target}: canonical matrix points at the wrong build root")
+        layout = target_layout(target, props)
+        loader = layout.platform
+        wrapper = build_root / f"build.{loader}.gradle"
+        adapter = ROOT / "build-logic" / "loaders" / f"{loader}-target.gradle"
+        if not wrapper.is_file():
+            fail(f"{target}: missing {wrapper.relative_to(ROOT)}")
+        if not adapter.is_file():
+            fail(f"{target}: missing {adapter.relative_to(ROOT)}")
+        wrapper_text = wrapper.read_text(encoding="utf-8")
+        adapter_text = adapter.read_text(encoding="utf-8")
+        if f"build-logic/loaders/{loader}-target.gradle" not in wrapper_text:
+            fail(f"{wrapper.relative_to(ROOT)} must be a thin loader-plugin shim")
+        if "build-logic/common-target.gradle" not in adapter_text:
+            fail(f"{adapter.relative_to(ROOT)} must use common-target.gradle")
+        if "layeredDirs(" in adapter_text:
+            fail(f"{adapter.relative_to(ROOT)} still compiles maintained source layers directly")
+        if "dependsOn prepareEffectiveSource" not in adapter_text:
+            fail(f"{adapter.relative_to(ROOT)} does not gate compilation/resources on preprocessing")
+
         if loader == "forge":
-            if "id 'net.minecraftforge.gradle' version '[6.0,6.2)'" not in text:
+            if "id 'net.minecraftforge.gradle' version '[6.0,6.2)'" not in wrapper_text:
                 fail("legacy Forge build must use ForgeGradle 6.x")
-            if "fg.deobf" not in text:
-                fail("Forge build must use fg.deobf for mod dependencies")
-            if "tasks.findByName('reobfJar')" not in text:
-                fail("Forge build must attach reobfJar conditionally")
+            if "fg.deobf" not in adapter_text:
+                fail("Forge adapter must use fg.deobf for mod dependencies")
+            if "tasks.findByName('reobfJar')" not in adapter_text:
+                fail("Forge adapter must attach reobfJar conditionally")
         elif loader == "neoforge":
-            if "id 'net.neoforged.moddev'" not in text:
-                fail("NeoForge build must use ModDevGradle")
+            if "id 'net.neoforged.moddev'" not in wrapper_text:
+                fail("NeoForge build must resolve ModDevGradle in its build-root shim")
 
         required = TARGET_REQUIRED + (FORGE_REQUIRED if loader == "forge" else NEOFORGE_REQUIRED if loader == "neoforge" else ())
         for key in required:
@@ -161,7 +181,9 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
         if value(props, target, "source.family") != generation:
             fail(f"{target}: family must match build generation {generation}")
         if value(props, target, "source.platform") != loader:
-            fail(f"{target}: source.platform must match loader suffix {loader}")
+            fail(f"{target}: source.platform must match loader {loader}")
+        if not layout.family_platform_root.is_dir():
+            fail(f"{target}: missing family-platform layer {layout.family_platform_root.relative_to(ROOT)}")
 
         minecraft = value(props, target, "deps.minecraft")
         if not target.startswith(minecraft + "-"):
@@ -173,11 +195,11 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
                 fail(f"{target}: {compat} compatibility is enabled without a dependency")
 
         placeholders = resource_placeholders(target, props)
-        block = re.search(r"def\s+resourceProperties\s*=\s*\[(.*?)\n\]", text, flags=re.DOTALL)
+        block = re.search(r"def\s+resourceProperties\s*=\s*\[(.*?)\n\]", adapter_text, flags=re.DOTALL)
         provided = set(RESOURCE_KEY_PATTERN.findall(block.group(1))) if block else set()
         missing = placeholders - provided
         if missing:
-            fail(f"{script.relative_to(ROOT)} misses resource placeholders {sorted(missing)}")
+            fail(f"{adapter.relative_to(ROOT)} misses resource placeholders {sorted(missing)}")
 
     return active, gradle
 
@@ -206,14 +228,14 @@ def main() -> None:
             print(target)
         return
 
+    if not TARGETS_PROPERTIES.is_file():
+        fail("missing canonical build-config/targets.properties")
     for key in COMMON_REQUIRED:
         if not props.get(f"common.{key}", "").strip():
             fail(f"missing common property common.{key}")
     if props.get("behaviorReference") != "1.19.2-forge":
         fail("behaviorReference must remain 1.19.2-forge")
 
-    # A single root wrapper would reintroduce the Gradle-version coupling this
-    # architecture is designed to remove.
     for obsolete in (
         "settings.gradle.kts", "stonecutter.gradle.kts", "stonecutter-targets.properties",
         "stonecutter.properties.toml", "build.forge.gradle", "build.neoforge.gradle",
@@ -226,6 +248,9 @@ def main() -> None:
     for orchestrator in ("build-all.sh", "build-all.bat", "build-all.ps1"):
         if not (ROOT / orchestrator).is_file():
             fail(f"missing repository build orchestrator: {orchestrator}")
+    for loader in ("forge", "neoforge", "fabric"):
+        if not (ROOT / "build-logic" / "loaders" / f"{loader}-target.gradle").is_file():
+            fail(f"missing loader adapter slot: build-logic/loaders/{loader}-target.gradle")
 
     configs = generation_config_paths()
     reports = []
@@ -239,7 +264,7 @@ def main() -> None:
     if missing_targets:
         fail(f"required production targets are missing: {sorted(missing_targets)}")
     if "1.21.1-forge" in targets:
-        fail("1.21.1 Forge is legacy-only and must not return to the production matrix")
+        fail("1.21.1 Forge must not return to the production matrix")
 
     print("Independent Stonecutter builds OK: " + "; ".join(reports))
 

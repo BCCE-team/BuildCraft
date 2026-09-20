@@ -33,9 +33,9 @@ public enum FillerRegistry implements IFillerRegistry {
     public synchronized void addPattern(IFillerPattern pattern) {
         Objects.requireNonNull(pattern, "pattern");
         String id = Objects.requireNonNull(pattern.getUniqueTag(), "pattern unique tag");
-        // Legacy IFillerRegistry historically used last-write-wins for duplicate
-        // statement tags. Preserve that compatibility behavior until filler
-        // patterns move to the typed API 2 statements domain.
+        // Duplicate statement tags use last-write-wins semantics for compatibility
+        // with IFillerRegistry consumers. Registered patterns are also mirrored
+        // into the typed API v2 statements domain.
         patterns.put(id, pattern);
         FillerApi2Bridge.mirrorLegacyPattern(pattern);
     }

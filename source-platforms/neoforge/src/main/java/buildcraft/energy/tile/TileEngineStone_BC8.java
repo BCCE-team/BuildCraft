@@ -4,6 +4,8 @@
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.energy.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.lib.internal.mj.MjFormatting;
 
@@ -81,19 +83,19 @@ public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvi
     // BlockEntity overrides
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
-        burnTime = nbt.getInt("burnTime");
-        totalBurnTime = nbt.getInt("totalBurnTime");
-        esum = nbt.getLong("esum");
+    protected void readData(BCValueInput bcData) {
+        super.readData(bcData);
+        burnTime = bcData.readInt("burnTime");
+        totalBurnTime = bcData.readInt("totalBurnTime");
+        esum = bcData.readLong("esum");
     }
 
     @Override
-    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
-        nbt.putInt("burnTime", burnTime);
-        nbt.putInt("totalBurnTime", totalBurnTime);
-        nbt.putLong("esum", esum);
+    protected void writeData(BCValueOutput bcData) {
+        super.writeData(bcData);
+        bcData.writeInt("burnTime", burnTime);
+        bcData.writeInt("totalBurnTime", totalBurnTime);
+        bcData.writeLong("esum", esum);
     }
 
     @Override

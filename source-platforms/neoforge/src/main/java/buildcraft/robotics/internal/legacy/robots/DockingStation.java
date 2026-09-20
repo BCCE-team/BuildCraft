@@ -12,7 +12,9 @@ import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.Container;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.fluids.capability.IFluidHandler;
+import net.neoforged.neoforge.fluids.FluidStack;
+
+import buildcraft.lib.platform.storage.FluidStorage;
 
 import buildcraft.lib.internal.core.BlockIndex;
 import buildcraft.api.v2.request.RequestProvider;
@@ -24,7 +26,7 @@ public abstract class DockingStation {
     public Direction side;
     @Nullable
     public Level level;
-    /** Compatibility alias for older ported code. Prefer {@link #level}. */
+    /** Compatibility alias for callers using the legacy field name. Prefer {@link #level}. */
     @Deprecated
     @Nullable
     public Level world;
@@ -264,7 +266,7 @@ public abstract class DockingStation {
     }
 
     @Nullable
-    public IFluidHandler getFluidOutput() {
+    public FluidStorage<FluidStack> getFluidOutput() {
         return null;
     }
 
@@ -274,7 +276,7 @@ public abstract class DockingStation {
     }
 
     @Nullable
-    public IFluidHandler getFluidInput() {
+    public FluidStorage<FluidStack> getFluidInput() {
         return null;
     }
 

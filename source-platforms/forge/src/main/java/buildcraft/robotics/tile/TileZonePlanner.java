@@ -43,9 +43,9 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 import net.minecraftforge.network.NetworkHooks;
 
 public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, MenuProvider {
@@ -226,9 +226,9 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER && id == NET_RENDER_DATA) {
+        if (side == BCNetworkSide.SERVER && id == NET_RENDER_DATA) {
             buffer.writeUtf(mapName, MAX_MAP_NAME_LENGTH);
             buffer.writeByte(currentSelectedArea);
             for (ZonePlan layer : layers) {
@@ -238,9 +238,9 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT && id == NET_RENDER_DATA) {
+        if (side == BCNetworkSide.CLIENT && id == NET_RENDER_DATA) {
             mapName = buffer.readUtf(MAX_MAP_NAME_LENGTH);
             currentSelectedArea = buffer.readUnsignedByte();
             for (int i = 0; i < layers.length; i++) {
@@ -264,7 +264,7 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         for (int i = 0; i < layers.length; i++) {
             layers[i].readFromNBT(nbt.getCompound("selectedArea[" + i + "]"));
             if (layers[i].getChunkPoses().isEmpty() && nbt.contains("layer_" + i)) {
-                // Compatibility with the first, BC8-inspired Zone Planner port.
+                // Compatibility with BC8-style Zone Planner layer keys in existing saves.
                 layers[i].readFromNBT(nbt.getCompound("layer_" + i));
             }
         }

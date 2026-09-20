@@ -21,7 +21,7 @@ import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SwordItem;
 
-/** BuildCraft 7.1.x butcher board port: fetches a sword, then hunts passive animals in the work zone. */
+/** Butcher board that fetches a sword, then hunts passive animals in the work zone. */
 public class BoardRobotButcher extends RedstoneBoardRobot {
     private static final float SEARCH_RANGE = 250.0F;
 

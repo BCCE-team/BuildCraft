@@ -32,7 +32,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
-/** Future rename: "GuiContainerBuildCraft" */
+/** Base screen for BuildCraft container menus. */
 public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainerScreen<C> {
     public final BuildCraftGui mainGui;
     public final C container;

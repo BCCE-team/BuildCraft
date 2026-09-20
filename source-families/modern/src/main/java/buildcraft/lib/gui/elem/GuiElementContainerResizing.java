@@ -1,0 +1,81 @@
+//? source if >=1.21.11
+package buildcraft.lib.gui.elem;
+
+import java.util.List;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.GuiGraphics;
+
+import buildcraft.lib.gui.BuildCraftGui;
+import buildcraft.lib.gui.IGuiElement;
+import buildcraft.lib.gui.pos.IGuiPosition;
+import buildcraft.lib.compat.RenderCompat;
+
+public class GuiElementContainerResizing extends GuiElementContainer2 {
+
+    public final IGuiPosition childRoot;
+    private double minX, minY;
+    private double maxX, maxY;
+
+    public GuiElementContainerResizing(BuildCraftGui gui, IGuiPosition childRoot) {
+        super(gui);
+        this.childRoot = childRoot;
+        minX = maxX = childRoot.getX();
+        minY = maxY = childRoot.getY();
+    }
+
+    public IGuiPosition getChildElementPosition() {
+        return childRoot;
+    }
+
+    public double getX() {
+        return childRoot.getX() + minX;
+    }
+
+    public double getY() {
+        return childRoot.getY() + minY;
+    }
+
+    public double getWidth() {
+        return maxX - minX;
+    }
+
+    public double getHeight() {
+        return maxY - minY;
+    }
+
+    public void calculateSizes() {
+        maxX = minX = maxY = minY = 0;
+        double x0, x1, y0, y1;
+        double x = childRoot.getX();
+        double y = childRoot.getY();
+        x0 = x1 = x;
+        y0 = y1 = y;
+        for (IGuiElement elem : getChildElements()) {
+            x0 = Math.min(x0, elem.getX());
+            y0 = Math.min(y0, elem.getY());
+            x1 = Math.max(x1, elem.getEndX());
+            y1 = Math.max(y1, elem.getEndY());
+        }
+        minX = x0 - x;
+        maxX = x1 - x;
+        minY = y0 - y;
+        maxY = y1 - y;
+    }
+
+    public void drawBackground(GuiGraphics guiGraphics, float partialTicks) {
+        for (IGuiElement elem : getChildElements()) {
+            elem.drawBackground(guiGraphics, partialTicks);
+        }
+    }
+
+    public void drawForeground(GuiGraphics guiGraphics, float partialTicks) {
+        for (IGuiElement elem : getChildElements()) {
+            elem.drawForeground(guiGraphics, partialTicks);
+        }
+    }
+
+    public void addToolTips(List<ToolTip> tooltips) {
+        super.addToolTips(tooltips);
+    }
+}

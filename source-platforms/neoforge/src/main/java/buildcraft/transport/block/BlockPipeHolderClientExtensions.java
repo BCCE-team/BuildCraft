@@ -54,6 +54,9 @@ final class BlockPipeHolderClientExtensions implements IClientBlockExtensions {
         TextureAtlasSprite sprite = SpriteUtil.missingSprite();
         BCLog.d("" + p);
         if (0 <= p && p <= 6) {
+            if (pipeHolder.getPipe() == buildcraft.transport.pipe.Pipe.EMPTY) {
+                return null;
+            }
             aabb = p == 0 ? BlockPipeHolder.BOX_CENTER : BlockPipeHolder.BOX_FACES[p - 1];
             PipeDefinition def = pipeHolder.getPipe().definition;
             TextureAtlasSprite[] sprites = PipeModelCacheBase.generator.getItemSprites(def);
@@ -107,6 +110,15 @@ final class BlockPipeHolderClientExtensions implements IClientBlockExtensions {
         }
         if (aabb == null) {
             throw new IllegalStateException("Null aabb for index " + p + " (and sprite " + sprite + ")");
+        }
+        if (sprite == null) {
+            // Cross-version NeoForge fallback. 1.21.11 exposes ModelManager#getMissingBlockStateModel(),
+            // but 1.21.1 does not. SpriteUtil resolves the missing sprite directly from the block atlas
+            // and is valid for both modern targets.
+            sprite = SpriteUtil.missingSprite();
+        }
+        if (sprite == null) {
+            return null;
         }
         return new HitSpriteInfo(aabb, sprite);
     }

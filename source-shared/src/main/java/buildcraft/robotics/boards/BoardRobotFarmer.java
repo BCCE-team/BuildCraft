@@ -22,7 +22,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** BuildCraft 7.1.x farmer board port. Fetches a hoe, finds tillable dirt-like blocks, and hoes them. */
+/** Farmer board that fetches a hoe, finds tillable dirt-like blocks, and hoes them. */
 public class BoardRobotFarmer extends RedstoneBoardRobot {
     private BlockIndex blockFound;
 

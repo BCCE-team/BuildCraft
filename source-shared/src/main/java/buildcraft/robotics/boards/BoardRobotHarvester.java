@@ -10,7 +10,7 @@ import buildcraft.robotics.ai.AIRobotHarvest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 
-/** BuildCraft 7.1.x harvester board port. Searches for mature crops and harvests them. */
+/** Harvester board that searches for mature crops and harvests them. */
 public class BoardRobotHarvester extends BoardRobotGenericSearchBlock {
     public BoardRobotHarvester(EntityRobotBase robot) {
         super(robot);

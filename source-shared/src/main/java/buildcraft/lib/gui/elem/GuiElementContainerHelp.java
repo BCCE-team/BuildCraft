@@ -18,7 +18,7 @@ import buildcraft.lib.gui.BuildCraftGui;
 import buildcraft.lib.gui.IGuiElement;
 import buildcraft.lib.gui.pos.IGuiPosition;
 
-/** @deprecated Help *should* be moved to GuiElementContainer rather than this. */
+/** @deprecated Compatibility container for legacy help elements. */
 @Deprecated
 public class GuiElementContainerHelp implements IGuiElement {
     public final BuildCraftGui gui;

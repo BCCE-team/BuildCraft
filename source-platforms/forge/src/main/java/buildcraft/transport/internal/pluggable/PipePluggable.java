@@ -24,14 +24,12 @@ import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.capabilities.AutoRegisterCapability;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 @AutoRegisterCapability
 public abstract class PipePluggable {
@@ -60,7 +58,7 @@ public abstract class PipePluggable {
 
     }
 
-    public void writePayload(FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
 
     }
 
@@ -70,15 +68,15 @@ public abstract class PipePluggable {
      * default, while addons can opt into a versionable named-state format.
      */
     @Nullable
-    public CompoundTag writeSyncState(LogicalSide side) {
+    public CompoundTag writeSyncState(BCNetworkSide side) {
         return null;
     }
 
-    public void readPayload(FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
 
     }
 
-    public void readSyncState(CompoundTag state, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readSyncState(CompoundTag state, BCNetworkSide side, BCPacketContext ctx) throws IOException {
     }
 
     public final void scheduleNetworkUpdate() {
@@ -134,7 +132,6 @@ public abstract class PipePluggable {
     }
 
     @Nullable
-    @OnlyIn(Dist.CLIENT)
     public PluggableModelKey getModelRenderKey(RenderType layer) {
         return null;
     }
@@ -143,7 +140,6 @@ public abstract class PipePluggable {
      * <code>data * 6 + key.side.ordinal()</code>. <code>"data"</code> is passed in here as <code>"tintIndex"</code>.
      * 
      * @return The tint index to render the quad with, or -1 for default. */
-    @OnlyIn(Dist.CLIENT)
     public int getBlockColor(int tintIndex) {
         return -1;
     }

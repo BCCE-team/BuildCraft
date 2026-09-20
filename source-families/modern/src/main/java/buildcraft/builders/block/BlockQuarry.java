@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -15,7 +16,7 @@ import buildcraft.lib.block.BlockBCTile_Neptune;
 import buildcraft.lib.block.IBlockWithFacing;
 import buildcraft.lib.misc.AdvancementUtil;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -35,10 +36,11 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import buildcraft.lib.misc.CapUtil;
 
 
 public class BlockQuarry extends BlockBCTile_Neptune implements IBlockWithFacing {
-    private static final ResourceLocation ADVANCEMENT = ResourceLocation.parse("buildcraftbuilders:shaping_the_world");
+    private static final Identifier ADVANCEMENT = Identifier.parse("buildcraftbuilders:shaping_the_world");
 
     public BlockQuarry() {
         super(Properties.of().mapColor(MapColor.METAL).sound(SoundType.ANVIL).strength(5.0f, 10.0f).requiresCorrectToolForDrops().dynamicShape());
@@ -51,7 +53,6 @@ public class BlockQuarry extends BlockBCTile_Neptune implements IBlockWithFacing
             	.setValue(BuildCraftProperties.CONNECTED_UP, false));*/
     }
 
-	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> bs) {
 //		BuildCraftProperties.CONNECTED_MAP.values().forEach(bs::add);
 		super.createBlockStateDefinition(bs);
@@ -63,12 +64,11 @@ public class BlockQuarry extends BlockBCTile_Neptune implements IBlockWithFacing
             facing = Direction.from2DDataValue(
                 side.get2DDataValue() + 2 + state.getValue(getFacingProperty()).get2DDataValue());
         }
-        BlockEntity tile = world.getBlockEntity(pos.offset(facing.getNormal()));
+        BlockEntity tile = world.getBlockEntity(pos.offset(facing.getUnitVec3i()));
         return tile != null && tile.getCapability(CapUtil.CAP_ITEMS, facing.getOpposite()) != null;
     }*/
     
 
-	@Override
 	public BlockState getStateForPlacement(BlockPlaceContext bpc) {
 //    	Level world = bpc.getLevel();
 //    	BlockPos pos = bpc.getClickedPos();
@@ -79,19 +79,15 @@ public class BlockQuarry extends BlockBCTile_Neptune implements IBlockWithFacing
         return super.getStateForPlacement(bpc);
 	}
 
-    @Override
 	public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
 		return new TileQuarry(pos, state);
 	}
     
-    @Override
     public boolean canBeRotated(LevelAccessor world, BlockPos pos, BlockState state) {
         return false;
     }
 
-	@Override
-	public boolean onDestroyedByPlayer(BlockState state, Level world, BlockPos pos, Player player, boolean willHarvest,
-			FluidState fluid) {
+	public boolean onDestroyedByPlayer(BlockState state, Level world, BlockPos pos, Player player, ItemStack toolStack, boolean willHarvest, FluidState fluid) {
         BlockEntity tile = world.getBlockEntity(pos);
         if (tile instanceof TileQuarry) {
             for (BlockPos blockPos : ((TileQuarry) tile).framePoses) {
@@ -100,12 +96,11 @@ public class BlockQuarry extends BlockBCTile_Neptune implements IBlockWithFacing
                 }
             }
         }
-		return super.onDestroyedByPlayer(state, world, pos, player, willHarvest, fluid);
+		return super.onDestroyedByPlayer(state, world, pos, player, toolStack, willHarvest, fluid);
 	}
 
 
 
-    @Override
     public void onRemove(BlockState oldState, Level world, BlockPos pos, BlockState newState, boolean isMoving) {
         if (oldState.getBlock() != newState.getBlock()) {
             BlockEntity tile = world.getBlockEntity(pos);
@@ -121,10 +116,8 @@ public class BlockQuarry extends BlockBCTile_Neptune implements IBlockWithFacing
                 }
             }
         }
-        super.onRemove(oldState, world, pos, newState, isMoving);
     }
 
-	@Override
 	public void setPlacedBy(Level world, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
 		super.setPlacedBy(world, pos, state, placer, stack);
         if (placer instanceof Player) {
@@ -132,7 +125,6 @@ public class BlockQuarry extends BlockBCTile_Neptune implements IBlockWithFacing
         }
 	}
 
-	@Override
 	public <T extends BlockEntity> GameEventListener getListener(ServerLevel level, T be) {
 		return be instanceof TileQuarry tile ? tile.worldEventListener : null;
 	}

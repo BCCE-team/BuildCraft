@@ -17,6 +17,7 @@ import buildcraft.core.BCCoreConfig;
 import buildcraft.core.blockEntity.TileMarkerVolume;
 import buildcraft.core.client.BuildCraftLaserManager;
 import buildcraft.core.marker.VolumeConnection;
+import buildcraft.lib.client.render.laser.LegacyLaserBlockEntityRenderer;
 import buildcraft.lib.client.render.laser.LaserData_BC8;
 import buildcraft.lib.client.render.laser.LaserData_BC8.LaserType;
 import buildcraft.lib.client.render.laser.LaserRenderer_BC8;
@@ -32,7 +33,7 @@ import net.minecraft.core.Direction.Axis;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.phys.Vec3;
 
-public class RenderMarkerVolume implements BlockEntityRenderer<TileMarkerVolume> {
+public class RenderMarkerVolume implements BlockEntityRenderer<TileMarkerVolume>, LegacyLaserBlockEntityRenderer<TileMarkerVolume> {
     private static final double SCALE = 1 / 16.2; // smaller than normal lasers
 
     private static final LaserType LASER_TYPE = BuildCraftLaserManager.MARKER_VOLUME_SIGNAL;
@@ -60,6 +61,12 @@ public class RenderMarkerVolume implements BlockEntityRenderer<TileMarkerVolume>
     
     @Override
 	public void render(TileMarkerVolume marker, float partialTicks, PoseStack matrix, MultiBufferSource buffer,
+			int light, int overlay) {
+		renderLasers(marker, partialTicks, matrix, buffer, light, overlay);
+	}
+
+    @Override
+	public void renderLasers(TileMarkerVolume marker, float partialTicks, PoseStack matrix, MultiBufferSource buffer,
 			int light, int overlay) {
     	 if (marker == null || !marker.isShowingSignals()) return;
     	 matrix.pushPose();

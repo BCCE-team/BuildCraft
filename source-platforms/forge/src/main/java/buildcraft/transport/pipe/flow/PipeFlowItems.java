@@ -56,12 +56,10 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 
 public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     private static final double EXTRACT_SPEED = 0.08;
@@ -116,9 +114,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     // Network
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide msgSide) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide msgSide) throws IOException {
 //    	BCLog.d("rece");
-        if (msgSide == LogicalSide.CLIENT) {
+        if (msgSide == BCNetworkSide.CLIENT) {
             if (id == NET_CREATE_ITEM) {
                 int stackId = buffer.readInt();
                 Supplier<ItemStack> link = BuildCraftObjectCaches.retrieveItemStack(stackId);
@@ -804,8 +802,6 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             return 0.25;
         }
     }
-
-    @OnlyIn(Dist.CLIENT)
     public List<TravellingItem> getAllItemsForRender() {
         List<TravellingItem> all = new ArrayList<>();
         for (List<TravellingItem> innerList : items.getAllElements()) {

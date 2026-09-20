@@ -15,6 +15,7 @@ import org.joml.Matrix4f;
 
 import buildcraft.lib.internal.properties.BuildCraftProperties;
 import buildcraft.core.client.BuildCraftLaserManager;
+import buildcraft.lib.client.render.laser.LegacyLaserBlockEntityRenderer;
 import buildcraft.lib.client.render.laser.LaserData_BC8;
 import buildcraft.lib.client.render.laser.LaserRenderer_BC8;
 import buildcraft.silicon.tile.TileLaser;
@@ -28,7 +29,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-public class RenderLaser implements BlockEntityRenderer<TileLaser> {
+public class RenderLaser implements BlockEntityRenderer<TileLaser>, LegacyLaserBlockEntityRenderer<TileLaser> {
 	private static final int MAX_POWER = BuildCraftLaserManager.POWERS.length - 1;
 
 	public RenderLaser(BlockEntityRendererProvider.Context bpc) {
@@ -36,6 +37,12 @@ public class RenderLaser implements BlockEntityRenderer<TileLaser> {
 
 	@Override
 	public void render(@Nonnull TileLaser tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer,
+			int light, int overlay) {
+		renderLasers(tile, partialTicks, matrix, buffer, light, overlay);
+	}
+
+	@Override
+	public void renderLasers(@Nonnull TileLaser tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer,
 			int light, int overlay) {
 
 		Minecraft.getInstance().getProfiler().push("bc");

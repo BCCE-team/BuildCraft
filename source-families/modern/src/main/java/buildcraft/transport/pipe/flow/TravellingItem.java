@@ -104,7 +104,7 @@ public class TravellingItem {
 
         side = NBTUtilBC.readEnum(nbt.get("side"), Direction.class);
         if (side == null || timeToDest == 0) {
-            // Older 8.0.x. version
+            // Saves without a valid side/destination resume by routing toward the pipe centre.
             toCenter = true;
         }
         tried = NBTUtilBC.readEnumSet(nbt.get("tried"), Direction.class);

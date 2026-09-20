@@ -10,6 +10,7 @@ import buildcraft.api.v2.energy.MjPortDescriptor;
 import buildcraft.api.v2.energy.MjPortRole;
 import buildcraft.api.v2.energy.MjTransferResult;
 import buildcraft.lib.internal.api.v2.energy.MjRuntimeLookup;
+import buildcraft.lib.misc.CapUtil;
 import java.util.EnumSet;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -71,7 +72,7 @@ public final class MjApi2PlatformBridge {
 
     private static FeEndpoint feEndpoint(Level level, BlockPos pos, Direction side) {
         if (!BuildCraftApi.service(BuildCraftServices.ENERGY).automaticFeConversionEnabled()) return null;
-        IEnergyStorage fe = level.getCapability(Capabilities.EnergyStorage.BLOCK, pos, side);
+        IEnergyStorage fe = CapUtil.getEnergyStorage(level, pos, side);
         return fe != null && (fe.canReceive() || fe.canExtract()) ? new FeEndpoint(fe) : null;
     }
 

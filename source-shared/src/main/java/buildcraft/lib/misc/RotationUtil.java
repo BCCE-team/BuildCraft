@@ -6,6 +6,7 @@
 
 package buildcraft.lib.misc;
 
+import buildcraft.lib.logic.blueprint.BlueprintRotation;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.phys.AABB;
@@ -31,17 +32,10 @@ public class RotationUtil {
     }
 
     public static Vec3 rotateVec3(Vec3 vec, Rotation rotation) {
-        switch (rotation) {
-            case NONE:
-            default:
-                return vec;
-            case CLOCKWISE_90:
-                return new Vec3(1 - vec.z, vec.y, vec.x);
-            case CLOCKWISE_180:
-                return new Vec3(1 - vec.x, vec.y, 1 - vec.z);
-            case COUNTERCLOCKWISE_90:
-                return new Vec3(vec.z, vec.y, 1 - vec.x);
-        }
+        BlueprintRotation.Point rotated = BlueprintRotation.rotateUnit(
+            new BlueprintRotation.Point(vec.x, vec.y, vec.z), quarterTurns(rotation)
+        );
+        return new Vec3(rotated.x(), rotated.y(), rotated.z());
     }
 
     public static Direction rotateAll(Direction facing) {
@@ -63,16 +57,25 @@ public class RotationUtil {
     }
 
     public static Rotation invert(Rotation rotation) {
-        switch (rotation) {
-            case NONE:
-                return Rotation.NONE;
-            case CLOCKWISE_90:
-                return Rotation.COUNTERCLOCKWISE_90;
-            case CLOCKWISE_180:
-                return Rotation.CLOCKWISE_180;
-            case COUNTERCLOCKWISE_90:
-                return Rotation.CLOCKWISE_90;
-        }
-        throw new IllegalArgumentException();
+        return fromQuarterTurns(BlueprintRotation.invertQuarterTurns(quarterTurns(rotation)));
+    }
+
+    private static int quarterTurns(Rotation rotation) {
+        return switch (rotation) {
+            case NONE -> 0;
+            case CLOCKWISE_90 -> 1;
+            case CLOCKWISE_180 -> 2;
+            case COUNTERCLOCKWISE_90 -> 3;
+        };
+    }
+
+    private static Rotation fromQuarterTurns(int quarterTurns) {
+        return switch (Math.floorMod(quarterTurns, 4)) {
+            case 0 -> Rotation.NONE;
+            case 1 -> Rotation.CLOCKWISE_90;
+            case 2 -> Rotation.CLOCKWISE_180;
+            case 3 -> Rotation.COUNTERCLOCKWISE_90;
+            default -> throw new AssertionError();
+        };
     }
 }

@@ -314,9 +314,7 @@ public abstract class OilStructure {
         }
 
         public void generate(WorldGenLevel world, int count) {
-            // The old generator placed the spring at minY, which is bedrock in
-            // modern worlds. Move it upward to the first non-bedrock block so the
-            // bedrock floor remains intact.
+            // Oil springs must not replace the bedrock floor; move upward to the first non-bedrock block.
             BlockPos springPos = pos;
             int maxSpringY = Math.min(pos.getY() + 16, world.getMaxBuildHeight() - 1);
             while (springPos.getY() < maxSpringY && world.getBlockState(springPos).is(Blocks.BEDROCK)) {

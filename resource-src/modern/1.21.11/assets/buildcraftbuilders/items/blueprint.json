@@ -1,0 +1,26 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "buildcraftbuilders:used",
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "buildcraftbuilders:item/snapshot/blueprint_clean"
+    },
+    "entries": [
+      {
+        "threshold": 0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftbuilders:item/snapshot/blueprint_clean"
+        }
+      },
+      {
+        "threshold": 1,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftbuilders:item/snapshot/blueprint_used"
+        }
+      }
+    ]
+  }
+}

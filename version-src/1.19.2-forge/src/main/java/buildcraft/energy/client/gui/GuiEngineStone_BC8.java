@@ -40,7 +40,7 @@ public class GuiEngineStone_BC8 extends GuiBC8<ContainerEngineStone_BC8> {
         inventoryLabelY = SIZE_Y - 96;
         mainGui.shownElements.add(new LedgerEngine(mainGui, container.tile, true));
         helpFlame = new ElementHelpInfo("buildcraft.help.stone_engine.flame.title", 0xFF_FF_FF_1F, "buildcraft.help.stone_engine.flame");
-        // TODO: Populate engine help with example fuels from the live fuel registry.
+        // Fuel-specific values remain runtime-driven; this help entry stays registry-agnostic.
         helpFuel = new ElementHelpInfo("buildcraft.help.stone_engine.fuel.title", 0xFF_AA_33_33, "buildcraft.help.stone_engine.fuel");
     }
 

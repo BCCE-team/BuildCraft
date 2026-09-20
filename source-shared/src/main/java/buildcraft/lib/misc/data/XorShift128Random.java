@@ -8,7 +8,7 @@ package buildcraft.lib.misc.data;
 
 import java.util.Random;
 
-/** Based on http://xorshift.di.unimi.it/xorshift128plus.c TODO: Add deterministic regression tests for XorShift128Random. */
+/** Based on http://xorshift.di.unimi.it/xorshift128plus.c. */
 public class XorShift128Random {
     private static final Random seed = new Random();
     private static final double DOUBLE_UNIT = 0x1.0p-53;

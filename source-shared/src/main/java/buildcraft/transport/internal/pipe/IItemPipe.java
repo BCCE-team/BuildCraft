@@ -1,7 +1,6 @@
 package buildcraft.transport.internal.pipe;
 
-/** To be implemented by the real item pipe in Transport mod, but leaves knowledge for classes that do not have direct
- * dependency on transport. */
+/** Minimal item-pipe contract shared with code that cannot depend on transport implementations. */
 public interface IItemPipe {
     int colorID = 0;
 	

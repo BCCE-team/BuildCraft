@@ -33,11 +33,9 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     public static final IdAllocator IDS = TileBC_Neptune.IDS.makeChild("miner");
@@ -193,7 +191,7 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
         }
         wantedLength = nbt.getInt("wantedLength");
         progress = Math.max(0L, nbt.getLong("progress"));
-        // Legacy save compatibility: older ports stored the MJ battery under "mj_battery".
+        // The persisted key "mj_battery" is accepted as a legacy battery alias.
         if (nbt.contains("mj_battery")) {
             nbt.put("battery", nbt.get("mj_battery"));
         }
@@ -203,9 +201,9 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     // Networking
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 writePayload(NET_LED_STATUS, buffer, side);
                 buffer.writeInt(wantedLength);
@@ -219,9 +217,9 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 readPayload(NET_LED_STATUS, buffer, side, ctx);
                 currentLength = lastLength = wantedLength = buffer.readInt();
@@ -251,9 +249,6 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
 	public AABB getRenderBoundingBox() {
 		return blockAABB.move(worldPosition).expandTowards(0, 1-currentLength, 0);
 	}
-
-
-    @OnlyIn(Dist.CLIENT)
     public float getPercentFilledForRender() {
         float val = battery.getStored() / (float) battery.getCapacity();
         return val < 0 ? 0 : val > 1 ? 1 : val;

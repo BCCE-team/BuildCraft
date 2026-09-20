@@ -16,12 +16,11 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.DecoderException;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.PacketListener;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public class MessageUpdateTile {
     private static final int MAX_PAYLOAD_SIZE = 64 * 1024;
@@ -79,16 +78,16 @@ public class MessageUpdateTile {
         }
     }
 
-    public static final BiConsumer<MessageUpdateTile, Supplier<NetworkEvent.Context>> HANDLER = (message, ctx) -> {
-        NetworkEvent.Context context = ctx.get();
+    public static final BiConsumer<MessageUpdateTile, Supplier<BCPacketContext>> HANDLER = (message, ctx) -> {
+        BCPacketContext context = ctx.get();
         context.enqueueWork(() -> {
             FriendlyByteBuf payloadBuffer = null;
             try {
-                LogicalSide side = context.getDirection().getReceptionSide();
+                BCNetworkSide side = context.side();
                 Level level;
                 ServerPlayer sender = context.getSender();
 
-                if (side == LogicalSide.SERVER) {
+                if (side == BCNetworkSide.SERVER) {
                     if (sender == null) {
                         return;
                     }
@@ -103,9 +102,8 @@ public class MessageUpdateTile {
                         return;
                     }
                 } else {
-                    PacketListener netHandler = context.getNetworkManager().getPacketListener();
                     level = net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient()
-                        ? MessageUpdateTileClientHandler.getClientLevel(netHandler)
+                        ? MessageUpdateTileClientHandler.getClientLevel()
                         : null;
                     if (level == null) {
                         return;
@@ -116,13 +114,13 @@ public class MessageUpdateTile {
                 if (!(tile instanceof IPayloadReceiver receiver)) {
                     // Missing client-side tiles can indicate a legitimate synchronization race. Do not let a
                     // malicious client turn invalid server-bound positions into an unbounded warning stream.
-                    if (side == LogicalSide.CLIENT) {
+                    if (side == BCNetworkSide.CLIENT) {
                         BCLog.logger.warn("Dropped BuildCraft tile update for missing/incompatible tile at " + message.pos);
                     }
                     return;
                 }
 
-                if (side == LogicalSide.SERVER) {
+                if (side == BCNetworkSide.SERVER) {
                     // Client-originated tile messages are interaction packets, not arbitrary remote-control packets.
                     // Reuse the tile's normal permission and distance checks when possible.
                     if (tile instanceof TileBC_Neptune bcTile) {
@@ -145,7 +143,7 @@ public class MessageUpdateTile {
             } catch (IOException | RuntimeException io) {
                 // Invalid server-bound payloads are untrusted input. Keep them out of the normal warning log so a
                 // modified client cannot flood the server with stack traces; client-side sync failures remain visible.
-                if (context.getDirection().getReceptionSide() == LogicalSide.CLIENT) {
+                if (context.side() == BCNetworkSide.CLIENT) {
                     BCLog.logger.warn("Dropped invalid BuildCraft tile update packet", io);
                 } else {
                     BCLog.logger.debug("Dropped invalid client BuildCraft tile update packet", io);

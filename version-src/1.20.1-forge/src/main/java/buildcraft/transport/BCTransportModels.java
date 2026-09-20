@@ -6,6 +6,9 @@
 
 package buildcraft.transport;
 
+import buildcraft.lib.platform.client.ClientModelBaking;
+import buildcraft.lib.platform.client.ClientRegistration;
+import buildcraft.transport.BCTransportClientRenderers;
 import buildcraft.transport.internal.pipe.PipeApiClient;
 import buildcraft.transport.internal.pluggable.IPluggableStaticBaker;
 import buildcraft.lib.client.model.ModelHolderStatic;
@@ -39,10 +42,6 @@ import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.client.event.EntityRenderersEvent;
-import net.minecraftforge.client.event.ModelEvent.ModifyBakingResult;
-import net.minecraftforge.client.event.ModelEvent.RegisterAdditional;
-import net.minecraftforge.client.event.RegisterColorHandlersEvent;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public class BCTransportModels {
@@ -104,20 +103,20 @@ public class BCTransportModels {
         PipeApiClient.registry.registerRenderer(PipeBehaviourStripes.class, PipeBehaviourRendererStripes.INSTANCE);
     }
 
-    public static void onBlockEntityRender(EntityRenderersEvent.RegisterRenderers event) {
-    	event.registerBlockEntityRenderer(BCTransportBlocks.PIPE_HOLDER_BE.get(), RenderPipeHolder::new);
+    public static void onBlockEntityRender(ClientRegistration.Renderers event) {
+        BCTransportClientRenderers.register(event);
     }
     
-    public static void onBlockColor(RegisterColorHandlersEvent.Block event) {
+    public static void onBlockColor(ClientRegistration.BlockColours event) {
     	event.register(PipeBlockColours.INSTANCE, BCTransportBlocks.pipeHolder.get());
     }
     
-	public static void onModelBakePre(RegisterAdditional event) {
+	public static void onModelBakePre(ClientModelBaking.Additional event) {
 	//	event.register(BLOCKER_LOCATIOn);
 	//	event.register(POWER_ADAPTER_LOCATION);
 	}
 	
-    public static void onModelBake(ModifyBakingResult event) {
+    public static void onModelBake(ClientModelBaking.Models event) {
         // BlockPipeHolder is waterloggable, so the baked block model is keyed by the full blockstate variant.
         // Replacing only the legacy empty variant leaves the real in-world pipe on the JSON fallback model.
         putModel(event, "pipe_holder#waterlogged=false", ModelPipe.INSTANCE);
@@ -149,7 +148,7 @@ public class BCTransportModels {
         PipeFlowRendererItems.onModelBake();
     }
 
-    private static void putModel(ModifyBakingResult event, String str, BakedModel model) {
+    private static void putModel(ClientModelBaking.Models event, String str, BakedModel model) {
         int variantSeparator = str.indexOf('#');
         String path = variantSeparator >= 0 ? str.substring(0, variantSeparator) : str;
         String variant = variantSeparator >= 0 ? str.substring(variantSeparator + 1) : "";

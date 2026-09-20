@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 package buildcraft.silicon.recipe;
 
 import buildcraft.lib.misc.ItemStackUtil;
@@ -15,6 +16,9 @@ import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.CustomRecipe;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.Level;
+import buildcraft.lib.compat.NbtCompat;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeInput;
 
 public class GateLogicChangeRecipe extends CustomRecipe {
 
@@ -22,7 +26,6 @@ public class GateLogicChangeRecipe extends CustomRecipe {
         super(category);
     }
 
-    @Override
     public boolean matches(CraftingInput container, Level level) {
         ItemStack gateStack = ItemStack.EMPTY;
         for (int slot = 0; slot < container.size(); slot++) {
@@ -37,7 +40,6 @@ public class GateLogicChangeRecipe extends CustomRecipe {
         return !gateStack.isEmpty();
     }
 
-    @Override
     public ItemStack assemble(CraftingInput container, HolderLookup.Provider registries) {
         ItemStack gateStack = ItemStack.EMPTY;
         for (int slot = 0; slot < container.size(); slot++) {
@@ -62,8 +64,8 @@ public class GateLogicChangeRecipe extends CustomRecipe {
                 return ItemStack.EMPTY;
             }
 
-            CompoundTag gateTag = tag.getCompound("gate");
-            int newLogic = gateTag.getInt("logic") == EnumGateLogic.AND.ordinal()
+            CompoundTag gateTag = NbtCompat.getCompound(tag, "gate");
+            int newLogic = NbtCompat.getInt(gateTag, "logic") == EnumGateLogic.AND.ordinal()
                 ? EnumGateLogic.OR.ordinal()
                 : EnumGateLogic.AND.ordinal();
             gateTag.putInt("logic", newLogic);
@@ -77,13 +79,11 @@ public class GateLogicChangeRecipe extends CustomRecipe {
         }
     }
 
-    @Override
     public boolean canCraftInDimensions(int width, int height) {
         return width >= 1 && height >= 1;
     }
 
-    @Override
-    public RecipeSerializer<?> getSerializer() {
+    public RecipeSerializer<? extends CustomRecipe> getSerializer() {
         return BCSiliconRecipes.GATE_CHANGE_SERIALIZER.get();
     }
 }

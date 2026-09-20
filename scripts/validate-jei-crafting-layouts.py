@@ -14,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-from source_layout import load_properties, target_ids, target_layout
+from source_layout import effective_source_files, load_properties, resolve_effective_source, target_ids, target_layout, version_tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_REL = Path("src/main/java/buildcraft/compat/jei/BuildCraftJeiPlugin.java")
@@ -29,9 +29,9 @@ def fail(errors: list[str], message: str) -> None:
 def validate_target(target: str, props: dict[str, str], errors: list[str]) -> tuple[int, int, int]:
     layout = target_layout(target, props)
 
-    plugin_path = layout.resolve(PLUGIN_REL)
-    ext_path = layout.resolve(EXT_REL)
-    recipe_path = layout.resolve(RECIPE_REL)
+    plugin_path = resolve_effective_source(layout, props, PLUGIN_REL)
+    ext_path = resolve_effective_source(layout, props, EXT_REL)
+    recipe_path = resolve_effective_source(layout, props, RECIPE_REL)
     for label, path in (("JEI plugin", plugin_path), ("pipe JEI extension", ext_path), ("PipeRecipe", recipe_path)):
         if path is None:
             fail(errors, f"{target}: missing effective {label}")
@@ -55,12 +55,24 @@ def validate_target(target: str, props: dict[str, str], errors: list[str]) -> tu
         if "addCategoryExtension(PipeRecipe.class, PipeCraftingCategoryExtension::new)" not in plugin:
             fail(errors, f"{target}: legacy JEI PipeRecipe extension registration is missing")
 
-    for token in (
+    native_displays = version_tuple(props[f"target.{target}.deps.minecraft"]) >= version_tuple("1.21.11")
+    # JEI 27's extension consumes vanilla SlotDisplays; its default setRecipe
+    # builds the slots from Recipe.display(). Older targets still fill the layout
+    # explicitly. Guard both contracts rather than demanding a removed API.
+    layout_tokens = [
         "hasShapedBasePattern() ? 3 : 0",
         "hasShapedBasePattern() ? 1 : 0",
-        "createAndSetInputs",
-        "createAndSetOutputs",
-    ):
+    ]
+    if native_displays:
+        layout_tokens.extend(("List<SlotDisplay> getIngredients", "Ingredient::display"))
+        for token in ("PlacementInfo.create(ingredients)", "new ShapedCraftingRecipeDisplay(3, 1,",
+                      "new ShapelessCraftingRecipeDisplay("):
+            if token not in recipe:
+                fail(errors, f"{target}: PipeRecipe lost native recipe-book layout token {token!r}")
+    else:
+        layout_tokens.extend(("createAndSetInputs", "createAndSetOutputs"))
+
+    for token in layout_tokens:
         if token not in extension:
             fail(errors, f"{target}: PipeRecipe JEI extension lost layout token {token!r}")
 
@@ -70,7 +82,7 @@ def validate_target(target: str, props: dict[str, str], errors: list[str]) -> tu
         if f"ingredients.add({ingredient})" not in recipe:
             fail(errors, f"{target}: PipeRecipe BASE ingredient order lost {ingredient!r}")
 
-    resources = layout.effective_files("src/main/resources")
+    resources = effective_source_files(layout, props, "src/main/resources")
     counts = {"base": 0, "upgrade": 0, "downgrade": 0}
     for rel, path in resources.items():
         if not rel.endswith(".json") or ("/recipe/" not in rel and "/recipes/" not in rel):

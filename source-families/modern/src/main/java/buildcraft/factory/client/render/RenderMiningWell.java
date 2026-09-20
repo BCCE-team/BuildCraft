@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -6,6 +7,8 @@
 
 package buildcraft.factory.client.render;
 
+import buildcraft.lib.compat.minecraft.render.BCRenderTypes;
+import buildcraft.lib.compat.minecraft.render.BCGeometryRenderer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.PoseStack.Pose;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -15,12 +18,11 @@ import org.joml.Matrix4f;
 import buildcraft.factory.BCFactoryBlocks;
 import buildcraft.factory.BCFactorySprites;
 import buildcraft.factory.tile.TileMiningWell;
+import buildcraft.lib.client.render.laser.LegacyLaserBlockEntityRenderer;
 import buildcraft.lib.client.render.laser.LaserData_BC8.LaserRow;
 import buildcraft.lib.client.render.laser.LaserData_BC8.LaserType;
 import buildcraft.lib.client.render.tile.RenderPartCube;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Direction.Axis;
@@ -28,7 +30,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.Vec3;
 
-public class RenderMiningWell implements BlockEntityRenderer<TileMiningWell> {
+public class RenderMiningWell implements BCGeometryRenderer<TileMiningWell>, LegacyLaserBlockEntityRenderer<TileMiningWell> {
     private static final int[] COLOUR_POWER = new int[16];
     private static final int COLOUR_STATUS_ON = 0xDD_77_FF_77; // a light green
     private static final int COLOUR_STATUS_OFF = 0xFF_1f_10_1b; // black-ish
@@ -71,7 +73,7 @@ public class RenderMiningWell implements BlockEntityRenderer<TileMiningWell> {
     public RenderMiningWell() {}
     
     @Override
-	public void render(TileMiningWell tile, float partialTicks, PoseStack matrix, MultiBufferSource builder,
+	public void renderContents(TileMiningWell tile, float partialTicks, PoseStack matrix, MultiBufferSource builder,
 			int combineLight, int overlay) {
         Direction facing = Direction.NORTH;
         BlockState state = tile.getLevel().getBlockState(tile.getBlockPos());
@@ -79,7 +81,7 @@ public class RenderMiningWell implements BlockEntityRenderer<TileMiningWell> {
             facing = state.getValue(BlockStateProperties.HORIZONTAL_FACING);
         }
         matrix.pushPose();
-        VertexConsumer buffer = builder.getBuffer(RenderType.cutout());
+        VertexConsumer buffer = builder.getBuffer(BCRenderTypes.cutout());
         Pose p = matrix.last();
         Matrix3f normalMatrix = p.normal();
         Matrix4f pose = p.pose();
@@ -126,12 +128,19 @@ public class RenderMiningWell implements BlockEntityRenderer<TileMiningWell> {
         LED_STATUS.render(pose, normalMatrix, buffer);
 
         matrix.popPose();
-        tubeRenderer.render(tile, partialTicks, matrix, builder, combineLight, overlay);
+        renderLasers(tile, partialTicks, matrix, builder, combineLight, overlay);
         }
 
 
     @Override
-	public boolean shouldRenderOffScreen(TileMiningWell p_112306_) {
+    public void renderLasers(TileMiningWell tile, float partialTicks, PoseStack matrix, MultiBufferSource builder,
+            int combinedLight, int overlay) {
+        tubeRenderer.renderLasers(tile, partialTicks, matrix, builder, combinedLight, overlay);
+    }
+
+
+    @Override
+	public boolean renderOffScreen() {
 		return true;
 	}
     

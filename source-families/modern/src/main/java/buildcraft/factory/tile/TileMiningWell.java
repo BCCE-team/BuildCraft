@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -45,17 +46,14 @@ public class TileMiningWell extends TileMiner implements MachineRuntimeView {
     private boolean shouldCheck = true;
     private final SafeTimeTracker tracker = new SafeTimeTracker(256);
     public final GameEventListener worldEventListener = new GameEventListener() {
-    	@Override
     	public PositionSource getListenerSource() {
     		return blockPosSource;
     	}
-    	@Override
     	public int getListenerRadius() {
             int limit = BCCoreConfig.miningMaxDepth;
             int high = worldPosition.getY() + 64;
             return high < limit ? high : limit;
     	}
-    	@Override
 	public boolean handleGameEvent(ServerLevel serverLevel, Holder<GameEvent> event, GameEvent.Context context, Vec3 pos) {
             if (event != GameEvent.BLOCK_PLACE && event != GameEvent.BLOCK_DESTROY) {
                 return false;
@@ -76,7 +74,6 @@ public class TileMiningWell extends TileMiner implements MachineRuntimeView {
         caps.addCapabilityInstance(CapUtil.CAP_ITEM_TRANSACTOR, AutomaticProvidingTransactor.INSTANCE, EnumPipePart.VALUES);
     }
 
-    @Override
     protected void mine() {
         if (currentPos != null && canBreak()) {
             shouldCheck = true;
@@ -163,27 +160,23 @@ public class TileMiningWell extends TileMiner implements MachineRuntimeView {
         updateLength();
     }
 
-	@Override
 	public void onRemove(boolean dropSelf) {
-        if (!level.isClientSide) {
+        if (!level.isClientSide()) {
             if (currentPos != null) {
                 level.destroyBlockProgress(currentPos.hashCode(), currentPos, -1);
             }
         }
-		super.onRemove(dropSelf);
+        super.onRemove(dropSelf);
 	}
 
-    @Override
     protected long getBatteryCapacity() {
         return MachineDefinitionLookup.capacityMicroMj(BuildCraftContentIds.Machines.MINING_WELL, 500 * MjAmount.MICRO_MJ_PER_MJ);
     }
 
-	@Override
     protected IMjReceiver createMjReceiver() {
         return new MjBatteryReceiver(battery);
     }
-    @Override
-    public net.minecraft.resources.ResourceLocation api2MachineTypeId() {
+    public net.minecraft.resources.Identifier api2MachineTypeId() {
         return BuildCraftContentIds.Machines.MINING_WELL;
     }
 

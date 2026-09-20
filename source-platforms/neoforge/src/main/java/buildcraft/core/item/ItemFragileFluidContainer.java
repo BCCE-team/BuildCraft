@@ -2,6 +2,7 @@ package buildcraft.core.item;
 
 import buildcraft.lib.misc.FluidStackUtil;
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -22,8 +23,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
+//? if >=1.21.5 {
+import net.minecraft.world.item.component.TooltipDisplay;
+//?}
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandlerItem;
 
@@ -38,7 +40,7 @@ public class ItemFragileFluidContainer extends Item implements FluidDropProvider
     public Component getName(ItemStack stack) {
         FluidStack fluid = getFluid(stack);
         if (fluid.isEmpty()) {
-            return Component.translatable(getDescriptionId(), Component.literal("ERROR! EMPTY FLUID!"));
+            return Component.translatable(getDescriptionId(), Component.translatable("buildcraft.error.empty_fluid"));
         }
         if (fluid.getFluid() instanceof BCFluid bcFluid && bcFluid.isHeatable()) {
             return Component.translatable(getDescriptionId(), bcFluid.getBareLocalizedName(fluid))
@@ -46,17 +48,24 @@ public class ItemFragileFluidContainer extends Item implements FluidDropProvider
         }
         return Component.translatable(getDescriptionId(), fluid.getHoverName());
     }
-
-    @OnlyIn(Dist.CLIENT)
     @Override
-    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
-        super.appendHoverText(stack, context, tooltip, flag);
+    //? if >=1.21.5 {
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display, Consumer<Component> tooltip, TooltipFlag flag) {
+    //?} else {
+    public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltipLines, TooltipFlag flag) {
+        Consumer<Component> tooltip = tooltipLines::add;
+    //?}
+        //? if >=1.21.5 {
+        super.appendHoverText(stack, context, display, tooltip, flag);
+        //?} else {
+        super.appendHoverText(stack, context, tooltipLines, flag);
+        //?}
         CompoundTag data = ItemStackUtil.getCustomDataOrNull(stack);
         CompoundTag fluidTag = data == null ? null : data.getCompound("fluid");
         if (fluidTag != null) {
             FluidStack fluid = FluidStackUtil.parseOptional(fluidTag);
             if (!fluid.isEmpty()) {
-                tooltip.add(LocaleUtil.localizeFluidStaticAmount(fluid.getAmount(), MAX_FLUID_HELD));
+                tooltip.accept(LocaleUtil.localizeFluidStaticAmount(fluid.getAmount(), MAX_FLUID_HELD));
             }
         }
     }

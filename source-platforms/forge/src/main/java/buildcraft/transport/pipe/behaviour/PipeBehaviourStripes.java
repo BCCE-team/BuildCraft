@@ -6,6 +6,7 @@
 
 package buildcraft.transport.pipe.behaviour;
 
+import net.minecraft.server.level.ServerPlayer;
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.api.v2.permission.WorldOperationKind;
@@ -55,12 +56,11 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.minecraftforge.fml.util.thread.SidedThreadGroups;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 
 public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput, IMjRedstoneReceiver {
     private final MjBattery battery = new MjBattery(256 * MjAmount.MICRO_MJ_PER_MJ);
@@ -106,13 +106,13 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
     }
 
     @Override
-    public void readPayload(FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(buffer, side, ctx);
         direction = MessageUtil.readEnumOrNull(buffer, Direction.class);
     }
 
     @Override
-    public void writePayload(FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(buffer, side);
         MessageUtil.writeEnumOrNull(buffer, direction);
     }
@@ -309,7 +309,7 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
         IPipeHolder holder = pipe.getHolder();
         Level world = holder.getPipeWorld();
         BlockPos pos = holder.getPipePos();
-        FakePlayer player = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer((ServerLevel) world, holder.getOwner(), pos);
+        ServerPlayer player = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer((ServerLevel) world, holder.getOwner(), pos);
         player.getInventory().clearContent();;
         // set the main hand of the fake player to the stack
         player.getInventory().setItem(player.getInventory().selected, event.getStack());

@@ -42,11 +42,11 @@ public class BCSiliconPlugs {
     }
 
     private static PluggableDefinition register(PluggableDefinition def) {
-        // TODO: Add configuration for enabling/disabling built-in pluggables.
+        // Built-in pluggables are always registered by this module.
         BCLibRegistries.initApiRegistries();
         PipeApi.pluggableRegistry.register(def);
 
-        // This handles the migration of most of the transport pluggables into silicon
+        // Register the transport-namespace alias required by legacy saves and network payloads.
         String modId = BCModules.TRANSPORT.getModId();
         PipeApi.pluggableRegistry.register(ResourceLocation.fromNamespaceAndPath(modId, def.identifier.getPath()), def);
         return def;

@@ -38,7 +38,7 @@ public enum EnumEngineType implements IEngineType, StringRepresentable {
         return VALUES[meta];
     }
     
-    /* Kept for source compatibility with the old extensible-enum API. */
+    /* Kept for source compatibility with the legacy extensible-enum API. */
     public static EnumEngineType create(String name, String mod, String loc)
     {
         throw new IllegalStateException("Enum not extended");

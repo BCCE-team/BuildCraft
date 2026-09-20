@@ -38,16 +38,14 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public class RobotStationPluggable extends PipePluggable implements IDockingStationProvider, IMjReceiver, IMjReadable {
-    /** Match the old robot battery receiver: at most 100 robot-energy units per tick = 1 MJ/t in this port. */
+    /** Robot battery receiver limit: at most 100 robot-energy units per tick = 1 MJ/t. */
     private static final long MAX_CHARGE_PER_TICK = 20 * MjAmount.MICRO_MJ_PER_MJ;
 
     public enum RobotStationState {
@@ -237,8 +235,8 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
     @Override
     public InteractionResult onPluggableActivate(Player player, BlockHitResult trace, Level level) {
         if (player.isShiftKeyDown() && EntityUtil.getWrenchHand(player) != null) {
-            // Do not validate the server-side station object on the client. The previous code did that before
-            // returning SUCCESS, so the client always saw station == null and never sent the interaction.
+            // The client has no authoritative station object. Use synchronized render state to decide whether the
+            // interaction should be forwarded, then validate the station on the server.
             if (level.isClientSide) {
                 return getRenderState() == RobotStationState.Linked
                         ? InteractionResult.SUCCESS
@@ -303,13 +301,13 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
     }
 
     @Override
-    public void writePayload(FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
         refreshRenderState();
         buffer.writeByte(getRenderState().ordinal());
     }
 
     @Override
-    public void readPayload(FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         readState(buffer);
     }
 
@@ -335,7 +333,6 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
 
     @Override
     @Nullable
-    @OnlyIn(Dist.CLIENT)
     public PluggableModelKey getModelRenderKey(RenderType layer) {
         if (layer == RenderType.cutout()) {
             return new KeyRobotStation(side, getRenderState());

@@ -1,8 +1,12 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
  */
 package buildcraft.lib.client.guide;
+
+import buildcraft.lib.compat.minecraft.recipe.BCRecipeDisplays;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.net.URI;
 import java.util.ArrayDeque;
@@ -24,12 +28,22 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphics;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.util.context.ContextMap;
+import net.minecraft.world.item.crafting.display.RecipeDisplay;
+import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
+import net.minecraft.world.item.crafting.display.ShapedCraftingRecipeDisplay;
+import net.minecraft.world.item.crafting.display.ShapelessCraftingRecipeDisplay;
+import net.minecraft.world.item.crafting.display.SlotDisplay;
+import net.minecraft.world.item.crafting.display.SlotDisplayContext;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
@@ -37,29 +51,24 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.crafting.AbstractCookingRecipe;
-import net.minecraft.world.item.crafting.CraftingRecipe;
-import net.minecraft.world.item.crafting.Ingredient;
-import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.RecipeType;
-import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.core.registries.BuiltInRegistries;
 
 import buildcraft.lib.internal.core.render.ISprite;
-import buildcraft.lib.internal.recipes.IngredientStack;
 import buildcraft.lib.internal.statement.IStatement;
 import buildcraft.lib.BCLibConfig;
 import buildcraft.lib.client.sprite.SpriteNineSliced;
 import buildcraft.lib.gui.GuiIcon;
+import buildcraft.lib.gui.recipe.RecipeListPhantom;
 import buildcraft.lib.misc.ColourUtil;
 import buildcraft.lib.misc.LocaleUtil;
 import buildcraft.lib.item.ItemGuide;
+import buildcraft.lib.net.GuideRecipeDisplayCache;
 import buildcraft.lib.net.MessageGuideState;
 import buildcraft.lib.net.MessageManager;
-import buildcraft.lib.recipe.AssemblyRecipeBasic;
 import buildcraft.lib.misc.ItemStackUtil;
-import buildcraft.silicon.BCSiliconRecipes;
+import buildcraft.lib.compat.RenderCompat;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.input.MouseButtonInfo;
 
 /**
  * Native BuildCraft guide screen backed by the original BC8 guide registry and markdown pages.
@@ -67,18 +76,18 @@ import buildcraft.silicon.BCSiliconRecipes;
  * The cover/opening animation is intentionally skipped: using the item opens directly on the first guide spread.
  */
 public final class GuiGuide extends Screen {
-    private static final ResourceLocation LEFT_PAGE =
-        ResourceLocation.fromNamespaceAndPath("buildcraft", "guide/gui/left_page.png");
-    private static final ResourceLocation RIGHT_PAGE =
-        ResourceLocation.fromNamespaceAndPath("buildcraft", "guide/gui/right_page.png");
-    private static final ResourceLocation LEFT_PAGE_FIRST =
-        ResourceLocation.fromNamespaceAndPath("buildcraft", "guide/gui/left_page_first.png");
-    private static final ResourceLocation RIGHT_PAGE_BACK =
-        ResourceLocation.fromNamespaceAndPath("buildcraft", "guide/gui/right_page_back.png");
-    private static final ResourceLocation RIGHT_PAGE_LAST =
-        ResourceLocation.fromNamespaceAndPath("buildcraft", "guide/gui/right_page_last.png");
-    private static final ResourceLocation ICONS =
-        ResourceLocation.fromNamespaceAndPath("buildcraft", "guide/gui/icons.png");
+    private static final Identifier LEFT_PAGE =
+        Identifier.fromNamespaceAndPath("buildcraft", "guide/gui/left_page.png");
+    private static final Identifier RIGHT_PAGE =
+        Identifier.fromNamespaceAndPath("buildcraft", "guide/gui/right_page.png");
+    private static final Identifier LEFT_PAGE_FIRST =
+        Identifier.fromNamespaceAndPath("buildcraft", "guide/gui/left_page_first.png");
+    private static final Identifier RIGHT_PAGE_BACK =
+        Identifier.fromNamespaceAndPath("buildcraft", "guide/gui/right_page_back.png");
+    private static final Identifier RIGHT_PAGE_LAST =
+        Identifier.fromNamespaceAndPath("buildcraft", "guide/gui/right_page_last.png");
+    private static final Identifier ICONS =
+        Identifier.fromNamespaceAndPath("buildcraft", "guide/gui/icons.png");
 
     private static final int PAGE_TEXTURE_WIDTH = 193;
     private static final int PAGE_TEXTURE_HEIGHT = 248;
@@ -116,9 +125,8 @@ public final class GuiGuide extends Screen {
     /**
      * Logical category order for the Community Edition guide.
      * <p>
-     * The old implementation sorted translated subtype and entry names alphabetically. That scattered related
-     * progression chains (gears, engines, pipes, robotics and refining products) across the contents pages. The
-     * manifest is authored in gameplay order, while this table controls the order of the category headings.
+     * The manifest is authored in gameplay progression order, while this table controls category-heading order so
+     * related chains such as gears, engines, pipes, robotics and refining products remain grouped together.
      */
     private static final Map<String, List<String>> SUBTYPE_ORDER = Map.of(
         "action", List.of("basic", "automation", "pipe_plug", "pipe_item", "robot", "robot_station"),
@@ -150,8 +158,10 @@ public final class GuiGuide extends Screen {
     private final GuideContent content;
     private final InteractionHand guideHand;
     private final ItemGuide.GuideState initialState;
-    private final Map<ResourceLocation, Integer> manifestOrder = new LinkedHashMap<>();
+    private final Map<Identifier, Integer> manifestOrder = new LinkedHashMap<>();
     private final List<GuideContent.Entry> filteredEntries = new ArrayList<>();
+    /** -1 when all matches are shown; otherwise the total match count before the configured search cap. */
+    private int realSearchResultCount = -1;
     private final List<ContentsPage> contentsPages = new ArrayList<>();
     private final List<ChapterTab> contentsChapters = new ArrayList<>();
     private final List<ClickRegion> clickRegions = new ArrayList<>();
@@ -174,6 +184,7 @@ public final class GuiGuide extends Screen {
     private @Nullable ItemStack hoveredStack;
     private @Nullable Component hoveredText;
     private boolean restoredInitialState;
+    private long recipeDisplayRevision = GuideRecipeDisplayCache.revision();
 
     private enum View {
         CONTENTS,
@@ -213,7 +224,6 @@ public final class GuiGuide extends Screen {
         Minecraft.getInstance().setScreen(new GuiGuide(guideStack, hand));
     }
 
-    @Override
     protected void init() {
         super.init();
         left = (width - BOOK_WIDTH) / 2;
@@ -224,7 +234,7 @@ public final class GuiGuide extends Screen {
         searchBox = new EditBox(font, searchX, searchY, 80, 13, Component.translatable("buildcraft.guide.contents.search"));
         searchBox.setMaxLength(80);
         searchBox.setBordered(false);
-        searchBox.setTextColor(TEXT_COLOUR);
+        searchBox.setTextColor(opaqueGuideTextColour(TEXT_COLOUR));
         searchBox.setValue(oldSearch);
         searchBox.setResponder(value -> rebuildContents());
         rebuildContents();
@@ -235,18 +245,23 @@ public final class GuiGuide extends Screen {
         updateSearchVisibility();
     }
 
-    @Override
-    public void resize(Minecraft minecraft, int width, int height) {
+    public void resize(int width, int height) {
         String search = searchBox == null ? "" : searchBox.getValue();
-        super.resize(minecraft, width, height);
+        super.resize(width, height);
         if (searchBox != null) {
             searchBox.setValue(search);
         }
     }
 
-    @Override
     public void tick() {
         tick++;
+        long revision = GuideRecipeDisplayCache.revision();
+        if (revision != recipeDisplayRevision) {
+            recipeDisplayRevision = revision;
+            if (view == View.DOCUMENT && currentEntry != null) {
+                rebuildOpenDocument();
+            }
+        }
     }
 
     private void restoreInitialState() {
@@ -267,7 +282,7 @@ public final class GuiGuide extends Screen {
     }
 
     @Nullable
-    private GuideContent.Entry resolveSavedEntry(ResourceLocation id) {
+    private GuideContent.Entry resolveSavedEntry(Identifier id) {
         GuideContent.Entry entry = content.get(id);
         if (entry != null) {
             return entry;
@@ -281,8 +296,8 @@ public final class GuiGuide extends Screen {
         if (separator <= 0 || separator == encoded.length() - 1) {
             return null;
         }
-        ResourceLocation itemId = ResourceLocation.fromNamespaceAndPath(encoded.substring(0, separator), encoded.substring(separator + 1));
-        Item item = BuiltInRegistries.ITEM.get(itemId);
+        Identifier itemId = Identifier.fromNamespaceAndPath(encoded.substring(0, separator), encoded.substring(separator + 1));
+        Item item = BuiltInRegistries.ITEM.get(itemId).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR);
         return item == null || item == Items.AIR ? null : GuideContent.createGeneratedItemEntry(item.getDefaultInstance());
     }
 
@@ -313,7 +328,7 @@ public final class GuiGuide extends Screen {
     }
 
     private void rebuildContents() {
-        String query = searchBox == null ? "" : searchBox.getValue().trim().toLowerCase(Locale.ROOT);
+        String query = searchBox == null ? "" : searchBox.getValue();
         filteredEntries.clear();
         for (GuideContent.Entry entry : content.getListedEntries()) {
             // The original item opens the main BuildCraft book. The three buildcraftlib:meta pages belong to the
@@ -321,7 +336,7 @@ public final class GuiGuide extends Screen {
             if (!"buildcraftcore:main".equals(entry.book)) {
                 continue;
             }
-            if (query.isEmpty() || entry.searchText.contains(query)) {
+            if (entry.matchesSearch(query)) {
                 filteredEntries.add(entry);
             }
         }
@@ -345,8 +360,21 @@ public final class GuiGuide extends Screen {
                 break;
         }
         filteredEntries.sort(comparator.thenComparing(entry -> entry.id.toString()));
+        int matchCount = filteredEntries.size();
+        int maxSearchResults = Math.max(1, BCLibConfig.maxGuideSearchCount);
+        if (!query.isBlank() && matchCount > maxSearchResults) {
+            filteredEntries.subList(maxSearchResults, matchCount).clear();
+            realSearchResultCount = matchCount;
+        } else {
+            realSearchResultCount = -1;
+        }
         buildContentsPages();
         contentsSpread = Mth.clamp(contentsSpread, 0, maxContentsSpread());
+        // Search/sort controls live on the left contents page. When a filter is entered while the saved spread
+        // points at a Loaded Guides page, move to the first complete contents spread rather than hiding the results.
+        if (!query.isBlank() && !isContentsEntryPage(contentsSpread * 2)) {
+            contentsSpread = Math.min(firstFullContentsSpread(), maxContentsSpread());
+        }
     }
 
     private void buildContentsPages() {
@@ -517,17 +545,16 @@ public final class GuiGuide extends Screen {
     private void updateSearchVisibility() {
         if (searchBox != null) {
             int leftPage = contentsSpread * 2;
-            searchBox.setVisible(view == View.CONTENTS && isContentsEntryPage(leftPage));
-            if (searchBox.isFocused()) {
+            boolean visible = view == View.CONTENTS && isContentsEntryPage(leftPage);
+            searchBox.setVisible(visible);
+            if (!visible && searchBox.isFocused()) {
                 // EditBox#setFocused(boolean) is protected in 1.19.2. Clicking outside the widget clears focus.
-                searchBox.mouseClicked(-1, -1, 0);
+                searchBox.mouseClicked(new MouseButtonEvent(-1, -1, new MouseButtonInfo(0, 0)), false);
             }
         }
     }
 
-    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(guiGraphics, mouseX, mouseY, partialTick);
         hoveredStack = null;
         hoveredText = null;
         clickRegions.clear();
@@ -541,9 +568,9 @@ public final class GuiGuide extends Screen {
         renderNavigation(guiGraphics, mouseX, mouseY);
 
         if (hoveredStack != null && !hoveredStack.isEmpty()) {
-            guiGraphics.renderTooltip(font, hoveredStack, mouseX, mouseY);
+            RenderCompat.renderTooltip(guiGraphics, font, hoveredStack, mouseX, mouseY);
         } else if (hoveredText != null) {
-            guiGraphics.renderTooltip(font, hoveredText, mouseX, mouseY);
+            RenderCompat.renderTooltip(guiGraphics, font, hoveredText, mouseX, mouseY);
         }
     }
 
@@ -551,18 +578,19 @@ public final class GuiGuide extends Screen {
         int firstPage = currentFirstPage();
         int pageCount = currentPageCount();
 
-        ResourceLocation leftTexture = firstPage == 0 ? LEFT_PAGE_FIRST : LEFT_PAGE;
-        guiGraphics.blit(leftTexture, left, top, 0, 0, PAGE_TEXTURE_WIDTH, PAGE_TEXTURE_HEIGHT, 256, 256);
+        Identifier leftTexture = firstPage == 0 ? LEFT_PAGE_FIRST : LEFT_PAGE;
+        RenderCompat.blit(guiGraphics, leftTexture, left, top, 0, 0, PAGE_TEXTURE_WIDTH, PAGE_TEXTURE_HEIGHT, 256, 256);
 
-        ResourceLocation rightTexture;
+        Identifier rightTexture;
         if (firstPage + 1 >= pageCount) {
-            rightTexture = RIGHT_PAGE;
+            // Odd page counts show the back of the right page, matching BC8's half-spread behaviour.
+            rightTexture = RIGHT_PAGE_BACK;
         } else if (firstPage + 1 == pageCount - 1) {
             rightTexture = RIGHT_PAGE_LAST;
         } else {
             rightTexture = RIGHT_PAGE;
         }
-        guiGraphics.blit(rightTexture, left + PAGE_TEXTURE_WIDTH, top, 0, 0, PAGE_TEXTURE_WIDTH, PAGE_TEXTURE_HEIGHT, 256, 256);
+        RenderCompat.blit(guiGraphics, rightTexture, left + PAGE_TEXTURE_WIDTH, top, 0, 0, PAGE_TEXTURE_WIDTH, PAGE_TEXTURE_HEIGHT, 256, 256);
     }
 
     private void renderContents(GuiGraphics guiGraphics, int mouseX, int mouseY) {
@@ -671,13 +699,22 @@ public final class GuiGuide extends Screen {
         }
         if (searchBox != null) {
             searchBox.render(guiGraphics, mouseX, mouseY, 0);
+            if (realSearchResultCount >= 0) {
+                String count = BCLibConfig.maxGuideSearchCount + "/" + realSearchResultCount;
+                int countX = pageX + 107;
+                drawOverflowText(guiGraphics, Component.literal(count), countX, top + 7, 55, MUTED_COLOUR,
+                    HorizontalAlignment.LEFT, count.hashCode());
+                if (isInside(mouseX, mouseY, countX, top + 4, 55, 15)) {
+                    hoveredText = Component.translatable("buildcraft.guide.too_many_results", realSearchResultCount);
+                }
+            }
             clickRegions.add(new ClickRegion(pageX - 2, top + 3, 106, 16, () -> {
                 if (contentsSpread == 0) {
                     contentsSpread = Math.min(firstFullContentsSpread(), maxContentsSpread());
                     updateSearchVisibility();
                     persistGuideState();
                 }
-                searchBox.mouseClicked(searchX + 1, searchY + 1, 0);
+                searchBox.mouseClicked(new MouseButtonEvent(searchX + 1, searchY + 1, new MouseButtonInfo(0, 0)), false);
             }));
         }
     }
@@ -692,7 +729,7 @@ public final class GuiGuide extends Screen {
             int u = index * 14;
             int v = selected ? 14 : 0;
             if (hovered) v += 28;
-            guiGraphics.blit(ICONS, x, y + index * 14, u, v, 14, 14, 256, 256);
+            RenderCompat.blit(guiGraphics, ICONS, x, y + index * 14, u, v, 14, 14, 256, 256);
             int clickY = y + index * 14;
             clickRegions.add(new ClickRegion(x, clickY, 14, 14, () -> {
                 sortMode = mode;
@@ -766,7 +803,7 @@ public final class GuiGuide extends Screen {
         if (entry.stack.isEmpty()) {
             return TEXT_COLOUR;
         }
-        ResourceLocation id = BuiltInRegistries.ITEM.getKey(entry.stack.getItem());
+        Identifier id = BuiltInRegistries.ITEM.getKey(entry.stack.getItem());
         if (id == null) {
             return TEXT_COLOUR;
         }
@@ -787,11 +824,20 @@ public final class GuiGuide extends Screen {
     private void renderContentsChapters(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         if (contentsChapters.isEmpty()) return;
         int step = font.lineHeight + 8;
+        int visibleTabs = maximumChapterTabs();
+        int anchor = 0;
+        int visiblePage = currentFirstPage() + 1;
         for (int index = 0; index < contentsChapters.size(); index++) {
-            ChapterTab tab = contentsChapters.get(index);
+            if (contentsChapters.get(index).pageIndex <= visiblePage) anchor = index;
+            else break;
+        }
+        int start = tabWindowStart(contentsChapters.size(), visibleTabs, anchor);
+        int end = Math.min(contentsChapters.size(), start + visibleTabs);
+        for (int sourceIndex = start, displayIndex = 0; sourceIndex < end; sourceIndex++, displayIndex++) {
+            ChapterTab tab = contentsChapters.get(sourceIndex);
             int maxTextWidth = Math.max(48, left - 26);
             int textWidth = Math.min(font.width(tab.label), maxTextWidth);
-            int y = top + step * (index + 1);
+            int y = top + step * (displayIndex + 1);
             boolean hovered = isInside(mouseX, mouseY, left - textWidth - 5, y - 4, textWidth + 16, 16);
             int extension = hovered ? 5 : 0;
             int x = left - textWidth - extension + 5;
@@ -810,12 +856,60 @@ public final class GuiGuide extends Screen {
 
     private static void drawTintedNineSlice(GuiGraphics guiGraphics, SpriteNineSliced sprite, double x, double y,
         double width, double height, int colour) {
-        float red = ((colour >>> 16) & 0xFF) / 255.0F;
-        float green = ((colour >>> 8) & 0xFF) / 255.0F;
-        float blue = (colour & 0xFF) / 255.0F;
-        RenderSystem.setShaderColor(red, green, blue, 1.0F);
-        sprite.draw(guiGraphics, x, y, width, height);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        int argb = (colour & 0xFF000000) == 0 ? (colour | 0xFF000000) : colour;
+        if (sprite == CHAPTER_BAR) {
+            drawGuideNineSlice(guiGraphics, x, y, width, height, 32, 32, 8, 8, 24, 24, argb);
+        } else if (sprite == CHAPTER_TAB_LEFT) {
+            drawGuideNineSlice(guiGraphics, x, y, width, height, 24, 32, 8, 8, 24, 24, argb);
+        } else {
+            sprite.draw(guiGraphics, x, y, width, height);
+        }
+    }
+
+    private static void drawGuideNineSlice(GuiGraphics guiGraphics, double x, double y, double width, double height,
+        int sourceWidth, int sourceHeight, int xMin, int yMin, int xMax, int yMax, int colour) {
+        int dx = (int) Math.round(x);
+        int dy = (int) Math.round(y);
+        int dw = Math.max(0, (int) Math.round(width));
+        int dh = Math.max(0, (int) Math.round(height));
+        int left = Math.min(xMin, dw);
+        int right = Math.min(Math.max(0, sourceWidth - xMax), Math.max(0, dw - left));
+        int top = Math.min(yMin, dh);
+        int bottom = Math.min(Math.max(0, sourceHeight - yMax), Math.max(0, dh - top));
+        int centreWidth = Math.max(0, dw - left - right);
+        int centreHeight = Math.max(0, dh - top - bottom);
+        int sourceCentreWidth = Math.max(0, xMax - xMin);
+        int sourceCentreHeight = Math.max(0, yMax - yMin);
+        int u0 = 0;
+        int v0 = 56;
+
+        drawGuideTintedPart(guiGraphics, dx, dy, left, top,
+            u0, v0, xMin, yMin, colour);
+        drawGuideTintedPart(guiGraphics, dx + left, dy, centreWidth, top,
+            u0 + xMin, v0, sourceCentreWidth, yMin, colour);
+        drawGuideTintedPart(guiGraphics, dx + left + centreWidth, dy, right, top,
+            u0 + xMax, v0, sourceWidth - xMax, yMin, colour);
+
+        drawGuideTintedPart(guiGraphics, dx, dy + top, left, centreHeight,
+            u0, v0 + yMin, xMin, sourceCentreHeight, colour);
+        drawGuideTintedPart(guiGraphics, dx + left, dy + top, centreWidth, centreHeight,
+            u0 + xMin, v0 + yMin, sourceCentreWidth, sourceCentreHeight, colour);
+        drawGuideTintedPart(guiGraphics, dx + left + centreWidth, dy + top, right, centreHeight,
+            u0 + xMax, v0 + yMin, sourceWidth - xMax, sourceCentreHeight, colour);
+
+        drawGuideTintedPart(guiGraphics, dx, dy + top + centreHeight, left, bottom,
+            u0, v0 + yMax, xMin, sourceHeight - yMax, colour);
+        drawGuideTintedPart(guiGraphics, dx + left, dy + top + centreHeight, centreWidth, bottom,
+            u0 + xMin, v0 + yMax, sourceCentreWidth, sourceHeight - yMax, colour);
+        drawGuideTintedPart(guiGraphics, dx + left + centreWidth, dy + top + centreHeight, right, bottom,
+            u0 + xMax, v0 + yMax, sourceWidth - xMax, sourceHeight - yMax, colour);
+    }
+
+    private static void drawGuideTintedPart(GuiGraphics guiGraphics, int x, int y, int width, int height,
+        int u, int v, int sourceWidth, int sourceHeight, int colour) {
+        if (width <= 0 || height <= 0 || sourceWidth <= 0 || sourceHeight <= 0) return;
+        guiGraphics.blit(RenderPipelines.GUI_TEXTURED, ICONS, x, y, (float) u, (float) v,
+            width, height, sourceWidth, sourceHeight, 256, 256, colour);
     }
 
     private void openEntry(GuideContent.Entry entry, boolean clearHistory) {
@@ -841,8 +935,11 @@ public final class GuiGuide extends Screen {
     private void rebuildOpenDocument() {
         if (currentEntry != null) {
             int oldSpread = documentSpread;
+            boolean wasLastSpread = document != null && oldSpread >= document.maxSpread();
             document = layoutDocument(currentEntry);
-            documentSpread = Mth.clamp(oldSpread, 0, document.maxSpread());
+            // A player reading the final spread should remain at the logical end when lore/hints or live recipe
+            // previews add/remove pages. Otherwise clamp the exact spread they were reading.
+            documentSpread = wasLastSpread ? document.maxSpread() : Mth.clamp(oldSpread, 0, document.maxSpread());
         }
     }
 
@@ -863,13 +960,25 @@ public final class GuiGuide extends Screen {
 
     private void renderDocumentChapters(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         if (document == null) return;
-        int step = font.lineHeight + 8;
+        List<DocumentChapter> topLevel = document.chapters.stream()
+            .filter(chapter -> chapter.level == 0)
+            .collect(Collectors.toList());
         int tabIndex = 0;
         tabIndex = drawDocumentChapterTab(guiGraphics, mouseX, mouseY, tabIndex,
             GuideContent.translateOrLiteral("buildcraft.guide.chapter.contents"),
             DOCUMENT_CHAPTER_COLOURS[0], this::returnToContents);
-        for (DocumentChapter chapter : document.chapters) {
-            if (chapter.level != 0) continue;
+
+        int visibleTabs = Math.max(1, maximumChapterTabs() - 1);
+        int anchor = 0;
+        int visiblePage = documentSpread * 2 + 1;
+        for (int index = 0; index < topLevel.size(); index++) {
+            if (topLevel.get(index).pageIndex <= visiblePage) anchor = index;
+            else break;
+        }
+        int start = tabWindowStart(topLevel.size(), visibleTabs, anchor);
+        int end = Math.min(topLevel.size(), start + visibleTabs);
+        for (int index = start; index < end; index++) {
+            DocumentChapter chapter = topLevel.get(index);
             int targetSpread = chapter.pageIndex / 2;
             tabIndex = drawDocumentChapterTab(guiGraphics, mouseX, mouseY, tabIndex, chapter.title,
                 chapter.colour, () -> {
@@ -878,6 +987,17 @@ public final class GuiGuide extends Screen {
                     persistGuideState();
                 });
         }
+    }
+
+    private int maximumChapterTabs() {
+        int step = Math.max(1, font.lineHeight + 8);
+        return Math.max(2, (PAGE_TEXTURE_HEIGHT - 36) / step);
+    }
+
+    private static int tabWindowStart(int size, int visible, int anchor) {
+        if (size <= visible) return 0;
+        int centred = anchor - visible / 2;
+        return Mth.clamp(centred, 0, size - visible);
     }
 
     private int drawDocumentChapterTab(GuiGraphics guiGraphics, int mouseX, int mouseY, int index, String rawLabel,
@@ -963,12 +1083,12 @@ public final class GuiGuide extends Screen {
 
     private void renderDocumentImage(GuiGraphics guiGraphics, RenderElement element, int x, int y, int mouseX, int mouseY) {
         if (element.stack != null && !element.stack.isEmpty()) {
-            guiGraphics.pose().pushPose();
+            guiGraphics.pose().pushMatrix();
             float scale = Math.max(1.0F, Math.min(element.width, element.height) / 16.0F);
-            guiGraphics.pose().translate(x + (element.width - 16 * scale) / 2.0F, y, 0);
-            guiGraphics.pose().scale(scale, scale, 1);
+            guiGraphics.pose().translate(x + (element.width - 16 * scale) / 2.0F, y);
+            guiGraphics.pose().scale(scale, scale);
             guiGraphics.renderItem(element.stack, 0, 0);
-            guiGraphics.pose().popPose();
+            guiGraphics.pose().popMatrix();
             int itemX = x + Math.round((element.width - 16 * scale) / 2.0F);
             int itemWidth = Math.max(16, Math.round(16 * scale));
             registerStackInteraction(element.stack, itemX, y, itemWidth, Math.max(16, Math.round(16 * scale)),
@@ -979,11 +1099,11 @@ public final class GuiGuide extends Screen {
 
             int sourceWidth = Math.max(1, element.sourceWidth);
             int sourceHeight = Math.max(1, element.sourceHeight);
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(x, y, 0);
-            guiGraphics.pose().scale(element.width / (float) sourceWidth, element.height / (float) sourceHeight, 1);
-            guiGraphics.blit(element.texture, 0, 0, 0, 0, sourceWidth, sourceHeight, sourceWidth, sourceHeight);
-            guiGraphics.pose().popPose();
+            guiGraphics.pose().pushMatrix();
+            guiGraphics.pose().translate(x, y);
+            guiGraphics.pose().scale(element.width / (float) sourceWidth, element.height / (float) sourceHeight);
+            RenderCompat.blit(guiGraphics, element.texture, 0, 0, 0, 0, sourceWidth, sourceHeight, sourceWidth, sourceHeight);
+            guiGraphics.pose().popMatrix();
         }
     }
 
@@ -1067,7 +1187,7 @@ public final class GuiGuide extends Screen {
         private final List<RenderPage> pages = new ArrayList<>();
         private final List<DocumentChapter> chapters = new ArrayList<>();
         private RenderPage page = new RenderPage();
-        private final Set<ResourceLocation> renderedRecipes = new LinkedHashSet<>();
+        private final Set<GuideRecipeDisplayKey> renderedRecipeDisplays = new LinkedHashSet<>();
         private int y;
         // Contents is colour 0. The synthetic page title starts at colour 1, exactly like GuidePage in BC8.
         private int chapterColourIndex = 1;
@@ -1078,6 +1198,8 @@ public final class GuiGuide extends Screen {
         }
 
         void newPage() {
+            // Consecutive <new_page/> tags and unresolved dynamic recipe blocks must not create blank interior pages.
+            if (page.elements.isEmpty() && y == 0) return;
             page = new RenderPage();
             pages.add(page);
             y = 0;
@@ -1114,15 +1236,19 @@ public final class GuiGuide extends Screen {
             if (lines.isEmpty()) lines = List.of(Component.empty().getVisualOrderText());
             int blockHeight = Math.max(16, lines.size() * 11 + 6);
             // GuideChapter guaranteed room for roughly four text rows, preventing a chapter marker from being left
-            // alone at the bottom of a page while its first paragraph starts on the next one.
-            ensure(Math.max(blockHeight, font.lineHeight * 4));
+            // alone at the bottom of a page while its first paragraph starts on the next one. Extremely long addon
+            // titles are allowed to continue onto following pages instead of drawing outside PAGE_TEXT_HEIGHT.
+            ensure(Math.min(PAGE_TEXT_HEIGHT, Math.max(blockHeight, font.lineHeight * 4)));
 
             int colour = DOCUMENT_CHAPTER_COLOURS[Math.floorMod(chapterColourIndex++, DOCUMENT_CHAPTER_COLOURS.length)];
             int pageIndex = pages.size() - 1;
             chapters.add(new DocumentChapter(component.getString(), colour, pageIndex, safeLevel));
             for (int index = 0; index < lines.size(); index++) {
+                if (index > 0) ensure(11);
+                int visibleBlockHeight = index == 0
+                    ? Math.max(16, Math.min(blockHeight, PAGE_TEXT_HEIGHT - y)) : 16;
                 page.elements.add(RenderElement.chapter(12 + indent, y, lines.get(index), colour,
-                    index == 0, blockHeight));
+                    index == 0, visibleBlockHeight));
                 y += 11;
             }
             y += 7;
@@ -1176,7 +1302,7 @@ public final class GuiGuide extends Screen {
             }
             ensure(height + 4);
             int x = (PAGE_TEXT_WIDTH - width) / 2;
-            ResourceLocation texture = imageStack.isEmpty() ? textureLocation(source) : null;
+            Identifier texture = imageStack.isEmpty() ? textureLocation(source) : null;
             int[] sourceSize = sourceTextureSize(source);
             page.elements.add(RenderElement.image(x, y, width, height, sourceSize[0], sourceSize[1], texture, imageStack));
             y += height + 4;
@@ -1185,12 +1311,11 @@ public final class GuiGuide extends Screen {
         void addRecipeTag(@Nullable String tagType, @Nullable String rawStack, java.util.Map<String, String> attributes) {
             if (tagType == null) return;
             if ("recipe_id".equals(tagType)) {
-                ResourceLocation recipeId = ResourceLocation.tryParse(rawStack);
+                Identifier recipeId = Identifier.tryParse(rawStack);
                 if (recipeId == null) return;
                 allGuideRecipes().stream()
                     .filter(recipe -> recipeId.equals(recipe.id()))
-                    .findFirst()
-                    .ifPresent(recipe -> addRecipe(recipe, ItemStack.EMPTY));
+                    .forEach(recipe -> addRecipe(recipe, ItemStack.EMPTY));
                 return;
             }
             ItemStack stack = GuideContent.resolveStackForTag(rawStack, attributes);
@@ -1214,7 +1339,7 @@ public final class GuiGuide extends Screen {
                             parseInt(attributes.get("chapter_level"), 0));
                         for (GuideRecipe recipe : recipes) addRecipe(recipe, stack);
                     }
-                    Set<ResourceLocation> recipeIds = recipes.stream().map(GuideRecipe::id).collect(Collectors.toSet());
+                    Set<Identifier> recipeIds = recipes.stream().map(GuideRecipe::id).collect(Collectors.toSet());
                     List<GuideRecipe> uniqueUsages = usages.stream().filter(recipe -> !recipeIds.contains(recipe.id()))
                         .collect(Collectors.toList());
                     if (!uniqueUsages.isEmpty()) {
@@ -1232,7 +1357,7 @@ public final class GuiGuide extends Screen {
         }
 
         void addRecipe(GuideRecipe recipe, ItemStack focusedOutput) {
-            if (!renderedRecipes.add(recipe.id())) return;
+            if (!renderedRecipeDisplays.add(recipe.displayKey())) return;
             ensure(60);
             page.elements.add(RenderElement.recipe(y, recipe, focusedOutput));
             y += 60;
@@ -1241,13 +1366,13 @@ public final class GuiGuide extends Screen {
         void addAutomaticCrafting(ItemStack stack) {
             List<GuideRecipe> recipes = recipesFor(stack);
             List<GuideRecipe> usages = usagesFor(stack);
-            Set<ResourceLocation> directIds = recipes.stream().map(GuideRecipe::id).collect(Collectors.toSet());
+            Set<Identifier> directIds = recipes.stream().map(GuideRecipe::id).collect(Collectors.toSet());
             List<GuideRecipe> missingRecipes = recipes.stream()
-                .filter(recipe -> !renderedRecipes.contains(recipe.id()))
+                .filter(recipe -> !renderedRecipeDisplays.contains(recipe.displayKey()))
                 .collect(Collectors.toList());
             List<GuideRecipe> missingUsages = usages.stream()
                 .filter(recipe -> !directIds.contains(recipe.id()))
-                .filter(recipe -> !renderedRecipes.contains(recipe.id()))
+                .filter(recipe -> !renderedRecipeDisplays.contains(recipe.displayKey()))
                 .collect(Collectors.toList());
             if (!missingRecipes.isEmpty()) {
                 newPage();
@@ -1278,14 +1403,14 @@ public final class GuiGuide extends Screen {
 
     private ItemStack imageStack(String source) {
         try {
-            ResourceLocation location = ResourceLocation.parse(source);
+            Identifier location = Identifier.parse(source);
             String path = location.getPath();
             if (path.startsWith("items/")) {
                 String itemPath = path.substring("items/".length());
                 return GuideContent.resolveStackForTag(location.getNamespace() + ":" + itemPath);
             }
             if (!path.startsWith("textures/") && !path.endsWith(".png")) {
-                Item item = BuiltInRegistries.ITEM.get(location);
+                Item item = BuiltInRegistries.ITEM.get(location).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR);
                 if (item != null) return item.getDefaultInstance();
             }
         } catch (RuntimeException ignored) {
@@ -1302,9 +1427,9 @@ public final class GuiGuide extends Screen {
     }
 
     @Nullable
-    private ResourceLocation textureLocation(String source) {
+    private Identifier textureLocation(String source) {
         try {
-            return ResourceLocation.parse(source);
+            return Identifier.parse(source);
         } catch (RuntimeException ignored) {
             return null;
         }
@@ -1320,221 +1445,158 @@ public final class GuiGuide extends Screen {
 
     private List<GuideRecipe> usagesFor(ItemStack input) {
         return allGuideRecipes().stream()
-            .filter(holder -> {
-                Recipe<?> recipe = holder.value();
-                if (recipe instanceof AssemblyRecipeBasic assembly) {
-                    ItemStack result = focusedRecipeOutput(recipe, ItemStack.EMPTY);
-                    if (!result.isEmpty()) {
-                        try {
-                            return assembly.getInputsFor(result).stream()
-                                .anyMatch(definition -> ingredientMatches(definition.ingredient, input));
-                        } catch (RuntimeException ignored) {
-                            // Fall through to the generic ingredient list for malformed/dynamic recipes.
-                        }
-                    }
-                }
-                return recipeIngredients(recipe).stream()
-                    .anyMatch(ingredient -> ingredientMatches(ingredient, input));
-            })
+            .filter(holder -> recipeUses(holder.value(), input))
             .sorted(Comparator.comparing(holder -> holder.id().toString()))
             .collect(Collectors.toList());
     }
 
+    /**
+     * 1.21.11 no longer exposes server RecipeHolder data on the client. The Guide cache carries the authoritative
+     * datapack recipe id next to each RecipeDisplayEntry, preserving recipe-id addon pages as well as normal
+     * crafting recipe/usages previews on integrated and remote servers.
+     */
     private List<GuideRecipe> allGuideRecipes() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null) {
+        if (minecraft.level == null || minecraft.player == null) {
             return List.of();
         }
         List<GuideRecipe> recipes = new ArrayList<>();
-        for (RecipeHolder<CraftingRecipe> holder : minecraft.level.getRecipeManager()
-            .getAllRecipesFor(RecipeType.CRAFTING)) {
-            recipes.add(new GuideRecipe(holder.id(), holder.value()));
-        }
-        for (RecipeHolder<AssemblyRecipeBasic> holder : minecraft.level.getRecipeManager()
-            .getAllRecipesFor(BCSiliconRecipes.ASSEMBLY_TYPE.get())) {
-            recipes.add(new GuideRecipe(holder.id(), holder.value()));
+        for (GuideRecipeDisplayCache.Entry entry : GuideRecipeDisplayCache.entriesOr(
+            RecipeListPhantom.from(minecraft.player.getRecipeBook()).entries())) {
+            recipes.add(new GuideRecipe(entry.recipeId(), entry.display()));
         }
         return recipes;
     }
 
-    private record GuideRecipe(ResourceLocation id, Recipe<?> value) {
+    private record GuideRecipe(Identifier id, RecipeDisplayEntry value) {
+        GuideRecipeDisplayKey displayKey() {
+            return new GuideRecipeDisplayKey(id, value.id().index());
+        }
     }
 
-    private static List<ItemStack> recipeOutputs(Recipe<?> recipe) {
-        List<ItemStack> outputs = new ArrayList<>();
-        if (recipe instanceof AssemblyRecipeBasic) {
-            try {
-                for (ItemStack preview : ((AssemblyRecipeBasic) recipe).getOutputPreviews()) {
-                    if (preview != null && !preview.isEmpty()) outputs.add(preview);
-                }
-            } catch (RuntimeException ignored) {
-                // A dynamic assembly recipe may only expose getResultItem in the current registry state.
-            }
-        }
-        ItemStack result = recipeResult(recipe);
-        if (!result.isEmpty() && outputs.stream().noneMatch(stack -> guideStacksMatch(stack, result))) {
-            outputs.add(result);
-        }
-        return outputs;
+    /** A single datapack recipe can expose multiple independent recipe-book displays. */
+    private record GuideRecipeDisplayKey(Identifier recipeId, int displayId) {
     }
 
-    private static List<Ingredient> recipeIngredients(Recipe<?> recipe) {
+    @Nullable
+    private static ContextMap recipeDisplayContext() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft.level == null ? null : SlotDisplayContext.fromLevel(minecraft.level);
+    }
+
+    private static List<ItemStack> recipeOutputs(RecipeDisplayEntry entry) {
+        ContextMap context = recipeDisplayContext();
+        if (context == null) return List.of();
         try {
-            List<Ingredient> ingredients = recipe.getIngredients();
-            return ingredients == null ? List.of() : ingredients;
+            List<ItemStack> outputs = new ArrayList<>();
+            for (ItemStack stack : entry.resultItems(context)) {
+                if (stack != null && !stack.isEmpty()
+                    && outputs.stream().noneMatch(existing -> guideStacksMatch(existing, stack))) {
+                    outputs.add(stack.copy());
+                }
+            }
+            return outputs;
         } catch (RuntimeException ignored) {
             return List.of();
         }
     }
 
-    private static ItemStack recipeResult(Recipe<?> recipe) {
-        try {
-            Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.level == null) {
-                return ItemStack.EMPTY;
-            }
-            ItemStack result = recipe.getResultItem(minecraft.level.registryAccess());
-            return result == null ? ItemStack.EMPTY : result;
-        } catch (RuntimeException ignored) {
-            return ItemStack.EMPTY;
-        }
+    private static List<SlotDisplay> recipeInputDisplays(RecipeDisplayEntry entry) {
+        return BCRecipeDisplays.craftingInputs(entry);
     }
 
-    private static boolean ingredientMatches(@Nullable Ingredient ingredient, ItemStack input) {
-        if (ingredient == null) return false;
+    private static boolean recipeUses(RecipeDisplayEntry entry, ItemStack input) {
+        ContextMap context = recipeDisplayContext();
+        if (context == null || input.isEmpty()) return false;
         try {
-            return ingredient.test(input);
+            for (SlotDisplay slot : recipeInputDisplays(entry)) {
+                for (ItemStack candidate : slot.resolveForStacks(context)) {
+                    if (guideStacksMatch(input, candidate)) return true;
+                }
+            }
         } catch (RuntimeException ignored) {
-            return false;
+            // Dynamic/tag-backed displays may fail while registries are being replaced during a resource reload.
         }
+        return false;
     }
 
     private static boolean guideStacksMatch(ItemStack requested, ItemStack candidate) {
         if (requested.isEmpty() || candidate.isEmpty() || requested.getItem() != candidate.getItem()) return false;
         // BC8's recipe indices matched metadata variants, which is essential for lenses, filters and other legacy
-        // damage-value items. Only require NBT equality when the authored target actually specifies NBT.
+        // damage-value items. Only require component equality when the authored target actually specifies data.
         if (requested.getDamageValue() != candidate.getDamageValue()) return false;
         return !ItemStackUtil.hasCustomData(requested)
             || ItemStack.isSameItemSameComponents(requested, candidate);
     }
 
-    private ItemStack focusedRecipeOutput(Recipe<?> recipe, ItemStack requested) {
+    private ItemStack focusedRecipeOutput(RecipeDisplayEntry entry, ItemStack requested) {
         if (!requested.isEmpty()) {
-            for (ItemStack output : recipeOutputs(recipe)) {
-                // Keep the recipe's concrete NBT/output count. Generic guide targets such as the facade item often
-                // omit the dynamic state data that the assembly recipe needs to resolve its real ingredients.
+            for (ItemStack output : recipeOutputs(entry)) {
                 if (guideStacksMatch(requested, output)) return output.copy();
             }
         }
-        List<ItemStack> outputs = recipeOutputs(recipe);
+        List<ItemStack> outputs = recipeOutputs(entry);
         return outputs.isEmpty() ? ItemStack.EMPTY : outputs.get(0).copy();
     }
 
-    private void renderRecipe(GuiGraphics guiGraphics, @Nullable Recipe<?> recipe, @Nullable ItemStack requestedOutput,
-        int x, int y, int mouseX, int mouseY) {
-        if (recipe == null) return;
+    private void renderRecipe(GuiGraphics guiGraphics, @Nullable RecipeDisplayEntry entry,
+        @Nullable ItemStack requestedOutput, int x, int y, int mouseX, int mouseY) {
+        if (entry == null) return;
         ItemStack focus = requestedOutput == null ? ItemStack.EMPTY : requestedOutput;
         try {
-            if (recipe instanceof AssemblyRecipeBasic) {
-                renderAssemblyRecipe(guiGraphics, (AssemblyRecipeBasic) recipe, focus, x, y, mouseX, mouseY);
-            } else if (recipe instanceof AbstractCookingRecipe) {
-                renderSmeltingRecipe(guiGraphics, (AbstractCookingRecipe) recipe, focus, x, y, mouseX, mouseY);
-            } else {
-                renderCraftingRecipe(guiGraphics, recipe, focus, x, y, mouseX, mouseY);
-            }
+            renderCraftingRecipe(guiGraphics, entry, focus, x, y, mouseX, mouseY);
         } catch (RuntimeException ignored) {
-            // Recipe implementations supplied by other mods are allowed to be dynamic. A broken preview must not
-            // close the whole guide; the affected recipe is simply left blank on this frame.
+            // A broken third-party display must not close the whole guide.
         }
     }
 
-    private void renderCraftingRecipe(GuiGraphics guiGraphics, Recipe<?> recipe, ItemStack requestedOutput,
+    private void renderCraftingRecipe(GuiGraphics guiGraphics, RecipeDisplayEntry entry, ItemStack requestedOutput,
         int x, int y, int mouseX, int mouseY) {
         CRAFTING_GRID.drawAt(guiGraphics, x, y);
 
-        List<Ingredient> ingredients = recipeIngredients(recipe);
+        RecipeDisplay display = entry.display();
+        List<SlotDisplay> ingredients = recipeInputDisplays(entry);
         int recipeWidth = 3;
         int recipeHeight = 3;
-        if (recipe instanceof ShapedRecipe shapedRecipe) {
-            recipeWidth = Mth.clamp(shapedRecipe.getWidth(), 1, 3);
-            recipeHeight = Mth.clamp(shapedRecipe.getHeight(), 1, 3);
-        } else if (ingredients.size() <= 3) {
-            recipeWidth = Math.max(1, ingredients.size());
-            recipeHeight = 1;
-        } else if (ingredients.size() <= 6) {
-            recipeWidth = 3;
-            recipeHeight = 2;
+        if (display instanceof ShapedCraftingRecipeDisplay shaped) {
+            recipeWidth = Mth.clamp(shaped.width(), 1, 3);
+            recipeHeight = Mth.clamp(shaped.height(), 1, 3);
+        } else if (display instanceof ShapelessCraftingRecipeDisplay) {
+            if (ingredients.size() <= 3) {
+                recipeWidth = Math.max(1, ingredients.size());
+                recipeHeight = 1;
+            } else if (ingredients.size() <= 6) {
+                recipeWidth = 3;
+                recipeHeight = 2;
+            }
         }
 
         int ingredientIndex = 0;
         for (int row = 0; row < recipeHeight; row++) {
             for (int column = 0; column < recipeWidth; column++) {
                 if (ingredientIndex >= ingredients.size()) break;
-                ItemStack stack = ingredientStack(ingredients.get(ingredientIndex), ingredientIndex);
+                ItemStack stack = slotDisplayStack(ingredients.get(ingredientIndex), ingredientIndex);
                 int slotX = x + 1 + column * 18;
                 int slotY = y + 1 + row * 18;
-                if (!stack.isEmpty()) {
-                    guiGraphics.renderItem(stack, slotX, slotY);
-                    guiGraphics.renderItemDecorations(font, stack, slotX, slotY);
-                    registerStackInteraction(stack, slotX, slotY, 16, 16, mouseX, mouseY);
-                }
+                renderRecipeStack(guiGraphics, stack, slotX, slotY, mouseX, mouseY);
                 ingredientIndex++;
             }
         }
 
-        ItemStack result = focusedRecipeOutput(recipe, requestedOutput);
-        int resultX = x + 95;
-        int resultY = y + 19;
-        renderRecipeStack(guiGraphics, result, resultX, resultY, mouseX, mouseY);
+        ItemStack result = focusedRecipeOutput(entry, requestedOutput);
+        renderRecipeStack(guiGraphics, result, x + 95, y + 19, mouseX, mouseY);
     }
 
-    private void renderSmeltingRecipe(GuiGraphics guiGraphics, AbstractCookingRecipe recipe, ItemStack requestedOutput,
-        int x, int y, int mouseX, int mouseY) {
-        SMELTING_GRID.drawAt(guiGraphics, x, y);
-        List<Ingredient> ingredients = recipeIngredients(recipe);
-        ItemStack input = ingredients.isEmpty() ? ItemStack.EMPTY : ingredientStack(ingredients.get(0), 0);
-        renderRecipeStack(guiGraphics, input, x + 1, y + 1, mouseX, mouseY);
-        renderRecipeStack(guiGraphics, focusedRecipeOutput(recipe, requestedOutput), x + 59, y + 19, mouseX, mouseY);
-        renderRecipeStack(guiGraphics, new ItemStack(Items.FURNACE), x + 1, y + 37, mouseX, mouseY);
-    }
-
-    private void renderAssemblyRecipe(GuiGraphics guiGraphics, AssemblyRecipeBasic recipe, ItemStack requestedOutput,
-        int x, int y, int mouseX, int mouseY) {
-        ASSEMBLY_GRID.drawAt(guiGraphics, x, y);
-        ItemStack output = focusedRecipeOutput(recipe, requestedOutput);
-        List<IngredientStack> inputs = new ArrayList<>();
-        if (!output.isEmpty()) {
-            try {
-                inputs.addAll(recipe.getInputsFor(output));
-            } catch (RuntimeException ignored) {
-                // Use the generic ingredients below if a dynamic recipe cannot resolve this preview output.
-            }
-        }
-        if (inputs.isEmpty()) {
-            int index = 0;
-            for (Ingredient ingredient : recipeIngredients(recipe)) {
-                if (index >= 6) break;
-                ItemStack stack = ingredientStack(ingredient, index);
-                renderRecipeStack(guiGraphics, stack, x + 1 + (index % 2) * 18, y + 1 + (index / 2) * 18,
-                    mouseX, mouseY);
-                index++;
-            }
-        } else {
-            for (int index = 0; index < Math.min(6, inputs.size()); index++) {
-                IngredientStack definition = inputs.get(index);
-                ItemStack stack = ingredientStack(definition.ingredient, index);
-                if (!stack.isEmpty()) stack.setCount(Math.max(1, definition.count));
-                renderRecipeStack(guiGraphics, stack, x + 1 + (index % 2) * 18, y + 1 + (index / 2) * 18,
-                    mouseX, mouseY);
-            }
-        }
-        renderRecipeStack(guiGraphics, output, x + 77, y + 19, mouseX, mouseY);
-        if (!output.isEmpty() && isInside(mouseX, mouseY, x + 50, y + 4, 6, 46)) {
-            try {
-                hoveredText = LocaleUtil.localizeMj(recipe.getRequiredMicroJoulesFor(output));
-            } catch (RuntimeException ignored) {
-                // A broken third-party recipe should not make the guide screen unusable.
-            }
+    private ItemStack slotDisplayStack(SlotDisplay display, int offset) {
+        ContextMap context = recipeDisplayContext();
+        if (context == null) return ItemStack.EMPTY;
+        try {
+            List<ItemStack> stacks = display.resolveForStacks(context);
+            if (stacks.isEmpty()) return ItemStack.EMPTY;
+            ItemStack stack = stacks.get(Math.floorMod(tick / 30 + offset, stacks.size()));
+            return stack == null ? ItemStack.EMPTY : stack.copy();
+        } catch (RuntimeException ignored) {
+            return ItemStack.EMPTY;
         }
     }
 
@@ -1556,12 +1618,6 @@ public final class GuiGuide extends Screen {
     private void openStackPage(ItemStack stack) {
         GuideContent.Entry matching = findByStack(stack);
         openLinkedEntry(matching == null ? GuideContent.createGeneratedItemEntry(stack) : matching);
-    }
-
-    private ItemStack ingredientStack(Ingredient ingredient, int offset) {
-        ItemStack[] stacks = ingredient.getItems();
-        if (stacks.length == 0) return ItemStack.EMPTY;
-        return stacks[Math.floorMod(tick / 30 + offset, stacks.length)];
     }
 
     private void renderNavigation(GuiGraphics guiGraphics, int mouseX, int mouseY) {
@@ -1588,7 +1644,7 @@ public final class GuiGuide extends Screen {
             int x = left + PAGE_TEXTURE_WIDTH - 9;
             int y = top + PAGE_TEXTURE_HEIGHT - 11;
             boolean hovered = isInside(mouseX, mouseY, x - 2, y - 2, 21, 13);
-            guiGraphics.blit(ICONS, x, y, 48, hovered ? 152 : 139, 17, 9, 256, 256);
+            RenderCompat.blit(guiGraphics, ICONS, x, y, 48, hovered ? 152 : 139, 17, 9, 256, 256);
             clickRegions.add(new ClickRegion(x - 2, y - 2, 21, 13, this::goBack));
         }
 
@@ -1616,7 +1672,7 @@ public final class GuiGuide extends Screen {
     private void drawPageArrow(GuiGraphics guiGraphics, int x, int y, boolean forward, boolean hovered) {
         int u = forward ? 0 : 23;
         int v = hovered ? 152 : 139;
-        guiGraphics.blit(ICONS, x, y, u, v, 18, 10, 256, 256);
+        RenderCompat.blit(guiGraphics, ICONS, x, y, u, v, 18, 10, 256, 256);
     }
 
     private void changeSpread(int amount) {
@@ -1665,7 +1721,10 @@ public final class GuiGuide extends Screen {
     }
 
     private int firstContentsPageIndex() {
-        return 1 + loadedGuidePageCount();
+        int raw = 1 + loadedGuidePageCount();
+        // Contents controls are attached to the left page, so reserve a blank right page when the Loaded Guides
+        // section would otherwise make the first contents page land on the right side of a spread.
+        return (raw + 1) & ~1;
     }
 
     private boolean isContentsEntryPage(int pageIndex) {
@@ -1674,14 +1733,19 @@ public final class GuiGuide extends Screen {
     }
 
     private int firstFullContentsSpread() {
-        // Search/sort widgets are anchored to the left page. Skip any Loaded-list continuation on that side.
-        return (firstContentsPageIndex() + 1) / 2;
+        return firstContentsPageIndex() / 2;
     }
 
-    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (mouseClicked(event.x(), event.y(), event.button())) {
+            return true;
+        }
+        return false;
+    }
+
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
-            if (searchBox != null && searchBox.visible && searchBox.mouseClicked(mouseX, mouseY, button)) {
+            if (searchBox != null && searchBox.visible && searchBox.mouseClicked(new MouseButtonEvent(mouseX, mouseY, new MouseButtonInfo(button, 0)), false)) {
                 return true;
             }
             for (int index = clickRegions.size() - 1; index >= 0; index--) {
@@ -1697,10 +1761,9 @@ public final class GuiGuide extends Screen {
             searchBox.setValue("");
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return false;
     }
 
-    @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (scrollY != 0) {
             changeSpread(scrollY < 0 ? 1 : -1);
@@ -1709,10 +1772,21 @@ public final class GuiGuide extends Screen {
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
-    @Override
+    public boolean keyPressed(KeyEvent event) {
+        // Closing is a screen action, not an EditBox action. Handle it before search/navigation.
+        if (event.key() == InputConstants.KEY_ESCAPE) {
+            onClose();
+            return true;
+        }
+        if (keyPressed(event.key(), event.scancode(), event.modifiers())) {
+            return true;
+        }
+        return super.keyPressed(event);
+    }
+
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (searchBox != null && searchBox.visible && searchBox.keyPressed(keyCode, scanCode, modifiers)) return true;
-        if (Minecraft.getInstance().options.keyInventory.matches(keyCode, scanCode)) {
+        if (searchBox != null && searchBox.visible && searchBox.keyPressed(new KeyEvent(keyCode, scanCode, modifiers))) return true;
+        if (Minecraft.getInstance().options.keyInventory.matches(new KeyEvent(keyCode, scanCode, modifiers))) {
             onClose();
             return true;
         }
@@ -1728,22 +1802,35 @@ public final class GuiGuide extends Screen {
             goBack();
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return false;
     }
 
-    @Override
+    public boolean charTyped(CharacterEvent event) {
+        if (event.codepoint() <= Character.MAX_VALUE
+            && charTyped((char) event.codepoint(), event.modifiers())) {
+            return true;
+        }
+        return super.charTyped(event);
+    }
+
     public boolean charTyped(char codePoint, int modifiers) {
-        if (searchBox != null && searchBox.visible && searchBox.charTyped(codePoint, modifiers)) return true;
-        return super.charTyped(codePoint, modifiers);
+        if (searchBox != null && searchBox.visible
+            && searchBox.charTyped(new CharacterEvent(codePoint, modifiers))) {
+            return true;
+        }
+        return false;
     }
 
-    @Override
     public void removed() {
         persistGuideState();
         super.removed();
     }
 
     @Override
+    public boolean shouldCloseOnEsc() {
+        return true;
+    }
+
     public boolean isPauseScreen() {
         return false;
     }
@@ -1761,11 +1848,11 @@ public final class GuiGuide extends Screen {
             fittedScale = Math.min(scale, availableWidth / (float) unscaledWidth);
         }
         float scaledWidth = unscaledWidth * fittedScale;
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(x + (availableWidth - scaledWidth) / 2.0F, y, 0);
-        guiGraphics.pose().scale(fittedScale, fittedScale, 1.0F);
-        guiGraphics.drawString(font, text, 0, 0, colour, false);
-        guiGraphics.pose().popPose();
+        guiGraphics.pose().pushMatrix();
+        guiGraphics.pose().translate(x + (availableWidth - scaledWidth) / 2.0F, y);
+        guiGraphics.pose().scale(fittedScale, fittedScale);
+        guiGraphics.drawString(font, text, 0, 0, opaqueGuideTextColour(colour), false);
+        guiGraphics.pose().popMatrix();
     }
 
     private void drawOverflowText(GuiGraphics guiGraphics, Component text, int x, int y, int availableWidth, int colour,
@@ -1781,16 +1868,20 @@ public final class GuiGuide extends Screen {
             float drawX = alignment == HorizontalAlignment.CENTRE
                 ? x + (availableWidth - textWidth) / 2.0F
                 : x;
-            guiGraphics.drawString(font, text, (int) drawX, y, colour, false);
+            guiGraphics.drawString(font, text, (int) drawX, y, opaqueGuideTextColour(colour), false);
             return;
         }
         enableGuiScissor(x, y - 1, availableWidth, lineHeight + 2);
         try {
             float offset = marqueeOffset(textWidth - availableWidth, seed);
-            guiGraphics.drawString(font, text, (int) (x + offset), y, colour, false);
+            guiGraphics.drawString(font, text, (int) (x + offset), y, opaqueGuideTextColour(colour), false);
         } finally {
-            RenderSystem.disableScissor();
+            RenderCompat.disableScissor();
         }
+    }
+
+    private static int opaqueGuideTextColour(int colour) {
+        return (colour & 0xFF000000) == 0 ? (colour | 0xFF000000) : colour;
     }
 
     private float marqueeOffset(int overflow, int seed) {
@@ -1822,11 +1913,12 @@ public final class GuiGuide extends Screen {
         }
         Window window = Minecraft.getInstance().getWindow();
         double scale = window.getGuiScale();
-        int scissorX = Math.max(0, (int) Math.floor(x * scale));
-        int scissorY = Math.max(0, (int) Math.floor(window.getHeight() - (y + height) * scale));
-        int scissorWidth = Math.max(0, (int) Math.ceil(width * scale));
-        int scissorHeight = Math.max(0, (int) Math.ceil(height * scale));
-        RenderSystem.enableScissor(scissorX, scissorY, scissorWidth, scissorHeight);
+        int x0 = Mth.clamp((int) Math.floor(x * scale), 0, window.getWidth());
+        int x1 = Mth.clamp((int) Math.ceil((x + width) * scale), 0, window.getWidth());
+        int y0 = Mth.clamp((int) Math.floor(window.getHeight() - (y + height) * scale), 0, window.getHeight());
+        int y1 = Mth.clamp((int) Math.ceil(window.getHeight() - y * scale), 0, window.getHeight());
+        if (x1 <= x0 || y1 <= y0) return;
+        RenderCompat.enableScissor(x0, y0, x1 - x0, y1 - y0);
     }
 
     private static int parseInt(@Nullable String value, int fallback) {
@@ -1997,13 +2089,13 @@ public final class GuiGuide extends Screen {
         final @Nullable String target;
         final @Nullable String secondary;
         final @Nullable ItemStack stack;
-        final @Nullable ResourceLocation texture;
+        final @Nullable Identifier texture;
         final @Nullable GuideRecipe recipe;
 
         private RenderElement(ElementKind kind, int x, int y, int width, int height, int sourceWidth,
             int sourceHeight, int colour, boolean chapterBar, @Nullable FormattedCharSequence line,
             @Nullable Component component, @Nullable String target, @Nullable String secondary,
-            @Nullable ItemStack stack, @Nullable ResourceLocation texture, @Nullable GuideRecipe recipe) {
+            @Nullable ItemStack stack, @Nullable Identifier texture, @Nullable GuideRecipe recipe) {
             this.kind = kind;
             this.x = x;
             this.y = y;
@@ -2045,15 +2137,13 @@ public final class GuiGuide extends Screen {
         }
 
         static RenderElement image(int x, int y, int width, int height, int sourceWidth, int sourceHeight,
-            @Nullable ResourceLocation texture, ItemStack stack) {
+            @Nullable Identifier texture, ItemStack stack) {
             return new RenderElement(ElementKind.IMAGE, x, y, width, height, sourceWidth, sourceHeight, 0, false,
                 null, null, null, null, stack, texture, null);
         }
 
         static RenderElement recipe(int y, GuideRecipe recipe, ItemStack focusedOutput) {
-            Recipe<?> value = recipe.value();
-            int width = value instanceof AssemblyRecipeBasic ? ASSEMBLY_GRID.width
-                : value instanceof AbstractCookingRecipe ? SMELTING_GRID.width : CRAFTING_GRID.width;
+            int width = CRAFTING_GRID.width;
             return new RenderElement(ElementKind.RECIPE, (PAGE_TEXT_WIDTH - width) / 2, y,
                 width, 60, 0, 0, 0, false, null, null, null, null,
                 focusedOutput.isEmpty() ? null : focusedOutput.copy(), null, recipe);

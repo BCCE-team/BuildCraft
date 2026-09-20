@@ -4,6 +4,10 @@
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.builders;
 
+import buildcraft.builders.BCBuildersClientRenderers;
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.lib.platform.registry.RegistryBinding;
+import buildcraft.lib.platform.config.ConfigBinding;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
@@ -39,17 +43,17 @@ public class BCBuilders {
     static final Logger LOGGER = LogUtils.getLogger();
 
     public BCBuilders() {
-    	IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
-    	modEventBus.addListener(BCBuilders::commonSetup);
-        modEventBus.addListener(BCBuildersConfig::onLoadConfig);
-        modEventBus.addListener(BCBuildersConfig::onReloadConfig);
-    	BCBuildersBlocks.registry(modEventBus);
-    	BCBuildersItems.registry(modEventBus);
-    	BCBuildersSchematics.preInit();
-    	BCBuildersConfig.preInit();
-    	BCBuildersRegistries.preInit();
-    	BCBuildersGuis.preInit(modEventBus);
-    	ModLoadingContext.get().registerConfig(Type.COMMON, BCBuildersConfig.config);
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        modEventBus.addListener(BCBuilders::commonSetup);
+        ConfigBinding.listen(modEventBus, BCBuildersConfig::onLoadConfig, BCBuildersConfig::onReloadConfig);
+
+        BCBuildersBlocks.registry(RegistryBinding.on(modEventBus));
+        BCBuildersItems.registry(RegistryBinding.on(modEventBus));
+        BCBuildersSchematics.preInit();
+        BCBuildersConfig.preInit();
+        BCBuildersRegistries.preInit();
+        BCBuildersGuis.preInit(RegistryBinding.on(modEventBus));
+        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCBuildersConfig.config));
 
         MessageManager.registerMessageClass(BCModules.BUILDERS, MessageSnapshotRequest.class,
                 MessageSnapshotRequest.HANDLER, MessageSnapshotRequest::toBytes, MessageSnapshotRequest::new,
@@ -59,15 +63,15 @@ public class BCBuilders {
                 Dist.CLIENT);
 
         MinecraftForge.EVENT_BUS.register(this);
-        MinecraftForge.EVENT_BUS.register(BCBuildersEventDist.class);
+        BCBuildersEventDist.registerGameplayEvents();
         BCBuildersStatements.preInit();
 
     }
 
     public static void commonSetup(final FMLCommonSetupEvent event) {
-    	BCBuildersConfig.reloadConfig(MODID);
-    	BCBuildersRegistries.init();
-    	RulesLoader.loadAll();
+        BCBuildersConfig.reloadConfig(MODID);
+        BCBuildersRegistries.init();
+        RulesLoader.loadAll();
     }
 
 
@@ -76,24 +80,19 @@ public class BCBuilders {
     {
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event){
-        	BCBuildersSprites.init();
-        	BCBuildersClientGuis.clientInit(event);
-        	event.enqueueWork(BCBuildersItems::registerItemProperties);
+            BCBuildersSprites.init();
+            PlatformClientRegistration.screens(event, BCBuildersClientGuis::clientInit);
+            event.enqueueWork(BCBuildersItems::registerItemProperties);
         }
 
         @SubscribeEvent
-        public static void registryRender(EntityRenderersEvent.RegisterRenderers e) {
-
-        	e.registerBlockEntityRenderer(BCBuildersBlocks.QUARRY_TILE_BC8.get(), RenderQuarry::new);
-        	e.registerBlockEntityRenderer(BCBuildersBlocks.ARCHITECT_TILE_BC8.get(), RenderArchitectTable::new);
-        	e.registerBlockEntityRenderer(BCBuildersBlocks.FILLER_TILE_BC8.get(), RenderFiller::new);
-        	e.registerBlockEntityRenderer(BCBuildersBlocks.BUILDER_TILE_BC8.get(), RenderBuilder::new);
-            e.registerBlockEntityRenderer(BCBuildersBlocks.CONSTRUCTION_MARKER_TILE_BC8.get(), RenderConstructionMarker::new);
-        }
+    public static void registryRender(EntityRenderersEvent.RegisterRenderers e) {
+        BCBuildersClientRenderers.register(PlatformClientRegistration.renderers(e));
+    }
 
         @SubscribeEvent
         public static void registryTexture(TextureStitchEvent.Pre e){
-        	BCBuildersSprites.onTextureStitchPre(e);
+            BCBuildersSprites.onTextureStitchPre(PlatformClientRegistration.atlas(e));
         }
     }
 }

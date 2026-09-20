@@ -6,6 +6,7 @@
 
 package buildcraft.lib.client.model;
 
+import buildcraft.lib.platform.client.ClientModelBaking;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,13 +31,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.event.ModelEvent.BakingCompleted;
 import net.minecraftforge.client.model.data.ModelData;
 
 /** Holds a model that will never change except if the JSON file it is defined from is changed. */
-@OnlyIn(Dist.CLIENT)
 public class ModelHolderStatic extends ModelHolder {
 	private final static RandomSource random = RandomSource.create();
 	
@@ -88,7 +85,7 @@ public class ModelHolderStatic extends ModelHolder {
     }
 
     @Override
-    protected void onModelBake(BakingCompleted event) {
+    protected void onModelBake(ClientModelBaking.Completed event) {
         if (rawModel == null) {
         	BakedModel model = event.getModels().get(modelLocation);
         	if(model == null)

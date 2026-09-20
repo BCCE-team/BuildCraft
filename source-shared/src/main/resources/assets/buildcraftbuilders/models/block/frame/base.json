@@ -1,5 +1,5 @@
 {
-	"render_type": "cutout_mipped",
+    "render_type": "cutout_mipped",
     "parent": "block/cube_all",
     "elements": [
         {
@@ -12,18 +12,6 @@
                 "south": {"texture": "#all", "cullface": "south"},
                 "west": {"texture": "#all", "cullface": "west"},
                 "east": {"texture": "#all", "cullface": "east"}
-            }
-        },
-        {
-            "from": [12, 12, 12],
-            "to": [4, 4, 4],
-            "faces": {
-                "down": {"texture": "#all", "cullface": "up"},
-                "up": {"texture": "#all", "cullface": "down"},
-                "north": {"texture": "#all", "cullface": "south"},
-                "south": {"texture": "#all", "cullface": "north"},
-                "west": {"texture": "#all", "cullface": "east"},
-                "east": {"texture": "#all", "cullface": "west"}
             }
         }
     ],

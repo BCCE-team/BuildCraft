@@ -23,6 +23,9 @@ import net.minecraft.world.item.DyeColor;
 import buildcraft.compat.CompatCapTransfromer;
 import buildcraft.lib.misc.BlockUtil;
 import buildcraft.lib.misc.CapUtil;
+import buildcraft.lib.platform.storage.FluidStorage;
+import buildcraft.lib.platform.storage.PlatformStorage;
+import buildcraft.lib.platform.storage.StorageAdapters;
 import buildcraft.robotics.statements.ActionStationRequestItems;
 import buildcraft.robotics.plug.RobotStationPluggable;
 import buildcraft.silicon.plug.PluggableGate;
@@ -73,9 +76,8 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
                 return stack;
             }
             // In PipeFlowItems the "from" side is the side the stack came from and it is excluded from routing when
-            // the item reaches the pipe centre. The robot station sits on side(), so use that side here. Unlike the
-            // old force-insert path this still fires the normal insertion events and returns the real remainder, so the
-            // robot only removes items that the pipe actually accepted.
+            // the item reaches the pipe centre. The robot station sits on side(), so use that side here. Normal pipe
+            // insertion events run and the real remainder is returned, so the robot removes only accepted items.
             return items.injectItemFromRobotStation(stack.copy(), doAdd, outputSide, color, speed);
         }
     };
@@ -299,8 +301,9 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
     }
 
     @Override
-    public IFluidHandler getFluidOutput() {
-        return getPipe() != null && getPipe().getPipe() != null && getPipe().getPipe().flow instanceof PipeFlowFluids ? injectableFluidPipe : null;
+    public FluidStorage<FluidStack> getFluidOutput() {
+        return getPipe() != null && getPipe().getPipe() != null && getPipe().getPipe().flow instanceof PipeFlowFluids
+            ? StorageAdapters.fromNativeFluids(injectableFluidPipe) : null;
     }
 
     @Override
@@ -309,12 +312,11 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
     }
 
     @Override
-    public IFluidHandler getFluidInput() {
+    public FluidStorage<FluidStack> getFluidInput() {
         Direction inputSide = getFluidInputPipeSide();
         if (getPipe() == null || inputSide == null || level() == null) return null;
-        BlockEntity neighbour = level().getBlockEntity(new net.minecraft.core.BlockPos(x(), y(), z()).relative(inputSide));
-        if (neighbour == null) return null;
-        return CompatCapTransfromer.INSTANCE.getCap(neighbour, CapUtil.CAP_FLUIDS, inputSide.getOpposite()).orElse(null);
+        BlockPos neighbourPos = new BlockPos(x(), y(), z()).relative(inputSide);
+        return PlatformStorage.fluids(level(), neighbourPos, inputSide.getOpposite());
     }
 
     @Override

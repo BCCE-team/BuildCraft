@@ -77,9 +77,8 @@ public class AdvModelCache {
         variables.clear();
         variables.addAll(modelCtxInfo.variables.values());
 
-        // A dense indexed cache is ideal only when every dimension is complete and the cartesian product remains
-        // reasonably small. Older code allocated the full product even for incomplete variable sets, then knowingly
-        // missed the cache at runtime.
+        // A dense indexed cache is suitable only when every dimension is complete and the cartesian product remains
+        // reasonably small. Incomplete or open-ended variable sets require a fallback cache keyed by actual values.
         int[] multipliers = new int[variables.size()];
         long possible = 1;
         boolean fullyIndexed = true;
@@ -97,7 +96,7 @@ public class AdvModelCache {
 
         // Split finite/complete dimensions from open-ended ones. Each finite combination gets a small bounded fallback
         // map keyed only by the remaining variable values. This keeps common booleans/enums cheap while still caching
-        // models whose dynamic values cannot be represented by the old indexed cache.
+        // models whose dynamic values cannot be represented by a dense indexed cache.
         return new CacheHybrid();
     }
 

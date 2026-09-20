@@ -9,7 +9,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ShearsItem;
 import net.minecraft.world.level.Level;
 
-/** BuildCraft 7.1.x leaf cutter board port. Fetches shears and cuts leaf blocks. */
+/** Leaf-cutter board that fetches shears and cuts leaf blocks. */
 public class BoardRobotLeaveCutter extends BoardRobotGenericBreakBlock {
     public BoardRobotLeaveCutter(EntityRobotBase robot) {
         super(robot);

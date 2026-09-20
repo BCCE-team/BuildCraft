@@ -8,9 +8,7 @@ package buildcraft.silicon.plug;
 
 import buildcraft.api.v2.energy.MjAmount;
 
-import net.minecraftforge.api.distmarker.OnlyIn;
 
-import net.minecraftforge.api.distmarker.Dist;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -54,8 +52,8 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public class PluggablePulsar extends PipePluggable {
 
@@ -160,17 +158,17 @@ public class PluggablePulsar extends PipePluggable {
     }
 
     @Override
-    public void readPayload(FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             readData(buffer);
         }
     }
 
     @Override
-    public void writePayload(FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             writeData(buffer);
         }
     }
@@ -253,7 +251,7 @@ public class PluggablePulsar extends PipePluggable {
                 if (excess == 0) {
                     rsRec.receivePower(power, FluidAction.EXECUTE);
                 } else {
-                    // Nothing was extracted, so lets extract in the future
+                    // Retry the pulse on a subsequent tick when the receiver can accept power.
                     gateSinglePulses++;
                     // ParticleUtil.spawnFailureParticles
                 }
@@ -289,7 +287,6 @@ public class PluggablePulsar extends PipePluggable {
 	}
 
     @Override
-    @OnlyIn(Dist.CLIENT)
     public PluggableModelKey getModelRenderKey(RenderType layer) {
         if (layer == RenderType.cutout()) return new KeyPlugPulsar(side);
         return null;

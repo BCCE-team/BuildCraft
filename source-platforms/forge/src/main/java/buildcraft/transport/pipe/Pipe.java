@@ -66,6 +66,7 @@ import buildcraft.api.v2.pipe.PipeTickComponent;
 import buildcraft.api.v2.pipe.PipeType;
 import buildcraft.api.v2.platform.ExternalEnergyPort;
 import buildcraft.lib.internal.tiles.IDebuggable;
+import buildcraft.lib.logic.routing.WeightedOrder;
 import buildcraft.transport.internal.pipe.ICustomPipeConnection;
 import buildcraft.transport.internal.pipe.IFlowFluid;
 import buildcraft.transport.internal.pipe.IFlowItems;
@@ -101,12 +102,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
     private static final float DEFAULT_CONNECTION_DISTANCE = 0.25f;
@@ -122,8 +121,6 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
     private boolean updateMarked = true;
     private final EnumMap<Direction, Float> connected = new EnumMap<>(Direction.class);
     private final EnumMap<Direction, ConnectedType> types = new EnumMap<>(Direction.class);
-
-    @OnlyIn(Dist.CLIENT)
     private PipeModelKey lastModel;
 
     public Pipe(IPipeHolder holder, PipeDefinition definition) {		
@@ -194,7 +191,7 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
 
     // network
 
-    public Pipe(IPipeHolder holder, FriendlyByteBuf buffer, NetworkEvent.Context ctx) throws IOException {
+    public Pipe(IPipeHolder holder, FriendlyByteBuf buffer, BCPacketContext ctx) throws IOException {
         this.holder = holder;
         try {
             this.definition = PipeRegistry.INSTANCE.loadDefinition(buffer.readUtf(64));
@@ -202,20 +199,20 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
             throw new IOException(e);
         }
         this.behaviour = definition.logicConstructor.createBehaviour(this);
-        readPayload(buffer, LogicalSide.CLIENT, ctx);
+        readPayload(buffer, BCNetworkSide.CLIENT, ctx);
         this.flow = definition.flowType.creator.createFlow(this);
         this.apiComponents = createApiComponents();
-        this.flow.readPayload(PipeFlow.NET_ID_FULL_STATE, buffer, LogicalSide.CLIENT);
+        this.flow.readPayload(PipeFlow.NET_ID_FULL_STATE, buffer, BCNetworkSide.CLIENT);
     }
 
     public void writeCreationPayload(FriendlyByteBuf buffer) {
         buffer.writeUtf(definition.identifier.toString(), 64);
-        writePayload(buffer, LogicalSide.SERVER);
-        flow.writePayload(PipeFlow.NET_ID_FULL_STATE, buffer, LogicalSide.SERVER);
+        writePayload(buffer, BCNetworkSide.SERVER);
+        flow.writePayload(PipeFlow.NET_ID_FULL_STATE, buffer, BCNetworkSide.SERVER);
     }
 
-    public void writePayload(FriendlyByteBuf buffer, LogicalSide side) {
-        if (side == LogicalSide.SERVER) {
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
+        if (side == BCNetworkSide.SERVER) {
             buffer.writeByte(colour == null ? 0 : colour.getId() + 1);
             for (Direction face : Direction.values()) {
                 Float con = connected.get(face);
@@ -230,10 +227,8 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
             behaviour.writePayload(buffer, side);
         }
     }
-
-    @OnlyIn(Dist.CLIENT)
-    public void readPayload(FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
-        if (side == LogicalSide.CLIENT) {
+    public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
+        if (side == BCNetworkSide.CLIENT) {
             connected.clear();
             types.clear();
             
@@ -754,31 +749,7 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
     }
 
     private List<Direction> weightedOrder(Map<Direction, Long> source) {
-        LinkedHashMap<Direction, Long> remaining = new LinkedHashMap<>();
-        source.forEach((direction, weight) -> { if (weight != null && weight > 0) remaining.put(direction, weight); });
-        if (remaining.isEmpty()) return List.of();
-        List<Direction> ordered = new ArrayList<>(remaining.size());
-        while (!remaining.isEmpty()) {
-            long total = 0;
-            for (long weight : remaining.values()) {
-                if (Long.MAX_VALUE - total < weight) { total = Long.MAX_VALUE; break; }
-                total += weight;
-            }
-            long choice = Math.floorMod(holder.getPipeWorld().random.nextLong(), total);
-            long cursor = 0;
-            Direction selected = remaining.keySet().iterator().next();
-            for (Map.Entry<Direction, Long> entry : remaining.entrySet()) {
-                long weight = entry.getValue();
-                if (Long.MAX_VALUE - cursor < weight || choice < cursor + weight) {
-                    selected = entry.getKey();
-                    break;
-                }
-                cursor += weight;
-            }
-            ordered.add(selected);
-            remaining.remove(selected);
-        }
-        return ordered;
+        return WeightedOrder.order(source, () -> holder.getPipeWorld().random.nextLong());
     }
 
     private boolean canConnectToPipeApiAware(Direction side, IPipe other, BlockState neighbourState) {
@@ -851,8 +822,6 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
     public void markForUpdate() {
         updateMarked = true;
     }
-
-    @OnlyIn(Dist.CLIENT)
     public PipeModelKey getModel() {
         PipeFaceTex[] sides = new PipeFaceTex[6];
         float[] mc = new float[6];

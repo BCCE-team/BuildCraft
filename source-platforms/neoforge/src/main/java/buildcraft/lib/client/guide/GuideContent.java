@@ -94,41 +94,46 @@ public final class GuideContent {
             JsonArray array = root.getAsJsonArray("entries");
             List<Entry> entries = new ArrayList<>(array.size());
             for (JsonElement element : array) {
-                JsonObject json = element.getAsJsonObject();
-                String requiredMod = getString(json, "requires_mod");
-                if (requiredMod != null && !requiredMod.isBlank() && !ModList.get().isLoaded(requiredMod)) {
-                    continue;
+                try {
+                    JsonObject json = element.getAsJsonObject();
+                    String requiredMod = getString(json, "requires_mod");
+                    if (requiredMod != null && !requiredMod.isBlank() && !ModList.get().isLoaded(requiredMod)) {
+                        continue;
+                    }
+                    ResourceLocation id = ResourceLocation.parse(json.get("id").getAsString());
+                    String page = getString(json, "page");
+                    if (page == null || page.isBlank()) {
+                        BCLog.logger.warn("[lib.guide] Entry {} has no page key", id);
+                        continue;
+                    }
+                    String text = pageStore.get(page);
+                    if (text == null) {
+                        BCLog.logger.warn("[lib.guide] Page '{}' for {} is missing from language chain {}",
+                            page, id, pageStore.loadOrder());
+                        continue;
+                    }
+                    String stackId = getString(json, "stack");
+                    String stackNbt = getString(json, "stack_nbt");
+                    ItemStack stack = resolveStack(stackId, stackNbt);
+                    String statement = getString(json, "statement");
+                    entries.add(new Entry(
+                        id,
+                        page,
+                        getString(json, "module"),
+                        getString(json, "type"),
+                        getString(json, "subtype"),
+                        getString(json, "name"),
+                        getString(json, "book"),
+                        json.has("listed") && json.get("listed").getAsBoolean(),
+                        stackId,
+                        statement,
+                        stack,
+                        text
+                    ));
+                } catch (RuntimeException entryError) {
+                    BCLog.logger.warn("[lib.guide] Skipping malformed guide entry {}", guideEntryDebugName(element),
+                        entryError);
                 }
-                ResourceLocation id = ResourceLocation.parse(json.get("id").getAsString());
-                String page = getString(json, "page");
-                if (page == null || page.isBlank()) {
-                    BCLog.logger.warn("[lib.guide] Entry {} has no page key", id);
-                    continue;
-                }
-                String text = pageStore.get(page);
-                if (text == null) {
-                    BCLog.logger.warn("[lib.guide] Page '{}' for {} is missing from language chain {}",
-                        page, id, pageStore.loadOrder());
-                    continue;
-                }
-                String stackId = getString(json, "stack");
-                String stackNbt = getString(json, "stack_nbt");
-                ItemStack stack = resolveStack(stackId, stackNbt);
-                String statement = getString(json, "statement");
-                entries.add(new Entry(
-                    id,
-                    page,
-                    getString(json, "module"),
-                    getString(json, "type"),
-                    getString(json, "subtype"),
-                    getString(json, "name"),
-                    getString(json, "book"),
-                    json.has("listed") && json.get("listed").getAsBoolean(),
-                    stackId,
-                    statement,
-                    stack,
-                    text
-                ));
             }
             appendApiEntries(entries);
             return new GuideContent(entries);
@@ -149,14 +154,22 @@ public final class GuideContent {
         // authoritative in the native contents tree, while entries(section) already honours GuideEntry.order().
         for (GuideSection section : guide.sections()) {
             for (GuideEntry apiEntry : guide.entries(section.id())) {
-                appendApiEntry(entries, guide, apiEntry, section);
-                appended.add(apiEntry.id());
+                try {
+                    appendApiEntry(entries, guide, apiEntry, section);
+                    appended.add(apiEntry.id());
+                } catch (RuntimeException entryError) {
+                    BCLog.logger.warn("[lib.guide] Skipping broken API v2 guide entry {}", apiEntry.id(), entryError);
+                }
             }
         }
         // Keep malformed/forward-compatible contributions reachable even if their section was not registered.
         for (GuideEntry apiEntry : guide.entries()) {
             if (appended.add(apiEntry.id())) {
-                appendApiEntry(entries, guide, apiEntry, guide.section(apiEntry.section()).orElse(null));
+                try {
+                    appendApiEntry(entries, guide, apiEntry, guide.section(apiEntry.section()).orElse(null));
+                } catch (RuntimeException entryError) {
+                    BCLog.logger.warn("[lib.guide] Skipping broken API v2 guide entry {}", apiEntry.id(), entryError);
+                }
             }
         }
     }
@@ -245,7 +258,8 @@ public final class GuideContent {
 
     private static String renderApiPages(GuideEntry entry) {
         StringBuilder markdown = new StringBuilder();
-        markdown.append("# ").append(translateOrLiteral(entry.titleKey())).append('\n');
+        // LayoutBuilder already creates the entry title chapter. API pages start with their actual payload so
+        // addon-provided titles do not appear twice and do not consume an extra pagination block.
         boolean first = true;
         for (GuidePage page : entry.pages()) {
             if (!first) markdown.append("<new_page/>\n");
@@ -488,6 +502,26 @@ public final class GuideContent {
         );
     }
 
+    private static String normalizeSearch(String value) {
+        if (value == null || value.isBlank()) return "";
+        String lower = value.toLowerCase(Locale.ROOT);
+        StringBuilder normalized = new StringBuilder(lower.length());
+        boolean previousSpace = true;
+        for (int index = 0; index < lower.length(); index++) {
+            char ch = lower.charAt(index);
+            if (Character.isLetterOrDigit(ch)) {
+                normalized.append(ch);
+                previousSpace = false;
+            } else if (!previousSpace) {
+                normalized.append(' ');
+                previousSpace = true;
+            }
+        }
+        int length = normalized.length();
+        if (length > 0 && normalized.charAt(length - 1) == ' ') normalized.setLength(length - 1);
+        return normalized.toString();
+    }
+
     public static final class Entry {
         public final ResourceLocation id;
         public final String page;
@@ -518,8 +552,18 @@ public final class GuideContent {
             this.statement = statement;
             this.stack = stack;
             this.markdown = markdown;
-            this.searchText = (title() + " " + id + " " + moduleName() + " " + typeName() + " "
-                + subtypeName() + " " + plainText(markdown)).toLowerCase(Locale.ROOT);
+            this.searchText = normalizeSearch(title() + " " + id + " " + moduleName() + " " + typeName() + " "
+                + subtypeName() + " " + plainText(markdown));
+        }
+
+        /** Matches every search token, independent of punctuation, spacing and token order. */
+        public boolean matchesSearch(String query) {
+            String normalized = normalizeSearch(query);
+            if (normalized.isEmpty()) return true;
+            for (String token : normalized.split(" ")) {
+                if (!token.isEmpty() && !searchText.contains(token)) return false;
+            }
+            return true;
         }
 
         public boolean isApiGuide() {
@@ -536,8 +580,19 @@ public final class GuideContent {
                 return stack.getHoverName().getString();
             }
             IStatement resolved = GuideContent.resolveStatement(statement);
-            if (resolved != null && resolved.getDescription() != null) {
-                return resolved.getDescription().getString();
+            if (resolved != null) {
+                try {
+                    var description = resolved.getDescription();
+                    if (description != null) {
+                        String text = description.getString();
+                        if (!text.isBlank()) {
+                            return text;
+                        }
+                    }
+                } catch (RuntimeException descriptionError) {
+                    BCLog.logger.warn("[lib.guide] Failed to resolve statement title for {} ({})", id, statement,
+                        descriptionError);
+                }
             }
             String pageKey = "buildcraft.guide.page." + name;
             String translatedPage = translateOrLiteral(pageKey);
@@ -587,10 +642,31 @@ public final class GuideContent {
     }
 
     static String translateOrLiteral(String value) {
-        if (I18n.exists(value)) {
-            return I18n.get(value);
+        if (value == null || value.isBlank()) {
+            return value == null ? "" : value;
+        }
+        try {
+            if (I18n.exists(value)) {
+                return I18n.get(value);
+            }
+        } catch (RuntimeException translationError) {
+            BCLog.logger.warn("[lib.guide] Failed to translate '{}'", value, translationError);
         }
         return value;
+    }
+
+    private static String guideEntryDebugName(JsonElement element) {
+        try {
+            if (element != null && element.isJsonObject()) {
+                JsonElement id = element.getAsJsonObject().get("id");
+                if (id != null && id.isJsonPrimitive() && id.getAsJsonPrimitive().isString()) {
+                    return id.getAsString();
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // Diagnostics must never mask the original guide-entry error.
+        }
+        return "<unknown>";
     }
 
     static String titleCase(String value) {

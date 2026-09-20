@@ -1,5 +1,7 @@
 package buildcraft.factory.client.render;
 
+import buildcraft.lib.compat.minecraft.render.BCRenderTypes;
+import buildcraft.lib.compat.minecraft.render.BCGeometryRenderer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -15,8 +17,6 @@ import buildcraft.lib.fluid.FluidSmoother.FluidStackInterp;
 import buildcraft.lib.misc.VecUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -24,7 +24,7 @@ import net.minecraft.core.Direction.AxisDirection;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.fluids.FluidStack;
 
-public class RenderHeatExchange implements BlockEntityRenderer<TileHeatExchange>{
+public class RenderHeatExchange implements BCGeometryRenderer<TileHeatExchange>{
 
     public RenderHeatExchange(BlockEntityRendererProvider.Context ctx) {
     	mc = Minecraft.getInstance();
@@ -39,7 +39,7 @@ public class RenderHeatExchange implements BlockEntityRenderer<TileHeatExchange>
 
 
 	@Override
-	public void render(TileHeatExchange tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
+	public void renderContents(TileHeatExchange tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
 		var section = tile.getSection();
 		if(section == null)  return;
 		matrix.pushPose();
@@ -47,7 +47,7 @@ public class RenderHeatExchange implements BlockEntityRenderer<TileHeatExchange>
 		if(section instanceof ExchangeSectionStart start) {
 			FluidStackInterp input = start.smoothedTankInput.getFluidForRender(partialTicks);
 			FluidStackInterp output = start.smoothedTankOutput.getFluidForRender(partialTicks);
-			VertexConsumer bb = buffer.getBuffer(RenderType.cutout());
+			VertexConsumer bb = buffer.getBuffer(BCRenderTypes.cutout());
 			ExchangeSectionEnd sectionEnd = start.getEndSection();
 			int middles = start.middleCount;
 			if (middles > 0 && sectionEnd != null) {
@@ -105,7 +105,7 @@ public class RenderHeatExchange implements BlockEntityRenderer<TileHeatExchange>
 		else if(section instanceof ExchangeSectionEnd end) {
 			FluidStackInterp input = end.smoothedTankInput.getFluidForRender(partialTicks);
 			FluidStackInterp output = end.smoothedTankOutput.getFluidForRender(partialTicks);
-			VertexConsumer bb = buffer.getBuffer(RenderType.cutout());
+			VertexConsumer bb = buffer.getBuffer(BCRenderTypes.cutout());
 			matrix.translate(0.5, 0.5, 0.5);
 	        switch(face) {
 			case NORTH:

@@ -6,6 +6,8 @@
  */
 package buildcraft.builders.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
 
 import java.io.IOException;
@@ -97,12 +99,10 @@ import net.minecraft.world.level.gameevent.GameEventListener;
 import net.minecraft.world.level.gameevent.PositionSource;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.fluids.FluidType;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileForTemplateBuilder, ITileForBlueprintBuilder, IRobotBuilderTarget, MenuProvider {
     public static final IdAllocator IDS = TileBC_Neptune.IDS.makeChild("builder");
@@ -217,7 +217,7 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
             tankManager.add(tanks[i]);
         }
         caps.addProvider(new MjCapabilityHelper(new MjBatteryReceiver(battery)));
-        caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, tankManager, EnumPipePart.VALUES);
+        caps.addFluidStorage(tankManager, EnumPipePart.VALUES);
         caps.addCapabilityInstance(TilesAPI.CAP_HAS_WORK, () -> !invSnapshot.isEmpty(), EnumPipePart.VALUES);
     }
 
@@ -578,9 +578,9 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     // Networking
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 buffer.writeInt(path == null ? 0 : path.size());
                 if (path != null) {
@@ -609,9 +609,9 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
     	super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 path = new ArrayList<>();
                 int pathSize = buffer.readInt();
@@ -648,7 +648,7 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
                 }
             }
         }
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_CAN_EXCAVATE) {
                 canExcavate = buffer.readBoolean();
                 sendNetworkUpdate(NET_CAN_EXCAVATE);
@@ -665,16 +665,17 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     
 
     @Override
-	public void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+	public void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.writeData(bcData);
         if (path != null) {
             nbt.put("path", BuildersNbtUtil.writeBlockPosList(path.stream()));
         }
         nbt.put("basePoses", BuildersNbtUtil.writeBlockPosList(basePoses.stream()));
-        nbt.putInt("currentBasePosIndex", currentBasePosIndex);
-        nbt.putBoolean("needMaterial", needMaterial);
-        nbt.putBoolean("canRotate", canRotate);
-        nbt.putBoolean("canExcavate", canExcavate);
+        bcData.writeInt("currentBasePosIndex", currentBasePosIndex);
+        bcData.writeBoolean("needMaterial", needMaterial);
+        bcData.writeBoolean("canRotate", canRotate);
+        bcData.writeBoolean("canExcavate", canExcavate);
         nbt.put("rotation", NBTUtilBC.writeEnum(rotation));
         SnapshotBuilder<?> activeBuilder = getBuilder();
         if (activeBuilder != null) {
@@ -683,9 +684,10 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-		super.loadAdditional(nbt, registries);
-        if (nbt.contains("path")) {
+	protected void readData(BCValueInput bcData) {
+        CompoundTag nbt = bcData.tag();
+		super.readData(bcData);
+        if (bcData.has("path")) {
             path =
                 BuildersNbtUtil.readBlockPosList(nbt.get("path")).collect(Collectors.toList());
         }
@@ -694,7 +696,7 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
         if (basePoses.isEmpty() && level != null) {
             updateBasePoses();
         }
-        currentBasePosIndex = nbt.getInt("currentBasePosIndex");
+        currentBasePosIndex = bcData.readInt("currentBasePosIndex");
         if (!basePoses.isEmpty()) {
             currentBasePosIndex = Math.max(0, Math.min(currentBasePosIndex, basePoses.size() - 1));
         }
@@ -702,11 +704,11 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
         // "need materials" disabled in creative would reload with it enabled, scan the
         // target area, cache all missing blocks as unavailable, and then sit idle until
         // any resource-inventory change invalidated that cache.
-        needMaterial = !nbt.contains("needMaterial") || nbt.getBoolean("needMaterial");
-        canRotate = !nbt.contains("canRotate") || nbt.getBoolean("canRotate");
-        canExcavate = !nbt.contains("canExcavate") || nbt.getBoolean("canExcavate");
+        needMaterial = !bcData.has("needMaterial") || bcData.readBoolean("needMaterial");
+        canRotate = !bcData.has("canRotate") || bcData.readBoolean("canRotate");
+        canExcavate = !bcData.has("canExcavate") || bcData.readBoolean("canExcavate");
         rotation = NBTUtilBC.readEnum(nbt.get("rotation"), Rotation.class);
-        pendingBuilderState = nbt.contains("builderState") ? nbt.getCompound("builderState") : null;
+        pendingBuilderState = bcData.has("builderState") ? bcData.readCompound("builderState") : null;
         needsRestartAfterLoad = true;
 	}
 	
@@ -779,13 +781,10 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     }
 
     // Rendering
-
-	@OnlyIn(Dist.CLIENT)
     public Box getBox() {
         return currentBox;
     }
     @Nonnull
-    @OnlyIn(Dist.CLIENT)
 	public AABB getRenderBoundingBox() {
     	 return BoundingBoxUtil.makeFrom(getBlockPos(), getBox(), path);
 	}

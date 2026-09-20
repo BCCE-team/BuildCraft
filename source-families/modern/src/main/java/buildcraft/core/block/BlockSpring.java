@@ -56,7 +56,11 @@ public class BlockSpring extends BlockBCBase_Neptune implements EntityBlock {
 	// Other
 
 	@Override
+    //? if >=1.21.4 {
+	public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state, boolean includeData) {
+    //?} else {
 	public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {
+    //?}
 		return new ItemStack(BCCoreItems.SPRING_ITEM_MAP.get(state.getValue(SPRING_TYPE)));
 	}
 

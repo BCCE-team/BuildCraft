@@ -8,6 +8,8 @@ import net.minecraft.client.color.item.ItemColor;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.level.FoliageColor;
+import net.minecraft.world.level.GrassColor;
 
 public enum FacadeItemColours implements ItemColor {
     INSTANCE;
@@ -28,6 +30,16 @@ public enum FacadeItemColours implements ItemColor {
             colour = Minecraft.getInstance().getBlockColors().getColor(state.stateInfo.state, null, null);
         } catch (NullPointerException ex) {
             // the block didn't like the null world or player
+        }
+        if (colour != -1 && colour != 0) {
+            return colour;
+        }
+        String path = id == null ? "" : id.getPath();
+        if (path.endsWith("_leaves") || path.equals("leaves") || path.contains("mangrove") || path.contains("vine")) {
+            return FoliageColor.get(0.5D, 1.0D);
+        }
+        if (path.contains("grass") || path.contains("fern")) {
+            return GrassColor.get(0.5D, 1.0D);
         }
         return colour;
     }

@@ -1,6 +1,8 @@
+//? source if >=1.21.11
 package buildcraft.transport.recipe;
 
 import java.util.Locale;
+import java.util.List;
 
 import javax.annotation.Nullable;
 
@@ -19,6 +21,11 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.crafting.display.RecipeDisplay;
+import net.minecraft.world.item.crafting.display.ShapedCraftingRecipeDisplay;
+import net.minecraft.world.item.crafting.display.ShapelessCraftingRecipeDisplay;
+import net.minecraft.world.item.crafting.display.SlotDisplay;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.CraftingRecipe;
@@ -26,6 +33,10 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.StainedGlassBlock;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeInput;
+import net.minecraft.world.item.crafting.PlacementInfo;
+import buildcraft.lib.compat.IngredientCompat;
 
 /**
  * Recreates the BC 8 pipe recipes while preserving the pipe colour stored on the
@@ -61,14 +72,14 @@ public final class PipeRecipe implements CraftingRecipe {
     ).apply(instance, PipeRecipe::resultStack));
 
     private static final MapCodec<PipeRecipe> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
-        Codec.STRING.optionalFieldOf("group", "").forGetter(recipe -> recipe.group),
-        Mode.CODEC.fieldOf("mode").forGetter(recipe -> recipe.mode),
-        Ingredient.CODEC.optionalFieldOf("left", Ingredient.EMPTY).forGetter(recipe -> recipe.left),
-        Ingredient.CODEC.optionalFieldOf("middle", Ingredient.EMPTY).forGetter(recipe -> recipe.middle),
-        Ingredient.CODEC.optionalFieldOf("right", Ingredient.EMPTY).forGetter(recipe -> recipe.right),
-        Ingredient.CODEC.optionalFieldOf("from", Ingredient.EMPTY).forGetter(recipe -> recipe.from),
-        Ingredient.CODEC.optionalFieldOf("additional", Ingredient.EMPTY).forGetter(recipe -> recipe.additional),
-        RESULT_CODEC.fieldOf("result").forGetter(recipe -> recipe.result)
+        Codec.STRING.optionalFieldOf("group", "").forGetter((PipeRecipe recipe) -> recipe.group),
+        Mode.CODEC.fieldOf("mode").forGetter((PipeRecipe recipe) -> recipe.mode),
+        Ingredient.CODEC.optionalFieldOf("left", IngredientCompat.empty()).forGetter((PipeRecipe recipe) -> recipe.left),
+        Ingredient.CODEC.optionalFieldOf("middle", IngredientCompat.empty()).forGetter((PipeRecipe recipe) -> recipe.middle),
+        Ingredient.CODEC.optionalFieldOf("right", IngredientCompat.empty()).forGetter((PipeRecipe recipe) -> recipe.right),
+        Ingredient.CODEC.optionalFieldOf("from", IngredientCompat.empty()).forGetter((PipeRecipe recipe) -> recipe.from),
+        Ingredient.CODEC.optionalFieldOf("additional", IngredientCompat.empty()).forGetter((PipeRecipe recipe) -> recipe.additional),
+        RESULT_CODEC.fieldOf("result").forGetter((PipeRecipe recipe) -> recipe.result)
     ).apply(instance, PipeRecipe::new));
 
     private static final StreamCodec<RegistryFriendlyByteBuf, PipeRecipe> STREAM_CODEC =
@@ -83,6 +94,8 @@ public final class PipeRecipe implements CraftingRecipe {
     private final Ingredient additional;
     private final ItemStack result;
     private final NonNullList<Ingredient> ingredients;
+    @Nullable
+    private PlacementInfo placementInfo;
 
     private PipeRecipe(String group, Mode mode, Ingredient left, Ingredient middle,
         Ingredient right, Ingredient from, Ingredient additional, ItemStack result) {
@@ -114,12 +127,10 @@ public final class PipeRecipe implements CraftingRecipe {
         return new ItemStack(item, count);
     }
 
-    @Override
     public boolean matches(CraftingInput input, Level level) {
         return findMatch(input) != null;
     }
 
-    @Override
     public ItemStack assemble(CraftingInput input, HolderLookup.Provider registries) {
         Match match = findMatch(input);
         if (match == null) {
@@ -189,7 +200,7 @@ public final class PipeRecipe implements CraftingRecipe {
         for (int y = 0; y < input.height(); y++) {
             for (int x = 0; x < input.width(); x++) {
                 ItemStack stack = input.getItem(x + y * input.width());
-                Ingredient expected = Ingredient.EMPTY;
+                Ingredient expected = IngredientCompat.empty();
                 if (y == startY && x >= startX && x < startX + 3) {
                     int patternX = mirrored ? 2 - (x - startX) : x - startX;
                     expected = patternX == 0 ? left : patternX == 1 ? middle : right;
@@ -197,7 +208,7 @@ public final class PipeRecipe implements CraftingRecipe {
                         glass = stack;
                     }
                 }
-                if (expected == Ingredient.EMPTY) {
+                if (IngredientCompat.isEmpty(expected)) {
                     if (!stack.isEmpty()) {
                         return null;
                     }
@@ -218,7 +229,6 @@ public final class PipeRecipe implements CraftingRecipe {
         return null;
     }
 
-    @Override
     public boolean canCraftInDimensions(int width, int height) {
         return mode == Mode.BASE ? width >= 3 && height >= 1 : width * height >= ingredients.size();
     }
@@ -236,27 +246,46 @@ public final class PipeRecipe implements CraftingRecipe {
         return result.copy();
     }
 
-    @Override
     public ItemStack getResultItem(HolderLookup.Provider registries) {
         return result.copy();
     }
 
-    @Override
     public NonNullList<Ingredient> getIngredients() {
         return ingredients;
     }
 
-    @Override
     public String getGroup() {
         return group;
     }
 
-    @Override
-    public RecipeSerializer<?> getSerializer() {
+    public RecipeSerializer<? extends CraftingRecipe> getSerializer() {
         return BCTransportRecipes.PIPE.get();
     }
 
     @Override
+    public PlacementInfo placementInfo() {
+        // Ingredient tags are populated after recipe decoding. Resolve lazily, as vanilla does.
+        if (placementInfo == null) {
+            placementInfo = PlacementInfo.create(ingredients);
+        }
+        return placementInfo;
+    }
+
+    @Override
+    public List<RecipeDisplay> display() {
+        List<SlotDisplay> slots = ingredients.stream().map(Ingredient::display).toList();
+        SlotDisplay output = new SlotDisplay.ItemStackSlotDisplay(result.copy());
+        SlotDisplay station = new SlotDisplay.ItemSlotDisplay(Items.CRAFTING_TABLE);
+        return mode == Mode.BASE
+            ? List.of(new ShapedCraftingRecipeDisplay(3, 1, slots, output, station))
+            : List.of(new ShapelessCraftingRecipeDisplay(slots, output, station));
+    }
+
+    @Override
+    public String group() {
+        return group;
+    }
+
     public CraftingBookCategory category() {
         return CraftingBookCategory.MISC;
     }
@@ -288,12 +317,10 @@ public final class PipeRecipe implements CraftingRecipe {
     }
 
     public static final class Serializer implements RecipeSerializer<PipeRecipe> {
-        @Override
         public MapCodec<PipeRecipe> codec() {
             return CODEC;
         }
 
-        @Override
         public StreamCodec<RegistryFriendlyByteBuf, PipeRecipe> streamCodec() {
             return STREAM_CODEC;
         }

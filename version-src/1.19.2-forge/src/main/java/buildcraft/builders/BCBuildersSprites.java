@@ -6,6 +6,7 @@
 
 package buildcraft.builders;
 
+import buildcraft.lib.platform.client.ClientAtlas;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -16,7 +17,6 @@ import buildcraft.lib.client.sprite.SpriteHolderRegistry.SpriteHolder;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.InventoryMenu;
-import net.minecraftforge.client.event.TextureStitchEvent;
 
 public class BCBuildersSprites {
 	
@@ -134,7 +134,7 @@ public class BCBuildersSprites {
         // Nothing, just to register the sprites
     }
     
-    public static void onTextureStitchPre(TextureStitchEvent.Pre event) {
+    public static void onTextureStitchPre(ClientAtlas.Before event) {
     	if(InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
 //    		PIPE_TEX.values().forEach(event::addSprite);
 /*    		event.addSprite(DIAWOOD_GUI);

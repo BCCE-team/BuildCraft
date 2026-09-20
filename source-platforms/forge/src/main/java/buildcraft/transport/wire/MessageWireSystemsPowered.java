@@ -15,7 +15,7 @@ import io.netty.handler.codec.DecoderException;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 
 public class MessageWireSystemsPowered {
     private static final int MAX_SYSTEMS = 4096;
@@ -52,7 +52,7 @@ public class MessageWireSystemsPowered {
         });
     }
 
-    public static final BiConsumer<MessageWireSystemsPowered, Supplier<NetworkEvent.Context>> HANDLER = (message, ctx) -> {
+    public static final BiConsumer<MessageWireSystemsPowered, Supplier<BCPacketContext>> HANDLER = (message, ctx) -> {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> MessageWireSystemsPoweredClientHandler.handle(message, ctx));
         ctx.get().setPacketHandled(true);
     };

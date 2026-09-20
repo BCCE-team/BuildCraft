@@ -1,6 +1,6 @@
+//? source if >=1.21.1
 package buildcraft.lib.gui.elem;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.GuiGraphics;
 
 import buildcraft.lib.expression.api.IExpressionNode.INodeBoolean;
@@ -26,7 +26,6 @@ public class GuiElementSlotMover extends GuiElementSimple {
 
     @Override
     public void drawBackground(GuiGraphics guiGraphics, float partialTicks) {
-        PoseStack pose = guiGraphics.pose();
         if (visible.evaluate()) {
             toMove.x = 1 + (int) Math.round(getX());
             // Slot JSON uses the interior Y coordinate directly.

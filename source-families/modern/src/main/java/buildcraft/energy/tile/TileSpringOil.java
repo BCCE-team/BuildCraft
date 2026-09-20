@@ -1,5 +1,9 @@
+//? source if >=1.21.1
 package buildcraft.energy.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
+import buildcraft.lib.compat.minecraft.persistence.BCBlockEntity;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -18,14 +22,18 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.state.BlockState;
+import buildcraft.lib.compat.GameProfileCompat;
+import buildcraft.lib.compat.NbtCompat;
 
 // We don't extend TileBC here because we have no need of any of its functions.
-public class TileSpringOil extends BlockEntity implements IDebuggable, ITileOilSpring {
+public class TileSpringOil extends BCBlockEntity implements IDebuggable, ITileOilSpring {
 
-	private static final ResourceLocation ADVANCEMENT_PUMP_LARGE_OIL_WELL = ResourceLocation.parse("buildcraftfactory:black_gold");
+	private static final Identifier ADVANCEMENT_PUMP_LARGE_OIL_WELL = Identifier.parse("buildcraftfactory:black_gold");
+
+    protected boolean storesMachineDataAtRoot() { return true; }
+    protected boolean requiresPersistenceRegistries() { return false; }
 
     private final Map<GameProfile, PlayerPumpInfo> pumpProgress = new ConcurrentHashMap<>();
 
@@ -39,7 +47,6 @@ public class TileSpringOil extends BlockEntity implements IDebuggable, ITileOilS
 		super(BCEnergyBlocks.TILE_SPRING.get(), pos, state);
 	}
     
-    @Override
     public void onPumpOil(GameProfile profile, BlockPos oilPos) {
         if (profile == null) {
             // BCLog.logger.warn("Unknown owner for pump at " + pump.getPos());
@@ -54,37 +61,29 @@ public class TileSpringOil extends BlockEntity implements IDebuggable, ITileOilS
         if (info.sourcesPumped >= totalSources * 7 / 8) {
             // BCLog.logger.info("Pumped nearly all oil blocks!");
             if (oilPos.equals(getBlockPos().above())) {
-                AdvancementUtil.unlockAdvancement(profile.getId(), ADVANCEMENT_PUMP_LARGE_OIL_WELL);
+                AdvancementUtil.unlockAdvancement(GameProfileCompat.id(profile), ADVANCEMENT_PUMP_LARGE_OIL_WELL);
             }
         }
     }
 
-    @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
-        totalSources = nbt.getInt("totalSources");
-        ListTag list = nbt.getList("pumpProgress", Tag.TAG_COMPOUND);
-        for (int i = 0; i < list.size(); i++) {
-            PlayerPumpInfo info = new PlayerPumpInfo(list.getCompound(i));
-            if (info.profile != null) {
-                pumpProgress.put(info.profile, info);
+    protected void readData(BCValueInput bcData) {
+        totalSources = bcData.readInt("totalSources");
+        pumpProgress.clear();
+        for (Tag entry : bcData.readList("pumpProgress", Tag.TAG_COMPOUND)) {
+            if (entry instanceof CompoundTag tag) {
+                PlayerPumpInfo info = new PlayerPumpInfo(tag);
+                if (info.profile != null) pumpProgress.put(info.profile, info);
             }
         }
     }
     
-    @Override
-    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
-        nbt.putInt("totalSources", totalSources);
+    protected void writeData(BCValueOutput bcData) {
+        bcData.writeInt("totalSources", totalSources);
         ListTag list = new ListTag();
-        int i = 0;
-        for (PlayerPumpInfo info : pumpProgress.values()) {
-            list.add(i++, info.writeToNbt());
-        }
-        nbt.put("pumpProgress", list);
+        for (PlayerPumpInfo info : pumpProgress.values()) list.add(info.writeToNbt());
+        bcData.put("pumpProgress", list);
     }
 
-    @Override
     public void getDebugInfo(List<String> left, List<String> right, Direction side) {
         left.add("totalSources = " + totalSources);
         boolean added = false;
@@ -93,7 +92,7 @@ public class TileSpringOil extends BlockEntity implements IDebuggable, ITileOilS
                 left.add("Player Progress:");
                 added = true;
             }
-            left.add("  " + info.profile.getName() + " = " + info.sourcesPumped + " ( "
+            left.add("  " + GameProfileCompat.name(info.profile) + " = " + info.sourcesPumped + " ( "
                 + (level.getGameTime() - info.lastPumpTick) / 20 + "s )");
         }
     }
@@ -108,9 +107,9 @@ public class TileSpringOil extends BlockEntity implements IDebuggable, ITileOilS
         }
 
         public PlayerPumpInfo(CompoundTag nbt) {
-            profile = readGameProfile(nbt.getCompound("profile"));
-            lastPumpTick = nbt.getLong("lastPumpTick");
-            sourcesPumped = nbt.getInt("sourcesPumped");
+            profile = readGameProfile(NbtCompat.getCompound(nbt, "profile"));
+            lastPumpTick = NbtCompat.getLong(nbt, "lastPumpTick");
+            sourcesPumped = NbtCompat.getInt(nbt, "sourcesPumped");
         }
 
         public CompoundTag writeToNbt() {
@@ -123,8 +122,8 @@ public class TileSpringOil extends BlockEntity implements IDebuggable, ITileOilS
 
         @Nullable
         private static GameProfile readGameProfile(CompoundTag nbt) {
-            UUID id = nbt.hasUUID("Id") ? nbt.getUUID("Id") : null;
-            String name = nbt.contains("Name", Tag.TAG_STRING) ? nbt.getString("Name") : null;
+            UUID id = NbtCompat.hasUUID(nbt, "Id") ? NbtCompat.getUUID(nbt, "Id") : null;
+            String name = NbtCompat.contains(nbt, "Name", Tag.TAG_STRING) ? NbtCompat.getString(nbt, "Name") : null;
             if (id == null && (name == null || name.isBlank())) {
                 return null;
             }
@@ -133,11 +132,11 @@ public class TileSpringOil extends BlockEntity implements IDebuggable, ITileOilS
 
         private static CompoundTag writeGameProfile(GameProfile profile) {
             CompoundTag nbt = new CompoundTag();
-            if (profile.getId() != null) {
-                nbt.putUUID("Id", profile.getId());
+            if (GameProfileCompat.id(profile) != null) {
+                NbtCompat.putUUID(nbt, "Id", GameProfileCompat.id(profile));
             }
-            if (profile.getName() != null) {
-                nbt.putString("Name", profile.getName());
+            if (GameProfileCompat.name(profile) != null) {
+                nbt.putString("Name", GameProfileCompat.name(profile));
             }
             return nbt;
         }

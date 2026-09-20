@@ -1,9 +1,14 @@
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
- * 
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.lib;
 
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.lib.platform.client.PlatformClientModels;
+import buildcraft.lib.platform.events.PlatformClientEvents;
+import buildcraft.lib.platform.events.PlatformEvents;
+import buildcraft.lib.platform.events.BCEvents;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Matrix4f;
 
@@ -47,17 +52,12 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.ModelEvent.BakingCompleted;
 import net.minecraftforge.client.event.ModelEvent.RegisterAdditional;
 import net.minecraftforge.client.event.RegisterTextureAtlasSpriteLoadersEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.TextureStitchEvent;
-import net.minecraftforge.event.TickEvent.ClientTickEvent;
 import net.minecraftforge.event.TickEvent.Phase;
-import net.minecraftforge.event.TickEvent.ServerTickEvent;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent;
-import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -65,10 +65,10 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 
 public class BCLibEventDist {
-	
-	@Mod.EventBusSubscriber(modid = BCLib.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
-	public static class Client {
-		
+
+    @Mod.EventBusSubscriber(modid = BCLib.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+    public static class Client {
+
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event)
         {
@@ -85,86 +85,86 @@ public class BCLibEventDist {
             MessageManager.setHandler(MessageObjectCacheResponse.class, MessageObjectCacheResponse.HANDLER, Dist.CLIENT);
             MessageManager.setHandler(MessageDebugResponse.class, MessageDebugResponse.HANDLER, Dist.CLIENT);
         }
-        
+
         @SubscribeEvent
         public static void onTextureAtlasSpriteLoadersSetup(RegisterTextureAtlasSpriteLoadersEvent event)
         {
         }
-		
-	    @SubscribeEvent(priority = EventPriority.LOWEST)
-	    public static void textureStitchPre(TextureStitchEvent.Pre event) {
-	    	if (InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
+
+        @SubscribeEvent(priority = EventPriority.LOWEST)
+        public static void textureStitchPre(TextureStitchEvent.Pre event) {
+            if (InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
                 // Some mods start an additional/earlier resource reload. Make sure the library sprites exist
                 // before the final holder-registration pass, instead of relying on FMLClientSetup ordering.
                 BCLibSprites.fmlPreInitClient();
                 event.addSprite(new ResourceLocation("buildcraftlib", "model/led_fallback"));
-	    		ReloadManager.INSTANCE.preReloadResources();
-                // Variable models are reparsed in this pass, so old expression-node arrays are no longer valid.
+                ReloadManager.INSTANCE.preReloadResources();
+                // Variable models are reparsed in this pass, so pre-reload expression-node arrays are no longer valid.
                 ModelVariableData.onModelBake();
-	    		SpriteHolderRegistry.onTextureStitchPre(event);
-	    		ModelHolderRegistry.onTextureStitchPre(event);
-	    		FluidRenderer.onTextureStitchPre(event);
-	    	}
-	    }
-	
-/*	    @SubscribeEvent(priority = EventPriority.LOWEST)
-	    @OnlyIn(Dist.CLIENT)
-	    public static void textureStitchPreLow(TextureStitchEvent.Pre event) {
-	    	if("textures/atlas/blocks.png".equals(event.getAtlas().location().getPath())) {
-	    		
-	    	}
-	        
-	    }*/
+                SpriteHolderRegistry.onTextureStitchPre(PlatformClientRegistration.atlas(event));
+                ModelHolderRegistry.onTextureStitchPre(PlatformClientRegistration.atlas(event));
+                FluidRenderer.onTextureStitchPre(PlatformClientRegistration.atlas(event));
+            }
+        }
 
-	    @SubscribeEvent
-	    public static void textureStitchPost(TextureStitchEvent.Post event) {
-	    	if (InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
-	            SpriteHolderRegistry.onTextureStitchPost(event);
+/*	    @SubscribeEvent(priority = EventPriority.LOWEST)
+        @OnlyIn(Dist.CLIENT)
+        public static void textureStitchPreLow(TextureStitchEvent.Pre event) {
+            if("textures/atlas/blocks.png".equals(event.getAtlas().location().getPath())) {
+
+            }
+
+        }*/
+
+        @SubscribeEvent
+        public static void textureStitchPost(TextureStitchEvent.Post event) {
+            if (InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
+                SpriteHolderRegistry.onTextureStitchPost(PlatformClientRegistration.atlas(event));
             SpriteUtil.clearAtlasCache();
             DebugRenderHelper.clearTextureCache();
 
                 // Laser vertex buffers contain absolute UV coordinates from the atlas.
                 // Rebuild them after every stitch, including extra reloads started by other mods.
                 LaserRenderer_BC8.clearModels();
-	            FluidRenderer.onTextureStitchPost(event);
-                VariablePartLed.onTextureStitchPost(event);
-	        }
-	    }
-	    
-	    @SubscribeEvent
-	    public static void preModelBake(RegisterAdditional event) {
-	    	ModelHolderRegistry.preModelBake(event);
-	    }
-	
-	    @SubscribeEvent
-	    public static void onModelBake(BakingCompleted event) {
-	        SpriteHolderRegistry.exportTextureMap();
-	        LaserRenderer_BC8.clearModels();
-	        ModelHolderRegistry.onModelBake(event);
-	    }
+                FluidRenderer.onTextureStitchPost(PlatformClientRegistration.atlas(event));
+                VariablePartLed.onTextureStitchPost(PlatformClientRegistration.atlas(event));
+            }
+        }
 
-	    
-	}
+        @SubscribeEvent
+        public static void preModelBake(RegisterAdditional event) {
+            ModelHolderRegistry.preModelBake(PlatformClientModels.additional(event));
+        }
 
-	@SubscribeEvent
+        @SubscribeEvent
+        public static void onModelBake(BakingCompleted event) {
+            SpriteHolderRegistry.exportTextureMap();
+            LaserRenderer_BC8.clearModels();
+            ModelHolderRegistry.onModelBake(PlatformClientModels.completed(event));
+        }
+
+
+    }
+
+    @SubscribeEvent
     @OnlyIn(Dist.CLIENT)
     public static void renderWorldLast(RenderLevelStageEvent event) {
-    	if(event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
-    		return ;
-    	}
+        if(event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+            return ;
+        }
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
         if (player == null) return;
         PoseStack pose = event.getPoseStack();
         Matrix4f matrix = event.getProjectionMatrix();
         float partialTicks = event.getPartialTick();
-        
+
         LaserRenderer_BC8.setupLaserRenderState();
         DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
     }
 
-    @SubscribeEvent
-    public static void onEntityJoinWorld(EntityJoinLevelEvent event) {
+
+    public static void onEntityJoinWorld(BCEvents.EntityJoin event) {
         Entity entity = event.getEntity();
         if (entity instanceof ServerPlayer) {
             ServerPlayer playerMP = (ServerPlayer) entity;
@@ -179,42 +179,43 @@ public class BCLibEventDist {
         }
     }
 
-    @SubscribeEvent
-    public static void onWorldUnload(LevelEvent.Unload event) {
+
+    public static void onWorldUnload(BCEvents.LevelUnload event) {
         MarkerCache.onLevelUnload(event.getLevel());
         if (event.getLevel() instanceof ServerLevel) {
             FakePlayerProvider.INSTANCE.unloadWorld((ServerLevel) event.getLevel());
+            buildcraft.lib.platform.chunk.BCChunkTickets.unloadWorld((ServerLevel) event.getLevel());
         }
     }
 
-    @SubscribeEvent
+
     @OnlyIn(Dist.CLIENT)
-    public static void onConnectToServer(ClientPlayerNetworkEvent.LoggingIn event) {
+    public static void onConnectToServer() {
         MarkerCache.clearClientCaches();
         MessageMarkerClientHandler.clearQueuedMessages();
         BuildCraftObjectCaches.onClientJoinServer();
     }
 
-    @SubscribeEvent
+
     @OnlyIn(Dist.CLIENT)
-    public static void onDisconnectFromServer(ClientPlayerNetworkEvent.LoggingOut event) {
+    public static void onDisconnectFromServer() {
         MarkerCache.clearClientCaches();
         MessageMarkerClientHandler.clearQueuedMessages();
     }
 
 
-    @SubscribeEvent
-    public static void serverTick(ServerTickEvent event) {
-        if (event.phase == Phase.END) {
+
+    public static void serverTick(BCEvents.ServerTick event) {
+        if (event.phase() == BCEvents.Phase.END) {
             BCAdvDebugging.INSTANCE.onServerPostTick();
             MessageUtil.postServerTick();
         }
     }
 
-    @SubscribeEvent
+
     @OnlyIn(Dist.CLIENT)
-    public static void clientTick(ClientTickEvent event) {
-        if (event.phase == Phase.END) {
+    public static void clientTick(BCEvents.ClientTick event) {
+        if (event.phase() == BCEvents.Phase.END) {
             BuildCraftObjectCaches.onClientTick();
             MessageUtil.postClientTick();
             MessageMarkerClientHandler.flushQueuedMessages();
@@ -228,10 +229,23 @@ public class BCLibEventDist {
                         BlockEntity tile = (BlockEntity) debuggable;
                         MessageManager.sendToServer(new MessageDebugRequest(tile.getBlockPos(), Direction.getNearest(mouseOver.getLocation().x, mouseOver.getLocation().y, mouseOver.getLocation().z)));
                     } else if (debuggable instanceof Entity) {
-                        // TODO: Add entity debug-info request/response support.
+                        // Entity debug-info requests are intentionally ignored by this block-only debug handler.
                     }
                 }
             }
+        }
+    }
+    private static boolean gameplayEventsRegistered;
+    public static synchronized void registerGameplayEvents() {
+        if (gameplayEventsRegistered) return;
+        gameplayEventsRegistered = true;
+        PlatformEvents.entityJoin(BCLibEventDist::onEntityJoinWorld);
+        PlatformEvents.levelUnload(BCLibEventDist::onWorldUnload);
+        PlatformEvents.serverTick(BCEvents.Phase.END, BCLibEventDist::serverTick);
+        if (PlatformEvents.isClient()) {
+            PlatformClientEvents.login(BCLibEventDist::onConnectToServer);
+            PlatformClientEvents.logout(BCLibEventDist::onDisconnectFromServer);
+            PlatformClientEvents.tick(BCEvents.Phase.END, BCLibEventDist::clientTick);
         }
     }
 }

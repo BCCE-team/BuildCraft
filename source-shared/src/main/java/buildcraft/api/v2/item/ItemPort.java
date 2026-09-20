@@ -14,7 +14,7 @@ public interface ItemPort {
     ItemTransferResult extract(ItemMatcher matcher, int maxCount, OperationMode mode);
 
     /**
-     * Policy-aware insertion used to replace the legacy allOrNone flag. Implementations may override this
+     * Policy-aware insertion with explicit transfer semantics. Implementations may override this
      * to provide a truly atomic exact transfer.
      */
     default ItemTransferResult insert(ItemStack offered, ItemTransferPolicy policy, OperationMode mode) {

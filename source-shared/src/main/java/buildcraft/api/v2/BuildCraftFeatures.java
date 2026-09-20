@@ -6,7 +6,7 @@ import net.minecraft.resources.ResourceLocation;
 /**
  * Stable feature identifiers for API contract negotiation. A feature means that the public contract is present at
  * the advertised level; callers must still query the matching service when they need a live runtime backend. This
- * distinction lets BCCE migrate implementation domains behind an already-stable API surface.
+ * distinction keeps implementation domains independent behind an already-stable API surface.
  */
 public final class BuildCraftFeatures {
     public static final ResourceLocation REGISTRIES = id("registries");

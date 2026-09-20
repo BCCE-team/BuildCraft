@@ -6,6 +6,8 @@
 
 package buildcraft.transport.stripes;
 
+import buildcraft.lib.platform.events.PlatformEvents;
+import buildcraft.lib.platform.events.BCEvents;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,7 +17,6 @@ import java.util.Set;
 
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.api.v2.automation.StripesOutput;
-import buildcraft.transport.wire.WireManager;
 import buildcraft.transport.internal.pipe.IItemPipe;
 import buildcraft.transport.internal.pipe.IPipe;
 import buildcraft.transport.internal.pipe.IPipeExtensionManager;
@@ -50,8 +51,6 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.CommonHooks;
 import net.neoforged.neoforge.common.util.BlockSnapshot;
 import net.neoforged.neoforge.event.EventHooks;
-import net.neoforged.neoforge.event.tick.LevelTickEvent;
-import net.neoforged.bus.api.SubscribeEvent;
 
 public enum PipeExtensionManager implements IPipeExtensionManager {
     INSTANCE;
@@ -79,8 +78,8 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
         }
     }
 
-    @SubscribeEvent
-    public void tick(LevelTickEvent.Post event) {
+
+    public void tick(BCEvents.LevelTick event) {
         if (event.getLevel().isClientSide) {
             return;
         }
@@ -174,7 +173,7 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
             }
         }
 
-        // Step 3: Place stripes pipe back and remove old one
+        // Step 3: Place the stripes pipe and remove the replaced pipe
         if (!canceled) {
             // - Correct NBT coordinates
             stripesNBTOld.putInt("x", p.getX());
@@ -186,7 +185,7 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
             player.getInventory().clearContent();
             w.setBlock(p, stripesStateOld, 3);
             if (EventHooks.onBlockPlace(player, blockSnapshot2, r.dir)) {
-            	canceled = true;
+                canceled = true;
                 blockSnapshot2.restore();
                 BlockEntity tile = w.getBlockEntity(r.pos);
                 if (tile != null) {
@@ -270,7 +269,7 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
             player.getInventory().clearContent();
             player.getInventory().setItem(player.getInventory().selected, r.stack);
             InteractionResult result = CommonHooks.onPlaceItemIntoWorld(
-            		new UseOnContext(player.level(), player, InteractionHand.MAIN_HAND,r.stack ,new BlockHitResult(new Vec3(0.5f,0.5f,0.5f), r.dir.getOpposite(), r.pos, false)));
+                    new UseOnContext(player.level(), player, InteractionHand.MAIN_HAND,r.stack ,new BlockHitResult(new Vec3(0.5f,0.5f,0.5f), r.dir.getOpposite(), r.pos, false)));
             for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
                 ItemStack stack = player.getInventory().removeItemNoUpdate(i);
                 if (!stack.isEmpty()) {
@@ -299,7 +298,7 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
             BlockSnapshot blockSnapshot2 = BlockSnapshot.create(w.dimension(), w, p);
             w.setBlock(p, stripesStateOld, 3);
             if (EventHooks.onBlockPlace(player, blockSnapshot2, r.dir.getOpposite())) {
-            	canceled = true;
+                canceled = true;
                 stacksToSendBack.add(r.stack);
 
                 blockSnapshot1.restore();
@@ -396,5 +395,11 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
             this.pipeDef = pipeDef;
             this.stack = stack;
         }
+    }
+    private static boolean gameplayEventsRegistered;
+    public static synchronized void registerGameplayEvents() {
+        if (gameplayEventsRegistered) return;
+        gameplayEventsRegistered = true;
+        PlatformEvents.levelTick(BCEvents.Phase.END, INSTANCE::tick);
     }
 }

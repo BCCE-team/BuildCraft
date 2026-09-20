@@ -246,8 +246,7 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
 
 
     /**
-     * Reserves the next blueprint block that a Builder Robot can construct. Kept for compatibility with older board
-     * code; the modern board asks for a full 128-item batch through {@link #reserveNextRobotTasks}.
+     * Reserves one blueprint block by delegating to the batched robot-task reservation API.
      */
     public RobotBuildTask reserveNextRobotTask(EntityRobotBase robot, boolean needMaterial) {
         List<RobotBuildTask> tasks = reserveNextRobotTasks(robot, needMaterial, 1);

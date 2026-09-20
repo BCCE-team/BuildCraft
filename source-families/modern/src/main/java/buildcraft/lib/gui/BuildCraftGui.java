@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 package buildcraft.lib.gui;
 
 import java.awt.Color;
@@ -8,7 +9,7 @@ import org.lwjgl.opengl.GL11;
 
 import com.mojang.blaze3d.platform.InputConstants.Key;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.PoseStack;
+import org.joml.Matrix3x2fStack;
 
 import buildcraft.lib.BCLibSprites;
 import buildcraft.lib.expression.api.IVariableNode.IVariableNodeBoolean;
@@ -26,7 +27,8 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
+import buildcraft.lib.compat.RenderCompat;
 
 /** A gui element that allows for easy implementation of an actual {@link Screen} class.
  * <p>
@@ -41,9 +43,9 @@ import net.minecraft.resources.ResourceLocation;
  * <li>{@link #drawElementBackgrounds(GuiGraphics)} after {@link #drawBackgroundLayer(GuiGraphics, float, int, int, Runnable)},but before
  * sub-display backgrounds</li>
  * <li>{@link #drawElementForegrounds(Runnable, GuiGraphics)} after drawing everything else.</li>
- * <li>{@link #preDrawForeground(PoseStack)} if your base gui class offsets the call to drawing the foreground by the gui's
+ * <li>{@link #preDrawForeground(Matrix3x2fStack)} if your base gui class offsets the call to drawing the foreground by the gui's
  * position, for example, {@link AbstractContainerScreen}.</li>
- * <li>{@link #postDrawForeground(PoseStack)} after {@link #preDrawForeground(PoseStack)} (and the same rules apply). These two calls
+ * <li>{@link #postDrawForeground(Matrix3x2fStack)} after {@link #preDrawForeground(Matrix3x2fStack)} (and the same rules apply). These two calls
  * should wrap around and calls to this that occur while the gl state is translated.
  * <li>{@link #onMouseClicked(int, int, int)} whenever the mouse is clicked. If this returns true you shouldn't do any
  * other mouse click handling.</li>
@@ -62,7 +64,7 @@ public class BuildCraftGui {
     public static final IVariableNodeBoolean isDebuggingShown;
 
     static {
-        ResourceLocation debugDef = ResourceLocation.fromNamespaceAndPath("buildcraftlib", "base");
+        Identifier debugDef = Identifier.fromNamespaceAndPath("buildcraftlib", "base");
         isDebuggingShown = GuiConfigManager.getOrAddBoolean(debugDef, "debugging_is_shown", false);
         isDebuggingEnabled = GuiConfigManager.getOrAddBoolean(debugDef, "debugging_is_enabled", false);
     }
@@ -180,7 +182,7 @@ public class BuildCraftGui {
             menuBackgroundRenderer.run();
         }
 
-        RenderSystem.setShaderColor(1, 1, 1, 1);
+        RenderCompat.setShaderColor(1, 1, 1, 1);
         if (isDebuggingShown.evaluate()) {
             SPRITE_DEBUG.drawAt(guiGraphics, 0, 0);
             if (isDebuggingEnabled.evaluate()) {
@@ -210,18 +212,18 @@ public class BuildCraftGui {
         }
     }
 
-    public void preDrawForeground(PoseStack pose) {
-        pose.pushPose();
-        pose.translate(-rootElement.getX(), -rootElement.getY(), 0);
+    public void preDrawForeground(Matrix3x2fStack pose) {
+        pose.pushMatrix();
+        pose.translate((float) -rootElement.getX(), (float) -rootElement.getY());
     }
 
-    public void postDrawForeground(PoseStack pose) {
-        pose.popPose();
+    public void postDrawForeground(Matrix3x2fStack pose) {
+        pose.popMatrix();
     }
 
     /** Draws ordinary elements, an overriding menu, tooltips, and optional GUI debug information. */
     public void drawElementForegrounds(Runnable menuBackgroundRenderer, GuiGraphics guiGraphics) {
-        RenderSystem.enableDepthTest();
+        RenderCompat.enableDepthTest();
         for (IGuiElement element : shownElements) {
             if (element != currentMenu) {
                 element.drawForeground(guiGraphics, lastPartialTicks);
@@ -237,7 +239,7 @@ public class BuildCraftGui {
             menu.drawForeground(guiGraphics, lastPartialTicks);
         }
 
-        GuiUtil.drawVerticallyAppending(mouse, getAllTooltips(), this::drawTooltip, guiGraphics);
+        // 1.21.11: tooltips are drawn after container slots by GuiBC8.
 
         if (isDebuggingEnabled.evaluate()) {
             int x = 6;
@@ -285,6 +287,11 @@ public class BuildCraftGui {
                 info.clear();
             }
         }
+    }
+
+    /** Draws BuildCraft tooltips after vanilla container slots on 1.21.11. */
+    public void drawTooltips(GuiGraphics guiGraphics) {
+        GuiUtil.drawVerticallyAppending(mouse, getAllTooltips(), this::drawTooltip, guiGraphics);
     }
 
     /** @return True if the {@link #currentMenu} {@link IMenuElement#shouldFullyOverride() fully overrides} other mouse

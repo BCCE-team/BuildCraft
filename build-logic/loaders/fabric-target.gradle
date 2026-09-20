@@ -1,0 +1,10 @@
+/*
+ * Fabric loader adapter slot.
+ *
+ * No Fabric production target is enabled yet. When a build-root shim applies
+ * Fabric Loom, this adapter should bind the same bcTarget source/materializer
+ * contract used by Forge and NeoForge rather than introducing a parallel source
+ * layout.
+ */
+apply from: new File(rootProject.file('../..').canonicalFile, 'build-logic/common-target.gradle')
+throw new GradleException('Fabric loader adapter is reserved but no production Fabric target is configured yet')

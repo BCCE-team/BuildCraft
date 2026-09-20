@@ -26,8 +26,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidUtil;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 
 public class ActionRobotFilter extends BCStatement implements IActionInternal {
 
@@ -193,7 +191,6 @@ public class ActionRobotFilter extends BCStatement implements IActionInternal {
     }
 
     @Override
-    @OnlyIn(Dist.CLIENT)
     public ISprite getSprite() {
         return BCRoboticsSprites.ACTION_ROBOT_FILTER;
     }

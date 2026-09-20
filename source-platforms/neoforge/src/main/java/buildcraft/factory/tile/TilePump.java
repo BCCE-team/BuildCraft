@@ -6,6 +6,8 @@
 
 package buildcraft.factory.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.api.v2.permission.WorldOperationKind;
@@ -60,8 +62,8 @@ import net.minecraft.world.level.material.Fluids;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TilePump extends TileMiner implements MachineRuntimeView {
     public static final boolean DEBUG_PUMP = BCDebugging.shouldDebugComplex("factory.pump");
@@ -131,7 +133,7 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
     	super(BCFactoryBlocks.ENTITYBLOCKPUMP.get(), pos, state); 
         tank.setCanFill(false);
         tankManager.addLast(tank);
-        caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, tankManager, EnumPipePart.VALUES);
+        caps.addFluidStorage(tankManager, EnumPipePart.VALUES);
     }
 
     @Override
@@ -494,28 +496,29 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
     // NBT
 
     @Override
-	protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+	protected void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.writeData(bcData);
         if (oilSpringPos != null) {
-        	nbt.putLong("oilSpringPos", oilSpringPos.asLong());
+            bcData.writeLong("oilSpringPos", oilSpringPos.asLong());
         }
 		nbt.put("tank", tank.serializeNBT());
         
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-		super.loadAdditional(nbt, registries);
-		oilSpringPos = nbt.contains("oilSpringPos") ? BlockPos.of(nbt.getLong("oilSpringPos")) : null;
-        tank.readFromNBT(nbt.getCompound("tank"));
+	protected void readData(BCValueInput bcData) {
+		super.readData(bcData);
+		oilSpringPos = bcData.has("oilSpringPos") ? BlockPos.of(bcData.readLong("oilSpringPos")) : null;
+        tank.readFromNBT(bcData.readCompound("tank"));
 	}
 
     // Networking
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 writePayload(NET_LED_STATUS, buffer, side);
             } else if (id == NET_LED_STATUS) {
@@ -525,9 +528,9 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 readPayload(NET_LED_STATUS, buffer, side, ctx);
             } else if (id == NET_LED_STATUS) {

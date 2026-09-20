@@ -6,6 +6,7 @@ import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.lib.inventory.filter.ArrayFluidFilter;
+import buildcraft.lib.platform.storage.FluidStorage;
 import buildcraft.robotics.statements.ActionRobotFilter;
 import buildcraft.robotics.statements.ActionStationProvideFluids;
 import net.neoforged.neoforge.fluids.FluidStack;
@@ -53,12 +54,12 @@ public class AIRobotLoadFluids extends AIRobot {
             return 0;
         }
 
-        IFluidHandler handler = station.getFluidInput();
+        FluidStorage<FluidStack> handler = station.getFluidInput();
         if (handler == null) {
             return 0;
         }
 
-        FluidStack drainable = handler.drain(FluidType.BUCKET_VOLUME, FluidAction.SIMULATE);
+        FluidStack drainable = handler.drain(FluidType.BUCKET_VOLUME, true);
         if (drainable.isEmpty() || !filter.matches(drainable)) {
             return 0;
         }
@@ -74,18 +75,18 @@ public class AIRobotLoadFluids extends AIRobot {
         FluidStack toDrain = drainable.copy();
         toDrain.setAmount(Math.min(toDrain.getAmount(), fillable));
         if (!doLoad) {
-            FluidStack simulatedDrain = handler.drain(toDrain, FluidAction.SIMULATE);
+            FluidStack simulatedDrain = handler.drain(toDrain, true);
             return simulatedDrain.isEmpty() ? 0 : Math.min(simulatedDrain.getAmount(), fillable);
         }
 
-        // Execute source-first, then return any unexpectedly rejected remainder to the source. This avoids both the
-        // old fill-first duplication path and silent deletion when a mutable handler changes after simulation.
-        FluidStack drained = handler.drain(toDrain, FluidAction.EXECUTE);
+        // Execute source-first, then return any unexpectedly rejected remainder to the source. This keeps transfer
+        // conservative even when a mutable destination changes after simulation.
+        FluidStack drained = handler.drain(toDrain, false);
         if (drained.isEmpty()) {
             return 0;
         }
         if (!filter.matches(drained)) {
-            int returned = handler.fill(drained, FluidAction.EXECUTE);
+            int returned = handler.fill(drained, false);
             if (returned < drained.getAmount()) {
                 BCLog.logger.error("Robot source returned an unexpected fluid and accepted only " + returned
                     + " of " + drained.getAmount() + " mB during rollback");
@@ -97,7 +98,7 @@ public class AIRobotLoadFluids extends AIRobot {
         if (filled < drained.getAmount()) {
             FluidStack remainder = drained.copy();
             remainder.setAmount(drained.getAmount() - filled);
-            int returned = handler.fill(remainder, FluidAction.EXECUTE);
+            int returned = handler.fill(remainder, false);
             if (returned < remainder.getAmount()) {
                 BCLog.logger.error("Robot fluid load rollback was only partially accepted: returned " + returned
                     + " of " + remainder.getAmount() + " mB");

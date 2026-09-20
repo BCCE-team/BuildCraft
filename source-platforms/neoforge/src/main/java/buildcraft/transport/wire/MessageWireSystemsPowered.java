@@ -16,7 +16,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.fml.loading.FMLEnvironment;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class MessageWireSystemsPowered {
     private static final int MAX_SYSTEMS = 4096;
@@ -53,7 +53,7 @@ public class MessageWireSystemsPowered {
         });
     }
 
-    public static final BiConsumer<MessageWireSystemsPowered, Supplier<IPayloadContext>> HANDLER = (message, ctx) -> {
+    public static final BiConsumer<MessageWireSystemsPowered, Supplier<BCPacketContext>> HANDLER = (message, ctx) -> {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ClientAccess.handle(message, ctx);
         }
@@ -61,7 +61,7 @@ public class MessageWireSystemsPowered {
 
     @OnlyIn(Dist.CLIENT)
     private static final class ClientAccess {
-        private static void handle(MessageWireSystemsPowered message, Supplier<IPayloadContext> ctx) {
+        private static void handle(MessageWireSystemsPowered message, Supplier<BCPacketContext> ctx) {
             MessageWireSystemsPoweredClientHandler.handle(message, ctx);
         }
     }

@@ -4,6 +4,7 @@
  */
 package buildcraft.compat.jade;
 
+import buildcraft.lib.platform.registry.BCRegistryEntry;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.lib.internal.mj.MjFormatting;
 import buildcraft.lib.internal.mj.MjReceiverEnergyStorage;
@@ -62,7 +63,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LiquidBlock;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.energy.IEnergyStorage;
@@ -70,7 +70,6 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
 import snownee.jade.api.Accessor;
 import snownee.jade.api.BlockAccessor;
 import snownee.jade.api.EntityAccessor;
@@ -151,7 +150,7 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         registration.registerProgressClient(ProgressProvider.INSTANCE);
 
         registration.usePickedResult(BCCoreBlocks.ENGINE_BC8.get());
-        for (RegistryObject<LiquidBlock> block : BCEnergyFluids.OIL_BLOCK) {
+        for (BCRegistryEntry<LiquidBlock> block : BCEnergyFluids.OIL_BLOCK) {
             try {
                 registration.usePickedResult(block.get());
             } catch (IllegalStateException ignored) {

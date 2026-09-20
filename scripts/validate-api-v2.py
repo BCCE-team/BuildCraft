@@ -37,7 +37,7 @@ REGISTRY_KEY_RE = re.compile(
 )
 RUNTIME_REGISTRY_RE = re.compile(r"registerRegistry\(BuildCraftRegistries\.([A-Z0-9_]+)\)\s*;")
 
-# These used to be public API2 implementations. Their presence under buildcraft.api.v2 is a regression.
+# These are internal implementations and must not be exposed under buildcraft.api.v2.
 INTERNALIZED_PUBLIC_FILENAMES = {
     "ImmutableApiFeatureSet.java",
     "MjBuffer.java",

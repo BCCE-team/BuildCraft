@@ -16,6 +16,12 @@ import javax.annotation.Nullable;
 
 import buildcraft.lib.internal.capabilities.IBCCapabilityProvider;
 import buildcraft.lib.internal.core.EnumPipePart;
+import buildcraft.lib.misc.CapUtil;
+import buildcraft.lib.platform.storage.EnergyStorage;
+import buildcraft.lib.platform.storage.FluidStorage;
+import buildcraft.lib.platform.storage.ItemStorage;
+import buildcraft.lib.platform.storage.StorageAdapters;
+import buildcraft.lib.platform.storage.StorageMap;
 
 import net.minecraft.core.Direction;
 import net.neoforged.neoforge.capabilities.BlockCapability;
@@ -25,6 +31,7 @@ public class CapabilityHelper implements IBCCapabilityProvider {
     private final Map<EnumPipePart, Map<BlockCapability<?, Direction>, Supplier<?>>> caps =
         new EnumMap<>(EnumPipePart.class);
     private final List<IBCCapabilityProvider> additional = new ArrayList<>();
+    private final StorageMap storages = new StorageMap();
 
     public CapabilityHelper() {
         for (EnumPipePart face : EnumPipePart.VALUES) {
@@ -77,10 +84,51 @@ public class CapabilityHelper implements IBCCapabilityProvider {
         return provider;
     }
 
+    public void addItemStorage(ItemStorage storage, EnumPipePart... parts) {
+        storages.addItems(storage, parts);
+    }
+
+    public void addItemStorage(Function<Direction, ? extends ItemStorage> storage, EnumPipePart... parts) {
+        storages.addItems(storage, parts);
+    }
+
+    public void addFluidStorage(FluidStorage<?> storage, EnumPipePart... parts) {
+        storages.addFluids(storage, parts);
+    }
+
+    public void addFluidStorage(Function<Direction, ? extends FluidStorage<?>> storage, EnumPipePart... parts) {
+        storages.addFluids(storage, parts);
+    }
+
+    public void addEnergyStorage(EnergyStorage storage, EnumPipePart... parts) {
+        storages.addEnergy(storage, parts);
+    }
+
+    public void addEnergyStorage(Function<Direction, ? extends EnergyStorage> storage, EnumPipePart... parts) {
+        storages.addEnergy(storage, parts);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static net.neoforged.neoforge.fluids.capability.IFluidHandler nativeFluids(FluidStorage<?> storage) {
+        return StorageAdapters.toNativeFluids((FluidStorage<net.neoforged.neoforge.fluids.FluidStack>) storage);
+    }
+
     @Override
     @Nullable
     @SuppressWarnings("unchecked")
     public <T> T getCapability(BlockCapability<T, Direction> capability, @Nullable Direction facing) {
+        if (capability == CapUtil.CAP_ITEMS) {
+            ItemStorage storage = storages.items(facing);
+            if (storage != null) return (T) StorageAdapters.toNativeItems(storage);
+        }
+        if (capability == CapUtil.CAP_FLUIDS) {
+            FluidStorage<?> storage = storages.fluids(facing);
+            if (storage != null) return (T) nativeFluids(storage);
+        }
+        if (capability == CapUtil.CAP_FE) {
+            EnergyStorage storage = storages.energy(facing);
+            if (storage != null) return (T) StorageAdapters.toNativeEnergy(storage);
+        }
         Supplier<?> supplier = getCapMap(facing).get(capability);
         if (supplier != null) {
             return (T) supplier.get();

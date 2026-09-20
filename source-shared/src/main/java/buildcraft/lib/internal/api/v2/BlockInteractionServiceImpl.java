@@ -17,8 +17,8 @@ import net.minecraft.world.InteractionResult;
 /**
  * Live API2 block-interaction dispatcher.
  *
- * <p>Addon handlers run first. The classic BuildCraft handler tables are an internal fallback while
- * built-in blocks are migrated incrementally; they are never exposed as public API again.
+ * <p>Addon handlers run first. Classic BuildCraft handler tables provide the internal fallback
+ * for built-in blocks and are never exposed as public API.
  */
 final class BlockInteractionServiceImpl implements BlockInteractionService {
     @Override

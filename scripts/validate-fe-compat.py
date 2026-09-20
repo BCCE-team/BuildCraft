@@ -8,6 +8,7 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+from source_lookup import resolve_source_path
 errors: list[str] = []
 
 
@@ -16,7 +17,7 @@ def fail(message: str) -> None:
 
 
 def text(path: str) -> str:
-    p = ROOT / path
+    p = resolve_source_path(path)
     if not p.is_file():
         fail(f"missing file: {path}")
         return ""
@@ -31,7 +32,7 @@ def require(path: str, *needles: str) -> None:
 
 
 def require_file(path: str) -> None:
-    if not (ROOT / path).is_file():
+    if not resolve_source_path(path).is_file():
         fail(f"missing file: {path}")
 
 
@@ -264,7 +265,9 @@ for path in (
     "version-src/1.20.1-forge/src/main/java/buildcraft/energy/BCEnergyClientProxy.java",
     "source-platforms/neoforge/src/main/java/buildcraft/energy/BCEnergyClientProxy.java",
 ):
-    require(path, "DYNAMO_MJ_TILE.get(), RenderDynamoMJ::new")
+    require(path, "BCEnergyClientRenderers.register(", "PlatformClientRegistration.renderers(event)")
+require("source-shared/src/main/java/buildcraft/energy/BCEnergyClientRenderers.java",
+        "DYNAMO_MJ_TILE.get(), RenderDynamoMJ::new")
 
 # Original converter GUI affordances: power ledger, upgrade hints, battery help and ghost gear overlay.
 for path in (
@@ -336,7 +339,7 @@ allowed_rf_files = {
     ROOT / "source-families/modern/src/main/java/buildcraft/transport/BCTransportPipes.java",
     ROOT / "source-shared/src/main/java/buildcraft/transport/statements/ActionPowerLimit.java",
 }
-for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "version-src"):
+for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "source-family-platforms", ROOT / "version-src"):
     for p in base.rglob("*"):
         if not p.is_file() or "build" in p.parts:
             continue
@@ -358,7 +361,7 @@ for bad in (
         fail(f"unused/typo FE asset present: {bad}")
 
 # Parse every JSON source resource so broken recipe/model edits fail the gate.
-for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "version-src"):
+for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "source-family-platforms", ROOT / "version-src"):
     for p in base.rglob("*.json"):
         try:
             json.loads(p.read_text(encoding="utf-8"))

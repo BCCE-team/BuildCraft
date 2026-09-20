@@ -29,7 +29,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 
 /** Defines a widget that represents a phantom slot. */
 public class WidgetPhantomSlot extends Widget_Neptune<MenuBC_Neptune> {
@@ -48,7 +48,7 @@ public class WidgetPhantomSlot extends Widget_Neptune<MenuBC_Neptune> {
     }
 
     @Override
-    public void handleWidgetDataServer(NetworkEvent.Context ctx, FriendlyByteBuf buffer) throws IOException {
+    public void handleWidgetDataServer(BCPacketContext ctx, FriendlyByteBuf buffer) throws IOException {
         byte id = buffer.readByte();
         if (id == NET_CLIENT_TO_SERVER_CLICK) {
             byte flags = buffer.readByte();
@@ -84,7 +84,7 @@ public class WidgetPhantomSlot extends Widget_Neptune<MenuBC_Neptune> {
     }
 
     @Override
-    public void handleWidgetDataClient(NetworkEvent.Context ctx, FriendlyByteBuf buffer) throws IOException {
+    public void handleWidgetDataClient(BCPacketContext ctx, FriendlyByteBuf buffer) throws IOException {
         byte id = buffer.readByte();
         if (id == NET_SERVER_TO_CLIENT_ITEM) {
             stack = buffer.readItem();

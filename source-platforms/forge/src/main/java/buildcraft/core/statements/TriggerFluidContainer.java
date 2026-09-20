@@ -17,17 +17,14 @@ import buildcraft.lib.internal.statement.StatementParameterItemStack;
 import buildcraft.core.BCCoreSprites;
 import buildcraft.core.BCCoreStatements;
 import buildcraft.lib.client.sprite.SpriteHolderRegistry.SpriteHolder;
-import buildcraft.lib.misc.CapUtil;
+import buildcraft.lib.platform.storage.FluidStorage;
+import buildcraft.lib.platform.storage.PlatformStorage;
 
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidUtil;
-import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
 
 public class TriggerFluidContainer extends BCStatement implements ITriggerExternal {
     public State state;
@@ -41,7 +38,6 @@ public class TriggerFluidContainer extends BCStatement implements ITriggerExtern
     }
 
     @Override
-    @OnlyIn(Dist.CLIENT)
     public SpriteHolder getSprite() {
         return BCCoreSprites.TRIGGER_FLUID.get(state);
     }
@@ -58,7 +54,8 @@ public class TriggerFluidContainer extends BCStatement implements ITriggerExtern
 
     @Override
     public boolean isTriggerActive(BlockEntity tile, Direction side, IStatementContainer statementContainer, IStatementParameter[] parameters) {
-        IFluidHandler handler = tile.getCapability(CapUtil.CAP_FLUIDS, side.getOpposite()).orElse(null);
+        FluidStorage<FluidStack> handler = PlatformStorage.fluids(
+            tile.getLevel(), tile.getBlockPos(), side.getOpposite());
 
         if (handler != null) {
             FluidStack searchedFluid = FluidStack.EMPTY;
@@ -78,7 +75,7 @@ public class TriggerFluidContainer extends BCStatement implements ITriggerExtern
 
             switch (state) {
                 case EMPTY:
-                    FluidStack drained = handler.drain(1, FluidAction.SIMULATE);
+                    FluidStack drained = handler.drain(1, true);
                     return drained.isEmpty() || drained.getAmount() <= 0;
                 case CONTAINS:
                     for (int i = 0; i < liquids ; i++) {
@@ -98,7 +95,7 @@ public class TriggerFluidContainer extends BCStatement implements ITriggerExtern
                         }
                         return false;
                     }
-                    return handler.fill(searchedFluid, FluidAction.SIMULATE) > 0;
+                    return handler.fill(searchedFluid, true) > 0;
                 case FULL:
                     if (searchedFluid.isEmpty()) {
                         for (int i = 0; i < liquids ; i++) {
@@ -109,7 +106,7 @@ public class TriggerFluidContainer extends BCStatement implements ITriggerExtern
                         }
                         return true;
                     }
-                    return handler.fill(searchedFluid, FluidAction.SIMULATE) <= 0;
+                    return handler.fill(searchedFluid, true) <= 0;
             }
         }
 

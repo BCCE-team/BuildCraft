@@ -253,12 +253,11 @@ public abstract class PatternShape2d extends Pattern implements IFillerPatternSh
 
             /*
              * Rasterise one quarter of the ellipse parametrically and connect every pair of rounded samples with the
-             * same super-cover line routine used by lineTo(). The old midpoint implementation used two independent
-             * loops whose termination conditions could both skip an axis end. That left one-block gaps at the ends of
-             * arcs and allowed the filler flood-fill to leak through otherwise closed circles.
+             * same super-cover line routine used by lineTo(). Covering the rounded samples continuously keeps axis
+             * ends closed so filler flood-fill cannot leak through circular boundaries.
              *
-             * Keep the historical integer radii and da/db centre offsets: they are what let even and odd sized areas
-             * share the same shape code without producing coordinates outside the template bounds.
+             * Integer radii and da/db centre offsets let even and odd sized areas share the same shape code without
+             * producing coordinates outside the template bounds.
              */
             int radiusA = (int) ra;
             int radiusB = (int) rb;

@@ -18,7 +18,7 @@ public abstract class PipeEventFluid extends PipeEvent {
         this.flow = flow;
     }
 
-    /** @deprecated Because cancellation is going to be removed (at some point in the future) */
+    /** @deprecated Cancellation is not part of the stable pipe-event contract. */
     @Deprecated
     protected PipeEventFluid(boolean canBeCancelled, IPipeHolder holder, IFlowFluid flow) {
         super(canBeCancelled, holder);
@@ -40,8 +40,7 @@ public abstract class PipeEventFluid extends PipeEvent {
 
     /** Fired after collecting the amounts of fluid that can be moved from each pipe part into the centre. */
     public static class PreMoveToCentre extends PipeEventFluid {
-        /** The fluid that is being moved. Future versions of BC *might* allow more than one fluid type per pipe, but
-         * for the moment the API doesn't allow pipes to do this. */
+        /** The single fluid type being moved by this pipe event. */
         public final FluidStack fluid;
 
         /** The maximum amount of fluid that the centre pipe could accept. */
@@ -85,8 +84,7 @@ public abstract class PipeEventFluid extends PipeEvent {
 
     /** Fired after {@link PreMoveToCentre} when all of the amounts have been totalled up. */
     public static class OnMoveToCentre extends PipeEventFluid {
-        /** The fluid that is being moved. Future versions of BC *might* allow more than one fluid type per pipe, but
-         * for the moment the API doesn't allow pipes to do this. */
+        /** The single fluid type being moved by this pipe event. */
         public final FluidStack fluid;
 
         public final int[] fluidLeavingSide;

@@ -1,5 +1,9 @@
 package buildcraft.silicon;
 
+import buildcraft.lib.platform.client.ClientItemColours;
+import buildcraft.lib.platform.client.ClientModelBaking;
+import buildcraft.lib.platform.client.ClientRegistration;
+import buildcraft.silicon.BCSiliconClientRenderers;
 import buildcraft.transport.internal.pipe.PipeApiClient;
 import buildcraft.transport.internal.pipe.PipeApiClient.IClientRegistry;
 import buildcraft.transport.internal.pluggable.IPluggableStaticBaker;
@@ -39,9 +43,6 @@ import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.DyeColor;
-import net.minecraftforge.client.event.EntityRenderersEvent;
-import net.minecraftforge.client.event.ModelEvent.ModifyBakingResult;
-import net.minecraftforge.client.event.RegisterColorHandlersEvent;
 
 public final class BCSiliconModels {
     public static final ModelHolderStatic LIGHT_SENSOR;
@@ -123,16 +124,15 @@ public final class BCSiliconModels {
         registry.registerRenderer(PluggablePulsar.class, PlugPulsarRenderer.INSTANCE);
     }
 
-    public static void onBlockEntityRender(EntityRenderersEvent.RegisterRenderers event) {
-        event.registerBlockEntityRenderer(BCSiliconBlocks.LASER_TILE.get(), RenderLaser::new);
-        event.registerBlockEntityRenderer(BCSiliconBlocks.PROGRAMMING_TABLE_TILE.get(), RenderProgrammingTable::new);
+    public static void onBlockEntityRender(ClientRegistration.Renderers event) {
+        BCSiliconClientRenderers.register(event);
     }
 
-    public static void registerItemColor(RegisterColorHandlersEvent.Item event) {
+    public static void registerItemColor(ClientItemColours event) {
         event.register(FacadeItemColours.INSTANCE, BCSiliconItems.PLUG_FACADE_ITEM.get());
     }
 
-    public static void onModelBake(ModifyBakingResult event) {
+    public static void onModelBake(ClientModelBaking.Models event) {
         init();
         putModel(event, "plug/gate#inventory", ModelGateItem.INSTANCE);
         putModel(event, "plug/lens#inventory", ModelLensItem.INSTANCE);
@@ -155,7 +155,7 @@ public final class BCSiliconModels {
         PlugGateRenderer.onModelBake();
     }
 
-    private static void putModel(ModifyBakingResult event, String value, BakedModel model) {
+    private static void putModel(ClientModelBaking.Models event, String value, BakedModel model) {
         int separator = value.indexOf('#');
         String path = separator >= 0 ? value.substring(0, separator) : value;
         String variant = separator >= 0 ? value.substring(separator + 1) : "";

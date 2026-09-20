@@ -738,8 +738,8 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
         long wantedPower = Math.min(ceilDiv(remainingProgress, POWER_EFFICIENCY_MULTIPLIER), maxPower);
         long extractedPower = tile.getBattery().extractPower(0, wantedPower);
         if (extractedPower > 0) {
-            // Progress is deliberately accelerated by POWER_EFFICIENCY_MULTIPLIER, but refunds must use the
-            // physical amount removed from the battery. Refunding progress used to duplicate up to 2x the MJ.
+            // Progress is scaled by POWER_EFFICIENCY_MULTIPLIER, while refunds must use the physical amount
+            // removed from the battery so energy remains conserved.
             reservePower.accept(extractedPower);
         }
         return Math.min(remainingProgress, extractedPower * POWER_EFFICIENCY_MULTIPLIER);

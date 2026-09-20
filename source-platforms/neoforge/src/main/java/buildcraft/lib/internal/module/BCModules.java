@@ -29,7 +29,7 @@ public enum BCModules implements IBuildCraftMod {
     private static BCModules[] loadedModules, missingModules;
 
     public final String lowerCaseName = name().toLowerCase(Locale.ROOT);
-    // Bit hacky, but it works as this is all english
+    // Module enum names are ASCII identifiers, so simple case conversion is sufficient.
     public final String camelCaseName = name().charAt(0) + lowerCaseName.substring(1);
     private final String modId = "buildcraft" + lowerCaseName;
     private boolean loaded;

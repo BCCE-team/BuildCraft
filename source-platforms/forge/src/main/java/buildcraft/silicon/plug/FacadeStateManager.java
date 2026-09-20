@@ -82,10 +82,8 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
 
     private static final AtomicLong NEXT_RULE_ID = new AtomicLong();
 
-    /** An array containing all mods that fail the {@link #doesPropertyConform(Property)} check, and any others.
-     * <p>
-     * Note: Mods should ONLY be added to this list AFTER it has been reported to them, and taken off the list once a
-     * version has been released with the fix. */
+    /** Mods with confirmed facade-state incompatibilities that fail {@link #doesPropertyConform(Property)} or an
+     * equivalent safety check. Entries apply only while the incompatible state representation is present. */
     private static final List<String> KNOWN_INVALID_REPORTED_MODS = Arrays.asList(new String[] { //
     });
 

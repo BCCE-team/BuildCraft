@@ -45,6 +45,7 @@ import buildcraft.robotics.statements.ActionRobotFilter;
 import buildcraft.robotics.statements.ActionStationProvideItems;
 import buildcraft.lib.fluid.FuelApiBridge;
 import buildcraft.lib.misc.FakePlayerProvider;
+import buildcraft.lib.platform.storage.FluidStorage;
 import buildcraft.transport.internal.IInjectable;
 import com.mojang.authlib.GameProfile;
 import java.util.ArrayList;
@@ -354,11 +355,11 @@ public final class RobotServiceImpl implements RobotService {
         @Override
         public FluidTransferResult insert(FluidVolume offered, OperationMode mode) {
             if (offered == null || offered.isEmpty()) return FluidTransferResult.nothing(offered == null ? FluidAmount.ZERO : offered.amount());
-            IFluidHandler output = station.getFluidOutput();
+            FluidStorage<FluidStack> output = station.getFluidOutput();
             if (output == null) return FluidTransferResult.nothing(offered.amount());
             FluidStack stack = FuelApiBridge.stackOf(offered);
             if (stack.isEmpty()) return FluidTransferResult.nothing(offered.amount());
-            int accepted = output.fill(stack, mode == OperationMode.EXECUTE ? FluidAction.EXECUTE : FluidAction.SIMULATE);
+            int accepted = output.fill(stack, mode == OperationMode.SIMULATE);
             return FluidTransferResult.ofInsertion(offered, FluidAmount.of(Math.max(0, accepted)));
         }
 
@@ -367,7 +368,7 @@ public final class RobotServiceImpl implements RobotService {
             if (matcher == null || maxAmount == null || maxAmount.isZero()) {
                 return FluidTransferResult.nothing(maxAmount == null ? FluidAmount.ZERO : maxAmount);
             }
-            IFluidHandler input = station.getFluidInput();
+            FluidStorage<FluidStack> input = station.getFluidInput();
             if (input == null) return FluidTransferResult.nothing(maxAmount);
             int limit = (int) Math.min(Integer.MAX_VALUE, maxAmount.milliBuckets());
             for (int tank = 0; tank < input.getTanks(); tank++) {
@@ -376,7 +377,7 @@ public final class RobotServiceImpl implements RobotService {
                 if (!matcher.matches(FuelApiBridge.variantOf(stored), FuelApiBridge.MATCH_CONTEXT)) continue;
                 FluidStack requested = stored.copy();
                 requested.setAmount(Math.min(limit, stored.getAmount()));
-                FluidStack drained = input.drain(requested, mode == OperationMode.EXECUTE ? FluidAction.EXECUTE : FluidAction.SIMULATE);
+                FluidStack drained = input.drain(requested, mode == OperationMode.SIMULATE);
                 return FluidTransferResult.ofExtraction(maxAmount, FuelApiBridge.volumeOf(drained));
             }
             return FluidTransferResult.nothing(maxAmount);

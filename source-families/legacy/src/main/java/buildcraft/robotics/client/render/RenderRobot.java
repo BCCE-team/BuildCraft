@@ -44,9 +44,8 @@ public class RenderRobot extends EntityRenderer<EntityRobot> {
     public void render(EntityRobot robot, float yaw, float partialTicks, PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
         poseStack.pushPose();
 
-        // Same idea as the 1.7.10 renderer: rotate the cube by the robot yaw, then draw the cube around the entity
-        // origin. Most docked robots currently have yaw 0, but keeping this makes the renderer correct once movement
-        // and AI are ported.
+        // Rotate the cube by the robot yaw and draw it around the entity origin. Docked robots may
+        // have yaw 0; moving robots use the same transform.
         //? if <1.20 {
         poseStack.mulPose(Vector3f.YP.rotationDegrees(180.0F - robot.getYRot()));
         //?} else {
@@ -59,8 +58,8 @@ public class RenderRobot extends EntityRenderer<EntityRobot> {
         renderRobotCube(buffer.getBuffer(RenderType.entityCutoutNoCull(getTextureLocation(robot))),
                 pose.pose(), pose.normal(), packedLight, 1.0F, 1.0F);
 
-        // Old BuildCraft rendered this overlay for non-sleeping robots. The inventory item renderer always used this
-        // active overlay, but placed robots only show it while actually doing work.
+        // Placed robots show the active overlay only while doing work; the inventory preview always
+        // uses the active overlay.
         if (!robot.isAsleepForRendering()) {
             float storagePercent = Math.max(0.0F, Math.min(1.0F,
                     robot.getEnergyForRendering() / (float) EntityRobot.MAX_ENERGY));
@@ -81,10 +80,8 @@ public class RenderRobot extends EntityRenderer<EntityRobot> {
 
     private static void renderRobotCube(VertexConsumer builder, Matrix4f pose, Matrix3f normal, int light,
                                         float alpha, float brightness) {
-        // BuildCraft 7.1.x used ModelRenderer(model, 0, 0).addBox(-4, -4, -4, 8, 8, 8) with 32x32 robot
-        // textures. That is the standard old entity-head layout: two 8x8 caps on the first row and four 8x8
-        // side faces on the second row. The previous port used 4x4 block-model UVs, so half the faces sampled
-        // transparent areas of the texture and looked untextured.
+        // Robot textures use the classic 32x32 entity-head layout: two 8x8 caps on the first row
+        // and four 8x8 side faces on the second row. Matching 8x8 UV regions avoids transparent texels.
         quad(builder, pose, normal, light,
                 MIN, MAX, MIN, MAX, MAX, MIN, MAX, MAX, MAX, MIN, MAX, MAX,
                 16, 0, 24, 8, 0, 1, 0, alpha, brightness); // up
@@ -99,10 +96,10 @@ public class RenderRobot extends EntityRenderer<EntityRobot> {
                 24, 8, 32, 16, 0, 0, 1, alpha, brightness); // south/back
         quad(builder, pose, normal, light,
                 MIN, MIN, MAX, MIN, MIN, MIN, MIN, MAX, MIN, MIN, MAX, MAX,
-                0, 8, 8, 16, -1, 0, 0, alpha, brightness); // west/right side in the old texture layout
+                0, 8, 8, 16, -1, 0, 0, alpha, brightness); // west/right side in the legacy texture layout
         quad(builder, pose, normal, light,
                 MAX, MIN, MIN, MAX, MIN, MAX, MAX, MAX, MAX, MAX, MAX, MIN,
-                16, 8, 24, 16, 1, 0, 0, alpha, brightness); // east/left side in the old texture layout
+                16, 8, 24, 16, 1, 0, 0, alpha, brightness); // east/left side in the legacy texture layout
     }
 
     private static void quad(VertexConsumer builder, Matrix4f pose, Matrix3f normal, int light,

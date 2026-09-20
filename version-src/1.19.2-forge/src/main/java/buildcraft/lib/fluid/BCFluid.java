@@ -225,7 +225,7 @@ public abstract class BCFluid extends ForgeFlowingFluid {
 	@Override
 	protected boolean canBeReplacedWith(FluidState state, BlockGetter level, BlockPos pos, Fluid fluidIn,
 			Direction direction) {
-		// Water updates used to overwrite oil and fuel because their density is lower than water's. Keep BC fluids
+		// Preserve BuildCraft fluid cells against incompatible water replacement while respecting density rules.
 		// stable in oceans and only allow a genuinely denser, non-water fluid to displace them from above.
 		if (fluidIn == Fluids.EMPTY || fluidIn.defaultFluidState().is(FluidTags.WATER)) {
 			return false;

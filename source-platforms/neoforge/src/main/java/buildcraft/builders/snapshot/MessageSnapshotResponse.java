@@ -21,7 +21,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.fml.loading.FMLEnvironment;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class MessageSnapshotResponse {
     private static final int MAX_COMPRESSED_SNAPSHOT_BYTES = 8 * 1024 * 1024;
@@ -65,8 +65,8 @@ public class MessageSnapshotResponse {
         }
     }
 
-    public static final BiConsumer<MessageSnapshotResponse, Supplier<IPayloadContext>> HANDLER = (message, ctx) -> {
-        IPayloadContext context = ctx.get();
+    public static final BiConsumer<MessageSnapshotResponse, Supplier<BCPacketContext>> HANDLER = (message, ctx) -> {
+        BCPacketContext context = ctx.get();
         context.enqueueWork(() -> {
             if (FMLEnvironment.dist == Dist.CLIENT) {
                 try {

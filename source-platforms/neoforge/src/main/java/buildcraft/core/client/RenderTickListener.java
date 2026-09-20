@@ -254,8 +254,8 @@ public class RenderTickListener {
             previous = current;
         }
 
-        // Old path providers normally repeated the first point as the final point, but explicitly close repeating
-        // paths as well so imported or manually edited map-location data still renders as a loop.
+        // Explicitly close repeating paths when the stored endpoints differ so imported or manually edited
+        // map-location data still renders as a loop.
         BlockPos first = path.get(0);
         BlockPos last = path.get(path.size() - 1);
         if (repeating && !first.equals(last)) {

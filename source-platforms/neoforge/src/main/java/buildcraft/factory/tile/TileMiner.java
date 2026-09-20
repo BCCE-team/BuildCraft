@@ -6,6 +6,8 @@
 
 package buildcraft.factory.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
 
 import java.io.IOException;
@@ -34,11 +36,9 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     public static final IdAllocator IDS = TileBC_Neptune.IDS.makeChild("miner");
@@ -176,37 +176,41 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     }
 
     @Override
-    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+    protected void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+        HolderLookup.Provider registries = bcData.registries();
+        super.writeData(bcData);
         if (currentPos != null) {
-            nbt.putLong("currentPos", currentPos.asLong());
+            bcData.writeLong("currentPos", currentPos.asLong());
         }
-        nbt.putInt("wantedLength", wantedLength);
-        nbt.putLong("progress", progress);
+        bcData.writeInt("wantedLength", wantedLength);
+        bcData.writeLong("progress", progress);
         nbt.put("battery", battery.serializeNBT(registries));
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
-        if (nbt.contains("currentPos")) {
-            currentPos = BlockPos.of(nbt.getLong("currentPos"));
+    protected void readData(BCValueInput bcData) {
+        CompoundTag nbt = bcData.tag();
+        HolderLookup.Provider registries = bcData.registries();
+        super.readData(bcData);
+        if (bcData.has("currentPos")) {
+            currentPos = BlockPos.of(bcData.readLong("currentPos"));
         }
-        wantedLength = nbt.getInt("wantedLength");
-        progress = Math.max(0L, nbt.getLong("progress"));
-        // Legacy save compatibility: older ports stored the MJ battery under "mj_battery".
-        if (nbt.contains("mj_battery")) {
+        wantedLength = bcData.readInt("wantedLength");
+        progress = Math.max(0L, bcData.readLong("progress"));
+        // The persisted key "mj_battery" is accepted as a legacy battery alias.
+        if (bcData.has("mj_battery")) {
             nbt.put("battery", nbt.get("mj_battery"));
         }
-        battery.deserializeNBT(registries, nbt.getCompound("battery"));
+        battery.deserializeNBT(registries, bcData.readCompound("battery"));
     }
 
     // Networking
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 writePayload(NET_LED_STATUS, buffer, side);
                 buffer.writeInt(wantedLength);
@@ -220,9 +224,9 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 readPayload(NET_LED_STATUS, buffer, side, ctx);
                 currentLength = lastLength = wantedLength = buffer.readInt();
@@ -251,9 +255,6 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     public AABB getRenderBoundingBox() {
 		return blockAABB.move(worldPosition).expandTowards(0, 1-currentLength, 0);
 	}
-
-
-    @OnlyIn(Dist.CLIENT)
     public float getPercentFilledForRender() {
         float val = battery.getStored() / (float) battery.getCapacity();
         return val < 0 ? 0 : val > 1 ? 1 : val;

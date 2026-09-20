@@ -300,8 +300,8 @@ public abstract class Snapshot {
             ownerName = nbt.contains("ownerName", Tag.TAG_STRING) ? nbt.getString("ownerName") : "";
             created = new Date(nbt.getLong("created"));
             name = nbt.getString("name");
-            // Old blueprints/templates did not store these switches. Keep their old behaviour:
-            // a creative inserter may build without materials, rotation is allowed, and excavation is allowed.
+            // Blueprints/templates without these switches use permissive defaults: creative insertion may skip
+            // materials, rotation is allowed, and excavation is allowed.
             allowCreative = !nbt.contains("allowCreative") || nbt.getBoolean("allowCreative");
             canRotate = !nbt.contains("canRotate") || nbt.getBoolean("canRotate");
             canExcavate = !nbt.contains("canExcavate") || nbt.getBoolean("canExcavate");

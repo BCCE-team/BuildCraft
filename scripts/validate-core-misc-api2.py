@@ -5,15 +5,21 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
+from source_lookup import resolve_source_path
 SOURCE_ROOTS = [
     ROOT / "source-shared/src/main/java",
     ROOT / "source-families/legacy/src/main/java",
     ROOT / "source-families/modern/src/main/java",
     ROOT / "source-platforms/forge/src/main/java",
     ROOT / "source-platforms/neoforge/src/main/java",
+    ROOT / "source-family-platforms/legacy/forge/src/main/java",
+    ROOT / "source-family-platforms/legacy/fabric/src/main/java",
+    ROOT / "source-family-platforms/modern/neoforge/src/main/java",
+    ROOT / "source-family-platforms/modern/fabric/src/main/java",
     ROOT / "version-src/1.19.2-forge/src/main/java",
     ROOT / "version-src/1.20.1-forge/src/main/java",
     ROOT / "version-src/1.21.1-neoforge/src/main/java",
+    ROOT / "version-src/1.21.11-neoforge/src/main/java",
 ]
 
 RETIRED = {
@@ -55,7 +61,7 @@ IMPORT = re.compile(r"^\s*import\s+(buildcraft\.api\.(?!v2\.)[^;]+);", re.MULTIL
 
 
 def read(rel: str) -> str:
-    p = ROOT / rel
+    p = resolve_source_path(rel)
     if not p.is_file():
         raise AssertionError(f"missing {rel}")
     return p.read_text(encoding="utf-8", errors="ignore")

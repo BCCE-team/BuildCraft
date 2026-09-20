@@ -25,7 +25,14 @@ public class ItemRedstoneChipset extends ItemByEnum<EnumRedstoneChipset> {
         }
     }*/
     
-	@Override
+    //? if >=1.21.11 {
+    @Override
+    public net.minecraft.network.chat.Component getName(ItemStack stack) {
+        return net.minecraft.network.chat.Component.translatable(getDescriptionId(stack));
+    }
+    //?}
+
+    @Override
 	public String getDescriptionId(ItemStack p_41455_) {
 		return "item.buildcraftsilicon.redstone_" + type.getSerializedName() + "_chipset";
 	}

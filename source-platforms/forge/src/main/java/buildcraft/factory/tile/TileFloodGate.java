@@ -52,8 +52,8 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidType;
 import net.minecraftforge.fluids.FluidUtil;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
     private static final Vec3i[] SEARCH_NORMAL = new Vec3i[] { //
@@ -92,7 +92,7 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
     public TileFloodGate(BlockPos pos, BlockState state) {
     	super(BCFactoryBlocks.ENTITYBLOCKFLOODGATE.get(), pos, state);
     	tankManager.addLast(tank);
-        caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, tankManager, EnumPipePart.VALUES);
+        caps.addFluidStorage(tankManager, EnumPipePart.VALUES);
         
     }
 
@@ -155,7 +155,7 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
             }
 
             if (canFill(toCheck)) {
-                // Keep the old nearest-first consumption order: push at the front, consume from the back.
+                // Preserve nearest-first consumption order: push at the front, consume from the back.
                 queue.addFirst(toCheck);
             }
 
@@ -322,9 +322,9 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
     // Networking
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 // tank.writeToBuffer(buffer);
                 MessageUtil.writeEnumSet(buffer, openSides, Direction.class);
@@ -333,9 +333,9 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 // tank.readFromBuffer(buffer);
                 EnumSet<Direction> _new = MessageUtil.readEnumSet(buffer, Direction.class);

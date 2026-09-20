@@ -25,7 +25,11 @@ public class RequiredExtractorItemFromBlock extends RequiredExtractor {
         Level level) {
         // The modern overload requires a LevelReader. We have no real placement position here,
         // so use the state-aware overload instead of passing a fake BlockGetter or null context.
+        //? if >=1.21.4 {
+        ItemStack result = new ItemStack(blockState.getBlock().asItem());
+        //?} else {
         ItemStack result = blockState.getBlock().getCloneItemStack(level, BlockPos.ZERO, blockState);
+        //?}
         if (result.isEmpty()) {
             result = new ItemStack(blockState.getBlock().asItem());
         }

@@ -11,7 +11,7 @@ import buildcraft.lib.fluid.FluidCompatRegistry;
 import buildcraft.lib.fluid.FuelApiBridge;
 import net.neoforged.neoforge.fluids.FluidStack;
 
-/** NeoForge bridge used by BCCE runtime while factory machines migrate to API 2 recipes. */
+/** NeoForge runtime bridge between factory machine recipes and the API 2 recipe service. */
 public final class MachineRecipeApiBridge {
     private MachineRecipeApiBridge() {}
 

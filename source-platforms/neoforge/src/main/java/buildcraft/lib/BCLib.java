@@ -1,9 +1,10 @@
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
- * 
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.lib;
 
+import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.module.ModuleInfo;
@@ -49,7 +50,7 @@ public class BCLib {
         modEventBus.addListener(this::init);
         modEventBus.addListener(this::postInit);
         modEventBus.addListener(MessageManager::registerPayloads);
-        modEventBus.addListener(ChunkLoaderManager::registerTicketController);
+        modEventBus.addListener(buildcraft.lib.platform.chunk.PlatformChunkTickets::registerTicketController);
 
         try {
             BCLog.logger.info("");
@@ -80,7 +81,7 @@ public class BCLib {
                 BCLog.logger.info("  - " + module.id().getPath());
             }
         }
-        BCLibItems.registry(modEventBus);
+        BCLibItems.registry(RegistryBinding.on(modEventBus));
         BCLibIngredientTypes.register(modEventBus);
         BCLibRegistries.fmlPreInit();
         StatementManager.setRegistryProvider(ItemStackUtil::requireActiveRegistryProvider);
@@ -94,7 +95,8 @@ public class BCLib {
         BuildCraftObjectCaches.fmlPreInit();
 
         NeoForge.EVENT_BUS.register(BCLibEventDist.class);
-        
+        BCLibEventDist.registerGameplayEvents();
+
     }
 
     public void gatherData(GatherDataEvent event) {
@@ -106,19 +108,19 @@ public class BCLib {
     }
 
     public void init(final FMLCommonSetupEvent event) {
-    	BCLibRegistries.fmlInit();
-    	VanillaListHandlers.fmlInit();
+        BCLibRegistries.fmlInit();
+        VanillaListHandlers.fmlInit();
   //  	VanillaPaintHandlers.fmlInit();
         VanillaRotationHandlers.fmlInit();
     }
-    
+
     public void postInit(FMLLoadCompleteEvent evt) {
 //        ReloadableRegistryManager.loadAll();
 
 //        VanillaListHandlers.fmlPostInit();
         MarkerCache.postInit();
-    	BuildCraftObjectCaches.fmlPostInit();
-    	MessageManager.fmlPostInit();
+        BuildCraftObjectCaches.fmlPostInit();
+        MessageManager.fmlPostInit();
         evt.enqueueWork(BCLibRegistries::fmlPostInit);
     }
 

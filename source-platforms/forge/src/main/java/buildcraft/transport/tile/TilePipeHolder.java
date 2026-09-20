@@ -63,8 +63,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.client.model.data.ModelData;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebuggable{
 
@@ -361,7 +361,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
     // Network
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
         if (id == NET_UPDATE_MULTI) {
             int mask = 0;
@@ -376,7 +376,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
             }
             return;
         }
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 if (pipe == Pipe.EMPTY) {
                     buffer.writeBoolean(false);
@@ -415,9 +415,9 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
             	if (buffer.readBoolean()) {
                     pipe = new Pipe(this, buffer, ctx);

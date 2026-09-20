@@ -1,0 +1,497 @@
+/* NeoForge-specific target adapter. Plugin resolution remains in the build-root shim. */
+apply from: new File(rootProject.file('../..').canonicalFile, 'build-logic/common-target.gradle')
+
+def bc = project.ext.bcTarget
+def targetName = bc.targetName
+def buildGeneration = bc.buildGeneration
+def repositoryRoot = bc.repositoryRoot
+def configuredProperty = bc.configuredProperty
+def requiredProperty = bc.requiredProperty
+def optionalProperty = bc.optionalProperty
+def booleanProperty = bc.booleanProperty
+def minecraftVersion = bc.minecraftVersion
+def neoForgeVersion = requiredProperty('deps.neoforge')
+def loaderName = bc.loaderName
+def modVersion = bc.modVersion
+def archiveName = bc.archiveName
+def javaVersion = bc.javaVersion
+def sourceFamily = bc.sourceFamily
+def sourcePlatform = bc.sourcePlatform
+def sharedSourceRoot = bc.sharedSourceRoot
+def familySourceRoot = bc.familySourceRoot
+def platformSourceRoot = bc.platformSourceRoot
+def familyPlatformSourceRoot = bc.familyPlatformSourceRoot
+def targetOverlayRoot = bc.targetOverlayRoot
+def sourceLayers = bc.sourceLayers
+def resolveSourceFile = bc.resolveSourceFile
+def targetAccessTransformer = bc.targetAccessTransformer
+def effectiveSourceRoot = bc.effectiveSourceRoot
+def sourceLayoutScript = bc.sourceLayoutScript
+def pythonExecutable = bc.pythonExecutable
+def prepareEffectiveSource = bc.prepareEffectiveSource
+def effectiveSourceDir = bc.effectiveSourceDir
+def effectiveDirs = bc.effectiveDirs
+def jeiCompatEnabled = booleanProperty('compat.jei.enabled', true)
+def jadeCompatEnabled = booleanProperty('compat.jade.enabled', true)
+def ic2CompatEnabled = booleanProperty('compat.ic2.enabled', false)
+def forestryCompatEnabled = booleanProperty('compat.forestry.enabled', false)
+def dataGenSourcesEnabled = booleanProperty('compile.datagen.enabled', true)
+
+def gameTestRunRequested = gradle.startParameter.taskNames.any {
+    it.toLowerCase().contains('rungametestserver')
+}
+
+sourceSets {
+    main {
+        java.setSrcDirs(effectiveDirs('src/main/java'))
+        resources.setSrcDirs(effectiveDirs('src/main/resources'))
+        if (gameTestRunRequested) {
+            // Keep the single-module GameTest guard visible to the parity validator.
+            resources.srcDir(new File(effectiveSourceDir, 'src/gametest/resources'))
+            // Reorder the main resource roots so the GameTest tree is the overlay. processResources
+            // uses EXCLUDE for GameTest runs, therefore the first copy of a duplicate path wins.
+            resources.setSrcDirs([new File(effectiveSourceDir, 'src/gametest/resources')] + effectiveDirs('src/main/resources'))
+        }
+        if (gameTestRunRequested) {
+            java.srcDir(new File(effectiveSourceDir, 'src/gametest/java'))
+        }
+    }
+    test {
+        java.setSrcDirs(effectiveDirs('src/test/java'))
+        resources.setSrcDirs(effectiveDirs('src/test/resources'))
+    }
+    gameTest {
+        java.setSrcDirs(effectiveDirs('src/gametest/java'))
+        resources.setSrcDirs(effectiveDirs('src/gametest/resources'))
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += output + sourceSets.main.output
+    }
+    // API 2 is compiled a second time as an isolated surface. This proves that
+    // the public API does not require BuildCraft implementation classes.
+    apiV2 {
+        java.setSrcDirs(effectiveDirs('src/main/java'))
+        java.include 'buildcraft/api/v2/**'
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+    // The consumer fixture intentionally excludes sourceSets.main.output. If it
+    // imports implementation code, compilation must fail.
+    addonFixture {
+        java.setSrcDirs([new File(effectiveSourceDir, 'addon-fixture/src/main/java')])
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.apiV2.output + sourceSets.apiV2.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+}
+
+if (!jeiCompatEnabled) {
+    sourceSets.main.java.exclude 'buildcraft/compat/jei/**'
+}
+if (!jadeCompatEnabled) {
+    sourceSets.main.java.exclude 'buildcraft/compat/jade/**'
+}
+if (!ic2CompatEnabled) {
+    sourceSets.main.java.exclude 'buildcraft/compat/ic2/**'
+}
+if (!forestryCompatEnabled) {
+    sourceSets.main.java.exclude 'buildcraft/compat/forestry/**'
+}
+if (!dataGenSourcesEnabled) {
+    // NeoForge 1.21.11 does not expose the datagen helper APIs used by these
+    // source-time generators. Keep the exclusion list deliberately narrow: many
+    // BuildCraft runtime/API contracts also end in *Provider and must remain part
+    // of the main compile, e.g. AreaProvider, IBCCapabilityProvider,
+    // FakePlayerProvider, ItemProvider and the statement provider interfaces.
+    sourceSets.main.java.exclude 'buildcraft/energy/BCEnergyProvider.java'
+    sourceSets.main.java.exclude 'buildcraft/lib/BCTagsProvider.java'
+    // SimpleRobotRegistryProvider is runtime SavedData/robot docking infrastructure, not a datagen provider.
+    sourceSets.main.java.exclude 'buildcraft/silicon/BCSiliconRecipesProvider.java'
+    sourceSets.main.java.exclude 'buildcraft/factory/BCFactoryRecipesProvider.java'
+    sourceSets.main.java.exclude 'buildcraft/transport/BCTransportRecipesProvider.java'
+    sourceSets.main.java.exclude 'buildcraft/core/BCCoreRecipes.java'
+    // The effective source materializer owns version-specific source selection.
+    // RenderTickListener may come from platform, family-platform, or target layers,
+    // so Gradle must not second-guess that resolution by inspecting version-src.
+    sourceSets.main.java.exclude 'buildcraft/core/client/model/FragileFluidContainerModel.java'
+    sourceSets.main.java.exclude 'buildcraft/core/client/model/ModelEngine.java'
+}
+
+configurations {
+    gameTestImplementation.extendsFrom implementation
+    gameTestRuntimeOnly.extendsFrom runtimeOnly
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+// Keep target-specific values out of the Java source snapshots.
+def generatedTargetSources = layout.buildDirectory.dir('generated/sources/buildcraftTarget/java')
+
+
+def gitMetadata = { List<String> args, String fallback ->
+    try {
+        def command = new ArrayList<String>()
+        command.add('git')
+        command.addAll(args)
+        def process = new ProcessBuilder(command)
+                .directory(repositoryRoot)
+                .redirectErrorStream(true)
+                .start()
+        def text = process.inputStream.getText('UTF-8').trim()
+        return process.waitFor() == 0 && !text.isBlank() ? text : fallback
+    } catch (Exception ignored) {
+        return fallback
+    }
+}
+
+def gitBranch = providers.environmentVariable('GITHUB_REF_NAME')
+        .getOrElse(gitMetadata(['rev-parse', '--abbrev-ref', 'HEAD'], 'unknown'))
+def gitCommitHash = providers.environmentVariable('GITHUB_SHA')
+        .getOrElse(gitMetadata(['rev-parse', 'HEAD'], 'unknown'))
+def gitCommitMessage = gitMetadata(['log', '-1', '--pretty=%s'], 'unknown')
+def gitCommitAuthor = gitMetadata(['log', '-1', '--pretty=%an <%ae>'], 'unknown')
+def targetValues = [
+        minecraft: minecraftVersion,
+        loader: 'neoforge',
+        protocol: requiredProperty('network.protocol'),
+        modVersion: project.version.toString(),
+        gitBranch: gitBranch,
+        gitCommitHash: gitCommitHash,
+        gitCommitMessage: gitCommitMessage,
+        gitCommitAuthor: gitCommitAuthor
+]
+
+def javaLiteral = { String value ->
+    value.replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\r', '\\r')
+            .replace('\n', '\\n')
+}
+
+def generateBuildCraftTarget = tasks.register('generateBuildCraftTarget') {
+    inputs.properties(targetValues)
+    outputs.dir(generatedTargetSources)
+
+    doLast {
+        def outputFile = generatedTargetSources.get()
+                .file('buildcraft/lib/net/BuildCraftTarget.java').asFile
+        outputFile.parentFile.mkdirs()
+        outputFile.setText("""package buildcraft.lib.net;
+
+/** Generated by Gradle for the ${targetName} Stonecutter target. */
+public final class BuildCraftTarget {
+    public static final String MINECRAFT_VERSION = \"${javaLiteral(targetValues.minecraft)}\";
+    public static final String LOADER = \"${javaLiteral(targetValues.loader)}\";
+    public static final String NETWORK_PROTOCOL = \"${javaLiteral(targetValues.protocol)}\";
+    public static final String MOD_VERSION = \"${javaLiteral(targetValues.modVersion)}\";
+    public static final String GIT_BRANCH = \"${javaLiteral(targetValues.gitBranch)}\";
+    public static final String GIT_COMMIT_HASH = \"${javaLiteral(targetValues.gitCommitHash)}\";
+    public static final String GIT_COMMIT_MESSAGE = \"${javaLiteral(targetValues.gitCommitMessage)}\";
+    public static final String GIT_COMMIT_AUTHOR = \"${javaLiteral(targetValues.gitCommitAuthor)}\";
+
+    private BuildCraftTarget() {}
+}
+""", 'UTF-8')
+    }
+}
+
+sourceSets.main.java.srcDir(generatedTargetSources)
+tasks.named('compileJava') { dependsOn(generateBuildCraftTarget) }
+
+def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
+        .map { it.trim().toLowerCase() }
+        .getOrElse('default')
+def knownCiRuntimeProfiles = ['default', 'base', 'forestry', 'ic2', 'jei', 'jade', 'all']
+if (!knownCiRuntimeProfiles.contains(ciRuntimeProfile)) {
+    throw new GradleException("Unsupported ci_runtime_profile '${ciRuntimeProfile}'. Expected one of: ${knownCiRuntimeProfiles.sort().join(', ')}")
+}
+
+def gameTestRequested = gradle.startParameter.taskNames.any {
+    it.toLowerCase().contains('gametest')
+}
+def runtimeEnabled = { String profile, boolean defaultEnabled ->
+    if (gameTestRequested) return false
+    if (ciRuntimeProfile == 'default') return defaultEnabled
+    ciRuntimeProfile == 'all' || ciRuntimeProfile == profile
+}
+
+def buildcraftModIds = [
+        'buildcraftlib',
+        'buildcraftcore',
+        'buildcraftfactory',
+        'buildcrafttransport',
+        'buildcraftenergy',
+        'buildcraftbuilders',
+        'buildcraftsilicon',
+        'buildcraftrobotics'
+]
+def buildcraftModIdList = buildcraftModIds.join(',')
+def runDirectory = new File(repositoryRoot, "run/${buildGeneration}/${targetName}")
+def dataRunDirectory = new File(repositoryRoot, "run-data/${buildGeneration}/${targetName}")
+def generatedResources = layout.buildDirectory.dir("generated-resources/datagen").get().asFile
+
+neoForge {
+    version = neoForgeVersion
+    addModdingDependenciesTo sourceSets.test
+    addModdingDependenciesTo sourceSets.gameTest
+
+    if (targetAccessTransformer.isFile()) {
+        accessTransformers.from(targetAccessTransformer)
+    }
+
+    runs {
+        client {
+            client()
+            gameDirectory = runDirectory
+            systemProperty 'neoforge.enabledGameTestNamespaces', 'buildcraftlib'
+        }
+
+        server {
+            server()
+            gameDirectory = runDirectory
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', 'buildcraftlib'
+        }
+
+        gameTestServer {
+            type = 'gameTestServer'
+            // GameTest sources are merged into main only for this run so BuildCraft
+            // is exposed as one module/source set at runtime.
+            sourceSet = sourceSets.main
+            gameDirectory = runDirectory
+            systemProperty 'neoforge.enabledGameTestNamespaces', 'buildcraftlib'
+        }
+
+        data {
+            data()
+            gameDirectory = dataRunDirectory
+            programArguments.addAll(
+                    '--mod', buildcraftModIdList,
+                    '--all',
+                    '--output', generatedResources.absolutePath,
+                    '--existing', effectiveSourceRoot.get().dir('src/main/resources').asFile.absolutePath
+            )
+        }
+
+        configureEach {
+            logLevel = org.slf4j.event.Level.INFO
+        }
+    }
+
+    mods {
+        buildcraftlib {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+tasks.matching { it.name == 'runData' }.configureEach {
+    dependsOn prepareEffectiveSource
+    doFirst {
+        // Datagen is an isolated, disposable workspace. Never let output from a
+        // previous run leak into a later production build or the next runData.
+        project.delete(generatedResources)
+        generatedResources.mkdirs()
+    }
+}
+
+// NeoForge's ModDev plugin derives Minecraft artifacts from the configured main
+// source set. That source set points at the materialized effective-source tree,
+// so Gradle 8.8 requires the producer relationship to be explicit. Without
+// this dependency createMinecraftArtifacts may run before the tree exists and
+// task validation reports an implicit dependency on prepareEffectiveSource.
+tasks.matching { it.name == 'createMinecraftArtifacts' }.configureEach {
+    dependsOn prepareEffectiveSource
+}
+
+repositories {
+    mavenCentral()
+
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'Modrinth'
+                url = 'https://api.modrinth.com/maven'
+            }
+        }
+        filter {
+            includeGroup 'maven.modrinth'
+        }
+    }
+
+    maven {
+        name = 'Sponge'
+        url = 'https://repo.spongepowered.org/repository/maven-public/'
+    }
+}
+
+dependencies {
+    def jeiDependency = optionalProperty('deps.jei')
+    if (jeiCompatEnabled && jeiDependency) {
+        compileOnly jeiDependency
+        if (runtimeEnabled('jei', true)) {
+            localRuntime jeiDependency
+        }
+    }
+
+    def jadeDependency = optionalProperty('deps.jade')
+    if (jadeCompatEnabled && jadeDependency) {
+        compileOnly jadeDependency
+        if (runtimeEnabled('jade', true)) {
+            localRuntime jadeDependency
+        }
+    }
+
+    if (ic2CompatEnabled) {
+        throw new GradleException('IC2 compatibility is enabled, but no NeoForge 1.21.1 IC2 dependency is configured.')
+    }
+    if (forestryCompatEnabled) {
+        throw new GradleException('Forestry compatibility is enabled, but no NeoForge 1.21.1 Forestry dependency is configured.')
+    }
+
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${requiredProperty('deps.junit')}"
+    testImplementation "org.junit.jupiter:junit-jupiter-params:${requiredProperty('deps.junit')}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${requiredProperty('deps.junit')}"
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    dependsOn prepareEffectiveSource
+    workingDir effectiveSourceRoot.get().asFile
+    systemProperty 'buildcraft.expectedPackFormat', requiredProperty('pack.format')
+    testLogging {
+        events 'failed', 'skipped'
+        exceptionFormat 'full'
+    }
+}
+
+def resourceProperties = [
+        mod_version: project.version.toString(),
+        mod_license: requiredProperty('mod.license'),
+        loader_version_range: requiredProperty('loader.version_range'),
+        neo_version_range: requiredProperty('neoforge.version_range'),
+        minecraft_version_range: requiredProperty('minecraft.version_range'),
+        pack_format: requiredProperty('pack.format'),
+        resource_pack_format: requiredProperty('pack.resource_format'),
+        data_pack_format: requiredProperty('pack.data_format'),
+        jei_version_range: requiredProperty('compat.jei.range'),
+        jade_version_range: requiredProperty('compat.jade.range')
+]
+
+tasks.named('processResources', ProcessResources) {
+    inputs.properties(resourceProperties)
+    if (gameTestRunRequested) {
+        // The GameTest resource tree intentionally overlays main. Keep the first copy
+        // (GameTest resources are ordered first above) instead of failing on duplicates.
+        duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
+    }
+    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
+        expand(resourceProperties)
+    }
+}
+
+tasks.named('jar', Jar) {
+    archiveClassifier = ''
+    manifest {
+        attributes([
+                'Specification-Title': requiredProperty('mod.name'),
+                'Specification-Vendor': requiredProperty('mod.authors'),
+                'Specification-Version': modVersion,
+                'Implementation-Title': requiredProperty('mod.name'),
+                'Implementation-Version': project.version,
+                'Implementation-Vendor': requiredProperty('mod.authors')
+        ])
+    }
+}
+
+def releaseOutputDir = new File(repositoryRoot, "build/libs/${buildGeneration}/${modVersion}")
+def cleanupStandaloneApiV2Artifacts = tasks.register('cleanupStandaloneApiV2Artifacts', Delete) {
+    group = 'build'
+    description = "Remove obsolete standalone API 2 jars for ${targetName}"
+    delete fileTree(new File(project.buildDir, 'libs')) {
+        include '*-api-v2.jar'
+        include '*-api-v2-sources.jar'
+    }
+    delete fileTree(releaseOutputDir) {
+        include "${archiveName}-${project.version}-api-v2.jar"
+        include "${archiveName}-${project.version}-api-v2-sources.jar"
+    }
+}
+
+tasks.named('assemble') {
+    dependsOn cleanupStandaloneApiV2Artifacts
+}
+
+tasks.register('buildAndCollect', Copy) {
+    group = 'build'
+    description = "Build and collect the ${targetName} production jar"
+    dependsOn tasks.named('build')
+    from tasks.named('jar').flatMap { it.archiveFile }
+    into releaseOutputDir
+}
+
+// API 2 is bundled directly in the normal BuildCraft production jar.
+// The isolated apiV2 source set and addonFixture remain verification-only: they
+// prove that addons can compile against the public surface without implementation
+// classes, but they intentionally do not create extra release artifacts.
+
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url = new File(repositoryRoot, "mcmodsrepo/${buildGeneration}").toURI()
+        }
+    }
+}
+
+
+
+
+
+def validateApiV2Boundary = tasks.register('validateApiV2Boundary', Exec) {
+    group = 'verification'
+    description = 'Validate API v2 loader/implementation boundary and consumer fixture imports'
+    workingDir repositoryRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    commandLine pythonExecutable, new File(repositoryRoot, 'scripts/validate-api-v2.py').absolutePath
+}
+
+def validateApiV2Only = tasks.register('validateApiV2Only', Exec) {
+    group = 'verification'
+    description = 'Require buildcraft.api.v2 to be the only public BuildCraft Java API surface'
+    workingDir repositoryRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    commandLine pythonExecutable, new File(repositoryRoot, 'scripts/validate-api-v2-only.py').absolutePath
+}
+
+tasks.named('compileApiV2Java') { dependsOn prepareEffectiveSource }
+tasks.named('compileAddonFixtureJava') { dependsOn tasks.named('compileApiV2Java') }
+tasks.named('check') {
+    dependsOn validateApiV2Boundary
+    dependsOn validateApiV2Only
+    dependsOn tasks.named('compileApiV2Java')
+    dependsOn tasks.named('compileAddonFixtureJava')
+}
+
+tasks.withType(ProcessResources).configureEach {
+    dependsOn prepareEffectiveSource
+}
+tasks.withType(JavaCompile).configureEach {
+    dependsOn prepareEffectiveSource
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-Xlint:none')
+}
+
+idea.module {
+    downloadJavadoc = true
+    downloadSources = true
+}
+
+eclipse.classpath {
+    downloadJavadoc = true
+    downloadSources = true
+}

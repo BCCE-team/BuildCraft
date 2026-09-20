@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 package buildcraft.lib.recipe;
 
 import java.util.ArrayList;
@@ -11,12 +12,12 @@ import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementRequirements;
 import net.minecraft.advancements.AdvancementRewards;
 import net.minecraft.advancements.Criterion;
-import net.minecraft.advancements.critereon.RecipeUnlockedTrigger;
+import net.minecraft.advancements.criterion.RecipeUnlockedTrigger;
 import net.minecraft.data.recipes.RecipeBuilder;
 import net.minecraft.data.recipes.RecipeCategory;
 import net.minecraft.data.recipes.RecipeOutput;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -25,6 +26,9 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.item.crafting.ShapedRecipePattern;
 import net.minecraft.world.level.ItemLike;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.crafting.Recipe;
+import buildcraft.lib.compat.IngredientCompat;
 
 /**
  * Shaped recipe builder that keeps the complete output stack, including data
@@ -67,11 +71,11 @@ public class NbtShapedRecipeBuilder implements RecipeBuilder {
     }
 
     public NbtShapedRecipeBuilder define(char symbol, TagKey<Item> tag) {
-        return define(symbol, Ingredient.of(tag));
+        return define(symbol, IngredientCompat.of(tag));
     }
 
     public NbtShapedRecipeBuilder define(char symbol, ItemLike item) {
-        return define(symbol, Ingredient.of(item));
+        return define(symbol, IngredientCompat.of(item));
     }
 
     public NbtShapedRecipeBuilder define(char symbol, Ingredient ingredient) {
@@ -84,13 +88,11 @@ public class NbtShapedRecipeBuilder implements RecipeBuilder {
         return this;
     }
 
-    @Override
     public NbtShapedRecipeBuilder unlockedBy(String name, Criterion<?> criterion) {
         advancement.addCriterion(name, criterion);
         return this;
     }
 
-    @Override
     public NbtShapedRecipeBuilder group(String group) {
         this.group = group == null ? "" : group;
         return this;
@@ -101,29 +103,28 @@ public class NbtShapedRecipeBuilder implements RecipeBuilder {
         return this;
     }
 
-    @Override
     public Item getResult() {
         return result.getItem();
     }
 
-    @Override
-    public void save(RecipeOutput output, ResourceLocation id) {
+    public void save(RecipeOutput output, ResourceKey<Recipe<?>> key) {
+        Identifier id = key.identifier();
         if (rows.isEmpty()) {
             throw new IllegalStateException("No pattern is defined for recipe " + id);
         }
 
-        ShapedRecipePattern pattern = ShapedRecipePattern.of(key, rows);
+        ShapedRecipePattern pattern = ShapedRecipePattern.of(this.key, rows);
         CraftingBookCategory bookCategory = RecipeBuilder.determineBookCategory(RecipeCategory.MISC);
         ShapedRecipe recipe = new ShapedRecipe(group, bookCategory, pattern, result.copy(), showNotification);
 
         advancement.parent(ROOT_RECIPE_ADVANCEMENT)
-            .addCriterion("has_the_recipe", RecipeUnlockedTrigger.unlocked(id))
-            .rewards(AdvancementRewards.Builder.recipe(id))
+            .addCriterion("has_the_recipe", RecipeUnlockedTrigger.unlocked(key))
+            .rewards(AdvancementRewards.Builder.recipe(key))
             .requirements(AdvancementRequirements.Strategy.OR);
 
         AdvancementHolder advancementHolder = advancement.build(
-            ResourceLocation.fromNamespaceAndPath(id.getNamespace(), "recipes/" + id.getPath())
+            Identifier.fromNamespaceAndPath(id.getNamespace(), "recipes/" + id.getPath())
         );
-        output.accept(id, recipe, advancementHolder);
+        output.accept(key, recipe, advancementHolder);
     }
 }

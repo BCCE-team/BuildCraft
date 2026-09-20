@@ -83,7 +83,7 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * Compile-only consumer proving that third-party common code can use the whole
- * API 2 migration surface without BuildCraft implementation or loader imports.
+ * API 2 extension surface without BuildCraft implementation or loader imports.
  */
 public final class ApiV2FixtureAddon {
     private static final ResourceLocation BOOL_FORMAT = id("bool_payload");

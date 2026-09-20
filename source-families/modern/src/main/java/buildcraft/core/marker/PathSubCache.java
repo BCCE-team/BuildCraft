@@ -1,5 +1,6 @@
+//? source if >=1.21.1
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
- * 
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.core.marker;
@@ -16,21 +17,14 @@ import com.google.common.collect.ImmutableList;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.util.datafix.DataFixTypes;
-import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.Level;
 
 public class PathSubCache extends MarkerSubCache<PathConnection> {
     public PathSubCache(Level world) {
         super(world, MarkerCache.CACHES.indexOf(PathCache.INSTANCE));
         PathSavedData data;
-        if (world instanceof ServerLevel sworld) {
-            SavedData.Factory<PathSavedData> factory = new SavedData.Factory<>(
-                PathSavedData::new,
-                (tag, registries) -> new PathSavedData(tag),
-                DataFixTypes.LEVEL
-            );
-            data = sworld.getDataStorage().computeIfAbsent(factory, PathSavedData.NAME);
+        if (world instanceof ServerLevel serverLevel) {
+            data = serverLevel.getDataStorage().computeIfAbsent(PathSavedData.TYPE);
         } else {
             data = new PathSavedData();
         }
@@ -38,7 +32,6 @@ public class PathSubCache extends MarkerSubCache<PathConnection> {
         setDirty(false);
     }
 
-    @Override
     public boolean tryConnect(BlockPos from, BlockPos to) {
         PathConnection conFrom = getConnection(from);
         PathConnection conTo = getConnection(to);
@@ -57,7 +50,6 @@ public class PathSubCache extends MarkerSubCache<PathConnection> {
         }
     }
 
-    @Override
     public boolean canConnect(BlockPos from, BlockPos to) {
         PathConnection conFrom = getConnection(from);
         PathConnection conTo = getConnection(to);
@@ -76,7 +68,6 @@ public class PathSubCache extends MarkerSubCache<PathConnection> {
         }
     }
 
-    @Override
     public ImmutableList<BlockPos> getValidConnections(BlockPos from) {
         ImmutableList.Builder<BlockPos> list = ImmutableList.builder();
         final int maxLengthSquared = BCCoreConfig.markerMaxDistance * BCCoreConfig.markerMaxDistance;
@@ -94,12 +85,10 @@ public class PathSubCache extends MarkerSubCache<PathConnection> {
         return list.build();
     }
 
-    @Override
     public LaserType getPossibleLaserType() {
         return BuildCraftLaserManager.MARKER_PATH_POSSIBLE;
     }
 
-    @Override
     protected boolean handleMessage(MessageMarker message) {
         List<BlockPos> positions = message.positions;
         if (message.connection) {

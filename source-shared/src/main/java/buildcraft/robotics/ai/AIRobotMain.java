@@ -6,7 +6,7 @@ import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import net.minecraft.core.Direction;
 
-/** Main robotics AI loop, ported from BuildCraft 7.1.x. */
+/** Main robotics AI loop matching BuildCraft 7.1.x behavior. */
 public class AIRobotMain extends AIRobot {
     private static final double MOVE_SPEED_PER_TICK = 0.15D;
     private static final int MOVE_ENERGY_PER_TICK = 3;

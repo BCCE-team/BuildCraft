@@ -257,6 +257,7 @@ public final class GuideDocument {
         Deque<ChatFormatting> colours = new ArrayDeque<>();
         StringBuilder text = new StringBuilder();
         String linkTarget = null;
+        int codeDepth = 0;
 
         int index = 0;
         while (index < line.length()) {
@@ -276,9 +277,19 @@ public final class GuideDocument {
                     String token = line.substring(index + 1, end).trim();
                     boolean closing = token.startsWith("/");
                     String name = closing ? token.substring(1) : token;
+                    if (name.equalsIgnoreCase("code")) {
+                        flush(result, text, formats, colours, codeDepth > 0);
+                        if (closing) {
+                            if (codeDepth > 0) codeDepth--;
+                        } else {
+                            codeDepth++;
+                        }
+                        index = end + 1;
+                        continue;
+                    }
                     ChatFormatting formatting = formatting(name);
                     if (formatting != null) {
-                        flush(result, text, formats, colours);
+                        flush(result, text, formats, colours, codeDepth > 0);
                         if (closing) {
                             formats.remove(formatting);
                             colours.remove(formatting);
@@ -295,7 +306,7 @@ public final class GuideDocument {
             if (line.charAt(index) == '[') {
                 Matcher link = MARKDOWN_LINK.matcher(line.substring(index));
                 if (link.lookingAt()) {
-                    flush(result, text, formats, colours);
+                    flush(result, text, formats, colours, codeDepth > 0);
                     MutableComponent linked = Component.literal(link.group(1));
                     linked.withStyle(ChatFormatting.BLUE, ChatFormatting.UNDERLINE);
                     result.append(linked);
@@ -306,14 +317,15 @@ public final class GuideDocument {
             }
             text.append(line.charAt(index++));
         }
-        flush(result, text, formats, colours);
+        flush(result, text, formats, colours, codeDepth > 0);
         return new InlineResult(result, linkTarget);
     }
 
     private static void flush(MutableComponent result, StringBuilder text, Set<ChatFormatting> formats,
-        Deque<ChatFormatting> colours) {
+        Deque<ChatFormatting> colours, boolean code) {
         if (text.length() == 0) return;
         MutableComponent part = Component.literal(text.toString());
+        if (code) part.withStyle(ChatFormatting.DARK_AQUA);
         if (!colours.isEmpty()) part.withStyle(colours.peek());
         for (ChatFormatting formatting : formats) part.withStyle(formatting);
         result.append(part);

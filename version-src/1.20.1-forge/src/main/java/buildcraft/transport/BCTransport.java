@@ -6,6 +6,10 @@
 
 package buildcraft.transport;
 
+import buildcraft.lib.platform.registry.RegistryBinding;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
+import buildcraft.lib.platform.config.ConfigBinding;
 import buildcraft.lib.internal.module.BCModules;
 import buildcraft.builders.internal.schematic.legacy.SchematicBlockFactoryRegistry;
 import buildcraft.lib.BCLibRegistries;
@@ -18,11 +22,9 @@ import buildcraft.transport.api2.TransportApi2;
 import buildcraft.transport.pipe.SchematicBlockPipe;
 import buildcraft.transport.wire.MessageWireSystems;
 import buildcraft.transport.wire.MessageWireSystemsPowered;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.data.event.GatherDataEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModLoadingContext;
@@ -30,8 +32,6 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig.Type;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.RegistryObject;
 
 import java.util.List;
 
@@ -40,20 +40,20 @@ import java.util.List;
 //@formatter:on
 public class BCTransport {
     public static final String MODID = "buildcrafttransport";
-    
+
 
     public static final CreativeTabBC tabPipes = (CreativeTabBC) CreativeTabManager.createTab("buildcraft.pipes").setRecipeFolderName("pipes");
     public static final CreativeTabBC tabPlugs = (CreativeTabBC) CreativeTabManager.createTab("buildcraft.plugs").setRecipeFolderName("plugs");
 
-    private static final DeferredRegister<CreativeModeTab> CREATIVE_TABS =
-        DeferredRegister.create(Registries.CREATIVE_MODE_TAB, "buildcraft");
-    public static final RegistryObject<CreativeModeTab> PIPES_TAB = CREATIVE_TABS.register("pipes", () ->
+    private static final BCDeferredRegister<CreativeModeTab> CREATIVE_TABS =
+        BCDeferredRegister.create("minecraft:creative_mode_tab", "buildcraft");
+    public static final BCRegistryEntry<CreativeModeTab> PIPES_TAB = CREATIVE_TABS.register("pipes", () ->
         CreativeModeTab.builder()
             .title(Component.translatable("itemGroup.buildcraft.pipes"))
             .icon(tabPipes::makeIcon)
             .displayItems((parameters, output) -> tabPipes.accept(List.of(), output::accept))
             .build());
-    public static final RegistryObject<CreativeModeTab> PLUGS_TAB = CREATIVE_TABS.register("plugs", () ->
+    public static final BCRegistryEntry<CreativeModeTab> PLUGS_TAB = CREATIVE_TABS.register("plugs", () ->
         CreativeModeTab.builder()
             .title(Component.translatable("itemGroup.buildcraft.plugs"))
             .icon(tabPlugs::makeIcon)
@@ -61,11 +61,11 @@ public class BCTransport {
             .build());
 
     public BCTransport() {
-    	IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::init);
-    	modEventBus.addListener(this::gatherData);//DataGenerator
-        modEventBus.addListener(BCTransportConfig::onConfigLoad);
-        modEventBus.addListener(BCTransportConfig::onConfigReload);
+        modEventBus.addListener(this::gatherData);//DataGenerator
+        ConfigBinding.listen(modEventBus, BCTransportConfig::onConfigLoad, BCTransportConfig::onConfigReload);
+
 
         BCLibRegistries.initApiRegistries();
         TransportApi2.install();
@@ -73,32 +73,32 @@ public class BCTransport {
         BCTransportConfig.preInit();
         BCTransportPipes.preInit();
         BCTransportPlugs.preInit();
-        BCTransportBlocks.registry(modEventBus);
-        BCTransportItems.registry(modEventBus);
+        BCTransportBlocks.registry(RegistryBinding.on(modEventBus));
+        BCTransportItems.registry(RegistryBinding.on(modEventBus));
         tabPipes.addItemProvider(BCTransportItems::getPipeTabItems);
         tabPlugs.addItemProvider(BCTransportItems::getPlugTabItems);
         BCCore.BUILDCRAFT_TAB.addItemProvider(BCTransportBlocks::getCreativeTabItems);
-        BCTransportRecipes.preInit(modEventBus);
-        BCTransportGuis.preInit(modEventBus);
-        CREATIVE_TABS.register(modEventBus);
+        BCTransportRecipes.preInit(RegistryBinding.on(modEventBus));
+        BCTransportGuis.preInit(RegistryBinding.on(modEventBus));
+        RegistryBinding.register(CREATIVE_TABS, modEventBus);
         BCTransportStatements.preInit();
 
-        ModLoadingContext.get().registerConfig(Type.COMMON, BCTransportConfig.config);
+        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCTransportConfig.config));
 
         MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageWireSystems.class, MessageWireSystems.HANDLER, MessageWireSystems::toBytes, MessageWireSystems::new, Dist.CLIENT);
         MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageWireSystemsPowered.class, MessageWireSystemsPowered.HANDLER, MessageWireSystemsPowered::toBytes, MessageWireSystemsPowered::new, Dist.CLIENT);
-    	MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageMultiPipeItem.class, MessageMultiPipeItem.HANDLER, MessageMultiPipeItem::toBytes, MessageMultiPipeItem::new, Dist.CLIENT);
-        MinecraftForge.EVENT_BUS.register(BCTransportEventDist.class);
-        
+        MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageMultiPipeItem.class, MessageMultiPipeItem.HANDLER, MessageMultiPipeItem::toBytes, MessageMultiPipeItem::new, Dist.CLIENT);
+        BCTransportEventDist.registerGameplayEvents();
+
         SchematicBlockFactoryRegistry.registerFactory("pipe", 300, SchematicBlockPipe::predicate,
                 SchematicBlockPipe::new);
     }
-    
+
     public void init(final FMLCommonSetupEvent event) {
-    	BCTransportConfig.reloadConfig();
-    	BCTransportRegistries.init();
-    	tabPipes.setItem(BCTransportItems.PIPE_ITEM_DIAMOND.get());
-    	tabPlugs.setItem(BCTransportItems.plugBlocker.get());
+        BCTransportConfig.reloadConfig();
+        BCTransportRegistries.init();
+        tabPipes.setItem(BCTransportItems.PIPE_ITEM_DIAMOND.get());
+        tabPlugs.setItem(BCTransportItems.plugBlocker.get());
     }
 
     public void gatherData(GatherDataEvent event) {

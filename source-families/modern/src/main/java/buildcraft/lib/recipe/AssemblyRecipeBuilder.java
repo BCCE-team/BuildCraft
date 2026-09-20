@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 package buildcraft.lib.recipe;
 
 import com.google.common.collect.ImmutableSet;
@@ -8,12 +9,14 @@ import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementRequirements;
 import net.minecraft.advancements.AdvancementRewards;
 import net.minecraft.advancements.Criterion;
-import net.minecraft.advancements.critereon.RecipeUnlockedTrigger;
+import net.minecraft.advancements.criterion.RecipeUnlockedTrigger;
 import net.minecraft.data.recipes.RecipeBuilder;
 import net.minecraft.data.recipes.RecipeOutput;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.crafting.Recipe;
 
 public class AssemblyRecipeBuilder implements RecipeBuilder {
     protected final ItemStack result;
@@ -28,35 +31,32 @@ public class AssemblyRecipeBuilder implements RecipeBuilder {
         this.ingredients = inputs;
     }
 
-    @Override
     public AssemblyRecipeBuilder unlockedBy(String name, Criterion<?> criterion) {
         advancement.addCriterion(name, criterion);
         return this;
     }
 
-    @Override
     public AssemblyRecipeBuilder group(String group) {
         this.group = group;
         return this;
     }
 
-    @Override
     public Item getResult() {
         return result.getItem();
     }
 
-    @Override
-    public void save(RecipeOutput output, ResourceLocation id) {
+    public void save(RecipeOutput output, ResourceKey<Recipe<?>> key) {
+        Identifier id = key.identifier();
         advancement.parent(ROOT_RECIPE_ADVANCEMENT)
-            .addCriterion("has_the_recipe", RecipeUnlockedTrigger.unlocked(id))
-            .rewards(AdvancementRewards.Builder.recipe(id))
+            .addCriterion("has_the_recipe", RecipeUnlockedTrigger.unlocked(key))
+            .rewards(AdvancementRewards.Builder.recipe(key))
             .requirements(AdvancementRequirements.Strategy.OR);
 
         AdvancementHolder advancementHolder = advancement.build(
-            ResourceLocation.fromNamespaceAndPath(id.getNamespace(), "recipes/" + id.getPath())
+            Identifier.fromNamespaceAndPath(id.getNamespace(), "recipes/" + id.getPath())
         );
         output.accept(
-            id,
+            key,
             new AssemblyRecipe(id, requiredMj, ingredients, result, group == null ? "" : group),
             advancementHolder
         );

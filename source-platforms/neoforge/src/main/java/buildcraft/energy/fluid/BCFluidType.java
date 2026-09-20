@@ -1,7 +1,10 @@
 package buildcraft.energy.fluid;
 
+//? if <1.21.9 {
 import java.util.function.Consumer;
+//?}
 
+//? if <1.21.9 {
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -10,8 +13,11 @@ import org.joml.Vector3f;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+//?}
 import net.minecraft.resources.ResourceLocation;
+//? if <1.21.9 {
 import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
+//?}
 import net.neoforged.neoforge.fluids.FluidType;
 
 public class BCFluidType extends FluidType{
@@ -28,6 +34,19 @@ public class BCFluidType extends FluidType{
         this.tintColor = tintColor;
     }
 
+    public ResourceLocation getStillTextureLocation() {
+        return stillTexture;
+    }
+
+    public ResourceLocation getFlowTextureLocation() {
+        return flowTexture;
+    }
+
+    public int getFluidTintColor() {
+        return tintColor;
+    }
+
+    //? if <1.21.9 {
     @Override
     public void initializeClient(Consumer<IClientFluidTypeExtensions> consumer)
     {
@@ -75,6 +94,8 @@ public class BCFluidType extends FluidType{
 
         });
     }
+    //?}
+
 
 
 }

@@ -30,8 +30,8 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidType;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 /**
  * Tank menu.
@@ -113,8 +113,8 @@ public class ContainerTank extends ContainerBCTile<TileTank> {
     }
 
     @Override
-    public void readMessage(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
-        if (side == LogicalSide.CLIENT && id == NET_TANK_STATE) {
+    public void readMessage(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
+        if (side == BCNetworkSide.CLIENT && id == NET_TANK_STATE) {
             updateLocalState(buffer.readVarInt(), buffer.readInt(), buffer.readInt());
             return;
         }

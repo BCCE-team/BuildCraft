@@ -1,9 +1,9 @@
 package buildcraft.factory;
 
+import buildcraft.lib.platform.client.ClientAtlas;
 import buildcraft.lib.client.sprite.SpriteHolderRegistry;
 import buildcraft.lib.client.sprite.SpriteHolderRegistry.SpriteHolder;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.client.event.TextureStitchEvent.Pre;
 
 public class BCFactorySprites {
 
@@ -20,7 +20,7 @@ public class BCFactorySprites {
     
     public static void init() {};
     
-    public static void registrtTexture(Pre e){
+    public static void registrtTexture(ClientAtlas.Before e){
 		e.addSprite(DISTILLER_POWER_A);
 		e.addSprite(DISTILLER_POWER_B);
 		e.addSprite(DISTILLER_POWER_C);

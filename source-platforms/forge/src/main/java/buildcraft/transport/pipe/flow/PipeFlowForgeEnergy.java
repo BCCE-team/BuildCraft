@@ -4,10 +4,12 @@
  */
 package buildcraft.transport.pipe.flow;
 
+import buildcraft.lib.platform.storage.StorageAdapters;
+import buildcraft.lib.platform.storage.EnergyStorage;
+import buildcraft.lib.platform.storage.PlatformStorage;
 import buildcraft.api.v2.energy.MjAmount;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -21,6 +23,8 @@ import javax.annotation.Nullable;
 import org.jetbrains.annotations.NotNull;
 
 import buildcraft.lib.internal.core.EnumPipePart;
+import buildcraft.lib.logic.distribution.WeightedAllocation;
+import buildcraft.lib.logic.energy.EnergyMath;
 import buildcraft.lib.internal.core.SafeTimeTracker;
 import buildcraft.lib.internal.tiles.IDebuggable;
 import buildcraft.transport.internal.pipe.IFlowForgeEnergy;
@@ -46,9 +50,9 @@ import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.energy.IEnergyStorage;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 
-/** BuildCraft 8 Forge Energy pipe flow, restored from the original external-energy flow with FE terminology. */
+/** Forge Energy pipe flow using BuildCraft 8 external-energy semantics with FE terminology. */
 public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, IDebuggable {
     private static final int DEFAULT_MAX_POWER = 100;
     public static final int NET_POWER_AMOUNTS = 2;
@@ -112,9 +116,9 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER && (id == NET_POWER_AMOUNTS || id == NET_ID_FULL_STATE)) {
+        if (side == BCNetworkSide.SERVER && (id == NET_POWER_AMOUNTS || id == NET_ID_FULL_STATE)) {
             for (Direction face : Direction.values()) {
                 Section section = sections.get(face);
                 buffer.writeInt(section.displayPower);
@@ -124,9 +128,9 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) throws IOException {
         super.readPayload(id, buffer, side);
-        if (side == LogicalSide.CLIENT && (id == NET_POWER_AMOUNTS || id == NET_ID_FULL_STATE)) {
+        if (side == BCNetworkSide.CLIENT && (id == NET_POWER_AMOUNTS || id == NET_ID_FULL_STATE)) {
             for (Direction face : Direction.values()) {
                 Section section = sections.get(face);
                 section.displayPower = buffer.readInt();
@@ -143,7 +147,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
     @Override
     public boolean canConnect(Direction face, BlockEntity tile) {
         if (tile == null) return false;
-        return tile.getCapability(ForgeCapabilities.ENERGY, face.getOpposite()).isPresent();
+        return PlatformStorage.energy(tile.getLevel(), tile.getBlockPos(), face.getOpposite()) != null;
     }
 
     private void ensureConfigured() {
@@ -169,7 +173,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         if (!isReceiver || disabled || from == null || maxExtracted <= 0) return 0;
         BlockEntity tile = pipe.getConnectedTile(from);
         if (tile == null) return 0;
-        IEnergyStorage storage = tile.getCapability(ForgeCapabilities.ENERGY, from.getOpposite()).orElse(null);
+        EnergyStorage storage = PlatformStorage.energy(tile.getLevel(), tile.getBlockPos(), from.getOpposite());
         if (storage == null || !storage.canExtract()) return 0;
 
         step();
@@ -195,8 +199,9 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
     @Override
     public boolean isExternalEnergyReceiver(Direction side) {
         if (side == null || pipe.getConnectedType(side) != ConnectedType.TILE) return false;
-        LazyOptional<IEnergyStorage> cap = pipe.getHolder().getCapabilityFromPipe(side, ForgeCapabilities.ENERGY);
-        IEnergyStorage storage = cap == null ? null : cap.orElse(null);
+        LazyOptional<net.minecraftforge.energy.IEnergyStorage> cap =
+            pipe.getHolder().getCapabilityFromPipe(side, ForgeCapabilities.ENERGY);
+        EnergyStorage storage = StorageAdapters.fromNativeEnergy(cap == null ? null : cap.orElse(null));
         return storage != null && storage.canReceive();
     }
 
@@ -254,7 +259,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
     @Override
     public <T> @NotNull LazyOptional<T> getCapability(@Nonnull Capability<T> capability, Direction facing) {
         if (facing != null && capability == ForgeCapabilities.ENERGY && isReceiver && !disabled) {
-            return LazyOptional.of(() -> sections.get(facing)).cast();
+            return LazyOptional.of(() -> StorageAdapters.toNativeEnergy(sections.get(facing))).cast();
         }
         return LazyOptional.empty();
     }
@@ -317,29 +322,19 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
                 for (Direction candidate : routeCandidates) routeWeights.put(candidate, 1L);
             }
 
-            BigInteger totalQuery = BigInteger.ZERO;
+            WeightedAllocation allocation = new WeightedAllocation();
             for (Direction candidate : routeCandidates) {
-                long weight = routeWeights.getOrDefault(candidate, 0L);
-                int query = sections.get(candidate).powerQuery;
-                if (query > 0 && weight > 0) {
-                    totalQuery = totalQuery.add(BigInteger.valueOf(query).multiply(BigInteger.valueOf(weight)));
-                }
+                allocation.add(sections.get(candidate).powerQuery, routeWeights.getOrDefault(candidate, 0L));
             }
-            if (totalQuery.signum() <= 0) continue;
+            if (!allocation.hasDemand()) continue;
 
-            BigInteger unusedQuery = totalQuery;
             for (Direction outputFace : Direction.values()) {
                 if (outputFace == inputFace && !returnPower) continue;
                 Section output = sections.get(outputFace);
                 long routeWeight = routeWeights.getOrDefault(outputFace, 0L);
                 if (output.powerQuery <= 0 || routeWeight <= 0 || input.internalPower <= 0) continue;
 
-                BigInteger weightedQuery = BigInteger.valueOf(output.powerQuery).multiply(BigInteger.valueOf(routeWeight));
-                int offered = Math.min(
-                    input.internalPower,
-                    BigInteger.valueOf(input.internalPower).multiply(weightedQuery).divide(unusedQuery).intValue()
-                );
-                unusedQuery = unusedQuery.subtract(weightedQuery);
+                int offered = allocation.offerInt(input.internalPower, output.powerQuery, routeWeight);
                 if (offered <= 0) continue;
 
                 int leftover = offered;
@@ -349,7 +344,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
                     leftover = other.sections.get(outputFace.getOpposite()).receivePowerInternal(offered);
                 } else {
                     LazyOptional<IEnergyStorage> cap = pipe.getHolder().getCapabilityFromPipe(outputFace, ForgeCapabilities.ENERGY);
-                    IEnergyStorage receiver = cap == null ? null : cap.orElse(null);
+                    EnergyStorage receiver = StorageAdapters.fromNativeEnergy(cap == null ? null : cap.orElse(null));
                     if (receiver != null && receiver.canReceive()) {
                         int accepted = Math.max(0, Math.min(offered, receiver.receiveEnergy(offered, false)));
                         leftover = offered - accepted;
@@ -379,7 +374,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         for (Direction face : Direction.values()) {
             if (pipe.getConnectedType(face) != ConnectedType.TILE) continue;
             LazyOptional<IEnergyStorage> cap = pipe.getHolder().getCapabilityFromPipe(face, ForgeCapabilities.ENERGY);
-            IEnergyStorage receiver = cap == null ? null : cap.orElse(null);
+            EnergyStorage receiver = StorageAdapters.fromNativeEnergy(cap == null ? null : cap.orElse(null));
             if (receiver != null && receiver.canReceive()) {
                 int requested = Math.max(0, receiver.receiveEnergy(maxPower, true));
                 if (requested > 0) requestPower(face, requested);
@@ -458,11 +453,10 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
     }
 
     private static int saturatingAdd(int a, int b) {
-        if (b <= 0) return a;
-        return a > Integer.MAX_VALUE - b ? Integer.MAX_VALUE : a + b;
+        return EnergyMath.saturatingAdd(a, b);
     }
 
-    public class Section implements IEnergyStorage {
+    public class Section implements EnergyStorage {
         public final Direction side;
         public final AverageInt clientDisplayAverage = new AverageInt(10);
         public double clientDisplayFlow;

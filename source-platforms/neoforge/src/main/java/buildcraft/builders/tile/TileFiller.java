@@ -6,6 +6,8 @@
 
 package buildcraft.builders.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
 
 import java.io.IOException;
@@ -74,11 +76,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TileFiller extends TileBC_Neptune 
     implements IDebuggable, ITileForTemplateBuilder, IFillerStatementContainer, IControllable, MenuProvider {
@@ -147,9 +147,8 @@ public class TileFiller extends TileBC_Neptune
     /**
      * Tries to attach this filler to a marker or volume box next to it.
      *
-     * BC8 only checked the block in front of the machine at placement time. That is fragile in the port because the
-     * facing direction is easy to get wrong and it made the filler appear broken even when a valid marker/volume box was
-     * directly adjacent. The port now prefers the original facing-adjacent position, then falls back to every side.
+     * The facing-adjacent position has priority, then every other side is checked for a valid marker or volume box.
+     * This keeps directional placement deterministic while accepting any directly adjacent area definition.
      */
     public boolean refreshAreaFromMarkers(@Nullable LivingEntity placer) {
         if (level == null || level.isClientSide || hasBox()) {
@@ -306,9 +305,9 @@ public class TileFiller extends TileBC_Neptune
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 builder.writeToByteBuf(buffer);
                 writePayload(NET_BOX, buffer, side);
@@ -340,9 +339,9 @@ public class TileFiller extends TileBC_Neptune
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 builder.readFromByteBuf(buffer);
                 readPayload(NET_BOX, buffer, side, ctx);
@@ -379,7 +378,7 @@ public class TileFiller extends TileBC_Neptune
                 patternStatement.readFromBuffer(buffer);
             }
         }
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_CAN_EXCAVATE) {
                 canExcavate = buffer.readBoolean();
                 sendNetworkGuiUpdate(NET_CAN_EXCAVATE);
@@ -437,23 +436,25 @@ public class TileFiller extends TileBC_Neptune
     // Read-write
 
 
-	public void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-		super.saveAdditional(nbt, registries);
+	public void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+        HolderLookup.Provider registries = bcData.registries();
+		super.writeData(bcData);
         nbt.put("battery", battery.serializeNBT(registries));
-        nbt.putBoolean("canExcavate", canExcavate);
-        nbt.putBoolean("inverted", inverted);
-        nbt.putBoolean("finished", finished);
-        nbt.putByte("lockedTicks", lockedTicks);
+        bcData.writeBoolean("canExcavate", canExcavate);
+        bcData.writeBoolean("inverted", inverted);
+        bcData.writeBoolean("finished", finished);
+        bcData.writeByte("lockedTicks", lockedTicks);
         nbt.put("mode", NBTUtilBC.writeEnum(mode));
         nbt.put("box", box.writeToNBT());
         if (addon != null) {
-            nbt.putUUID("addonVolumeBoxId", addon.volumeBox.id);
+            bcData.writeUUID("addonVolumeBoxId", addon.volumeBox.id);
             nbt.put("addonSlot", NBTUtilBC.writeEnum(addon.getSlot()));
         } else if (pendingAddonVolumeBoxId != null && pendingAddonSlot != null) {
-            nbt.putUUID("addonVolumeBoxId", pendingAddonVolumeBoxId);
+            bcData.writeUUID("addonVolumeBoxId", pendingAddonVolumeBoxId);
             nbt.put("addonSlot", NBTUtilBC.writeEnum(pendingAddonSlot));
         }
-        nbt.putBoolean("markerBox", markerBox);
+        bcData.writeBoolean("markerBox", markerBox);
         nbt.put("patternStatement", patternStatement.writeToNbt());
         if (pendingBuilderNbt != null) {
             nbt.put("builder", pendingBuilderNbt.copy());
@@ -463,26 +464,28 @@ public class TileFiller extends TileBC_Neptune
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-		super.loadAdditional(nbt, registries);
-        battery.deserializeNBT(registries, nbt.getCompound("battery"));
-        canExcavate = nbt.getBoolean("canExcavate");
-        inverted = nbt.getBoolean("inverted");
-        finished = nbt.getBoolean("finished");
-        lockedTicks = nbt.getByte("lockedTicks");
+	protected void readData(BCValueInput bcData) {
+        CompoundTag nbt = bcData.tag();
+        HolderLookup.Provider registries = bcData.registries();
+		super.readData(bcData);
+        battery.deserializeNBT(registries, bcData.readCompound("battery"));
+        canExcavate = bcData.readBoolean("canExcavate");
+        inverted = bcData.readBoolean("inverted");
+        finished = bcData.readBoolean("finished");
+        lockedTicks = bcData.readByte("lockedTicks");
         mode = Optional.ofNullable(NBTUtilBC.readEnum(nbt.get("mode"), Mode.class)).orElse(Mode.ON);
-        box.initialize(nbt.getCompound("box"));
-        if (nbt.contains("addonSlot") && nbt.contains("addonVolumeBoxId")) {
-            pendingAddonVolumeBoxId = nbt.getUUID("addonVolumeBoxId");
+        box.initialize(bcData.readCompound("box"));
+        if (bcData.has("addonSlot") && bcData.has("addonVolumeBoxId")) {
+            pendingAddonVolumeBoxId = bcData.readUUID("addonVolumeBoxId");
             pendingAddonSlot = NBTUtilBC.readEnum(nbt.get("addonSlot"), EnumAddonSlot.class);
         } else {
             pendingAddonVolumeBoxId = null;
             pendingAddonSlot = null;
         }
         addon = null;
-        markerBox = nbt.getBoolean("markerBox");
-        patternStatement.readFromNbt(nbt.getCompound("patternStatement"));
-        pendingBuilderNbt = nbt.contains("builder") ? nbt.getCompound("builder").copy() : null;
+        markerBox = bcData.readBoolean("markerBox");
+        patternStatement.readFromNbt(bcData.readCompound("patternStatement"));
+        pendingBuilderNbt = bcData.has("builder") ? bcData.readCompound("builder").copy() : null;
 	}
 	
     @Override
@@ -510,13 +513,11 @@ public class TileFiller extends TileBC_Neptune
     // Rendering
 
     @Nonnull
-    @OnlyIn(Dist.CLIENT)
     public AABB getRenderBoundingBox() {
         return BoundingBoxUtil.makeFrom(worldPosition, addon != null ? addon.volumeBox.box : box);
     }
 /*
     @Override
-    @OnlyIn(Dist.CLIENT)
     public double getMaxRenderDistanceSquared() {
         return Double.MAX_VALUE;
     }*/

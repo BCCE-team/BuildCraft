@@ -13,9 +13,9 @@ import buildcraft.silicon.tile.TileProgrammingTable_Neptune;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerLevelAccess;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class ContainerProgrammingTable extends ContainerBCTile<TileProgrammingTable_Neptune> {
     public static final int NET_SELECT_OPTION = NET_DATA;
@@ -48,9 +48,9 @@ public class ContainerProgrammingTable extends ContainerBCTile<TileProgrammingTa
     }
 
     @Override
-    public void readMessage(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readMessage(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readMessage(id, buffer, side, ctx);
-        if (side == LogicalSide.SERVER && id == NET_SELECT_OPTION && tile != null) {
+        if (side == BCNetworkSide.SERVER && id == NET_SELECT_OPTION && tile != null) {
             tile.selectOption(buffer.readVarInt());
         }
     }

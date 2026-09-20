@@ -23,7 +23,7 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 
 public class MessageSnapshotResponse {
     private static final int MAX_COMPRESSED_SNAPSHOT_BYTES = 8 * 1024 * 1024;
@@ -81,8 +81,8 @@ public class MessageSnapshotResponse {
         }
     }
 
-    public static final BiConsumer<MessageSnapshotResponse, Supplier<NetworkEvent.Context>> HANDLER = (message, ctx) -> {
-        NetworkEvent.Context context = ctx.get();
+    public static final BiConsumer<MessageSnapshotResponse, Supplier<BCPacketContext>> HANDLER = (message, ctx) -> {
+        BCPacketContext context = ctx.get();
         context.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(
             Dist.CLIENT,
             () -> () -> {

@@ -32,8 +32,6 @@ import buildcraft.lib.CreativeTabManager;
 //?}
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public final class ListHandler {
@@ -191,8 +189,6 @@ public final class ListHandler {
                 return stacks.get(i);
             }
         }
-
-        @OnlyIn(Dist.CLIENT)
         public NonNullList<ItemStack> getExamples() {
             ItemStack firstStack = stacks.get(0);
             if (firstStack.isEmpty()) {
@@ -299,7 +295,7 @@ public final class ListHandler {
             data.put("lines", lineList);
         } else if (stackList.hasTag()) {
             CompoundTag data = NBTUtilBC.getItemData(stackList);
-            // No non-default lines, we can remove the old NBT data
+            // No non-default lines, so redundant list NBT can be removed
             data.remove("written");
             data.remove("lines");
             if (data.isEmpty()) {

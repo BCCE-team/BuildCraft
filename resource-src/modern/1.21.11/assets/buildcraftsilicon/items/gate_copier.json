@@ -1,0 +1,26 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "buildcraftsilicon:isempty",
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "buildcraftsilicon:item/gatecopier_empty"
+    },
+    "entries": [
+      {
+        "threshold": 0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftsilicon:item/gatecopier_full"
+        }
+      },
+      {
+        "threshold": 1,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftsilicon:item/gatecopier_empty"
+        }
+      }
+    ]
+  }
+}

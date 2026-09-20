@@ -1,5 +1,7 @@
 package buildcraft.factory.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -34,6 +36,8 @@ import buildcraft.lib.misc.SoundUtil;
 import buildcraft.lib.misc.VecUtil;
 import buildcraft.lib.misc.data.IdAllocator;
 import buildcraft.lib.tile.TileBC_Neptune;
+import buildcraft.lib.platform.storage.FluidStorage;
+import buildcraft.lib.platform.storage.PlatformStorage;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.ParticleStatus;
@@ -65,16 +69,14 @@ import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
 import net.neoforged.neoforge.capabilities.BlockCapability;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.neoforge.items.ItemStackHandler;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, MenuProvider{
 
@@ -113,9 +115,9 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
 
 
     @Override
-	protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-		super.loadAdditional(nbt, registries);
-        CompoundTag nbtSection = nbt.getCompound("section");
+	protected void readData(BCValueInput bcData) {
+		super.readData(bcData);
+        CompoundTag nbtSection = bcData.readCompound("section");
         if (!nbtSection.isEmpty()) {
             if (nbtSection.getBoolean("start")) {
                 section = new ExchangeSectionStart(this, nbtSection);
@@ -133,8 +135,9 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
 	}
 
 	@Override
-	protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-		super.saveAdditional(nbt, registries);
+	protected void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+		super.writeData(bcData);
         if (section != null) {
             nbt.put("section", section.writeToNbt());
         }
@@ -370,8 +373,8 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
-        if (side == LogicalSide.CLIENT) {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 readPayload(NET_ID_CHANGE_SECTION, buffer, side, ctx);
             } else if (id == NET_ID_CHANGE_SECTION) {
@@ -395,9 +398,9 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
 //    	BCLog.logger.debug("TileHeatExchange:send message at "+worldPosition+" "+checkNeighbours);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 writePayload(NET_ID_CHANGE_SECTION, buffer, side);
             } else if (id == NET_ID_CHANGE_SECTION) {
@@ -413,8 +416,6 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             }
         }
     }
-
-    @OnlyIn(Dist.CLIENT)
     public AABB getRenderBoundingBox() {
         if (section instanceof ExchangeSectionStart start) {
             Direction facing = getFacing();
@@ -652,8 +653,8 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             smoothedTankOutput.tick(world);
         }
 
-        void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
-            if (side == LogicalSide.CLIENT) {
+        void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
+            if (side == BCNetworkSide.CLIENT) {
                 if (id == NET_ID_CHANGE_SECTION) {
                     readPayload(NET_ID_TANK_IN, buffer, side, ctx);
                     readPayload(NET_ID_TANK_OUT, buffer, side, ctx);
@@ -664,13 +665,13 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
                 } else if (id == NET_ID_TANK_OUT) {
                     smoothedTankOutput.handleMessage(getTile().level, buffer);
                 }
-            } else if (side == LogicalSide.SERVER) {
+            } else if (side == BCNetworkSide.SERVER) {
 
             }
         }
 
-        void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
-            if (side == LogicalSide.SERVER) {
+        void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
+            if (side == BCNetworkSide.SERVER) {
                 if (id == NET_ID_CHANGE_SECTION) {
                     writePayload(NET_ID_TANK_IN, buffer, side);
                     writePayload(NET_ID_TANK_OUT, buffer, side);
@@ -679,7 +680,7 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
                 } else if (id == NET_ID_TANK_OUT) {
                     smoothedTankOutput.writeInit(buffer);
                 }
-            } else if (side == LogicalSide.CLIENT) {
+            } else if (side == BCNetworkSide.CLIENT) {
 
             }
         }
@@ -718,8 +719,8 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
 
         {
             tankInput.setFilter(this::isHeatant);
-            caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, tankInput, EnumPipePart.DOWN);
-            caps.addCapability(CapUtil.CAP_FLUIDS, this::getTankForSide, EnumPipePart.HORIZONTALS);
+            caps.addFluidStorage(tankInput, EnumPipePart.DOWN);
+            caps.addFluidStorage(this::getTankForSide, EnumPipePart.HORIZONTALS);
         }
 
         ExchangeSectionStart(TileHeatExchange tile) {
@@ -742,9 +743,9 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
         }
 
         @Override
-        void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+        void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
             super.readPayload(id, buffer, side, ctx);
-            if (side == LogicalSide.CLIENT) {
+            if (side == BCNetworkSide.CLIENT) {
                 if (id == NET_ID_CHANGE_SECTION) {
                     middleCount = buffer.readUnsignedByte();
                 } else if (id == NET_ID_STATE) {
@@ -754,9 +755,9 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
         }
 
         @Override
-        void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+        void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
             super.writePayload(id, buffer, side);
-            if (side == LogicalSide.SERVER) {
+            if (side == BCNetworkSide.SERVER) {
                 if (id == NET_ID_CHANGE_SECTION) {
                     buffer.writeByte(middleCount);
                 } else if (id == NET_ID_STATE) {
@@ -781,7 +782,7 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             return MachineRecipeApiBridge.findHeating(fluid) != null;
         }
 
-        private IFluidHandler getTankForSide(Direction side) {
+        private Tank getTankForSide(Direction side) {
             Direction thisFacing = getTile().getFacing();
             if (thisFacing == null || side != thisFacing.getClockWise()) {
                 return null;
@@ -1021,12 +1022,12 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
         }
 
         private void output() {
-            IFluidHandler thisOut = getFluidAutoOutputTarget();
-            FluidUtilBC.move(tankOutput, thisOut, FluidType.BUCKET_VOLUME);
+            FluidStorage<FluidStack> thisOut = getFluidAutoOutputTarget();
+            FluidUtilBC.moveStorage(tankOutput, thisOut, FluidType.BUCKET_VOLUME);
 
             if (endSection != null) {
-                IFluidHandler endOut = endSection.getFluidAutoOutputTarget();
-                FluidUtilBC.move(endSection.tankOutput, endOut, 1000);
+                FluidStorage<FluidStack> endOut = endSection.getFluidAutoOutputTarget();
+                FluidUtilBC.moveStorage(endSection.tankOutput, endOut, 1000);
             }
         }
 
@@ -1062,15 +1063,13 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
         }
 
         @Nullable
-        private IFluidHandler getFluidAutoOutputTarget() {
+        private FluidStorage<FluidStack> getFluidAutoOutputTarget() {
             Direction facing = getTile().getFacing();
             if (facing == null) {
                 return null;
             }
             BlockPos neighbourPos = getTile().getBlockPos().relative(facing.getClockWise());
-            return getTile().getLevel().getCapability(
-                CapUtil.CAP_FLUIDS, neighbourPos, facing.getCounterClockWise()
-            );
+            return PlatformStorage.fluids(getTile().getLevel(), neighbourPos, facing.getCounterClockWise());
         }
 
         @Override
@@ -1088,8 +1087,8 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
 
         {
             tankInput.setFilter(this::isCoolant);
-            caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, tankOutput, EnumPipePart.UP);
-            caps.addCapability(CapUtil.CAP_FLUIDS, this::getTankForSide, EnumPipePart.HORIZONTALS);
+            caps.addFluidStorage(tankOutput, EnumPipePart.UP);
+            caps.addFluidStorage(this::getTankForSide, EnumPipePart.HORIZONTALS);
         }
 
         ExchangeSectionEnd(TileHeatExchange tile) {
@@ -1104,7 +1103,7 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             return MachineRecipeApiBridge.findCooling(fluid) != null;
         }
 
-        private IFluidHandler getTankForSide(Direction side) {
+        private Tank getTankForSide(Direction side) {
             Direction thisFacing = getTile().getFacing();
             if (thisFacing == null || side != thisFacing.getCounterClockWise()) {
                 return null;
@@ -1120,9 +1119,9 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
         }
 
         @Nullable
-        IFluidHandler getFluidAutoOutputTarget() {
+        FluidStorage<FluidStack> getFluidAutoOutputTarget() {
             BlockPos neighbourPos = getTile().getBlockPos().above();
-            return getTile().getLevel().getCapability(CapUtil.CAP_FLUIDS, neighbourPos, Direction.DOWN);
+            return PlatformStorage.fluids(getTile().getLevel(), neighbourPos, Direction.DOWN);
         }
     }
 

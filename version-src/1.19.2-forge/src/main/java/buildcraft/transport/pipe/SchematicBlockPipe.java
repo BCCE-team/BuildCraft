@@ -176,10 +176,9 @@ public class SchematicBlockPipe implements ISchematicBlock {
             return false;
         }
 
-        // Pipe NBT contains live connection, flow and behaviour state. Comparing the complete tag makes a correctly
-        // placed pipe become "wrong" as soon as it connects or ticks, causing the builder to break and place it
-        // forever. The old BuildCraft implementations only compared the pipe block/type. Keep the useful static
-        // distinction (definition and paint colour), but deliberately ignore runtime contents and connections.
+        // Pipe NBT contains live connection, flow and behaviour state. Comparing the complete tag would make a
+        // correctly placed pipe become "wrong" as soon as it connects or ticks. Equality therefore covers only
+        // placement-stable state (definition and paint colour), not runtime contents or connections.
         CompoundTag expectedPipe = tileNbt == null ? new CompoundTag() : tileNbt.getCompound("pipe");
         String expectedDefinition = expectedPipe.getString("def");
         if (!expectedDefinition.isEmpty()

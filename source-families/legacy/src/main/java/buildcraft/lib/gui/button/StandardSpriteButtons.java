@@ -91,9 +91,7 @@ public class StandardSpriteButtons {
         TINY_BUTTON_DRAWABLE.disabled = defineButton(sprite, rect);
         TINY_BUTTON_DRAWABLE.hovered = defineButton(sprite, rect.offset(20, 0));
 
-        // Replace GuiAbstractButton + subclasses with this + GuiSpriteButton + related methods for generating text
-        // elements + util methods for creating buttons like the old system + move everything to json.
-        // But finish the filler gui before moving everything else to json
+        // Shared sprite definitions for compact GUI buttons.
     }
 
     public static ISimpleDrawable defineButton(ISprite mainSprite, GuiRectangle rect) {

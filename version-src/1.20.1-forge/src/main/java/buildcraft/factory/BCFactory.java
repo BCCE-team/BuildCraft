@@ -1,5 +1,8 @@
 package buildcraft.factory;
 
+import buildcraft.factory.BCFactoryClientRenderers;
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.core.BCCore;
 import buildcraft.factory.client.render.RenderDistiller;
 import buildcraft.factory.client.render.RenderHeatExchange;
@@ -8,7 +11,6 @@ import buildcraft.factory.client.render.RenderPump;
 import buildcraft.factory.client.render.RenderTank;
 import buildcraft.factory.tile.TileDistiller;
 import buildcraft.factory.tile.TileTank;
-import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
@@ -28,9 +30,9 @@ public class BCFactory {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::gatherData);
 
-        BCFactoryBlocks.registry(modEventBus);
-        BCFactoryItems.registry(modEventBus);
-        BCFactoryGuis.registry(modEventBus);
+        BCFactoryBlocks.registry(RegistryBinding.on(modEventBus));
+        BCFactoryItems.registry(RegistryBinding.on(modEventBus));
+        BCFactoryGuis.registry(RegistryBinding.on(modEventBus));
         BCCore.BUILDCRAFT_TAB.addItemProvider(BCFactoryItems::getCreativeTabItems);
 
         MinecraftForge.EVENT_BUS.register(this);
@@ -61,22 +63,15 @@ public class BCFactory {
 
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
-            BCFactoryClientGuis.clientInit(event);
+            PlatformClientRegistration.screens(event, BCFactoryClientGuis::clientInit);
             event.enqueueWork(() -> {
-                ItemBlockRenderTypes.setRenderLayer(BCFactoryBlocks.TANK_BLOCK.get(), RenderType.cutout());
-                ItemBlockRenderTypes.setRenderLayer(BCFactoryBlocks.DISTILLER_BLOCK.get(), RenderType.cutout());
-                ItemBlockRenderTypes.setRenderLayer(BCFactoryBlocks.HEATEXCHANGE_BLOCK.get(), RenderType.cutout());
-                ItemBlockRenderTypes.setRenderLayer(BCFactoryBlocks.CHUTE_BLOCK.get(), RenderType.cutout());
+                BCFactoryClientRenderers.layers(PlatformClientRegistration.layers());
             });
         }
 
         @SubscribeEvent
-        public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
-            event.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKTANK.get(), RenderTank::new);
-            event.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKPUMP.get(), RenderPump::new);
-            event.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKMININGWELL.get(), RenderMiningWell::new);
-            event.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKDISTILLER.get(), RenderDistiller::new);
-            event.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKHEATEXCHANGE.get(), RenderHeatExchange::new);
-        }
+    public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        BCFactoryClientRenderers.register(PlatformClientRegistration.renderers(event));
+    }
     }
 }

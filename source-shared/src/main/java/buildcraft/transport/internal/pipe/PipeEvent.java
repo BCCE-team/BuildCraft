@@ -13,7 +13,7 @@ public abstract class PipeEvent {
         this.holder = holder;
     }
 
-    /** deprecated: Because cancellation is going to be removed (at some point in the future) */
+    /** @deprecated Cancellation is not part of the stable pipe-event contract. */
     protected PipeEvent(boolean canBeCancelled, IPipeHolder holder) {
         this.canBeCancelled = canBeCancelled;
         this.holder = holder;

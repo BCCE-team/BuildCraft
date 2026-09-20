@@ -1,5 +1,8 @@
 package buildcraft.energy;
 
+import buildcraft.lib.platform.registry.BCRegistryBinder;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.Holder;
@@ -9,10 +12,7 @@ import net.minecraft.world.level.levelgen.GenerationStep.Decoration;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import net.minecraftforge.common.world.BiomeModifier;
 import net.minecraftforge.common.world.ModifiableBiomeInfo.BiomeInfo;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
 
 /**
  * Platform bridge which installs the BuildCraft oil placed feature into every biome.
@@ -22,10 +22,10 @@ import net.minecraftforge.registries.RegistryObject;
  * {@code WorldgenService} without also having to patch loader-specific biome modifier data.</p>
  */
 public final class BCEnergyBiomeModifiers {
-    private static final DeferredRegister<Codec<? extends BiomeModifier>> SERIALIZERS =
-        DeferredRegister.create(ForgeRegistries.Keys.BIOME_MODIFIER_SERIALIZERS, BCEnergy.MODID);
+    private static final BCDeferredRegister<Codec<? extends BiomeModifier>> SERIALIZERS =
+        BCDeferredRegister.create(ForgeRegistries.Keys.BIOME_MODIFIER_SERIALIZERS, BCEnergy.MODID);
 
-    public static final RegistryObject<Codec<OilFeatureInjectionModifier>> OIL_FEATURE_INJECTION =
+    public static final BCRegistryEntry<Codec<OilFeatureInjectionModifier>> OIL_FEATURE_INJECTION =
         SERIALIZERS.register("oil_feature_injection", () -> RecordCodecBuilder.create(builder -> builder.group(
             PlacedFeature.LIST_CODEC.fieldOf("features").forGetter(OilFeatureInjectionModifier::features)
         ).apply(builder, OilFeatureInjectionModifier::new)));
@@ -33,7 +33,7 @@ public final class BCEnergyBiomeModifiers {
     private BCEnergyBiomeModifiers() {
     }
 
-    public static void register(IEventBus modEventBus) {
+    public static void register(BCRegistryBinder modEventBus) {
         SERIALIZERS.register(modEventBus);
     }
 

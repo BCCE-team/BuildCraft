@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -29,6 +30,7 @@ import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
+import buildcraft.lib.compat.NbtCompat;
 
 public final class NBTUtilBC {
     public static final CompoundTag NBT_NULL = new CompoundTag();
@@ -47,8 +49,8 @@ public final class NBTUtilBC {
         if (destination.getId() == Tag.TAG_COMPOUND && source.getId() == Tag.TAG_COMPOUND) {
             CompoundTag result = new CompoundTag();
             for (String key : Sets.union(
-                ((CompoundTag) destination).getAllKeys(),
-                ((CompoundTag) source).getAllKeys()
+                NbtCompat.getAllKeys((CompoundTag) destination),
+                NbtCompat.getAllKeys((CompoundTag) source)
             )) {
                 if (!((CompoundTag) source).contains(key)) {
                     result.put(key, ((CompoundTag) destination).get(key));
@@ -111,20 +113,20 @@ public final class NBTUtilBC {
                 CompoundTag nbt = (CompoundTag) base;
                 BlockPos pos = null;
                 if (nbt.contains("i")) {
-                    int i = nbt.getInt("i");
-                    int j = nbt.getInt("j");
-                    int k = nbt.getInt("k");
+                    int i = NbtCompat.getInt(nbt, "i");
+                    int j = NbtCompat.getInt(nbt, "j");
+                    int k = NbtCompat.getInt(nbt, "k");
                     pos = new BlockPos(i, j, k);
                 } else if (nbt.contains("x") && nbt.contains("y") && nbt.contains("z")) {
-                    int x = nbt.getInt("x");
-                    int y = nbt.getInt("y");
-                    int z = nbt.getInt("z");
+                    int x = NbtCompat.getInt(nbt, "x");
+                    int y = NbtCompat.getInt(nbt, "y");
+                    int z = NbtCompat.getInt(nbt, "z");
                     pos = new BlockPos(x, y, z);
                 } else if (nbt.contains("X") && nbt.contains("Y") && nbt.contains("Z")) {
                     // NbtUtils.writeBlockPos uses upper-case coordinate keys in modern Minecraft.
-                    int x = nbt.getInt("X");
-                    int y = nbt.getInt("Y");
-                    int z = nbt.getInt("Z");
+                    int x = NbtCompat.getInt(nbt, "X");
+                    int y = NbtCompat.getInt(nbt, "Y");
+                    int z = NbtCompat.getInt(nbt, "Z");
                     pos = new BlockPos(x, y, z);
                 } else if (nbt.contains("pos")) {
                     return readBlockPos(nbt.get("pos"));
@@ -162,7 +164,7 @@ public final class NBTUtilBC {
     }
 
     public static Vec3 readVec3(ListTag list) {
-        return new Vec3(list.getDouble(0), list.getDouble(1), list.getDouble(2));
+        return new Vec3(NbtCompat.getDouble(list, 0), NbtCompat.getDouble(list, 1), NbtCompat.getDouble(list, 2));
     }
 
     private static final String NULL_ENUM_STRING = "_NULL";
@@ -176,7 +178,7 @@ public final class NBTUtilBC {
 
     public static <E extends Enum<E>> E readEnum(Tag nbt, Class<E> clazz) {
         if (nbt instanceof StringTag) {
-            String value = ((StringTag) nbt).getAsString();
+            String value = NbtCompat.getString((StringTag) nbt);
             if (NULL_ENUM_STRING.equals(value)) {
                 return null;
             }
@@ -188,7 +190,7 @@ public final class NBTUtilBC {
                 return null;
             }
         } else if (nbt instanceof ByteTag) {
-            byte value = ((ByteTag) nbt).getAsByte();
+            byte value = NbtCompat.getByte((net.minecraft.nbt.NumericTag) nbt);
             if (value < 0 || value >= clazz.getEnumConstants().length) {
                 return null;
             } else {
@@ -216,7 +218,7 @@ public final class NBTUtilBC {
         if (tag instanceof ListTag) {
             ListTag list = (ListTag) tag;
             for (int i = 0; i < list.size() && i < intendedLength; i++) {
-                arr[i] = list.getDouble(i);
+                arr[i] = NbtCompat.getDouble(list, i);
             }
         }
         return arr;
@@ -249,7 +251,7 @@ public final class NBTUtilBC {
         if (constants == null) throw new IllegalArgumentException("Not an enum type " + clazz);
         byte[] bytes;
         if (tag instanceof ByteTag) {
-            bytes = new byte[] { ((ByteTag) tag).getAsByte() };
+            bytes = new byte[] { NbtCompat.getByte((net.minecraft.nbt.NumericTag) tag) };
         } else if (tag instanceof ByteArrayTag) {
             bytes = ((ByteArrayTag) tag).getAsByteArray();
         } else {
@@ -287,7 +289,7 @@ public final class NBTUtilBC {
         if (!(list instanceof ListTag)) {
             throw new IllegalArgumentException();
         }
-        return IntStream.range(0, ((ListTag) list).size()).mapToObj(((ListTag) list)::getCompound);
+        return IntStream.range(0, ((ListTag) list).size()).mapToObj(i -> NbtCompat.getCompound((ListTag) list, i));
     }
 
     public static ListTag writeStringList(Stream<String> stream) {
@@ -306,6 +308,6 @@ public final class NBTUtilBC {
         if (!(list instanceof ListTag)) {
             throw new IllegalArgumentException();
         }
-        return IntStream.range(0, ((ListTag) list).size()).mapToObj(((ListTag) list)::getString);
+        return IntStream.range(0, ((ListTag) list).size()).mapToObj(i -> NbtCompat.getString((ListTag) list, i));
     }
 }

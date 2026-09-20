@@ -1,5 +1,6 @@
 package buildcraft.energy;
 
+import buildcraft.lib.platform.registry.BCRegistryEntry;
 import net.minecraft.data.PackOutput;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.neoforged.neoforge.client.model.generators.BlockModelProvider;
@@ -9,8 +10,6 @@ import net.neoforged.neoforge.client.model.generators.ItemModelProvider;
 import net.neoforged.neoforge.client.model.generators.ModelFile;
 import net.neoforged.neoforge.client.model.generators.loaders.DynamicFluidContainerModelBuilder;
 import net.neoforged.neoforge.common.data.ExistingFileHelper;
-import net.minecraft.world.level.block.Block;
-import net.neoforged.neoforge.registries.DeferredHolder;
 
 public final class BCEnergyProvider {
     private BCEnergyProvider() {
@@ -26,7 +25,7 @@ public final class BCEnergyProvider {
             for (int id = 0; id < BCEnergyFluids.NAME.length; id++) {
                 for (int heat = 0; heat < BCEnergyFluids.HEAT_NAMES.length; heat++) {
                     String name = BCEnergyFluids.NAME[id];
-                    DeferredHolder<Block, LiquidBlock> registryObject = BCEnergyFluids.OIL_BLOCK.get(3 * id + heat);
+                    BCRegistryEntry<LiquidBlock> registryObject = BCEnergyFluids.OIL_BLOCK.get(3 * id + heat);
                     simpleBlock(registryObject.get(), new ConfiguredModel(
                         models().getBuilder(BCEnergy.MODID + ":fluids/" + name + "/" + BCEnergyFluids.HEAT_NAMES[heat])
                     ));

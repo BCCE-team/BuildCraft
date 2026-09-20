@@ -6,9 +6,7 @@
 
 package buildcraft.silicon.plug;
 
-import net.minecraftforge.api.distmarker.OnlyIn;
 
-import net.minecraftforge.api.distmarker.Dist;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -68,8 +66,8 @@ import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 import net.minecraftforge.network.NetworkHooks;
 
 public class PluggableGate extends PipePluggable implements MenuProvider{
@@ -204,12 +202,12 @@ public class PluggableGate extends PipePluggable implements MenuProvider{
     }
 
     @Override
-    public void writePayload(FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
         throw new Error("All messages must have an ID, and we can't just write a payload directly!");
     }
 
     @Override
-    public void readPayload(FriendlyByteBuf b, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(FriendlyByteBuf b, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         logic.readPayload(b, side, ctx);
     }
 
@@ -231,7 +229,6 @@ public class PluggableGate extends PipePluggable implements MenuProvider{
     }
 
     @Override
-    @OnlyIn(Dist.CLIENT)
     public PluggableModelKey getModelRenderKey(RenderType layer) {
         if (layer == RenderType.cutout()) {
             return new KeyPlugGate(side, logic.variant);

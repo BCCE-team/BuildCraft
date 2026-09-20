@@ -6,6 +6,9 @@
 
 package buildcraft.transport;
 
+import buildcraft.lib.platform.registry.BCRegistryBinder;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 
@@ -19,86 +22,82 @@ import buildcraft.transport.pipe.PipeRegistry;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Item.Properties;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
 
 public class BCTransportItems {
 
     public static Item waterproof;
-    
-
-    public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, BCTransport.MODID);
-    
-    public static final LinkedHashMap<PipeDefinition, RegistryObject<ItemPipeHolder>> PIPE_MAP = new LinkedHashMap<>();
-    
-    public static final RegistryObject<Item> WATER_PROOF;
-    
-    public static final RegistryObject<ItemPipeHolder> PIPE_STRUCTURE;
-
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_WOOD;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_WOOD;
-    public static final RegistryObject<ItemPipeHolder> PIPE_POWER_WOOD;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FE_WOOD;
-
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_STONE;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_STONE;
-    public static final RegistryObject<ItemPipeHolder> PIPE_POWER_STONE;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FE_STONE;
-
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_COBBLE;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_COBBLE;
-    public static final RegistryObject<ItemPipeHolder> PIPE_POWER_COBBLE;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FE_COBBLE;
-    
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_QUARTZ;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_QUARTZ;
-    public static final RegistryObject<ItemPipeHolder> PIPE_POWER_QUARTZ;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FE_QUARTZ;
-
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_GOLD;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_GOLD;
-    public static final RegistryObject<ItemPipeHolder> PIPE_POWER_GOLD;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FE_GOLD;
-
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_SAND_STONE;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_SAND_STONE;
-    public static final RegistryObject<ItemPipeHolder> PIPE_POWER_SAND_STONE;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FE_SAND_STONE;
-
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_IRON;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_IRON;
-    public static final RegistryObject<ItemPipeHolder> PIPE_POWER_IRON;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FE_IRON;
-
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_DIAMOND;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_DIAMOND;
-    public static final RegistryObject<ItemPipeHolder> PIPE_POWER_DIAMOND;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FE_DIAMOND;
-
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_DIAWOOD;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_DIAWOOD;
-    public static final RegistryObject<ItemPipeHolder> PIPE_POWER_DIAWOOD;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FE_DIAWOOD;
 
 
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_CLAY;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_CLAY;
+    public static final BCDeferredRegister<Item> ITEMS = BCDeferredRegister.create("minecraft:item", BCTransport.MODID);
 
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_VOID;
-    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_VOID;
+    public static final LinkedHashMap<PipeDefinition, BCRegistryEntry<ItemPipeHolder>> PIPE_MAP = new LinkedHashMap<>();
 
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_OBSIDIAN;
-//    public static final RegistryObject<ItemPipeHolder> PIPE_FLUID_OBSIDIAN;
+    public static final BCRegistryEntry<Item> WATER_PROOF;
 
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_LAPIS;
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_DAIZULI;
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_EMZULI;
-    public static final RegistryObject<ItemPipeHolder> PIPE_ITEM_STRIPES;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_STRUCTURE;
 
-    public static final RegistryObject<ItemPluggableSimple> plugBlocker;
-    public static final RegistryObject<ItemPluggableSimple> plugPowerAdaptor;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_WOOD;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_WOOD;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_POWER_WOOD;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FE_WOOD;
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_STONE;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_STONE;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_POWER_STONE;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FE_STONE;
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_COBBLE;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_COBBLE;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_POWER_COBBLE;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FE_COBBLE;
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_QUARTZ;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_QUARTZ;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_POWER_QUARTZ;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FE_QUARTZ;
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_GOLD;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_GOLD;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_POWER_GOLD;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FE_GOLD;
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_SAND_STONE;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_SAND_STONE;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_POWER_SAND_STONE;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FE_SAND_STONE;
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_IRON;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_IRON;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_POWER_IRON;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FE_IRON;
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_DIAMOND;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_DIAMOND;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_POWER_DIAMOND;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FE_DIAMOND;
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_DIAWOOD;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_DIAWOOD;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_POWER_DIAWOOD;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FE_DIAWOOD;
+
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_CLAY;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_CLAY;
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_VOID;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_VOID;
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_OBSIDIAN;
+//    public static final BCRegistryEntry<ItemPipeHolder> PIPE_FLUID_OBSIDIAN;
+
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_LAPIS;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_DAIZULI;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_EMZULI;
+    public static final BCRegistryEntry<ItemPipeHolder> PIPE_ITEM_STRIPES;
+
+    public static final BCRegistryEntry<ItemPluggableSimple> plugBlocker;
+    public static final BCRegistryEntry<ItemPluggableSimple> plugPowerAdaptor;
     public static final EnumMap<DyeColor, ItemWire> wires = ItemByEnum.creatItems(ItemWire::new, new Properties().tab(BCTransport.tabPlugs), DyeColor.values(), DyeColor.class, "wire", ITEMS);;
 
     static {
@@ -161,20 +160,20 @@ public class BCTransportItems {
 
 
     }
-    
-    
-    
-    
-    public static void registry(IEventBus b) {
-    	ITEMS.register(b);
+
+
+
+
+    public static void registry(BCRegistryBinder b) {
+        ITEMS.register(b);
     }
 
-    public static RegistryObject<ItemPipeHolder> makePipeItem(PipeDefinition def) {
-    	var t = ITEMS.register(def.identifier.getPath(), () -> PipeRegistry.INSTANCE.createItemForPipe(def));
+    public static BCRegistryEntry<ItemPipeHolder> makePipeItem(PipeDefinition def) {
+        var t = ITEMS.register(def.identifier.getPath(), () -> PipeRegistry.INSTANCE.createItemForPipe(def));
 
-    	PIPE_MAP.put(def, t);
-    	return t;
-    	
+        PIPE_MAP.put(def, t);
+        return t;
+
     }
-    
+
 }

@@ -1,2 +1,2 @@
-/** BuildCraft redstone board API ported to Forge 1.20.1. */
+/** Legacy BuildCraft redstone-board compatibility API. */
 package buildcraft.robotics.internal.legacy.boards;

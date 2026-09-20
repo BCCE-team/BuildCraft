@@ -1,5 +1,11 @@
 package buildcraft.core;
 
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.core.BCCoreClientRenderers;
+import buildcraft.lib.platform.registry.RegistryBinding;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
+import buildcraft.lib.platform.config.ConfigBinding;
 import net.minecraftforge.fml.DistExecutor;
 
 import java.util.HashMap;
@@ -52,42 +58,40 @@ import net.minecraftforge.fml.config.ModConfig.Type;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
 
 @Mod(BCCore.MODID)
 public class BCCore {
-	public static final String MODID = "buildcraftcore";
+    public static final String MODID = "buildcraftcore";
     public static final CreativeTabBC BUILDCRAFT_TAB = CreativeTabManager.createTab("buildcraft.main");
     public static final CreativeTabBC tabFluids = CreativeTabManager.createTab("buildcraft.fluid");
 
     public static final Map<String,Object> ENGINE_MAP = new HashMap<>();
-	public static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(ForgeRegistries.MENU_TYPES, BCCore.MODID);
-    public static final RegistryObject<MenuType<ContainerList>> LIST_MENU = MENUS.register("list_menu", () -> BCContainerFactory.create(ContainerList::new));
+    public static final BCDeferredRegister<MenuType<?>> MENUS = BCDeferredRegister.create("minecraft:menu", BCCore.MODID);
+    public static final BCRegistryEntry<MenuType<ContainerList>> LIST_MENU = MENUS.register("list_menu", () -> BCContainerFactory.create(ContainerList::new));
 
     public BCCore() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::init);
-        modEventBus.addListener(BCCoreConfig::onLoadConfig);
-        modEventBus.addListener(BCCoreConfig::onReloadConfig);
+        ConfigBinding.listen(modEventBus, BCCoreConfig::onLoadConfig, BCCoreConfig::onReloadConfig);
+
 //        modEventBus.addListener(this::gatherData);//DataGenerator
 
-        BCCoreBlocks.registry(modEventBus);
-        BCCoreItems.registry(modEventBus);
+        BCCoreBlocks.registry(RegistryBinding.on(modEventBus));
+        BCCoreItems.registry(RegistryBinding.on(modEventBus));
 
-        MENUS.register(modEventBus);
+        RegistryBinding.register(MENUS, modEventBus);
         BCCoreConfig.registry();
-        ModLoadingContext.get().registerConfig(Type.COMMON, BCCoreConfig.config);
+        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCCoreConfig.config));
         MessageManager.registerMessageClass(BCModules.CORE, MessageVolumeBoxes.class, MessageVolumeBoxes.HANDLER, MessageVolumeBoxes::toBytes, MessageVolumeBoxes::new, Dist.CLIENT);
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(BCLibEventDist.class);
-		IEventBus eventBus = MinecraftForge.EVENT_BUS;
-		DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-			eventBus.addListener(RenderTickListener::renderOverlay);
-			eventBus.addListener(RenderTickListener::renderLast);
-		});
-		BCCoreStatements.preInit();
+        BCLibEventDist.registerGameplayEvents();
+        IEventBus eventBus = MinecraftForge.EVENT_BUS;
+        DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+            eventBus.addListener(RenderTickListener::renderOverlay);
+            eventBus.addListener(RenderTickListener::renderLast);
+        });
+        BCCoreStatements.preInit();
     }
 
     public void gatherData(GatherDataEvent event) {
@@ -101,9 +105,9 @@ public class BCCore {
     {
         MarkerCache.registerCache(VolumeCache.INSTANCE);
         MarkerCache.registerCache(PathCache.INSTANCE);
-    	EnumSpring.OIL.liquidBlock = BCEnergyFluids.OIL_BLOCK.get(0).get().defaultBlockState();
-    	EnumSpring.OIL.tileConstructor = TileSpringOil::new;
-    	BCCoreConfig.reloadConfig(MODID);
+        EnumSpring.OIL.liquidBlock = BCEnergyFluids.OIL_BLOCK.get(0).get().defaultBlockState();
+        EnumSpring.OIL.tileConstructor = TileSpringOil::new;
+        BCCoreConfig.reloadConfig(MODID);
         BUILDCRAFT_TAB.setItem(BCCoreItems.WRENCH.get());
         BuildCraftApi.registry(BuildCraftRegistries.FLUID_DROP_PROVIDERS).register(
             java.util.Objects.requireNonNull(net.minecraft.resources.ResourceLocation.tryParse("buildcraftcore:fragile_fluid_shard")),
@@ -115,46 +119,43 @@ public class BCCore {
     @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static class ClientModEvents
     {
-    	public static final ResourceLocation TRUNK_LIGHT = new ResourceLocation("buildcraftcore:blocks/engine/trunk_light");
-    	public static final ResourceLocation CHAMBER = new ResourceLocation("buildcraftlib:blocks/engine/chamber_base");
-    	public static final ResourceLocation TRUNK = new ResourceLocation("buildcraftcore:blocks/engine/trunk");
-    	public static final ResourceLocation ENGINE_MODEL = new ResourceLocation("buildcraftlib:block/engine_base");
+        public static final ResourceLocation TRUNK_LIGHT = new ResourceLocation("buildcraftcore:blocks/engine/trunk_light");
+        public static final ResourceLocation CHAMBER = new ResourceLocation("buildcraftlib:blocks/engine/chamber_base");
+        public static final ResourceLocation TRUNK = new ResourceLocation("buildcraftcore:blocks/engine/trunk");
+        public static final ResourceLocation ENGINE_MODEL = new ResourceLocation("buildcraftlib:block/engine_base");
 
-    	public ClientModEvents() {
+        public ClientModEvents() {
 
-		}
+        }
 
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event)
         {
-        	BCCoreSprites.init();
-        	DetachedRenderer.INSTANCE.addRenderer(RenderMatrixType.FROM_WORLD_ORIGIN, RenderVolumeBoxes.INSTANCE);
+            BCCoreSprites.init();
+            DetachedRenderer.INSTANCE.addRenderer(RenderMatrixType.FROM_WORLD_ORIGIN, RenderVolumeBoxes.INSTANCE);
             event.enqueueWork(
                     () -> {
-                    	BCCoreItems.registerItemProperties();
-                    	MenuScreens.register(LIST_MENU.get(), GuiList::new);
+                        BCCoreItems.registerItemProperties();
+                        PlatformClientRegistration.directScreens().register(LIST_MENU.get(), GuiList::new);
                     }
             );
         }
 
         @SubscribeEvent
-        public static void registryRender(EntityRenderersEvent.RegisterRenderers e) {
-
-        	e.registerBlockEntityRenderer(BCCoreBlocks.ENGINE_REDSTONE_TILE_BC8.get(), RenderEngine_BC8::new);
-        	e.registerBlockEntityRenderer(BCCoreBlocks.ENGINE_CREATIVE_TILE_BC8.get(), RenderEngine_BC8::new);
-        	e.registerBlockEntityRenderer(BCCoreBlocks.MARKER_VOLUME_TILE_BC8.get(), RenderMarkerVolume::new);
-        }
+    public static void registryRender(EntityRenderersEvent.RegisterRenderers e) {
+        BCCoreClientRenderers.register(PlatformClientRegistration.renderers(e));
+    }
 
         @SubscribeEvent
         public static void registrtTexture(TextureStitchEvent.Pre e){
-        	if (InventoryMenu.BLOCK_ATLAS.equals(e.getAtlas().location())) {
+            if (InventoryMenu.BLOCK_ATLAS.equals(e.getAtlas().location())) {
                 // IC2 Classic/CarbonConfig may cause texture stitching before FMLClientSetup.
                 // Create all core laser holders now so BCLib's LOWEST-priority registration sees them.
                 BCCoreSprites.init();
-                BCCoreSprites.onTextureStitchPre(e);
-        		e.addSprite(TRUNK_LIGHT);
-        		e.addSprite(CHAMBER);
-        	}
+                BCCoreSprites.onTextureStitchPre(PlatformClientRegistration.atlas(e));
+                e.addSprite(TRUNK_LIGHT);
+                e.addSprite(CHAMBER);
+            }
         }
 
         @SubscribeEvent
@@ -166,26 +167,26 @@ public class BCCore {
 
         @SubscribeEvent
         public static void onModelBakePre(RegisterAdditional event) {
-        	event.register(ENGINE_MODEL);
+            event.register(ENGINE_MODEL);
         }
 
         @SubscribeEvent
         public static void onModelBake(BakingCompleted event) {
             // Baking runs for every resource reload. Ensure the model uses sprites from the new atlas.
             RenderEngine_BC8.reloadSprites(Minecraft.getInstance().getModelManager().getAtlas(InventoryMenu.BLOCK_ATLAS));
-        	ModelEngine.init(event.getModels().get(ENGINE_MODEL));
-        	event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=wood"), new ModelEngine(RenderEngine_BC8.REDSTONE_BACK, RenderEngine_BC8.REDSTONE_SIDE));
-        	event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=creative"), new ModelEngine(RenderEngine_BC8.CREATIVE_BACK, RenderEngine_BC8.CREATIVE_SIDE));
-        	event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=stone"), new ModelEngine(RenderEngine_BC8.STONE_BACK, RenderEngine_BC8.STONE_SIDE));
-        	event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=iron"), new ModelEngine(RenderEngine_BC8.IRON_BACK, RenderEngine_BC8.IRON_SIDE));
-        	event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=fe"), new ModelEngine(RenderEngine_BC8.FE_BACK, RenderEngine_BC8.FE_SIDE));
-        	event.getModels().put(new ModelResourceLocation("buildcraftenergy:mj_dynamo#"), new ModelEngine(RenderEngine_BC8.DYNAMO_BACK, RenderEngine_BC8.DYNAMO_SIDE));
-        	ModelEngine.release();
+            ModelEngine.init(event.getModels().get(ENGINE_MODEL));
+            event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=wood"), new ModelEngine(RenderEngine_BC8.REDSTONE_BACK, RenderEngine_BC8.REDSTONE_SIDE));
+            event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=creative"), new ModelEngine(RenderEngine_BC8.CREATIVE_BACK, RenderEngine_BC8.CREATIVE_SIDE));
+            event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=stone"), new ModelEngine(RenderEngine_BC8.STONE_BACK, RenderEngine_BC8.STONE_SIDE));
+            event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=iron"), new ModelEngine(RenderEngine_BC8.IRON_BACK, RenderEngine_BC8.IRON_SIDE));
+            event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=fe"), new ModelEngine(RenderEngine_BC8.FE_BACK, RenderEngine_BC8.FE_SIDE));
+            event.getModels().put(new ModelResourceLocation("buildcraftenergy:mj_dynamo#"), new ModelEngine(RenderEngine_BC8.DYNAMO_BACK, RenderEngine_BC8.DYNAMO_SIDE));
+            ModelEngine.release();
         }
 
         @SubscribeEvent
         public static void RegisterItemColor(RegisterColorHandlersEvent.Item event) {
-        	event.register(new DynamicFluidContainerModel.Colors(), BCCoreItems.FRAGILE_FLUID_SHARD.get());
+            event.register(new DynamicFluidContainerModel.Colors(), BCCoreItems.FRAGILE_FLUID_SHARD.get());
         }
 
     }

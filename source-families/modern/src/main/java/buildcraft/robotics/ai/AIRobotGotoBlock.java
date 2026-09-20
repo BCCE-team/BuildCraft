@@ -19,7 +19,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-/** Pathing port for picker-level movement. It follows the old robot rule of travelling through soft/non-colliding blocks. */
+/** Picker-level pathing that travels through soft or non-colliding blocks. */
 public class AIRobotGotoBlock extends AIRobotGoto {
     private LinkedList<BlockIndex> path;
     private double prevDistance = Double.MAX_VALUE;
@@ -114,9 +114,9 @@ public class AIRobotGotoBlock extends AIRobotGoto {
             prevDistance = Double.MAX_VALUE;
             stuckTicks = 0;
 
-            // The old robot had noClip, but the pathfinder still refused to route through hard blocks. Re-check the
-            // next node because blocks can change while the robot is travelling or after NBT load. The first node is
-            // allowed so a robot that is currently embedded in a station/pipe block can escape instead of deadlocking.
+            // The pathfinder excludes hard blocks, but world state can change while the robot travels or after NBT load.
+            // Re-check the next node; the first node remains allowed so a robot embedded in a station/pipe block can
+            // escape instead of deadlocking.
             if (isFirst || isSoft(robot.level(), next.toBlockPos())) {
                 setDestination(robot, next.x + 0.5D, next.y + 0.5D, next.z + 0.5D);
                 robot.aimItemAt(next.x, next.y, next.z);
@@ -141,8 +141,8 @@ public class AIRobotGotoBlock extends AIRobotGoto {
             return null;
         }
 
-        // Most robot paths are just long open-air runs. Try cheap axis-aligned paths first; this avoids the old
-        // breadth-first flood from exhausting its node budget after only about one chunk of 3D air.
+        // Most robot paths are long open-air runs. Try cheap axis-aligned paths first so breadth-first search keeps
+        // its node budget for obstacles and local detours.
         LinkedList<BlockIndex> direct = directFallback(start, target, level);
         if (direct != null) {
             return direct;

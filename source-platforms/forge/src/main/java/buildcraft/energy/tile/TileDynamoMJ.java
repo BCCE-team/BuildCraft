@@ -1,5 +1,7 @@
 package buildcraft.energy.tile;
 
+import buildcraft.lib.platform.storage.PlatformStorage;
+import buildcraft.lib.platform.storage.EnergyStorage;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.lib.internal.mj.MjCapabilities;
 
@@ -35,6 +37,7 @@ import buildcraft.lib.internal.mj.MjBatteryReceiver;
 import buildcraft.lib.tile.item.ItemHandlerManager.EnumAccess;
 import buildcraft.lib.tile.item.IItemHandlerAdv;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
+import buildcraft.lib.platform.storage.EnergyStorage;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -54,11 +57,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.energy.IEnergyStorage;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 /** BuildCraft 8 MJ Dynamo: consumes MJ and produces Forge Energy. */
 public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
@@ -80,7 +81,7 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
     private long persistedMjState;
     private boolean energyStateCaptured;
 
-    private final IEnergyStorage feStorage = new FeStorage();
+    private final EnergyStorage feStorage = new FeStorage();
     private final ExternalEnergyPort api2FeOutputPort = new ExternalEnergyPort() {
         @Override public long insert(long offered, OperationMode mode) { return 0; }
         @Override public long extract(long requested, OperationMode mode) {
@@ -96,14 +97,14 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
         @Override public boolean canInsert() { return false; }
         @Override public boolean canExtract() { return true; }
     };
-    private final LazyOptional<IEnergyStorage> feCapability = LazyOptional.of(() -> feStorage);
-
     public TileDynamoMJ(BlockPos pos, BlockState state) {
         super(BCEnergyBlocks.DYNAMO_MJ_TILE.get(), pos, state);
         invUpgrades = itemManager.addInvHandler(
             "upgrades", 4, (slot, stack) -> isValidUpgrade(stack), EnumAccess.NONE
         ).setLimitedInsertor(1);
         caps.addProvider(itemManager);
+        caps.addEnergyStorage(side -> side == currentDirection ? feStorage : null,
+            buildcraft.lib.internal.core.EnumPipePart.VALUES);
     }
 
     private static void ensureUpgradeMap() {
@@ -256,7 +257,7 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
 
     @Override
     protected long getPowerToExtract(boolean doExtract) {
-        IEnergyStorage receiver = getFeReceiver(currentDirection);
+        EnergyStorage receiver = getFeReceiver(currentDirection);
         if (receiver == null) return 0;
         int offered = (int) Math.min(Integer.MAX_VALUE, Math.min(currentFe, maxPowerExtracted()));
         if (offered <= 0) return 0;
@@ -271,7 +272,7 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
 
     @Override
     protected void sendPower() {
-        IEnergyStorage receiver = getFeReceiver(currentDirection);
+        EnergyStorage receiver = getFeReceiver(currentDirection);
         if (receiver == null) return;
         int offered = (int) Math.min(Integer.MAX_VALUE, Math.min(currentFe, maxPowerExtracted()));
         if (offered <= 0) return;
@@ -293,13 +294,13 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
         return getFeReceiver(tile, side) != null;
     }
 
-    private IEnergyStorage getFeReceiver(BlockEntity tile, Direction side) {
+    private EnergyStorage getFeReceiver(BlockEntity tile, Direction side) {
         if (tile == null) return null;
-        IEnergyStorage receiver = tile.getCapability(ForgeCapabilities.ENERGY, side.getOpposite()).orElse(null);
+        EnergyStorage receiver = PlatformStorage.energy(tile, side.getOpposite());
         return receiver != null && receiver.canReceive() ? receiver : null;
     }
 
-    private IEnergyStorage getFeReceiver(Direction side) {
+    private EnergyStorage getFeReceiver(Direction side) {
         TileDynamoMJ dynamo = this;
         BlockEntity next = null;
         for (int len = 0; len <= getMaxChainLength(); len++) {
@@ -361,18 +362,18 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
+        if (side == BCNetworkSide.SERVER && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
             buffer.writeVarInt(currentFe);
             buffer.writeLong(mjBattery.getStored());
         }
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
+        if (side == BCNetworkSide.CLIENT && (id == NET_GUI_DATA || id == NET_GUI_TICK)) {
             currentFe = buffer.readVarInt();
             CompoundTag battery = new CompoundTag();
             battery.putLong("stored", buffer.readLong());
@@ -415,11 +416,6 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
 
     @Override
     public <T> @NotNull LazyOptional<T> getCapability(@Nonnull Capability<T> capability, Direction side) {
-        if (capability == ForgeCapabilities.ENERGY) {
-            // The dedicated BC8 converter is deliberately independent from powerMode:
-            // MJ enters on the non-output faces and FE only leaves through currentDirection.
-            return side == currentDirection ? feCapability.cast() : LazyOptional.empty();
-        }
         if (side != currentDirection) {
             LazyOptional<T> mj = inputMjCaps.getCapability(capability, side);
             if (mj.isPresent()) return mj;
@@ -429,13 +425,7 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
         return super.getCapability(capability, side);
     }
 
-    @Override
-    public void invalidateCaps() {
-        super.invalidateCaps();
-        feCapability.invalidate();
-    }
-
-    private final class FeStorage implements IEnergyStorage {
+    private final class FeStorage implements EnergyStorage {
         @Override public int receiveEnergy(int maxReceive, boolean simulate) { return 0; }
         @Override public int extractEnergy(int maxExtract, boolean simulate) {
             int extracted = Math.min(Math.max(0, maxExtract), currentFe);

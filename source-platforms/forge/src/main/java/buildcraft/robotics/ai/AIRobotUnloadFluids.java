@@ -7,6 +7,7 @@ import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.lib.internal.statement.StatementSlot;
 import buildcraft.lib.inventory.filter.SimpleFluidFilter;
+import buildcraft.lib.platform.storage.FluidStorage;
 import buildcraft.robotics.statements.ActionRobotFilter;
 import buildcraft.robotics.statements.ActionStationAcceptFluids;
 import net.minecraftforge.fluids.FluidStack;
@@ -62,7 +63,7 @@ public class AIRobotUnloadFluids extends AIRobot {
             return 0;
         }
 
-        IFluidHandler fluidHandler = station.getFluidOutput();
+        FluidStorage<FluidStack> fluidHandler = station.getFluidOutput();
         if (fluidHandler == null) {
             return 0;
         }
@@ -72,7 +73,7 @@ public class AIRobotUnloadFluids extends AIRobot {
             return 0;
         }
 
-        int fillable = fluidHandler.fill(drainable.copy(), FluidAction.SIMULATE);
+        int fillable = fluidHandler.fill(drainable.copy(), true);
         if (fillable <= 0) {
             return 0;
         }
@@ -88,7 +89,7 @@ public class AIRobotUnloadFluids extends AIRobot {
         if (drained.isEmpty()) {
             return 0;
         }
-        int filled = fluidHandler.fill(drained, FluidAction.EXECUTE);
+        int filled = fluidHandler.fill(drained, false);
         if (filled < drained.getAmount()) {
             FluidStack remainder = drained.copy();
             remainder.setAmount(drained.getAmount() - filled);

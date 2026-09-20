@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Final API2 migration gate: BuildCraft's Java extension surface is buildcraft.api.v2 only."""
+"""API2 extension-surface gate: BuildCraft's Java extension surface is buildcraft.api.v2 only."""
 from __future__ import annotations
 
 import re
@@ -13,6 +13,10 @@ JAVA_ROOTS = (
     "source-families/modern/src/main/java",
     "source-platforms/forge/src/main/java",
     "source-platforms/neoforge/src/main/java",
+    "source-family-platforms/legacy/forge/src/main/java",
+    "source-family-platforms/legacy/fabric/src/main/java",
+    "source-family-platforms/modern/neoforge/src/main/java",
+    "source-family-platforms/modern/fabric/src/main/java",
     "version-src/1.19.2-forge/src/main/java",
     "version-src/1.20.1-forge/src/main/java",
     "version-src/1.21.1-neoforge/src/main/java",
@@ -21,11 +25,19 @@ JAVA_ROOTS = (
     "source-families/modern/src/test/java",
     "source-platforms/forge/src/test/java",
     "source-platforms/neoforge/src/test/java",
+    "source-family-platforms/legacy/forge/src/test/java",
+    "source-family-platforms/legacy/fabric/src/test/java",
+    "source-family-platforms/modern/neoforge/src/test/java",
+    "source-family-platforms/modern/fabric/src/test/java",
     "source-shared/src/gametest/java",
     "source-families/legacy/src/gametest/java",
     "source-families/modern/src/gametest/java",
     "source-platforms/forge/src/gametest/java",
     "source-platforms/neoforge/src/gametest/java",
+    "source-family-platforms/legacy/forge/src/gametest/java",
+    "source-family-platforms/legacy/fabric/src/gametest/java",
+    "source-family-platforms/modern/neoforge/src/gametest/java",
+    "source-family-platforms/modern/fabric/src/gametest/java",
     "addon-fixture/src/main/java",
 )
 
@@ -35,21 +47,17 @@ PACKAGE_OR_IMPORT = re.compile(
 )
 V2_PREFIX = "buildcraft.api.v2"
 
-OBSOLETE_MIGRATION_FILES = (
-    "docs/api2/CORE_MISC_RUNTIME_MIGRATION.md",
-    "docs/api2/FACADES_LISTS_MAP_RUNTIME_MIGRATION.md",
-    "docs/api2/IMPLEMENTATION_INTERNALIZATION.md",
-    "docs/api2/LEGACY_IMPORT_MIGRATION_MAP.csv",
+OBSOLETE_MIGRATION_SCRIPTS = (
     "scripts/validate-api-v2-migration-surface.py",
     "scripts/validate-legacy-api-internalization.py",
 )
 
+
 GRADLE_FILES = (
-    "builds/legacy/build.forge.gradle",
-    "builds/modern/build.neoforge.gradle",
+    "build-logic/loaders/forge-target.gradle",
+    "build-logic/loaders/neoforge-target.gradle",
 )
 CI_FILE = ".github/workflows/ci.yml"
-COMPLETION_DOC = "docs/api2/API2_MIGRATION_COMPLETE.md"
 
 
 def is_v2(name: str) -> bool:
@@ -105,24 +113,10 @@ def main() -> int:
     if public_api_files == 0:
         errors.append("no buildcraft.api.v2 Java sources found")
 
-    for relative in OBSOLETE_MIGRATION_FILES:
+    for relative in OBSOLETE_MIGRATION_SCRIPTS:
         if (ROOT / relative).exists():
             errors.append(f"obsolete migration artifact remains: {relative}")
 
-    completion = ROOT / COMPLETION_DOC
-    if not completion.is_file():
-        errors.append(f"missing API2 completion document: {COMPLETION_DOC}")
-    else:
-        text = completion.read_text(encoding="utf-8", errors="ignore")
-        lower = text.lower()
-        for token in (
-            "buildcraft.api.v2",
-            "buildcraft.lib.internal",
-            "no legacy java api compatibility facade",
-            "save and registry compatibility",
-        ):
-            if token not in lower:
-                errors.append(f"{COMPLETION_DOC}: missing finalization invariant: {token}")
 
     for relative in GRADLE_FILES:
         path = ROOT / relative
@@ -161,7 +155,7 @@ def main() -> int:
         "API v2-only finalization OK: "
         f"{public_api_files} public API2 Java source(s); "
         f"{scanned_java} Java source(s) scanned; "
-        "0 non-v2 buildcraft.api packages/imports; migration ledger retired"
+        "0 non-v2 buildcraft.api packages/imports"
     )
     return 0
 

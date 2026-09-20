@@ -18,7 +18,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.Level;
 
-/** 1.7.10 BuildCraft picker board port. Picks dropped item entities, unloads them, then sleeps. */
+/** Picker board that collects dropped item entities, unloads them, then sleeps. */
 public class BoardRobotPicker extends RedstoneBoardRobot {
     public static final Set<TargetKey> targettedItems = new HashSet<>();
 

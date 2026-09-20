@@ -6,6 +6,7 @@
 
 package buildcraft.transport;
 
+import buildcraft.lib.platform.client.ClientAtlas;
 import java.util.EnumMap;
 import java.util.Locale;
 
@@ -18,7 +19,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.DyeColor;
-import net.minecraftforge.client.event.TextureStitchEvent;
 
 public class BCTransportSprites {
 
@@ -118,7 +118,7 @@ public class BCTransportSprites {
     private static SpriteHolder getHolder(String module, String loc) {
         return SpriteHolderRegistry.getHolder("buildcraft" + module + ":" + loc);
     }
-    public static void onTextureStitchPre(TextureStitchEvent.Pre event) {
+    public static void onTextureStitchPre(ClientAtlas.Before event) {
     	if(InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
 //    		PIPE_TEX.values().forEach(event::addSprite);
     		event.addSprite(new ResourceLocation("buildcrafttransport:pipes/power_flow"));

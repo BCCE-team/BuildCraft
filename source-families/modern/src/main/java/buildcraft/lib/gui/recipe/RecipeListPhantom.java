@@ -1,42 +1,32 @@
+//? source if >=1.21.1
 package buildcraft.lib.gui.recipe;
 
-import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 
-import it.unimi.dsi.fastutil.ints.IntList;
+import net.minecraft.client.ClientRecipeBook;
 import net.minecraft.client.gui.screens.recipebook.RecipeCollection;
-import net.minecraft.stats.RecipeBook;
-import net.minecraft.world.entity.player.StackedContents;
-import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
 
-public class RecipeListPhantom extends RecipeCollection {
+/** Client-side flattened recipe-display list used by BuildCraft guide/phantom recipes on 1.21.11. */
+public final class RecipeListPhantom {
+    private final List<RecipeDisplayEntry> entries;
 
-    public RecipeListPhantom(RecipeCollection from){
-    	super(from.registryAccess(), from.getRecipes());
-        RecipeBook book = new RecipeBook();
-        this.getRecipes().forEach(book::add);
-        this.updateKnownRecipes(book);
-        this.canCraft(new StackedContents() {
-        	   public boolean canCraft(Recipe<?> p_36476_, @Nullable IntList p_36477_) {
-        		      return true;
-        		   }
-        }, 65536, 65536, book);
+    private RecipeListPhantom(List<RecipeDisplayEntry> entries) {
+        this.entries = List.copyOf(entries);
     }
 
-    @Override
-    public boolean hasSingleResultItem() {
-        // Only called by the draw function -- for some reason this will render a second
-        // item beside the first if this returns true and getOrderedRecipes().size() > 1
-        return false;
+    public static RecipeListPhantom from(ClientRecipeBook recipeBook) {
+        List<RecipeDisplayEntry> entries = new ArrayList<>();
+        if (recipeBook != null) {
+            for (RecipeCollection collection : recipeBook.getCollections()) {
+                entries.addAll(collection.getRecipes());
+            }
+        }
+        return new RecipeListPhantom(entries);
     }
 
-    @Override
-    public boolean isCraftable(RecipeHolder<?> recipe) {
-        return true;
-    }
-
-    @Override
-    public boolean hasCraftable() {
-        return !getRecipes().isEmpty();
+    public List<RecipeDisplayEntry> entries() {
+        return entries;
     }
 }

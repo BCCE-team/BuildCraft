@@ -10,6 +10,7 @@ import buildcraft.lib.internal.core.EnumPipePart;
 import buildcraft.transport.internal.pipe.IPipeHolder.IWriter;
 import buildcraft.transport.internal.pipe.IPipeHolder.PipeMessageReceiver;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
@@ -20,7 +21,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.capabilities.BlockCapability;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 
 public abstract class PipeFlow implements IBCCapabilityProvider {
     /** The ID for completely refreshing the state of this flow. */
@@ -44,14 +45,14 @@ public abstract class PipeFlow implements IBCCapabilityProvider {
     }
 
     /** Writes a payload with the specified id. Standard ID's are NET_ID_FULL_STATE and NET_ID_UPDATE. */
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {}
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {}
 
     /** Reads a payload with the specified id. Standard ID's are NET_ID_FULL_STATE and NET_ID_UPDATE. */
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side) throws IOException {}
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) throws IOException {}
 
     public void sendPayload(int id) {
         @SuppressWarnings("resource")
-		final LogicalSide side = pipe.getHolder().getPipeWorld().isClientSide ? LogicalSide.CLIENT : LogicalSide.SERVER;
+		final BCNetworkSide side = pipe.getHolder().getPipeWorld().isClientSide ? BCNetworkSide.CLIENT : BCNetworkSide.SERVER;
         sendCustomPayload(id, (buf) -> writePayload(id, buf, side));
     }
 
@@ -67,10 +68,26 @@ public abstract class PipeFlow implements IBCCapabilityProvider {
 
     public abstract boolean canConnect(Direction face, BlockEntity oTile);
 
+    /**
+     * Position-aware connection probe used by the modern NeoForge topology scanner.
+     *
+     * <p>Block capabilities are attached to a world position, not necessarily to a {@link BlockEntity}.
+     * Keeping the legacy block-entity overload preserves existing flow/addon compatibility while allowing
+     * 1.21.11-native handlers to connect even when the neighbouring block has no tile entity.</p>
+     */
+    public boolean canConnect(Direction face, Level level, BlockPos pos, @Nullable BlockEntity oTile) {
+        return oTile != null && canConnect(face, oTile);
+    }
+
     /** Used to force a connection to a given tile, even if the {@link PipeBehaviour} wouldn't normally connect to
      * it. */
     public boolean shouldForceConnection(Direction face, BlockEntity oTile) {
         return false;
+    }
+
+    /** Position-aware companion to {@link #shouldForceConnection(Direction, BlockEntity)}. */
+    public boolean shouldForceConnection(Direction face, Level level, BlockPos pos, @Nullable BlockEntity oTile) {
+        return oTile != null && shouldForceConnection(face, oTile);
     }
 
     public void onTick() {}

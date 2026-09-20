@@ -11,10 +11,12 @@ from __future__ import annotations
 import json
 import re
 import sys
+import tempfile
 from collections import Counter
 from pathlib import Path
 
-from source_layout import ROOT, load_properties, preprocess_text, target_ids, target_layout
+from source_layout import ROOT, load_properties, materialize_target, preprocess_text, resolve_effective_source, target_ids, target_layout
+from source_preprocessor import strip_source_condition
 
 
 def fail(message: str) -> None:
@@ -22,26 +24,42 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
+_RESOURCE_TEMP = tempfile.TemporaryDirectory(prefix="bc-cross-target-resources-")
+_RESOURCE_CACHE: dict[str, dict[str, Path]] = {}
+
+
 def resource_map(target: str, props: dict[str, str]) -> dict[str, Path]:
-    layout = target_layout(target, props)
-    result: dict[str, Path] = {}
-    prefix = "src/main/resources/"
-    for rel, path in layout.effective_files("src/main/resources").items():
-        if not rel.startswith(prefix):
-            continue
-        result[rel[len(prefix):]] = path
+    """Return the actual materialized resource pack, including generated files.
+
+    Resources are materialized through a pipeline rather than a raw source-tree merge.
+    Validators therefore inspect the effective pack after selectors,
+    transforms and deterministic generators have run.
+    """
+    cached = _RESOURCE_CACHE.get(target)
+    if cached is not None:
+        return cached
+    root = Path(_RESOURCE_TEMP.name) / target
+    materialize_target(target, root, props)
+    resources = root / "src/main/resources"
+    result = {
+        path.relative_to(resources).as_posix(): path
+        for path in resources.rglob("*")
+        if path.is_file()
+    }
+    _RESOURCE_CACHE[target] = result
     return result
 
 
 def effective_java(target: str, rel: str, props: dict[str, str]) -> str:
     layout = target_layout(target, props)
     logical = Path("src/main/java") / rel
-    path = layout.resolve(logical)
+    path = resolve_effective_source(layout, props, logical)
     if path is None:
         fail(f"{target}: missing effective Java source {logical.as_posix()}")
     minecraft = props[f"target.{target}.deps.minecraft"]
+    source, _selector = strip_source_condition(path.read_text(encoding="utf-8"))
     return preprocess_text(
-        path.read_text(encoding="utf-8"),
+        source,
         minecraft=minecraft,
         family=layout.family,
         platform=layout.platform,
@@ -281,7 +299,7 @@ def validate_metadata(props: dict[str, str]) -> None:
 
 
 def validate_datagen_isolation() -> None:
-    for rel in ("builds/legacy/build.forge.gradle", "builds/modern/build.neoforge.gradle"):
+    for rel in ("build-logic/loaders/forge-target.gradle", "build-logic/loaders/neoforge-target.gradle"):
         text = (ROOT / rel).read_text(encoding="utf-8")
         if 'new File(repositoryRoot, "build/generated-resources/' in text:
             fail(f"{rel}: datagen output still lives outside the target build directory")
@@ -300,7 +318,7 @@ def validate_language_policy(props: dict[str, str]) -> None:
     # The main mod owns English only. Every other locale belongs to the separate
     # localization addon and must never leak back into production source layers.
     en_us_files: list[Path] = []
-    for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "version-src"):
+    for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "source-family-platforms", ROOT / "version-src"):
         en_us_files.extend(p for p in base.rglob("src/main/resources/assets/*/lang/en_us.json") if p.is_file())
     expected = ROOT / "source-shared/src/main/resources/assets/buildcraft/lang/en_us.json"
     unexpected = sorted(p.relative_to(ROOT).as_posix() for p in en_us_files if p != expected)
@@ -309,7 +327,7 @@ def validate_language_policy(props: dict[str, str]) -> None:
     if not expected.is_file():
         fail("missing authoritative source-shared BuildCraft en_us.json")
 
-    for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "version-src"):
+    for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "source-family-platforms", ROOT / "version-src"):
         for path in base.rglob("src/main/resources/assets/*/lang/*.json"):
             if path.is_file() and path.name != "en_us.json":
                 fail(f"main mod must contain en_us only; addon-owned locale remains: {path.relative_to(ROOT)}")
@@ -374,7 +392,7 @@ def validate_quartz_sprite_paths() -> None:
         'ResourceLocation.withDefaultNamespace("quartz_block_top")',
         'ResourceLocation.parse("quartz_block_top")',
     )
-    for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "version-src"):
+    for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "source-family-platforms", ROOT / "version-src"):
         for path in base.rglob("*.java"):
             text = path.read_text(encoding="utf-8")
             for bad in bad_patterns:
@@ -395,8 +413,15 @@ def validate_promoted_cross_generation_files() -> None:
         old21 = ROOT / "source-families/modern/src/main" / rel
         if not shared.is_file():
             fail(f"promoted cross-generation source missing from shared: {rel}")
-        if old20.exists() or old21.exists():
-            fail(f"promoted source was copied back into target/family layer: {rel}")
+        if old20.exists():
+            fail(f"promoted source was copied back into 1.20.1 target layer: {rel}")
+        if old21.exists():
+            first = old21.read_text(encoding="utf-8").splitlines()[0].strip()
+            # 1.21.11 is the canonical modern Java API. A promoted 1.20.1/1.21.1
+            # shared source may therefore gain a >=1.21.11 family
+            # variant without shadowing the shared implementation on 1.21.1.
+            if first != "//? source if >=1.21.11":
+                fail(f"promoted source was copied back into modern family without a 1.21.11 selector: {rel}")
 
 
 def validate_hotspots(props: dict[str, str]) -> None:
@@ -406,12 +431,6 @@ def validate_hotspots(props: dict[str, str]) -> None:
         ),
         "buildcraft/energy/client/gui/GuiDynamoMJ.java": (
             "RenderSystem.enableBlend();", "RenderSystem.defaultBlendFunc();", "OVERLAY.drawAt",
-        ),
-        "buildcraft/robotics/gui/GuiZonePlanner.java": ("argbToAbgr(colour)",),
-        "buildcraft/robotics/zone/ZonePlannerMapChunk.java": (
-            "Heightmap.Types.WORLD_SURFACE",
-            "getChunkNow(key.chunkPos.x, key.chunkPos.z - 1)",
-            "mapNativeToArgb(nativeMapColour)",
         ),
         "buildcraft/transport/client/model/PipeBaseModelGenStandard.java": (
             "loadSpritesCache", "generateTranslucent", "getPipeModelColour",
@@ -429,6 +448,23 @@ def validate_hotspots(props: dict[str, str]) -> None:
             for token in tokens:
                 if token not in text:
                     fail(f"{target}: protected cross-target hotspot {rel} lost {token!r}")
+
+        zone_gui = effective_java(target, "buildcraft/robotics/gui/GuiZonePlanner.java", props)
+        zone_map = effective_java(target, "buildcraft/robotics/zone/ZonePlannerMapChunk.java", props)
+        for token in ("Heightmap.Types.WORLD_SURFACE", "getChunkNow(key.chunkPos.x, key.chunkPos.z - 1)"):
+            if token not in zone_map:
+                fail(f"{target}: protected Zone Planner hotspot lost {token!r}")
+        if target == "1.21.11-neoforge":
+            if "fillNativeImage(" not in zone_gui or "argbToAbgr(colour)" in zone_gui:
+                fail(f"{target}: Zone Planner GUI must write the native 1.21.11 ARGB value directly")
+            for token in ("calculateARGBColor(brightness)", "new MapColourData(current.posY, mapColour)"):
+                if token not in zone_map:
+                    fail(f"{target}: Zone Planner native ARGB path lost {token!r}")
+        else:
+            if "argbToAbgr(colour)" not in zone_gui:
+                fail(f"{target}: Zone Planner GUI lost the pre-1.21.11 ARGB->ABGR conversion")
+            if "mapNativeToArgb(nativeMapColour)" not in zone_map:
+                fail(f"{target}: Zone Planner map cache lost the pre-1.21.11 colour conversion")
 
 
 
@@ -566,7 +602,7 @@ def validate_item_pipe_gametest_isolation() -> None:
 
 def validate_build_metadata_and_source_hygiene(props: dict[str, str]) -> None:
     placeholders = ("$version", "${mcversion}", "${git_branch}", "${git_commit_hash}", "${git_commit_msg}", "${git_commit_author}")
-    source_roots = (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "version-src")
+    source_roots = (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "source-family-platforms", ROOT / "version-src")
     for base in source_roots:
         for path in base.rglob("*.java"):
             if not path.is_file():
@@ -579,7 +615,7 @@ def validate_build_metadata_and_source_hygiene(props: dict[str, str]) -> None:
             if path.is_file() and "src/main/resources" in path.as_posix():
                 fail(f"production resource tree contains ignored migration .jsonx: {path.relative_to(ROOT)}")
 
-    for rel in ("builds/legacy/build.forge.gradle", "builds/modern/build.neoforge.gradle"):
+    for rel in ("build-logic/loaders/forge-target.gradle", "build-logic/loaders/neoforge-target.gradle"):
         text = (ROOT / rel).read_text(encoding="utf-8")
         for token in (
             "generateBuildCraftTarget",
@@ -660,10 +696,7 @@ def validate_snapshot_renderer_and_client_isolation(props: dict[str, str]) -> No
     ):
         if forbidden in bccore:
             fail(f"1.21.1-neoforge: common BCCore entrypoint still references client-only symbol {forbidden!r}")
-    client_path = ROOT / "source-platforms/neoforge/src/main/java/buildcraft/core/client/BCCoreClientModEvents.java"
-    if not client_path.is_file():
-        fail("1.21.1-neoforge: missing physically separated BCCore client event bootstrap")
-    client_text = client_path.read_text(encoding="utf-8")
+    client_text = effective_java("1.21.1-neoforge", "buildcraft/core/client/BCCoreClientModEvents.java", props)
     for token in ("value = Dist.CLIENT", "RegisterMenuScreensEvent", "ModifyBakingResult", "RenderTickListener::renderOverlay"):
         if token not in client_text:
             fail(f"1.21.1-neoforge: client-only BCCore bootstrap lost {token!r}")
@@ -681,16 +714,16 @@ def validate_compat_runtime_dependencies(props: dict[str, str]) -> None:
         fail(f"{target}: IC2 compatibility is missing its Carbon Config runtime dependency")
 
     # Carbon Config 2.0.0 crashes when IC2 saves its config during dedicated-server
-    # construction, before ServerLifecycleHooks has a current MinecraftServer. 2.0.2
-    # is the upstream hotfix release for exactly that startup path.
+    # construction before ServerLifecycleHooks has a current MinecraftServer. Carbon Config 2.0.2
+    # contains the required startup fix and is the verified compatibility version.
     known_bad = "maven.modrinth:1jDdpgcc:8U1HA7TK"
     required_hotfix = "maven.modrinth:1jDdpgcc:HMD2FUea"
     if carbon == known_bad:
         fail(f"{target}: Carbon Config 2.0.0 is known to crash IC2 dedicated-server startup")
     if carbon != required_hotfix:
         fail(
-            f"{target}: IC2 compatibility smoke must use the verified Carbon Config 2.0.2 hotfix "
-            f"({required_hotfix}); found {carbon!r}. Update this guard when intentionally upgrading."
+            f"{target}: IC2 compatibility smoke must use verified Carbon Config 2.0.2 "
+            f"({required_hotfix}); found {carbon!r}."
         )
 
 def validate_ci_wiring() -> None:

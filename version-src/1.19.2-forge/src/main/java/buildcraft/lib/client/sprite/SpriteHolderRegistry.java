@@ -6,6 +6,7 @@
 
 package buildcraft.lib.client.sprite;
 
+import buildcraft.lib.platform.client.ClientAtlas;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -39,7 +40,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.event.TextureStitchEvent;
 import net.minecraftforge.fml.ModLoader;
 
 @OnlyIn(Dist.CLIENT)
@@ -54,7 +54,7 @@ public class SpriteHolderRegistry {
      * before another module has initialised its holder class. Keep the current event available until Post:
      * a holder created by a later module listener can then register itself immediately.
      */
-    private static TextureStitchEvent.Pre activeStitchEvent;
+    private static ClientAtlas.Before activeStitchEvent;
     private static final Set<ResourceLocation> REGISTERED_THIS_STITCH = new HashSet<>();
     private static int stitchGeneration;
     private static boolean atlasHasBeenStitched;
@@ -105,7 +105,7 @@ public class SpriteHolderRegistry {
         return getHolder(new ResourceLocation(location));
     }
 
-    public static void onTextureStitchPre(TextureStitchEvent.Pre event) {
+    public static void onTextureStitchPre(ClientAtlas.Before event) {
         if (!InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
             return;
         }
@@ -116,7 +116,7 @@ public class SpriteHolderRegistry {
         }
     }
 
-    private static void beginStitch(TextureStitchEvent.Pre event) {
+    private static void beginStitch(ClientAtlas.Before event) {
         if (activeStitchEvent == event) {
             return;
         }
@@ -126,7 +126,7 @@ public class SpriteHolderRegistry {
         atlasHasBeenStitched = false;
     }
 
-    private static void registerForStitch(SpriteHolder holder, TextureStitchEvent.Pre event) {
+    private static void registerForStitch(SpriteHolder holder, ClientAtlas.Before event) {
         if (!InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
             return;
         }
@@ -182,7 +182,7 @@ public class SpriteHolderRegistry {
         }
     }
 
-    public static void onTextureStitchPost(TextureStitchEvent.Post event) {
+    public static void onTextureStitchPost(ClientAtlas.After event) {
         if (!InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
             return;
         }
@@ -270,7 +270,7 @@ public class SpriteHolderRegistry {
          * mod containers, so relying on BCLib to discover holders created by another module
          * is unsafe during early/additional resource reloads.
          */
-        public void onTextureStitchPre(TextureStitchEvent.Pre event) {
+        public void onTextureStitchPre(ClientAtlas.Before event) {
             SpriteHolderRegistry.registerForStitch(this, event);
         }
 

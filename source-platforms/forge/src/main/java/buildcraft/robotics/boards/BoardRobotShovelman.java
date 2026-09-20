@@ -12,7 +12,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.ToolActions;
 
-/** BuildCraft 7.1.x shovelman board port. Fetches a shovel and digs shovel-mineable blocks in the work zone. */
+/** Shovelman board that fetches a shovel and digs shovel-mineable blocks in the work zone. */
 public class BoardRobotShovelman extends BoardRobotGenericBreakBlock {
     public BoardRobotShovelman(EntityRobotBase robot) {
         super(robot);

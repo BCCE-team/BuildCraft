@@ -6,6 +6,8 @@
 
 package buildcraft.factory.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
 
 import java.util.ArrayList;
@@ -150,16 +152,19 @@ public class TileChute extends TileBC_Neptune implements IDebuggable, MenuProvid
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
-        progress = nbt.getInt("progress");
-        battery.deserializeNBT(registries, nbt.getCompound("battery"));
+    protected void readData(BCValueInput bcData) {
+        HolderLookup.Provider registries = bcData.registries();
+        super.readData(bcData);
+        progress = bcData.readInt("progress");
+        battery.deserializeNBT(registries, bcData.readCompound("battery"));
     }
 
     @Override
-    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
-        nbt.putInt("progress", progress);
+    protected void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+        HolderLookup.Provider registries = bcData.registries();
+        super.writeData(bcData);
+        bcData.writeInt("progress", progress);
         nbt.put("battery", battery.serializeNBT(registries));
     }
 

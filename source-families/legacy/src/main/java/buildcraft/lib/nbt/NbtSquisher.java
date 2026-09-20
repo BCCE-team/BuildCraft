@@ -178,7 +178,7 @@ public class NbtSquisher {
             stream.reset();
             return NbtIo.readCompressed(stream);
         }
-        // Its not a new BC style nbt, try to red it as if it was an older style nbt
+        // Fall back to the legacy BuildCraft NBT encoding.
         // Reset + mark the same point, this time we only want to reset back 1 or 2 bytes
         stream.reset();
         stream.mark(5);

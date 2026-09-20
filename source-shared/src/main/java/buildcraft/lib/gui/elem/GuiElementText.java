@@ -113,11 +113,15 @@ public class GuiElementText extends GuiElementSimple {
         if (valueScale != 1.0) {
             guiGraphics.pose().pushPose();
             guiGraphics.pose().scale((float) valueScale, (float) valueScale, 1.0F);
-            guiGraphics.drawString(mc.font, content, (int) (x / valueScale), (int) (y / valueScale), colourValue, dropShadow);
+            guiGraphics.drawString(mc.font, content, (int) (x / valueScale), (int) (y / valueScale), opaqueColour(colourValue), dropShadow);
             guiGraphics.pose().popPose();
         } else {
-            guiGraphics.drawString(mc.font, content, (int) x, (int) y, colourValue, dropShadow);
+            guiGraphics.drawString(mc.font, content, (int) x, (int) y, opaqueColour(colourValue), dropShadow);
         }
+    }
+
+    private static int opaqueColour(int colour) {
+        return (colour & 0xFF000000) == 0 ? (colour | 0xFF000000) : colour;
     }
 
     @Override

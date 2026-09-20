@@ -17,15 +17,14 @@ import buildcraft.lib.internal.statement.StatementParameterItemStack;
 import buildcraft.core.BCCoreSprites;
 import buildcraft.core.BCCoreStatements;
 import buildcraft.lib.client.sprite.SpriteHolderRegistry.SpriteHolder;
-import buildcraft.lib.misc.CapUtil;
+import buildcraft.lib.platform.storage.FluidStorage;
+import buildcraft.lib.platform.storage.PlatformStorage;
 
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidUtil;
-import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
 
 public class TriggerFluidContainerLevel extends BCStatement implements ITriggerExternal {
     public final TriggerType type;
@@ -55,7 +54,8 @@ public class TriggerFluidContainerLevel extends BCStatement implements ITriggerE
 
     @Override
     public boolean isTriggerActive(BlockEntity tile, Direction side, IStatementContainer statementContainer, IStatementParameter[] parameters) {
-        IFluidHandler handler = tile.getCapability(CapUtil.CAP_FLUIDS, side.getOpposite()).orElse(null);
+        FluidStorage<FluidStack> handler = PlatformStorage.fluids(
+            tile.getLevel(), tile.getBlockPos(), side.getOpposite());
         if (handler == null) {
             return false;
         }
@@ -76,7 +76,7 @@ public class TriggerFluidContainerLevel extends BCStatement implements ITriggerE
         for (int i = 0; i < tanks ; i++) {
             FluidStack fluid = handler.getFluidInTank(i);
             if (fluid.isEmpty()) {
-                return searchedFluid.isEmpty() || handler.fill(searchedFluid, FluidAction.SIMULATE) > 0;
+                return searchedFluid.isEmpty() || handler.fill(searchedFluid, true) > 0;
             }
 
             if (searchedFluid.isEmpty() || FluidCompatRegistry.areEquivalent(searchedFluid, fluid)) {

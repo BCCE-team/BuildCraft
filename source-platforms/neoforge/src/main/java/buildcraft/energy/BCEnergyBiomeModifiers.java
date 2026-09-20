@@ -1,5 +1,8 @@
 package buildcraft.energy;
 
+import buildcraft.lib.platform.registry.BCRegistryBinder;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.Holder;
@@ -7,11 +10,8 @@ import net.minecraft.core.HolderSet;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.levelgen.GenerationStep.Decoration;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
-import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.common.world.BiomeModifier;
 import net.neoforged.neoforge.common.world.ModifiableBiomeInfo.BiomeInfo;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 /**
@@ -22,10 +22,10 @@ import net.neoforged.neoforge.registries.NeoForgeRegistries;
  * {@code WorldgenService} without also having to patch loader-specific biome modifier data.</p>
  */
 public final class BCEnergyBiomeModifiers {
-    private static final DeferredRegister<MapCodec<? extends BiomeModifier>> SERIALIZERS =
-        DeferredRegister.create(NeoForgeRegistries.Keys.BIOME_MODIFIER_SERIALIZERS, BCEnergy.MODID);
+    private static final BCDeferredRegister<MapCodec<? extends BiomeModifier>> SERIALIZERS =
+        BCDeferredRegister.create(NeoForgeRegistries.Keys.BIOME_MODIFIER_SERIALIZERS, BCEnergy.MODID);
 
-    public static final DeferredHolder<MapCodec<? extends BiomeModifier>, MapCodec<OilFeatureInjectionModifier>> OIL_FEATURE_INJECTION =
+    public static final BCRegistryEntry<MapCodec<OilFeatureInjectionModifier>> OIL_FEATURE_INJECTION =
         SERIALIZERS.register("oil_feature_injection", () -> RecordCodecBuilder.mapCodec(builder -> builder.group(
             PlacedFeature.LIST_CODEC.fieldOf("features").forGetter(OilFeatureInjectionModifier::features)
         ).apply(builder, OilFeatureInjectionModifier::new)));
@@ -33,7 +33,7 @@ public final class BCEnergyBiomeModifiers {
     private BCEnergyBiomeModifiers() {
     }
 
-    public static void register(IEventBus modEventBus) {
+    public static void register(BCRegistryBinder modEventBus) {
         SERIALIZERS.register(modEventBus);
     }
 

@@ -31,12 +31,12 @@ import com.google.common.collect.ImmutableList;
 import buildcraft.lib.misc.SingleCache;
 import buildcraft.lib.nbt.NbtSquisher;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.minecraftforge.fml.loading.FMLLoader;
 
 public class GlobalSavedDataSnapshots {
     private static final String SNAPSHOT_FILE_EXTENSION = ".bcnbt";
-    private static final Map<LogicalSide, GlobalSavedDataSnapshots> INSTANCES = new EnumMap<>(LogicalSide.class);
+    private static final Map<BCNetworkSide, GlobalSavedDataSnapshots> INSTANCES = new EnumMap<>(BCNetworkSide.class);
     private final LoadingCache<Snapshot.Key, Optional<Snapshot>> snapshotsCache = CacheBuilder.newBuilder()
         .maximumSize(512)
         .expireAfterAccess(10, TimeUnit.MINUTES)
@@ -48,7 +48,7 @@ public class GlobalSavedDataSnapshots {
     );
     private final File snapshotsFile;
 
-    private GlobalSavedDataSnapshots(LogicalSide side) {
+    private GlobalSavedDataSnapshots(BCNetworkSide side) {
         snapshotsFile = new File(
         	FMLLoader.getGamePath().toAbsolutePath().toString(),
             "snapshots-" + side.name().toLowerCase(Locale.ROOT)
@@ -62,11 +62,11 @@ public class GlobalSavedDataSnapshots {
         }
     }
 
-    public static void reInit(LogicalSide side) {
+    public static void reInit(BCNetworkSide side) {
         INSTANCES.put(side, new GlobalSavedDataSnapshots(side));
     }
 
-    public static GlobalSavedDataSnapshots get(LogicalSide side) {
+    public static GlobalSavedDataSnapshots get(BCNetworkSide side) {
         if (!INSTANCES.containsKey(side)) {
             INSTANCES.put(side, new GlobalSavedDataSnapshots(side));
         }
@@ -74,7 +74,7 @@ public class GlobalSavedDataSnapshots {
     }
 
     public static GlobalSavedDataSnapshots get(Level world) {
-        return get(world.isClientSide ? LogicalSide.CLIENT : LogicalSide.SERVER);
+        return get(world.isClientSide ? BCNetworkSide.CLIENT : BCNetworkSide.SERVER);
     }
 
     private Pair<Snapshot, File> readSnapshot(Snapshot.Key key) {

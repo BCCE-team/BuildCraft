@@ -6,6 +6,8 @@
 
 package buildcraft.lib.client.model;
 
+import buildcraft.lib.platform.client.ClientAtlas;
+import buildcraft.lib.platform.client.ClientModelBaking;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -16,9 +18,6 @@ import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
 
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.client.event.ModelEvent.BakingCompleted;
-import net.minecraftforge.client.event.ModelEvent.RegisterAdditional;
-import net.minecraftforge.client.event.TextureStitchEvent.Pre;
 
 public class ModelHolderRegistry {
     public static final boolean DEBUG = BCDebugging.shouldDebugLog("lib.model.holder");
@@ -35,7 +34,7 @@ public class ModelHolderRegistry {
         "buildcraft.transport.BCTransportModels"
     };
 
-    public static void onTextureStitchPre(Pre event) {
+    public static void onTextureStitchPre(ClientAtlas.Before event) {
         bootstrapBuiltinHolders();
         Set<ResourceLocation> toStitch = new HashSet<>();
         for (ModelHolder holder : HOLDERS_JSONBAKE) {
@@ -59,14 +58,14 @@ public class ModelHolderRegistry {
         }
     }
 
-	public static void preModelBake(RegisterAdditional event) {
+	public static void preModelBake(ClientModelBaking.Additional event) {
         bootstrapBuiltinHolders();
         for (ModelHolder holder : HOLDERS_VANILLABAKE) {
             holder.onModelBakePre(event);
         }
 	}
     
-    public static void onModelBake(BakingCompleted event) {
+    public static void onModelBake(ClientModelBaking.Completed event) {
         for (ModelHolder holder : HOLDERS_JSONBAKE) {
             holder.onModelBake(event);
         }

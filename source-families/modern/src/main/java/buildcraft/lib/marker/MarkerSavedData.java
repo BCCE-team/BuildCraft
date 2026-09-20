@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -12,28 +13,27 @@ import java.util.List;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.misc.NBTUtilBC;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtUtils;
 import net.minecraft.world.level.saveddata.SavedData;
+import buildcraft.lib.compat.NbtCompat;
 
 public abstract class MarkerSavedData<S extends MarkerSubCache<C>, C extends MarkerConnection<C>> extends SavedData {
     protected static final boolean DEBUG_FULL = MarkerSubCache.DEBUG_FULL;
-    
+
     public final String mapName;
-    
+
     protected final List<BlockPos> markerPositions = new ArrayList<>();
     protected final List<List<BlockPos>> markerConnections = new ArrayList<>();
     private S subCache;
-    
+
     public MarkerSavedData(String name) {
-    	this.mapName = name;
-	}
-    
+        this.mapName = name;
+    }
+
     public MarkerSavedData(CompoundTag nbt, String name) {
         mapName = name;
-    	markerPositions.clear();
+        markerPositions.clear();
         markerConnections.clear();
 
         if (nbt.get("positions") instanceof ListTag positionList) {
@@ -79,31 +79,37 @@ public abstract class MarkerSavedData<S extends MarkerSubCache<C>, C extends Mar
         }
     }
 
-	@Override
-    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
+    /** Encodes the live marker cache for the 1.21.11 SavedDataType codec. */
+    public CompoundTag saveToTag() {
+        return saveToTag(new CompoundTag());
+    }
+
+    public CompoundTag saveToTag(CompoundTag nbt) {
         markerPositions.clear();
         markerConnections.clear();
 
-        markerPositions.addAll(subCache.getAllMarkers());
-        for (C connection : subCache.getConnections()) {
-            markerConnections.add(new ArrayList<>(connection.getMarkerPositions()));
+        if (subCache != null) {
+            markerPositions.addAll(subCache.getAllMarkers());
+            for (C connection : subCache.getConnections()) {
+                markerConnections.add(new ArrayList<>(connection.getMarkerPositions()));
+            }
         }
         ListTag positionList = new ListTag();
         for (BlockPos p : markerPositions) {
-            positionList.add(NbtUtils.writeBlockPos(p));
+            positionList.add(NbtCompat.writeBlockPos(p));
         }
         nbt.put("positions", positionList);
 
         ListTag connectionList = new ListTag();
         for (List<BlockPos> connection : markerConnections) {
-        	ListTag inner = new ListTag();
+            ListTag inner = new ListTag();
             for (BlockPos p : connection) {
-                inner.add(NbtUtils.writeBlockPos(p));
+                inner.add(NbtCompat.writeBlockPos(p));
             }
             connectionList.add(inner);
         }
         nbt.put("connections", connectionList);
-        
+
         if (DEBUG_FULL) {
             BCLog.logger.info("[lib.marker.full] Writing to NBT (" + mapName + ")");
             BCLog.logger.info("[lib.marker.full]  - Positions:");
@@ -122,27 +128,24 @@ public abstract class MarkerSavedData<S extends MarkerSubCache<C>, C extends Mar
         return nbt;
     }
 
-    @Override
     public boolean isDirty() {
-    	if(subCache ==null)
-    		return false;
-    	return subCache.isDirty();
+        if(subCache ==null)
+            return false;
+        return subCache.isDirty();
  //       return true;
     }
 
-    @Override
-	public void setDirty() {
-    	if(subCache !=null)
-    		subCache.setDirty(true);
-	}
+    public void setDirty() {
+        if(subCache !=null)
+            subCache.setDirty(true);
+    }
 
-	@Override
-	public void setDirty(boolean p_77761_) {
-    	if(subCache !=null)
-    		subCache.setDirty(p_77761_);
-	}
+    public void setDirty(boolean p_77761_) {
+        if(subCache !=null)
+            subCache.setDirty(p_77761_);
+    }
 
-	public final void setCache(S subCache) {
+    public final void setCache(S subCache) {
         this.subCache = subCache;
     }
 }

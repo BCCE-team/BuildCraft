@@ -22,7 +22,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkDirection;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
+import buildcraft.lib.net.ForgePacketContext;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
@@ -52,17 +53,17 @@ public final class ForestryPropolisNetwork {
         CHANNEL.messageBuilder(RuleChange.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
             .encoder(RuleChange::encode)
             .decoder(RuleChange::decode)
-            .consumerMainThread(ForestryPropolisNetwork::handleRuleChange)
+            .consumerMainThread((message, context) -> handleRuleChange(message, () -> new ForgePacketContext(context.get())))
             .add();
         CHANNEL.messageBuilder(GenomeChange.class, nextId++, NetworkDirection.PLAY_TO_SERVER)
             .encoder(GenomeChange::encode)
             .decoder(GenomeChange::decode)
-            .consumerMainThread(ForestryPropolisNetwork::handleGenomeChange)
+            .consumerMainThread((message, context) -> handleGenomeChange(message, () -> new ForgePacketContext(context.get())))
             .add();
         CHANNEL.messageBuilder(FilterState.class, nextId++, NetworkDirection.PLAY_TO_CLIENT)
             .encoder(FilterState::encode)
             .decoder(FilterState::decode)
-            .consumerMainThread(ForestryPropolisNetwork::handleFilterState)
+            .consumerMainThread((message, context) -> handleFilterState(message, () -> new ForgePacketContext(context.get())))
             .add();
     }
 
@@ -101,8 +102,8 @@ public final class ForestryPropolisNetwork {
             && menu.stillValid(player);
     }
 
-    private static void handleRuleChange(RuleChange message, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    private static void handleRuleChange(RuleChange message, Supplier<BCPacketContext> contextSupplier) {
+        BCPacketContext context = contextSupplier.get();
         ServerPlayer player = context.getSender();
         if (player == null || !canEdit(player, message.pos)) {
             return;
@@ -123,8 +124,8 @@ public final class ForestryPropolisNetwork {
         }
     }
 
-    private static void handleGenomeChange(GenomeChange message, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    private static void handleGenomeChange(GenomeChange message, Supplier<BCPacketContext> contextSupplier) {
+        BCPacketContext context = contextSupplier.get();
         ServerPlayer player = context.getSender();
         if (player == null || message.index < 0 || message.index >= 3 || !canEdit(player, message.pos)) {
             return;
@@ -145,7 +146,7 @@ public final class ForestryPropolisNetwork {
         }
     }
 
-    private static void handleFilterState(FilterState message, Supplier<NetworkEvent.Context> contextSupplier) {
+    private static void handleFilterState(FilterState message, Supplier<BCPacketContext> contextSupplier) {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
             () -> () -> invokeClientFilterState(message.pos, message.filter));
     }

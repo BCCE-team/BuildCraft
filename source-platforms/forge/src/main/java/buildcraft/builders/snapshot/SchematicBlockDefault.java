@@ -6,6 +6,9 @@
 
 package buildcraft.builders.snapshot;
 
+import buildcraft.lib.platform.storage.PlatformStorage;
+import buildcraft.lib.platform.storage.MutableItemStorage;
+import buildcraft.lib.platform.storage.ItemStorage;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -50,11 +53,7 @@ import net.minecraft.world.level.block.entity.StructureBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.Property;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.IItemHandlerModifiable;
-import net.minecraftforge.items.wrapper.InvWrapper;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public class SchematicBlockDefault implements ISchematicBlock {
@@ -185,7 +184,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
             return true;
         }
 
-        IItemHandler handler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null);
+        ItemStorage handler = PlatformStorage.items(blockEntity, null);
         if (handler == null) {
             return false;
         }
@@ -209,7 +208,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
         removeSerializedDeferredItems(emptiedNbt, deferredItems);
 
         // Unknown mod inventories may serialize their slots in a custom format that cannot be
-        // recognised safely. Fall back to the old pre-filled-NBT behaviour rather than duplicate
+        // recognised safely. Fall back to pre-filled-NBT compatibility behavior rather than duplicate
         // items or touch the live block entity.
         if (!deferredItems.isEmpty() && emptiedNbt.equals(originalNbt)) {
             return null;
@@ -254,10 +253,10 @@ public class SchematicBlockDefault implements ISchematicBlock {
         }
     }
 
-    private static ItemStack insertIntoExactSlot(IItemHandler handler, int slot, ItemStack stack, boolean simulate) {
+    private static ItemStack insertIntoExactSlot(ItemStorage handler, int slot, ItemStack stack, boolean simulate) {
         ItemStack remaining = stack.copy();
         int before = remaining.getCount();
-        if (handler instanceof IItemHandlerModifiable modifiable) {
+        if (handler instanceof MutableItemStorage modifiable) {
             remaining = insertIntoModifiableSlot(modifiable, slot, remaining, simulate);
         }
         if (!remaining.isEmpty() && remaining.getCount() == before) {
@@ -267,7 +266,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
     }
 
     private static ItemStack insertIntoModifiableSlot(
-        IItemHandlerModifiable handler, int slot, ItemStack stack, boolean simulate
+        MutableItemStorage handler, int slot, ItemStack stack, boolean simulate
     ) {
         ItemStack current = handler.getStackInSlot(slot);
         if (!current.isEmpty() && !ItemStack.isSameItemSameTags(current, stack)) {
@@ -503,11 +502,11 @@ public class SchematicBlockDefault implements ISchematicBlock {
      ?*/
      //?}
      */
-    private static IItemHandler getDeferredInventoryHandler(BlockEntity blockEntity) {
+    private static ItemStorage getDeferredInventoryHandler(BlockEntity blockEntity) {
         if (blockEntity instanceof Container container) {
-            return new InvWrapper(container);
+            return PlatformStorage.localInventory(container);
         }
-        return blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null);
+        return PlatformStorage.items(blockEntity, null);
     }
 
     @Nonnull
@@ -520,7 +519,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
         if (blockEntity == null) {
             return computeDeferredRequiredItems(level);
         }
-        IItemHandler handler = getDeferredInventoryHandler(blockEntity);
+        ItemStorage handler = getDeferredInventoryHandler(blockEntity);
         if (handler == null) {
             return computeDeferredRequiredItems(level);
         }
@@ -565,7 +564,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
         if (blockEntity == null) {
             return stack;
         }
-        IItemHandler handler = getDeferredInventoryHandler(blockEntity);
+        ItemStorage handler = getDeferredInventoryHandler(blockEntity);
         if (handler == null) {
             return stack;
         }

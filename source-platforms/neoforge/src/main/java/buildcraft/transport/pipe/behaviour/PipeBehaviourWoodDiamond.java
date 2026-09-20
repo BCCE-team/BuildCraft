@@ -44,9 +44,9 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidUtil;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuProvider{
 
@@ -111,9 +111,9 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
     }
 
     @Override
-    public void readPayload(FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             filterMode = FilterMode.get(buffer.readUnsignedByte());
             currentFilter = buffer.readUnsignedByte() % filters.getSlots();
             filterValid = buffer.readBoolean();
@@ -121,9 +121,9 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
     }
 
     @Override
-    public void writePayload(FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             buffer.writeByte(filterMode.ordinal());
             buffer.writeByte(currentFilter);
             buffer.writeBoolean(filterValid);

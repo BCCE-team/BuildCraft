@@ -7,9 +7,10 @@
 package buildcraft.transport.pipe.flow;
 
 import buildcraft.lib.internal.mj.MjCapabilities;
+import buildcraft.lib.logic.distribution.WeightedAllocation;
+import buildcraft.lib.logic.energy.EnergyMath;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -38,11 +39,15 @@ import buildcraft.transport.internal.pipe.PipeFlow;
 import buildcraft.transport.internal.pluggable.PipePluggable;
 import buildcraft.core.BCCoreConfig;
 import buildcraft.lib.misc.LocaleUtil;
+import buildcraft.lib.misc.CapUtil;
 import buildcraft.lib.misc.MathUtil;
 import buildcraft.lib.misc.VecUtil;
 import buildcraft.lib.misc.data.AverageInt;
+import buildcraft.lib.platform.storage.EnergyStorage;
+import buildcraft.lib.platform.storage.PlatformStorage;
 import buildcraft.transport.pipe.Pipe;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
@@ -55,7 +60,7 @@ import net.neoforged.neoforge.capabilities.BlockCapability;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.energy.IEnergyStorage;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 
 public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
     private static final long DEFAULT_MAX_POWER = MjAmount.MICRO_MJ_PER_MJ * 10;
@@ -126,9 +131,9 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_POWER_AMOUNTS || id == NET_ID_FULL_STATE) {
                 for (Direction face : Direction.values()) {
                     Section s = sections.get(face);
@@ -140,9 +145,9 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) throws IOException {
         super.readPayload(id, buffer, side);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_POWER_AMOUNTS || id == NET_ID_FULL_STATE) {
                 for (Direction face : Direction.values()) {
                     Section s = sections.get(face);
@@ -160,22 +165,31 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
 
     @Override
     public boolean canConnect(Direction face, BlockEntity oTile) {
-        Level level = oTile.getLevel();
-        if (level == null) {
+        if (oTile == null || oTile.getLevel() == null) {
             return false;
         }
+        return canConnect(face, oTile.getLevel(), oTile.getBlockPos(), oTile);
+    }
+
+    @Override
+    public boolean canConnect(Direction face, Level level, BlockPos pos, @Nullable BlockEntity oTile) {
+        ensureConfigured();
+        Direction targetSide = face.getOpposite();
         if (isReceiver) {
-            IMjPassiveProvider provider = level.getCapability(
-                MjCapabilities.CAP_PASSIVE_PROVIDER, oTile.getBlockPos(), face.getOpposite()
-            );
+            IMjPassiveProvider provider = level.getCapability(MjCapabilities.CAP_PASSIVE_PROVIDER, pos, targetSide);
             if (provider != null) {
                 return true;
             }
         }
-        IMjConnector receiver = level.getCapability(
-            MjCapabilities.CAP_CONNECTOR, oTile.getBlockPos(), face.getOpposite()
-        );
-        return receiver != null && receiver.canConnect(sections.get(face));
+        IMjConnector receiver = level.getCapability(MjCapabilities.CAP_CONNECTOR, pos, targetSide);
+        if (receiver != null && receiver.canConnect(sections.get(face))) {
+            return true;
+        }
+
+        // Keep topology and transfer logic in sync: automatic MJ -> FE conversion is a valid endpoint too.
+        EnergyStorage fe = PlatformStorage.energy(level, pos, targetSide);
+        IMjReceiver converted = MjToFeAutoConverter.createReceiver(fe);
+        return converted != null && converted.canConnect(sections.get(face));
     }
 
     private void ensureConfigured() {
@@ -219,10 +233,6 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
             reconfigure();
         }
         if (!isReceiver || disabled || from == null || maxExtracted <= 0) {
-            return 0;
-        }
-        BlockEntity tile = pipe.getConnectedTile(from);
-        if (tile == null) {
             return 0;
         }
         IMjPassiveProvider provider = pipe.getHolder().getCapabilityFromPipe(from, MjCapabilities.CAP_PASSIVE_PROVIDER);
@@ -392,19 +402,12 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
                     for (Direction candidate : routeCandidates) routeWeights.put(candidate, 1L);
                 }
 
-                BigInteger totalPowerQuery = BigInteger.ZERO;
+                WeightedAllocation allocation = new WeightedAllocation();
                 for (Direction face2 : routeCandidates) {
-                    long powerQuery = sections.get(face2).powerQuery;
-                    long weight = routeWeights.getOrDefault(face2, 0L);
-                    if (powerQuery > 0 && weight > 0) {
-                        totalPowerQuery = totalPowerQuery.add(
-                            BigInteger.valueOf(powerQuery).multiply(BigInteger.valueOf(weight))
-                        );
-                    }
+                    allocation.add(sections.get(face2).powerQuery, routeWeights.getOrDefault(face2, 0L));
                 }
 
-                if (totalPowerQuery.signum() > 0) {
-                    BigInteger unusedPowerQuery = totalPowerQuery;
+                if (allocation.hasDemand()) {
                     for (Direction face2 : Direction.values()) {
                         if (face == face2) {
                             continue;
@@ -412,14 +415,7 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
                         Section s2 = sections.get(face2);
                         long routeWeight = routeWeights.getOrDefault(face2, 0L);
                         if (s2.powerQuery > 0 && routeWeight > 0) {
-                            BigInteger sidePowerQuery = BigInteger.valueOf(s2.powerQuery)
-                                .multiply(BigInteger.valueOf(routeWeight));
-                            long offeredInput = Math.min(
-                                BigInteger.valueOf(s.internalPower).multiply(sidePowerQuery).divide(
-                                    unusedPowerQuery
-                                ).longValue(), s.internalPower
-                            );
-                            unusedPowerQuery = unusedPowerQuery.subtract(sidePowerQuery);
+                            long offeredInput = allocation.offer(s.internalPower, s2.powerQuery, routeWeight);
 
                             long offeredAfterLoss = applyResistance(offeredInput);
                             if (offeredAfterLoss <= 0) {
@@ -474,7 +470,7 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
 
         // Compute local consumers requesting power. This includes both external tiles and internal pluggables such as
         // robot stations. A robot station blocks the pipe side, so it never appears as ConnectedType.TILE, but it still
-        // needs to contribute a request to the power network just like the old 1.7 pluggable IEnergyReceiver did.
+        // must contribute a request to the power network to preserve pluggable energy-receiver semantics.
         for (Direction face : Direction.values()) {
             IMjReceiver recv = getPowerSink(face);
             if (recv != null && recv.canReceive()) {
@@ -610,43 +606,15 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
     }
 
     private long applyResistance(long input) {
-        if (input <= 0) {
-            return 0;
-        }
-        if (powerResistance <= 0) {
-            return input;
-        }
-        if (powerResistance >= MjAmount.MICRO_MJ_PER_MJ) {
-            return 0;
-        }
-        BigInteger retained = BigInteger.valueOf(input)
-            .multiply(BigInteger.valueOf(MjAmount.MICRO_MJ_PER_MJ - powerResistance))
-            .divide(BigInteger.valueOf(MjAmount.MICRO_MJ_PER_MJ));
-        return Math.max(1, retained.longValue());
+        return EnergyMath.applyResistance(input, powerResistance, MjAmount.MICRO_MJ_PER_MJ);
     }
 
     private long getInputForDelivered(long delivered, long maxInput) {
-        if (delivered <= 0 || maxInput <= 0) {
-            return 0;
-        }
-        if (powerResistance <= 0) {
-            return Math.min(delivered, maxInput);
-        }
-        long retainedRatio = MjAmount.MICRO_MJ_PER_MJ - powerResistance;
-        if (retainedRatio <= 0) {
-            return maxInput;
-        }
-        BigInteger numerator = BigInteger.valueOf(delivered).multiply(BigInteger.valueOf(MjAmount.MICRO_MJ_PER_MJ));
-        BigInteger denominator = BigInteger.valueOf(retainedRatio);
-        long required = numerator.add(denominator).subtract(BigInteger.ONE).divide(denominator).longValue();
-        return Math.min(required, maxInput);
+        return EnergyMath.inputForDelivered(delivered, maxInput, powerResistance, MjAmount.MICRO_MJ_PER_MJ);
     }
 
     private static long saturatingAdd(long a, long b) {
-        if (b <= 0) {
-            return a;
-        }
-        return a > Long.MAX_VALUE - b ? Long.MAX_VALUE : a + b;
+        return EnergyMath.saturatingAdd(a, b);
     }
 
     public double getMaxTransferForRender(float partialTicks) {

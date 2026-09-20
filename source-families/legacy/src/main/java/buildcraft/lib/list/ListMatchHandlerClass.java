@@ -20,7 +20,7 @@ public class ListMatchHandlerClass extends ListMatchHandlerBackend {
         }
 
         // ItemFood no longer exists in modern Minecraft. Item#isEdible is the
-        // closest equivalent to the old "all food items are one type" rule.
+        // closest equivalent to the "all food items are one type" compatibility rule.
         if (stack.getItem().isEdible()) {
             return target.getItem().isEdible();
         }

@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
  */
@@ -31,7 +32,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.DyeColor;
@@ -39,13 +40,14 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import buildcraft.lib.compat.RenderCompat;
 
 public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     public static final int WINDOWED_MAP_WIDTH = 213;
     public static final int WINDOWED_MAP_HEIGHT = 100;
 
-    private static final ResourceLocation TEXTURE_BASE = ResourceLocation.parse("buildcraftrobotics:textures/gui/zone_planner.png");
-    private static final ResourceLocation TEXTURE_MAP = ResourceLocation.fromNamespaceAndPath("buildcraftrobotics", "dynamic/zone_planner_map");
+    private static final Identifier TEXTURE_BASE = Identifier.parse("buildcraftrobotics:textures/gui/zone_planner.png");
+    private static final Identifier TEXTURE_MAP = Identifier.fromNamespaceAndPath("buildcraftrobotics", "dynamic/zone_planner_map");
     private static final long MAP_TEXTURE_REFRESH_INTERVAL_MS = 100L;
     private static final long MAP_CACHE_REVALIDATE_INTERVAL_MS = 2L * 60L * 1_000L;
     private static final int MAP_BACKGROUND_COLOUR = 0xFF_80_80_80;
@@ -178,7 +180,6 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         ));
     }
 
-    @Override
     public void init() {
         super.init();
         nameField = new EditBox(font, leftPos + NAME_X, topPos + NAME_Y, NAME_W, NAME_H, Component.empty());
@@ -232,7 +233,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         if (nameField != null && nameField.isFocused()) {
             // EditBox#setFocused(boolean) is protected in this target, but mouseClicked outside the box
             // defocuses it through the widget's own public event path.
-            nameField.mouseClicked(-1, -1, 0);
+            RenderCompat.mouseClicked(nameField, -1, -1, 0);
         }
         setFocused(null);
     }
@@ -269,7 +270,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         if (minecraft == null || minecraft.level == null) {
             return 0;
         }
-        return minecraft.level.dimension().location().hashCode();
+        return minecraft.level.dimension().identifier().hashCode();
     }
 
     private ZonePlan getBaseSelectedArea() {
@@ -311,7 +312,6 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         return mouseX >= ax && mouseY >= ay && mouseX < ax + w && mouseY < ay + h;
     }
 
-    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
         if (!isInsideNameField(mouseX, mouseY)) {
             clearNameFocus();
@@ -358,7 +358,6 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         return super.mouseClicked(mouseX, mouseY, mouseButton);
     }
 
-    @Override
     public boolean mouseDragged(double mouseX, double mouseY, int mouseButton, double dragX, double dragY) {
         if (selecting && selectionStartXZ != null) {
             selX2 = Mth.clamp(Mth.floor(mouseX), mapXScreen(), mapXScreen() + mapWidth() - 1);
@@ -369,7 +368,6 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         return super.mouseDragged(mouseX, mouseY, mouseButton, dragX, dragY);
     }
 
-    @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (selecting && selectionStartXZ != null) {
             updateBufferedSelection(mouseX, mouseY);
@@ -387,7 +385,6 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
-    @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (isInsideMap(mouseX, mouseY)) {
             boolean changed = scrollY > 0 ? decBlocksPerPixel() : incBlocksPerPixel();
@@ -504,20 +501,16 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     }
 
 
-    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
         if (!fullscreen) {
             super.render(guiGraphics, mouseX, mouseY, partialTicks);
             return;
         }
 
-        renderBackground(guiGraphics, mouseX, mouseY, partialTicks);
-        drawBackgroundLayer(guiGraphics, mouseX, mouseY, partialTicks);
         drawForegroundLayer(guiGraphics, mouseX, mouseY);
         renderTooltip(guiGraphics, mouseX, mouseY);
     }
 
-    @Override
     protected void drawBackgroundLayer(PoseStack pose, int mouseX, int mouseY, float partialTicks) {
         drawBackgroundLayer(getActiveGraphics(), mouseX, mouseY, partialTicks);
     }
@@ -540,7 +533,6 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         }
     }
 
-    @Override
     protected void drawForegroundLayer(PoseStack pose, int mouseX, int mouseY) {
         drawForegroundLayer(getActiveGraphics(), mouseX, mouseY);
     }
@@ -557,7 +549,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         guiGraphics.fill(x, y, x + 1, y + h, 0xFF_F0_F0_F0);
         guiGraphics.fill(x, y + h - 1, x + w, y + h, 0xFF_40_40_40);
         guiGraphics.fill(x + w - 1, y, x + w, y + h, 0xFF_40_40_40);
-        guiGraphics.drawString(font, label, x + (w - font.width(label)) / 2, y + 3, 0x20_20_20, false);
+        guiGraphics.drawString(font, label, x + (w - font.width(label)) / 2, y + 3, 0xFF_20_20_20, false);
     }
 
     private void drawColourSlots(GuiGraphics guiGraphics) {
@@ -576,7 +568,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
                     guiGraphics.fill(x + 2, y + 2, x + COLOUR_SIZE - 2, y + COLOUR_SIZE - 2, 0xFF_00_00_00 | rgb);
                 }
                 if (index == selectedLayer) {
-                    guiGraphics.blit(TEXTURE_BASE, x, y, 0, 228, 16, 16);
+                    RenderCompat.blit(guiGraphics, TEXTURE_BASE, x, y, 0, 228, 16, 16);
                 }
             }
         }
@@ -617,7 +609,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         }
 
         if (mapTexture != null) {
-            guiGraphics.blit(TEXTURE_MAP, x0, y0, 0.0F, 0.0F, mapW, mapH, mapW, mapH);
+            RenderCompat.blit(guiGraphics, TEXTURE_MAP, x0, y0, 0, 0, mapW, mapH, mapW, mapH);
         } else {
             guiGraphics.fill(x0, y0, x0 + mapW, y0 + mapH, MAP_BACKGROUND_COLOUR);
         }
@@ -712,7 +704,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
                         screenZ,
                         Math.min(step, mapW - screenX),
                         Math.min(step, mapH - screenZ),
-                        argbToAbgr(colour)
+                        colour
                 );
             }
         }
@@ -732,7 +724,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
             return;
         }
         closeMapTexture();
-        mapTexture = new DynamicTexture(width, height, true);
+        mapTexture = RenderCompat.newDynamicTexture(width, height, true);
         mapTextureWidth = width;
         mapTextureHeight = height;
         if (minecraft != null) {
@@ -763,7 +755,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         int maxY = y + height;
         for (int py = y; py < maxY; py++) {
             for (int px = x; px < maxX; px++) {
-                image.setPixelRGBA(px, py, colour);
+                image.setPixel(px, py, colour);
             }
         }
     }
@@ -794,19 +786,17 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         guiGraphics.fill(x2, y1, x2 + 1, y2 + 1, 0xCC_FF_FF_FF);
     }
 
-    @Override
     public void containerTick() {
         super.containerTick();
     }
 
-    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (!fullscreen && nameField != null && nameField.isFocused()) {
             if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER || keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 clearNameFocus();
                 return true;
             }
-            if (nameField.keyPressed(keyCode, scanCode, modifiers) || nameField.canConsumeInput()) {
+            if (RenderCompat.keyPressed(nameField, keyCode, scanCode, modifiers) || nameField.canConsumeInput()) {
                 return true;
             }
         }
@@ -823,7 +813,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
             return decBlocksPerPixel() || super.keyPressed(keyCode, scanCode, modifiers);
         }
         if (keyCode == GLFW.GLFW_KEY_M) {
-            if (Screen.hasShiftDown()) {
+            if (RenderCompat.hasInputShiftDown()) {
                 toFullscreen();
             } else {
                 toWindowed();
@@ -837,10 +827,9 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    @Override
     public boolean charTyped(char codePoint, int modifiers) {
         if (!fullscreen && nameField != null && nameField.isFocused()) {
-            return nameField.charTyped(codePoint, modifiers);
+            return nameField.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint, modifiers));
         }
         if (codePoint == '+') {
             return incBlocksPerPixel();
@@ -859,7 +848,6 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         return super.charTyped(codePoint, modifiers);
     }
 
-    @Override
     public void removed() {
         fullscreen = false;
         closeMapTexture();

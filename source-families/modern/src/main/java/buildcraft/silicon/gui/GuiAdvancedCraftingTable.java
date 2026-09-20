@@ -1,19 +1,16 @@
+//? source if >=1.21.1
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.silicon.gui;
 
-import java.util.ArrayList;
-import java.util.List;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.ImageButton;
 
-import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.gui.GuiBC8;
 import buildcraft.lib.gui.GuiIcon;
 import buildcraft.lib.gui.ledger.LedgerHelp;
@@ -21,21 +18,17 @@ import buildcraft.lib.gui.pos.GuiRectangle;
 import buildcraft.lib.gui.recipe.GuiRecipeBookPhantom;
 import buildcraft.lib.gui.slot.SlotDisplay;
 import buildcraft.silicon.container.ContainerAdvancedCraftingTable;
-import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
-import net.minecraft.client.gui.screens.recipebook.RecipeUpdateListener;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.Ingredient;
-import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.ShapedRecipe;
+import net.minecraft.world.item.crafting.display.RecipeDisplay;
 import buildcraft.lib.gui.help.GuiHelpUtil;
+import buildcraft.lib.compat.RenderCompat;
 
-public class GuiAdvancedCraftingTable extends GuiBC8<ContainerAdvancedCraftingTable> implements RecipeUpdateListener {
-    private static final ResourceLocation TEXTURE_BASE = ResourceLocation.parse("buildcraftsilicon:textures/gui/advanced_crafting_table.png");
+public class GuiAdvancedCraftingTable extends GuiBC8<ContainerAdvancedCraftingTable> {
+    private static final Identifier TEXTURE_BASE = Identifier.parse("buildcraftsilicon:textures/gui/advanced_crafting_table.png");
     private static final int SIZE_X = 176, SIZE_Y = 241;
     private static final GuiIcon ICON_GUI = new GuiIcon(TEXTURE_BASE, 0, 0, SIZE_X, SIZE_Y);
     private static final GuiIcon ICON_PROGRESS = new GuiIcon(TEXTURE_BASE, SIZE_X, 0, 4, 70);
@@ -44,20 +37,13 @@ public class GuiAdvancedCraftingTable extends GuiBC8<ContainerAdvancedCraftingTa
     private final GuiRecipeBookPhantom recipeBook;
     /** If true then the recipe book will be drawn on top of this GUI, rather than beside it */
     private boolean widthTooNarrow;
-    private ImageButton recipeButton;
+    private Button recipeButton;
 
     public GuiAdvancedCraftingTable(ContainerAdvancedCraftingTable container, Inventory inv, Component title) {
         super(container, inv, title);
         imageWidth = SIZE_X;
         imageHeight = SIZE_Y;
-        GuiRecipeBookPhantom book;
-        try {
-            book = new GuiRecipeBookPhantom(this::sendRecipe);
-        } catch (ReflectiveOperationException e) {
-            BCLog.logger.warn("[silicon.gui] An exception was thrown while creating the recipe book gui!", e);
-            book = null;
-        }
-        recipeBook = book;
+        recipeBook = new GuiRecipeBookPhantom(this::sendRecipe);
         mainGui.shownElements.add(new LedgerHelp(mainGui, true));
         mainGui.shownElements.add(new LedgerTablePower(mainGui, container.tile, true));
         GuiHelpUtil.addSlots(mainGui, 33, 16, 3, 3, "buildcraft.help.advanced_crafting.recipe.title", 0xFF_66_AA_FF, "buildcraft.help.advanced_crafting.recipe.desc");
@@ -69,92 +55,42 @@ public class GuiAdvancedCraftingTable extends GuiBC8<ContainerAdvancedCraftingTa
             "buildcraft.help.advanced_crafting.power.title", 0xFF_D4_6C_1F, "buildcraft.help.advanced_crafting.power.desc");
     }
 
-    private void sendRecipe(Recipe<?> recipe) {
-        List<ItemStack> stacks = new ArrayList<>(9);
-
-        int maxX = recipe instanceof ShapedRecipe shaped ? shaped.getWidth() : 3;
-        int maxY = recipe instanceof ShapedRecipe shaped ? shaped.getHeight() : 3;
-        int offsetX = maxX == 1 ? 1 : 0;
-        int offsetY = maxY == 1 ? 1 : 0;
-        List<Ingredient> ingredients = recipe.getIngredients();
-        if (ingredients.isEmpty()) {
-            return;
-        }
-        for (int y = 0; y < 3; y++) {
-            for (int x = 0; x < 3; x++) {
-                if (x < offsetX || y < offsetY) {
-                    stacks.add(ItemStack.EMPTY);
-                    continue;
-                }
-                int i = x - offsetX + (y - offsetY) * maxX;
-                if (i >= ingredients.size() || x - offsetX >= maxX) {
-                    stacks.add(ItemStack.EMPTY);
-                } else {
-                    Ingredient ing = ingredients.get(i);
-                    ItemStack[] matching = ing.getItems();
-                    if (matching.length >= 1) {
-                        stacks.add(matching[0]);
-                    } else {
-                        stacks.add(ItemStack.EMPTY);
-                    }
-                }
-            }
-        }
-
-        container.sendSetPhantomSlots(container.blueprintInv, stacks);
+    private void sendRecipe(RecipeDisplay display) {
+        container.sendSetPhantomSlots(
+            container.blueprintInv,
+            GuiRecipeBookPhantom.resolveCraftingGrid(display, minecraft.level)
+        );
     }
 
-    @Override
     protected boolean shouldAddHelpLedger() {
         // Don't add it on the left side because it clashes with the recipe book
         return false;
     }
 
-    @Override
     public void init() {
         super.init();
         widthTooNarrow = this.width < SIZE_X + 176;
-        if (recipeBook != null) {
-            recipeBook.init(width, height, minecraft, widthTooNarrow, container.tile.getWorkbenchCrafting().getCraftingMenu(menu, container.materialInv));
-            leftPos = recipeBook.updateScreenPosition(width, imageWidth);
-            recipeButton = new ImageButton(
-                leftPos + 5, height / 2 - 90, 20, 18,
-                RecipeBookComponent.RECIPE_BUTTON_SPRITES, this::onPress
-            );
-            addRenderableWidget(recipeButton);
-        }
+        recipeBook.init(width, height, minecraft, widthTooNarrow);
+        leftPos = recipeBook.updateScreenPosition(width, imageWidth);
+        recipeButton = Button.builder(Component.literal("R"), this::onPress)
+            .pos(leftPos + 5, height / 2 - 90)
+            .size(20, 18)
+            .build();
+        addRenderableWidget(recipeButton);
     }
 
-    @Override
     public void containerTick() {
         super.containerTick();
-        if (recipeBook != null) {
-            recipeBook.tick();
-        }
+        recipeBook.tick();
     }
 
-    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-        if (recipeBook == null) {
-            super.render(guiGraphics, mouseX, mouseY, partialTicks);
-            return;
-        }
-        if (recipeBook.isVisible() && this.widthTooNarrow) {
-            renderBackground(guiGraphics, mouseX, mouseY, partialTicks);
-            this.drawBackgroundLayer(guiGraphics.pose(), mouseX, mouseY, partialTicks);
-            recipeBook.render(guiGraphics, mouseX, mouseY, partialTicks);
-            renderTooltip(guiGraphics, mouseX, mouseY);
-        } else {
-            super.render(guiGraphics, mouseX, mouseY, partialTicks);
-            recipeBook.render(guiGraphics, mouseX, mouseY, partialTicks);
-            recipeBook.renderGhostRecipe(guiGraphics, this.leftPos, this.topPos, true, partialTicks);
-        }
-
+        super.render(guiGraphics, mouseX, mouseY, partialTicks);
+        recipeBook.render(guiGraphics, mouseX, mouseY, partialTicks);
         recipeBook.renderTooltip(guiGraphics, this.leftPos, this.topPos, mouseX, mouseY);
     }
 
 
-    @Override
     protected void drawBackgroundLayer(PoseStack pose, int mouseX, int mouseY, float partialTicks) {
         ICON_GUI.drawAt(getActiveGraphics(), mainGui.rootElement);
 
@@ -172,53 +108,36 @@ public class GuiAdvancedCraftingTable extends GuiBC8<ContainerAdvancedCraftingTa
         }
     }
 
-    @Override
     protected void drawForegroundLayer(PoseStack pose, int mouseX, int mouseY) {
         //font.drawString(title, titleLabelX + (imageWidth - font.getStringWidth(title)) / 2, titleLabelY + 5, 0x404040);
     }
 
     protected void onPress(Button button){
-        if (button == recipeButton && recipeBook != null) {
+        if (button == recipeButton) {
             recipeBook.toggleVisibility();
             leftPos = recipeBook.updateScreenPosition(width, imageWidth);
             recipeButton.setPosition(this.leftPos + 5, this.height / 2 - 90);
         }
     }
 
-    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
-        if (recipeBook == null) {
-            return super.mouseClicked(mouseX, mouseY, mouseButton);
-        }
-        if (!recipeBook.mouseClicked(mouseX, mouseY, mouseButton)) {
-            if (!widthTooNarrow || !recipeBook.isVisible()) {
-                return super.mouseClicked(mouseX, mouseY, mouseButton);
-            }
-            return false;
-        }
-        return true;
-    }
-
-    @Override
-    public boolean keyPressed(int a, int b, int c) {
-        if (recipeBook == null) {
-            return super.keyPressed(a, b, c);
-        }
-        if (!recipeBook.keyPressed(a, b, c)) {
-            return super.keyPressed(a, b, c);
-        }
-        return true;
-    }
-
-    @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-        if (recipeBook != null && recipeBook.charTyped(codePoint, modifiers)) {
+        if (RenderCompat.mouseClicked(recipeBook, mouseX, mouseY, mouseButton)) {
             return true;
         }
-        return super.charTyped(codePoint, modifiers);
+        if (widthTooNarrow && recipeBook.isVisible()) {
+            return false;
+        }
+        return super.mouseClicked(mouseX, mouseY, mouseButton);
     }
 
-    @Override
+    public boolean keyPressed(int a, int b, int c) {
+        return RenderCompat.keyPressed(recipeBook, a, b, c) || super.keyPressed(a, b, c);
+    }
+
+    public boolean charTyped(char codePoint, int modifiers) {
+        return recipeBook.charTyped(codePoint, modifiers) || super.charTyped(codePoint, modifiers);
+    }
+
     protected void slotClicked(Slot slot, int slotId, int mouseButton, ClickType type) {
         if (slot instanceof SlotDisplay && container.tile != null && container.tile.getRecipeSelectionCount() > 1
                 && (mouseButton == 0 || mouseButton == 1)) {
@@ -229,46 +148,23 @@ public class GuiAdvancedCraftingTable extends GuiBC8<ContainerAdvancedCraftingTa
             return;
         }
         super.slotClicked(slot, slotId, mouseButton, type);
-        if (recipeBook != null) {
-            recipeBook.slotClicked(slot);
-        }
+        recipeBook.slotClicked(slot);
     }
 
-    @Override
     protected boolean isHovering(int rectX, int rectY, int rectWidth, int rectHeight, double pointX, double pointY) {
-        if (recipeBook == null) {
-            return super.isHovering(rectX, rectY, rectWidth, rectHeight, pointX, pointY);
-        }
         return (!widthTooNarrow || !recipeBook.isVisible())
             && super.isHovering(rectX, rectY, rectWidth, rectHeight, pointX, pointY);
     }
 
-    @Override
     protected boolean hasClickedOutside(double mouseX, double mouseY, int _guiLeft, int _guiTop, int p_97761_) {
-        if (recipeBook == null) {
-            return super.hasClickedOutside(mouseX, mouseY, _guiLeft, _guiTop, p_97761_);
-        }
-        boolean flag =
-            mouseX < _guiLeft || mouseY < _guiTop || mouseX >= _guiLeft + imageWidth || mouseY >= _guiTop + imageHeight;
-        return recipeBook.hasClickedOutside(mouseX, mouseY, leftPos, topPos, imageWidth, imageHeight, p_97761_) && flag;
+        boolean outsideMachine = mouseX < _guiLeft || mouseY < _guiTop
+            || mouseX >= _guiLeft + imageWidth || mouseY >= _guiTop + imageHeight;
+        return recipeBook.hasClickedOutside(mouseX, mouseY, leftPos, topPos, imageWidth, imageHeight)
+            && outsideMachine;
     }
 
-    @Override
     public void onClose() {
         super.onClose();
     }
 
-    // RecipeUpdateListener
-
-    @Override
-    public void recipesUpdated() {
-        if (recipeBook != null) {
-            recipeBook.recipesUpdated();
-        }
-    }
-
-    @Override
-    public RecipeBookComponent getRecipeBookComponent() {
-        return recipeBook;
-    }
 }

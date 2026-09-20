@@ -171,7 +171,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         }
     }
 
-    /** Internal migration hook for installing a domain backend before the API is frozen. */
+    /** Installs an internal domain backend before the API is frozen. */
     public synchronized <T> void installService(ServiceKey<T> key, T service) {
         if (lifecycle.ordinal() >= ApiLifecycle.FROZEN.ordinal()) {
             throw new IllegalStateException("Cannot install API service after freeze: " + key.id());
@@ -210,7 +210,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     @Override public ApiFeatureSet features() { return features; }
     @Override public ApiLifecycle lifecycle() { return lifecycle; }
 
-    /** Internal bootstrap hook used while BCCE is migrated domain by domain. */
+    /** Advances the internal API lifecycle through its ordered bootstrap phases. */
     public synchronized void advanceLifecycle(ApiLifecycle next) {
         if (next.ordinal() < lifecycle.ordinal()) {
             throw new IllegalStateException("API lifecycle cannot move backwards: " + lifecycle + " -> " + next);

@@ -131,9 +131,8 @@ public class FrozenTextureGenPackResources implements PackResources{
 
 	@Override
 	public void close() {
-        // This pack is a singleton that is pushed into the current resource manager during
-        // texture stitching. Old resource managers may close their packs while a new reload
-        // is already preparing the atlas, so do not clear the live generated mapping here.
+        // This singleton pack is shared with the active resource reload. A resource manager may close its packs
+        // while another reload is preparing the atlas, so closing must not clear the live generated mapping.
 	}
 
 }

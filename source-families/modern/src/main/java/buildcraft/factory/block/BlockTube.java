@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -24,51 +25,48 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.item.ItemStack;
+import buildcraft.lib.compat.LevelCompat;
+import buildcraft.lib.compat.RegistryCompat;
 
 public class BlockTube extends BlockBCBase_Neptune {
     private static final VoxelShape BOUNDING_BOX = Block.box(4D, 0D, 4D, 12D, 16D, 12D);
 
     public BlockTube() {
-        super(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(-1.0F, 3600000.0F).noLootTable());
+        super(RegistryCompat.blockProperties(BlockBehaviour.Properties.of()).mapColor(MapColor.METAL).strength(-1.0F, 3600000.0F).noLootTable());
     }
 
-    @Override
 	public boolean isCollisionShapeFullBlock(BlockState p_181242_, BlockGetter p_181243_, BlockPos p_181244_) {
     	return false;
     }
 
-	@Override
 	public boolean isOcclusionShapeFullBlock(BlockState p_222959_, BlockGetter p_222960_, BlockPos p_222961_) {
 		return false;
 	}
-    @Override
-    public boolean onDestroyedByPlayer(BlockState state, Level world, BlockPos pos, Player player, boolean willHarvest,
-            FluidState fluid) {
+    public boolean onDestroyedByPlayer(BlockState state, Level world, BlockPos pos, Player player, ItemStack toolStack, boolean willHarvest, FluidState fluid) {
         BlockPos currentPos = pos.above();
-        while (currentPos.getY() < world.getMaxBuildHeight()
+        while (currentPos.getY() < LevelCompat.getMaxBuildHeight(world)
                 && world.getBlockState(currentPos).getBlock() == this) {
             currentPos = currentPos.above();
         }
         if (!(world.getBlockEntity(currentPos) instanceof TileMiner)) {
-            return super.onDestroyedByPlayer(state, world, pos, player, willHarvest, fluid);
+            return super.onDestroyedByPlayer(state, world, pos, player, toolStack, willHarvest, fluid);
         }
         return false;
     }
 
-    @Override
     public VoxelShape getShape(BlockState state, BlockGetter source, BlockPos pos,
 			CollisionContext context) {
 		return BOUNDING_BOX;
 	}
 
-    @Override
     public void neighborChanged(BlockState state, Level level, BlockPos pos, Block block,
             BlockPos fromPos, boolean moving) {
         if (pos.getY() - 1 == fromPos.getY()
                 && BlockUtil.getFluid(block) != Fluids.EMPTY
                 && block != level.getBlockState(fromPos).getBlock()) {
             BlockPos currentPos = pos.above();
-            while (currentPos.getY() < level.getMaxBuildHeight()) {
+            while (currentPos.getY() < LevelCompat.getMaxBuildHeight(level)) {
                 BlockEntity blockEntity = level.getBlockEntity(currentPos);
                 if (blockEntity instanceof TilePump pump) {
                     pump.neighbourBlockChanged(level.getBlockState(currentPos), fromPos, true);
@@ -83,7 +81,6 @@ public class BlockTube extends BlockBCBase_Neptune {
                 currentPos = currentPos.above();
             }
         }
-        super.neighborChanged(state, level, pos, block, fromPos, moving);
     }
 
 

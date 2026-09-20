@@ -1,128 +1,95 @@
-/*
- * Copyright (c) 2017 SpaceToad and the BuildCraft team
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
- * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/
- */
-
+//? source if >=1.21.1
+/* Copyright (c) 2017-2026 the BuildCraft team. MPL-2.0. */
 package buildcraft.lib.misc;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
-
-import buildcraft.lib.internal.core.render.ISprite;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import com.mojang.authlib.GameProfile;
 import buildcraft.lib.BCLibSprites;
 import buildcraft.lib.client.sprite.SpriteRaw;
-import com.mojang.authlib.GameProfile;
-import com.mojang.blaze3d.systems.RenderSystem;
-
+import buildcraft.lib.compat.RenderCompat;
+import buildcraft.lib.internal.core.render.ISprite;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.client.resources.DefaultPlayerSkin;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Util;
+import net.minecraft.world.entity.player.PlayerSkin;
 
 public class SpriteUtil {
-
-    private static final ResourceLocation LOCATION_SKIN_LOADING = ResourceLocation.parse("skin:loading");
-    protected static TextureAtlasSprite MISSING_TEX ;
-    private static final Map<GameProfile, ResourceLocation> CACHED = new ConcurrentHashMap<>();
-    private static final Set<GameProfile> LOADING = ConcurrentHashMap.newKeySet();
-
-    public static void bindBlockTextureMap() {
-        bindTexture(InventoryMenu.BLOCK_ATLAS);
-    }
-
-    public static void bindTexture(String identifier) {
-        bindTexture(ResourceLocation.parse(identifier));
-    }
-
-    public static void bindTexture(ResourceLocation identifier) {
-    	RenderSystem.setShaderTexture(0, identifier);
-        //Minecraft.getInstance().textureManager.bindForSetup(identifier);
-    }
-
-    /** Transforms the given {@link ResourceLocation}, adding ".png" to the end and prepending that
-     * {@link ResourceLocation#getResourcePath()} with "textures/", just like what {@link TextureMap} does. */
-    public static ResourceLocation transformLocation(ResourceLocation location) {
-        return ResourceLocation.fromNamespaceAndPath(location.getNamespace(), "textures/" + location.getPath() + ".png");
-    }
-
-    @Nullable
-    public static ResourceLocation getSkinSpriteLocation(GameProfile profile) {
-        ResourceLocation loc = getSkinSpriteLocation0(profile);
-        return loc == LOCATION_SKIN_LOADING ? null : loc;
-    }
-
-    @Nullable
-    private static ResourceLocation getSkinSpriteLocation0(GameProfile profile) {
-        if (profile == null) {
-            return null;
-        }
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player != null && profile.getId() != null && profile.getId().equals(mc.player.getUUID())) {
-            return mc.player.getSkin().texture();
-        }
-
-        ResourceLocation cached = CACHED.get(profile);
-        if (cached != null) {
-            return cached;
-        }
-
-        try {
-            if (LOADING.add(profile)) {
-                GameProfile requestedProfile = profile;
-                mc.getSkinManager().getOrLoad(profile).whenComplete((skin, error) -> {
-                    LOADING.remove(requestedProfile);
-                    if (error == null && skin != null) {
-                        CACHED.put(requestedProfile, skin.texture());
-                    }
-                });
+    protected static TextureAtlasSprite MISSING_TEX;
+    // Vanilla's lookup supplies a deterministic default while its asynchronous skin request is pending.
+    // Cache lookups, not their initial placeholder texture: a face must update once the download completes.
+    private static final LoadingCache<GameProfile, Supplier<PlayerSkin>> SKINS = CacheBuilder.newBuilder()
+        .maximumSize(256).expireAfterAccess(5, TimeUnit.MINUTES)
+        .build(new CacheLoader<GameProfile, Supplier<PlayerSkin>>() {
+            @Override public Supplier<PlayerSkin> load(GameProfile profile) {
+                Minecraft mc = Minecraft.getInstance();
+                PlayerSkin defaultSkin = DefaultPlayerSkin.get(profile);
+                Supplier<PlayerSkin> fallback = () -> defaultSkin;
+                // Saved machine owners carry only UUID/name. Resolve their signed texture properties
+                // off-thread instead of freezing a default face forever for an owner who is offline.
+                var resolver = mc.services().profileResolver();
+                CompletableFuture<Supplier<PlayerSkin>> lookup = CompletableFuture.supplyAsync(
+                    () -> resolver.fetchById(profile.id()).orElse(profile), Util.nonCriticalIoPool())
+                    .thenApplyAsync(resolved -> mc.getSkinManager().createLookup(resolved, true), mc)
+                    .exceptionally(error -> fallback);
+                return () -> lookup.getNow(fallback).get();
             }
-            return LOCATION_SKIN_LOADING;
-        } catch (RuntimeException exception) {
-            buildcraft.lib.internal.debug.BCLog.logger.warn("Failed to load sprite data", exception);
-            LOADING.remove(profile);
-            return null;
+        });
+
+    public static void bindBlockTextureMap() { bindTexture(TextureAtlas.LOCATION_BLOCKS); }
+    public static void bindTexture(String identifier) { bindTexture(Identifier.parse(identifier)); }
+    public static void bindTexture(Identifier identifier) { RenderCompat.setShaderTexture(0, identifier); }
+    public static Identifier transformLocation(Identifier location) {
+        return Identifier.fromNamespaceAndPath(location.getNamespace(), "textures/" + location.getPath() + ".png");
+    }
+
+    @Nullable
+    public static Identifier getSkinSpriteLocation(GameProfile profile) {
+        if (profile == null || profile.id() == null || FakePlayerProvider.NULL_PROFILE.id().equals(profile.id())) return null;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && mc.player.getUUID().equals(profile.id())) {
+            return mc.player.getSkin().body().texturePath();
+        }
+        // Connected players already have resolved, signed textures from the player-info packet.
+        if (mc.getConnection() != null) {
+            var info = mc.getConnection().getPlayerInfo(profile.id());
+            if (info != null) return info.getSkin().body().texturePath();
+        }
+        try {
+            return SKINS.getUnchecked(profile).get().body().texturePath();
+        } catch (RuntimeException error) {
+            // Offline services must not blank the ledger or prevent opening a machine GUI.
+            return DefaultPlayerSkin.get(profile).body().texturePath();
         }
     }
 
     public static ISprite getFaceSprite(GameProfile profile) {
-        if (profile == null) {
-            return BCLibSprites.HELP;
-        }
-        ResourceLocation loc = getSkinSpriteLocation0(profile);
-        if (loc == null) {
-            return BCLibSprites.LOCK;
-        }
-        if (loc == LOCATION_SKIN_LOADING) {
-            return BCLibSprites.LOADING;
-        }
-        return new SpriteRaw(loc, 8, 8, 8, 8, 64);
+        if (profile == null) return BCLibSprites.HELP;
+        Identifier location = getSkinSpriteLocation(profile);
+        return location == null ? BCLibSprites.LOCK : new SpriteRaw(location, 8, 8, 8, 8, 64);
     }
 
     @Nullable
     public static ISprite getFaceOverlaySprite(GameProfile profile) {
-        if (profile == null) {
-            return null;
-        }
-        ResourceLocation loc = getSkinSpriteLocation0(profile);
-        if (loc == null || loc == LOCATION_SKIN_LOADING) {
-            return null;
-        }
-        return new SpriteRaw(loc, 40, 8, 8, 8, 64);
+        Identifier location = getSkinSpriteLocation(profile);
+        return location == null ? null : new SpriteRaw(location, 40, 8, 8, 8, 64);
     }
 
     public static void clearAtlasCache() {
         MISSING_TEX = null;
+        SKINS.invalidateAll();
     }
-
     public static TextureAtlasSprite missingSprite() {
-        if(MISSING_TEX == null)
-        	MISSING_TEX = Minecraft.getInstance().getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(MissingTextureAtlasSprite.getLocation());
+        if (MISSING_TEX == null) MISSING_TEX = RenderCompat.blockSprites().apply(MissingTextureAtlasSprite.getLocation());
         return MISSING_TEX;
     }
 }

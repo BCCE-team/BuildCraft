@@ -1,0 +1,1269 @@
+[
+  {
+    "id": "buildcraftbuilders:architect",
+    "key": "item.buildcraftbuilders.architect",
+    "name_en_us": "Architect Table",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftbuilders:blueprint",
+    "key": "item.buildcraftbuilders.blueprint",
+    "name_en_us": "Blueprint",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "ItemSnapshot"
+  },
+  {
+    "id": "buildcraftbuilders:builder",
+    "key": "item.buildcraftbuilders.builder",
+    "name_en_us": "Builder",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftbuilders:filler",
+    "key": "item.buildcraftbuilders.filler",
+    "name_en_us": "Filler",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftbuilders:filler_planner",
+    "key": "item.buildcraftbuilders.filler_planner",
+    "name_en_us": "Filler Planner",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "ItemFillerPlanner"
+  },
+  {
+    "id": "buildcraftbuilders:frame",
+    "key": "item.buildcraftbuilders.frame",
+    "name_en_us": "Frame",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftbuilders:library",
+    "key": "item.buildcraftbuilders.library",
+    "name_en_us": "Electronic Library",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftbuilders:marker_construction",
+    "key": "item.buildcraftbuilders.marker_construction",
+    "name_en_us": "Construction Marker",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "ItemConstructionMarker"
+  },
+  {
+    "id": "buildcraftbuilders:quarry",
+    "key": "item.buildcraftbuilders.quarry",
+    "name_en_us": "Quarry",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftbuilders:replacer",
+    "key": "item.buildcraftbuilders.replacer",
+    "name_en_us": "Replacer",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftbuilders:schematic_single",
+    "key": "item.buildcraftbuilders.schematic_single",
+    "name_en_us": "Single Block Schematic",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "ItemSchematicSingle"
+  },
+  {
+    "id": "buildcraftbuilders:template",
+    "key": "item.buildcraftbuilders.template",
+    "name_en_us": "Template",
+    "source": "buildcraft/builders/BCBuildersItems.java",
+    "kind": "ItemSnapshot"
+  },
+  {
+    "id": "buildcraftcore:engine_creative",
+    "key": "item.buildcraftcore.engine_creative",
+    "name_en_us": "Creative Engine",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "MultiBlockItem"
+  },
+  {
+    "id": "buildcraftcore:engine_redstone",
+    "key": "item.buildcraftcore.engine_redstone",
+    "name_en_us": "Redstone Engine",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "MultiBlockItem"
+  },
+  {
+    "id": "buildcraftcore:fragile_fluid_shard",
+    "key": "item.buildcraftcore.fragile_fluid_shard",
+    "name_en_us": "Fragile %s Shard",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemFragileFluidContainer"
+  },
+  {
+    "id": "buildcraftcore:gears/gear_diamond",
+    "key": "item.buildcraftcore.gears.gear_diamond",
+    "name_en_us": "Diamond Gear",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "Item"
+  },
+  {
+    "id": "buildcraftcore:gears/gear_gold",
+    "key": "item.buildcraftcore.gears.gear_gold",
+    "name_en_us": "Gold Gear",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "Item"
+  },
+  {
+    "id": "buildcraftcore:gears/gear_iron",
+    "key": "item.buildcraftcore.gears.gear_iron",
+    "name_en_us": "Iron Gear",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "Item"
+  },
+  {
+    "id": "buildcraftcore:gears/gear_stone",
+    "key": "item.buildcraftcore.gears.gear_stone",
+    "name_en_us": "Stone Gear",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "Item"
+  },
+  {
+    "id": "buildcraftcore:gears/gear_wood",
+    "key": "item.buildcraftcore.gears.gear_wood",
+    "name_en_us": "Wood Gear",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "Item"
+  },
+  {
+    "id": "buildcraftcore:list",
+    "key": "item.buildcraftcore.list",
+    "name_en_us": "List",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "itemProperties"
+  },
+  {
+    "id": "buildcraftcore:map_location",
+    "key": "item.buildcraftcore.map_location",
+    "name_en_us": "Map Location",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemMapLocation"
+  },
+  {
+    "id": "buildcraftcore:marker_connector",
+    "key": "item.buildcraftcore.marker_connector",
+    "name_en_us": "Marker Connector",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemMarkerConnector"
+  },
+  {
+    "id": "buildcraftcore:marker_path",
+    "key": "item.buildcraftcore.marker_path",
+    "name_en_us": "Path Marker",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftcore:marker_volume",
+    "key": "item.buildcraftcore.marker_volume",
+    "name_en_us": "Land Mark",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/black",
+    "key": "item.buildcraftcore.paintbrush.black",
+    "name_en_us": "§8Black§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/blue",
+    "key": "item.buildcraftcore.paintbrush.blue",
+    "name_en_us": "§9Blue§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/brown",
+    "key": "item.buildcraftcore.paintbrush.brown",
+    "name_en_us": "§6Brown§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/clean",
+    "key": "item.buildcraftcore.paintbrush.clean",
+    "name_en_us": "Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "itemProperties"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/cyan",
+    "key": "item.buildcraftcore.paintbrush.cyan",
+    "name_en_us": "§3Cyan§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/gray",
+    "key": "item.buildcraftcore.paintbrush.gray",
+    "name_en_us": "§7Gray§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/green",
+    "key": "item.buildcraftcore.paintbrush.green",
+    "name_en_us": "§aGreen§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/light_blue",
+    "key": "item.buildcraftcore.paintbrush.light_blue",
+    "name_en_us": "§bLight Blue§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/light_gray",
+    "key": "item.buildcraftcore.paintbrush.light_gray",
+    "name_en_us": "§7Light Gray§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/lime",
+    "key": "item.buildcraftcore.paintbrush.lime",
+    "name_en_us": "§aLime§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/magenta",
+    "key": "item.buildcraftcore.paintbrush.magenta",
+    "name_en_us": "§dMagenta§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/orange",
+    "key": "item.buildcraftcore.paintbrush.orange",
+    "name_en_us": "§6Orange§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/pink",
+    "key": "item.buildcraftcore.paintbrush.pink",
+    "name_en_us": "§dPink§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/purple",
+    "key": "item.buildcraftcore.paintbrush.purple",
+    "name_en_us": "§5Purple§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/red",
+    "key": "item.buildcraftcore.paintbrush.red",
+    "name_en_us": "§cRed§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/white",
+    "key": "item.buildcraftcore.paintbrush.white",
+    "name_en_us": "§fWhite§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:paintbrush/yellow",
+    "key": "item.buildcraftcore.paintbrush.yellow",
+    "name_en_us": "§eYellow§r Paintbrush",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemPaintbrush_BC8"
+  },
+  {
+    "id": "buildcraftcore:spring_oil",
+    "key": "item.buildcraftcore.spring_oil",
+    "name_en_us": "Oil Spring",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "MultiBlockItem"
+  },
+  {
+    "id": "buildcraftcore:spring_water",
+    "key": "item.buildcraftcore.spring_water",
+    "name_en_us": "Water Spring",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "MultiBlockItem"
+  },
+  {
+    "id": "buildcraftcore:volume_box",
+    "key": "item.buildcraftcore.volume_box",
+    "name_en_us": "Volume Box",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemVolumeBox"
+  },
+  {
+    "id": "buildcraftcore:wrench",
+    "key": "item.buildcraftcore.wrench",
+    "name_en_us": "Wrench",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "ItemWrench"
+  },
+  {
+    "id": "buildcraftenergy:engine_fe",
+    "key": "item.buildcraftenergy.engine_fe",
+    "name_en_us": "FE Engine",
+    "source": "buildcraft/energy/BCEnergyBlocks.java",
+    "kind": "MultiBlockItem"
+  },
+  {
+    "id": "buildcraftenergy:engine_iron",
+    "key": "item.buildcraftenergy.engine_iron",
+    "name_en_us": "Combustion Engine",
+    "source": "buildcraft/energy/BCEnergyBlocks.java",
+    "kind": "MultiBlockItem"
+  },
+  {
+    "id": "buildcraftenergy:engine_stone",
+    "key": "item.buildcraftenergy.engine_stone",
+    "name_en_us": "Stirling Engine",
+    "source": "buildcraft/energy/BCEnergyBlocks.java",
+    "kind": "MultiBlockItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_dense/cool_bucket",
+    "key": "item.buildcraftenergy.fuel_dense.cool_bucket",
+    "name_en_us": "Dense Fuel (§bCool§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_dense/hot_bucket",
+    "key": "item.buildcraftenergy.fuel_dense.hot_bucket",
+    "name_en_us": "Dense Fuel (§6Hot§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_dense/searing_bucket",
+    "key": "item.buildcraftenergy.fuel_dense.searing_bucket",
+    "name_en_us": "Dense Fuel (§cSearing§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_gaseous/cool_bucket",
+    "key": "item.buildcraftenergy.fuel_gaseous.cool_bucket",
+    "name_en_us": "Gaseous Fuel (§bCool§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_gaseous/hot_bucket",
+    "key": "item.buildcraftenergy.fuel_gaseous.hot_bucket",
+    "name_en_us": "Gaseous Fuel (§6Hot§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_gaseous/searing_bucket",
+    "key": "item.buildcraftenergy.fuel_gaseous.searing_bucket",
+    "name_en_us": "Gaseous Fuel (§cSearing§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_light/cool_bucket",
+    "key": "item.buildcraftenergy.fuel_light.cool_bucket",
+    "name_en_us": "Light Fuel (§bCool§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_light/hot_bucket",
+    "key": "item.buildcraftenergy.fuel_light.hot_bucket",
+    "name_en_us": "Light Fuel (§6Hot§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_light/searing_bucket",
+    "key": "item.buildcraftenergy.fuel_light.searing_bucket",
+    "name_en_us": "Light Fuel (§cSearing§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_mixed_heavy/cool_bucket",
+    "key": "item.buildcraftenergy.fuel_mixed_heavy.cool_bucket",
+    "name_en_us": "Mixed Heavy Fuel (§bCool§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_mixed_heavy/hot_bucket",
+    "key": "item.buildcraftenergy.fuel_mixed_heavy.hot_bucket",
+    "name_en_us": "Mixed Heavy Fuel (§6Hot§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_mixed_heavy/searing_bucket",
+    "key": "item.buildcraftenergy.fuel_mixed_heavy.searing_bucket",
+    "name_en_us": "Mixed Heavy Fuel (§cSearing§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_mixed_light/cool_bucket",
+    "key": "item.buildcraftenergy.fuel_mixed_light.cool_bucket",
+    "name_en_us": "Mixed Light Fuel (§bCool§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_mixed_light/hot_bucket",
+    "key": "item.buildcraftenergy.fuel_mixed_light.hot_bucket",
+    "name_en_us": "Mixed Light Fuel (§6Hot§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:fuel_mixed_light/searing_bucket",
+    "key": "item.buildcraftenergy.fuel_mixed_light.searing_bucket",
+    "name_en_us": "Mixed Light Fuel (§cSearing§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:mj_dynamo",
+    "key": "item.buildcraftenergy.mj_dynamo",
+    "name_en_us": "MJ Dynamo",
+    "source": "buildcraft/energy/BCEnergyBlocks.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftenergy:oil/cool_bucket",
+    "key": "item.buildcraftenergy.oil.cool_bucket",
+    "name_en_us": "Oil (§bCool§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil/hot_bucket",
+    "key": "item.buildcraftenergy.oil.hot_bucket",
+    "name_en_us": "Oil (§6Hot§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil/searing_bucket",
+    "key": "item.buildcraftenergy.oil.searing_bucket",
+    "name_en_us": "Oil (§cSearing§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_dense/cool_bucket",
+    "key": "item.buildcraftenergy.oil_dense.cool_bucket",
+    "name_en_us": "Dense Oil (§bCool§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_dense/hot_bucket",
+    "key": "item.buildcraftenergy.oil_dense.hot_bucket",
+    "name_en_us": "Dense Oil (§6Hot§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_dense/searing_bucket",
+    "key": "item.buildcraftenergy.oil_dense.searing_bucket",
+    "name_en_us": "Dense Oil (§cSearing§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_distilled/cool_bucket",
+    "key": "item.buildcraftenergy.oil_distilled.cool_bucket",
+    "name_en_us": "Distilled Oil (§bCool§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_distilled/hot_bucket",
+    "key": "item.buildcraftenergy.oil_distilled.hot_bucket",
+    "name_en_us": "Distilled Oil (§6Hot§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_distilled/searing_bucket",
+    "key": "item.buildcraftenergy.oil_distilled.searing_bucket",
+    "name_en_us": "Distilled Oil (§cSearing§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_heavy/cool_bucket",
+    "key": "item.buildcraftenergy.oil_heavy.cool_bucket",
+    "name_en_us": "Heavy Oil (§bCool§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_heavy/hot_bucket",
+    "key": "item.buildcraftenergy.oil_heavy.hot_bucket",
+    "name_en_us": "Heavy Oil (§6Hot§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_heavy/searing_bucket",
+    "key": "item.buildcraftenergy.oil_heavy.searing_bucket",
+    "name_en_us": "Heavy Oil (§cSearing§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_residue/cool_bucket",
+    "key": "item.buildcraftenergy.oil_residue.cool_bucket",
+    "name_en_us": "Residue (§bCool§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_residue/hot_bucket",
+    "key": "item.buildcraftenergy.oil_residue.hot_bucket",
+    "name_en_us": "Residue (§6Hot§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftenergy:oil_residue/searing_bucket",
+    "key": "item.buildcraftenergy.oil_residue.searing_bucket",
+    "name_en_us": "Residue (§cSearing§r) Bucket",
+    "source": "buildcraft/energy/BCEnergyFluids.java",
+    "kind": "BucketItem"
+  },
+  {
+    "id": "buildcraftfactory:autoworkbench_item",
+    "key": "item.buildcraftfactory.autoworkbench_item",
+    "name_en_us": "Auto Workbench",
+    "source": "buildcraft/factory/BCFactoryItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftfactory:chute",
+    "key": "item.buildcraftfactory.chute",
+    "name_en_us": "Chute",
+    "source": "buildcraft/factory/BCFactoryItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftfactory:distiller",
+    "key": "item.buildcraftfactory.distiller",
+    "name_en_us": "Distiller",
+    "source": "buildcraft/factory/BCFactoryItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftfactory:flood_gate",
+    "key": "item.buildcraftfactory.flood_gate",
+    "name_en_us": "Flood Gate",
+    "source": "buildcraft/factory/BCFactoryItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftfactory:gel",
+    "key": "item.buildcraftfactory.gel",
+    "name_en_us": "Gelled Water",
+    "source": "buildcraft/factory/BCFactoryItems.java",
+    "kind": "Item"
+  },
+  {
+    "id": "buildcraftfactory:heat_exchange",
+    "key": "item.buildcraftfactory.heat_exchange",
+    "name_en_us": "Heat Exchanger",
+    "source": "buildcraft/factory/BCFactoryItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftfactory:mining_well",
+    "key": "item.buildcraftfactory.mining_well",
+    "name_en_us": "Mining Well",
+    "source": "buildcraft/factory/BCFactoryItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftfactory:pump",
+    "key": "item.buildcraftfactory.pump",
+    "name_en_us": "Pump",
+    "source": "buildcraft/factory/BCFactoryItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftfactory:tank",
+    "key": "item.buildcraftfactory.tank",
+    "name_en_us": "Tank",
+    "source": "buildcraft/factory/BCFactoryItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftfactory:water_gel",
+    "key": "item.buildcraftfactory.water_gel",
+    "name_en_us": "Water Gelifier",
+    "source": "buildcraft/factory/BCFactoryItems.java",
+    "kind": "ItemWaterGel"
+  },
+  {
+    "id": "buildcraftlib:guide",
+    "key": "item.buildcraft.guide.name",
+    "name_en_us": "BuildCraft Guide Book",
+    "source": "buildcraft/lib/BCLibItems.java",
+    "kind": "ItemGuide"
+  },
+  {
+    "id": "buildcraftrobotics:redstone_board",
+    "key": "item.buildcraftrobotics.redstone_board",
+    "name_en_us": "Redstone Board",
+    "source": "buildcraft/robotics/BCRoboticsItems.java",
+    "kind": "ItemRedstoneBoard"
+  },
+  {
+    "id": "buildcraftrobotics:requester",
+    "key": "item.buildcraftrobotics.requester",
+    "name_en_us": "Requester",
+    "source": "buildcraft/robotics/BCRoboticsItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftrobotics:robot",
+    "key": "item.buildcraftrobotics.robot",
+    "name_en_us": "Robot",
+    "source": "buildcraft/robotics/BCRoboticsItems.java",
+    "kind": "ItemRobot"
+  },
+  {
+    "id": "buildcraftrobotics:robot_station",
+    "key": "item.buildcraftrobotics.robot_station",
+    "name_en_us": "Docking Station",
+    "source": "buildcraft/robotics/BCRoboticsItems.java",
+    "kind": "ItemRobotStation"
+  },
+  {
+    "id": "buildcraftrobotics:zone_planner",
+    "key": "item.buildcraftrobotics.zone_planner",
+    "name_en_us": "Zone Planner",
+    "source": "buildcraft/robotics/BCRoboticsItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftsilicon:advanced_crafting_table",
+    "key": "item.buildcraftsilicon.advanced_crafting_table",
+    "name_en_us": "Advanced Crafting Table",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftsilicon:assembly_table",
+    "key": "item.buildcraftsilicon.assembly_table",
+    "name_en_us": "Assembly Table",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftsilicon:charging_table",
+    "key": "item.buildcraftsilicon.charging_table",
+    "name_en_us": "Charging Table",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftsilicon:gate_copier",
+    "key": "item.buildcraftsilicon.gate_copier",
+    "name_en_us": "Gate Copier",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemGateCopier"
+  },
+  {
+    "id": "buildcraftsilicon:integration_table",
+    "key": "item.buildcraftsilicon.integration_table",
+    "name_en_us": "Integration Table",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftsilicon:laser",
+    "key": "item.buildcraftsilicon.laser",
+    "name_en_us": "Laser",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftsilicon:plug/facade",
+    "key": "item.buildcraftsilicon.facade",
+    "name_en_us": "Facade",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemPluggableFacade"
+  },
+  {
+    "id": "buildcraftsilicon:plug/gate",
+    "key": "item.buildcraftsilicon.plug.gate",
+    "name_en_us": "Gate",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemPluggableGate"
+  },
+  {
+    "id": "buildcraftsilicon:plug/lens",
+    "key": "item.lens.clear",
+    "name_en_us": "Clear Lens",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemPluggableLens"
+  },
+  {
+    "id": "buildcraftsilicon:plug/light_sensor",
+    "key": "item.buildcraftsilicon.plug.light_sensor",
+    "name_en_us": "Light Sensor",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemPluggableSimple"
+  },
+  {
+    "id": "buildcraftsilicon:plug/pulsar",
+    "key": "item.buildcraftsilicon.plug.pulsar",
+    "name_en_us": "Pipe Pulsar",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemPluggableSimple"
+  },
+  {
+    "id": "buildcraftsilicon:plug/timer",
+    "key": "item.buildcraftsilicon.plug.timer",
+    "name_en_us": "Timer",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemPluggableSimple"
+  },
+  {
+    "id": "buildcraftsilicon:programming_table",
+    "key": "item.buildcraftsilicon.programming_table",
+    "name_en_us": "Programming Table",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcraftsilicon:redstone_chipset/diamond",
+    "key": "item.buildcraftsilicon.redstone_diamond_chipset",
+    "name_en_us": "Diamond Chipset",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemRedstoneChipset"
+  },
+  {
+    "id": "buildcraftsilicon:redstone_chipset/gold",
+    "key": "item.buildcraftsilicon.redstone_gold_chipset",
+    "name_en_us": "Golden Chipset",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemRedstoneChipset"
+  },
+  {
+    "id": "buildcraftsilicon:redstone_chipset/iron",
+    "key": "item.buildcraftsilicon.redstone_iron_chipset",
+    "name_en_us": "Iron Chipset",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemRedstoneChipset"
+  },
+  {
+    "id": "buildcraftsilicon:redstone_chipset/quartz",
+    "key": "item.buildcraftsilicon.redstone_quartz_chipset",
+    "name_en_us": "Quartz Chipset",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemRedstoneChipset"
+  },
+  {
+    "id": "buildcraftsilicon:redstone_chipset/red",
+    "key": "item.buildcraftsilicon.redstone_red_chipset",
+    "name_en_us": "Redstone Chipset",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "ItemRedstoneChipset"
+  },
+  {
+    "id": "buildcraftsilicon:redstone_crystal",
+    "key": "item.buildcraftsilicon.redstone_crystal",
+    "name_en_us": "Redstone Crystal",
+    "source": "buildcraft/silicon/BCSiliconItems.java",
+    "kind": "Item"
+  },
+  {
+    "id": "buildcrafttransport:clay_fluid",
+    "key": "pipe.buildcrafttransport.clay_fluid",
+    "name_en_us": "Clay Fluid Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:clay_item",
+    "key": "pipe.buildcrafttransport.clay_item",
+    "name_en_us": "Clay Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:cobblestone_fe",
+    "key": "pipe.buildcrafttransport.cobblestone_fe",
+    "name_en_us": "Cobblestone FE Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:cobblestone_fluid",
+    "key": "pipe.buildcrafttransport.cobblestone_fluid",
+    "name_en_us": "Cobblestone Fluid Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:cobblestone_item",
+    "key": "pipe.buildcrafttransport.cobblestone_item",
+    "name_en_us": "Cobblestone Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:cobblestone_power",
+    "key": "pipe.buildcrafttransport.cobblestone_power",
+    "name_en_us": "Cobblestone Kinesis Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:daizuli_item",
+    "key": "pipe.buildcrafttransport.daizuli_item",
+    "name_en_us": "Diazuli Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:diamond_fe",
+    "key": "pipe.buildcrafttransport.diamond_fe",
+    "name_en_us": "Diamond FE Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:diamond_fluid",
+    "key": "pipe.buildcrafttransport.diamond_fluid",
+    "name_en_us": "Diamond Fluid Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:diamond_item",
+    "key": "pipe.buildcrafttransport.diamond_item",
+    "name_en_us": "Diamond Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:diamond_power",
+    "key": "pipe.buildcrafttransport.diamond_power",
+    "name_en_us": "Diamond Kinesis Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:diamond_wood_fe",
+    "key": "pipe.buildcrafttransport.diamond_wood_fe",
+    "name_en_us": "Wooden Diamond FE Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:diamond_wood_fluid",
+    "key": "pipe.buildcrafttransport.diamond_wood_fluid",
+    "name_en_us": "Wooden Diamond Fluid Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:diamond_wood_item",
+    "key": "pipe.buildcrafttransport.diamond_wood_item",
+    "name_en_us": "Wooden Diamond Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:diamond_wood_power",
+    "key": "pipe.buildcrafttransport.diamond_wood_power",
+    "name_en_us": "Wooden Diamond Kinesis Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:emzuli_item",
+    "key": "pipe.buildcrafttransport.emzuli_item",
+    "name_en_us": "Emzuli Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:filtered_buffer",
+    "key": "block.buildcrafttransport.filtered_buffer",
+    "name_en_us": "Filtered Buffer",
+    "source": "buildcraft/transport/BCTransportBlocks.java",
+    "kind": "BlockItem"
+  },
+  {
+    "id": "buildcrafttransport:gold_fe",
+    "key": "pipe.buildcrafttransport.gold_fe",
+    "name_en_us": "Golden FE Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:gold_fluid",
+    "key": "pipe.buildcrafttransport.gold_fluid",
+    "name_en_us": "Golden Fluid Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:gold_item",
+    "key": "pipe.buildcrafttransport.gold_item",
+    "name_en_us": "Golden Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:gold_power",
+    "key": "pipe.buildcrafttransport.gold_power",
+    "name_en_us": "Golden Kinesis Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:iron_fe",
+    "key": "pipe.buildcrafttransport.iron_fe",
+    "name_en_us": "Iron FE Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:iron_fluid",
+    "key": "pipe.buildcrafttransport.iron_fluid",
+    "name_en_us": "Iron Fluid Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:iron_item",
+    "key": "pipe.buildcrafttransport.iron_item",
+    "name_en_us": "Iron Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:iron_power",
+    "key": "pipe.buildcrafttransport.iron_power",
+    "name_en_us": "Iron Kinesis Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:lapis_item",
+    "key": "pipe.buildcrafttransport.lapis_item",
+    "name_en_us": "Lazuli Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:obsidian_item",
+    "key": "pipe.buildcrafttransport.obsidian_item",
+    "name_en_us": "Obsidian Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:plug_blocker",
+    "key": "item.buildcrafttransport.plug_blocker",
+    "name_en_us": "Pipe Plug",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemPluggableSimple"
+  },
+  {
+    "id": "buildcrafttransport:plug_power_adaptor",
+    "key": "item.buildcrafttransport.plug_power_adaptor",
+    "name_en_us": "Power Adaptor",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemPluggableSimple"
+  },
+  {
+    "id": "buildcrafttransport:quartz_fe",
+    "key": "pipe.buildcrafttransport.quartz_fe",
+    "name_en_us": "Quartz FE Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:quartz_fluid",
+    "key": "pipe.buildcrafttransport.quartz_fluid",
+    "name_en_us": "Quartz Fluid Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:quartz_item",
+    "key": "pipe.buildcrafttransport.quartz_item",
+    "name_en_us": "Quartz Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:quartz_power",
+    "key": "pipe.buildcrafttransport.quartz_power",
+    "name_en_us": "Quartz Kinesis Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:sandstone_fe",
+    "key": "pipe.buildcrafttransport.sandstone_fe",
+    "name_en_us": "Sandstone FE Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:sandstone_fluid",
+    "key": "pipe.buildcrafttransport.sandstone_fluid",
+    "name_en_us": "Sandstone Fluid Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:sandstone_item",
+    "key": "pipe.buildcrafttransport.sandstone_item",
+    "name_en_us": "Sandstone Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:sandstone_power",
+    "key": "pipe.buildcrafttransport.sandstone_power",
+    "name_en_us": "Sandstone Kinesis Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:stone_fe",
+    "key": "pipe.buildcrafttransport.stone_fe",
+    "name_en_us": "Stone FE Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:stone_fluid",
+    "key": "pipe.buildcrafttransport.stone_fluid",
+    "name_en_us": "Stone Fluid Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:stone_item",
+    "key": "pipe.buildcrafttransport.stone_item",
+    "name_en_us": "Stone Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:stone_power",
+    "key": "pipe.buildcrafttransport.stone_power",
+    "name_en_us": "Stone Kinesis Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:stripes_item",
+    "key": "pipe.buildcrafttransport.stripes_item",
+    "name_en_us": "Stripes Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:structure",
+    "key": "pipe.buildcrafttransport.structure",
+    "name_en_us": "Cobblestone Structure Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:void_fluid",
+    "key": "pipe.buildcrafttransport.void_fluid",
+    "name_en_us": "Void Fluid Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:void_item",
+    "key": "pipe.buildcrafttransport.void_item",
+    "name_en_us": "Void Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:waterproof",
+    "key": "item.buildcrafttransport.waterproof",
+    "name_en_us": "Pipe Sealant",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "itemProperties"
+  },
+  {
+    "id": "buildcrafttransport:wire/black",
+    "key": "item.pipewire.black",
+    "name_en_us": "§8Black§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/blue",
+    "key": "item.pipewire.blue",
+    "name_en_us": "§9Blue§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/brown",
+    "key": "item.pipewire.brown",
+    "name_en_us": "§6Brown§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/cyan",
+    "key": "item.pipewire.cyan",
+    "name_en_us": "§3Cyan§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/gray",
+    "key": "item.pipewire.gray",
+    "name_en_us": "§7Gray§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/green",
+    "key": "item.pipewire.green",
+    "name_en_us": "§aGreen§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/light_blue",
+    "key": "item.pipewire.light_blue",
+    "name_en_us": "§bLight Blue§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/light_gray",
+    "key": "item.pipewire.light_gray",
+    "name_en_us": "§7Light Gray§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/lime",
+    "key": "item.pipewire.lime",
+    "name_en_us": "§aLime§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/magenta",
+    "key": "item.pipewire.magenta",
+    "name_en_us": "§dMagenta§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/orange",
+    "key": "item.pipewire.orange",
+    "name_en_us": "§6Orange§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/pink",
+    "key": "item.pipewire.pink",
+    "name_en_us": "§dPink§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/purple",
+    "key": "item.pipewire.purple",
+    "name_en_us": "§5Purple§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/red",
+    "key": "item.pipewire.red",
+    "name_en_us": "§cRed§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/white",
+    "key": "item.pipewire.white",
+    "name_en_us": "§fWhite§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wire/yellow",
+    "key": "item.pipewire.yellow",
+    "name_en_us": "§eYellow§r Pipe Wire",
+    "source": "buildcraft/transport/BCTransportItems.java",
+    "kind": "ItemWire"
+  },
+  {
+    "id": "buildcrafttransport:wood_fe",
+    "key": "pipe.buildcrafttransport.wood_fe",
+    "name_en_us": "Wooden FE Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:wood_fluid",
+    "key": "pipe.buildcrafttransport.wood_fluid",
+    "name_en_us": "Wooden Fluid Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:wood_item",
+    "key": "pipe.buildcrafttransport.wood_item",
+    "name_en_us": "Wooden Transport Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  },
+  {
+    "id": "buildcrafttransport:wood_power",
+    "key": "pipe.buildcrafttransport.wood_power",
+    "name_en_us": "Wooden Kinesis Pipe",
+    "source": "buildcraft/transport/BCTransportPipes.java",
+    "kind": "ItemPipeHolder"
+  }
+]

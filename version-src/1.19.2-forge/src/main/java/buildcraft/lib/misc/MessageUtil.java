@@ -38,7 +38,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public class MessageUtil {
@@ -268,7 +268,7 @@ public class MessageUtil {
         return set;
     }
 
-    public static void sendReturnMessage(NetworkEvent.Context context, Object reply) {
+    public static void sendReturnMessage(BCPacketContext context, Object reply) {
         Player player = context.getSender();
         if (player instanceof ServerPlayer) {
             ServerPlayer playerMP = (ServerPlayer) player;

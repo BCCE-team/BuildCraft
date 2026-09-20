@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -6,6 +7,8 @@
 
 package buildcraft.lib.gui;
 
+import buildcraft.lib.compat.minecraft.gui.BCGraphics;
+import buildcraft.lib.compat.minecraft.gui.BCContainerScreen;
 import buildcraft.lib.internal.core.render.ISprite;
 import buildcraft.lib.gui.json.BuildCraftJsonGui;
 import buildcraft.lib.gui.json.InventorySlotHolder;
@@ -17,10 +20,8 @@ import buildcraft.lib.gui.pos.IGuiArea;
 import buildcraft.lib.gui.statement.GuiElementStatementParam;
 import buildcraft.lib.misc.GuiUtil;
 import buildcraft.lib.tile.TileBC_Neptune;
-import com.mojang.blaze3d.platform.InputConstants;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
+import buildcraft.lib.compat.mc121111.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
@@ -28,10 +29,8 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -39,9 +38,10 @@ import org.joml.Matrix4f;
 
 import java.util.List;
 import java.util.function.Function;
+import buildcraft.lib.compat.RenderCompat;
 
 /** Base screen for BuildCraft menus. */
-public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainerScreen<C> {
+public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen<C> {
     public final BuildCraftGui mainGui;
     public final C container;
     private GuiGraphics activeGraphics;
@@ -57,7 +57,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
         standardLedgerInit();
     }
 
-    public GuiBC8(C container, ResourceLocation jsonGuiDef, Inventory inventory, Component title) {
+    public GuiBC8(C container, Identifier jsonGuiDef, Inventory inventory, Component title) {
         super(container, inventory, title);
         this.container = container;
         BuildCraftJsonGui jsonGui = new BuildCraftJsonGui(this, BuildCraftGui.createWindowedArea(this), jsonGuiDef);
@@ -80,7 +80,6 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
         }
     }
 
-    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
         activeGraphics = guiGraphics;
         try {
@@ -88,6 +87,10 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
             if (mainGui.currentMenu == null || !mainGui.currentMenu.shouldFullyOverride()) {
                 renderTooltip(guiGraphics, mouseX, mouseY);
             }
+            // GuiGraphics is 2D in 1.21.11, so tooltips render after slots/items and advance the render stratum
+            // instead of relying on a PoseStack Z translation.
+            BCGraphics.nextLayer(guiGraphics);
+            mainGui.drawTooltips(guiGraphics);
         } finally {
             activeGraphics = null;
         }
@@ -106,7 +109,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
             (int) area.getEndY(), startColor, endColor);
     }
 
-    /** TODO: Remove this compatibility hook after all screens use GuiGraphics directly. */
+    /** Compatibility hook for screens that consume the legacy matrix path. */
     @Deprecated
     public void drawGradientRect(PoseStack pose, IGuiArea area, int startColor, int endColor) {
         drawGradientRect(requireGraphics(), area, startColor, endColor);
@@ -128,12 +131,19 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
         int v = Mth.floor(textureY);
         int w = Mth.floor(width);
         int h = Mth.floor(height);
+
+        Identifier texture = RenderCompat.getShaderTexture();
+        if (texture != null) {
+            BCGraphics.blit(requireGraphics(), texture, x, y, u, v, w, h);
+            return;
+        }
+
         Matrix4f matrix = pose.last().pose();
         float u0 = u / 256.0F;
         float u1 = (u + w) / 256.0F;
         float v0 = v / 256.0F;
         float v1 = (v + h) / 256.0F;
-        RenderSystem.setShader(GameRenderer::getPositionTexShader);
+
         BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
         builder.addVertex(matrix, x, y + h, 0).setUv(u0, v1);
         builder.addVertex(matrix, x + w, y + h, 0).setUv(u1, v1);
@@ -148,7 +158,11 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
 
     public void drawString(GuiGraphics guiGraphics, Font fontRenderer, String text, double x, double y, int colour,
         boolean shadow) {
-        guiGraphics.drawString(fontRenderer, text, (int) x, (int) y, colour, shadow);
+        BCGraphics.text(guiGraphics, fontRenderer, text, (int) x, (int) y, normalizeTextColour(colour), shadow);
+    }
+
+    private static int normalizeTextColour(int colour) {
+        return (colour & 0xFF000000) == 0 ? colour | 0xFF000000 : colour;
     }
 
     @Deprecated
@@ -162,42 +176,41 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
         GuiUtil.drawItemStackAt(stack, guiGraphics, x, y);
     }
 
-    @Override
     public void containerTick() {
         super.containerTick();
         mainGui.tick();
     }
 
-    @Override
     protected void renderBg(GuiGraphics guiGraphics, float partialTicks, int mouseX, int mouseY) {
         activeGraphics = guiGraphics;
         // AbstractContainerScreen has already rendered the vanilla background before calling renderBg.
         // Calling renderBackground from here re-enters renderBg on 1.21 and causes an infinite recursion.
         mainGui.drawBackgroundLayer(guiGraphics, partialTicks, mouseX, mouseY, () -> { });
-        drawBackgroundLayer(guiGraphics.pose(), mouseX, mouseY, partialTicks);
+        drawBackgroundLayer(new PoseStack(), mouseX, mouseY, partialTicks);
         mainGui.drawElementBackgrounds(guiGraphics);
     }
 
-    @Override
     protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         activeGraphics = guiGraphics;
-        PoseStack pose = guiGraphics.pose();
-        mainGui.preDrawForeground(pose);
-        drawForegroundLayer(pose, mouseX, mouseY);
-        mainGui.drawElementForegrounds(() -> drawMenuOverlay(guiGraphics), guiGraphics);
-        drawForegroundLayerAboveElements();
-        mainGui.postDrawForeground(pose);
+
+        // 1.21.11 renders container foregrounds with GuiGraphics already translated by leftPos/topPos. BuildCraft
+        // elements use absolute screen coordinates through mainGui.rootElement, so cancel that translation on the
+        // real GuiGraphics matrix before drawing them.
+        BCGraphics.push(guiGraphics);
+        BCGraphics.translate(guiGraphics, (float) -mainGui.rootElement.getX(), (float) -mainGui.rootElement.getY());
+        try {
+            PoseStack legacyPose = new PoseStack();
+            drawForegroundLayer(legacyPose, mouseX, mouseY);
+            mainGui.drawElementForegrounds(() -> drawMenuOverlay(guiGraphics), guiGraphics);
+            drawForegroundLayerAboveElements();
+        } finally {
+            BCGraphics.pop(guiGraphics);
+        }
     }
 
-    /** Draws the dimming layer used by BuildCraft menus without re-entering AbstractContainerScreen.renderBg. */
+    /** Draws the dimming layer used by BuildCraft menus. The real GUI matrix is at screen origin here. */
     private void drawMenuOverlay(GuiGraphics guiGraphics) {
-        PoseStack pose = guiGraphics.pose();
-        pose.pushPose();
-        // renderLabels is translated into the BuildCraft root coordinate system. Undo that translation for a
-        // full-screen overlay, then restore it before drawing the menu itself.
-        pose.translate(mainGui.rootElement.getX(), mainGui.rootElement.getY(), 0);
         guiGraphics.fillGradient(0, 0, width, height, 0xC0101010, 0xD0101010);
-        pose.popPose();
     }
 
     public void drawProgress(GuiGraphics guiGraphics, GuiRectangle rect, GuiIcon icon, double widthPercent,
@@ -216,7 +229,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
         drawProgress(requireGraphics(), rect, icon, widthPercent, heightPercent);
     }
 
-    @Override
+    /** Legacy 1.21.1-style input hooks retained for the machine screens shared with 1.21.1. */
     public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
         List<IGuiElement> elements = mainGui.getElementsAt(mouseX, mouseY);
         boolean hitsStatementParameter = elements.stream().anyMatch(GuiElementStatementParam.class::isInstance);
@@ -225,37 +238,35 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
             mainGui.onMouseClicked(mouseX, mouseY, mouseButton);
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, mouseButton)
+        return false
             | mainGui.onMouseClicked(mouseX, mouseY, mouseButton);
     }
 
-    @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        boolean result = super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+        boolean result = false;
         mainGui.onMouseDragged(mouseX, mouseY, button, dragX, dragY);
         return result;
     }
 
-    @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        boolean result = super.mouseReleased(mouseX, mouseY, button);
+        boolean result = false;
         mainGui.onMouseReleased(mouseX, mouseY, button);
         return result;
     }
 
-    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (!mainGui.onKeyTyped(modifiers, InputConstants.getKey(keyCode, scanCode))) {
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        }
-        return true;
+        return mainGui.onKeyTyped(modifiers, RenderCompat.inputKey(keyCode, scanCode));
     }
 
-    /** Legacy drawing hook retained so the module GUIs can be ported independently from lib. */
+    public boolean charTyped(char codePoint, int modifiers) {
+        return false;
+    }
+
+    /** Legacy drawing hook used by module GUIs through the lib compatibility path. */
     protected void drawBackgroundLayer(PoseStack pose, int mouseX, int mouseY, float partialTicks) {
     }
 
-    /** Legacy drawing hook retained so the module GUIs can be ported independently from lib. */
+    /** Legacy drawing hook used by module GUIs through the lib compatibility path. */
     protected void drawForegroundLayer(PoseStack pose, int mouseX, int mouseY) {
     }
 

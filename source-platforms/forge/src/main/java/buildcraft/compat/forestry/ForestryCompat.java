@@ -1,5 +1,6 @@
 package buildcraft.compat.forestry;
 
+import buildcraft.lib.platform.registry.RegistryBinding;
 import java.lang.reflect.InvocationTargetException;
 
 import buildcraft.lib.internal.debug.BCLog;
@@ -25,7 +26,7 @@ public final class ForestryCompat {
             return;
         }
         registered = true;
-        ForestryPipes.register(modBus);
+        ForestryPipes.register(RegistryBinding.on(modBus));
         ForestryPropolisNetwork.register();
 
         // Keep every client-only class out of the dedicated-server class path while still

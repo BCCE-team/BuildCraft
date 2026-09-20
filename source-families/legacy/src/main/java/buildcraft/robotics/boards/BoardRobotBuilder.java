@@ -106,9 +106,8 @@ public class BoardRobotBuilder extends RedstoneBoardRobot {
     public void delegateAIEnded(AIRobot ai) {
         if (ai instanceof AIRobotGotoStationAndLoad) {
             if (ai.success()) {
-                // Recompute the whole missing-list on the next tick. Checking only the first split stack is not enough:
-                // a 128-item batch is represented as two 64 stacks, and the old check could decide that the batch was
-                // satisfied after the first stack because it only compared against one split requirement.
+                // Recompute the complete missing-list on the next tick because one requirement may be split across
+                // multiple inventory stacks and every split must be satisfied.
                 requirementsToLookFor = null;
             } else {
                 releaseCurrentTasks();

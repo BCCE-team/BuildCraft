@@ -1,9 +1,14 @@
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
- * 
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.lib;
 
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.lib.platform.client.PlatformClientModels;
+import buildcraft.lib.platform.events.PlatformClientEvents;
+import buildcraft.lib.platform.events.PlatformEvents;
+import buildcraft.lib.platform.events.BCEvents;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
@@ -12,7 +17,6 @@ import buildcraft.lib.internal.tiles.IDebuggable;
 import buildcraft.lib.client.model.ModelHolderRegistry;
 import buildcraft.lib.client.model.json.VariablePartLed;
 import buildcraft.lib.client.reload.LibConfigChangeListener;
-import buildcraft.lib.client.reload.ReloadManager;
 import buildcraft.lib.client.render.DetachedRenderer;
 import buildcraft.lib.client.render.laser.LaserRenderer_BC8;
 import buildcraft.lib.client.render.DetachedRenderer.RenderMatrixType;
@@ -47,26 +51,21 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.ModelEvent.BakingCompleted;
 import net.minecraftforge.client.event.ModelEvent.RegisterAdditional;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.TextureStitchEvent;
-import net.minecraftforge.event.TickEvent.ClientTickEvent;
 import net.minecraftforge.event.TickEvent.Phase;
-import net.minecraftforge.event.TickEvent.ServerTickEvent;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent;
-import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 
 public class BCLibEventDist {
-	
-	@Mod.EventBusSubscriber(modid = BCLib.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
-	public static class Client {
-		
+
+    @Mod.EventBusSubscriber(modid = BCLib.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+    public static class Client {
+
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event)
         {
@@ -84,59 +83,59 @@ public class BCLibEventDist {
             MessageManager.setHandler(MessageObjectCacheResponse.class, MessageObjectCacheResponse.HANDLER, Dist.CLIENT);
             MessageManager.setHandler(MessageDebugResponse.class, MessageDebugResponse.HANDLER, Dist.CLIENT);
         }
-        
+
         @SubscribeEvent
         public static void textureStitchPost(TextureStitchEvent.Post event) {
-	    	if (InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
-                // Variable models are reparsed below, so expression nodes from the old JSON generation are stale.
+            if (InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
+                // Variable models are reparsed below, so expression nodes from the pre-reload JSON generation are stale.
                 ModelVariableData.onModelBake();
                 ModelHolderRegistry.reloadVariableModels();
-	            SpriteHolderRegistry.onTextureStitchPost(event);
+                SpriteHolderRegistry.onTextureStitchPost(PlatformClientRegistration.atlas(event));
             SpriteUtil.clearAtlasCache();
             DebugRenderHelper.clearTextureCache();
 
                 // Laser vertex buffers contain absolute UV coordinates from the atlas.
                 // Rebuild them after every stitch, including extra reloads started by other mods.
                 LaserRenderer_BC8.clearModels();
-	            FluidRenderer.onTextureStitchPost(event);
-                VariablePartLed.onTextureStitchPost(event);
-	        }
-	    }
-	    
-	    @SubscribeEvent
-	    public static void preModelBake(RegisterAdditional event) {
-	    	ModelHolderRegistry.preModelBake(event);
-	    }
-	
-	    @SubscribeEvent
-	    public static void onModelBake(BakingCompleted event) {
-	        SpriteHolderRegistry.exportTextureMap();
-	        LaserRenderer_BC8.clearModels();
-	        ModelHolderRegistry.onModelBake(event);
-	    }
+                FluidRenderer.onTextureStitchPost(PlatformClientRegistration.atlas(event));
+                VariablePartLed.onTextureStitchPost(PlatformClientRegistration.atlas(event));
+            }
+        }
 
-	    
-	}
+        @SubscribeEvent
+        public static void preModelBake(RegisterAdditional event) {
+            ModelHolderRegistry.preModelBake(PlatformClientModels.additional(event));
+        }
 
-	@SubscribeEvent
+        @SubscribeEvent
+        public static void onModelBake(BakingCompleted event) {
+            SpriteHolderRegistry.exportTextureMap();
+            LaserRenderer_BC8.clearModels();
+            ModelHolderRegistry.onModelBake(PlatformClientModels.completed(event));
+        }
+
+
+    }
+
+    @SubscribeEvent
     @OnlyIn(Dist.CLIENT)
     public static void renderWorldLast(RenderLevelStageEvent event) {
-    	if(event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
-    		return ;
-    	}
+        if(event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+            return ;
+        }
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
         if (player == null) return;
         PoseStack pose = event.getPoseStack();
         Matrix4f matrix = new Matrix4f(RenderSystem.getProjectionMatrix());
         float partialTicks = event.getPartialTick();
-        
+
         LaserRenderer_BC8.setupLaserRenderState();
         DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
     }
 
-    @SubscribeEvent
-    public static void onEntityJoinWorld(EntityJoinLevelEvent event) {
+
+    public static void onEntityJoinWorld(BCEvents.EntityJoin event) {
         Entity entity = event.getEntity();
         if (entity instanceof ServerPlayer) {
             ServerPlayer playerMP = (ServerPlayer) entity;
@@ -151,42 +150,43 @@ public class BCLibEventDist {
         }
     }
 
-    @SubscribeEvent
-    public static void onWorldUnload(LevelEvent.Unload event) {
+
+    public static void onWorldUnload(BCEvents.LevelUnload event) {
         MarkerCache.onLevelUnload(event.getLevel());
         if (event.getLevel() instanceof ServerLevel) {
             FakePlayerProvider.INSTANCE.unloadWorld((ServerLevel) event.getLevel());
+            buildcraft.lib.platform.chunk.BCChunkTickets.unloadWorld((ServerLevel) event.getLevel());
         }
     }
 
-    @SubscribeEvent
+
     @OnlyIn(Dist.CLIENT)
-    public static void onConnectToServer(ClientPlayerNetworkEvent.LoggingIn event) {
+    public static void onConnectToServer() {
         MarkerCache.clearClientCaches();
         MessageMarkerClientHandler.clearQueuedMessages();
         BuildCraftObjectCaches.onClientJoinServer();
     }
 
-    @SubscribeEvent
+
     @OnlyIn(Dist.CLIENT)
-    public static void onDisconnectFromServer(ClientPlayerNetworkEvent.LoggingOut event) {
+    public static void onDisconnectFromServer() {
         MarkerCache.clearClientCaches();
         MessageMarkerClientHandler.clearQueuedMessages();
     }
 
 
-    @SubscribeEvent
-    public static void serverTick(ServerTickEvent event) {
-        if (event.phase == Phase.END) {
+
+    public static void serverTick(BCEvents.ServerTick event) {
+        if (event.phase() == BCEvents.Phase.END) {
             BCAdvDebugging.INSTANCE.onServerPostTick();
             MessageUtil.postServerTick();
         }
     }
 
-    @SubscribeEvent
+
     @OnlyIn(Dist.CLIENT)
-    public static void clientTick(ClientTickEvent event) {
-        if (event.phase == Phase.END) {
+    public static void clientTick(BCEvents.ClientTick event) {
+        if (event.phase() == BCEvents.Phase.END) {
             BuildCraftObjectCaches.onClientTick();
             MessageUtil.postClientTick();
             MessageMarkerClientHandler.flushQueuedMessages();
@@ -199,10 +199,23 @@ public class BCLibEventDist {
                     if (debuggable instanceof BlockEntity tile && mouseOver instanceof BlockHitResult blockHit) {
                         MessageManager.sendToServer(new MessageDebugRequest(tile.getBlockPos(), blockHit.getDirection()));
                     } else if (debuggable instanceof Entity) {
-                        // TODO: Add entity debug-info request/response support.
+                        // Entity debug-info requests are intentionally ignored by this block-only debug handler.
                     }
                 }
             }
+        }
+    }
+    private static boolean gameplayEventsRegistered;
+    public static synchronized void registerGameplayEvents() {
+        if (gameplayEventsRegistered) return;
+        gameplayEventsRegistered = true;
+        PlatformEvents.entityJoin(BCLibEventDist::onEntityJoinWorld);
+        PlatformEvents.levelUnload(BCLibEventDist::onWorldUnload);
+        PlatformEvents.serverTick(BCEvents.Phase.END, BCLibEventDist::serverTick);
+        if (PlatformEvents.isClient()) {
+            PlatformClientEvents.login(BCLibEventDist::onConnectToServer);
+            PlatformClientEvents.logout(BCLibEventDist::onDisconnectFromServer);
+            PlatformClientEvents.tick(BCEvents.Phase.END, BCLibEventDist::clientTick);
         }
     }
 }

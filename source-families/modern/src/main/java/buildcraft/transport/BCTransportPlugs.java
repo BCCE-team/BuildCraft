@@ -37,7 +37,7 @@ public class BCTransportPlugs {
     }
 
     private static PluggableDefinition register(PluggableDefinition def) {
-        // TODO: Add configuration for enabling/disabling built-in pluggables.
+        // Built-in pluggables are always registered by this module.
         BCLibRegistries.initApiRegistries();
         PipeApi.pluggableRegistry.register(def);
         return def;

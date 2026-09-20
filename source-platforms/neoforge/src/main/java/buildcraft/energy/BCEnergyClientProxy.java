@@ -4,12 +4,15 @@
  */
 package buildcraft.energy;
 
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.energy.BCEnergyClientRenderers;
 import buildcraft.core.client.render.RenderEngine_BC8;
 import buildcraft.energy.client.gui.GuiDynamoMJ;
 import buildcraft.energy.client.gui.GuiEngineFE;
 import buildcraft.energy.client.gui.GuiEngineIron_BC8;
 import buildcraft.energy.client.gui.GuiEngineStone_BC8;
 import buildcraft.energy.client.render.RenderDynamoMJ;
+import buildcraft.energy.fluid.BCFluidType;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
@@ -17,6 +20,16 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+//? if >=1.21.9 {
+import org.joml.Vector4f;
+
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
+import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
+//?}
 
 @EventBusSubscriber(modid = BCEnergy.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public abstract class BCEnergyClientProxy {
@@ -27,19 +40,64 @@ public abstract class BCEnergyClientProxy {
     }
 
 
+    //? if >=1.21.9 {
+    @SubscribeEvent
+    public static void registerFluidClientExtensions(RegisterClientExtensionsEvent event) {
+        for (var holder : BCEnergyFluids.OIL_TYPE) {
+            BCFluidType type = holder.get();
+            event.registerFluidType(new IClientFluidTypeExtensions() {
+                private static final ResourceLocation UNDERWATER_LOCATION =
+                    ResourceLocation.withDefaultNamespace("textures/misc/underwater.png");
+
+                @Override
+                public ResourceLocation getStillTexture() {
+                    return type.getStillTextureLocation();
+                }
+
+                @Override
+                public ResourceLocation getFlowingTexture() {
+                    return type.getFlowTextureLocation();
+                }
+
+                @Override
+                public ResourceLocation getOverlayTexture() {
+                    // Keep block-side rendering identical to 1.21.1: BuildCraft fluids use their own
+                    // still/flow textures instead of borrowing the vanilla water overlay.
+                    return null;
+                }
+
+                @Override
+                public ResourceLocation getRenderOverlayTexture(Minecraft mc) {
+                    return UNDERWATER_LOCATION;
+                }
+
+                @Override
+                public int getTintColor() {
+                    return type.getFluidTintColor();
+                }
+
+                @Override
+                public Vector4f modifyFogColor(Camera camera, float partialTick, ClientLevel level,
+                        int renderDistance, float darkenWorldAmount, Vector4f fluidFogColor) {
+                    // 1.21.1 deliberately uses a neutral grey immersion fog for every BuildCraft
+                    // oil/fuel variant. Preserve the incoming alpha used by the modern fog pipeline.
+                    return new Vector4f(0.5f, 0.5f, 0.5f, fluidFogColor.w);
+                }
+            }, type);
+        }
+    }
+    //?}
+
     @SubscribeEvent
     public static void registerMenuScreens(RegisterMenuScreensEvent event) {
-        event.register(BCEnergyGuis.MENU_STONE.get(), GuiEngineStone_BC8::new);
-        event.register(BCEnergyGuis.MENU_IRON.get(), GuiEngineIron_BC8::new);
-        event.register(BCEnergyGuis.MENU_FE.get(), GuiEngineFE::new);
-        event.register(BCEnergyGuis.MENU_DYNAMO_MJ.get(), GuiDynamoMJ::new);
+        PlatformClientRegistration.screens(event).register(BCEnergyGuis.MENU_STONE.get(), GuiEngineStone_BC8::new);
+        PlatformClientRegistration.screens(event).register(BCEnergyGuis.MENU_IRON.get(), GuiEngineIron_BC8::new);
+        PlatformClientRegistration.screens(event).register(BCEnergyGuis.MENU_FE.get(), GuiEngineFE::new);
+        PlatformClientRegistration.screens(event).register(BCEnergyGuis.MENU_DYNAMO_MJ.get(), GuiDynamoMJ::new);
     }
 
     @SubscribeEvent
     public static void registryRender(EntityRenderersEvent.RegisterRenderers event) {
-        event.registerBlockEntityRenderer(BCEnergyBlocks.ENGINE_IRON_TILE_BC8.get(), RenderEngine_BC8::new);
-        event.registerBlockEntityRenderer(BCEnergyBlocks.ENGINE_STONE_TILE_BC8.get(), RenderEngine_BC8::new);
-        event.registerBlockEntityRenderer(BCEnergyBlocks.ENGINE_FE_TILE_BC8.get(), RenderEngine_BC8::new);
-        event.registerBlockEntityRenderer(BCEnergyBlocks.DYNAMO_MJ_TILE.get(), RenderDynamoMJ::new);
+        BCEnergyClientRenderers.register(PlatformClientRegistration.renderers(event));
     }
 }

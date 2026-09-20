@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject known porting debris and generated junk from maintained BCCE sources."""
+"""Reject stale compatibility debris and generated junk from maintained BCCE sources."""
 
 from __future__ import annotations
 
@@ -7,13 +7,14 @@ from pathlib import Path
 import subprocess
 import sys
 
-from source_layout import load_properties, target_ids, target_layout
+from source_layout import effective_source_files, load_properties, target_ids, target_layout
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOTS = [
     ROOT / "source-shared",
     ROOT / "source-families",
     ROOT / "source-platforms",
+    ROOT / "source-family-platforms",
     ROOT / "version-src",
 ]
 
@@ -48,7 +49,7 @@ def tracked_repository_files() -> list[Path] | None:
 
 
 # Files that are never valid tracked repository sources/artifacts. Do not scan
-# arbitrary workspace files here: earlier Python/Gradle steps legitimately
+# arbitrary workspace files here: Python/Gradle validation steps legitimately
 # create ignored caches and build outputs during CI.
 tracked_files = tracked_repository_files()
 if tracked_files is not None:
@@ -63,7 +64,7 @@ if tracked_files is not None:
         ):
             errors.append(f"generated/backup file is tracked: {rel}")
 
-# Porting scratch classes used '$' prefixes in the old 1.19.3/1.20 transition.
+# Scratch-class '$' prefixes are forbidden in maintained sources.
 for source_root in SOURCE_ROOTS:
     if not source_root.exists():
         continue
@@ -77,7 +78,7 @@ for source_root in SOURCE_ROOTS:
 
 
 # Robot goggles were never registered in any supported target. Keep the dead
-# class/assets/atlas references from returning as porting debris.
+# class/assets/atlas references from re-entering maintained sources.
 for source_root in SOURCE_ROOTS:
     if not source_root.exists():
         continue
@@ -112,7 +113,7 @@ for source_root in SOURCE_ROOTS:
 
 
 # Resource layout is generation-specific after 1.21. Validate the effective
-# source tree of every configured target so platform layers and future targets
+# source tree of every configured target so platform layers and configured targets
 # are covered without hard-coded directory lists.
 def check_resource_generation(target: str, family: str) -> None:
     legacy_only = {"advancements", "loot_tables", "recipes", "structures"}
@@ -121,7 +122,7 @@ def check_resource_generation(target: str, family: str) -> None:
     modern_tag_kinds = {"block", "item", "fluid"}
 
     layout = target_layout(target, properties)
-    for relative, source_path in layout.effective_files().items():
+    for relative, source_path in effective_source_files(layout, properties).items():
         parts = Path(relative).parts
         # Expected prefix: src/<source-set>/resources/data/<namespace>/...
         if len(parts) < 7 or parts[0] != "src" or parts[2] != "resources" or parts[3] != "data":
@@ -182,7 +183,7 @@ for source_root in SOURCE_ROOTS:
         if namespace == "buildcraftbuilder":
             errors.append(f"obsolete typo namespace 'buildcraftbuilder' remains: {path.relative_to(ROOT)}")
 
-# These strings came from the abandoned 1.12/early-port era and are false today.
+# These obsolete strings describe unsupported content and must not re-enter current language data.
 lang = ROOT / "source-shared/src/main/resources/assets/buildcraft/lang/en_us.json"
 if lang.exists():
     text = lang.read_text(encoding="utf-8", errors="replace")
@@ -193,7 +194,7 @@ if lang.exists():
         "No recipes use this!",
     ):
         if stale in text:
-            errors.append(f"stale historical tooltip remains in {lang.relative_to(ROOT)}: {stale!r}")
+            errors.append(f"obsolete tooltip remains in {lang.relative_to(ROOT)}: {stale!r}")
 
 if errors:
     print("Repository cleanliness validation failed:")
@@ -201,4 +202,4 @@ if errors:
         print(f" - {error}")
     sys.exit(1)
 
-print("Repository cleanliness OK: no tracked generated junk, known porting scratch classes, obsolete lifecycle/UI shims, wrong-generation resource paths, stale module-local mining tags, or stale 1.12 tooltips detected")
+print("Repository cleanliness OK: no tracked generated junk, known scratch classes, obsolete lifecycle/UI shims, wrong-generation resource paths, stale module-local mining tags, or stale 1.12 tooltips detected")

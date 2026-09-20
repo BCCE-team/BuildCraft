@@ -6,6 +6,8 @@
  */
 package buildcraft.builders.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -58,11 +60,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCPacketContext;
+import buildcraft.lib.net.BCNetworkSide;
 
 /**
  * BuildCraft 7 style construction marker.
@@ -318,9 +318,9 @@ public class TileConstructionMarker extends TileBC_Neptune implements IDebuggabl
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER && id == NET_RENDER_DATA) {
+        if (side == BCNetworkSide.SERVER && id == NET_RENDER_DATA) {
             buffer.writeEnum(direction);
             ItemStackUtil.writeOptional(buffer, invBlueprint.getStackInSlot(0));
             buffer.writeBoolean(blueprintBuildingInfo != null);
@@ -332,9 +332,9 @@ public class TileConstructionMarker extends TileBC_Neptune implements IDebuggabl
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT && id == NET_RENDER_DATA) {
+        if (side == BCNetworkSide.CLIENT && id == NET_RENDER_DATA) {
             direction = buffer.readEnum(Direction.class);
             clientBlueprint = ItemStackUtil.readOptional(buffer);
             if (buffer.readBoolean()) {
@@ -348,19 +348,21 @@ public class TileConstructionMarker extends TileBC_Neptune implements IDebuggabl
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+    public void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.writeData(bcData);
         nbt.put("direction", NBTUtilBC.writeEnum(direction));
         nbt.put("rotation", NBTUtilBC.writeEnum(rotation));
-        nbt.putBoolean("needMaterial", needMaterial);
-        nbt.putBoolean("canRotate", canRotate);
-        nbt.putBoolean("canExcavate", canExcavate);
+        bcData.writeBoolean("needMaterial", needMaterial);
+        bcData.writeBoolean("canRotate", canRotate);
+        bcData.writeBoolean("canExcavate", canExcavate);
         nbt.put("box", currentBox.writeToNBT());
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
+    protected void readData(BCValueInput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.readData(bcData);
         direction = NBTUtilBC.readEnum(nbt.get("direction"), Direction.class);
         if (direction == null || direction.getAxis().isVertical()) {
             direction = Direction.NORTH;
@@ -369,11 +371,11 @@ public class TileConstructionMarker extends TileBC_Neptune implements IDebuggabl
         if (rotation == null) {
             rotation = Rotation.NONE;
         }
-        needMaterial = !nbt.contains("needMaterial") || nbt.getBoolean("needMaterial");
-        canRotate = !nbt.contains("canRotate") || nbt.getBoolean("canRotate");
-        canExcavate = !nbt.contains("canExcavate") || nbt.getBoolean("canExcavate");
-        if (nbt.contains("box")) {
-            currentBox.initialize(nbt.getCompound("box"));
+        needMaterial = !bcData.has("needMaterial") || bcData.readBoolean("needMaterial");
+        canRotate = !bcData.has("canRotate") || bcData.readBoolean("canRotate");
+        canExcavate = !bcData.has("canExcavate") || bcData.readBoolean("canExcavate");
+        if (bcData.has("box")) {
+            currentBox.initialize(bcData.readCompound("box"));
         }
     }
 
@@ -422,14 +424,11 @@ public class TileConstructionMarker extends TileBC_Neptune implements IDebuggabl
     public void releaseRobotBuildTask(EntityRobotBase robot, RobotBuildTask task) {
         blueprintBuilder.releaseRobotTask(robot, task);
     }
-
-    @OnlyIn(Dist.CLIENT)
     public Box getBox() {
         return currentBox;
     }
 
     @Nonnull
-    @OnlyIn(Dist.CLIENT)
     public AABB getRenderBoundingBox() {
         return BoundingBoxUtil.makeFrom(getBlockPos(), getBox());
     }

@@ -6,6 +6,7 @@
 
 package buildcraft.transport.client.model;
 
+import buildcraft.lib.platform.client.ClientAtlas;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -40,7 +41,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.client.event.TextureStitchEvent;
 
 public enum PipeBaseModelGenStandard implements IPipeBaseModelGen {
     INSTANCE;
@@ -49,7 +49,7 @@ public enum PipeBaseModelGenStandard implements IPipeBaseModelGen {
     public static final Map<PipeDefinition, TextureAtlasSprite[]> SPRITES = new IdentityHashMap<>();
 
     @Override
-    public void onTextureStitchPre(TextureStitchEvent.Pre event) {
+    public void onTextureStitchPre(ClientAtlas.Before event) {
         Map<ResourceLocation, TextureAtlasSprite> sprites = new HashMap<>();
         for (PipeDefinition def : PipeApi.pipeRegistry.getAllRegisteredPipes()) {
             TextureAtlasSprite[] array = new TextureAtlasSprite[def.textures.length];

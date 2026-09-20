@@ -39,7 +39,7 @@ public class GuiRecipeBookPhantom extends RecipeBookComponent {
         findFieldByType(type).set(this, value);
     }
 
-    /** Compatibility helper used by the old BuildCraft screens. */
+    /** Compatibility helper for screens that populate a phantom crafting container. */
     public void initVisuals(boolean ignored, CraftingContainer craftingContainer) {
         initVisuals();
         try {

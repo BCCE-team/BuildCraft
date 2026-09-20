@@ -6,11 +6,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+from source_lookup import resolve_source_path
 SKIP_PARTS = {"build", ".gradle", ".git"}
 
 
 def text(path: str) -> str:
-    p = ROOT / path
+    p = resolve_source_path(path)
     if not p.is_file():
         raise FileNotFoundError(path)
     return p.read_text(encoding="utf-8")

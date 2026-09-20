@@ -7,6 +7,7 @@
 package buildcraft.transport.item;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 
 import buildcraft.transport.internal.pipe.IItemPipe;
@@ -26,6 +27,9 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+//? if >=1.21.5 {
+import net.minecraft.world.item.component.TooltipDisplay;
+//?}
 import net.minecraft.world.item.UseAnim;
 
 public class ItemPipeHolder extends BlockItem implements IItemPipe {
@@ -91,19 +95,28 @@ public class ItemPipeHolder extends BlockItem implements IItemPipe {
 	}
 		
 	@Override
-	public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
+	//? if >=1.21.5 {
+	public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display, Consumer<Component> tooltip, TooltipFlag flag) {
+    //?} else {
+	public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltipLines, TooltipFlag flag) {
+        Consumer<Component> tooltip = tooltipLines::add;
+    //?}
         String tipName = "tip." + unlocalizedName;
         if (I18n.exists(tipName)) {
-            tooltip.add(Component.translatable(tipName).setStyle(Style.EMPTY.applyFormat(ChatFormatting.GRAY)));
+            tooltip.accept(Component.translatable(tipName).setStyle(Style.EMPTY.applyFormat(ChatFormatting.GRAY)));
         }
         if (definition.flowType == PipeApi.flowFluids) {
-            tooltip.add(LocaleUtil.localizeFluidFlow(PipeApi.getFluidTransferInfo(definition).transferPerTick));
+            tooltip.accept(LocaleUtil.localizeFluidFlow(PipeApi.getFluidTransferInfo(definition).transferPerTick));
         } else if (definition.flowType == PipeApi.flowPower) {
-            tooltip.add(LocaleUtil.localizeMjFlow(PipeApi.getPowerTransferInfo(definition).transferPerTick));
+            tooltip.accept(LocaleUtil.localizeMjFlow(PipeApi.getPowerTransferInfo(definition).transferPerTick));
         } else if (definition.flowType == PipeApi.flowForgeEnergy) {
-            tooltip.add(LocaleUtil.localizeFeFlow(PipeApi.getForgeEnergyTransferInfo(definition).transferPerTick));
+            tooltip.accept(LocaleUtil.localizeFeFlow(PipeApi.getForgeEnergyTransferInfo(definition).transferPerTick));
         }
-		super.appendHoverText(stack, context, tooltip, flag);
+		//? if >=1.21.5 {
+		super.appendHoverText(stack, context, display, tooltip, flag);
+		//?} else {
+		super.appendHoverText(stack, context, tooltipLines, flag);
+		//?}
 	}
 	
 	

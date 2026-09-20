@@ -1,24 +1,38 @@
+//? source if >=1.21.1
 package buildcraft.lib.gui;
 
+import buildcraft.lib.compat.minecraft.gui.BCGraphics;
+import buildcraft.lib.compat.minecraft.gui.BCContainerScreen;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.gui.component.ContainerComponent;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
+//? if >=1.21.11 {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//? }
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
 
-public abstract class ContainerScreenBase<T extends AbstractContainerMenu> extends AbstractContainerScreen<T> {
+public abstract class ContainerScreenBase<T extends AbstractContainerMenu> extends BCContainerScreen<T> {
+//? if >=1.21.11 {
+    protected final Identifier TEXTURE_BASE;
+//? } else {
     protected final ResourceLocation TEXTURE_BASE;
+//? }
     protected final ContainerComponent[] components;
     protected final boolean[] listenClick;
     protected int index;
     protected int offset;
     protected int size;
 
+//? if >=1.21.11 {
+    public ContainerScreenBase(T menu, Inventory inventory, Component name, int componentSize, Identifier texture) {
+//? } else {
     public ContainerScreenBase(T menu, Inventory inventory, Component name, int componentSize, ResourceLocation texture) {
+//? }
         super(menu, inventory, name);
         TEXTURE_BASE = texture;
         components = new ContainerComponent[componentSize];
@@ -30,7 +44,11 @@ public abstract class ContainerScreenBase<T extends AbstractContainerMenu> exten
         this(menu, inventory, name, componentSize, null);
     }
 
+//? if >=1.21.11 {
+    public Identifier getBaseTexture() {
+//? } else {
     public ResourceLocation getBaseTexture() {
+//? }
         return TEXTURE_BASE;
     }
 
@@ -51,7 +69,7 @@ public abstract class ContainerScreenBase<T extends AbstractContainerMenu> exten
     @Override
     protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
         if (TEXTURE_BASE != null) {
-            guiGraphics.blit(TEXTURE_BASE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
+            BCGraphics.blit(guiGraphics, TEXTURE_BASE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
         }
     }
 

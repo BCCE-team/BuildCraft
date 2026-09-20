@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 import buildcraft.lib.internal.capabilities.IBCCapabilityProvider;
 import buildcraft.lib.internal.core.EnumPipePart;
 import buildcraft.transport.client.render.RenderPipeHolder;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
@@ -20,8 +21,8 @@ import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.capabilities.BlockCapability;
-import net.neoforged.fml.LogicalSide;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public abstract class PipeBehaviour implements IBCCapabilityProvider {
     public final IPipe pipe;
@@ -39,9 +40,9 @@ public abstract class PipeBehaviour implements IBCCapabilityProvider {
         return nbt;
     }
 
-    public void writePayload(FriendlyByteBuf buffer, LogicalSide side) {}
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {}
 
-    public void readPayload(FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {}
+    public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {}
 
     /** @deprecated Replaced by {@link #getTextureData(Direction)}. */
     @Deprecated
@@ -67,9 +68,22 @@ public abstract class PipeBehaviour implements IBCCapabilityProvider {
         return true;
     }
 
+    /**
+     * Position-aware tile connection hook. The default behaviour remains permissive for ordinary pipes;
+     * behaviours with explicit tile restrictions can override this without requiring a block entity.
+     */
+    public boolean canConnect(Direction face, Level level, BlockPos pos, @Nullable BlockEntity oTile) {
+        return canConnect(face, oTile);
+    }
+
     /** Used to force a connection to a given tile, even if the {@link PipeFlow} wouldn't normally connect to it. */
     public boolean shouldForceConnection(Direction face, BlockEntity oTile) {
         return false;
+    }
+
+    /** Position-aware companion to {@link #shouldForceConnection(Direction, BlockEntity)}. */
+    public boolean shouldForceConnection(Direction face, Level level, BlockPos pos, @Nullable BlockEntity oTile) {
+        return oTile != null && shouldForceConnection(face, oTile);
     }
 
     public boolean onPipeActivate(Player player, BlockHitResult trace, Level level,

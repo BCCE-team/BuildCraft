@@ -55,7 +55,7 @@ public class BoardRobotLumberjack extends BoardRobotGenericBreakBlock {
     public void update() {
         pruneCurrentTree();
 
-        // Old saves may contain the currently reserved log but not the new tree cache. Rebuild it lazily.
+        // If save data contains the reserved log without a tree cache, rebuild the cache lazily.
         if (currentTree.isEmpty() && blockFound() != null) {
             collectConnectedTree(blockFound().toBlockPos());
         }

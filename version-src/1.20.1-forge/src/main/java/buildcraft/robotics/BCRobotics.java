@@ -1,5 +1,11 @@
 package buildcraft.robotics;
 
+import buildcraft.lib.platform.client.PlatformClientModels;
+import buildcraft.robotics.BCRoboticsClientRenderers;
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.lib.platform.registry.RegistryBinding;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
 import buildcraft.robotics.internal.api2.RoboticsApi2Bootstrap;
 import java.util.List;
 
@@ -75,12 +81,10 @@ import buildcraft.robotics.client.render.RenderZonePlanner;
 import buildcraft.robotics.zone.MessageZoneMapResponse;
 import buildcraft.robotics.recipes.RobotIntegrationRecipe;
 import net.minecraft.client.renderer.item.ItemProperties;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -91,25 +95,23 @@ import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.client.event.ModelEvent.BakingCompleted;
 import net.minecraftforge.client.event.ModelEvent.RegisterAdditional;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.RegistryObject;
 
 /**
- * BuildCraft Robotics bootstrap for the 1.20.1 port.
+ * BuildCraft Robotics bootstrap for Forge 1.20.1.
  *
  * Registers the robotics creative tab, robot items, docking station, boards, zone planner,
- * client/server networking and menu bindings used by the ported robotics systems.
+ * client/server networking and menu bindings required by the robotics systems.
  */
 @Mod(BCRobotics.MODID)
 public class BCRobotics {
     public static final String MODID = "buildcraftrobotics";
 
-    /** Reuses the historical BuildCraft "boards" tab name, translated as "BuildCraft Robots". */
+    /** Robotics creative tab using the stable "buildcraft.boards" identifier. */
     public static final CreativeTabBC TAB_ROBOTICS = CreativeTabManager.createTab("buildcraft.boards");
 
-    private static final DeferredRegister<CreativeModeTab> CREATIVE_TABS =
-            DeferredRegister.create(Registries.CREATIVE_MODE_TAB, "buildcraft");
-    public static final RegistryObject<CreativeModeTab> ROBOTICS_TAB = CREATIVE_TABS.register("boards", () ->
+    private static final BCDeferredRegister<CreativeModeTab> CREATIVE_TABS =
+            BCDeferredRegister.create("minecraft:creative_mode_tab", "buildcraft");
+    public static final BCRegistryEntry<CreativeModeTab> ROBOTICS_TAB = CREATIVE_TABS.register("boards", () ->
             CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup.buildcraft.boards"))
                     .icon(TAB_ROBOTICS::makeIcon)
@@ -124,15 +126,15 @@ public class BCRobotics {
         BCRoboticsBoards.init();
         RoboticsApi2Bootstrap.bootstrap();
         BCRoboticsPlugs.preInit();
-        BCRoboticsBlocks.registry(modEventBus);
-        BCRoboticsItems.registry(modEventBus);
-        BCRoboticsEntities.registry(modEventBus);
-        BCRoboticsGuis.registry(modEventBus);
+        BCRoboticsBlocks.registry(RegistryBinding.on(modEventBus));
+        BCRoboticsItems.registry(RegistryBinding.on(modEventBus));
+        BCRoboticsEntities.registry(RegistryBinding.on(modEventBus));
+        BCRoboticsGuis.registry(RegistryBinding.on(modEventBus));
         TAB_ROBOTICS.addItemProvider(BCRoboticsItems::getRoboticsTabItems);
         BCCore.BUILDCRAFT_TAB.addItemProvider(BCRoboticsItems::getMainTabItems);
-        CREATIVE_TABS.register(modEventBus);
+        RegistryBinding.register(CREATIVE_TABS, modEventBus);
 
-        // Keep zone planner network messages available for the partially ported robotics zone code.
+        // Register the zone planner messages used for map request and synchronization.
         buildcraft.lib.net.MessageManager.registerMessageClass(BCModules.ROBOTICS, MessageZoneMapRequest.class,
                 MessageZoneMapRequest.HANDLER, MessageZoneMapRequest::toBytes, MessageZoneMapRequest::new,
                 Dist.DEDICATED_SERVER);
@@ -141,7 +143,7 @@ public class BCRobotics {
                 Dist.CLIENT);
 
         RobotManager.registryProvider = SimpleRobotRegistryProvider.INSTANCE;
-        MinecraftForge.EVENT_BUS.register(SimpleRobotRegistryProvider.INSTANCE);
+        SimpleRobotRegistryProvider.registerGameplayEvents();
         RobotManager.registerDockingStation(DockingStationPipe.class, "pipe");
         registerRoboticsAI();
         BoardRobotPicker.onServerStart();
@@ -238,7 +240,7 @@ public class BCRobotics {
 
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
-            BCRoboticsClientGuis.clientInit(event);
+            PlatformClientRegistration.screens(event, BCRoboticsClientGuis::clientInit);
             BCRoboticsSprites.preInit();
             event.enqueueWork(() -> {
                 ItemProperties.register(BCRoboticsItems.ROBOT.get(), ROBOT_MODEL,
@@ -250,20 +252,19 @@ public class BCRobotics {
         }
 
         @SubscribeEvent
-        public static void registerEntityRenderers(EntityRenderersEvent.RegisterRenderers event) {
-            event.registerEntityRenderer(BCRoboticsEntities.ROBOT.get(), RenderRobot::new);
-            event.registerBlockEntityRenderer(BCRoboticsBlocks.ZONE_PLANNER_TILE.get(), RenderZonePlanner::new);
-        }
+    public static void registerEntityRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        BCRoboticsClientRenderers.register(PlatformClientRegistration.renderers(event));
+    }
 
 
         @SubscribeEvent
         public static void onModelBakePre(RegisterAdditional event) {
-            BCRoboticsModels.onModelBakePre(event);
+            BCRoboticsModels.onModelBakePre(PlatformClientModels.additional(event));
         }
 
         @SubscribeEvent
         public static void onModelBake(BakingCompleted event) {
-            BCRoboticsModels.onModelBake(event);
+            BCRoboticsModels.onModelBake(PlatformClientModels.completed(event));
         }
     }
 }

@@ -20,7 +20,7 @@ import io.netty.handler.codec.DecoderException;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCPacketContext;
 
 public class MessageVolumeBoxes {
     private static final int MAX_BOXES = 4096;
@@ -120,7 +120,7 @@ public class MessageVolumeBoxes {
         msg.removedIds.forEach(buf::writeUUID);
     }
 
-    public static final BiConsumer<MessageVolumeBoxes, Supplier<NetworkEvent.Context>> HANDLER = (message, ctx) -> {
+    public static final BiConsumer<MessageVolumeBoxes, Supplier<BCPacketContext>> HANDLER = (message, ctx) -> {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> MessageVolumeBoxesClientHandler.handle(message, ctx));
         ctx.get().setPacketHandled(true);
     };

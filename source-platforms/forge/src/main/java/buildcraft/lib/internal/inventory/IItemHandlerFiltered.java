@@ -1,12 +1,13 @@
 package buildcraft.lib.internal.inventory;
 
+import buildcraft.lib.platform.storage.FilteredItemStorage;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 
 /** A type of {@link IItemHandler} that has a single valid stack per slot, as specified by {@link #getFilter(int)}. Note
  * that any {@link IItemHandler} can implement this (even if the filter behaviour is more complex, or their isn't
  * actually a filter at all) */
-public interface IItemHandlerFiltered extends IItemHandler {
+public interface IItemHandlerFiltered extends IItemHandler, FilteredItemStorage {
 
     /** @param slot the slot to test
      * @return The filter in that slot. Will be {@link ItemStack#EMPTY} if this is not filtered to a single item (for

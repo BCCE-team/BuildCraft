@@ -1,0 +1,206 @@
+/*
+ * Shared target/bootstrap logic for every loader adapter.
+ *
+ * Loader scripts set project.ext.bcBuildGeneration before applying this file.
+ * This file owns target metadata, the five source layers and effective-source
+ * materialization. Loader-specific runs/dependencies/remapping stay in
+ * build-logic/loaders/<loader>-target.gradle.
+ */
+
+def buildGeneration = project.ext.has('bcBuildGeneration') ? project.ext.bcBuildGeneration.toString() : ''
+if (buildGeneration.isEmpty()) {
+    throw new GradleException('Loader adapter must set project.ext.bcBuildGeneration before common-target.gradle')
+}
+
+def targetName = project.name
+def repositoryRoot = rootProject.file('../..').canonicalFile
+
+def commonConfigFile = new File(repositoryRoot, 'build-config/common.properties')
+def targetRegistryFile = new File(repositoryRoot, 'build-config/targets.properties')
+def generationConfigFile = rootProject.file('targets.properties')
+if (!commonConfigFile.isFile() || !targetRegistryFile.isFile() || !generationConfigFile.isFile()) {
+    throw new GradleException("Missing BuildCraft configuration for ${buildGeneration} build")
+}
+
+def targetConfiguration = new Properties()
+commonConfigFile.withInputStream { targetConfiguration.load(it) }
+targetRegistryFile.withInputStream { targetConfiguration.load(it) }
+def generationConfiguration = new Properties()
+generationConfigFile.withInputStream { generationConfiguration.load(it) }
+
+if (generationConfiguration.getProperty('generation')?.trim() != buildGeneration) {
+    throw new GradleException(
+            "Build root generation '${generationConfiguration.getProperty('generation')}' does not match adapter '${buildGeneration}'"
+    )
+}
+if (targetConfiguration.getProperty("target.${targetName}.build.generation")?.trim() != buildGeneration) {
+    throw new GradleException("Target '${targetName}' does not belong to build generation '${buildGeneration}'")
+}
+
+def configuredProperty = { String key ->
+    if (project.hasProperty(key)) {
+        return project.property(key).toString().trim()
+    }
+    def targetValue = targetConfiguration.getProperty("target.${targetName}.${key}")
+    if (targetValue != null) {
+        return targetValue.trim()
+    }
+    def commonValue = targetConfiguration.getProperty("common.${key}")
+    commonValue != null ? commonValue.trim() : null
+}
+
+def requiredProperty = { String key ->
+    def value = configuredProperty(key)
+    if (value == null || value.isEmpty()) {
+        throw new GradleException("Missing target property '${key}' for '${targetName}'")
+    }
+    value
+}
+
+def optionalProperty = { String key -> configuredProperty(key) ?: '' }
+
+def booleanProperty = { String key, boolean fallback ->
+    def configured = configuredProperty(key)
+    if (configured != null && !configured.isEmpty()) {
+        return configured.toBoolean()
+    }
+    providers.gradleProperty(key).map { it.toBoolean() }.getOrElse(fallback)
+}
+
+def loaderName = requiredProperty('source.platform')
+def minecraftVersion = requiredProperty('deps.minecraft')
+def modVersion = requiredProperty('mod.version')
+def archiveName = requiredProperty('mod.archive_name')
+def javaVersion = Integer.parseInt(requiredProperty('java.version'))
+def sourceFamily = requiredProperty('source.family')
+def sourcePlatform = requiredProperty('source.platform')
+
+def sharedSourceRoot = new File(repositoryRoot, requiredProperty('source.shared_root'))
+def familySourceRoot = new File(repositoryRoot, requiredProperty('source.root'))
+def platformSourceRoot = new File(repositoryRoot, requiredProperty('source.platform_root'))
+def familyPlatformRootKey = "source.family_platform.${sourceFamily}.${sourcePlatform}.root"
+def familyPlatformRootValue = targetConfiguration.getProperty(familyPlatformRootKey)?.trim()
+if (!familyPlatformRootValue) {
+    throw new GradleException("Missing '${familyPlatformRootKey}' in build-config/common.properties")
+}
+def familyPlatformSourceRoot = new File(repositoryRoot, familyPlatformRootValue)
+def targetOverlayRoot = new File(repositoryRoot, requiredProperty('source.overlay_root'))
+def sourceLayers = [sharedSourceRoot, familySourceRoot, platformSourceRoot, familyPlatformSourceRoot, targetOverlayRoot]
+
+def resolveSourceFile = { String relative ->
+    [targetOverlayRoot, familyPlatformSourceRoot, platformSourceRoot, familySourceRoot, sharedSourceRoot]
+            .collect { new File(it, relative) }.find { it.isFile() }
+}
+def targetAccessTransformer = resolveSourceFile('src/main/resources/META-INF/accesstransformer.cfg')
+
+for (def layer : sourceLayers) {
+    if (!layer.isDirectory()) {
+        throw new GradleException("Configured source layer '${layer}' for '${targetName}' does not exist")
+    }
+}
+if (targetAccessTransformer == null) {
+    throw new GradleException("No access transformer found for '${targetName}'")
+}
+
+def effectiveSourceRoot = layout.buildDirectory.dir("effective-source/${targetName}")
+def sourceLayoutScript = new File(repositoryRoot, 'scripts/source_layout.py')
+def sourceConfigScript = new File(repositoryRoot, 'scripts/source_config.py')
+def sourcePreprocessorScript = new File(repositoryRoot, 'scripts/source_preprocessor.py')
+def sourceTransforms = project.fileTree(new File(repositoryRoot, 'scripts/transforms')) {
+    include '**/*.py'
+}
+
+def pythonOverride = providers.gradleProperty('pythonExecutable')
+        .orElse(providers.environmentVariable('PYTHON'))
+        .getOrNull()
+def pythonExecutable = pythonOverride?.trim()
+if (!pythonExecutable) {
+    def isWindows = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+    def pythonCandidates = isWindows ? ['python', 'py', 'python3'] : ['python3', 'python']
+    pythonExecutable = pythonCandidates.find { String candidate ->
+        try {
+            def process = new ProcessBuilder(
+                    candidate, '-c',
+                    'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)'
+            ).redirectErrorStream(true).start()
+            process.inputStream.getText('UTF-8')
+            return process.waitFor() == 0
+        } catch (Exception ignored) {
+            return false
+        }
+    }
+}
+if (!pythonExecutable) {
+    throw new GradleException(
+            'Python 3 is required by scripts/source_layout.py, but no working python, py, or python3 executable was found. ' +
+                    'Set -PpythonExecutable=<path> or the PYTHON environment variable.'
+    )
+}
+
+def prepareEffectiveSource = tasks.register('prepareEffectiveSource', Exec) {
+    group = 'build setup'
+    description = "Materialize and preprocess BuildCraft source layers for ${targetName}"
+    workingDir repositoryRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    inputs.files(sourceLayers)
+    inputs.files(new File(repositoryRoot, 'addon-fixture/src/main/java'))
+    inputs.files(commonConfigFile, targetRegistryFile, generationConfigFile)
+    inputs.files(sourceLayoutScript, sourceConfigScript, sourcePreprocessorScript, sourceTransforms)
+    outputs.dir(effectiveSourceRoot)
+    // Compatibility transforms are still being promoted into maintained source
+    // layers. Regenerate the staging tree so no stale rewritten Java survives.
+    outputs.upToDateWhen { false }
+    commandLine pythonExecutable, sourceLayoutScript.absolutePath, targetName,
+            '--config', generationConfigFile.absolutePath,
+            '--output', effectiveSourceRoot.get().asFile.absolutePath
+}
+
+def effectiveSourceDir = effectiveSourceRoot.get().asFile
+def effectiveDirs = { String relative -> [new File(effectiveSourceDir, relative)] }
+
+version = "${modVersion}+${targetName.replace('-', '+')}"
+group = requiredProperty('mod.group')
+base.archivesName = archiveName
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(javaVersion)
+}
+
+println "Target: ${targetName}; Java: ${providers.systemProperty('java.version').get()}, " +
+        "JVM: ${providers.systemProperty('java.vm.version').get()} (${providers.systemProperty('java.vendor').get()}), " +
+        "Arch: ${providers.systemProperty('os.arch').get()}"
+
+project.ext.bcTarget = [
+        buildGeneration: buildGeneration,
+        targetName: targetName,
+        repositoryRoot: repositoryRoot,
+        commonConfigFile: commonConfigFile,
+        targetRegistryFile: targetRegistryFile,
+        generationConfigFile: generationConfigFile,
+        targetConfiguration: targetConfiguration,
+        configuredProperty: configuredProperty,
+        requiredProperty: requiredProperty,
+        optionalProperty: optionalProperty,
+        booleanProperty: booleanProperty,
+        minecraftVersion: minecraftVersion,
+        loaderName: loaderName,
+        modVersion: modVersion,
+        archiveName: archiveName,
+        javaVersion: javaVersion,
+        sourceFamily: sourceFamily,
+        sourcePlatform: sourcePlatform,
+        sharedSourceRoot: sharedSourceRoot,
+        familySourceRoot: familySourceRoot,
+        platformSourceRoot: platformSourceRoot,
+        familyPlatformSourceRoot: familyPlatformSourceRoot,
+        targetOverlayRoot: targetOverlayRoot,
+        sourceLayers: sourceLayers,
+        resolveSourceFile: resolveSourceFile,
+        targetAccessTransformer: targetAccessTransformer,
+        effectiveSourceRoot: effectiveSourceRoot,
+        sourceLayoutScript: sourceLayoutScript,
+        pythonExecutable: pythonExecutable,
+        prepareEffectiveSource: prepareEffectiveSource,
+        effectiveSourceDir: effectiveSourceDir,
+        effectiveDirs: effectiveDirs,
+]

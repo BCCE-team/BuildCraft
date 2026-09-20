@@ -6,6 +6,9 @@
 
 package buildcraft.transport.stripes;
 
+import net.minecraft.server.level.ServerPlayer;
+import buildcraft.lib.platform.events.PlatformEvents;
+import buildcraft.lib.platform.events.BCEvents;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,7 +18,6 @@ import java.util.Set;
 
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.api.v2.automation.StripesOutput;
-import buildcraft.transport.wire.WireManager;
 import buildcraft.transport.internal.pipe.IItemPipe;
 import buildcraft.transport.internal.pipe.IPipe;
 import buildcraft.transport.internal.pipe.IPipeExtensionManager;
@@ -48,12 +50,9 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.ForgeHooks;
 import net.minecraftforge.common.util.BlockSnapshot;
-import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.event.ForgeEventFactory;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.TickEvent.Phase;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.LogicalSide;
 
 public enum PipeExtensionManager implements IPipeExtensionManager {
     INSTANCE;
@@ -81,24 +80,24 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
         }
     }
 
-    @SubscribeEvent
-    public void tick(TickEvent.LevelTickEvent event) {
-        if (event.phase != Phase.END || event.side != LogicalSide.SERVER) {
+
+    public void tick(BCEvents.LevelTick event) {
+        if (event.phase() != BCEvents.Phase.END || event.side() != buildcraft.lib.net.BCNetworkSide.SERVER) {
             return;
         }
-        List<PipeExtensionRequest> rList = requests.get(event.level.dimension());
+        List<PipeExtensionRequest> rList = requests.get(event.level().dimension());
         if (rList == null) {
             return;
         }
         for (PipeExtensionRequest r : rList) {
-            if (!isCurrentSource(event.level, r)) {
-                refundStaleRequest(event.level, r);
+            if (!isCurrentSource(event.level(), r)) {
+                refundStaleRequest(event.level(), r);
                 continue;
             }
             if (retractionPipeDefs.contains(r.pipeDef)) {
-                retract(event.level, r);
+                retract(event.level(), r);
             } else {
-                extend(event.level, r);
+                extend(event.level(), r);
             }
         }
         rList.clear();
@@ -177,7 +176,7 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
             }
         }
 
-        // Step 3: Place stripes pipe back and remove old one
+        // Step 3: Place the stripes pipe and remove the replaced pipe
         if (!canceled) {
             // - Correct NBT coordinates
             stripesNBTOld.putInt("x", p.getX());
@@ -185,11 +184,11 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
             stripesNBTOld.putInt("z", p.getZ());
 
             // - Create block and tile
-            FakePlayer player = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer((ServerLevel) w, owner, p);
+            ServerPlayer player = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer((ServerLevel) w, owner, p);
             player.getInventory().clearContent();
             w.setBlock(p, stripesStateOld, 3);
             if (ForgeEventFactory.onBlockPlace(player, blockSnapshot2, r.dir)) {
-            	canceled = true;
+                canceled = true;
                 blockSnapshot2.restore(true);
                 BlockEntity tile = w.getBlockEntity(r.pos);
                 if (tile != null) {
@@ -275,17 +274,17 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
 
         // Step 2: Add new pipe
         if (!canceled) {
-            FakePlayer player = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer((ServerLevel) w, owner, r.pos);
+            ServerPlayer player = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer((ServerLevel) w, owner, r.pos);
             player.getInventory().clearContent();
             player.getInventory().setItem(player.getInventory().selected, r.stack);
             InteractionResult result = ForgeHooks.onPlaceItemIntoWorld(
-            		//? if <1.20 {
-            		new UseOnContext(player.level, player, InteractionHand.MAIN_HAND,r.stack ,new BlockHitResult(new Vec3(0.5f,0.5f,0.5f), r.dir.getOpposite(), r.pos, false)));
-            		//?} else {
-            		/*?
-            		new UseOnContext(player.level(), player, InteractionHand.MAIN_HAND,r.stack ,new BlockHitResult(new Vec3(0.5f,0.5f,0.5f), r.dir.getOpposite(), r.pos, false)));
-            		?*/
-            		//?}
+                    //? if <1.20 {
+                    new UseOnContext(player.level, player, InteractionHand.MAIN_HAND,r.stack ,new BlockHitResult(new Vec3(0.5f,0.5f,0.5f), r.dir.getOpposite(), r.pos, false)));
+                    //?} else {
+                    /*?
+                    new UseOnContext(player.level(), player, InteractionHand.MAIN_HAND,r.stack ,new BlockHitResult(new Vec3(0.5f,0.5f,0.5f), r.dir.getOpposite(), r.pos, false)));
+                    ?*/
+                    //?}
             for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
                 ItemStack stack = player.getInventory().removeItemNoUpdate(i);
                 if (!stack.isEmpty()) {
@@ -309,12 +308,12 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
             stripesNBTOld.putInt("z", p.getZ());
 
             // - Create block and tile
-            FakePlayer player = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer((ServerLevel) w, owner, p);
+            ServerPlayer player = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer((ServerLevel) w, owner, p);
             player.getInventory().clearContent();
             BlockSnapshot blockSnapshot2 = BlockSnapshot.create(w.dimension(), w, p);
             w.setBlock(p, stripesStateOld, 3);
             if (ForgeEventFactory.onBlockPlace(player, blockSnapshot2, r.dir.getOpposite())) {
-            	canceled = true;
+                canceled = true;
                 stacksToSendBack.add(r.stack);
 
                 blockSnapshot1.restore(true);
@@ -410,5 +409,11 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
             this.pipeDef = pipeDef;
             this.stack = stack;
         }
+    }
+    private static boolean gameplayEventsRegistered;
+    public static synchronized void registerGameplayEvents() {
+        if (gameplayEventsRegistered) return;
+        gameplayEventsRegistered = true;
+        PlatformEvents.levelTick(BCEvents.Phase.END, INSTANCE::tick);
     }
 }

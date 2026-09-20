@@ -1,3 +1,4 @@
+//? source if >=1.21.1
 package buildcraft.builders.gui;
 
 import java.util.ArrayList;
@@ -12,24 +13,26 @@ import buildcraft.builders.snapshot.Blueprint;
 import buildcraft.builders.snapshot.ClientSnapshots;
 import buildcraft.builders.snapshot.Snapshot;
 import buildcraft.lib.gui.BuildCraftGui;
+import buildcraft.lib.compat.RenderCompat;
 import buildcraft.lib.gui.help.DummyHelpElement;
 import buildcraft.lib.gui.help.ElementHelpInfo;
 import buildcraft.lib.gui.ledger.LedgerHelp;
 import buildcraft.lib.gui.ledger.LedgerOwnership;
 import buildcraft.lib.gui.pos.GuiRectangle;
 import net.minecraft.client.Minecraft;
-import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 public class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> {
 
-    private static final ResourceLocation TEXTURE_BASE = ResourceLocation.fromNamespaceAndPath("buildcraftbuilders", "textures/gui/replacer.png");
+    private static final Identifier TEXTURE_BASE = Identifier.fromNamespaceAndPath("buildcraftbuilders", "textures/gui/replacer.png");
     private static final int SIZE_X = 176;
     private static final int SIZE_Y = 241;
     private static final int PREVIEW_X = 8;
@@ -105,13 +108,13 @@ public class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> {
         this.renderTooltip(guiGraphics, mouseX, mouseY);
         ItemStack hoveredPreviewStack = getPreviewStackAt(mouseX, mouseY);
         if (!hoveredPreviewStack.isEmpty()) {
-            guiGraphics.renderTooltip(this.font, hoveredPreviewStack, mouseX, mouseY);
+            RenderCompat.renderTooltip(guiGraphics, this.font, hoveredPreviewStack, mouseX, mouseY);
         }
     }
 
     @Override
     protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
-        guiGraphics.blit(TEXTURE_BASE, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight);
+        RenderCompat.blit(guiGraphics, TEXTURE_BASE, this.leftPos, this.topPos, 0, 0, this.imageWidth, this.imageHeight);
         renderBlueprintPreview(guiGraphics);
         this.mainGui.drawBackgroundLayer(guiGraphics, partialTick, mouseX, mouseY, () -> {});
         this.mainGui.drawElementBackgrounds(guiGraphics);
@@ -126,32 +129,32 @@ public class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        boolean result = super.mouseClicked(mouseX, mouseY, button);
-        this.mainGui.onMouseClicked(mouseX, mouseY, button);
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        boolean result = super.mouseClicked(event, doubleClick);
+        this.mainGui.onMouseClicked(event.x(), event.y(), event.button());
         return result;
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        boolean result = super.mouseReleased(mouseX, mouseY, button);
-        this.mainGui.onMouseReleased(mouseX, mouseY, button);
+    public boolean mouseReleased(MouseButtonEvent event) {
+        boolean result = super.mouseReleased(event);
+        this.mainGui.onMouseReleased(event.x(), event.y(), event.button());
         return result;
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        boolean result = super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
-        this.mainGui.onMouseDragged(mouseX, mouseY, button, dragX, dragY);
+    public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
+        boolean result = super.mouseDragged(event, dragX, dragY);
+        this.mainGui.onMouseDragged(event.x(), event.y(), event.button(), dragX, dragY);
         return result;
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (this.mainGui.onKeyTyped(modifiers, InputConstants.getKey(keyCode, scanCode))) {
+    public boolean keyPressed(KeyEvent event) {
+        if (this.mainGui.onKeyTyped(event.modifiers(), RenderCompat.inputKey(event.key(), event.scancode()))) {
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(event);
     }
 
     private void renderBlueprintPreview(GuiGraphics guiGraphics) {

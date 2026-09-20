@@ -22,9 +22,8 @@ import net.minecraft.core.Direction;
 /**
  * Renders a textured face expanded to the requested 3D bounds.
  *
- * <p>The old implementation delegated this to a loader-specific item-layer model and never applied the requested UV
- * sub-region. The current implementation builds the quad directly, which keeps the same JSON feature available on all
- * maintained loaders and makes {@link JsonVariableFaceUV} the single source of texture/UV/rotation semantics.</p>
+ * <p>The quad is built directly so the requested UV sub-region is honored consistently on all maintained loaders,
+ * with {@link JsonVariableFaceUV} as the single source of texture, UV and rotation semantics.</p>
  */
 public class VariablePartTextureExpand extends JsonVariableModelPart {
     public final INodeDouble[] from;

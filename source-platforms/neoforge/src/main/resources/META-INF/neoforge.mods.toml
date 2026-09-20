@@ -30,14 +30,14 @@ Shared library code and runtime helpers used by the BuildCraft Community Edition
 [[dependencies.buildcraftlib]]
     modId="jei"
     type="optional"
-    versionRange="[19,)"
+    versionRange="${jei_version_range}"
     ordering="AFTER"
     side="CLIENT"
 
 [[dependencies.buildcraftlib]]
     modId="jade"
     type="optional"
-    versionRange="[15.10.0,)"
+    versionRange="${jade_version_range}"
     ordering="AFTER"
     side="BOTH"
 

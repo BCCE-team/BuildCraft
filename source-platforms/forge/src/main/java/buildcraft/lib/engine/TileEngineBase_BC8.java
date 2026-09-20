@@ -60,14 +60,12 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.model.data.ModelData;
 import net.minecraftforge.client.model.data.ModelProperty;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebuggable, EngineView, MjPortProvider {
 
@@ -224,9 +222,9 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 isPumping = buffer.readBoolean();
                 Direction newDir = buffer.readEnum(Direction.class);
@@ -256,9 +254,9 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 buffer.writeBoolean(isPumping);
                 buffer.writeEnum(currentDirection);
@@ -286,7 +284,6 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
                 if (currentDirection != current) {
                     Direction previousDirection = currentDirection;
                     currentDirection = current;
-                    // makeTileCache();
                     sendNetworkUpdate(NET_RENDER_DATA);
                     redrawBlock();
                     markChunkDirty();
@@ -794,8 +791,6 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     public boolean isEngineOn() {
         return isPumping;
     }
-
-    @OnlyIn(Dist.CLIENT)
     public float getProgressClient(float partialTicks) {
         float last = lastProgress;
         float now = progress;
@@ -806,8 +801,6 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         float interp = last * (1 - partialTicks) + now * partialTicks;
         return interp % 1;
     }
-
-    @OnlyIn(Dist.CLIENT)
     public float getRenderProgress(float partialTicks) {
         return computeRenderProgress(getProgressClient(partialTicks));
     }
@@ -897,8 +890,6 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         left.add("progress = " + progress);
         left.add("last = " + (lastPower));
     }
-
-    @OnlyIn(Dist.CLIENT)
     @Override
     public void getClientDebugInfo(List<String> left, List<String> right, Direction side) {
         left.add("Current Model Variables:");

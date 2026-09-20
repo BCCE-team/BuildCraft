@@ -54,12 +54,10 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidType;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 import net.minecraftforge.network.NetworkHooks;
 
 public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandlerAdv, MenuProvider {
@@ -103,7 +101,7 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
         tank.setBlockEntity(this);
         this.tank = tank;
         tankManager.addLast(tank);
-        caps.addCapabilityInstance(CapUtil.CAP_FLUIDS, this, EnumPipePart.VALUES);
+        caps.addFluidStorage(this, EnumPipePart.VALUES);
         smoothedTank = new FluidSmoother(w -> createAndSendMessage(NET_FLUID_DELTA, w), tank);
     }
 
@@ -235,9 +233,9 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
     // Networking
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 writePayload(NET_FLUID_DELTA, buffer, side);
             } else if (id == NET_FLUID_DELTA) {
@@ -247,9 +245,9 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 readPayload(NET_FLUID_DELTA, buffer, side, ctx);
                 smoothedTank.resetSmoothing(level);
@@ -268,8 +266,6 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
     }
 
     // Rendering
-
-    @OnlyIn(Dist.CLIENT)
     public FluidStackInterp getFluidForRender(float partialTicks) {
         return smoothedTank.getFluidForRender(partialTicks);
     }
@@ -305,7 +301,7 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
 
     /**
      * Finds the one fluid represented by a pre-existing half-column. A null return means the
-     * half-column was already internally inconsistent (for example from an older save).
+     * stored half-column is internally inconsistent.
      */
     private static FluidStack findColumnFluid(TileTank start, Direction awayFromBoundary) {
         FluidStack found = FluidStack.EMPTY;
@@ -537,7 +533,7 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
     @Override
     public void saveAdditional(CompoundTag nbt) {
         // Let the base BuildCraft tile save tankManager in the standard {tanks:{tank:{...}}} format.
-        // Older API-layer builds overwrote "tanks" with a direct FluidStack tag; load(...) keeps that readable.
+        // The loader also accepts the direct-FluidStack compatibility form for "tanks".
         super.saveAdditional(nbt);
     }
 

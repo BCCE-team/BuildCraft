@@ -6,7 +6,9 @@
 
 package buildcraft.lib.tile.item;
 
+import buildcraft.lib.platform.storage.ItemStorage;
+
 import net.neoforged.neoforge.items.IItemHandler;
 
 /** A form of {@link IItemHandler} that provides insertion-checking functionality via {@link StackInsertionChecker} */
-public interface IItemHandlerAdv extends IItemHandler, StackInsertionChecker {}
+public interface IItemHandlerAdv extends IItemHandler, ItemStorage, StackInsertionChecker {}

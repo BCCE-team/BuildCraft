@@ -85,8 +85,8 @@ public interface ISchematicBlock extends SnapshotElement {
     boolean build(Level world, BlockPos blockPos);
 
     /**
-     * Places this schematic block as an automated player action. Implementations that do not need an actor keep
-     * their historical behaviour through the default bridge.
+     * Places this schematic block as an automated player action. Implementations that do not need an actor use
+     * the actor-independent build path through the default bridge.
      */
     default boolean build(Level world, BlockPos blockPos, @Nullable Player actor) {
         return build(world, blockPos);

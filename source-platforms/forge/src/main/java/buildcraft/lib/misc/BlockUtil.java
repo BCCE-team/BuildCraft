@@ -6,6 +6,7 @@
 
 package buildcraft.lib.misc;
 
+import buildcraft.lib.platform.permission.PlatformWorldActions;
 import buildcraft.api.v2.energy.MjAmount;
 
 import java.util.ArrayList;
@@ -66,11 +67,6 @@ import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.common.util.BlockSnapshot;
-import net.minecraftforge.common.util.FakePlayer;
-import net.minecraftforge.event.ForgeEventFactory;
-import net.minecraftforge.event.level.BlockEvent.BreakEvent;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidType;
 import net.minecraftforge.fluids.IFluidBlock;
@@ -91,8 +87,7 @@ public final class BlockUtil {
             return null;
         }
 
-        // Use the (old) method as not all mods have converted to the new one
-        // (and the old method calls the new one internally)
+        // Use Block.getDrops with block-entity context so mod-defined loot hooks remain compatible.
         List<ItemStack> drops = Block.getDrops(state, world, pos, world.getBlockEntity(pos));
         NonNullList<ItemStack> returnList = NonNullList.create();
         returnList.addAll(drops);
@@ -121,11 +116,7 @@ public final class BlockUtil {
      * owner's fake player may alter the target position.
      */
     public static boolean canBreakBlock(ServerLevel world, BlockPos pos, Player actor) {
-        if (actor == null || world.getBlockState(pos).isAir()) {
-            return false;
-        }
-        BreakEvent breakEvent = new BreakEvent(world, pos, world.getBlockState(pos), actor);
-        return !MinecraftForge.EVENT_BUS.post(breakEvent);
+        return PlatformWorldActions.canBreakBlock(world, pos, actor);
     }
 
     /**
@@ -134,65 +125,53 @@ public final class BlockUtil {
      */
     public static boolean placeBlock(Level level, BlockPos pos, BlockState state, @Nullable Player actor,
                                      Direction placedAgainst, int flags) {
-        if (!(level instanceof ServerLevel serverLevel)) {
-            return level.setBlock(pos, state, flags);
-        }
-        Player placementActor = actor != null
-                ? actor
-                : buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer(serverLevel, FakePlayerProvider.NULL_PROFILE, pos);
-        BlockSnapshot snapshot = BlockSnapshot.create(serverLevel.dimension(), serverLevel, pos);
-        if (!serverLevel.setBlock(pos, state, flags)) {
-            return false;
-        }
-        if (ForgeEventFactory.onBlockPlace(placementActor, snapshot, placedAgainst)) {
-            snapshot.restore(true);
-            return false;
-        }
-        return true;
+        return PlatformWorldActions.placeBlock(level, pos, state, actor, placedAgainst, flags);
     }
 
     public static boolean harvestBlock(ServerLevel world, BlockPos pos, @Nonnull ItemStack tool, GameProfile owner) {
-        FakePlayer fakePlayer = getFakePlayerWithTool(world, tool, owner, pos);
-        if (!canBreakBlock(world, pos, fakePlayer)) {
-            return false;
-        }
+        return buildcraft.lib.platform.actor.BCActors.withTool(world, owner, pos, tool, fakePlayer -> {
+            if (!canBreakBlock(world, pos, fakePlayer)) {
+                return false;
+            }
 
-        BlockState state = world.getBlockState(pos);
-        if (!state.getBlock().canHarvestBlock(state, world, pos, fakePlayer)) {
-            return false;
-        }
+            BlockState state = world.getBlockState(pos);
+            if (!state.getBlock().canHarvestBlock(state, world, pos, fakePlayer)) {
+                return false;
+            }
 
-        BlockEntity blockEntity = world.getBlockEntity(pos);
-        state.getBlock().playerWillDestroy(world, pos, state, fakePlayer);
-        if (!world.removeBlock(pos, false)) {
-            return false;
-        }
-        state.getBlock().destroy(world, pos, state);
-        if (!tool.isEmpty()) {
-            tool.mineBlock(world, state, pos, fakePlayer);
-        }
-        state.getBlock().playerDestroy(world, fakePlayer, pos, state, blockEntity, tool);
-        return true;
+            BlockEntity blockEntity = world.getBlockEntity(pos);
+            state.getBlock().playerWillDestroy(world, pos, state, fakePlayer);
+            if (!world.removeBlock(pos, false)) {
+                return false;
+            }
+            state.getBlock().destroy(world, pos, state);
+            if (!tool.isEmpty()) {
+                tool.mineBlock(world, state, pos, fakePlayer);
+            }
+            state.getBlock().playerDestroy(world, fakePlayer, pos, state, blockEntity, tool);
+            return true;
+        });
     }
 
     public static boolean destroyBlock(ServerLevel world, BlockPos pos, @Nonnull ItemStack tool, GameProfile owner) {
-        FakePlayer fakePlayer = getFakePlayerWithTool(world, tool, owner, pos);
-        if (!canBreakBlock(world, pos, fakePlayer)) {
-            return false;
-        }
+        return buildcraft.lib.platform.actor.BCActors.withTool(world, owner, pos, tool, fakePlayer -> {
+            if (!canBreakBlock(world, pos, fakePlayer)) {
+                return false;
+            }
 
-        world.destroyBlock(pos, true);
+            world.destroyBlock(pos, true);
 
-        return true;
+            return true;
+        });
     }
 
-    public static FakePlayer getFakePlayerWithTool(ServerLevel world, @Nonnull ItemStack tool, GameProfile owner) {
+    public static ServerPlayer getFakePlayerWithTool(ServerLevel world, @Nonnull ItemStack tool, GameProfile owner) {
         return getFakePlayerWithTool(world, tool, owner, BlockPos.ZERO);
     }
 
-    public static FakePlayer getFakePlayerWithTool(ServerLevel world, @Nonnull ItemStack tool, GameProfile owner,
+    public static ServerPlayer getFakePlayerWithTool(ServerLevel world, @Nonnull ItemStack tool, GameProfile owner,
                                                    BlockPos pos) {
-        FakePlayer player = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer(world, owner, pos);
+        ServerPlayer player = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer(world, owner, pos);
         int i = 0;
 
         while (player.getItemInHand(InteractionHand.MAIN_HAND) != tool && i < 9) {
@@ -209,7 +188,7 @@ public final class BlockUtil {
 
     public static boolean breakBlock(ServerLevel world, BlockPos pos, NonNullList<ItemStack> drops, BlockPos ownerPos,
                                      GameProfile owner) {
-        FakePlayer fakePlayer = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer(world, owner, ownerPos);
+        ServerPlayer fakePlayer = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer(world, owner, ownerPos);
         if (!canBreakBlock(world, pos, fakePlayer)) {
             return false;
         }

@@ -6,6 +6,7 @@
 
 package buildcraft.lib.client.render.fluid;
 
+import buildcraft.lib.platform.client.ClientAtlas;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,7 +39,6 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.event.TextureStitchEvent;
 import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.IFluidTank;
@@ -74,7 +74,7 @@ public class FluidRenderer {
     }
 
     /** Refreshes all fluid sprites after the 1.20 block atlas has been uploaded. */
-    public static void onTextureStitchPost(TextureStitchEvent.Post event) {
+    public static void onTextureStitchPost(ClientAtlas.After event) {
         if (!InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
             return;
         }
@@ -93,7 +93,7 @@ public class FluidRenderer {
             fluidSprites.get(FluidSpriteType.STILL).put(key, stillSprite);
             fluidSprites.get(FluidSpriteType.FLOWING).put(key, blockTexMap.apply(flowing));
 
-            // Forge removed TextureStitchEvent.Pre in 1.20, so dynamically injecting a generated frozen sprite into
+            // Forge removed ClientAtlas.Before in 1.20, so dynamically injecting a generated frozen sprite into
             // the block atlas is no longer supported. The frozen renderer still uses its repeated UV mapping, backed
             // by the fluid's still sprite, which preserves the visual contract without private resource-manager hacks.
             fluidSprites.get(FluidSpriteType.FROZEN).put(key, stillSprite);

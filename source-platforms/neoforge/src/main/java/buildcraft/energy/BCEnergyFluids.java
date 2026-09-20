@@ -1,5 +1,8 @@
 package buildcraft.energy;
 
+import buildcraft.lib.platform.registry.RegistryBinding;
+import buildcraft.lib.platform.registry.BCRegistryEntry;
+import buildcraft.lib.platform.registry.BCDeferredRegister;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -16,7 +19,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.Rarity;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.Fluid;
@@ -25,8 +27,6 @@ import net.minecraft.world.level.material.PushReaction;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.fluids.BaseFlowingFluid;
 import net.neoforged.neoforge.fluids.FluidType;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 public final class BCEnergyFluids {
@@ -63,14 +63,14 @@ public final class BCEnergyFluids {
         { 300, 500, 0, 10, 0xFA_F6_30, 0xE0_D9_00, 0, 100, 250 }
     };
 
-    public static final List<DeferredHolder<FluidType, BCFluidType>> OIL_TYPE = new ArrayList<>();
-    public static final List<DeferredHolder<Fluid, BCFluid>> OIL_SOURCE = new ArrayList<>();
-    public static final List<DeferredHolder<Item, BucketItem>> OIL_BUCKET = new ArrayList<>();
-    public static final List<DeferredHolder<Block, LiquidBlock>> OIL_BLOCK = new ArrayList<>();
+    public static final List<BCRegistryEntry<BCFluidType>> OIL_TYPE = new ArrayList<>();
+    public static final List<BCRegistryEntry<BCFluid>> OIL_SOURCE = new ArrayList<>();
+    public static final List<BCRegistryEntry<BucketItem>> OIL_BUCKET = new ArrayList<>();
+    public static final List<BCRegistryEntry<LiquidBlock>> OIL_BLOCK = new ArrayList<>();
 
-    public static final DeferredRegister<Fluid> FLUIDS = DeferredRegister.create(Registries.FLUID, BCEnergy.MODID);
-    public static final DeferredRegister<FluidType> FLUID_TYPES =
-        DeferredRegister.create(NeoForgeRegistries.FLUID_TYPES, BCEnergy.MODID);
+    public static final BCDeferredRegister<Fluid> FLUIDS = BCDeferredRegister.create("minecraft:fluid", BCEnergy.MODID);
+    public static final BCDeferredRegister<FluidType> FLUID_TYPES =
+        BCDeferredRegister.create(NeoForgeRegistries.Keys.FLUID_TYPES, BCEnergy.MODID);
 
     public static final TagKey<Fluid> IS_OIL = TagKey.create(
         Registries.FLUID, ResourceLocation.fromNamespaceAndPath(BCEnergy.MODID, "is_oil")
@@ -89,8 +89,8 @@ public final class BCEnergyFluids {
 
     public static void registry(IEventBus bus) {
         registryFluid();
-        FLUID_TYPES.register(bus);
-        FLUIDS.register(bus);
+        RegistryBinding.register(FLUID_TYPES, bus);
+        RegistryBinding.register(FLUIDS, bus);
     }
 
     public static void init() {
@@ -130,7 +130,7 @@ public final class BCEnergyFluids {
 
     public static List<ItemStack> getCreativeTabItems() {
         List<ItemStack> items = new ArrayList<>(OIL_BUCKET.size());
-        for (DeferredHolder<Item, BucketItem> bucket : OIL_BUCKET) {
+        for (BCRegistryEntry<BucketItem> bucket : OIL_BUCKET) {
             items.add(bucket.get().getDefaultInstance());
         }
         return items;
@@ -162,7 +162,7 @@ public final class BCEnergyFluids {
         int tint = 0xFFFFFFFF;
         String texture = BCEnergy.MODID + ":blocks/fluids/" + name + "/" + HEAT_NAMES[heat];
 
-        DeferredHolder<FluidType, BCFluidType> type = FLUID_TYPES.register(fullName, () -> new BCFluidType(
+        BCRegistryEntry<BCFluidType> type = FLUID_TYPES.register(fullName, () -> new BCFluidType(
             FluidType.Properties.create()
                 .canSwim(false)
                 .density(boilAdjustedDensity)
@@ -178,11 +178,11 @@ public final class BCEnergyFluids {
         Supplier<BCFluid> source = () -> refs.source.get();
         Supplier<BCFluid> flowing = () -> refs.flowing.get();
 
-        DeferredHolder<Item, BucketItem> bucket = BCEnergy.ITEMS.register(
+        BCRegistryEntry<BucketItem> bucket = BCEnergy.ITEMS.register(
             name + "/" + HEAT_NAMES[heat] + "_bucket",
             () -> new BucketItem(source.get(), new Item.Properties().stacksTo(1).craftRemainder(Items.BUCKET))
         );
-        DeferredHolder<Block, LiquidBlock> block = BCEnergyBlocks.BLOCKS.register(fullName, () -> new BCLiquidBlock(
+        BCRegistryEntry<LiquidBlock> block = BCEnergyBlocks.BLOCKS.register(fullName, () -> new BCLiquidBlock(
             source.get(),
             BlockBehaviour.Properties.of()
                 .mapColor(MapColor.COLOR_BLACK)
@@ -212,7 +212,7 @@ public final class BCEnergyFluids {
     }
 
     private static final class FluidReferences {
-        private DeferredHolder<Fluid, BCFluid> source;
-        private DeferredHolder<Fluid, BCFluid> flowing;
+        private BCRegistryEntry<BCFluid> source;
+        private BCRegistryEntry<BCFluid> flowing;
     }
 }

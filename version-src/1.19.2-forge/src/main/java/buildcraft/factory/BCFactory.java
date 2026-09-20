@@ -1,5 +1,8 @@
 package buildcraft.factory;
 
+import buildcraft.factory.BCFactoryClientRenderers;
+import buildcraft.lib.platform.client.PlatformClientRegistration;
+import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.factory.client.render.RenderDistiller;
 import buildcraft.factory.client.render.RenderHeatExchange;
 import buildcraft.factory.client.render.RenderMiningWell;
@@ -32,13 +35,13 @@ public class BCFactory
         modEventBus.addListener(this::init);
         modEventBus.addListener(this::postInit);*/
 //        modEventBus.addListener(this::gatherData);//DataGenerator
-        BCFactoryBlocks.registry(modEventBus);
-        BCFactoryItems.registry(modEventBus);
-        BCFactoryGuis.registry(modEventBus);
+        BCFactoryBlocks.registry(RegistryBinding.on(modEventBus));
+        BCFactoryItems.registry(RegistryBinding.on(modEventBus));
+        BCFactoryGuis.registry(RegistryBinding.on(modEventBus));
         MinecraftForge.EVENT_BUS.register(this);
         vaildID();
     }
-    
+
     public void gatherData(GatherDataEvent event) {
         event.getGenerator().addProvider(
             event.includeServer(),
@@ -47,11 +50,11 @@ public class BCFactory
     }
 
     @SuppressWarnings("unused")
-	private void vaildID() {
-    	int i0 = TileTank.NET_FLUID_DELTA;
-    	int i1 = TileDistiller.NET_TANK_GAS_OUT;
-    	int i2 = TileDistiller.NET_TANK_IN;
-    	int i3 = TileDistiller.NET_TANK_LIQUID_OUT;
+    private void vaildID() {
+        int i0 = TileTank.NET_FLUID_DELTA;
+        int i1 = TileDistiller.NET_TANK_GAS_OUT;
+        int i2 = TileDistiller.NET_TANK_IN;
+        int i3 = TileDistiller.NET_TANK_LIQUID_OUT;
     }
 
     @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
@@ -60,28 +63,24 @@ public class BCFactory
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event)
         {
-            BCFactoryClientGuis.clientInit(event);
-        	BCFactorySprites.init();
-        	BCFactoryModels.init();
+            PlatformClientRegistration.screens(event, BCFactoryClientGuis::clientInit);
+            BCFactorySprites.init();
+            BCFactoryModels.init();
         }
-        
+
         @SubscribeEvent
-        public static void registryRender(EntityRenderersEvent.RegisterRenderers e) {
-        	e.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKTANK.get(), RenderTank::new);
-        	e.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKPUMP.get(), RenderPump::new);
-        	e.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKMININGWELL.get(), RenderMiningWell::new);
-        	e.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKDISTILLER.get(), RenderDistiller::new);
-        	e.registerBlockEntityRenderer(BCFactoryBlocks.ENTITYBLOCKHEATEXCHANGE.get(), RenderHeatExchange::new);
-        }
-        
+    public static void registryRender(EntityRenderersEvent.RegisterRenderers e) {
+        BCFactoryClientRenderers.register(PlatformClientRegistration.renderers(e));
+    }
+
         @SubscribeEvent
         public static void registrtTexture(Pre e){
-        	if("textures/atlas/blocks.png".equals(e.getAtlas().location().getPath())) {
-        		BCFactorySprites.registrtTexture(e);
-        	}
+            if("textures/atlas/blocks.png".equals(e.getAtlas().location().getPath())) {
+                BCFactorySprites.registrtTexture(PlatformClientRegistration.atlas(e));
+            }
         }
     }
 
-    
+
 
 }

@@ -13,7 +13,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.common.Tags;
 import net.neoforged.neoforge.common.ItemAbilities;
 
-/** BuildCraft 7.1.x miner board port. Fetches a pickaxe and mines reachable ore blocks in the work zone. */
+/** Miner board that fetches a pickaxe and mines reachable ore blocks in the work zone. */
 public class BoardRobotMiner extends BoardRobotGenericBreakBlock {
     public BoardRobotMiner(EntityRobotBase robot) {
         super(robot);
@@ -49,7 +49,7 @@ public class BoardRobotMiner extends BoardRobotGenericBreakBlock {
     }
 
     private static boolean isOre(BlockState state) {
-        // Forge ore tags preserve the old OreDictionary "ore*" intent and keep modded ores compatible.
+        // Forge ore tags preserve OreDictionary-style "ore*" matching and keep modded ores compatible.
         return state.is(Tags.Blocks.ORES) || state.is(BlockTags.COAL_ORES) || state.is(BlockTags.IRON_ORES)
                 || state.is(BlockTags.COPPER_ORES) || state.is(BlockTags.GOLD_ORES) || state.is(BlockTags.REDSTONE_ORES)
                 || state.is(BlockTags.EMERALD_ORES) || state.is(BlockTags.LAPIS_ORES) || state.is(BlockTags.DIAMOND_ORES);

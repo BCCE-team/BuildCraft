@@ -1,14 +1,10 @@
+//? source if >=1.21.1
 package buildcraft.lib.gui;
 
 import org.lwjgl.opengl.GL11;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraft.client.gui.GuiGraphics;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import org.joml.Matrix4f;
 
 import buildcraft.lib.internal.core.render.ISprite;
@@ -16,9 +12,9 @@ import buildcraft.lib.client.sprite.SpriteRaw;
 import buildcraft.lib.gui.pos.GuiRectangle;
 import buildcraft.lib.gui.pos.IGuiArea;
 import buildcraft.lib.gui.pos.IGuiPosition;
-import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
+import buildcraft.lib.compat.RenderCompat;
 
 public class GuiIcon implements ISimpleDrawable{
     public final ISprite sprite;
@@ -32,11 +28,11 @@ public class GuiIcon implements ISimpleDrawable{
         this.height = (int) (Math.abs(sprite.getInterpV(1) - sprite.getInterpV(0)) * textureSize);
     }
 
-    public GuiIcon(ResourceLocation texture, double u, double v, double width, double height, int texSize) {
+    public GuiIcon(Identifier texture, double u, double v, double width, double height, int texSize) {
         this(new SpriteRaw(texture, u, v, width, height, texSize), texSize);
     }
 
-    public GuiIcon(ResourceLocation texture, double u, double v, double width, double height) {
+    public GuiIcon(Identifier texture, double u, double v, double width, double height) {
         this(texture, u, v, width, height, 256);
     }
 
@@ -52,10 +48,9 @@ public class GuiIcon implements ISimpleDrawable{
     }
 
     public DynamicTexture createDynamicTexture(int scale) {
-        return new DynamicTexture(width * scale, height * scale, false);
+        return RenderCompat.newDynamicTexture(width * scale, height * scale, false);
     }
 
-    @Override
     public void drawAt(GuiGraphics guiGraphics, double x, double y) {
         this.drawScaledInside(guiGraphics, x, y, this.width, this.height);
     }
@@ -65,7 +60,7 @@ public class GuiIcon implements ISimpleDrawable{
     }
 
     public void drawScaledInside(GuiGraphics guiGraphics, double x, double y, double drawnWidth, double drawnHeight) {
-        draw(guiGraphics, sprite, x, y, x + drawnWidth, y + drawnHeight);
+        draw(guiGraphics, sprite, x, y, x + drawnWidth, y + drawnHeight, textureSize);
     }
 
     public void drawCustomQuad(double x1, double y1, double x2, double y2, double x3, double y3, double x4, double y4) {
@@ -135,32 +130,12 @@ public class GuiIcon implements ISimpleDrawable{
     }
 
     public void drawCutInside(GuiGraphics guiGraphics, double x, double y, double displayWidth, double displayHeight) {
-    	Matrix4f matrix4f = guiGraphics.pose().last().pose();
-        sprite.bindTexture();
-
         displayWidth = Math.min(this.width, displayWidth);
         displayHeight = Math.min(this.height, displayHeight);
 
-        double xMin = x;
-        double yMin = y;
-
-        double xMax = x + displayWidth;
-        double yMax = y + displayHeight;
-
-        float uMin = sprite.getInterpU(0);
-        float vMin = sprite.getInterpV(0);
-
-        float uMax = sprite.getInterpU(displayWidth / width);
-        float vMax = sprite.getInterpV(displayHeight / height);
-
-        BufferBuilder vb = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-
-        vertex(matrix4f, vb, xMin, yMax, uMin, vMax);
-        vertex(matrix4f, vb, xMax, yMax, uMax, vMax);
-        vertex(matrix4f, vb, xMax, yMin, uMax, vMin);
-        vertex(matrix4f, vb, xMin, yMin, uMin, vMin);
-
-        BufferUploader.drawWithShader(vb.buildOrThrow());
+        double uMax = width == 0 ? 1 : displayWidth / width;
+        double vMax = height == 0 ? 1 : displayHeight / height;
+        drawSprite(guiGraphics, sprite, x, y, x + displayWidth, y + displayHeight, 0, 0, uMax, vMax, textureSize);
     }
 
     public static void drawAt(GuiGraphics guiGraphics, ISprite sprite, double x, double y, double size) {
@@ -172,24 +147,17 @@ public class GuiIcon implements ISimpleDrawable{
     }
 
     public static void draw(GuiGraphics guiGraphics, ISprite sprite, double xMin, double yMin, double xMax, double yMax) {
-    	Matrix4f matrix4f = guiGraphics.pose().last().pose();
-        sprite.bindTexture();
+        draw(guiGraphics, sprite, xMin, yMin, xMax, yMax, 256);
+    }
 
-        float uMin = sprite.getInterpU(0);
-        float vMin = sprite.getInterpV(0);
+    private static void draw(GuiGraphics guiGraphics, ISprite sprite, double xMin, double yMin, double xMax, double yMax, int textureSize) {
+        drawSprite(guiGraphics, sprite, xMin, yMin, xMax, yMax, 0, 0, 1, 1, textureSize);
+    }
 
-        float uMax = sprite.getInterpU(1);
-        float vMax = sprite.getInterpV(1);
-
-        RenderSystem.setShader(GameRenderer::getPositionTexShader);
-        BufferBuilder vb = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-
-        vertex(matrix4f, vb, xMin, yMax, uMin, vMax);
-        vertex(matrix4f, vb, xMax, yMax, uMax, vMax);
-        vertex(matrix4f, vb, xMax, yMin, uMax, vMin);
-        vertex(matrix4f, vb, xMin, yMin, uMin, vMin);
-
-        BufferUploader.drawWithShader(vb.buildOrThrow());
+    private static void drawSprite(GuiGraphics guiGraphics, ISprite sprite, double xMin, double yMin, double xMax, double yMax,
+        double spriteUMin, double spriteVMin, double spriteUMax, double spriteVMax, int textureSize) {
+        buildcraft.lib.client.sprite.GuiSpriteRender121111.draw(guiGraphics, sprite,
+            xMin, yMin, xMax, yMax, spriteUMin, spriteVMin, spriteUMax, spriteVMax, 0xFFFFFFFF);
     }
 
     private static void vertex(Matrix4f m, BufferBuilder vb, double x, double y, float u, float v) {

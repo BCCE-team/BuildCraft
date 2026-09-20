@@ -8,6 +8,8 @@ import buildcraft.api.v2.permission.PermissionDecision;
 import buildcraft.api.v2.permission.WorldOperationKind;
 import buildcraft.builders.BCBuildersBlocks;
 import buildcraft.builders.tile.TileQuarry;
+import buildcraft.builders.internal.schematic.legacy.SchematicBlockContext;
+import buildcraft.builders.snapshot.SchematicBlockDefault;
 import buildcraft.core.BCCoreItems;
 import buildcraft.lib.BCLib;
 import buildcraft.lib.misc.AutomationPermissionUtil;
@@ -48,6 +50,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class PermissionOwnerGameTests {
     private static final String EMPTY_TEMPLATE = "empty3x3x3";
     private static final UUID DENIED_OWNER_ID = UUID.fromString("67ceef18-f3af-47c4-8590-27d68fe65736");
+    private static final UUID PLACEMENT_OWNER_ID = UUID.fromString("21b82fa5-6313-428e-a38a-f81e315a4fe2");
     private static final GameProfile DENIED_OWNER = new GameProfile(DENIED_OWNER_ID, "BCTestDeniedOwner");
     private static final ResourceLocation PROVIDER_ID = id("gametest_owner_denial");
     private static boolean protectionHooksInstalled;
@@ -83,6 +86,46 @@ public final class PermissionOwnerGameTests {
         require(helper, restoredOwner != null, "quarry owner disappeared after NBT round-trip");
         require(helper, DENIED_OWNER_ID.equals(restoredOwner.getId()), "quarry owner UUID changed after NBT round-trip");
         require(helper, DENIED_OWNER.getName().equals(restoredOwner.getName()), "quarry owner name changed after NBT round-trip");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 20)
+    public static void blueprintCopyUsesPlacementActorInsteadOfSourceMachineOwner(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos sourceRelative = new BlockPos(1, 1, 1);
+        BlockPos targetRelative = new BlockPos(2, 1, 1);
+        BlockPos sourcePos = helper.absolutePos(sourceRelative);
+        BlockPos targetPos = helper.absolutePos(targetRelative);
+        helper.setBlock(sourceRelative, BCBuildersBlocks.QUARRY.get().defaultBlockState());
+        helper.setBlock(targetRelative, Blocks.AIR.defaultBlockState());
+
+        BlockEntity sourceEntity = helper.getBlockEntity(sourceRelative);
+        if (!(sourceEntity instanceof TileQuarry sourceQuarry)) {
+            helper.fail("source quarry block did not create TileQuarry");
+            return;
+        }
+        Player sourceOwner = FakePlayerProvider.INSTANCE.getFakePlayer(level, DENIED_OWNER, sourcePos);
+        sourceQuarry.onPlacedBy(sourceOwner, ItemStack.EMPTY);
+
+        BlockState sourceState = level.getBlockState(sourcePos);
+        SchematicBlockDefault schematic = new SchematicBlockDefault();
+        schematic.init(new SchematicBlockContext(level, sourcePos, sourcePos, sourceState, sourceState.getBlock()));
+
+        GameProfile placementOwner = new GameProfile(PLACEMENT_OWNER_ID, "BCTestPlacementOwner");
+        Player actor = FakePlayerProvider.INSTANCE.getFakePlayer(level, placementOwner, targetPos);
+        require(helper, schematic.build(level, targetPos, actor), "copied quarry failed to place");
+
+        BlockEntity placedEntity = level.getBlockEntity(targetPos);
+        if (!(placedEntity instanceof TileQuarry placedQuarry)) {
+            helper.fail("copied quarry did not create TileQuarry");
+            return;
+        }
+        GameProfile placedOwner = placedQuarry.getKnownOwner();
+        require(helper, placedOwner != null, "copied quarry has no placement owner");
+        require(helper, PLACEMENT_OWNER_ID.equals(placedOwner.getId()),
+            "copied quarry cloned the source owner instead of using the placement actor");
+        require(helper, !DENIED_OWNER_ID.equals(placedOwner.getId()),
+            "source quarry owner leaked through copied block NBT");
         helper.succeed();
     }
 

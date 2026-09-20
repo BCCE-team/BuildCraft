@@ -3,6 +3,8 @@
  */
 package buildcraft.robotics.tile;
 
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import net.minecraft.core.HolderLookup;
 import java.io.IOException;
 import java.util.List;
@@ -44,9 +46,9 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.neoforged.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCPacketContext;
 
 public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, MenuProvider {
     public static final int MAX_MAP_NAME_LENGTH = 64;
@@ -226,9 +228,9 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER && id == NET_RENDER_DATA) {
+        if (side == BCNetworkSide.SERVER && id == NET_RENDER_DATA) {
             buffer.writeUtf(mapName, MAX_MAP_NAME_LENGTH);
             buffer.writeByte(currentSelectedArea);
             for (ZonePlan layer : layers) {
@@ -238,9 +240,9 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT && id == NET_RENDER_DATA) {
+        if (side == BCNetworkSide.CLIENT && id == NET_RENDER_DATA) {
             mapName = buffer.readUtf(MAX_MAP_NAME_LENGTH);
             currentSelectedArea = buffer.readUnsignedByte();
             for (int i = 0; i < layers.length; i++) {
@@ -250,11 +252,11 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
-        progress = nbt.getInt("progress");
-        mapName = nbt.getString("name");
-        currentSelectedArea = nbt.getInt("currentSelectedArea");
+    protected void readData(BCValueInput bcData) {
+        super.readData(bcData);
+        progress = bcData.readInt("progress");
+        mapName = bcData.readString("name");
+        currentSelectedArea = bcData.readInt("currentSelectedArea");
         if (currentSelectedArea < 0 || currentSelectedArea >= layers.length) {
             currentSelectedArea = 0;
         }
@@ -262,20 +264,21 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
             mapName = "";
         }
         for (int i = 0; i < layers.length; i++) {
-            layers[i].readFromNBT(nbt.getCompound("selectedArea[" + i + "]"));
-            if (layers[i].getChunkPoses().isEmpty() && nbt.contains("layer_" + i)) {
-                // Compatibility with the first, BC8-inspired Zone Planner port.
-                layers[i].readFromNBT(nbt.getCompound("layer_" + i));
+            layers[i].readFromNBT(bcData.readCompound("selectedArea[" + i + "]"));
+            if (layers[i].getChunkPoses().isEmpty() && bcData.has("layer_" + i)) {
+                // Compatibility with BC8-style Zone Planner layer keys in existing saves.
+                layers[i].readFromNBT(bcData.readCompound("layer_" + i));
             }
         }
     }
 
     @Override
-    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
-        nbt.putInt("progress", progress);
-        nbt.putString("name", mapName);
-        nbt.putInt("currentSelectedArea", currentSelectedArea);
+    protected void writeData(BCValueOutput bcData) {
+        CompoundTag nbt = bcData.tag();
+        super.writeData(bcData);
+        bcData.writeInt("progress", progress);
+        bcData.writeString("name", mapName);
+        bcData.writeInt("currentSelectedArea", currentSelectedArea);
         for (int i = 0; i < layers.length; i++) {
             CompoundTag layerTag = new CompoundTag();
             (layers[i] == null ? new ZonePlan() : layers[i]).writeToNBT(layerTag);

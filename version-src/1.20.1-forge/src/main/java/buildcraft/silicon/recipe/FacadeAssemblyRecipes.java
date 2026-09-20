@@ -74,7 +74,7 @@ public class FacadeAssemblyRecipes extends AssemblyRecipeBasic implements IRecip
             return new ChangingItemStack[0];
         }
         ChangingItemStack[] inputs = new ChangingItemStack[2];
-        inputs[0] = new ChangingItemStack(baseRequirementStack());//TODO
+        inputs[0] = new ChangingItemStack(baseRequirementStack());
         NonNullList<ItemStack> list = NonNullList.create();
         for (FacadeBlockStateInfo info : FacadeStateManager.validFacadeStates.values()) {
             if (info.isVisible) {

@@ -10,9 +10,8 @@ import java.util.Objects;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Internal bridge from the legacy BCCE machine implementations to their authoritative API 2
- * archetype definitions. This keeps defaults in one public definition while the block-entity
- * migration is performed incrementally.
+ * Internal bridge from BCCE machine implementations to their authoritative API 2
+ * archetype definitions. Defaults remain centralized in the public machine definitions.
  */
 public final class MachineDefinitionLookup {
     private MachineDefinitionLookup() {}

@@ -104,8 +104,8 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.network.NetworkEvent;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 
 
@@ -239,8 +239,8 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
 
     @Nonnull
     private BoxIterator createBoxIterator() {
-        // BlockPos already provides a stable 64-bit packing of all three coordinates.
-        // The previous int-based shift by 32 discarded Z and caused many quarries to share a seed.
+        // BlockPos provides a stable 64-bit packing of all three coordinates, giving each quarry position a
+        // deterministic seed that includes X, Y and Z.
         Random rand = new Random(getBlockPos().asLong());
         EnumAxisOrder axisOrder = rand.nextBoolean() ? EnumAxisOrder.XZY : EnumAxisOrder.ZXY;
         AxisOrder.Inversion inv = AxisOrder.Inversion.getFor(rand.nextBoolean(), rand.nextBoolean(), false);
@@ -1297,9 +1297,9 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     }
 
     @Override
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
-        if (side == LogicalSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
                 frameBox.writeData(buffer);
                 miningBox.writeData(buffer);
@@ -1322,9 +1322,9 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     }
 
     @Override
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side, NetworkEvent.Context ctx) throws IOException {
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
-        if (side == LogicalSide.CLIENT) {
+        if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 frameBox.readData(buffer);
                 miningBox.readData(buffer);
@@ -1485,8 +1485,8 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
 
         void readFromNBT(CompoundTag nbt) {
             power = Math.max(0, nbt.getLong("power"));
-            // Older saves only tracked effective progress. Treat it as the refundable floor rather than inventing
-            // more energy; new saves persist the exact physical withdrawal.
+            // Save data without reservedPower tracks only effective progress. Use it as the refundable floor rather than
+            // inventing energy; reservedPower records the exact physical withdrawal when present.
             reservedPower = Math.max(0, nbt.contains("reservedPower") ? nbt.getLong("reservedPower") : power);
         }
 

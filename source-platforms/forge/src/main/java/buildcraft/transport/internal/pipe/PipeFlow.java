@@ -22,7 +22,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fml.LogicalSide;
+import buildcraft.lib.net.BCNetworkSide;
 
 public abstract class PipeFlow implements ICapabilityProvider {
     /** The ID for completely refreshing the state of this flow. */
@@ -46,14 +46,14 @@ public abstract class PipeFlow implements ICapabilityProvider {
     }
 
     /** Writes a payload with the specified id. Standard ID's are NET_ID_FULL_STATE and NET_ID_UPDATE. */
-    public void writePayload(int id, FriendlyByteBuf buffer, LogicalSide side) {}
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {}
 
     /** Reads a payload with the specified id. Standard ID's are NET_ID_FULL_STATE and NET_ID_UPDATE. */
-    public void readPayload(int id, FriendlyByteBuf buffer, LogicalSide side) throws IOException {}
+    public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) throws IOException {}
 
     public void sendPayload(int id) {
         @SuppressWarnings("resource")
-		final LogicalSide side = pipe.getHolder().getPipeWorld().isClientSide ? LogicalSide.CLIENT : LogicalSide.SERVER;
+		final BCNetworkSide side = pipe.getHolder().getPipeWorld().isClientSide ? BCNetworkSide.CLIENT : BCNetworkSide.SERVER;
         sendCustomPayload(id, (buf) -> writePayload(id, buf, side));
     }
 

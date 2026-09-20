@@ -26,12 +26,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
-import net.neoforged.fml.LogicalSide;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 
 /**
  * Tank menu.
@@ -113,8 +111,8 @@ public class ContainerTank extends ContainerBCTile<TileTank> {
     }
 
     @Override
-    public void readMessage(int id, FriendlyByteBuf buffer, LogicalSide side, IPayloadContext ctx) throws IOException {
-        if (side == LogicalSide.CLIENT && id == NET_TANK_STATE) {
+    public void readMessage(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
+        if (side == BCNetworkSide.CLIENT && id == NET_TANK_STATE) {
             updateLocalState(buffer.readVarInt(), buffer.readInt(), buffer.readInt());
             return;
         }
@@ -192,8 +190,6 @@ public class ContainerTank extends ContainerBCTile<TileTank> {
     public int getTankCapacity() {
         return syncedCapacity;
     }
-
-    @OnlyIn(Dist.CLIENT)
     public Fluid getFluid() {
         Fluid fluid = BuiltInRegistries.FLUID.byId(syncedFluidId);
         return fluid == null ? Fluids.EMPTY : fluid;

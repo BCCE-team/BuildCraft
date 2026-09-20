@@ -1,0 +1,318 @@
+/* Copyright (c) 2016 SpaceToad and the BuildCraft team
+ * 
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+package buildcraft.factory.gui;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.mojang.blaze3d.systems.RenderSystem;
+
+import buildcraft.lib.internal.debug.BCLog;
+import buildcraft.factory.container.ContainerAutoCraftItems;
+import buildcraft.lib.gui.GuiBC8;
+import buildcraft.lib.gui.GuiIcon;
+import buildcraft.lib.gui.ledger.LedgerHelp;
+import buildcraft.lib.gui.pos.GuiRectangle;
+import buildcraft.lib.gui.recipe.GuiRecipeBookPhantom;
+import buildcraft.lib.gui.slot.SlotBase;
+import buildcraft.lib.gui.slot.SlotDisplay;
+import buildcraft.lib.misc.StackUtil;
+import buildcraft.lib.tile.craft.WorkbenchCrafting;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.ImageButton;
+import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
+import net.minecraft.client.gui.screens.recipebook.RecipeUpdateListener;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.ShapedRecipe;
+import buildcraft.lib.gui.help.GuiHelpUtil;
+
+public class GuiAutoCraftItems extends GuiBC8<ContainerAutoCraftItems> implements RecipeUpdateListener {
+    private static final ResourceLocation TEXTURE_BASE =
+        ResourceLocation.parse("buildcraftfactory:textures/gui/autobench_item.png");
+    private static final ResourceLocation TEXTURE_MISC =
+        ResourceLocation.parse("buildcraftlib:textures/gui/misc_slots.png");
+    private static final int SIZE_X = 176, SIZE_Y = 197;
+    private static final GuiIcon ICON_GUI = new GuiIcon(TEXTURE_BASE, 0, 0, SIZE_X, SIZE_Y);
+    private static final GuiIcon ICON_FILTER_OVERLAY_SAME = new GuiIcon(TEXTURE_MISC, 54, 0, 18, 18);
+    private static final GuiIcon ICON_FILTER_OVERLAY_DIFFERENT = new GuiIcon(TEXTURE_MISC, 72, 0, 18, 18);
+    private static final GuiIcon ICON_FILTER_OVERLAY_SIMILAR = new GuiIcon(TEXTURE_MISC, 90, 0, 18, 18);
+    private static final GuiIcon ICON_PROGRESS = new GuiIcon(TEXTURE_BASE, SIZE_X, 0, 23, 10);
+    private static final GuiRectangle RECT_PROGRESS = new GuiRectangle(90, 47, 23, 10);
+
+    private final GuiRecipeBookPhantom recipeBook;
+    /** If true then the recipe book will be drawn on top of this GUI, rather than beside it */
+    private boolean widthTooNarrow;
+    private ImageButton recipeButton;
+
+    public GuiAutoCraftItems(ContainerAutoCraftItems container, Inventory inv, Component title) {
+        super(container, inv, title);
+        imageWidth = SIZE_X;
+        imageHeight = SIZE_Y;
+        GuiRecipeBookPhantom book;
+        try {
+            book = new GuiRecipeBookPhantom(this::sendRecipe);
+        } catch (ReflectiveOperationException e) {
+            BCLog.logger.warn("[factory.gui] An exception was thrown while creating the recipe book gui!", e);
+            book = null;
+        }
+        recipeBook = book;
+        mainGui.shownElements.add(new LedgerHelp(mainGui, true));
+        GuiHelpUtil.addSlots(mainGui, 30, 17, 3, 3, "buildcraft.help.autoworkbench.recipe.title", 0xFF_66_AA_FF, "buildcraft.help.autoworkbench.recipe.desc");
+        GuiHelpUtil.addSlots(mainGui, 8, 84, 9, 1, "buildcraft.help.autoworkbench.materials.title", 0xFF_88_CC_88, "buildcraft.help.autoworkbench.materials.desc");
+        GuiHelpUtil.addSlot(mainGui, 124, 35, "buildcraft.help.autoworkbench.result.title", 0xFF_DD_CC_55, "buildcraft.help.autoworkbench.result.desc");
+        GuiHelpUtil.addSlot(mainGui, 93, 27, "buildcraft.help.autoworkbench.preview.title", 0xFF_CC_AA_FF, "buildcraft.help.autoworkbench.preview.desc");
+        GuiHelpUtil.addRoot(mainGui, 90, 47, 23, 10, "buildcraft.help.autoworkbench.progress.title", 0xFF_CC_AA_FF, "buildcraft.help.autoworkbench.progress.desc");
+    }
+
+    private void sendRecipe(Recipe<?> recipe) {
+        List<ItemStack> stacks = new ArrayList<>(9);
+
+        int maxX = recipe instanceof ShapedRecipe shaped ? shaped.getWidth() : 3;
+        int maxY = recipe instanceof ShapedRecipe shaped ? shaped.getHeight() : 3;
+        int offsetX = maxX == 1 ? 1 : 0;
+        int offsetY = maxY == 1 ? 1 : 0;
+        List<Ingredient> ingredients = recipe.getIngredients();
+        if (ingredients.isEmpty()) {
+            return;
+        }
+        for (int y = 0; y < 3; y++) {
+            for (int x = 0; x < 3; x++) {
+                if (x < offsetX || y < offsetY) {
+                    stacks.add(ItemStack.EMPTY);
+                    continue;
+                }
+                int i = x - offsetX + (y - offsetY) * maxX;
+                if (i >= ingredients.size() || x - offsetX >= maxX) {
+                    stacks.add(ItemStack.EMPTY);
+                } else {
+                    Ingredient ing = ingredients.get(i);
+                    ItemStack[] matching = ing.getItems();
+                    if (matching.length >= 1) {
+                        stacks.add(matching[0]);
+                    } else {
+                        stacks.add(ItemStack.EMPTY);
+                    }
+                }
+            }
+        }
+
+        container.sendSetPhantomSlots(container.blueprintInv, stacks);
+    }
+
+    @Override
+    protected boolean shouldAddHelpLedger() {
+        // Don't add it on the left side because it clashes with the recipe book
+        return false;
+    }
+
+    @Override
+    public void init() {
+        super.init();
+        widthTooNarrow = this.width < SIZE_X + 176;
+        if (recipeBook != null) {
+        	WorkbenchCrafting invCraft = container.tile.getWorkbenchCrafting();
+            recipeBook.init(width, height, minecraft, widthTooNarrow, invCraft.getCraftingMenu(menu, container.materialInv));
+            leftPos = recipeBook.updateScreenPosition(width, imageWidth);
+            recipeButton = new ImageButton(
+                leftPos + 5, height / 2 - 66, 20, 18,
+                RecipeBookComponent.RECIPE_BUTTON_SPRITES, this::onPress
+            );
+            addRenderableWidget(recipeButton);
+        }
+    }
+
+    @Override
+    public void containerTick() {
+        super.containerTick();
+        if (recipeBook != null) {
+            recipeBook.tick();
+        }
+    }
+
+    @Override
+    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
+        if (recipeBook == null) {
+            super.render(guiGraphics, mouseX, mouseY, partialTicks);
+            return;
+        }
+        if (recipeBook.isVisible() && widthTooNarrow) {
+            renderBackground(guiGraphics, mouseX, mouseY, partialTicks);
+            drawBackgroundLayer(guiGraphics.pose(), mouseX, mouseY, partialTicks);
+            recipeBook.render(guiGraphics, mouseX, mouseY, partialTicks);
+            renderTooltip(guiGraphics, mouseX, mouseY);
+        } else {
+            super.render(guiGraphics, mouseX, mouseY, partialTicks);
+            recipeBook.render(guiGraphics, mouseX, mouseY, partialTicks);
+            recipeBook.renderGhostRecipe(guiGraphics, leftPos, topPos, true, partialTicks);
+        }
+
+        recipeBook.renderTooltip(guiGraphics, leftPos, topPos, mouseX, mouseY);
+    }
+
+    @Override
+    protected void drawBackgroundLayer(com.mojang.blaze3d.vertex.PoseStack pose, int mouseX, int mouseY, float partialTicks) {
+        GuiGraphics guiGraphics = getActiveGraphics();
+        ICON_GUI.drawAt(guiGraphics, mainGui.rootElement);
+
+        double progress = container.tile.getProgress(partialTicks);
+
+        drawProgress(guiGraphics, RECT_PROGRESS, ICON_PROGRESS, progress, 1);
+
+        if (hasFilters()) {
+//            RenderSystem.enableGUIStandardItemLighting();
+            forEachFilter((slot, filterStack) -> {
+                int x = slot.x + (int) mainGui.rootElement.getX();
+                int y = slot.y + (int) mainGui.rootElement.getY();
+                guiGraphics.renderItem(filterStack, x, y);
+                guiGraphics.renderItemDecorations(font, filterStack, x, y);
+            });
+//            RenderHelper.disableStandardItemLighting();
+
+            RenderSystem.disableDepthTest();
+            forEachFilter((slot, filterStack) -> {
+                ItemStack real = slot.getItem();
+                final GuiIcon icon;
+                if (real.isEmpty() || StackUtil.canMerge(real, filterStack)) {
+                    icon = ICON_FILTER_OVERLAY_SAME;
+                } else {
+                    icon = ICON_FILTER_OVERLAY_DIFFERENT;
+                }
+                int x = slot.x + (int) mainGui.rootElement.getX();
+                int y = slot.y + (int) mainGui.rootElement.getY();
+                icon.drawAt(guiGraphics, x - 1, y - 1);
+            });
+            RenderSystem.enableDepthTest();
+        }
+    }
+
+    private boolean hasFilters() {
+        SlotBase[] filters = container.filtterSlots;
+        for (int s = 0; s < filters.length; s++) {
+            ItemStack filter = filters[s].getItem();
+            if (!filter.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void forEachFilter(IFilterSlotIterator iter) {
+    	SlotBase[] filters = container.filtterSlots;
+        for (int s = 0; s < filters.length; s++) {
+            ItemStack filter = filters[s].getItem();
+            if (!filter.isEmpty()) {
+                iter.iterate(container.materialSlots[s], filter);
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface IFilterSlotIterator {
+        void iterate(SlotBase drawSlot, ItemStack filterStack);
+    }
+
+    protected void onPress(Button button){
+        if (button == recipeButton && recipeBook != null) {
+            recipeBook.toggleVisibility();
+            leftPos = recipeBook.updateScreenPosition(width, imageWidth);
+            recipeButton.setPosition(this.leftPos + 5, this.height / 2 - 66);
+        }
+    }
+
+    @Override
+	public boolean mouseClicked(double mouseX, double mouseY, int mouseButton){
+        if (recipeBook == null) {
+            return super.mouseClicked(mouseX, mouseY, mouseButton);
+        }
+        if (!recipeBook.mouseClicked(mouseX, mouseY, mouseButton)) {
+            if (!widthTooNarrow || !recipeBook.isVisible()) {
+                return super.mouseClicked(mouseX, mouseY, mouseButton);
+            }
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+	public boolean keyPressed(int a, int b, int c) {
+        if (recipeBook == null) {
+        	return super.keyPressed(a, b, c);
+        }
+        if (!recipeBook.keyPressed(a, b, c)) {
+        	return super.keyPressed(a, b, c);
+        }
+        return true;
+	}
+
+    @Override
+    public boolean charTyped(char codePoint, int modifiers) {
+        if (recipeBook != null && recipeBook.charTyped(codePoint, modifiers)) {
+            return true;
+        }
+        return super.charTyped(codePoint, modifiers);
+    }
+
+	@Override
+    protected void slotClicked(Slot slot, int slotId, int mouseButton, ClickType type) {
+        if (slot instanceof SlotDisplay && container.tile != null && container.tile.getRecipeSelectionCount() > 1
+                && (mouseButton == 0 || mouseButton == 1)) {
+            int button = mouseButton == 1
+                ? ContainerAutoCraftItems.BUTTON_PREVIOUS_RECIPE
+                : ContainerAutoCraftItems.BUTTON_NEXT_RECIPE;
+            minecraft.gameMode.handleInventoryButtonClick(container.containerId, button);
+            return;
+        }
+        super.slotClicked(slot, slotId, mouseButton, type);
+        if (recipeBook != null) {
+            recipeBook.slotClicked(slot);
+        }
+    }
+	
+	@Override
+	protected boolean isHovering(int rectX, int rectY, int rectWidth, int rectHeight, double pointX, double pointY) {
+        if (recipeBook == null) {
+            return super.isHovering(rectX, rectY, rectWidth, rectHeight, pointX, pointY);
+        }
+        return (!widthTooNarrow || !recipeBook.isVisible())
+            && super.isHovering(rectX, rectY, rectWidth, rectHeight, pointX, pointY);
+	}
+
+    @Override
+	protected boolean hasClickedOutside(double mouseX, double mouseY, int _guiLeft, int _guiTop, int p_97761_) {
+        if (recipeBook == null) {
+            return super.hasClickedOutside(mouseX, mouseY, _guiLeft, _guiTop, p_97761_);
+        }
+        boolean flag =
+            mouseX < _guiLeft || mouseY < _guiTop || mouseX >= _guiLeft + imageWidth || mouseY >= _guiTop + imageHeight;
+        return recipeBook.hasClickedOutside(mouseX, mouseY, leftPos, topPos, imageWidth, imageHeight, p_97761_) && flag;
+	}
+
+    @Override
+    public void onClose() {
+        super.onClose();
+    }
+
+    // IRecipeShownListener
+
+    @Override
+    public void recipesUpdated() {
+        if (recipeBook != null) {
+            recipeBook.recipesUpdated();
+        }
+    }
+
+    @Override
+    public RecipeBookComponent getRecipeBookComponent() {
+        return recipeBook;
+    }
+}
