@@ -23,7 +23,6 @@ import buildcraft.lib.net.MessageManager;
 import buildcraft.lib.net.BuildCraftTarget;
 import buildcraft.lib.net.cache.BuildCraftObjectCaches;
 import buildcraft.lib.recipe.BCLibIngredientTypes;
-import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.data.event.GatherDataEvent;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -94,7 +93,6 @@ public class BCLib {
         ExpressionCompat.setup();
         BuildCraftObjectCaches.fmlPreInit();
 
-        NeoForge.EVENT_BUS.register(BCLibEventDist.class);
         BCLibEventDist.registerGameplayEvents();
 
     }

@@ -147,7 +147,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
     @Override
     public boolean canConnect(Direction face, BlockEntity tile) {
         if (tile == null) return false;
-        return PlatformStorage.energy(tile.getLevel(), tile.getBlockPos(), face.getOpposite()) != null;
+        return PlatformStorage.energy(tile, face.getOpposite()) != null;
     }
 
     private void ensureConfigured() {
@@ -173,7 +173,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         if (!isReceiver || disabled || from == null || maxExtracted <= 0) return 0;
         BlockEntity tile = pipe.getConnectedTile(from);
         if (tile == null) return 0;
-        EnergyStorage storage = PlatformStorage.energy(tile.getLevel(), tile.getBlockPos(), from.getOpposite());
+        EnergyStorage storage = PlatformStorage.energy(tile, from.getOpposite());
         if (storage == null || !storage.canExtract()) return 0;
 
         step();

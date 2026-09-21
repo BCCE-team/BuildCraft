@@ -52,10 +52,12 @@ class MinecraftBoundaries(unittest.TestCase):
     def setUpClass(cls):
         cls.temporary = tempfile.TemporaryDirectory(prefix='bc-minecraft-boundaries-')
         cls.roots = {}
+        cls.target_roots = {}
         config = load_properties()
         for target in ('1.21.1-neoforge', '1.21.11-neoforge'):
             root = Path(cls.temporary.name) / target
             materialize_target(target, root, config)
+            cls.target_roots[target] = root
             cls.roots[target] = root / 'src/main/java'
 
     @classmethod
@@ -109,6 +111,31 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertIn('import net.minecraft.resources.Identifier;', current)
         self.assertNotIn('import net.minecraft.resources.ResourceLocation;', current)
         self.assertIn('Identifier TEXTURE_BASE', current)
+
+    def test_gametest_registration_matches_modern_api_generation(self):
+        old_root = self.target_roots['1.21.1-neoforge'] / 'src/gametest/java'
+        current_root = self.target_roots['1.21.11-neoforge'] / 'src/gametest/java'
+
+        old_sources = '\n'.join(path.read_text(encoding='utf-8') for path in old_root.rglob('*.java'))
+        current_sources = '\n'.join(path.read_text(encoding='utf-8') for path in current_root.rglob('*.java'))
+        registry = current_root / 'buildcraft/gametest/BuildCraftGeneratedGameTests.java'
+
+        self.assertIn('import net.minecraft.gametest.framework.GameTest;', old_sources)
+        self.assertIn('@GameTestHolder(', old_sources)
+        self.assertFalse((old_root / 'buildcraft/gametest/BuildCraftGeneratedGameTests.java').exists())
+
+        self.assertNotIn('import net.minecraft.gametest.framework.GameTest;', current_sources)
+        self.assertNotIn('@GameTestHolder(', current_sources)
+        self.assertNotIn('@PrefixGameTestTemplate(', current_sources)
+        self.assertEqual(95, current_sources.count('// bc-gametest-v2:'))
+        self.assertTrue(registry.is_file())
+
+        registry_text = registry.read_text(encoding='utf-8')
+        self.assertEqual(95, registry_text.count('registry.register('))
+        self.assertEqual(95, registry_text.count('event.registerTest('))
+        self.assertIn('BuiltInRegistries.TEST_FUNCTION.key()', registry_text)
+        self.assertIn('new FunctionGameTestInstance(', registry_text)
+        self.assertIn('RegisterGameTestsEvent', registry_text)
 
     def test_new_facades_are_loader_neutral(self):
         root = ROOT / 'source-families/modern/src/main/java/buildcraft/lib/compat/minecraft'

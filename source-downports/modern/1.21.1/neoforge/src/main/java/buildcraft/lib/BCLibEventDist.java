@@ -117,22 +117,24 @@ public class BCLibEventDist {
 
     }
 
-    @SubscribeEvent
-    @OnlyIn(Dist.CLIENT)
-    public static void renderWorldLast(RenderLevelStageEvent event) {
-        if(event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
-            return ;
-        }
-        Minecraft mc = Minecraft.getInstance();
-        Player player = mc.player;
-        if (player == null) return;
-        PoseStack pose = new PoseStack();
-        pose.mulPose(new Matrix4f(event.getModelViewMatrix()));
-        Matrix4f matrix = new Matrix4f(event.getProjectionMatrix());
-        float partialTicks = event.getPartialTick().getGameTimeDeltaPartialTick(false);
+    @EventBusSubscriber(modid = BCLib.MODID, value = Dist.CLIENT)
+    public static class ClientGame {
+        @SubscribeEvent
+        public static void renderWorldLast(RenderLevelStageEvent event) {
+            if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+                return;
+            }
+            Minecraft mc = Minecraft.getInstance();
+            Player player = mc.player;
+            if (player == null) return;
+            PoseStack pose = new PoseStack();
+            pose.mulPose(new Matrix4f(event.getModelViewMatrix()));
+            Matrix4f matrix = new Matrix4f(event.getProjectionMatrix());
+            float partialTicks = event.getPartialTick().getGameTimeDeltaPartialTick(false);
 
-        LaserRenderer_BC8.setupLaserRenderState();
-        DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
+            LaserRenderer_BC8.setupLaserRenderState();
+            DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
+        }
     }
 
 

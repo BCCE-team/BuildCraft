@@ -42,6 +42,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidUtil;
@@ -49,6 +50,7 @@ import net.minecraftforge.fluids.IFluidTank;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandlerItem;
 import net.minecraftforge.fluids.capability.wrappers.FluidBucketWrapper;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 
 /** Provides a useful implementation of a fluid tank that can save + load, and has a few helper functions. Can
  * optionally specify a filter to only allow a limited types of fluids in the tank. */
@@ -97,8 +99,10 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
         this.validator = filter == null ? ((f) -> true) : filter;
         this.name = name;
         this.tile = tile;
-        helpInfo = new ElementHelpInfo("buildcraft.help.tank.title." + name, 0xFF_00_00_00 | name.hashCode(),
-                DEFAULT_HELP_KEY);
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            helpInfo = new ElementHelpInfo("buildcraft.help.tank.title." + name, 0xFF_00_00_00 | name.hashCode(),
+                    DEFAULT_HELP_KEY);
+        }
     }
 
     @Nonnull

@@ -60,6 +60,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
 
+@EventBusSubscriber(modid = BCLib.MODID)
 public class BCLibEventDist {
 
     @EventBusSubscriber(modid = BCLib.MODID, value = Dist.CLIENT)
@@ -117,17 +118,20 @@ public class BCLibEventDist {
 
     }
 
-    @SubscribeEvent
-    public static void renderWorldLast(RenderLevelStageEvent.AfterTranslucentBlocks event) {
-        Minecraft mc = Minecraft.getInstance();
-        Player player = mc.player;
-        if (player == null) return;
-        PoseStack pose = event.getPoseStack();
-        Matrix4f matrix = new Matrix4f(event.getModelViewMatrix());
-        float partialTicks = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+    @EventBusSubscriber(modid = BCLib.MODID, value = Dist.CLIENT)
+    public static class ClientGame {
+        @SubscribeEvent
+        public static void renderWorldLast(RenderLevelStageEvent.AfterTranslucentBlocks event) {
+            Minecraft mc = Minecraft.getInstance();
+            Player player = mc.player;
+            if (player == null) return;
+            PoseStack pose = event.getPoseStack();
+            Matrix4f matrix = new Matrix4f(event.getModelViewMatrix());
+            float partialTicks = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
 
-        LaserRenderer_BC8.setupLaserRenderState();
-        DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
+            LaserRenderer_BC8.setupLaserRenderState();
+            DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
+        }
     }
 
 
