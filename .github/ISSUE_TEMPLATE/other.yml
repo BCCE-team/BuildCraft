@@ -1,6 +1,5 @@
 name: Other
 description: Open an issue that does not fit the bug, crash, or suggestion forms.
-title: ""
 body:
   - type: dropdown
     id: selected-label
@@ -10,14 +9,15 @@ body:
       options:
         - bug
         - crash
+        - documentation
         - duplicate
         - enhancement
         - good first issue
-        - help wanted
+        - help
         - invalid
+        - other
         - question
         - suggestion
-        - wontfix
     validations:
       required: true
 
