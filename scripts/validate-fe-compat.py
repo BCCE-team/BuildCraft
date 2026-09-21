@@ -331,7 +331,7 @@ for path in (
 ):
     require(path, "sameContent", "sameTarget", "contentSignature")
 
-require("README.md", "- FE compatibility [✔]")
+require("README.md", "- [x] Add Forge Energy (FE) compatibility")
 
 # Public/new naming is FE. The only old _rf strings permitted are persistence aliases.
 allowed_rf_files = {
