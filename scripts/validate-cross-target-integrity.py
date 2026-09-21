@@ -726,27 +726,82 @@ def validate_compat_runtime_dependencies(props: dict[str, str]) -> None:
             f"({required_hotfix}); found {carbon!r}."
         )
 
-def validate_ci_wiring() -> None:
+def validate_ci_wiring(props: dict[str, str]) -> None:
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    runtime_start = ci.find("\n  build-test-server:\n")
+    compatibility_start = ci.find("\n  Compatibility:\n", runtime_start)
+    if runtime_start < 0 or compatibility_start < 0:
+        fail("CI is missing the target runtime or compatibility job")
+    runtime = ci[runtime_start:compatibility_start]
+    validate_start = ci.find("\n  validate:\n")
+    if validate_start < 0:
+        fail("CI is missing the global validation job")
+    validate = ci[validate_start:runtime_start]
+
     for token in (
         "python scripts/validate-fe-compat.py",
         "python scripts/validate-cross-target-integrity.py",
         "python scripts/validate-api2-runtime-completeness.py",
-        "Run GameTests for every production target in generation",
+        "python scripts/validate-behavior-parity.py",
+        "python scripts/validate-12111-parity.py",
+    ):
+        if token not in validate:
+            fail(f"global validation CI lost required cross-target coverage: {token}")
+
+    if "python scripts/validate-1.20.1-target.py" in validate:
+        fail("1.20.1-only validation must run in the 1.20.1 target job, not block every target")
+
+    matrix_entries = re.findall(
+        r"- target:\s*([^\s]+)\s*\n\s+generation:\s*([^\s]+)\s*\n\s+java:\s*['\"]?([^'\"\s]+)['\"]?",
+        runtime,
+    )
+    if len(matrix_entries) != len({target for target, _generation, _java in matrix_entries}):
+        fail("target runtime CI matrix contains duplicate target entries")
+    actual_matrix = {target: (generation, java) for target, generation, java in matrix_entries}
+    expected_matrix = {
+        target: (
+            props[f"target.{target}.build.generation"],
+            props[f"target.{target}.java.version"],
+        )
+        for target in target_ids(props)
+    }
+    if actual_matrix != expected_matrix:
+        fail(f"target runtime CI matrix drifted: expected {expected_matrix}, found {actual_matrix}")
+
+    for token in (
+        "name: Build, test and smoke ${{ matrix.target }}",
+        "max-parallel: 4",
+        "BUILD_GENERATION: ${{ matrix.generation }}",
+        "STONECUTTER_TARGET: ${{ matrix.target }}",
+        "java-version: ${{ matrix.java }}",
+        "if: matrix.target == '1.20.1-forge'",
+        "python scripts/validate-1.20.1-target.py --source-root version-src/1.20.1-forge",
+        '":${STONECUTTER_TARGET}:buildAndCollect"',
+        '":${STONECUTTER_TARGET}:runGameTestServer"',
+        "SERVER_RUNTIME_PROFILE: base",
+        "scripts/ci-server-smoke.sh",
+        "CLIENT_RUNTIME_PROFILE: jei",
+        "scripts/ci-client-smoke.sh",
+        "name: buildcraft-${{ matrix.target }}-${{ github.run_number }}-${{ github.run_attempt }}",
+        "versions/${{ matrix.target }}/build/libs/**",
+    ):
+        if token not in runtime:
+            fail(f"target runtime CI lost required isolated coverage: {token}")
+
+    for forbidden in (
+        "Build, test and smoke ${{ matrix.generation }} targets",
+        "mapfile -t targets",
+        '"${target}:runGameTestServer"',
         '":${target}:runGameTestServer"',
         "gametest_status=0",
-        "Client smoke-test every production target in generation",
-        "scripts/ci-client-smoke.sh",
-        "CLIENT_RUNTIME_PROFILE: jei",
         "client_status=0",
-        "target: 1.19.2-forge",
-        "target: 1.20.1-forge",
-        "profile: forestry",
-        "profile: ic2",
-        "STONECUTTER_TARGET: ${{ matrix.target }}",
+        "versions/*/build/libs/**",
+        "run/${{ matrix.generation }}/*/logs/**",
     ):
-        if token not in ci:
-            fail(f"CI is missing required validation/runtime coverage: {token}")
+        if forbidden in runtime:
+            fail(f"target runtime CI still contains family-wide execution: {forbidden}")
+
     for entry in (
         "- target: 1.19.2-forge\n            profile: forestry",
         "- target: 1.19.2-forge\n            profile: ic2",
@@ -756,6 +811,7 @@ def validate_ci_wiring() -> None:
             fail(f"compatibility CI matrix lost required target/profile pair: {entry.replace(chr(10), ' / ')}")
     if "continue-on-error: true" in ci:
         fail("compatibility smoke must be blocking; continue-on-error is still enabled")
+
     client_script = ROOT / "scripts/ci-client-smoke.sh"
     if not client_script.is_file():
         fail("missing scripts/ci-client-smoke.sh")
@@ -809,7 +865,7 @@ def main() -> None:
     validate_facade_swap_recipe(props)
     validate_snapshot_renderer_and_client_isolation(props)
     validate_compat_runtime_dependencies(props)
-    validate_ci_wiring()
+    validate_ci_wiring(props)
     print("Cross-target integrity OK:")
     print(" - exact-case atlas/model resources verified")
     print(" - clean/used item stack-size parity and single-owner machine fluid drops verified")
@@ -821,7 +877,7 @@ def main() -> None:
     print(" - Java build metadata placeholders and production .jsonx files forbidden")
     print(" - facade swap production recipe and snapshot/client isolation guarded")
     print(" - IC2 compatibility uses the dedicated-server-safe Carbon Config hotfix")
-    print(" - client, GameTest and blocking compatibility CI coverage guarded")
+    print(" - target-isolated build, GameTest, client/server smoke and blocking compatibility CI coverage guarded")
 
 
 if __name__ == "__main__":

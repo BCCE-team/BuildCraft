@@ -82,9 +82,6 @@ jobs:
       - name: Validate repository cleanliness
         run: python scripts/validate-repository-cleanliness.py
 
-      - name: Validate Forge 1.20.1 port invariants
-        run: python scripts/validate-1.20.1-target.py --source-root version-src/1.20.1-forge
-
       - name: Validate cross-version gameplay parity
         run: python scripts/validate-behavior-parity.py
 
@@ -155,36 +152,50 @@ jobs:
         run: python scripts/validate-cross-target-integrity.py
 
   build-test-server:
-    name: Build, test and smoke ${{ matrix.generation }} targets
+    name: Build, test and smoke ${{ matrix.target }}
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 150
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
-        generation:
-          - legacy
-          - modern
+        include:
+          - target: 1.19.2-forge
+            generation: legacy
+            java: '17'
+          - target: 1.20.1-forge
+            generation: legacy
+            java: '17'
+          - target: 1.21.1-neoforge
+            generation: modern
+            java: '21'
+          - target: 1.21.11-neoforge
+            generation: modern
+            java: '21'
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dfile.encoding=UTF-8
       BUILD_GENERATION: ${{ matrix.generation }}
+      STONECUTTER_TARGET: ${{ matrix.target }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java toolchains
+      - name: Set up target Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: |
-            17
-            21
+          java-version: ${{ matrix.java }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Validate Forge 1.20.1 port invariants
+        if: matrix.target == '1.20.1-forge'
+        run: python scripts/validate-1.20.1-target.py --source-root version-src/1.20.1-forge
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -197,7 +208,7 @@ jobs:
       - name: Make build scripts executable
         run: chmod +x builds/legacy/gradlew builds/modern/gradlew build-all.sh scripts/ci-server-smoke.sh scripts/ci-client-smoke.sh scripts/source_layout.py scripts/validate-stonecutter.py scripts/validate-api-v2.py scripts/validate-api-v2-only.py
 
-      - name: Build and test generation
+      - name: Build and test target
         shell: bash
         run: |
           set -euo pipefail
@@ -205,7 +216,7 @@ jobs:
 
           build_log="$(mktemp)"
           set +e
-          ./gradlew --no-daemon --console=plain --stacktrace buildAndCollect 2>&1 | tee "$build_log"
+          ./gradlew --no-daemon --console=plain --stacktrace ":${STONECUTTER_TARGET}:buildAndCollect" 2>&1 | tee "$build_log"
           build_status=${PIPESTATUS[0]}
           set -e
 
@@ -222,7 +233,7 @@ jobs:
             exit "$build_status"
           fi
 
-          echo "::warning title=ForgeGradle cache corruption::Corrupt JAR/ZIP detected while building legacy targets; clearing ForgeGradle dependency caches and retrying once."
+          echo "::warning title=ForgeGradle cache corruption::Corrupt JAR/ZIP detected while building ${STONECUTTER_TARGET}; clearing ForgeGradle dependency caches and retrying once."
 
           rm -rf \
             "$HOME/.gradle/caches/forge_gradle" \
@@ -230,40 +241,31 @@ jobs:
             "$HOME/.gradle/caches/modules-2/files-2.1/net.minecraftforge"
           find versions -type d -name fg_cache -prune -exec rm -rf {} +
 
-          # Retry sequentially so a cold ForgeGradle cache is rebuilt without
-          # concurrent target transforms fighting over shared cache state.
-          ./gradlew --no-daemon --no-parallel --console=plain --stacktrace --refresh-dependencies buildAndCollect
+          ./gradlew --no-daemon --no-parallel --console=plain --stacktrace --refresh-dependencies \
+            ":${STONECUTTER_TARGET}:buildAndCollect"
 
-      - name: Run GameTests for every production target in generation
+      - name: Run GameTests
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t targets < <(python scripts/validate-stonecutter.py --list-targets --generation "$BUILD_GENERATION")
           cd "builds/${BUILD_GENERATION}"
-          gametest_status=0
-          for target in "${targets[@]}"; do
-            echo "Game-testing ${BUILD_GENERATION}/${target}"
-            if ! ./gradlew --no-daemon --console=plain --stacktrace ":${target}:runGameTestServer"; then
-              gametest_status=1
-              echo "::error title=GameTests failed::${BUILD_GENERATION}/${target} GameTests failed"
-            fi
-          done
-          exit "$gametest_status"
+          echo "Game-testing ${BUILD_GENERATION}/${STONECUTTER_TARGET}"
+          if ! ./gradlew --no-daemon --console=plain --stacktrace ":${STONECUTTER_TARGET}:runGameTestServer"; then
+            echo "::error title=GameTests failed::${BUILD_GENERATION}/${STONECUTTER_TARGET} GameTests failed"
+            exit 1
+          fi
 
-      - name: Smoke-test every production jar in generation
+      - name: Smoke-test production jar
         shell: bash
         env:
           SERVER_STARTUP_TIMEOUT: '360'
           SERVER_RUNTIME_PROFILE: base
         run: |
           set -euo pipefail
-          mapfile -t targets < <(python scripts/validate-stonecutter.py --list-targets --generation "$BUILD_GENERATION")
-          for target in "${targets[@]}"; do
-            echo "Smoke-testing ${BUILD_GENERATION}/${target}"
-            STONECUTTER_TARGET="$target" bash scripts/ci-server-smoke.sh
-          done
+          echo "Smoke-testing ${BUILD_GENERATION}/${STONECUTTER_TARGET}"
+          bash scripts/ci-server-smoke.sh
 
-      - name: Client smoke-test every production target in generation
+      - name: Client smoke-test production target
         shell: bash
         env:
           CLIENT_STARTUP_TIMEOUT: '480'
@@ -271,36 +273,31 @@ jobs:
           CLIENT_RUNTIME_PROFILE: jei
         run: |
           set -euo pipefail
-          mapfile -t targets < <(python scripts/validate-stonecutter.py --list-targets --generation "$BUILD_GENERATION")
-          client_status=0
-          for target in "${targets[@]}"; do
-            echo "Client smoke-testing ${BUILD_GENERATION}/${target}"
-            if ! STONECUTTER_TARGET="$target" bash scripts/ci-client-smoke.sh; then
-              client_status=1
-              echo "::error title=Client smoke failed::${BUILD_GENERATION}/${target} client smoke failed"
-            fi
-          done
-          exit "$client_status"
+          echo "Client smoke-testing ${BUILD_GENERATION}/${STONECUTTER_TARGET}"
+          if ! bash scripts/ci-client-smoke.sh; then
+            echo "::error title=Client smoke failed::${BUILD_GENERATION}/${STONECUTTER_TARGET} client smoke failed"
+            exit 1
+          fi
 
       - name: Upload build products and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: buildcraft-${{ matrix.generation }}-${{ github.run_number }}-${{ github.run_attempt }}
+          name: buildcraft-${{ matrix.target }}-${{ github.run_number }}-${{ github.run_attempt }}
           if-no-files-found: ignore
           retention-days: 7
           path: |
             build/libs/${{ matrix.generation }}/**
-            builds/${{ matrix.generation }}/versions/*/build/libs/**
-            builds/${{ matrix.generation }}/versions/*/build/reports/tests/**
-            builds/${{ matrix.generation }}/versions/*/build/test-results/**
-            run/${{ matrix.generation }}/*/logs/**
-            run/${{ matrix.generation }}/*/crash-reports/**
-            run-server/${{ matrix.generation }}/*/logs/**
-            run-server/${{ matrix.generation }}/*/crash-reports/**
-            ci-server-${{ matrix.generation }}-*.log
-            ci-server-install-${{ matrix.generation }}-*.log
-            ci-client-${{ matrix.generation }}-*.log
+            builds/${{ matrix.generation }}/versions/${{ matrix.target }}/build/libs/**
+            builds/${{ matrix.generation }}/versions/${{ matrix.target }}/build/reports/tests/**
+            builds/${{ matrix.generation }}/versions/${{ matrix.target }}/build/test-results/**
+            run/${{ matrix.generation }}/${{ matrix.target }}/logs/**
+            run/${{ matrix.generation }}/${{ matrix.target }}/crash-reports/**
+            run-server/${{ matrix.generation }}/${{ matrix.target }}/logs/**
+            run-server/${{ matrix.generation }}/${{ matrix.target }}/crash-reports/**
+            ci-server-${{ matrix.generation }}-${{ matrix.target }}-*.log
+            ci-server-install-${{ matrix.generation }}-${{ matrix.target }}.log
+            ci-client-${{ matrix.generation }}-${{ matrix.target }}-*.log
 
   Compatibility:
     needs:
