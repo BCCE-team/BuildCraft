@@ -83,10 +83,10 @@ public final class PerformanceSmokeGameTests {
         BlockPos quarryPos = new BlockPos(4, 1, 4);
         helper.setBlock(builderPos, BCBuildersBlocks.BUILDER.get().defaultBlockState());
         helper.setBlock(quarryPos, BCBuildersBlocks.QUARRY.get().defaultBlockState());
-        require(helper, helper.getBlockEntity(builderPos) instanceof TileBuilder, "missing Builder in performance smoke");
-        require(helper, helper.getBlockEntity(quarryPos) instanceof TileQuarry, "missing Quarry in performance smoke");
-        TileBuilder builder = (TileBuilder) helper.getBlockEntity(builderPos);
-        TileQuarry quarry = (TileQuarry) helper.getBlockEntity(quarryPos);
+        require(helper, GameTestCompat.getBlockEntity(helper, builderPos) instanceof TileBuilder, "missing Builder in performance smoke");
+        require(helper, GameTestCompat.getBlockEntity(helper, quarryPos) instanceof TileQuarry, "missing Quarry in performance smoke");
+        TileBuilder builder = (TileBuilder) GameTestCompat.getBlockEntity(helper, builderPos);
+        TileQuarry quarry = (TileQuarry) GameTestCompat.getBlockEntity(helper, quarryPos);
         long builderPower = builder.getBattery().getStored();
         MjBattery quarryBattery = (MjBattery) readField(quarry, "battery");
         long quarryPower = quarryBattery.getStored();

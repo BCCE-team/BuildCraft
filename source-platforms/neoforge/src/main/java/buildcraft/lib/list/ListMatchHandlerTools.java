@@ -6,34 +6,37 @@
 
 package buildcraft.lib.list;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import javax.annotation.Nonnull;
 
 import buildcraft.api.v2.list.ListMatchType;
-import buildcraft.lib.list.ListMatchHandlerBackend;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.common.ItemAbility;
 
 public class ListMatchHandlerTools extends ListMatchHandlerBackend {
-    private static final ItemAbility[] TOOL_TYPES = {
-        ItemAbility.get("axe_dig"),
-        ItemAbility.get("pickaxe_dig"),
-        ItemAbility.get("shovel_dig"),
-        ItemAbility.get("hoe_dig"),
-        ItemAbility.get("sword_dig"),
-        ItemAbility.get("shears_dig")
-    };
+    private static final int AXE = 1 << 0;
+    private static final int PICKAXE = 1 << 1;
+    private static final int SHOVEL = 1 << 2;
+    private static final int HOE = 1 << 3;
+    private static final int SWORD = 1 << 4;
+    private static final int SHEARS = 1 << 5;
 
-    private static Set<ItemAbility> getToolTypes(ItemStack stack) {
-        Set<ItemAbility> actions = new HashSet<>();
-        for (ItemAbility action : TOOL_TYPES) {
-            if (stack.canPerformAction(action)) {
-                actions.add(action);
-            }
-        }
-        return actions;
+    private static final ItemAbility AXE_DIG = ItemAbility.get("axe_dig");
+    private static final ItemAbility PICKAXE_DIG = ItemAbility.get("pickaxe_dig");
+    private static final ItemAbility SHOVEL_DIG = ItemAbility.get("shovel_dig");
+    private static final ItemAbility HOE_DIG = ItemAbility.get("hoe_dig");
+    private static final ItemAbility SWORD_DIG = ItemAbility.get("sword_dig");
+    private static final ItemAbility SHEARS_DIG = ItemAbility.get("shears_dig");
+
+    private static int getToolTypes(ItemStack stack) {
+        int types = 0;
+        if (stack.is(ItemTags.AXES) || stack.canPerformAction(AXE_DIG)) types |= AXE;
+        if (stack.is(ItemTags.PICKAXES) || stack.canPerformAction(PICKAXE_DIG)) types |= PICKAXE;
+        if (stack.is(ItemTags.SHOVELS) || stack.canPerformAction(SHOVEL_DIG)) types |= SHOVEL;
+        if (stack.is(ItemTags.HOES) || stack.canPerformAction(HOE_DIG)) types |= HOE;
+        if (stack.is(ItemTags.SWORDS) || stack.canPerformAction(SWORD_DIG)) types |= SWORD;
+        if (stack.canPerformAction(SHEARS_DIG)) types |= SHEARS;
+        return types;
     }
 
     @Override
@@ -42,17 +45,17 @@ public class ListMatchHandlerTools extends ListMatchHandlerBackend {
             return false;
         }
 
-        Set<ItemAbility> sourceTypes = getToolTypes(stack);
-        Set<ItemAbility> targetTypes = getToolTypes(target);
-        if (sourceTypes.isEmpty() || targetTypes.isEmpty()) {
+        int sourceTypes = getToolTypes(stack);
+        int targetTypes = getToolTypes(target);
+        if (sourceTypes == 0 || targetTypes == 0) {
             return false;
         }
 
-        return precise ? sourceTypes.equals(targetTypes) : targetTypes.containsAll(sourceTypes);
+        return precise ? sourceTypes == targetTypes : (targetTypes & sourceTypes) == sourceTypes;
     }
 
     @Override
     public boolean isValidSource(ListMatchType type, @Nonnull ItemStack stack) {
-        return type == ListMatchType.TYPE && !getToolTypes(stack).isEmpty();
+        return type == ListMatchType.TYPE && getToolTypes(stack) != 0;
     }
 }

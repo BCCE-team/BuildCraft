@@ -36,6 +36,7 @@ import buildcraft.transport.internal.pipe.PipeEventPower;
 import buildcraft.factory.BCFactoryBlocks;
 import buildcraft.factory.tile.TileTank;
 import buildcraft.gametest.PipeGameTestSupport;
+import buildcraft.gametest.GameTestCompat;
 import buildcraft.gametest.PipeGameTestSupport.TestPipe;
 import buildcraft.lib.BCLib;
 import buildcraft.lib.fluid.FluidCompatRegistry;
@@ -93,7 +94,7 @@ public final class PipeFluidPowerGameTests {
         String centreKey = "tank[" + EnumPipePart.CENTER.getIndex() + "]";
         CompoundTag centreNbt = nbt.getCompound(centreKey);
         require(helper, centreNbt.contains("currentTime"), "fluid delay phase was not written to NBT");
-        int savedPhase = centreNbt.getInt("currentTime");
+        int savedPhase = GameTestCompat.readInt(centreNbt, "currentTime");
         require(helper, savedPhase == phaseTicks % delay, "fluid delay phase advanced unexpectedly before save");
         TestPipe restoredPipe = new TestPipe(helper.getLevel(), BCTransportPipes.cobbleFluid);
         PipeFlowFluids restored = new PipeFlowFluids(restoredPipe, nbt);
@@ -103,7 +104,7 @@ public final class PipeFluidPowerGameTests {
         require(helper, containsFluid(restored, net.minecraft.world.level.material.Fluids.WATER),
             "fluid identity changed after NBT round-trip");
         CompoundTag restoredNbt = restored.writeToNbt();
-        require(helper, restoredNbt.getCompound(centreKey).getInt("currentTime") == savedPhase,
+        require(helper, GameTestCompat.readInt(restoredNbt.getCompound(centreKey), "currentTime") == savedPhase,
             "fluid delay phase changed after NBT round-trip");
         helper.succeed();
     }
@@ -596,7 +597,7 @@ public final class PipeFluidPowerGameTests {
         half.configurePower(halfEvent);
         require(helper, halfEvent.getMaxPower() == base / 2, "iron power limiter shift=1 did not halve transfer");
         require(helper, !halfEvent.isTransferDisabled(), "half-power limiter disabled transfer");
-        require(helper, half.writeToNbt().getInt("limitShift") == 1, "limiter mode was not persisted");
+        require(helper, GameTestCompat.readInt(half.writeToNbt(), "limitShift") == 1, "limiter mode was not persisted");
 
         CompoundTag disabledNbt = new CompoundTag();
         disabledNbt.putInt("limitShift", PipeBehaviourLimiter.MAX_SHIFT);
@@ -608,7 +609,7 @@ public final class PipeFluidPowerGameTests {
         CompoundTag oversizedNbt = new CompoundTag();
         oversizedNbt.putInt("limitShift", 999);
         PipeBehaviourLimiter clamped = new PipeBehaviourLimiter(pipe, oversizedNbt);
-        require(helper, clamped.writeToNbt().getInt("limitShift") == PipeBehaviourLimiter.MAX_SHIFT,
+        require(helper, GameTestCompat.readInt(clamped.writeToNbt(), "limitShift") == PipeBehaviourLimiter.MAX_SHIFT,
             "limiter NBT did not clamp an oversized mode");
         helper.succeed();
     }
@@ -621,7 +622,7 @@ public final class PipeFluidPowerGameTests {
 
     private static TileTank placeTank(GameTestHelper helper, BlockPos pos) {
         helper.setBlock(pos, BCFactoryBlocks.TANK_BLOCK.get().defaultBlockState());
-        if (!(helper.getBlockEntity(pos) instanceof TileTank tank)) {
+        if (!(GameTestCompat.getBlockEntity(helper, pos) instanceof TileTank tank)) {
             helper.fail("tank block did not create TileTank at " + pos);
             throw new IllegalStateException("missing TileTank");
         }
@@ -633,14 +634,14 @@ public final class PipeFluidPowerGameTests {
         int total = 0;
         for (EnumPipePart part : EnumPipePart.VALUES) {
             CompoundTag section = nbt.getCompound("tank[" + part.getIndex() + "]");
-            total += Math.max(0, section.getInt("capacity"));
+            total += Math.max(0, GameTestCompat.readInt(section, "capacity"));
         }
         return total;
     }
 
     private static int sectionFluid(PipeFlowFluids flow, Direction direction) {
         CompoundTag nbt = flow.writeToNbt();
-        return Math.max(0, nbt.getCompound("tank[" + direction.get3DDataValue() + "]").getInt("capacity"));
+        return Math.max(0, GameTestCompat.readInt(nbt.getCompound("tank[" + direction.get3DDataValue() + "]"), "capacity"));
     }
 
     private static boolean containsFluid(PipeFlowFluids flow, net.minecraft.world.level.material.Fluid fluid) {

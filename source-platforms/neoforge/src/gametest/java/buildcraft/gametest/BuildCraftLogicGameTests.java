@@ -471,8 +471,8 @@ public final class BuildCraftLogicGameTests {
         boolean previous = BCCoreConfig.pumpsConsumeWater;
         try {
             BCCoreConfig.pumpsConsumeWater = false;
-            BlockPos pumpPos = new BlockPos(1, 4, 1);
-            BlockPos waterPos = new BlockPos(1, 2, 1);
+            BlockPos pumpPos = new BlockPos(1, 2, 1);
+            BlockPos waterPos = new BlockPos(1, 1, 1);
             BlockPos[] sources = {
                 waterPos,
                 waterPos.east(),
@@ -484,7 +484,7 @@ public final class BuildCraftLogicGameTests {
                 helper.setBlock(source, Blocks.WATER.defaultBlockState());
             }
             helper.setBlock(pumpPos, BCFactoryBlocks.PUMP_BLOCK.get().defaultBlockState());
-            BlockEntity blockEntity = helper.getBlockEntity(pumpPos);
+            BlockEntity blockEntity = GameTestCompat.getBlockEntity(helper, pumpPos);
             require(helper, blockEntity instanceof TilePump, "pump block did not create TilePump");
             TilePump pump = (TilePump) blockEntity;
 
@@ -919,7 +919,7 @@ public final class BuildCraftLogicGameTests {
         BlockState state = BCCoreBlocks.ENGINE_BC8.get().defaultBlockState()
             .setValue(BuildCraftProperties.ENGINE_TYPE, EnumEngineType.IRON);
         helper.setBlock(relativePos, state);
-        BlockEntity blockEntity = helper.getBlockEntity(relativePos);
+        BlockEntity blockEntity = GameTestCompat.getBlockEntity(helper, relativePos);
         if (!(blockEntity instanceof TileEngineIron_BC8 engine)) {
             helper.fail("combustion engine block did not create TileEngineIron_BC8");
             throw new IllegalStateException("missing TileEngineIron_BC8");
@@ -929,7 +929,7 @@ public final class BuildCraftLogicGameTests {
 
     private static TileQuarry placeQuarry(GameTestHelper helper, BlockPos relativePos) {
         helper.setBlock(relativePos, BCBuildersBlocks.QUARRY.get().defaultBlockState());
-        BlockEntity blockEntity = helper.getBlockEntity(relativePos);
+        BlockEntity blockEntity = GameTestCompat.getBlockEntity(helper, relativePos);
         if (!(blockEntity instanceof TileQuarry quarry)) {
             helper.fail("quarry block did not create TileQuarry");
             throw new IllegalStateException("missing TileQuarry");
@@ -939,7 +939,7 @@ public final class BuildCraftLogicGameTests {
 
     private static TileEngineFE placeFeEngine(GameTestHelper helper, BlockPos relativePos) {
         helper.setBlock(relativePos, feEngineState());
-        BlockEntity blockEntity = helper.getBlockEntity(relativePos);
+        BlockEntity blockEntity = GameTestCompat.getBlockEntity(helper, relativePos);
         if (!(blockEntity instanceof TileEngineFE engine)) {
             helper.fail("FE engine block did not create TileEngineFE");
             throw new IllegalStateException("missing TileEngineFE");
@@ -949,7 +949,7 @@ public final class BuildCraftLogicGameTests {
 
     private static TileDynamoMJ placeMjDynamo(GameTestHelper helper, BlockPos relativePos) {
         helper.setBlock(relativePos, BCEnergyBlocks.DYNAMO_MJ.get().defaultBlockState());
-        BlockEntity blockEntity = helper.getBlockEntity(relativePos);
+        BlockEntity blockEntity = GameTestCompat.getBlockEntity(helper, relativePos);
         if (!(blockEntity instanceof TileDynamoMJ dynamo)) {
             helper.fail("MJ dynamo block did not create TileDynamoMJ");
             throw new IllegalStateException("missing TileDynamoMJ");
@@ -1032,55 +1032,11 @@ public final class BuildCraftLogicGameTests {
     }
 
     private static CompoundTag saveMachineState(BlockEntity blockEntity, GameTestHelper helper) {
-        CompoundTag tag = new CompoundTag();
-        Method oneArg = findMethodOrNull(blockEntity.getClass(), "saveAdditional", 1);
-        Method twoArg = findMethodOrNull(blockEntity.getClass(), "saveAdditional", 2);
-        try {
-            if (oneArg != null) {
-                oneArg.setAccessible(true);
-                oneArg.invoke(blockEntity, tag);
-                return tag;
-            }
-            if (twoArg != null) {
-                twoArg.setAccessible(true);
-                twoArg.invoke(blockEntity, tag, helper.getLevel().registryAccess());
-                return tag;
-            }
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Cannot save machine state for " + blockEntity.getClass().getName(), e);
-        }
-        throw new IllegalStateException("No saveAdditional method for " + blockEntity.getClass().getName());
+        return GameTestCompat.saveBlockEntity(blockEntity, helper);
     }
 
     private static void loadMachineState(BlockEntity blockEntity, CompoundTag tag, GameTestHelper helper) {
-        Method load = findMethodOrNull(blockEntity.getClass(), "load", 1);
-        Method loadAdditional = findMethodOrNull(blockEntity.getClass(), "loadAdditional", 2);
-        try {
-            if (load != null) {
-                load.setAccessible(true);
-                load.invoke(blockEntity, tag.copy());
-                return;
-            }
-            if (loadAdditional != null) {
-                loadAdditional.setAccessible(true);
-                loadAdditional.invoke(blockEntity, tag.copy(), helper.getLevel().registryAccess());
-                return;
-            }
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Cannot load machine state for " + blockEntity.getClass().getName(), e);
-        }
-        throw new IllegalStateException("No load method for " + blockEntity.getClass().getName());
-    }
-
-    private static Method findMethodOrNull(Class<?> start, String name, int parameterCount) {
-        for (Class<?> type = start; type != null; type = type.getSuperclass()) {
-            for (Method method : type.getDeclaredMethods()) {
-                if (method.getName().equals(name) && method.getParameterCount() == parameterCount) {
-                    return method;
-                }
-            }
-        }
-        return null;
+        GameTestCompat.loadBlockEntity(blockEntity, tag, helper);
     }
 
     private static final class UnstableMoveSource implements IItemTransactor {

@@ -43,7 +43,7 @@ public final class PipeGameTestSupport {
 
     public static TilePipeHolder placePipe(GameTestHelper helper, BlockPos pos, PipeDefinition definition) {
         helper.setBlock(pos, BCTransportBlocks.pipeHolder.get().defaultBlockState());
-        BlockEntity blockEntity = helper.getBlockEntity(pos);
+        BlockEntity blockEntity = GameTestCompat.getBlockEntity(helper, pos);
         if (!(blockEntity instanceof TilePipeHolder holder)) {
             helper.fail("pipe holder block did not create TilePipeHolder at " + pos);
             throw new IllegalStateException("missing TilePipeHolder");

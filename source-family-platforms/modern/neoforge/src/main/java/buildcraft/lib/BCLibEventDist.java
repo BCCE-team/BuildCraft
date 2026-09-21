@@ -132,6 +132,48 @@ public class BCLibEventDist {
             LaserRenderer_BC8.setupLaserRenderState();
             DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
         }
+
+        private static void onConnectToServer() {
+            Minecraft mc = Minecraft.getInstance();
+            ItemStackUtil.setClientRegistryProvider(mc.level == null ? null : mc.level.registryAccess());
+            MarkerCache.clearClientCaches();
+            MessageMarkerClientHandler.clearQueuedMessages();
+            buildcraft.lib.net.GuideRecipeDisplayCache.clear();
+            BuildCraftObjectCaches.onClientJoinServer();
+        }
+
+        private static void onDisconnectFromServer() {
+            ItemStackUtil.setClientRegistryProvider(null);
+            MarkerCache.clearClientCaches();
+            MessageMarkerClientHandler.clearQueuedMessages();
+            buildcraft.lib.net.GuideRecipeDisplayCache.clear();
+        }
+
+        private static void clientTick(BCEvents.ClientTick event) {
+            BuildCraftObjectCaches.onClientTick();
+            MessageUtil.postClientTick();
+            MessageMarkerClientHandler.flushQueuedMessages();
+            Minecraft mc = Minecraft.getInstance();
+            ItemStackUtil.setClientRegistryProvider(mc.level == null ? null : mc.level.registryAccess());
+            LocalPlayer player = mc.player;
+            if (player != null && ItemDebugger.isShowDebugInfo(player)) {
+                HitResult mouseOver = mc.hitResult;
+                if (mouseOver != null) {
+                    IDebuggable debuggable = ClientDebuggables.getDebuggableObject(mouseOver);
+                    if (debuggable instanceof BlockEntity tile && mouseOver instanceof BlockHitResult blockHit) {
+                        MessageManager.sendToServer(new MessageDebugRequest(tile.getBlockPos(), blockHit.getDirection()));
+                    } else if (debuggable instanceof Entity) {
+                        // Entity debug-info requests are intentionally ignored by this block-only debug handler.
+                    }
+                }
+            }
+        }
+
+        private static void registerGameplayEvents() {
+            PlatformClientEvents.login(ClientGame::onConnectToServer);
+            PlatformClientEvents.logout(ClientGame::onDisconnectFromServer);
+            PlatformClientEvents.tick(BCEvents.Phase.END, ClientGame::clientTick);
+        }
     }
 
 
@@ -173,50 +215,12 @@ public class BCLibEventDist {
     }
 
 
-    public static void onConnectToServer() {
-        Minecraft mc = Minecraft.getInstance();
-        ItemStackUtil.setClientRegistryProvider(mc.level == null ? null : mc.level.registryAccess());
-        MarkerCache.clearClientCaches();
-        MessageMarkerClientHandler.clearQueuedMessages();
-        buildcraft.lib.net.GuideRecipeDisplayCache.clear();
-        BuildCraftObjectCaches.onClientJoinServer();
-    }
-
-
-    public static void onDisconnectFromServer() {
-        ItemStackUtil.setClientRegistryProvider(null);
-        MarkerCache.clearClientCaches();
-        MessageMarkerClientHandler.clearQueuedMessages();
-        buildcraft.lib.net.GuideRecipeDisplayCache.clear();
-    }
-
-
-
     public static void serverTick(BCEvents.ServerTick event) {
         BCAdvDebugging.INSTANCE.onServerPostTick();
         MessageUtil.postServerTick();
     }
 
 
-    public static void clientTick(BCEvents.ClientTick event) {
-        BuildCraftObjectCaches.onClientTick();
-        MessageUtil.postClientTick();
-        MessageMarkerClientHandler.flushQueuedMessages();
-        Minecraft mc = Minecraft.getInstance();
-        ItemStackUtil.setClientRegistryProvider(mc.level == null ? null : mc.level.registryAccess());
-        LocalPlayer player = mc.player;
-        if (player != null && ItemDebugger.isShowDebugInfo(player)) {
-            HitResult mouseOver = mc.hitResult;
-            if (mouseOver != null) {
-                IDebuggable debuggable = ClientDebuggables.getDebuggableObject(mouseOver);
-                if (debuggable instanceof BlockEntity tile && mouseOver instanceof BlockHitResult blockHit) {
-                    MessageManager.sendToServer(new MessageDebugRequest(tile.getBlockPos(), blockHit.getDirection()));
-                } else if (debuggable instanceof Entity) {
-                    // Entity debug-info requests are intentionally ignored by this block-only debug handler.
-                }
-            }
-        }
-    }
     private static boolean gameplayEventsRegistered;
     public static synchronized void registerGameplayEvents() {
         if (gameplayEventsRegistered) return;
@@ -225,9 +229,7 @@ public class BCLibEventDist {
         PlatformEvents.levelUnload(BCLibEventDist::onWorldUnload);
         PlatformEvents.serverTick(BCEvents.Phase.END, BCLibEventDist::serverTick);
         if (PlatformEvents.isClient()) {
-            PlatformClientEvents.login(BCLibEventDist::onConnectToServer);
-            PlatformClientEvents.logout(BCLibEventDist::onDisconnectFromServer);
-            PlatformClientEvents.tick(BCEvents.Phase.END, BCLibEventDist::clientTick);
+            ClientGame.registerGameplayEvents();
         }
     }
 }

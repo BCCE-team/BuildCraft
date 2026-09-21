@@ -53,6 +53,7 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -172,7 +173,7 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
             return;
         }
         scanDirections = scanFluid.getFluidType().isLighterThanAir() ? SEARCH_GASEOUS : SEARCH_NORMAL;
-        scanForInfiniteWater = !BCCoreConfig.pumpsConsumeWater && FluidUtilBC.areFluidsEqual(scanFluid, Fluids.WATER);
+        scanForInfiniteWater = !BCCoreConfig.pumpsConsumeWater && isWater(scanFluid);
         scanMaxLengthSquared = BCCoreConfig.pumpMaxDistance * BCCoreConfig.pumpMaxDistance;
     }
 
@@ -212,10 +213,10 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
         for (Direction side : INFINITE_WATER_NEIGHBORS) {
             BlockPos neighbourPos = pos.relative(side);
             if (!level.hasChunkAt(neighbourPos)) {
-                return false;
+                continue;
             }
             FluidState neighbour = level.getFluidState(neighbourPos);
-            if (neighbour.isSource() && FluidUtilBC.areFluidsEqual(neighbour.getType(), Fluids.WATER)) {
+            if (isWaterSource(neighbour)) {
                 adjacentSources++;
                 if (adjacentSources >= 2) {
                     break;
@@ -230,8 +231,22 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
             return false;
         }
         BlockState below = level.getBlockState(belowPos);
-        Fluid fluidBelow = BlockUtil.getFluidWithoutFlowing(below);
-        return FluidUtilBC.areFluidsEqual(fluidBelow, Fluids.WATER) || below.isSolid();
+        return isWater(level.getFluidState(belowPos)) || below.isSolid();
+    }
+
+    private static boolean isWater(Fluid fluid) {
+        return fluid == Fluids.WATER || fluid == Fluids.FLOWING_WATER
+            || fluid.defaultFluidState().is(FluidTags.WATER);
+    }
+
+    private static boolean isWater(FluidState state) {
+        Fluid fluid = state.getType();
+        return fluid == Fluids.WATER || fluid == Fluids.FLOWING_WATER || state.is(FluidTags.WATER);
+    }
+
+    private static boolean isWaterSource(FluidState state) {
+        Fluid fluid = state.getType();
+        return fluid == Fluids.WATER || (state.isSource() && isWater(state));
     }
 
     private void finishQueueBuild() {
@@ -385,7 +400,7 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
 
                 boolean keepSource = isInfiniteWaterSource
                     && !BCCoreConfig.pumpsConsumeWater
-                    && FluidUtilBC.areFluidsEqual(drain.getFluid(), Fluids.WATER);
+                    && isWater(drain.getFluid());
 
                 if (!AutomationPermissionUtil.mayBlock(
                     level, worldPosition, currentPos, getOwner(), AutomationPermissionUtil.SOURCE_PUMP,

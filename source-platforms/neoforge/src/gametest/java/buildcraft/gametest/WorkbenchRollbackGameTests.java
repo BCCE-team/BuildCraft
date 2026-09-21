@@ -24,7 +24,7 @@ public final class WorkbenchRollbackGameTests {
     public static void failedGridClearNeverOverwritesTransientItems(GameTestHelper helper) {
         BlockPos pos = new BlockPos(1, 1, 1);
         helper.setBlock(pos, BCFactoryBlocks.AUTO_BENCH_BLOCK.get().defaultBlockState());
-        if (!(helper.getBlockEntity(pos) instanceof TileAutoWorkbenchItems tile)) {
+        if (!(GameTestCompat.getBlockEntity(helper, pos) instanceof TileAutoWorkbenchItems tile)) {
             helper.fail("Auto Workbench block entity was not created");
             return;
         }

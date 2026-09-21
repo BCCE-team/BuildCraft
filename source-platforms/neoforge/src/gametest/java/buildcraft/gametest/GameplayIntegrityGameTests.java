@@ -76,7 +76,7 @@ public final class GameplayIntegrityGameTests {
 
     private static TileTank placeTank(GameTestHelper helper, BlockPos pos) {
         helper.setBlock(pos, BCFactoryBlocks.TANK_BLOCK.get().defaultBlockState());
-        if (!(helper.getBlockEntity(pos) instanceof TileTank tank)) {
+        if (!(GameTestCompat.getBlockEntity(helper, pos) instanceof TileTank tank)) {
             helper.fail("tank block did not create TileTank at " + pos);
             throw new IllegalStateException("missing TileTank");
         }

@@ -38,7 +38,7 @@ if [[ -z "$target" || -z "$generation" ]]; then
 fi
 
 build_root="${repo_root}/builds/${generation}"
-target_config="${build_root}/targets.properties"
+target_config="${repo_root}/build-config/targets.properties"
 common_config="${repo_root}/build-config/common.properties"
 if [[ ! -f "$target_config" || ! -x "${build_root}/gradlew" ]]; then
   echo "Incomplete ${generation} build root: ${build_root}" >&2

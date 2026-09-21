@@ -29,7 +29,7 @@ PY
 fi
 
 build_root="${repo_root}/builds/${generation}"
-target_config="${build_root}/targets.properties"
+target_config="${repo_root}/build-config/targets.properties"
 common_config="${repo_root}/build-config/common.properties"
 run_dir="${repo_root}/run/${generation}/${target}"
 client_log="${CLIENT_LOG_FILE:-${repo_root}/ci-client-${generation}-${target}-${runtime_profile}.log}"

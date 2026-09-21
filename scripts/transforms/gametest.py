@@ -231,6 +231,7 @@ def generate_gametest_registry(
         "",
         "import net.minecraft.core.registries.BuiltInRegistries;",
         "import net.minecraft.gametest.framework.FunctionGameTestInstance;",
+        "import net.minecraft.gametest.framework.GameTestHelper;",
         "import net.minecraft.gametest.framework.TestData;",
         "import net.minecraft.resources.Identifier;",
         "import net.minecraft.resources.ResourceKey;",
@@ -244,6 +245,21 @@ def generate_gametest_registry(
         "public final class BuildCraftGeneratedGameTests {",
         "    private BuildCraftGeneratedGameTests() {}",
         "",
+        "    @FunctionalInterface",
+        "    private interface CheckedGameTest {",
+        "        void run(GameTestHelper helper) throws Exception;",
+        "    }",
+        "",
+        "    private static void invoke(GameTestHelper helper, CheckedGameTest test) {",
+        "        try {",
+        "            test.run(helper);",
+        "        } catch (RuntimeException exception) {",
+        "            throw exception;",
+        "        } catch (Exception exception) {",
+        "            throw new RuntimeException(exception);",
+        "        }",
+        "    }",
+        "",
         "    @SubscribeEvent",
         "    public static void registerFunctions(RegisterEvent event) {",
         "        event.register(BuiltInRegistries.TEST_FUNCTION.key(), registry -> {",
@@ -254,7 +270,7 @@ def generate_gametest_registry(
         owner = str(entry["owner"])
         path = method.lower()
         lines.append(
-            f"            registry.register(Identifier.fromNamespaceAndPath({ns}, \"{path}\"), {owner}::{method});"
+            f"            registry.register(Identifier.fromNamespaceAndPath({ns}, \"{path}\"), helper -> invoke(helper, {owner}::{method}));"
         )
     lines.extend([
         "        });",

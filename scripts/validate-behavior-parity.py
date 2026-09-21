@@ -598,9 +598,18 @@ def validate_gameplay_gap_fixes() -> None:
         require(target, pump,
                 "INFINITE_WATER_NEIGHBORS",
                 "isInfiniteWaterSourceAt(posToCheck)",
-                "neighbour.isSource()",
                 "adjacentSources >= 2")
         pump_text = text(target, pump)
+        if target == "1.21.1-neoforge":
+            for needle in (
+                "isWaterSource(neighbour)",
+                "private static boolean isWaterSource(FluidState state)",
+                "fluid == Fluids.WATER || (state.isSource() && isWater(state))",
+            ):
+                if needle not in pump_text:
+                    fail(f"{target}: missing {needle!r} in {pump}")
+        elif "neighbour.isSource()" not in pump_text:
+            fail(f"{target}: missing 'neighbour.isSource()' in {pump}")
         neighbor_decl = re.search(
             r"INFINITE_WATER_NEIGHBORS\s*=\s*new Direction\[\]\s*\{([^}]*)\}",
             pump_text,

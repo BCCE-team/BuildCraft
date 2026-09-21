@@ -56,7 +56,7 @@ public final class BuildCraftGameTests {
         BlockPos tankPos = new BlockPos(1, 1, 1);
         helper.setBlock(tankPos, BCFactoryBlocks.TANK_BLOCK.get().defaultBlockState());
 
-        BlockEntity blockEntity = helper.getBlockEntity(tankPos);
+        BlockEntity blockEntity = GameTestCompat.getBlockEntity(helper, tankPos);
         if (!(blockEntity instanceof TileTank tank)) {
             helper.fail("tank block did not create TileTank");
             return;
@@ -113,14 +113,14 @@ public final class BuildCraftGameTests {
             return;
         }
 
-        RecipeHolder<?> recipe = helper.getLevel().getRecipeManager()
-            .byKey(ResourceLocation.fromNamespaceAndPath(BCLib.MODID, "guide_book"))
-            .orElse(null);
+        RecipeHolder<?> recipe = GameTestCompat.recipeById(
+            helper, ResourceLocation.fromNamespaceAndPath(BCLib.MODID, "guide_book")
+        );
         if (recipe == null) {
             helper.fail("guide book crafting recipe was not loaded");
             return;
         }
-        if (recipe.value().getResultItem(helper.getLevel().registryAccess()).getItem() != guide) {
+        if (!GameTestCompat.recipeProduces(helper, recipe, guide)) {
             helper.fail("guide book recipe produces the wrong item");
             return;
         }

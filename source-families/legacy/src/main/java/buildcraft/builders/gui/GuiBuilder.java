@@ -19,6 +19,7 @@ import buildcraft.builders.menu.ContainerBuilder;
 import buildcraft.lib.gui.GuiBC8;
 import buildcraft.lib.gui.GuiIcon;
 import buildcraft.lib.gui.pos.GuiRectangle;
+import buildcraft.lib.gui.widget.GuiElementFluidTank;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
@@ -63,8 +64,7 @@ public class GuiBuilder extends GuiBC8<ContainerBuilder> {
 
         for (int i = 0; i < container.widgetTanks.size(); i++) {
             mainGui.shownElements.add(
-                    container.widgetTanks
-                    .get(i).createGuiElement(mainGui, new GuiRectangle(179 + i * 18, 145, 16, 47).offset(mainGui.rootElement), ICON_TANK_OVERLAY)
+                    new GuiElementFluidTank(container.widgetTanks.get(i), mainGui, new GuiRectangle(179 + i * 18, 145, 16, 47).offset(mainGui.rootElement), ICON_TANK_OVERLAY)
             );
         }
         

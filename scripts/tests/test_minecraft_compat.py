@@ -127,15 +127,89 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertNotIn('import net.minecraft.gametest.framework.GameTest;', current_sources)
         self.assertNotIn('@GameTestHolder(', current_sources)
         self.assertNotIn('@PrefixGameTestTemplate(', current_sources)
+        self.assertNotIn('NbtCompat.getInt(GameTestCompat,', current_sources)
+        self.assertIn('GameTestCompat.readInt(', current_sources)
+        self.assertIn('GameTestCompat.readString(', old_sources)
+        self.assertIn('GameTestCompat.readString(', current_sources)
         self.assertEqual(95, current_sources.count('// bc-gametest-v2:'))
         self.assertTrue(registry.is_file())
 
         registry_text = registry.read_text(encoding='utf-8')
         self.assertEqual(95, registry_text.count('registry.register('))
         self.assertEqual(95, registry_text.count('event.registerTest('))
+        self.assertEqual(95, registry_text.count('helper -> invoke(helper'))
+        self.assertIn('private interface CheckedGameTest', registry_text)
         self.assertIn('BuiltInRegistries.TEST_FUNCTION.key()', registry_text)
         self.assertIn('new FunctionGameTestInstance(', registry_text)
         self.assertIn('RegisterGameTestsEvent', registry_text)
+
+        old_compat = (old_root / 'buildcraft/gametest/GameTestCompat.java').read_text(encoding='utf-8')
+        current_compat = (current_root / 'buildcraft/gametest/GameTestCompat.java').read_text(encoding='utf-8')
+        for compat in (old_compat, current_compat):
+            self.assertIn('getBlockEntity(helper.absolutePos(pos))', compat)
+            self.assertIn('invokeFirst(profile, "id", "getId")', compat)
+            self.assertIn('Class.forName("net.minecraft.world.level.storage.TagValueOutput")', compat)
+            self.assertIn('Class.forName("net.minecraft.world.item.crafting.display.SlotDisplayContext")', compat)
+            self.assertIn('saveBlockEntity(', compat)
+            self.assertIn('loadBlockEntity(', compat)
+            self.assertIn('findDeclaredCompatibleMethod(', compat)
+            self.assertIn('public static String readString(', compat)
+        self.assertTrue((ROOT / 'source-families/modern/src/gametest/java/buildcraft/gametest/GameTestCompat.java').is_file())
+        self.assertFalse((ROOT / 'source-platforms/neoforge/src/gametest/java/buildcraft/gametest/GameTestCompat.java').exists())
+
+    def test_modern_fluid_water_guards_survive_12111_api_changes(self):
+        current_root = self.target_roots['1.21.11-neoforge'] / 'src/main/java'
+        fluid = (current_root / 'buildcraft/lib/fluid/BCFluid.java').read_text(encoding='utf-8')
+        pump = (current_root / 'buildcraft/factory/tile/TilePump.java').read_text(encoding='utf-8')
+
+        self.assertIn('protected void spreadTo(LevelAccessor level', fluid)
+        self.assertIn('isWater(level.getFluidState(pos))', fluid)
+        self.assertIn('fluid == Fluids.WATER || fluid == Fluids.FLOWING_WATER', fluid)
+        self.assertIn('scanForInfiniteWater = !BCCoreConfig.pumpsConsumeWater && isWater(scanFluid);', pump)
+        self.assertIn('isWaterSource(neighbour)', pump)
+        self.assertIn('fluid == Fluids.WATER || fluid == Fluids.FLOWING_WATER', pump)
+        self.assertIn('fluid == Fluids.WATER || (state.isSource() && isWater(state))', pump)
+        self.assertIn('if (!level.hasChunkAt(neighbourPos)) {\n                continue;', pump)
+        self.assertNotIn('if (!level.hasChunkAt(neighbourPos)) {\n                return false;', pump)
+        self.assertIn('&& isWater(drain.getFluid());', pump)
+
+    def test_pump_infinite_water_fixture_stays_inside_empty3x3x3(self):
+        suite = (
+            ROOT
+            / 'source-platforms/neoforge/src/gametest/java/buildcraft/gametest/BuildCraftLogicGameTests.java'
+        ).read_text(encoding='utf-8')
+        self.assertIn('BlockPos pumpPos = new BlockPos(1, 2, 1);', suite)
+        self.assertIn('BlockPos waterPos = new BlockPos(1, 1, 1);', suite)
+        self.assertNotIn('BlockPos pumpPos = new BlockPos(1, 4, 1);', suite)
+        self.assertNotIn('BlockPos waterPos = new BlockPos(1, 2, 1);', suite)
+
+    def test_12111_client_runtime_hooks_are_isolated_from_common_event_owner(self):
+        current_root = self.target_roots['1.21.11-neoforge'] / 'src/main/java'
+        events = (current_root / 'buildcraft/lib/BCLibEventDist.java').read_text(encoding='utf-8')
+
+        self.assertIn('ClientGame.registerGameplayEvents();', events)
+        self.assertIn('PlatformClientEvents.login(ClientGame::onConnectToServer);', events)
+        self.assertIn('PlatformClientEvents.logout(ClientGame::onDisconnectFromServer);', events)
+        self.assertIn('PlatformClientEvents.tick(BCEvents.Phase.END, ClientGame::clientTick);', events)
+        self.assertNotIn('PlatformClientEvents.login(BCLibEventDist::onConnectToServer);', events)
+        self.assertNotIn('PlatformClientEvents.logout(BCLibEventDist::onDisconnectFromServer);', events)
+        self.assertNotIn('PlatformClientEvents.tick(BCEvents.Phase.END, BCLibEventDist::clientTick);', events)
+
+    def test_smoke_scripts_read_canonical_target_metadata(self):
+        for script in ('ci-server-smoke.sh', 'ci-client-smoke.sh'):
+            smoke = (ROOT / 'scripts' / script).read_text(encoding='utf-8')
+            self.assertIn('target_config="${repo_root}/build-config/targets.properties"', smoke, script)
+            self.assertNotIn('target_config="${build_root}/targets.properties"', smoke, script)
+
+    def test_legacy_fluid_widget_keeps_client_renderer_off_dedicated_server(self):
+        widget = (ROOT / 'source-families/legacy/src/main/java/buildcraft/lib/gui/widget/WidgetFluidTank.java').read_text(encoding='utf-8')
+        client = (ROOT / 'source-families/legacy/src/main/java/buildcraft/lib/gui/widget/GuiElementFluidTank.java').read_text(encoding='utf-8')
+        self.assertNotIn('IGuiElement', widget)
+        self.assertNotIn('BuildCraftGui', widget)
+        self.assertNotIn('GuiElementSimple', widget)
+        self.assertIn('class GuiElementFluidTank extends GuiElementSimple', client)
+        self.assertIn('widget.sendClick();', client)
+        self.assertIn('widget.getTank()', client)
 
     def test_new_facades_are_loader_neutral(self):
         root = ROOT / 'source-families/modern/src/main/java/buildcraft/lib/compat/minecraft'

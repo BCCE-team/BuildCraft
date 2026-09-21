@@ -7,29 +7,12 @@
 package buildcraft.lib.gui.widget;
 
 import java.io.IOException;
-import java.util.List;
-
-import com.mojang.blaze3d.vertex.PoseStack;
-//? if >=1.20 {
-/*?
-import net.minecraft.client.gui.GuiGraphics;
-?*/
-//?}
 
 import buildcraft.lib.fluid.Tank;
-import buildcraft.lib.gui.BuildCraftGui;
-import buildcraft.lib.gui.GuiElementSimple;
-import buildcraft.lib.gui.GuiIcon;
-import buildcraft.lib.gui.IGuiElement;
-import buildcraft.lib.gui.IInteractionElement;
 import buildcraft.lib.gui.MenuBC_Neptune;
 import buildcraft.lib.gui.Widget_Neptune;
-import buildcraft.lib.gui.elem.ToolTip;
-import buildcraft.lib.gui.help.ElementHelpInfo.HelpPosition;
-import buildcraft.lib.gui.pos.IGuiArea;
-import buildcraft.lib.misc.GuiUtil;
-import net.minecraft.network.FriendlyByteBuf;
 import buildcraft.lib.net.BCPacketContext;
+import net.minecraft.network.FriendlyByteBuf;
 
 public class WidgetFluidTank extends Widget_Neptune<MenuBC_Neptune> {
     private static final byte NET_CLICK = 0;
@@ -42,7 +25,6 @@ public class WidgetFluidTank extends Widget_Neptune<MenuBC_Neptune> {
         this.tank = tank;
         isClientSide = false;
     }
-    
 
     @Override
     public void handleWidgetDataServer(BCPacketContext ctx, FriendlyByteBuf buffer) throws IOException {
@@ -51,59 +33,12 @@ public class WidgetFluidTank extends Widget_Neptune<MenuBC_Neptune> {
             tank.onGuiClicked(container);
         }
     }
-    public IGuiElement createGuiElement(BuildCraftGui gui, IGuiArea area, GuiIcon overlay) {
-        return new GuiElementFluidTank(gui, area, overlay);
+
+    Tank getTank() {
+        return tank;
     }
 
-    private final class GuiElementFluidTank extends GuiElementSimple implements IInteractionElement {
-        private final GuiIcon overlay;
-
-        public GuiElementFluidTank(BuildCraftGui gui, IGuiArea area, GuiIcon overlay) {
-            super(gui, area);
-            this.overlay = overlay;
-        }
-
-        @Override
-        //? if <1.20 {
-        public void drawBackground(PoseStack pose, float partialTicks) {
-        	GuiUtil.drawFluid(pose, this, tank);
-        //?} else {
-        /*?
-        public void drawBackground(GuiGraphics guiGraphics, float partialTicks) {
-        PoseStack pose = guiGraphics.pose();
-        	GuiUtil.drawFluid(guiGraphics, this, tank);
-        ?*/
-        //?}
-            if (overlay != null) {
-                //? if <1.20 {
-                overlay.drawCutInside(pose, this);
-                //?} else {
-                /*?
-                overlay.drawCutInside(guiGraphics, this);
-                ?*/
-                //?}
-            }
-        }
-
-        @Override
-        public void onMouseClicked(int button) {
-            if (contains(gui.mouse)) {
-                WidgetFluidTank.this.sendWidgetData(buffer -> buffer.writeByte(NET_CLICK));
-            }
-        }
-
-        @Override
-        public void addToolTips(List<ToolTip> tooltips) {
-            if (contains(gui.mouse)) {
-                ToolTip tooltip = tank.getToolTip();
-                tooltip.refresh();
-                tooltips.add(tooltip);
-            }
-        }
-
-        @Override
-        public void addHelpElements(List<HelpPosition> elements) {
-        	elements.add(tank.helpInfo.target(this.expand(4)));
-        }
+    void sendClick() {
+        sendWidgetData(buffer -> buffer.writeByte(NET_CLICK));
     }
 }

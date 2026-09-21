@@ -256,7 +256,7 @@ public final class BuildCraftPipeTransportGameTests {
 
     private static ChestBlockEntity placeChest(GameTestHelper helper, BlockPos pos) {
         helper.setBlock(pos, Blocks.CHEST.defaultBlockState());
-        BlockEntity blockEntity = helper.getBlockEntity(pos);
+        BlockEntity blockEntity = GameTestCompat.getBlockEntity(helper, pos);
         if (!(blockEntity instanceof ChestBlockEntity chest)) {
             helper.fail("chest block did not create ChestBlockEntity at " + pos);
             throw new IllegalStateException("missing chest");
@@ -287,7 +287,7 @@ public final class BuildCraftPipeTransportGameTests {
     }
 
     private static boolean hasCargoMarker(ItemStack stack, String marker) {
-        return marker.equals(ItemStackUtil.getCustomData(stack).getString(CARGO_MARKER_KEY));
+        return marker.equals(GameTestCompat.readString(ItemStackUtil.getCustomData(stack), CARGO_MARKER_KEY));
     }
 
     private static int countDroppedCargo(GameTestHelper helper, String marker) {

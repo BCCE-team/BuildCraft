@@ -1,5 +1,6 @@
 package buildcraft.transport.pipe.flow;
 
+import buildcraft.gametest.GameTestCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -139,7 +140,7 @@ public final class PipeForgeEnergyGameTests {
         half.configureForgeEnergy(halfEvent);
         require(helper, halfEvent.getMaxPower() == base / 2, "Iron FE limiter shift=1 did not halve transfer");
         require(helper, !halfEvent.isTransferDisabled(), "half-rate FE limiter disabled transfer");
-        require(helper, half.writeToNbt().getInt("limitShift") == 1, "FE limiter mode was not persisted");
+        require(helper, GameTestCompat.readInt(half.writeToNbt(), "limitShift") == 1, "FE limiter mode was not persisted");
 
         CompoundTag disabledNbt = new CompoundTag();
         disabledNbt.putInt("limitShift", PipeBehaviourLimiter.MAX_SHIFT);

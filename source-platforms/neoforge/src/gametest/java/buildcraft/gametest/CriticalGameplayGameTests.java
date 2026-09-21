@@ -78,7 +78,7 @@ public final class CriticalGameplayGameTests {
     public static void autoWorkbenchContainerNeverExposesPhantomFilters(GameTestHelper helper) {
         BlockPos relative = new BlockPos(1, 1, 1);
         helper.setBlock(relative, BCFactoryBlocks.AUTO_BENCH_BLOCK.get().defaultBlockState());
-        BlockEntity blockEntity = helper.getBlockEntity(relative);
+        BlockEntity blockEntity = GameTestCompat.getBlockEntity(helper, relative);
         if (!(blockEntity instanceof TileAutoWorkbenchItems tile)) {
             helper.fail("Auto Workbench block did not create TileAutoWorkbenchItems");
             return;

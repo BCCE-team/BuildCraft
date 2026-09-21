@@ -13,6 +13,7 @@ import buildcraft.lib.gui.GuiBC8;
 import buildcraft.lib.gui.GuiIcon;
 import buildcraft.lib.gui.ledger.LedgerEngine;
 import buildcraft.lib.gui.pos.GuiRectangle;
+import buildcraft.lib.gui.widget.GuiElementFluidTank;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
@@ -43,9 +44,9 @@ public class GuiEngineIron_BC8 extends GuiBC8<ContainerEngineIron_BC8> {
     public void init() {
         super.init();
 
-        mainGui.shownElements.add(container.widgetTankFuel.createGuiElement(mainGui, new GuiRectangle(26, 18, 16, 60).offset(mainGui.rootElement), ICON_TANK_OVERLAY));
-        mainGui.shownElements.add(container.widgetTankCoolant.createGuiElement(mainGui, new GuiRectangle(80, 18, 16, 60).offset(mainGui.rootElement), ICON_TANK_OVERLAY));
-        mainGui.shownElements.add(container.widgetTankResidue.createGuiElement(mainGui, new GuiRectangle(134, 18, 16, 60).offset(mainGui.rootElement), ICON_TANK_OVERLAY));
+        mainGui.shownElements.add(new GuiElementFluidTank(container.widgetTankFuel, mainGui, new GuiRectangle(26, 18, 16, 60).offset(mainGui.rootElement), ICON_TANK_OVERLAY));
+        mainGui.shownElements.add(new GuiElementFluidTank(container.widgetTankCoolant, mainGui, new GuiRectangle(80, 18, 16, 60).offset(mainGui.rootElement), ICON_TANK_OVERLAY));
+        mainGui.shownElements.add(new GuiElementFluidTank(container.widgetTankResidue, mainGui, new GuiRectangle(134, 18, 16, 60).offset(mainGui.rootElement), ICON_TANK_OVERLAY));
     }
 
     @Override

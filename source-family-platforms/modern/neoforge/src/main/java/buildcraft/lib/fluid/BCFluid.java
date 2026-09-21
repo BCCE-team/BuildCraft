@@ -20,6 +20,7 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
@@ -224,11 +225,25 @@ public abstract class BCFluid extends BaseFlowingFluid {
 		}
 	}
 
+	private static boolean isWater(FluidState state) {
+		Fluid fluid = state.getType();
+		return fluid == Fluids.WATER || fluid == Fluids.FLOWING_WATER || state.is(FluidTags.WATER);
+	}
+
+	@Override
+	protected void spreadTo(LevelAccessor level, BlockPos pos, BlockState state, Direction direction,
+			FluidState fluidState) {
+		if (isWater(level.getFluidState(pos))) {
+			return;
+		}
+		super.spreadTo(level, pos, state, direction, fluidState);
+	}
+
 	protected boolean canBeReplacedWith(FluidState state, BlockGetter level, BlockPos pos, Fluid fluidIn,
 			Direction direction) {
 		// Preserve BuildCraft fluid cells against incompatible water replacement while respecting density rules.
 		// stable in oceans and only allow a genuinely denser, non-water fluid to displace them from above.
-		if (fluidIn == Fluids.EMPTY || fluidIn.defaultFluidState().is(FluidTags.WATER)) {
+		if (fluidIn == Fluids.EMPTY || isWater(fluidIn.defaultFluidState())) {
 			return false;
 		}
 		return direction == Direction.DOWN
@@ -237,7 +252,13 @@ public abstract class BCFluid extends BaseFlowingFluid {
 
 	protected boolean canSpreadTo(BlockGetter p_75978_, BlockPos p_75979_, BlockState p_75980_, Direction p_75981_,
 			BlockPos p_75982_, BlockState p_75983_, FluidState fluidState, Fluid p_75985_) {
-		return canPassThroughWall0(p_75981_, p_75978_, p_75979_, p_75980_, p_75982_, p_75983_) && fluidState.canBeReplacedWith(p_75978_, p_75982_, p_75985_, p_75981_) && canHoldFluid(p_75978_, p_75982_, p_75983_, p_75985_) && (fluidState.isEmpty() || fluidState.getFluidType().getDensity() < this.getFluidType().getDensity());
+		if (isWater(fluidState)) {
+			return false;
+		}
+		return canPassThroughWall0(p_75981_, p_75978_, p_75979_, p_75980_, p_75982_, p_75983_)
+			&& fluidState.canBeReplacedWith(p_75978_, p_75982_, p_75985_, p_75981_)
+			&& canHoldFluid(p_75978_, p_75982_, p_75983_, p_75985_)
+			&& (fluidState.isEmpty() || fluidState.getFluidType().getDensity() < this.getFluidType().getDensity());
 	}
 
 	public Component getBareLocalizedName(FluidStack stack) {

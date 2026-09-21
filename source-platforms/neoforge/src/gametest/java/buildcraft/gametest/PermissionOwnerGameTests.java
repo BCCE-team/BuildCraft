@@ -19,7 +19,6 @@ import buildcraft.robotics.BCRoboticsBoards;
 import buildcraft.robotics.entity.EntityRobot;
 import buildcraft.robotics.internal.api2.RobotAutomationSupport;
 import com.mojang.authlib.GameProfile;
-import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -70,7 +69,7 @@ public final class PermissionOwnerGameTests {
         ServerLevel level = helper.getLevel();
         BlockPos relative = new BlockPos(1, 1, 1);
         helper.setBlock(relative, BCBuildersBlocks.QUARRY.get().defaultBlockState());
-        BlockEntity blockEntity = helper.getBlockEntity(relative);
+        BlockEntity blockEntity = GameTestCompat.getBlockEntity(helper, relative);
         if (!(blockEntity instanceof TileQuarry quarry)) {
             helper.fail("quarry block did not create TileQuarry");
             return;
@@ -84,8 +83,8 @@ public final class PermissionOwnerGameTests {
 
         GameProfile restoredOwner = restored.getKnownOwner();
         require(helper, restoredOwner != null, "quarry owner disappeared after NBT round-trip");
-        require(helper, DENIED_OWNER_ID.equals(restoredOwner.getId()), "quarry owner UUID changed after NBT round-trip");
-        require(helper, DENIED_OWNER.getName().equals(restoredOwner.getName()), "quarry owner name changed after NBT round-trip");
+        require(helper, DENIED_OWNER_ID.equals(GameTestCompat.profileId(restoredOwner)), "quarry owner UUID changed after NBT round-trip");
+        require(helper, GameTestCompat.profileName(DENIED_OWNER).equals(GameTestCompat.profileName(restoredOwner)), "quarry owner name changed after NBT round-trip");
         helper.succeed();
     }
 
@@ -99,7 +98,7 @@ public final class PermissionOwnerGameTests {
         helper.setBlock(sourceRelative, BCBuildersBlocks.QUARRY.get().defaultBlockState());
         helper.setBlock(targetRelative, Blocks.AIR.defaultBlockState());
 
-        BlockEntity sourceEntity = helper.getBlockEntity(sourceRelative);
+        BlockEntity sourceEntity = GameTestCompat.getBlockEntity(helper, sourceRelative);
         if (!(sourceEntity instanceof TileQuarry sourceQuarry)) {
             helper.fail("source quarry block did not create TileQuarry");
             return;
@@ -122,9 +121,9 @@ public final class PermissionOwnerGameTests {
         }
         GameProfile placedOwner = placedQuarry.getKnownOwner();
         require(helper, placedOwner != null, "copied quarry has no placement owner");
-        require(helper, PLACEMENT_OWNER_ID.equals(placedOwner.getId()),
+        require(helper, PLACEMENT_OWNER_ID.equals(GameTestCompat.profileId(placedOwner)),
             "copied quarry cloned the source owner instead of using the placement actor");
-        require(helper, !DENIED_OWNER_ID.equals(placedOwner.getId()),
+        require(helper, !DENIED_OWNER_ID.equals(GameTestCompat.profileId(placedOwner)),
             "source quarry owner leaked through copied block NBT");
         helper.succeed();
     }
@@ -134,19 +133,18 @@ public final class PermissionOwnerGameTests {
         installPermissionProvider();
         EntityRobot original = new EntityRobot(helper.getLevel(), BCRoboticsBoards.EMPTY);
         original.setOwner(DENIED_OWNER);
-        CompoundTag saved = new CompoundTag();
-        original.addAdditionalSaveData(saved);
+        CompoundTag saved = GameTestCompat.saveEntity(original);
 
         EntityRobot restored = new EntityRobot(helper.getLevel(), BCRoboticsBoards.EMPTY);
-        restored.readAdditionalSaveData(saved.copy());
+        GameTestCompat.loadEntity(restored, saved.copy());
         GameProfile restoredOwner = restored.getOwnerProfile();
-        require(helper, DENIED_OWNER_ID.equals(restoredOwner.getId()), "robot owner UUID changed after NBT round-trip");
-        require(helper, DENIED_OWNER.getName().equals(restoredOwner.getName()), "robot owner name changed after NBT round-trip");
+        require(helper, DENIED_OWNER_ID.equals(GameTestCompat.profileId(restoredOwner)), "robot owner UUID changed after NBT round-trip");
+        require(helper, GameTestCompat.profileName(DENIED_OWNER).equals(GameTestCompat.profileName(restoredOwner)), "robot owner name changed after NBT round-trip");
 
         var actor = RobotAutomationSupport.actor(restored);
         require(helper, actor.type() == ActorType.MACHINE_OWNER, "owned robot did not become a MACHINE_OWNER API2 actor");
         require(helper, actor.playerId().filter(DENIED_OWNER_ID::equals).isPresent(), "robot API2 actor lost owner UUID");
-        require(helper, actor.playerName().filter(DENIED_OWNER.getName()::equals).isPresent(), "robot API2 actor lost owner name");
+        require(helper, actor.playerName().filter(GameTestCompat.profileName(DENIED_OWNER)::equals).isPresent(), "robot API2 actor lost owner name");
         require(helper, !RobotAutomationSupport.permitsBlock(
             restored, helper.absolutePos(new BlockPos(1, 1, 1)), WorldOperationKind.BLOCK_BREAK, OperationMode.EXECUTE
         ), "registered API2 permission provider did not deny the owned robot");
@@ -189,7 +187,7 @@ public final class PermissionOwnerGameTests {
         BlockPos relative = new BlockPos(1, 1, 1);
         BlockPos absolute = helper.absolutePos(relative);
         helper.setBlock(relative, BCBuildersBlocks.QUARRY.get().defaultBlockState());
-        BlockEntity blockEntity = helper.getBlockEntity(relative);
+        BlockEntity blockEntity = GameTestCompat.getBlockEntity(helper, relative);
         if (!(blockEntity instanceof TileQuarry quarry)) {
             helper.fail("quarry block did not create TileQuarry");
             return;
@@ -280,53 +278,11 @@ public final class PermissionOwnerGameTests {
     }
 
     private static CompoundTag saveMachineState(BlockEntity blockEntity, GameTestHelper helper) {
-        CompoundTag tag = new CompoundTag();
-        Method oneArg = findMethod(blockEntity.getClass(), "saveAdditional", 1);
-        Method twoArg = findMethod(blockEntity.getClass(), "saveAdditional", 2);
-        try {
-            if (oneArg != null) {
-                oneArg.setAccessible(true);
-                oneArg.invoke(blockEntity, tag);
-                return tag;
-            }
-            if (twoArg != null) {
-                twoArg.setAccessible(true);
-                twoArg.invoke(blockEntity, tag, helper.getLevel().registryAccess());
-                return tag;
-            }
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Cannot save machine owner state", e);
-        }
-        throw new IllegalStateException("No saveAdditional method on " + blockEntity.getClass().getName());
+        return GameTestCompat.saveBlockEntity(blockEntity, helper);
     }
 
     private static void loadMachineState(BlockEntity blockEntity, CompoundTag tag, GameTestHelper helper) {
-        Method oneArg = findMethod(blockEntity.getClass(), "load", 1);
-        Method twoArg = findMethod(blockEntity.getClass(), "loadAdditional", 2);
-        try {
-            if (oneArg != null) {
-                oneArg.setAccessible(true);
-                oneArg.invoke(blockEntity, tag.copy());
-                return;
-            }
-            if (twoArg != null) {
-                twoArg.setAccessible(true);
-                twoArg.invoke(blockEntity, tag.copy(), helper.getLevel().registryAccess());
-                return;
-            }
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Cannot load machine owner state", e);
-        }
-        throw new IllegalStateException("No load method on " + blockEntity.getClass().getName());
-    }
-
-    private static Method findMethod(Class<?> start, String name, int parameterCount) {
-        for (Class<?> type = start; type != null; type = type.getSuperclass()) {
-            for (Method method : type.getDeclaredMethods()) {
-                if (method.getName().equals(name) && method.getParameterCount() == parameterCount) return method;
-            }
-        }
-        return null;
+        GameTestCompat.loadBlockEntity(blockEntity, tag, helper);
     }
 
     private static ResourceLocation id(String path) {
