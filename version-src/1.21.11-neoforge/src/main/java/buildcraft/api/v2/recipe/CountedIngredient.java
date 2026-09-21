@@ -9,7 +9,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.ItemLike;
-import net.neoforged.neoforge.common.crafting.DataComponentIngredient;
 
 /** Typed replacement for the legacy IngredientStack raw-Object API. */
 public final class CountedIngredient {
@@ -40,7 +39,9 @@ public final class CountedIngredient {
         Objects.requireNonNull(stack, "stack");
         if (stack.isEmpty()) throw new IllegalArgumentException("stack must not be empty");
         ItemStack exact = stack.copy();
-        return new CountedIngredient(DataComponentIngredient.of(true, exact), null, exact, count);
+        // Vanilla 1.21.11 Ingredient no longer carries component predicates. Keep the
+        // public API loader-neutral and retain exact component matching in test().
+        return new CountedIngredient(Ingredient.of(exact.getItem()), null, exact, count);
     }
 
     /** Keep the TagKey itself so addons may create this definition before datapack tags are bound. */

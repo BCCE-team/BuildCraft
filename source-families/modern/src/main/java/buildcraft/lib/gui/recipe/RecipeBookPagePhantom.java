@@ -33,6 +33,10 @@ public final class RecipeBookPagePhantom {
         return Math.max(1, (entries.size() + ENTRIES_PER_PAGE - 1) / ENTRIES_PER_PAGE);
     }
 
+    public void reset() {
+        page = 0;
+    }
+
     public boolean previous() {
         if (page <= 0) return false;
         page--;

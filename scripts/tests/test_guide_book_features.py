@@ -120,6 +120,8 @@ class GuideBookFeatures(unittest.TestCase):
         self.assertIn("buffer.writeIdentifier(entry.recipeId());", message)
         self.assertIn("Identifier recipeId = buffer.readIdentifier();", message)
         self.assertIn("new GuideRecipeDisplayCache.Entry(recipeId, display)", message)
+        self.assertIn("recipe.value().getType() != RecipeType.CRAFTING", message)
+        self.assertIn("recipe.value().getType() != BCSiliconRecipes.ASSEMBLY_TYPE.get()", message)
 
         self.assertIn("private long recipeDisplayRevision = GuideRecipeDisplayCache.revision();", gui)
         self.assertIn("if (revision != recipeDisplayRevision)", gui)

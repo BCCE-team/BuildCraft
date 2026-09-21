@@ -14,6 +14,7 @@ import buildcraft.core.BCCore;
 import buildcraft.energy.tile.TileSpringOil;
 import buildcraft.lib.misc.AdvancementUtil;
 import buildcraft.lib.misc.FluidUtilBC;
+import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
@@ -118,7 +119,11 @@ public class BCEnergy {
     }
 
     private static boolean hasAdvancement(ServerPlayer player, Identifier advancementName) {
-        return false;
+        if (player.level().getServer() == null) {
+            return false;
+        }
+        AdvancementHolder advancement = player.level().getServer().getAdvancements().get(advancementName);
+        return advancement != null && player.getAdvancements().getOrStartProgress(advancement).isDone();
     }
 
     private static boolean isNearOilSpot(ServerPlayer player) {

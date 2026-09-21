@@ -170,7 +170,12 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
             }
         }
         IMjConnector receiver = oTile.getCapability(MjCapabilities.CAP_CONNECTOR, face.getOpposite()).orElse(null);
-        return receiver != null && receiver.canConnect(sections.get(face));
+        if (receiver != null && receiver.canConnect(sections.get(face))) {
+            return true;
+        }
+        IEnergyStorage fe = oTile.getCapability(ForgeCapabilities.ENERGY, face.getOpposite()).orElse(null);
+        IMjReceiver converted = MjToFeAutoConverter.createReceiver(fe);
+        return converted != null && converted.canConnect(sections.get(face));
     }
 
     private void ensureConfigured() {

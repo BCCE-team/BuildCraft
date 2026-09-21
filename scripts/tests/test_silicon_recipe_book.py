@@ -105,6 +105,38 @@ class SiliconRecipeBookSweep(unittest.TestCase):
             self.assertIn("level != null && level.isClientSide", base, target)
             self.assertIn("? targetClient : getTarget()", base, target)
 
+    def test_12111_phantom_recipe_book_keeps_reference_features(self):
+        gui = self.java('1.21.11-neoforge', 'buildcraft/lib/gui/recipe/GuiRecipeBookPhantom.java')
+        listing = self.java('1.21.11-neoforge', 'buildcraft/lib/gui/recipe/RecipeListPhantom.java')
+        auto = self.java('1.21.11-neoforge', 'buildcraft/factory/gui/GuiAutoCraftItems.java')
+        advanced = self.java('1.21.11-neoforge', 'buildcraft/silicon/gui/GuiAdvancedCraftingTable.java')
+
+        self.assertIn('BCRecipeDisplays.unlockedCrafting(recipeBook)', listing)
+        self.assertIn('EditBox searchBox', gui)
+        self.assertIn('categoryTabs', gui)
+        self.assertIn('BCGuiInput.key(searchBox', gui)
+        self.assertIn('BCGuiInput.character(searchBox', gui)
+        self.assertIn('entry.category()', gui)
+        self.assertIn('return Optional.empty();', gui)
+        for screen in (auto, advanced):
+            self.assertIn('new ImageButton(', screen)
+            self.assertIn('RecipeBookComponent.RECIPE_BUTTON_SPRITES', screen)
+            self.assertNotIn('Component.literal("R")', screen)
+
+    def test_legacy_assembly_state_only_changes_are_synchronised(self):
+        for target in ('1.19.2-forge', '1.20.1-forge'):
+            path = Path(self.temp.name) / ('legacy-' + target)
+            materialize_target(target, path, self.props)
+            tile = (path / 'src/main/java/buildcraft/silicon/tile/TileAssemblyTable.java').read_text(encoding='utf-8')
+            self.assertIn('boolean changed = false;', tile, target)
+            self.assertIn('EnumAssemblyRecipeState previousState = entry.getValue();', tile, target)
+            self.assertIn('if (state != previousState)', tile, target)
+            self.assertIn('if (changed)', tile, target)
+            state_start = tile.index('if (id == NET_RECIPE_STATE)')
+            state_end = tile.index('public void sendRecipeStateToServer', state_start)
+            state_block = tile[state_start:state_end]
+            self.assertIn('sendNetworkGuiUpdate(NET_GUI_DATA);', state_block, target)
+
     def test_12111_recipe_sync_still_covers_assembly_definitions(self):
         sync = self.java("1.21.11-neoforge", "buildcraft/silicon/BCSiliconRecipeSync.java")
         self.assertIn("event.sendRecipes(BCSiliconRecipes.ASSEMBLY_TYPE.get())", sync)

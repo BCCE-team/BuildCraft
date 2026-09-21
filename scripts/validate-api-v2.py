@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+from source_layout import load_properties, materialize_target, target_ids
 API_ROOTS = [
     ROOT / "source-shared/src/main/java/buildcraft/api/v2",
     ROOT / "source-families/legacy/src/main/java/buildcraft/api/v2",
@@ -107,6 +110,26 @@ def main() -> int:
 
     if OLD_IMPL_ROOT.is_dir() and any(OLD_IMPL_ROOT.rglob("*.java")):
         errors.append("Legacy implementation namespace buildcraft.lib.api.v2 still contains Java sources; use buildcraft.lib.internal.api.v2")
+
+    # Check the public API after every target overlay and compatibility transform.
+    # Source-only validation is insufficient: target transforms can otherwise introduce loader imports later.
+    props = load_properties()
+    with tempfile.TemporaryDirectory(prefix="bc-api-v2-materialized-") as temp_dir:
+        for target in target_ids(props):
+            destination = Path(temp_dir) / target
+            materialize_target(target, destination, props)
+            api_root = destination / "src/main/java/buildcraft/api/v2"
+            if not api_root.is_dir():
+                errors.append(f"{target}: materialized buildcraft/api/v2 is missing")
+                continue
+            for path in java_files(api_root):
+                materialized = path.read_text(encoding="utf-8")
+                for imported in IMPORT_RE.findall(materialized):
+                    if imported.startswith(("net.minecraftforge.", "net.neoforged.", "net.fabricmc.", "org.quiltmc.")):
+                        errors.append(f"{target}: materialized API v2 imports loader type {imported} in {path.relative_to(api_root)}")
+            counted = api_root / "recipe/CountedIngredient.java"
+            if counted.is_file() and "DataComponentIngredient" in counted.read_text(encoding="utf-8"):
+                errors.append(f"{target}: materialized CountedIngredient still exposes DataComponentIngredient")
 
     # Repository-wide retirement of all non-v2 Java API namespaces is enforced by validate-api-v2-only.py.
 

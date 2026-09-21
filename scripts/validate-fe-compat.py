@@ -137,6 +137,19 @@ for loader in ("forge", "neoforge"):
         "registerAlias",
     )
 
+# Power-pipe topology must expose the same MJ -> FE auto-conversion path as actual transfer.
+forge_power = text("source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java")
+connect_start = forge_power.index("public boolean canConnect(Direction face, BlockEntity oTile)")
+connect_end = forge_power.index("private void ensureConfigured()", connect_start)
+connect_block = forge_power[connect_start:connect_end]
+for token in (
+    "ForgeCapabilities.ENERGY",
+    "MjToFeAutoConverter.createReceiver(fe)",
+    "converted.canConnect(sections.get(face))",
+):
+    if token not in connect_block:
+        fail(f"Forge PipeFlowPower.canConnect is missing FE auto-convert topology token: {token}")
+
 # Limiter sprite sets are present on every supported family/version source.
 for path in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/transport/BCTransportSprites.java",

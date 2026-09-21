@@ -61,23 +61,23 @@ class ClientIntegrations(unittest.TestCase):
         self.assertNotIn('mezz.jei', recipe)
         self.assertNotIn('mezz.jei', self.java('buildcraft/silicon/BCSiliconRecipeSync.java'))
 
-    def test_pipe_unlock_advancements_exist_for_every_recipe(self):
-        # Reverse-recipe advancement coverage is asserted on 1.21.11; 1.21.1 remains the
-        # rendering/gameplay reference for behavior that is present there.
-        for target in ('1.21.11-neoforge',):
-            root = self.roots[target]
-            data = root/'src/main/resources/data'
-            pipe_recipes = set()
-            rewarded = set()
-            for path in (data/'buildcrafttransport/recipe').rglob('*.json'):
-                value = json.loads(path.read_text())
-                if value.get('type') == 'buildcrafttransport:pipe':
-                    pipe_recipes.add('buildcrafttransport:'+path.relative_to(data/'buildcrafttransport/recipe').with_suffix('').as_posix())
-            for path in (data/'buildcrafttransport/advancement').rglob('*.json'):
-                value = json.loads(path.read_text())
-                rewarded.update(value.get('rewards', {}).get('recipes', []))
-            self.assertGreater(len(pipe_recipes), 30, target)
-            self.assertEqual(set(), pipe_recipes-rewarded, target)
+    def test_pipe_recipe_discovery_matches_reference_target(self):
+        def rewarded_recipes(root: Path) -> set[str]:
+            data = root / 'src/main/resources/data/buildcrafttransport'
+            rewarded: set[str] = set()
+            for directory in ('advancements', 'advancement'):
+                base = data / directory
+                if not base.is_dir():
+                    continue
+                for path in base.rglob('*.json'):
+                    value = json.loads(path.read_text(encoding='utf-8'))
+                    rewarded.update(value.get('rewards', {}).get('recipes', []))
+            return rewarded
+
+        reference = rewarded_recipes(self.roots['1.21.1-neoforge'])
+        current = rewarded_recipes(self.roots['1.21.11-neoforge'])
+        self.assertGreater(len(reference), 30)
+        self.assertEqual(reference, current)
 
     def test_jei_categories_and_catalysts(self):
         plugin = self.java('buildcraft/compat/jei/BuildCraftJeiPlugin.java')

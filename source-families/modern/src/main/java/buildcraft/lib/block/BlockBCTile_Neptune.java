@@ -105,7 +105,16 @@ public abstract class BlockBCTile_Neptune extends BlockBCBase_Neptune implements
 		}
         ItemStack blockStack = ItemStack.EMPTY;
         if (blockEntity != null && blockEntity.getLevel() != null) {
-            blockStack = new ItemStack(state.getBlock().asItem());
+            // Preserve state-sensitive pick/clone semantics (for example the shared BC8 engine block).
+            //? if >=1.21.4 {
+            blockStack = state.getBlock().getCloneItemStack(
+                blockEntity.getLevel(), blockEntity.getBlockPos(), state, false
+            );
+            //? } else {
+            blockStack = state.getBlock().getCloneItemStack(
+                blockEntity.getLevel(), blockEntity.getBlockPos(), state
+            );
+            //? }
         }
         if (blockStack.isEmpty()) {
             blockStack = new ItemStack(state.getBlock().asItem());

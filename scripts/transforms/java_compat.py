@@ -735,7 +735,6 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = text.replace("level.neighborChanged(getBlockState(), currentPos.offset(side.getUnitVec3i()), BCFactoryBlocks.FLOOD_GATE_BLOCK.get(),\n                                    currentPos, false);", "level.neighborChanged(getBlockState(), currentPos.offset(side.getUnitVec3i()), BCFactoryBlocks.FLOOD_GATE_BLOCK.get(),\n                                    null, false);")
     text = text.replace("level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, worldPosition);", "level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, null);")
     text = text.replace("level.neighborChanged(worldPosition.relative(current), sourceBlock, worldPosition);", "level.neighborChanged(worldPosition.relative(current), sourceBlock, null);")
-    text = text.replace("FMLEnvironment.production", "false")
     text = text.replace("guiGraphics.renderComponentTooltip(", "RenderCompat.renderComponentTooltip(guiGraphics, ")
     # Minecraft#getProfiler was removed after 1.21.1. 1.21.11 uses the
     # thread-local static profiler exposed by Profiler#get. Do not route this

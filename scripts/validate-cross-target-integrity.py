@@ -640,10 +640,18 @@ def validate_build_metadata_and_source_hygiene(props: dict[str, str]) -> None:
             "BuildCraftTarget.GIT_COMMIT_HASH",
             "BuildCraftTarget.GIT_COMMIT_MESSAGE",
             "BuildCraftTarget.GIT_COMMIT_AUTHOR",
-            "!FMLEnvironment.production || Boolean.getBoolean(\"buildcraft.dev\")",
         ):
             if token not in bclib:
-                fail(f"{target}: BCLib build metadata/DEV mode lost {token!r}")
+                fail(f"{target}: BCLib build metadata lost {token!r}")
+        dev_token = (
+            "!FMLLoader.getCurrent().isProduction() || Boolean.getBoolean(\"buildcraft.dev\")"
+            if target == "1.21.11-neoforge"
+            else "!FMLEnvironment.production || Boolean.getBoolean(\"buildcraft.dev\")"
+        )
+        if dev_token not in bclib:
+            fail(f"{target}: BCLib DEV mode lost {dev_token!r}")
+        if "!false" in bclib:
+            fail(f"{target}: BCLib DEV mode was corrupted by compatibility materialization")
         if "VERSION.startsWith" in bclib:
             fail(f"{target}: DEV mode still depends on a version placeholder")
 

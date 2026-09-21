@@ -16,10 +16,13 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraft.world.item.crafting.RecipeType;
+
+import buildcraft.silicon.BCSiliconRecipes;
 import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
 
 /**
- * Synchronises every server recipe display to the client Guide Book.
+ * Synchronises the crafting and assembly recipe displays used by the client Guide Book.
  *
  * Minecraft 1.21.11 no longer exposes the server RecipeManager on the client. The vanilla ClientRecipeBook only
  * contains recipes the player has unlocked, which is intentionally insufficient for BuildCraft's reference guide.
@@ -63,6 +66,10 @@ public final class MessageGuideRecipeDisplays {
         RecipeManager manager = ((net.minecraft.server.level.ServerLevel) player.level()).getServer().getRecipeManager();
         List<GuideRecipeDisplayCache.Entry> displays = new ArrayList<>();
         for (RecipeHolder<?> recipe : manager.getRecipes()) {
+            if (recipe.value().getType() != RecipeType.CRAFTING
+                && recipe.value().getType() != BCSiliconRecipes.ASSEMBLY_TYPE.get()) {
+                continue;
+            }
             Identifier recipeId = recipe.id().identifier();
             manager.listDisplaysForRecipe(recipe.id(), display ->
                 displays.add(new GuideRecipeDisplayCache.Entry(recipeId, display)));

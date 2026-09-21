@@ -15,6 +15,8 @@ import buildcraft.lib.misc.StackUtil;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.ImageButton;
+import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
@@ -53,9 +55,8 @@ public class GuiAutoCraftItems extends GuiBC8<ContainerAutoCraftItems> {
     }
 
     private void sendRecipe(RecipeDisplay display) {
-        container.sendSetPhantomSlots(
-            container.blueprintInv,
-            GuiRecipeBookPhantom.resolveCraftingGrid(display, minecraft.level)
+        GuiRecipeBookPhantom.resolveCraftingGrid(display, minecraft.level).ifPresent(stacks ->
+            container.sendSetPhantomSlots(container.blueprintInv, stacks)
         );
     }
 
@@ -68,10 +69,9 @@ public class GuiAutoCraftItems extends GuiBC8<ContainerAutoCraftItems> {
         widthTooNarrow = this.width < SIZE_X + 176;
         recipeBook.init(width, height, minecraft, widthTooNarrow);
         leftPos = recipeBook.updateScreenPosition(width, imageWidth);
-        recipeButton = Button.builder(Component.literal("R"), this::onPress)
-            .pos(leftPos + 5, height / 2 - 66)
-            .size(20, 18)
-            .build();
+        recipeButton = new ImageButton(leftPos + 5, height / 2 - 66, 20, 18,
+            RecipeBookComponent.RECIPE_BUTTON_SPRITES, this::onPress,
+            Component.translatable("gui.recipebook.toggleRecipes"));
         addRenderableWidget(recipeButton);
     }
 

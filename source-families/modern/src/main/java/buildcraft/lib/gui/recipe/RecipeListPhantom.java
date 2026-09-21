@@ -1,12 +1,11 @@
 //? source if >=1.21.1
 package buildcraft.lib.gui.recipe;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import net.minecraft.client.ClientRecipeBook;
-import net.minecraft.client.gui.screens.recipebook.RecipeCollection;
 import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
+import buildcraft.lib.compat.minecraft.recipe.BCRecipeDisplays;
 
 /** Client-side flattened recipe-display list used by BuildCraft guide/phantom recipes on 1.21.11. */
 public final class RecipeListPhantom {
@@ -17,13 +16,9 @@ public final class RecipeListPhantom {
     }
 
     public static RecipeListPhantom from(ClientRecipeBook recipeBook) {
-        List<RecipeDisplayEntry> entries = new ArrayList<>();
-        if (recipeBook != null) {
-            for (RecipeCollection collection : recipeBook.getCollections()) {
-                entries.addAll(collection.getRecipes());
-            }
-        }
-        return new RecipeListPhantom(entries);
+        return new RecipeListPhantom(
+            recipeBook == null ? List.of() : BCRecipeDisplays.unlockedCrafting(recipeBook)
+        );
     }
 
     public List<RecipeDisplayEntry> entries() {

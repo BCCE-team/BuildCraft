@@ -451,7 +451,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 		if(entity == null)
 			return Shapes.block();
 		if(entity instanceof Player player)
-			reachDistance = player.getAttackRange();
+			reachDistance = player.getReachDistance();
 		Vec3 carmpos = entity.getEyePosition();
 		Vec3 vec31 = entity.getLookAngle();
 		Vec3 vec32 = carmpos.add(vec31.x * reachDistance, vec31.y * reachDistance, vec31.z * reachDistance);

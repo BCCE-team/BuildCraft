@@ -663,52 +663,6 @@ def generate_legacy_resources_from_modern_canonical(
     return generated
 
 
-def generate_pipe_recipe_unlocks(destination_root: Path, *, minecraft: str) -> int:
-    """Fill missing recipe-book rewards, without changing existing advancement criteria.
-
-    The pipe serializer includes reversible upgrades and FE variants whose old
-    data set had no unlock advancement. Generate those from their actual source
-    ingredient; never duplicate a hand-authored reward or register a fake recipe.
-    """
-    if _version_tuple(minecraft) < _version_tuple("1.21.11"):
-        return 0
-    data = destination_root / "src/main/resources/data/buildcrafttransport"
-    recipes = data / "recipe"
-    advancements = data / "advancement"
-    rewarded: set[str] = set()
-    for path in sorted(advancements.rglob("*.json")):
-        value = json.loads(path.read_text(encoding="utf-8"))
-        rewarded.update(value.get("rewards", {}).get("recipes", []))
-    generated = 0
-    for path in sorted(recipes.rglob("*.json")):
-        value = json.loads(path.read_text(encoding="utf-8"))
-        if value.get("type") != "buildcrafttransport:pipe":
-            continue
-        relative = path.relative_to(recipes).with_suffix("").as_posix()
-        recipe_id = "buildcrafttransport:" + relative
-        if recipe_id in rewarded:
-            continue
-        source = value.get("from", value.get("left"))
-        if isinstance(source, dict):
-            source = source.get("item") or ("#" + source["tag"] if "tag" in source else None)
-        if not isinstance(source, str) or not source:
-            raise ValueError(f"Pipe recipe {recipe_id} needs an explicit unlock advancement")
-        output = advancements / "recipe/buildcraft.pipes/generated" / (relative + ".json")
-        _write_generated_json(output, {
-            "parent": "minecraft:recipes/root",
-            "criteria": {
-                "has_source": {"trigger": "minecraft:inventory_changed",
-                               "conditions": {"items": [{"items": source}]}},
-                "has_the_recipe": {"trigger": "minecraft:recipe_unlocked",
-                                   "conditions": {"recipe": recipe_id}},
-            },
-            "requirements": [["has_source", "has_the_recipe"]],
-            "rewards": {"recipes": [recipe_id]},
-        })
-        generated += 1
-    return generated
-
-
 def generate_target_resources(
     destination_root: Path, *, minecraft: str, family: str, platform: str
 ) -> int:
@@ -719,7 +673,6 @@ def generate_target_resources(
         destination_root, minecraft=minecraft, family=family
     )
     generated += generate_modern_item_definitions(destination_root, minecraft=minecraft)
-    generated += generate_pipe_recipe_unlocks(destination_root, minecraft=minecraft)
     generated += generate_legacy_forge_energy_tags(
         destination_root, minecraft=minecraft, family=family, platform=platform
     )

@@ -173,6 +173,36 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertNotIn('if (!level.hasChunkAt(neighbourPos)) {\n                return false;', pump)
         self.assertIn('&& isWater(drain.getFluid());', pump)
 
+    def test_cross_target_safety_contracts_survive_modern_materialization(self):
+        current = self.roots['1.21.11-neoforge'] / 'buildcraft'
+        old = self.roots['1.21.1-neoforge'] / 'buildcraft'
+
+        for root in (old, current):
+            drops = (root / 'lib/block/BlockBCTile_Neptune.java').read_text(encoding='utf-8')
+            self.assertIn('getCloneItemStack(', drops)
+
+            volume = (root / 'core/marker/volume/WorldSavedDataVolumeBoxes.java').read_text(encoding='utf-8')
+            get_method = volume[volume.index('public static WorldSavedDataVolumeBoxes get(Level world)'):]
+            self.assertIn('getDataStorage()', get_method)
+            self.assertNotIn('return new WorldSavedDataVolumeBoxes(world);', get_method.split('\n    }', 1)[0])
+
+            energy = (root / 'energy/BCEnergy.java').read_text(encoding='utf-8')
+            advancement = energy[energy.index('private static boolean hasAdvancement('):]
+            advancement = advancement[:advancement.index('\n    }') + 6]
+            self.assertIn('getAdvancements()', advancement)
+            self.assertIn('getOrStartProgress', advancement)
+            self.assertIn('.isDone()', advancement)
+
+    def test_forge_and_neoforge_pump_use_the_same_infinite_water_rules(self):
+        forge = (ROOT / 'source-platforms/forge/src/main/java/buildcraft/factory/tile/TilePump.java').read_text(encoding='utf-8')
+        neo = (ROOT / 'source-platforms/neoforge/src/main/java/buildcraft/factory/tile/TilePump.java').read_text(encoding='utf-8')
+        for pump in (forge, neo):
+            self.assertIn('scanForInfiniteWater = !BCCoreConfig.pumpsConsumeWater && isWater(scanFluid);', pump)
+            self.assertIn('if (!level.hasChunkAt(neighbourPos)) {\n                continue;', pump)
+            self.assertNotIn('if (!level.hasChunkAt(neighbourPos)) {\n                return false;', pump)
+            self.assertIn('state.is(FluidTags.WATER)', pump)
+            self.assertIn('isWaterSource(neighbour)', pump)
+
     def test_pump_infinite_water_fixture_stays_inside_empty3x3x3(self):
         suite = (
             ROOT
@@ -194,6 +224,12 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertNotIn('PlatformClientEvents.login(BCLibEventDist::onConnectToServer);', events)
         self.assertNotIn('PlatformClientEvents.logout(BCLibEventDist::onDisconnectFromServer);', events)
         self.assertNotIn('PlatformClientEvents.tick(BCEvents.Phase.END, BCLibEventDist::clientTick);', events)
+
+    def test_legacy_pipe_targeting_uses_block_reach(self):
+        pipe = (ROOT / 'version-src/1.19.2-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text(encoding='utf-8')
+        shape = pipe[pipe.index('public VoxelShape getShape('):]
+        self.assertIn('player.getReachDistance()', shape)
+        self.assertNotIn('player.getAttackRange()', shape)
 
     def test_smoke_scripts_read_canonical_target_metadata(self):
         for script in ('ci-server-smoke.sh', 'ci-client-smoke.sh'):

@@ -28,7 +28,11 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent;
+//? if >=1.21.11 {
+import net.neoforged.fml.loading.FMLLoader;
+//? } else {
 import net.neoforged.fml.loading.FMLEnvironment;
+//? }
 
 @Mod(BCLib.MODID)
 public class BCLib {
@@ -40,7 +44,11 @@ public class BCLib {
     public static final String GIT_COMMIT_MSG = BuildCraftTarget.GIT_COMMIT_MESSAGE;
     public static final String GIT_COMMIT_AUTHOR = BuildCraftTarget.GIT_COMMIT_AUTHOR;
 
+//? if >=1.21.11 {
+    public static final boolean DEV = !FMLLoader.getCurrent().isProduction() || Boolean.getBoolean("buildcraft.dev");
+//? } else {
     public static final boolean DEV = !FMLEnvironment.production || Boolean.getBoolean("buildcraft.dev");
+//? }
 
     public BCLib(IEventBus modEventBus) {
         MjApi2PlatformBridge.install();

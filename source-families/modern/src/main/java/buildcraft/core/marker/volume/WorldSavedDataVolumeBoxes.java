@@ -14,28 +14,71 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+//? if >=1.21.11 {
+import com.mojang.serialization.Codec;
+//? }
+
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.lib.net.MessageManager;
 import net.minecraft.core.BlockPos;
+//? if <1.21.11 {
 import net.minecraft.core.HolderLookup;
+//? }
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
+//? if <1.21.11 {
 import net.minecraft.util.datafix.DataFixTypes;
+//? }
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
+//? if >=1.21.11 {
+import net.minecraft.world.level.saveddata.SavedDataType;
+//? }
+//? if <1.21.11 {
 import net.minecraft.world.level.storage.DimensionDataStorage;
+//? }
 import net.minecraft.world.phys.AABB;
 
 public class WorldSavedDataVolumeBoxes extends SavedData {
     private static final String DATA_NAME = "buildcraft_volume_boxes";
+//? if >=1.21.11 {
+    private static final Codec<WorldSavedDataVolumeBoxes> CODEC = CompoundTag.CODEC.xmap(
+        WorldSavedDataVolumeBoxes::new, WorldSavedDataVolumeBoxes::saveToTag
+    );
+    private static final SavedDataType<WorldSavedDataVolumeBoxes> TYPE =
+        new SavedDataType<>(DATA_NAME, WorldSavedDataVolumeBoxes::new, CODEC, null);
+//? }
 
-    public final Level world;
+    public Level world;
     public final List<VolumeBox> volumeBoxes = new ArrayList<>();
     private final Map<UUID, CompoundTag> lastSyncedState = new HashMap<>();
     private long lastFullSyncTick = Long.MIN_VALUE;
     private int lastPlayerCount = -1;
 
+//? if >=1.21.11 {
+    private CompoundTag pendingLoad;
+
+    private WorldSavedDataVolumeBoxes() {
+    }
+
+    private WorldSavedDataVolumeBoxes(CompoundTag nbt) {
+        pendingLoad = nbt.copy();
+    }
+
+    private void attachWorld(Level world) {
+        if (this.world != null && this.world != world) {
+            throw new IllegalStateException("Volume-box saved data was attached to a different level");
+        }
+        this.world = world;
+        if (pendingLoad != null) {
+            NBTUtilBC.readCompoundList(pendingLoad.get("volumeBoxes"))
+                .map(volumeBoxTag -> new VolumeBox(world, volumeBoxTag))
+                .forEach(volumeBoxes::add);
+            pendingLoad = null;
+        }
+    }
+//? } else {
     private WorldSavedDataVolumeBoxes(Level world) {
         this.world = world;
     }
@@ -46,6 +89,7 @@ public class WorldSavedDataVolumeBoxes extends SavedData {
             .map(volumeBoxTag -> new VolumeBox(world, volumeBoxTag))
             .forEach(volumeBoxes::add);
     }
+//? }
 
     public VolumeBox getVolumeBoxAt(BlockPos pos) {
         return volumeBoxes.stream().filter(volumeBox -> volumeBox.box.contains(pos)).findFirst().orElse(null);
@@ -132,15 +176,35 @@ public class WorldSavedDataVolumeBoxes extends SavedData {
         lastPlayerCount = playerCount;
     }
 
+//? if >=1.21.11 {
+    private CompoundTag saveToTag() {
+        CompoundTag nbt = new CompoundTag();
+        nbt.put("volumeBoxes", NBTUtilBC.writeObjectList(volumeBoxes.stream().map(VolumeBox::writeToNBT)));
+        return nbt;
+    }
+//? } else {
     public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         nbt.put("volumeBoxes", NBTUtilBC.writeObjectList(volumeBoxes.stream().map(VolumeBox::writeToNBT)));
         return nbt;
     }
+//? }
 
     public static WorldSavedDataVolumeBoxes get(Level world) {
         if (!(world instanceof ServerLevel serverLevel)) {
             throw new IllegalArgumentException("Tried to access volume-box saved data on the client");
         }
-        return new WorldSavedDataVolumeBoxes(world);
+//? if >=1.21.11 {
+        WorldSavedDataVolumeBoxes data = serverLevel.getDataStorage().computeIfAbsent(TYPE);
+        data.attachWorld(world);
+        return data;
+//? } else {
+        DimensionDataStorage storage = serverLevel.getDataStorage();
+        SavedData.Factory<WorldSavedDataVolumeBoxes> factory = new SavedData.Factory<>(
+            () -> new WorldSavedDataVolumeBoxes(world),
+            (nbt, registries) -> new WorldSavedDataVolumeBoxes(world, nbt),
+            DataFixTypes.LEVEL
+        );
+        return storage.computeIfAbsent(factory, DATA_NAME);
+//? }
     }
 }

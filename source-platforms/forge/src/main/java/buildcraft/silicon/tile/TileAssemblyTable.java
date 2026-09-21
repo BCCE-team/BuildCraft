@@ -92,66 +92,72 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
     }
 
     private void updateRecipes() {
-        int count = recipesStates.size();
-        if(isDirty) {
-	        for(AssemblyRecipeBasic recipe: level.getRecipeManager().getAllRecipesFor(BCSiliconRecipes.ASSEMBLY_TYPE.get())) {
-	            Set<ItemStack> outputs = recipe.getOutputs(inv);
-	            for (ItemStack out: outputs) {
-	            	if(out.isEmpty())
-	            		break;
-	                boolean found = false;
-	                for (AssemblyInstruction instruction: recipesStates.keySet()) {
-	                    if (instruction.recipe == recipe && out == instruction.output) {
-	                        found = true;
-	                        break;
-	                    }
-	                }
-	                AssemblyInstruction instruction = new AssemblyInstruction(recipe, out);
-	                if (!found && !recipesStates.containsKey(instruction)) {
-	                    recipesStates.put(instruction, EnumAssemblyRecipeState.POSSIBLE);
-	                }
-	            }
-	        }
-	        isDirty = false;
+        boolean changed = false;
+        if (isDirty) {
+            int previousSize = recipesStates.size();
+            for (AssemblyRecipeBasic recipe : level.getRecipeManager().getAllRecipesFor(BCSiliconRecipes.ASSEMBLY_TYPE.get())) {
+                Set<ItemStack> outputs = recipe.getOutputs(inv);
+                for (ItemStack out : outputs) {
+                    if (out.isEmpty()) {
+                        break;
+                    }
+                    boolean found = false;
+                    for (AssemblyInstruction instruction : recipesStates.keySet()) {
+                        if (instruction.recipe == recipe && out == instruction.output) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    AssemblyInstruction instruction = new AssemblyInstruction(recipe, out);
+                    if (!found && !recipesStates.containsKey(instruction)) {
+                        recipesStates.put(instruction, EnumAssemblyRecipeState.POSSIBLE);
+                    }
+                }
+            }
+            changed |= previousSize != recipesStates.size();
+            isDirty = false;
         }
 
         boolean findActive = false;
         for (Iterator<Map.Entry<AssemblyInstruction, EnumAssemblyRecipeState>> iterator = recipesStates.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<AssemblyInstruction, EnumAssemblyRecipeState> entry = iterator.next();
             AssemblyInstruction instruction = entry.getKey();
-            EnumAssemblyRecipeState state = entry.getValue();
+            EnumAssemblyRecipeState previousState = entry.getValue();
+            EnumAssemblyRecipeState state = previousState;
             boolean enough = extract(inv, instruction.recipe.getInputsFor(instruction.output), true, false);
             if (state == EnumAssemblyRecipeState.POSSIBLE) {
                 if (!enough) {
                     iterator.remove();
+                    changed = true;
+                    continue;
                 }
             } else {
                 if (enough) {
                     if (state == EnumAssemblyRecipeState.SAVED) {
                         state = EnumAssemblyRecipeState.SAVED_ENOUGH;
                     }
-                } else {
-                    if (state != EnumAssemblyRecipeState.SAVED) {
-                        state = EnumAssemblyRecipeState.SAVED;
-                    }
+                } else if (state != EnumAssemblyRecipeState.SAVED) {
+                    state = EnumAssemblyRecipeState.SAVED;
                 }
             }
             if (state == EnumAssemblyRecipeState.SAVED_ENOUGH_ACTIVE) {
                 findActive = true;
             }
-            entry.setValue(state);
+            if (state != previousState) {
+                entry.setValue(state);
+                changed = true;
+            }
         }
         if (!findActive) {
             for (Map.Entry<AssemblyInstruction, EnumAssemblyRecipeState> entry : recipesStates.entrySet()) {
-                EnumAssemblyRecipeState state = entry.getValue();
-                if (state == EnumAssemblyRecipeState.SAVED_ENOUGH) {
-                    state = EnumAssemblyRecipeState.SAVED_ENOUGH_ACTIVE;
-                    entry.setValue(state);
+                if (entry.getValue() == EnumAssemblyRecipeState.SAVED_ENOUGH) {
+                    entry.setValue(EnumAssemblyRecipeState.SAVED_ENOUGH_ACTIVE);
+                    changed = true;
                     break;
                 }
             }
         }
-        if (count != recipesStates.size()) {
+        if (changed) {
             sendNetworkGuiUpdate(NET_GUI_DATA);
         }
     }
@@ -311,6 +317,9 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
             AssemblyInstruction recipe = lookupRecipe(recipeName, output);
             if (recipe != null && recipesStates.containsKey(recipe)) {
                 recipesStates.put(recipe, EnumAssemblyRecipeState.values()[stateIndex]);
+                if (side == BCNetworkSide.SERVER) {
+                    sendNetworkGuiUpdate(NET_GUI_DATA);
+                }
             }
         }
     }

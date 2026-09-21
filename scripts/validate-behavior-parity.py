@@ -600,16 +600,21 @@ def validate_gameplay_gap_fixes() -> None:
                 "isInfiniteWaterSourceAt(posToCheck)",
                 "adjacentSources >= 2")
         pump_text = text(target, pump)
-        if target == "1.21.1-neoforge":
-            for needle in (
-                "isWaterSource(neighbour)",
-                "private static boolean isWaterSource(FluidState state)",
-                "fluid == Fluids.WATER || (state.isSource() && isWater(state))",
-            ):
-                if needle not in pump_text:
-                    fail(f"{target}: missing {needle!r} in {pump}")
-        elif "neighbour.isSource()" not in pump_text:
-            fail(f"{target}: missing 'neighbour.isSource()' in {pump}")
+        for needle in (
+            "isWaterSource(neighbour)",
+            "private static boolean isWaterSource(FluidState state)",
+            "fluid == Fluids.WATER || (state.isSource() && isWater(state))",
+            "FluidTags.WATER",
+        ):
+            if needle not in pump_text:
+                fail(f"{target}: missing {needle!r} in {pump}")
+        unloaded_guard = re.search(
+            r"if\s*\(\s*!level\.hasChunkAt\(neighbourPos\)\s*\)\s*\{\s*(?P<body>.*?)\s*\}",
+            pump_text,
+            re.DOTALL,
+        )
+        if unloaded_guard is None or "continue;" not in unloaded_guard.group("body"):
+            fail(f"{target}: unloaded infinite-water neighbour must be skipped, not reject the source")
         neighbor_decl = re.search(
             r"INFINITE_WATER_NEIGHBORS\s*=\s*new Direction\[\]\s*\{([^}]*)\}",
             pump_text,
