@@ -6,30 +6,32 @@ BuildCraft Community Edition combines the newer foundation of **BuildCraft 8.0.0
 
 The goal of the project is to preserve and continue the classic BuildCraft experience on newer Minecraft versions, restoring missing content and completing unfinished ideas from the original mod without changing its core identity.
 
-## Issue reports
+## Supported versions
 
-When reporting a problem, always include:
-
-- the Minecraft version;
-- the mod loader and its version;
-- the exact BuildCraft Community Edition build;
-- the relevant log or crash report.
+| Minecraft | Loader |
+| --- | --- |
+| 1.19.2 | Forge |
+| 1.20.1 | Forge |
+| 1.21.1 | NeoForge |
+| 1.21.11 | NeoForge |
 
 ## Roadmap 2.0
 
-- Drop support for 1.21.1 Forge [✔]
-- New API system [✔]
-- FE compatibility [✔]
-- Port to 1.20.1 Fabric
-- Port to 1.21.11 Fabric/NeoForge [X/✔]
-- Port to 26.X Fabric/NeoForge
+- [x] Drop support for 1.21.1 Forge
+- [x] Introduce the new API v2 system
+- [x] Add Forge Energy (FE) compatibility
+- [x] Port to 1.21.11 NeoForge
+- [ ] Port to 1.20.1 Fabric
+- [ ] Port to 1.21.11 Fabric
+- [ ] Port to Minecraft 26.x Fabric / NeoForge
 
-## Supported versions
+## API v2
 
-- Minecraft 1.19.2 — Forge
-- Minecraft 1.20.1 — Forge
-- Minecraft 1.21.1 — NeoForge
-- Minecraft 1.21.11 — NeoForge
+BCCE includes a new **API v2** intended to provide a stable, loader-neutral surface for addons and integrations.
+
+Loader-specific implementation details stay outside the public API, while common concepts such as energy, pipes, robotics, schematics, statements, automation and debugging are exposed through shared contracts. Forge Energy support is integrated without making the public API depend on Forge or NeoForge classes.
+
+The long-term goal is to make addons easier to maintain across BCCE's supported Minecraft versions and future loader ports.
 
 ## Multi-version build and source architecture
 
@@ -54,19 +56,39 @@ Small Minecraft-version differences may use localized Stonecutter conditions ins
 
 The 1.19.2 implementation is the gameplay reference, but source code is allowed to differ when newer Minecraft APIs require another implementation. The compatibility target is player-visible behaviour: **different implementation, indistinguishable BuildCraft**.
 
+CI builds and tests each maintained target independently. Every target has its own build, GameTest, dedicated-server smoke and client smoke run, while cross-target architecture and parity checks remain global.
+
 See [`SOURCE_FAMILIES.md`](SOURCE_FAMILIES.md) for layout rules, parity policy and build commands.
 
-## Addons developed by BCCE team:
+## Issue reports
 
-- **BuildCraft Community Edition Localizations**
-  - [CurseForge](https://www.curseforge.com/minecraft/mc-mods/buildcraft-community-edition-localizations) [Modrinth](https://modrinth.com/mod/buildcraft-community-edition-localizations) [GitHub](https://github.com/CurativeTree/BuildCraft/tree/Localizations)
-- **IronTanks Community Edition**
-   - [CurseForge](https://www.curseforge.com/minecraft/mc-mods/iron-tanks-community-edition) [Modrinth](https://modrinth.com/mod/irontanks-community-edition) [GitHub](https://github.com/shipovskijkorp/IronTanks-Community-Edition)
+Please use the repository issue forms when reporting problems or suggesting changes.
+
+For bug reports, include:
+
+- the Minecraft version;
+- the mod loader and its version;
+- the BuildCraft Community Edition version (`latest` is accepted when testing the newest release);
+- clear reproduction steps;
+- relevant logs when available.
+
+Crash reports require a crash log in addition to the information above.
+
+## Addons developed by the BCCE team
+
+### BuildCraft Community Edition Localizations
+
+- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/buildcraft-community-edition-localizations) [Modrinth](https://modrinth.com/mod/buildcraft-community-edition-localizations) [GitHub](https://github.com/CurativeTree/BuildCraft/tree/Localizations)
+
+### IronTanks Community Edition
+
+- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/iron-tanks-community-edition) [Modrinth](https://modrinth.com/mod/irontanks-community-edition) [GitHub](https://github.com/shipovskijkorp/IronTanks-Community-Edition)
+
 ## Credits
 
 ### Original BuildCraft
 
-- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/buildcraft) [Modrinth](https://modrinth.com/mod/buildcraft) [GitHub](https://github.com/BuildCraft/BuildCraft) 
+- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/buildcraft) [Modrinth](https://modrinth.com/mod/buildcraft) [GitHub](https://github.com/BuildCraft/BuildCraft)
 
 Special thanks to the original BuildCraft team and all contributors who made BuildCraft one of the most iconic technical Minecraft mods.
 
@@ -78,6 +100,7 @@ Developed and ported by:
 
 - CurativeTree
 - ShipovskijKorp
+- Memesis414
 
 Thanks for helping with development:
 
