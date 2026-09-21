@@ -1,0 +1,93 @@
+name: Crash report
+description: Report a client or dedicated-server crash caused by BuildCraft Community Edition.
+title: "[Crash]: "
+labels:
+  - crash
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please attach the crash report. Reports without a crash log cannot be submitted through this form.
+
+  - type: dropdown
+    id: minecraft-version
+    attributes:
+      label: Minecraft version
+      description: Which Minecraft version are you using?
+      options:
+        - 1.19.2
+        - 1.20.1
+        - 1.21.1
+        - 1.21.11
+    validations:
+      required: true
+
+  - type: dropdown
+    id: loader
+    attributes:
+      label: Mod loader
+      description: Which loader are you using?
+      options:
+        - Forge
+        - NeoForge
+    validations:
+      required: true
+
+  - type: input
+    id: mod-version
+    attributes:
+      label: BuildCraft Community Edition version
+      description: Enter the exact BCCE version, or leave latest if you are using the newest release.
+      value: "latest"
+      placeholder: "latest"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: crash-side
+    attributes:
+      label: Where did the crash happen?
+      options:
+        - Client
+        - Dedicated server
+        - Integrated server / singleplayer
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe what you were doing immediately before the crash.
+      placeholder: Describe the actions that caused the crash.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: If reproducible, describe the steps.
+      placeholder: |
+        1. Place ...
+        2. Do ...
+        3. Game crashes
+    validations:
+      required: false
+
+  - type: upload
+    id: crash-log
+    attributes:
+      label: Crash log
+      description: Attach the crash report file. If Minecraft did not generate one, attach latest.log instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Modpack details, screenshots, videos, or other useful information.
+    validations:
+      required: false

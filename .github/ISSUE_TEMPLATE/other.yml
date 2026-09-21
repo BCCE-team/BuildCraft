@@ -1,0 +1,31 @@
+name: Other
+description: Open an issue that does not fit the bug, crash, or suggestion forms.
+title: ""
+body:
+  - type: dropdown
+    id: selected-label
+    attributes:
+      label: Label
+      description: Choose the label that best describes this issue.
+      options:
+        - bug
+        - crash
+        - duplicate
+        - enhancement
+        - good first issue
+        - help wanted
+        - invalid
+        - question
+        - suggestion
+        - wontfix
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the issue, question, request, or topic.
+      placeholder: Add all relevant details here.
+    validations:
+      required: true

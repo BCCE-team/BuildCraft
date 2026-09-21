@@ -1,0 +1,46 @@
+name: Label Other Issues
+
+on:
+  issues:
+    types:
+      - opened
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  apply-selected-label:
+    if: startsWith(github.event.issue.body, '### Label') || contains(github.event.issue.body, '\n### Label\n')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply label selected in the Other issue form
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || '';
+            const match = body.match(/(?:^|\n)### Label\s*\n+([^\n]+)/);
+            if (!match) {
+              core.info('No Label field found; nothing to do.');
+              return;
+            }
+
+            const selected = match[1].trim();
+            const { data: labels } = await github.rest.issues.listLabelsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+
+            const existing = new Set(labels.map(label => label.name));
+            if (!existing.has(selected)) {
+              core.warning(`Selected label does not exist in the repository: ${selected}`);
+              return;
+            }
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [selected],
+            });

@@ -1,0 +1,30 @@
+name: Suggestion
+description: Suggest a feature, improvement, or gameplay change for BuildCraft Community Edition.
+title: "[Suggestion]: "
+labels:
+  - suggestion
+body:
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggestion
+      description: Describe the feature or improvement you would like to see.
+      placeholder: What should be added or changed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why would this be useful?
+      description: Explain the use case, problem, or gameplay benefit.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Mockups, screenshots, links, examples, or other relevant information.
+    validations:
+      required: false
