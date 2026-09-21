@@ -7,13 +7,12 @@
 package buildcraft.builders.snapshot;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
 import buildcraft.lib.net.MessageManager;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 
 public enum ClientSnapshots {
     INSTANCE;
@@ -22,7 +21,16 @@ public enum ClientSnapshots {
     private final List<Snapshot.Key> pending = new ArrayList<>();
 
     public Snapshot getSnapshot(Snapshot.Key key) {
-        Snapshot found = snapshots.stream().filter(snapshot -> snapshot.key.equals(key)).findFirst().orElse(null);
+        Snapshot found = snapshots.stream()
+            .filter(snapshot -> Arrays.equals(snapshot.key.hash, key.hash))
+            .findFirst()
+            .orElse(null);
+        if (found == null) {
+            found = GlobalSavedDataSnapshots.getClientSnapshot(key);
+            if (found != null) {
+                onSnapshotReceived(found);
+            }
+        }
         if (found == null && !pending.contains(key)) {
             pending.add(key);
             MessageManager.sendToServer(new MessageSnapshotRequest(key));
@@ -31,8 +39,8 @@ public enum ClientSnapshots {
     }
 
     public void onSnapshotReceived(Snapshot snapshot) {
-        pending.remove(snapshot.key);
-        snapshots.removeIf(existing -> existing.key.equals(snapshot.key));
+        pending.removeIf(key -> Arrays.equals(key.hash, snapshot.key.hash));
+        snapshots.removeIf(existing -> Arrays.equals(existing.key.hash, snapshot.key.hash));
         snapshots.add(snapshot);
     }
 
@@ -42,12 +50,9 @@ public enum ClientSnapshots {
      * Keep the renderer entry points so existing callers and addons remain source/binary compatible,
      * but do not request, construct or render a preview world from them.
      */
-    @OnlyIn(Dist.CLIENT)
     public void renderSnapshot(PoseStack pose, Snapshot.Header header, int offsetX, int offsetY, int sizeX, int sizeY) {
         // Intentionally disabled on all maintained Minecraft versions.
     }
-
-    @OnlyIn(Dist.CLIENT)
     public void renderSnapshot(PoseStack pose, Snapshot snapshot, int offsetX, int offsetY, int sizeX, int sizeY) {
         // Intentionally disabled on all maintained Minecraft versions.
     }

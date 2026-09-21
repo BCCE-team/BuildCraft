@@ -12,7 +12,6 @@ import java.util.function.Supplier;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.net.MessageManager;
 import net.minecraft.network.FriendlyByteBuf;
-import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
 
 public class MessageSnapshotRequest{
@@ -37,9 +36,11 @@ public class MessageSnapshotRequest{
                 if (context.getSender() == null || !SnapshotRequestLimiter.allow(context.getSender())) {
                     return;
                 }
-                Snapshot snapshot = GlobalSavedDataSnapshots.get(BCNetworkSide.SERVER).getSnapshot(message.key);
+                Snapshot snapshot = GlobalSavedDataSnapshots.getServerSnapshot(message.key);
                 if (snapshot != null) {
-                    MessageManager.sendTo(new MessageSnapshotResponse(snapshot), context.getSender());
+                    Snapshot transientSnapshot = snapshot.copy();
+                    transientSnapshot.key = new Snapshot.Key(transientSnapshot.key, (Snapshot.Header) null);
+                    MessageManager.sendTo(new MessageSnapshotResponse(transientSnapshot), context.getSender());
                 }
             } catch (RuntimeException e) {
                 BCLog.logger.debug("Dropped invalid snapshot request packet: {}", e.toString());

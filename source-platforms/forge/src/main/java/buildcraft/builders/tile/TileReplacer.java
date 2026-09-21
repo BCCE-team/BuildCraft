@@ -22,6 +22,7 @@ import buildcraft.builders.item.ItemSnapshot;
 import buildcraft.builders.snapshot.Blueprint;
 import buildcraft.builders.snapshot.GlobalSavedDataSnapshots;
 import buildcraft.builders.snapshot.Snapshot;
+import buildcraft.builders.snapshot.SnapshotCreationPersistence;
 import buildcraft.builders.snapshot.Snapshot.Header;
 import buildcraft.lib.misc.data.IdAllocator;
 import buildcraft.lib.tile.TileBC_Neptune;
@@ -98,7 +99,7 @@ public class TileReplacer extends TileBC_Neptune implements MenuProvider {
             return;
         }
 
-        Snapshot snapshot = GlobalSavedDataSnapshots.get(level).getSnapshot(header.key);
+        Snapshot snapshot = GlobalSavedDataSnapshots.getSnapshotForConstruction(level, header.key);
         if (!(snapshot instanceof Blueprint blueprint)) {
             lastSkippedInputFingerprint = inputFingerprint;
             return;
@@ -124,23 +125,18 @@ public class TileReplacer extends TileBC_Neptune implements MenuProvider {
             }
 
             newBlueprint.computeKey();
-            GlobalSavedDataSnapshots.get(level).addSnapshot(newBlueprint);
-            invSnapshot.setStackInSlot(
-                0,
-                ItemSnapshot.getUsed(
-                    EnumSnapshotType.BLUEPRINT,
-                    new Header(
-                        newBlueprint.key,
-                        getOwnerId(header),
-                        getOwnerName(header),
-                        new Date(),
-                        header.name,
-                        header.allowCreative,
-                        header.canRotate,
-                        header.canExcavate
-                    )
-                )
+            Header newHeader = new Header(
+                newBlueprint.key,
+                getOwnerId(header),
+                getOwnerName(header),
+                new Date(),
+                header.name,
+                header.allowCreative,
+                header.canRotate,
+                header.canExcavate
             );
+            SnapshotCreationPersistence.persist(level, newBlueprint, newHeader);
+            invSnapshot.setStackInSlot(0, ItemSnapshot.getUsed(EnumSnapshotType.BLUEPRINT, newHeader));
             invSchematicFrom.extractItem(0, 1, false);
             invSchematicTo.extractItem(0, 1, false);
             lastSkippedInputFingerprint = 0;

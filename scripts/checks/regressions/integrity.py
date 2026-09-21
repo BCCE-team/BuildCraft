@@ -151,6 +151,44 @@ for rel in (
     require(rel, "ensureCollisionBlocksCurrent();", "return collisionBlockPoses.contains(pos);")
     forbid(rel, "return buildCollisionBlockMasks().containsKey(pos);")
 
+# Blueprint storage ownership: clients own the browsable/shareable library; dedicated servers persist the same
+# full .bcnbt only as machine-side construction storage. Generic cache requests remain transient and must not
+# implicitly add server-known blueprints to the client's library.
+require(
+    "source-shared/src/main/java/buildcraft/builders/snapshot/SnapshotCreationPersistence.java",
+    "Snapshot persistedSnapshot = snapshot.copy();",
+    "persistedSnapshot.key = new Snapshot.Key(persistedSnapshot.key, header);",
+    "GlobalSavedDataSnapshots.cacheServerSnapshot(level, persistedSnapshot);",
+    "new MessageSnapshotResponse(persistedSnapshot)",
+)
+for platform in ("forge", "neoforge"):
+    storage = f"source-platforms/{platform}/src/main/java/buildcraft/builders/snapshot/GlobalSavedDataSnapshots.java"
+    require(
+        storage,
+        "private List<Snapshot.Key> readClientList()",
+        "return List.of();",
+        "Snapshot existing = readSnapshotFile(snapshotFile);",
+        "existing.key.header == null && checked.key.header != null",
+    )
+    forbid(storage, "checked.key = new Snapshot.Key(checked.key, (Snapshot.Header) null);")
+
+    library = f"source-platforms/{platform}/src/main/java/buildcraft/builders/tile/TileElectronicLibrary.java"
+    require(
+        library,
+        "Snapshot.Header header = snapshot.key.header;",
+        "snapshot.computeKey();",
+        "GlobalSavedDataSnapshots.cacheServerSnapshot(level, snapshot);",
+    )
+    forbid(library, "snapshot.key = new Snapshot.Key(snapshot.key, (Snapshot.Header) null);")
+
+for family in ("legacy", "modern"):
+    require(
+        f"source-families/{family}/src/main/java/buildcraft/builders/snapshot/MessageSnapshotRequest.java",
+        "Snapshot transientSnapshot = snapshot.copy();",
+        "transientSnapshot.key = new Snapshot.Key(transientSnapshot.key, (Snapshot.Header) null);",
+        "new MessageSnapshotResponse(transientSnapshot)",
+    )
+
 # Snapshot requests: no directory-wide scan per miss, bounded server cache, and per-player request throttling.
 require(
     "source-shared/src/main/java/buildcraft/builders/snapshot/SnapshotRequestLimiter.java",

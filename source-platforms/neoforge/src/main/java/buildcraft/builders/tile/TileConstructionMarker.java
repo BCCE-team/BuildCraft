@@ -199,7 +199,7 @@ public class TileConstructionMarker extends TileBC_Neptune implements IDebuggabl
         snapshot = null;
         Snapshot.Header header = isValidBlueprint(stack) ? ItemSnapshot.getHeader(stack) : null;
         if (header != null) {
-            Snapshot newSnapshot = GlobalSavedDataSnapshots.get(level).getSnapshot(header.key);
+            Snapshot newSnapshot = GlobalSavedDataSnapshots.getSnapshotForConstruction(level, header.key);
             if (newSnapshot instanceof Blueprint) {
                 snapshot = newSnapshot;
                 applySnapshotHeaderSettings(header, player);

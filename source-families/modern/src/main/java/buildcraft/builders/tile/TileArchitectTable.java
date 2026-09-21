@@ -32,7 +32,7 @@ import buildcraft.builders.client.ClientArchitectTables;
 import buildcraft.builders.item.ItemSnapshot;
 import buildcraft.builders.menu.ContainerArchitectTable;
 import buildcraft.builders.snapshot.Blueprint;
-import buildcraft.builders.snapshot.GlobalSavedDataSnapshots;
+import buildcraft.builders.snapshot.SnapshotCreationPersistence;
 import buildcraft.builders.snapshot.SchematicBlockManager;
 import buildcraft.builders.snapshot.SchematicEntityManager;
 import buildcraft.builders.snapshot.Snapshot;
@@ -348,7 +348,6 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
             ((Blueprint) snapshot).entities.addAll(blueprintScannedEntities);
         }
         snapshot.computeKey();
-        GlobalSavedDataSnapshots.get(level).addSnapshot(snapshot);
         ItemStack stackIn = invSnapshotIn.getStackInSlot(0);
         stackIn.setCount(stackIn.getCount() - 1);
         if (stackIn.getCount() == 0) {
@@ -356,22 +355,18 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
         }
         invSnapshotIn.setStackInSlot(0, stackIn);
         var ownerProfile = getOwner();
-        invSnapshotOut.setStackInSlot(
-            0,
-            ItemSnapshot.getUsed(
-                snapshotType,
-                new Header(
-                    snapshot.key,
-                    ownerProfile.getId(),
-                    ownerProfile.getName(),
-                    new Date(),
-                    name,
-                    allowCreative,
-                    canRotate,
-                    canExcavate
-                )
-            )
+        Header header = new Header(
+            snapshot.key,
+            ownerProfile.getId(),
+            ownerProfile.getName(),
+            new Date(),
+            name,
+            allowCreative,
+            canRotate,
+            canExcavate
         );
+        SnapshotCreationPersistence.persist(level, snapshot, header);
+        invSnapshotOut.setStackInSlot(0, ItemSnapshot.getUsed(snapshotType, header));
         templateScannedBlocks = null;
         blueprintScannedData = null;
         blueprintScannedEntities.clear();

@@ -8,6 +8,9 @@ public final class MessageSnapshotResponseClientHandler {
 
     public static void handle(MessageSnapshotResponse message) {
         if (message.getSnapshot() != null) {
+            if (message.getSnapshot().key.header != null) {
+                GlobalSavedDataSnapshots.saveClientSnapshot(message.getSnapshot());
+            }
             ClientSnapshots.INSTANCE.onSnapshotReceived(message.getSnapshot());
         }
     }

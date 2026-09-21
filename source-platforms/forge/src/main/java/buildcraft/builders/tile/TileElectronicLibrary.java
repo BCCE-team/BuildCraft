@@ -117,7 +117,24 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
 
     private Snapshot getSnapshotForDownload() {
         Snapshot.Header header = ItemSnapshot.getHeader(invDownIn.getStackInSlot(0));
-        return header == null || level == null ? null : GlobalSavedDataSnapshots.get(level).getSnapshot(header.key);
+        return header == null || level == null ? null
+            : GlobalSavedDataSnapshots.getSnapshotForConstruction(level, header.key);
+    }
+
+    private Snapshot.Header getSelectedHeader() {
+        if (selected == null || selected.header == null || !sameContentKey(selected, selected.header.key)) {
+            return null;
+        }
+        return selected.header;
+    }
+
+    private static boolean sameContentKey(Snapshot.Key left, Snapshot.Key right) {
+        return left != null && right != null && Arrays.equals(left.hash, right.hash);
+    }
+
+    private void finishUpload(Snapshot snapshot, Snapshot.Header header) {
+        invUpOut.setStackInSlot(0, ItemSnapshot.getUsed(snapshot.getType(), header));
+        invUpIn.setStackInSlot(0, StackUtil.EMPTY);
     }
     
     @Override
@@ -161,13 +178,20 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
             progressDown = -1;
         }
 
-        boolean canUpload = selected != null && isCleanSnapshot(invUpIn.getStackInSlot(0)) && invUpOut.getStackInSlot(0).isEmpty();
+        Snapshot.Header selectedHeader = getSelectedHeader();
+        boolean canUpload = selectedHeader != null && isCleanSnapshot(invUpIn.getStackInSlot(0))
+            && invUpOut.getStackInSlot(0).isEmpty();
         if (canUpload) {
             if (progressUp == -1) {
                 progressUp = 0;
             }
             if (progressUp >= TRANSFER_TIME) {
-                sendNetworkGuiUpdate(NET_UP);
+                Snapshot cached = GlobalSavedDataSnapshots.getSnapshotForConstruction(level, selected);
+                if (cached != null && sameContentKey(cached.key, selected)) {
+                    finishUpload(cached, selectedHeader);
+                } else {
+                    sendNetworkGuiUpdate(NET_UP);
+                }
                 progressUp = -1;
             } else {
                 progressUp++;
@@ -202,14 +226,9 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
         return value / TRANSFER_TIME;
     }
 
-    // How networking works here:
-    // down:
-    // 1. server sends NET_DOWN with snapshot to clients
-    // 2. clients add snapshot to their local database
-    // up:
-    // 1. server sends empty NET_UP to clients
-    // 2. client who have selected snapshot sends NET_UP with it back to server
-    // 3. server adds snapshot to its database
+    // Downloading writes only to the player's local blueprint library.
+    // Uploading first reuses content already available to the construction side; if it is missing, the server
+    // requests the selected local blueprint and caches the content before producing the used blueprint item.
 
     @Override
     public IdAllocator getIdAllocator() {
@@ -267,7 +286,7 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
                 if (buffer.readBoolean()) {
                     Snapshot snapshot = Snapshot.readFromNBT(NbtSquisher.expand(buffer));
                     snapshot.computeKey();
-                    GlobalSavedDataSnapshots.get(level).addSnapshot(snapshot);
+                    GlobalSavedDataSnapshots.saveClientSnapshot(snapshot);
                 }
             }
             if (id == NET_GUI_TICK || id == NET_GUI_DATA) {
@@ -278,7 +297,7 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
             }
             if (id == NET_UP) {
                 if (selected != null) {
-                    Snapshot snapshot = GlobalSavedDataSnapshots.get(level).getSnapshot(selected);
+                    Snapshot snapshot = GlobalSavedDataSnapshots.getClientSnapshot(selected);
                     if (snapshot != null) {
                         try (OutputStream outputStream = new OutputStream() {
                             private byte[] buf = new byte[4 * 1024];
@@ -379,15 +398,20 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
                         upload.join(), MAX_UPLOAD_EXPANDED_BYTES, MAX_UPLOAD_NBT_DECODE_BUDGET
                     ));
                     Snapshot.Header header = snapshot.key.header;
-                    if (header == null) {
-                        throw new DecoderException("Electronic-library upload has no snapshot header");
+                    Snapshot.Header selectedHeader = getSelectedHeader();
+                    if (header == null || selectedHeader == null) {
+                        throw new DecoderException("Electronic-library upload has no valid snapshot header");
+                    }
+                    if (!header.equals(selectedHeader)) {
+                        throw new DecoderException("Electronic-library upload header does not match the selected blueprint");
                     }
                     snapshot = snapshot.copy();
-                    snapshot.key = new Snapshot.Key(snapshot.key, (Snapshot.Header) null);
                     snapshot.computeKey();
-                    GlobalSavedDataSnapshots.get(level).addSnapshot(snapshot);
-                    invUpOut.setStackInSlot(0, ItemSnapshot.getUsed(snapshot.getType(), header));
-                    invUpIn.setStackInSlot(0, StackUtil.EMPTY);
+                    if (!sameContentKey(snapshot.key, selected) || !sameContentKey(snapshot.key, header.key)) {
+                        throw new DecoderException("Electronic-library upload content does not match the selected blueprint");
+                    }
+                    GlobalSavedDataSnapshots.cacheServerSnapshot(level, snapshot);
+                    finishUpload(snapshot, selectedHeader);
                 } catch (IOException | RuntimeException e) {
                     upSnapshotsParts.remove(pair);
                     throw e;

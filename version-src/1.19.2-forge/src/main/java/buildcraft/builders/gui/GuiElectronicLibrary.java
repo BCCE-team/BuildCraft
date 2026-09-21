@@ -70,10 +70,10 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
 
     private void onDelButtonClick(IButtonClickEventTrigger button, int buttonKey) {
         if (container.tile.selected != null) {
-            Snapshot snapshot = getSnapshots().getSnapshot(container.tile.selected);
+            Snapshot snapshot = GlobalSavedDataSnapshots.getClientSnapshot(container.tile.selected);
             if (snapshot != null) {
                 container.sendSelectedToServer(null);
-                getSnapshots().removeSnapshot(snapshot.key);
+                GlobalSavedDataSnapshots.removeClientSnapshot(snapshot.key);
             }
         }
     }
@@ -94,7 +94,7 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
             String text = header == null ? key.toString() : header.name;
             drawString(pose, font, text, rect.x, rect.y, colour);
         });
-        delButton.enabled = getSnapshots().getSnapshot(container.tile.selected) != null;
+        delButton.enabled = GlobalSavedDataSnapshots.getClientSnapshot(container.tile.selected) != null;
     }
 
 
@@ -114,12 +114,9 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
         GuiIcon.draw(pose, sprite, x, y, x + width, y + rect.height);
     }
 
-    private GlobalSavedDataSnapshots getSnapshots() {
-        return GlobalSavedDataSnapshots.get(container.tile.getLevel());
-    }
 
     private void iterateSnapshots(ISnapshotIterator iterator) {
-        List<Snapshot.Key> list = getSnapshots().getList();
+        List<Snapshot.Key> list = GlobalSavedDataSnapshots.getClientSnapshotList();
         GuiRectangle rect = new GuiRectangle(mainGui.rootElement.getX() + RECT_SNAPSHOT_LIST.x,
             mainGui.rootElement.getY() + RECT_SNAPSHOT_LIST.y, RECT_SNAPSHOT_LIST.width, SNAPSHOT_ROW_HEIGHT);
         int max = Math.min(list.size(), MAX_VISIBLE_SNAPSHOTS);

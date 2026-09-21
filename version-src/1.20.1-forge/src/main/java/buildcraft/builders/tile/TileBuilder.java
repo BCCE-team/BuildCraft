@@ -258,7 +258,7 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
         if (stack.getItem() instanceof ItemSnapshot) {
             Snapshot.Header header = ItemSnapshot.getHeader(stack);
             if (header != null) {
-                Snapshot newSnapshot = GlobalSavedDataSnapshots.get(level).getSnapshot(header.key);
+                Snapshot newSnapshot = GlobalSavedDataSnapshots.getSnapshotForConstruction(level, header.key);
                 if (newSnapshot != null) {
                     snapshot = newSnapshot;
                 }

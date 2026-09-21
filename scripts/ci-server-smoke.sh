@@ -51,6 +51,7 @@ if ! python3 "${repo_root}/scripts/source_layout.py" --list-targets --generation
 fi
 
 server_log="${SERVER_LOG_FILE:-${repo_root}/ci-server-${generation}-${target}-${runtime_profile}.log}"
+mkdir -p "$(dirname "$server_log")"
 server_pid=""
 latest_log=""
 
@@ -197,7 +198,8 @@ if [[ "$runtime_profile" == "base" ]]; then
   production_jar="${production_jars[0]}"
 
   server_dir="${repo_root}/run-server/${generation}/${target}"
-  install_log="${repo_root}/ci-server-install-${generation}-${target}.log"
+  install_log="${SERVER_INSTALL_LOG_FILE:-${repo_root}/ci-server-install-${generation}-${target}.log}"
+  mkdir -p "$(dirname "$install_log")"
   latest_log="${server_dir}/logs/latest.log"
 
   rm -rf "$server_dir"
