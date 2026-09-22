@@ -53,6 +53,8 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LiquidBlock;
@@ -224,6 +226,9 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
      *         </ul>
      */
     private static InteractionResultHolder<String> isValidFacadeState(BlockState state) {
+        if (!state.getFluidState().isEmpty()) {
+            return new InteractionResultHolder<>(InteractionResult.FAIL, "it contains a fluid");
+        }
         if (state.hasBlockEntity()) {
             return new InteractionResultHolder<>(InteractionResult.FAIL, "it has a tile entity");
         }
@@ -247,10 +252,32 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         if (item != Items.AIR) {
             return new ItemStack(item, 1);
         }
-        ItemStack clone = block.getCloneItemStack(new SingleBlockAccess(state), BlockPos.ZERO, state);
+        ItemStack clone = getCloneStack(block, state);
         if (!clone.isEmpty()) {
             clone.setCount(1);
             return clone;
+        }
+        return StackUtil.EMPTY;
+    }
+
+    /**
+     * Invokes the public clone-stack extension overload available on the active Minecraft API. The signature changed
+     * between supported NeoForge versions, but both variants dispatch to state-sensitive block overrides.
+     */
+    private static ItemStack getCloneStack(Block block, BlockState state) {
+        try {
+            Method current = block.getClass().getMethod("getCloneItemStack", LevelReader.class, BlockPos.class,
+                BlockState.class, boolean.class, Player.class);
+            Object result = current.invoke(block, null, BlockPos.ZERO, state, false, null);
+            if (result instanceof ItemStack stack) return stack;
+        } catch (ReflectiveOperationException ignored) {
+        }
+        try {
+            Method legacy = block.getClass().getMethod("getCloneItemStack", LevelReader.class, BlockPos.class,
+                BlockState.class);
+            Object result = legacy.invoke(block, null, BlockPos.ZERO, state);
+            if (result instanceof ItemStack stack) return stack;
+        } catch (ReflectiveOperationException ignored) {
         }
         return StackUtil.EMPTY;
     }

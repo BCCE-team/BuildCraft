@@ -28,11 +28,6 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent;
-//? if >=1.21.11 {
-import net.neoforged.fml.loading.FMLLoader;
-//? } else {
-import net.neoforged.fml.loading.FMLEnvironment;
-//? }
 
 @Mod(BCLib.MODID)
 public class BCLib {
@@ -44,11 +39,23 @@ public class BCLib {
     public static final String GIT_COMMIT_MSG = BuildCraftTarget.GIT_COMMIT_MESSAGE;
     public static final String GIT_COMMIT_AUTHOR = BuildCraftTarget.GIT_COMMIT_AUTHOR;
 
-//? if >=1.21.11 {
-    public static final boolean DEV = !FMLLoader.getCurrent().isProduction() || Boolean.getBoolean("buildcraft.dev");
-//? } else {
-    public static final boolean DEV = !FMLEnvironment.production || Boolean.getBoolean("buildcraft.dev");
-//? }
+    public static final boolean DEV = !isProductionEnvironment() || Boolean.getBoolean("buildcraft.dev");
+
+    private static boolean isProductionEnvironment() {
+        try {
+            Class<?> loader = Class.forName("net.neoforged.fml.loading.FMLLoader");
+            Object current = loader.getMethod("getCurrent").invoke(null);
+            return (Boolean) current.getClass().getMethod("isProduction").invoke(current);
+        } catch (ReflectiveOperationException exception) {
+            // 1.21.1 provides FMLLoader but not getCurrent(); its public environment field is authoritative.
+        }
+        try {
+            Class<?> environment = Class.forName("net.neoforged.fml.loading.FMLEnvironment");
+            return environment.getField("production").getBoolean(null);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Unable to determine the NeoForge production environment", exception);
+        }
+    }
 
     public BCLib(IEventBus modEventBus) {
         MjApi2PlatformBridge.install();

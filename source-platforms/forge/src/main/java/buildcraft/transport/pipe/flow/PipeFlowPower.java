@@ -29,6 +29,8 @@ import buildcraft.lib.internal.mj.IMjPassiveProvider;
 import buildcraft.lib.internal.mj.IMjReceiver;
 import buildcraft.lib.internal.mj.IMjRedstoneReceiver;
 import buildcraft.lib.internal.mj.MjToFeAutoConverter;
+import buildcraft.lib.platform.storage.EnergyStorage;
+import buildcraft.lib.platform.storage.PlatformStorage;
 import buildcraft.lib.internal.tiles.IDebuggable;
 import buildcraft.transport.internal.pipe.IFlowPower;
 import buildcraft.transport.internal.pipe.IPipe;
@@ -54,10 +56,8 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
-import net.minecraftforge.energy.IEnergyStorage;
 import buildcraft.lib.net.BCNetworkSide;
 
 public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
@@ -173,7 +173,7 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
         if (receiver != null && receiver.canConnect(sections.get(face))) {
             return true;
         }
-        IEnergyStorage fe = oTile.getCapability(ForgeCapabilities.ENERGY, face.getOpposite()).orElse(null);
+        EnergyStorage fe = PlatformStorage.energy(oTile, face.getOpposite());
         IMjReceiver converted = MjToFeAutoConverter.createReceiver(fe);
         return converted != null && converted.canConnect(sections.get(face));
     }
@@ -573,9 +573,7 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
             return receiver;
         }
 
-        LazyOptional<IEnergyStorage> feCapability =
-            pipe.getHolder().getCapabilityFromPipe(face, ForgeCapabilities.ENERGY);
-        IEnergyStorage fe = feCapability == null ? null : feCapability.orElse(null);
+        EnergyStorage fe = PlatformStorage.pipeEnergy(pipe.getHolder(), face);
         return MjToFeAutoConverter.createReceiver(fe);
     }
 

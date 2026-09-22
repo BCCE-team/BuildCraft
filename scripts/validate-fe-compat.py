@@ -143,12 +143,14 @@ connect_start = forge_power.index("public boolean canConnect(Direction face, Blo
 connect_end = forge_power.index("private void ensureConfigured()", connect_start)
 connect_block = forge_power[connect_start:connect_end]
 for token in (
-    "ForgeCapabilities.ENERGY",
+    "PlatformStorage.energy(oTile, face.getOpposite())",
     "MjToFeAutoConverter.createReceiver(fe)",
     "converted.canConnect(sections.get(face))",
 ):
     if token not in connect_block:
         fail(f"Forge PipeFlowPower.canConnect is missing FE auto-convert topology token: {token}")
+if "getCapability(ForgeCapabilities.ENERGY" in connect_block:
+    fail("Forge PipeFlowPower.canConnect must use PlatformStorage for its FE lookup")
 
 # Limiter sprite sets are present on every supported family/version source.
 for path in (

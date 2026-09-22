@@ -169,6 +169,8 @@ class PlatformBoundaries(unittest.TestCase):
         # Forge fluid lookup must retain optional-mod transformers before the native capability fallback.
         platform = (forge/'buildcraft/lib/platform/storage/PlatformStorage.java').read_text()
         self.assertIn('CompatCapTransfromer.INSTANCE.getCap(provider, CapUtil.CAP_FLUIDS, face)', platform)
+        self.assertIn('pipeFluids(IPipeHolder holder, Direction face)', platform)
+        self.assertIn('pipeEnergy(IPipeHolder holder, Direction face)', platform)
         transformer = (forge/'buildcraft/compat/CompatCapTransfromer.java').read_text()
         self.assertIn('getCap(ICapabilityProvider provider', transformer)
 
@@ -223,7 +225,8 @@ class PlatformBoundaries(unittest.TestCase):
         self.assertNotIn('PlatformClientRegistration.screens(', transport[common_start:])
 
         energy = (forge119/'buildcraft/transport/pipe/flow/PipeFlowForgeEnergy.java').read_text()
-        self.assertIn('import net.minecraftforge.energy.IEnergyStorage;', energy)
+        self.assertIn('PlatformStorage.pipeEnergy(pipe.getHolder()', energy)
+        self.assertNotIn('getCapabilityFromPipe(side, ForgeCapabilities.ENERGY)', energy)
 
         schematic = (forge120/'buildcraft/builders/snapshot/SchematicBlockDefault.java').read_text()
         self.assertIn('import net.minecraft.core.registries.BuiltInRegistries;', schematic)

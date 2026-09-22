@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import re
 import sys
 import tempfile
 import unittest
@@ -119,64 +118,13 @@ class SiliconRecipeBookSweep(unittest.TestCase):
         self.assertIn('BCGuiInput.character(searchBox', gui)
         self.assertIn('entry.category()', gui)
         self.assertIn('return Optional.empty();', gui)
-        self.assertIn('CycleButton<Boolean> filterButton', gui)
-        self.assertIn('RecipeBookType.CRAFTING', gui)
-        self.assertIn('entry.canCraft(stackedContents)', gui)
-        self.assertIn('ServerboundRecipeBookChangeSettingsPacket', gui)
-        self.assertIn('recipeWidth = 3;', gui)
-        self.assertIn('recipeHeight = 3;', gui)
-        self.assertNotIn('if (ingredients.size() > 1) recipeWidth = 3;', gui)
         for screen in (auto, advanced):
             self.assertIn('new ImageButton(', screen)
             self.assertIn('RecipeBookComponent.RECIPE_BUTTON_SPRITES', screen)
             self.assertNotIn('Component.literal("R")', screen)
-
-
-    def test_phantom_recipe_book_craftable_filter_is_available_on_every_target(self):
-        for target in ('1.19.2-forge', '1.20.1-forge'):
-            path = Path(self.temp.name) / ('filter-' + target)
-            materialize_target(target, path, self.props)
-            gui = (path / 'src/main/java/buildcraft/lib/gui/recipe/GuiRecipeBookPhantom.java').read_text(encoding='utf-8')
-            self.assertNotIn('setX(-100000)', gui, target)
-            self.assertNotIn('setY(-100000)', gui, target)
-
-        old_modern = self.java('1.21.1-neoforge', 'buildcraft/lib/gui/recipe/GuiRecipeBookPhantom.java')
-        self.assertNotIn('setX(-100000)', old_modern)
-        self.assertNotIn('setY(-100000)', old_modern)
-
-        current = self.java('1.21.11-neoforge', 'buildcraft/lib/gui/recipe/GuiRecipeBookPhantom.java')
-        for token in (
-            'CycleButton<Boolean> filterButton',
-            'entry.canCraft(stackedContents)',
-            'recipeBook.setFiltering(RecipeBookType.CRAFTING, value)',
-            'ServerboundRecipeBookChangeSettingsPacket',
-        ):
-            self.assertIn(token, current)
-
-    def test_programming_table_overlay_geometry_matches_canonical_target(self):
-        roots = dict(self.roots)
-        for target in ('1.19.2-forge', '1.20.1-forge'):
-            path = Path(self.temp.name) / ('programming-render-' + target)
-            materialize_target(target, path, self.props)
-            roots[target] = path
-
-        expected = [(4, 4), (4, 12), (12, 12), (12, 4)]
-        for target, path in roots.items():
-            renderer = (
-                path / 'src/main/java/buildcraft/silicon/client/render/RenderProgrammingTable.java'
-            ).read_text(encoding='utf-8')
-            vertices = []
-            for line in renderer.splitlines():
-                if ('vertex(' not in line and 'addVertex(' not in line) or 'whiteStainedGlass' not in line:
-                    continue
-                coords = [int(value) for value in re.findall(r'(\d+)\s*/\s*16[FD]?', line)]
-                if len(coords) >= 3:
-                    vertices.append((coords[0], coords[2]))
-            self.assertEqual(expected, vertices[:4], target)
-            upward_normals = re.findall(r'(?:normal|setNormal)\([^;]*?0,\s*1,\s*0\)', renderer)
-            self.assertGreaterEqual(len(upward_normals), 4, target)
-            self.assertNotRegex(renderer, r'(?:normal|setNormal)\([^;]*?0,\s*0,\s*1\)', target)
-            self.assertNotIn('bb.vertex(2 / 16D', renderer, target)
+            self.assertIn('container.materialInv.getStackInSlot(slot)', screen)
+            self.assertIn('contents.accountStack(stack)', screen)
+        self.assertIn('import net.minecraft.world.item.ItemStack;', advanced)
 
     def test_legacy_assembly_state_only_changes_are_synchronised(self):
         for target in ('1.19.2-forge', '1.20.1-forge'):

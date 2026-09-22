@@ -29,7 +29,7 @@ import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
 
 public class ContainerArchitectTable extends ContainerBCTile<TileArchitectTable> {
-    private static final int MAX_BLUEPRINT_NAME_LENGTH = 128;
+    public static final int MAX_BLUEPRINT_NAME_LENGTH = 128;
     private static final IdAllocator IDS = MenuBC_Neptune.IDS.makeChild("architect_table");
     private static final int ID_NAME = IDS.allocId("NAME");
     private static final int ID_SETTINGS = IDS.allocId("SETTINGS");

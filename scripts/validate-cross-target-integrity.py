@@ -643,13 +643,21 @@ def validate_build_metadata_and_source_hygiene(props: dict[str, str]) -> None:
         ):
             if token not in bclib:
                 fail(f"{target}: BCLib build metadata lost {token!r}")
-        dev_token = (
-            "!FMLLoader.getCurrent().isProduction() || Boolean.getBoolean(\"buildcraft.dev\")"
-            if target == "1.21.11-neoforge"
-            else "!FMLEnvironment.production || Boolean.getBoolean(\"buildcraft.dev\")"
-        )
-        if dev_token not in bclib:
-            fail(f"{target}: BCLib DEV mode lost {dev_token!r}")
+        if target.endswith("-neoforge"):
+            for token in (
+                "!isProductionEnvironment() || Boolean.getBoolean(\"buildcraft.dev\")",
+                "net.neoforged.fml.loading.FMLLoader",
+                "getCurrent",
+                "isProduction",
+                "net.neoforged.fml.loading.FMLEnvironment",
+                "getField(\"production\")",
+            ):
+                if token not in bclib:
+                    fail(f"{target}: BCLib DEV mode lost {token!r}")
+            if "1.21.1 provides FMLLoader but not getCurrent" not in bclib:
+                fail(f"{target}: BCLib must fall back when the current-environment accessor is unavailable")
+        elif "!FMLEnvironment.production || Boolean.getBoolean(\"buildcraft.dev\")" not in bclib:
+            fail(f"{target}: BCLib DEV mode lost Forge production detection")
         if "!false" in bclib:
             fail(f"{target}: BCLib DEV mode was corrupted by compatibility materialization")
         if "VERSION.startsWith" in bclib:

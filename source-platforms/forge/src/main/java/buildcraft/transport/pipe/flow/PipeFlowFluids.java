@@ -278,7 +278,7 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         if (from == null || millibuckets <= 0) {
             return FAILED_EXTRACT;
         }
-        FluidStorage<FluidStack> fluidHandler = StorageAdapters.fromNativeFluids(pipe.getHolder().getCapabilityFromPipe(from, CapUtil.CAP_FLUIDS).orElse(null));
+        FluidStorage<FluidStack> fluidHandler = PlatformStorage.pipeFluids(pipe.getHolder(), from);
         if (fluidHandler == null) {
             return PASSED_EXTRACT;
         }
@@ -565,7 +565,7 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
                 sideCheck.disallowAllExcept(part.face);
                 pipe.getHolder().fireEvent(sideCheck);
                 if (sideCheck.getOrder().size() == 1) {
-                    FluidStorage<FluidStack> fluidHandler = StorageAdapters.fromNativeFluids(pipe.getHolder().getCapabilityFromPipe(part.face, CapUtil.CAP_FLUIDS).orElse(null));
+                    FluidStorage<FluidStack> fluidHandler = PlatformStorage.pipeFluids(pipe.getHolder(), part.face);
                     if (fluidHandler == null) continue;
 
                     FluidStack fluidToPush = new FluidStack(currentFluid, maxDrain);
@@ -602,7 +602,7 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             }
             if (
                 section.getMaxFilled() > 0
-                && pipe.getHolder().getCapabilityFromPipe(direction, CapUtil.CAP_FLUIDS).isPresent()
+                && PlatformStorage.pipeFluids(pipe.getHolder(), direction) != null
             ) {
                 realDirections.add(direction);
             }

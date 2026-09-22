@@ -1,4 +1,4 @@
-//? source if >=1.21.1
+//? source if >=1.21.11
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
  * 
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -106,15 +106,9 @@ public abstract class BlockBCTile_Neptune extends BlockBCBase_Neptune implements
         ItemStack blockStack = ItemStack.EMPTY;
         if (blockEntity != null && blockEntity.getLevel() != null) {
             // Preserve state-sensitive pick/clone semantics (for example the shared BC8 engine block).
-            //? if >=1.21.4 {
             blockStack = state.getBlock().getCloneItemStack(
-                blockEntity.getLevel(), blockEntity.getBlockPos(), state, false
+                blockEntity.getLevel(), blockEntity.getBlockPos(), state, false, null
             );
-            //? } else {
-            blockStack = state.getBlock().getCloneItemStack(
-                blockEntity.getLevel(), blockEntity.getBlockPos(), state
-            );
-            //? }
         }
         if (blockStack.isEmpty()) {
             blockStack = new ItemStack(state.getBlock().asItem());

@@ -49,7 +49,6 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.energy.IEnergyStorage;
 import buildcraft.lib.net.BCNetworkSide;
 
 /** Forge Energy pipe flow using BuildCraft 8 external-energy semantics with FE terminology. */
@@ -199,9 +198,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
     @Override
     public boolean isExternalEnergyReceiver(Direction side) {
         if (side == null || pipe.getConnectedType(side) != ConnectedType.TILE) return false;
-        LazyOptional<net.minecraftforge.energy.IEnergyStorage> cap =
-            pipe.getHolder().getCapabilityFromPipe(side, ForgeCapabilities.ENERGY);
-        EnergyStorage storage = StorageAdapters.fromNativeEnergy(cap == null ? null : cap.orElse(null));
+        EnergyStorage storage = PlatformStorage.pipeEnergy(pipe.getHolder(), side);
         return storage != null && storage.canReceive();
     }
 
@@ -343,8 +340,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
                     && neighbour.isConnected(outputFace.getOpposite())) {
                     leftover = other.sections.get(outputFace.getOpposite()).receivePowerInternal(offered);
                 } else {
-                    LazyOptional<IEnergyStorage> cap = pipe.getHolder().getCapabilityFromPipe(outputFace, ForgeCapabilities.ENERGY);
-                    EnergyStorage receiver = StorageAdapters.fromNativeEnergy(cap == null ? null : cap.orElse(null));
+                    EnergyStorage receiver = PlatformStorage.pipeEnergy(pipe.getHolder(), outputFace);
                     if (receiver != null && receiver.canReceive()) {
                         int accepted = Math.max(0, Math.min(offered, receiver.receiveEnergy(offered, false)));
                         leftover = offered - accepted;
@@ -373,8 +369,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         // bufferless machines whose getMaxEnergyStored()/getEnergyStored() do not describe demand.
         for (Direction face : Direction.values()) {
             if (pipe.getConnectedType(face) != ConnectedType.TILE) continue;
-            LazyOptional<IEnergyStorage> cap = pipe.getHolder().getCapabilityFromPipe(face, ForgeCapabilities.ENERGY);
-            EnergyStorage receiver = StorageAdapters.fromNativeEnergy(cap == null ? null : cap.orElse(null));
+            EnergyStorage receiver = PlatformStorage.pipeEnergy(pipe.getHolder(), face);
             if (receiver != null && receiver.canReceive()) {
                 int requested = Math.max(0, receiver.receiveEnergy(maxPower, true));
                 if (requested > 0) requestPower(face, requested);
