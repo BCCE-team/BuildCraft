@@ -380,12 +380,27 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         }
 
         NonNullList<ItemStack> remainingStacks = currentRecipe.getRemainingItems(craftingInput);
+
+        // asCraftInput() trims empty outer rows and columns. Map the recipe-local
+        // remaining-item coordinates back onto the physical workbench grid.
+        int minX = width;
+        int minY = height;
+        for (int slot = 0; slot < craftTableSize; slot++) {
+            if (!super.getItem(slot).isEmpty()) {
+                minX = Math.min(minX, slot % width);
+                minY = Math.min(minY, slot / width);
+            }
+        }
+
         for (int slot = 0; slot < remainingStacks.size(); slot++) {
-            ItemStack inSlot = super.getItem(slot);
+            int inputX = slot % craftingInput.width();
+            int inputY = slot / craftingInput.width();
+            int gridSlot = (minY + inputY) * width + minX + inputX;
+            ItemStack inSlot = super.getItem(gridSlot);
             ItemStack remaining = remainingStacks.get(slot);
 
             if (!inSlot.isEmpty()) {
-                super.removeItem(slot, 1);
+                super.removeItem(gridSlot, 1);
             }
 
             if (!remaining.isEmpty()) {

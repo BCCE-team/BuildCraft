@@ -109,7 +109,9 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
     private static final Identifier CONFIG_ROBOT = id("robot_details");
 
     private static final Identifier UID_BLOCK = id("block");
+    private static final Identifier UID_BLOCK_DATA = id("block_data");
     private static final Identifier UID_ENTITY_ROBOT = id("robot");
+    private static final Identifier UID_ENTITY_ROBOT_DATA = id("robot_data");
     private static final Identifier UID_ITEMS = id("items");
     private static final Identifier UID_FLUIDS = id("fluids");
     private static final Identifier UID_MJ = id("mj");
@@ -131,8 +133,8 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             }
         }
 
-        registration.registerBlockDataProvider(BlockProvider.INSTANCE, TileBC_Neptune.class);
-        registration.registerEntityDataProvider(RobotProvider.INSTANCE, EntityRobot.class);
+        registration.registerBlockDataProvider(BlockServerDataProvider.INSTANCE, TileBC_Neptune.class);
+        registration.registerEntityDataProvider(RobotServerDataProvider.INSTANCE, EntityRobot.class);
 
         registration.registerItemStorage(ItemStorageProvider.INSTANCE, TileBC_Neptune.class);
         registration.registerItemStorage(ItemStorageProvider.INSTANCE, EntityRobotBase.class);
@@ -165,11 +167,11 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         registration.addTooltipCollectedCallback(1000, BuildCraftJadePlugin::preserveBuildCraftTitleColours);
     }
 
-    private enum BlockProvider implements IBlockComponentProvider, IServerDataProvider<BlockAccessor> {
+    private enum BlockServerDataProvider implements IServerDataProvider<BlockAccessor> {
         INSTANCE;
 
         public Identifier getUid() {
-            return UID_BLOCK;
+            return UID_BLOCK_DATA;
         }
 
         public int getDefaultPriority() {
@@ -191,6 +193,18 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             if (!root.isEmpty()) {
                 data.put(DATA_ROOT, root);
             }
+        }
+    }
+
+    private enum BlockProvider implements IBlockComponentProvider {
+        INSTANCE;
+
+        public Identifier getUid() {
+            return UID_BLOCK;
+        }
+
+        public int getDefaultPriority() {
+            return PROVIDER_PRIORITY;
         }
 
         public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
@@ -221,11 +235,11 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         }
     }
 
-    private enum RobotProvider implements IEntityComponentProvider, IServerDataProvider<EntityAccessor> {
+    private enum RobotServerDataProvider implements IServerDataProvider<EntityAccessor> {
         INSTANCE;
 
         public Identifier getUid() {
-            return UID_ENTITY_ROBOT;
+            return UID_ENTITY_ROBOT_DATA;
         }
 
         public int getDefaultPriority() {
@@ -274,6 +288,18 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
 
             root.put("Robot", robotTag);
             data.put(DATA_ROOT, root);
+        }
+    }
+
+    private enum RobotProvider implements IEntityComponentProvider {
+        INSTANCE;
+
+        public Identifier getUid() {
+            return UID_ENTITY_ROBOT;
+        }
+
+        public int getDefaultPriority() {
+            return PROVIDER_PRIORITY;
         }
 
         public void appendTooltip(ITooltip tooltip, EntityAccessor accessor, IPluginConfig config) {

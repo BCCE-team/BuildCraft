@@ -145,8 +145,8 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         registration.addConfig(CONFIG_PIPE, true);
         registration.addConfig(CONFIG_ROBOT, true);
 
-        registration.registerBlockComponent(BlockProvider.INSTANCE, BlockBCTile_Neptune.class);
-        registration.registerEntityComponent(RobotProvider.INSTANCE, EntityRobot.class);
+        registration.registerBlockComponent(BlockComponentProvider.INSTANCE, BlockBCTile_Neptune.class);
+        registration.registerEntityComponent(RobotComponentProvider.INSTANCE, EntityRobot.class);
 
         registration.registerItemStorageClient(ItemStorageProvider.INSTANCE);
         registration.registerFluidStorageClient(FluidStorageProvider.INSTANCE);
@@ -164,7 +164,26 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         registration.addTooltipCollectedCallback(1000, BuildCraftJadePlugin::preserveBuildCraftTitleColours);
     }
 
-    private enum BlockProvider implements IBlockComponentProvider, IServerDataProvider<BlockAccessor> {
+    private enum BlockComponentProvider implements IBlockComponentProvider {
+        INSTANCE;
+
+        @Override
+        public ResourceLocation getUid() {
+            return UID_BLOCK;
+        }
+
+        @Override
+        public int getDefaultPriority() {
+            return PROVIDER_PRIORITY;
+        }
+
+        @Override
+        public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
+            BlockProvider.INSTANCE.appendTooltip(tooltip, accessor, config);
+        }
+    }
+
+    private enum BlockProvider implements IServerDataProvider<BlockAccessor> {
         INSTANCE;
 
         @Override
@@ -224,7 +243,26 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         }
     }
 
-    private enum RobotProvider implements IEntityComponentProvider, IServerDataProvider<EntityAccessor> {
+    private enum RobotComponentProvider implements IEntityComponentProvider {
+        INSTANCE;
+
+        @Override
+        public ResourceLocation getUid() {
+            return UID_ENTITY_ROBOT;
+        }
+
+        @Override
+        public int getDefaultPriority() {
+            return PROVIDER_PRIORITY;
+        }
+
+        @Override
+        public void appendTooltip(ITooltip tooltip, EntityAccessor accessor, IPluginConfig config) {
+            RobotProvider.INSTANCE.appendTooltip(tooltip, accessor, config);
+        }
+    }
+
+    private enum RobotProvider implements IServerDataProvider<EntityAccessor> {
         INSTANCE;
 
         @Override

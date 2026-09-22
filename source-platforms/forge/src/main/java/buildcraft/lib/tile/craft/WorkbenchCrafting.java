@@ -499,6 +499,16 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
 			return menu.stillValid(p_38874_);
 		}
 
+        @Override
+        public ItemStack getCarried() {
+            return menu.getCarried();
+        }
+
+        @Override
+        public void setCarried(ItemStack stack) {
+            menu.setCarried(stack);
+        }
+
 		@Override
 		public void fillCraftSlotsStackedContents(StackedContents stackedContents) {
             // The blueprint is a phantom recipe and must not make recipes appear craftable. Count only the actual

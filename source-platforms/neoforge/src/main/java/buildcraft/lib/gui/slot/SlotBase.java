@@ -9,11 +9,10 @@ package buildcraft.lib.gui.slot;
 import javax.annotation.Nonnull;
 
 import buildcraft.lib.tile.item.IItemHandlerAdv;
-import buildcraft.lib.tile.item.ItemHandlerSimple;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.items.SlotItemHandler;
+import net.neoforged.neoforge.items.ItemHandlerCopySlot;
 
-public class SlotBase extends SlotItemHandler {
+public class SlotBase extends ItemHandlerCopySlot {
     public final int handlerIndex;
     public final IItemHandlerAdv itemHandler;
 
@@ -39,11 +38,4 @@ public class SlotBase extends SlotItemHandler {
         return getItemHandler().insertItem(handlerIndex, stack, simulate);
     }
 
-    @Override
-    public void setChanged() {
-        super.setChanged();
-        if (itemHandler instanceof ItemHandlerSimple) {
-            ((ItemHandlerSimple) itemHandler).setStackInSlot(handlerIndex, getItem());
-        }
-    }
 }

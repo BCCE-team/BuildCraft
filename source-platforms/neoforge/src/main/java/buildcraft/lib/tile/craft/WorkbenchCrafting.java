@@ -420,13 +420,28 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
             InventoryUtil.addToBestAcceptor(world, pos, null, leftover);
         }
         NonNullList<ItemStack> remainingStacks = currentRecipe.getRemainingItems(craftingInput);
+
+        // CraftingInput trims empty rows and columns. Map the trimmed remaining-item
+        // coordinates back onto the physical workbench grid before consuming inputs.
+        int minX = width;
+        int minY = height;
+        for (int slot = 0; slot < craftTableSize; slot++) {
+            if (!super.getItem(slot).isEmpty()) {
+                minX = Math.min(minX, slot % width);
+                minY = Math.min(minY, slot / width);
+            }
+        }
+
         for (int s = 0; s < remainingStacks.size(); s++) {
-            ItemStack inSlot = getItem(s);
+            int inputX = s % craftingInput.width();
+            int inputY = s / craftingInput.width();
+            int gridSlot = (minY + inputY) * width + minX + inputX;
+
+            ItemStack inSlot = super.getItem(gridSlot);
             ItemStack remaining = remainingStacks.get(s);
 
             if (!inSlot.isEmpty()) {
-                removeItem(s, 1);
-                inSlot = getItem(s);
+                super.removeItem(gridSlot, 1);
             }
 
             if (!remaining.isEmpty()) {
@@ -491,6 +506,16 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
 		public boolean stillValid(Player p_38874_) {
 			return menu.stillValid(p_38874_);
 		}
+
+        @Override
+        public ItemStack getCarried() {
+            return menu.getCarried();
+        }
+
+        @Override
+        public void setCarried(ItemStack stack) {
+            menu.setCarried(stack);
+        }
 
 		@Override
 		public void fillCraftSlotsStackedContents(StackedContents stackedContents) {

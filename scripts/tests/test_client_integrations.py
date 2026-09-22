@@ -158,9 +158,9 @@ class ClientIntegrations(unittest.TestCase):
             self.assertNotIn(forbidden, plugin)
         # TileBC_Neptune covers Core, Factory, Energy, Silicon and Builders, with special
         # transport/robot providers supplying details rather than duplicating generic inventories.
-        for registration in ('registerBlockDataProvider(BlockProvider.INSTANCE, TileBC_Neptune.class)',
+        for registration in ('registerBlockDataProvider(BlockServerDataProvider.INSTANCE, TileBC_Neptune.class)',
                              'registerBlockComponent(BlockProvider.INSTANCE, BlockBCTile_Neptune.class)',
-                             'registerEntityDataProvider(RobotProvider.INSTANCE, EntityRobot.class)',
+                             'registerEntityDataProvider(RobotServerDataProvider.INSTANCE, EntityRobot.class)',
                              'registerEntityComponent(RobotProvider.INSTANCE, EntityRobot.class)',
                              'registerProgress(ProgressProvider.INSTANCE, TileZonePlanner.class)',
                              'registerProgress(ProgressProvider.INSTANCE, TileLaserTableBase.class)',
@@ -265,6 +265,20 @@ class ClientIntegrations(unittest.TestCase):
             self.assertIn('optional', match.group(1).lower(), mod)
         old = self.java('buildcraft/compat/jade/BuildCraftJadePlugin.java', old=True)
         self.assertIn('IServerExtensionProvider<CompoundTag>', old)
+
+    def test_12111_jade_server_and_client_providers_are_separate(self):
+        plugin = self.java('buildcraft/compat/jade/BuildCraftJadePlugin.java')
+        self.assertIn('BlockServerDataProvider.INSTANCE', plugin)
+        self.assertIn('RobotServerDataProvider.INSTANCE', plugin)
+        self.assertIn('private enum BlockProvider implements IBlockComponentProvider', plugin)
+        self.assertIn('private enum RobotProvider implements IEntityComponentProvider', plugin)
+        self.assertIn('UID_BLOCK_DATA = id("block_data")', plugin)
+        self.assertIn('UID_ENTITY_ROBOT_DATA = id("robot_data")', plugin)
+        self.assertIn('return UID_BLOCK_DATA;', plugin)
+        self.assertIn('return UID_ENTITY_ROBOT_DATA;', plugin)
+        self.assertNotIn('implements IBlockComponentProvider, IServerDataProvider', plugin)
+        self.assertNotIn('implements IEntityComponentProvider, IServerDataProvider', plugin)
+
 
 
 if __name__ == '__main__':

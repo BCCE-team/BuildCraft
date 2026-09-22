@@ -105,6 +105,42 @@ class SiliconRecipeBookSweep(unittest.TestCase):
             self.assertIn("level != null && level.isClientSide", base, target)
             self.assertIn("? targetClient : getTarget()", base, target)
 
+    def test_workbench_recipe_book_and_inventory_regressions_across_targets(self):
+        roots = dict(self.roots)
+        for target in ("1.19.2-forge", "1.20.1-forge"):
+            path = Path(self.temp.name) / ("workbench-" + target)
+            materialize_target(target, path, self.props)
+            roots[target] = path
+
+        for target, root in roots.items():
+            java_root = root / "src/main/java"
+            tile = (java_root / "buildcraft/factory/tile/TileAutoWorkbenchBase.java").read_text()
+            workbench = (java_root / "buildcraft/lib/tile/craft/WorkbenchCrafting.java").read_text()
+            menu_util = (java_root / "buildcraft/lib/gui/BCMenuUtil.java").read_text()
+
+            self.assertIn("!ItemStack.matches(before, after)", tile, target)
+            self.assertIn("ItemStack stack = slot.getItem().copy();", menu_util, target)
+            self.assertIn("slot.set(stack);", menu_util, target)
+
+            if target != "1.21.11-neoforge":
+                listing = (java_root / "buildcraft/lib/gui/recipe/RecipeListPhantom.java").read_text()
+                self.assertIn("}, 3, 3, book);", listing, target)
+                self.assertNotIn("65536, 65536", listing, target)
+                self.assertIn("return menu.getCarried();", workbench, target)
+                self.assertIn("menu.setCarried(stack);", workbench, target)
+
+            if target in ("1.21.1-neoforge", "1.21.11-neoforge"):
+                self.assertIn("int gridSlot = (minY + inputY) * width + minX + inputX;", workbench, target)
+                self.assertIn("super.removeItem(gridSlot, 1);", workbench, target)
+                slot = (java_root / "buildcraft/lib/gui/slot/SlotBase.java").read_text()
+                self.assertIn("extends ItemHandlerCopySlot", slot, target)
+                self.assertNotIn("ItemStack stack = super.getItem();", slot, target)
+            else:
+                # Legacy CraftingContainer keeps the full physical 3x3 shape, so remaining-item
+                # indices already correspond to real workbench slots and must not be remapped.
+                self.assertIn("currentRecipe.getRemainingItems(this)", workbench, target)
+                self.assertNotIn("craftingInput.width()", workbench, target)
+
     def test_12111_phantom_recipe_book_keeps_reference_features(self):
         gui = self.java('1.21.11-neoforge', 'buildcraft/lib/gui/recipe/GuiRecipeBookPhantom.java')
         listing = self.java('1.21.11-neoforge', 'buildcraft/lib/gui/recipe/RecipeListPhantom.java')

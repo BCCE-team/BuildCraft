@@ -107,13 +107,7 @@ public abstract class TileAutoWorkbenchBase extends TileBC_Neptune
     protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before,
         @Nonnull ItemStack after) {
         super.onSlotChange(handler, slot, before, after);
-        //? if <1.20 {
-        if (!ItemStack.isSame(before, after)) {
-        //?} else {
-        /*?
-        if (!ItemStack.isSameItemSameTags(before, after)) {
-        ?*/
-        //?}
+        if (!ItemStack.matches(before, after)) {
             crafting.onInventoryChange(handler);
         }
     }

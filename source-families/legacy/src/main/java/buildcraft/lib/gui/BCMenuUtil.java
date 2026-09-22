@@ -126,7 +126,7 @@ public final class BCMenuUtil {
             return ItemStack.EMPTY;
         }
 
-        ItemStack stack = slot.getItem();
+        ItemStack stack = slot.getItem().copy();
         ItemStack original = stack.copy();
         boolean playerInventoryFirst = menu.slots.get(0).container instanceof net.minecraft.world.entity.player.Inventory;
 
@@ -174,11 +174,8 @@ public final class BCMenuUtil {
             return ItemStack.EMPTY;
         }
 
-        if (stack.isEmpty()) {
-            slot.set(ItemStack.EMPTY);
-        } else {
-            slot.setChanged();
-        }
+        slot.set(stack);
+        slot.setChanged();
 
         if (stack.getCount() == original.getCount()) {
             return ItemStack.EMPTY;

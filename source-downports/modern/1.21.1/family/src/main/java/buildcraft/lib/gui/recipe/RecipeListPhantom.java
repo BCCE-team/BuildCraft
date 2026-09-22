@@ -20,7 +20,7 @@ public class RecipeListPhantom extends RecipeCollection {
         	   public boolean canCraft(Recipe<?> p_36476_, @Nullable IntList p_36477_) {
         		      return true;
         		   }
-        }, 65536, 65536, book);
+        }, 3, 3, book);
     }
 
     @Override
