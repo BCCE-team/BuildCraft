@@ -67,7 +67,14 @@ public class GuiAutoCraftItems extends GuiBC8<ContainerAutoCraftItems> {
     public void init() {
         super.init();
         widthTooNarrow = this.width < SIZE_X + 176;
-        recipeBook.init(width, height, minecraft, widthTooNarrow);
+        recipeBook.init(width, height, minecraft, widthTooNarrow, contents -> {
+            for (int slot = 0; slot < container.materialInv.getSlots(); slot++) {
+                ItemStack stack = container.materialInv.getStackInSlot(slot);
+                if (!stack.isEmpty()) {
+                    contents.accountStack(stack);
+                }
+            }
+        });
         leftPos = recipeBook.updateScreenPosition(width, imageWidth);
         recipeButton = new ImageButton(leftPos + 5, height / 2 - 66, 20, 18,
             RecipeBookComponent.RECIPE_BUTTON_SPRITES, this::onPress,

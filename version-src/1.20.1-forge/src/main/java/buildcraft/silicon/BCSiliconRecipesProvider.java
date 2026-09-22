@@ -61,7 +61,7 @@ public class BCSiliconRecipesProvider extends RecipeProvider{
 			
             makeGateRecipe(writer, Ingredient.of(Tags.Items.INGOTS_IRON), EnumGateMaterial.IRON, EnumGateModifier.NO_MODIFIER);
 
-            makeGateRecipe(writer, Ingredient.of(Items.NETHER_BRICK), EnumGateMaterial.NETHER_BRICK, EnumGateModifier.NO_MODIFIER);
+            makeGateRecipe(writer, Ingredient.of(Tags.Items.INGOTS_NETHER_BRICK), EnumGateMaterial.NETHER_BRICK, EnumGateModifier.NO_MODIFIER);
             // Iron modifier addition
             
             makeGateRecipe0(writer, Ingredient.of(Tags.Items.DYES_BLUE), EnumGateMaterial.IRON, EnumGateModifier.LAPIS);

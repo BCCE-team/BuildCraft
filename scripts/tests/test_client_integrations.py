@@ -123,6 +123,25 @@ class ClientIntegrations(unittest.TestCase):
         self.assertIn('Either::right', plugin)  # Rich tooltip elements are not flattened to text.
         self.assertIn('getCompoundOrEmpty("facade")', plugin)
 
+    def test_cross_target_facade_and_pipe_presentation_contracts(self):
+        current_baker = self.java('buildcraft/silicon/client/model/plug/PlugBakerFacade.java')
+        current_facades = self.java('buildcraft/silicon/plug/FacadeStateManager.java')
+        current_pipe = self.java('buildcraft/transport/block/BlockPipeHolder.java')
+        legacy_action = (ROOT / 'source-families/legacy/src/main/java/buildcraft/transport/statements/ActionPipeDirection.java').read_text()
+        old_pipe = (ROOT / 'version-src/1.19.2-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text()
+        mid_pipe = (ROOT / 'version-src/1.20.1-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text()
+
+        # Keep the thin translucent facade consistent with legacy geometry rather than rendering vanilla glass opaque.
+        self.assertIn('GLASS_FACADE_ALPHA = 0.2D', current_baker)
+        # Blocks without a normal item form remain valid facade materials when vanilla supplies a clone stack.
+        self.assertIn('block.getCloneItemStack(new SingleBlockAccess(state), BlockPos.ZERO, state)', current_facades)
+        # Pipe holders remain targetable as a pipe while client data is pending on every target.
+        self.assertIn('return new VoxelShape[] {BOX_CENTER};', current_pipe)
+        self.assertNotIn('return new VoxelShape[] {Shapes.block()};', old_pipe)
+        self.assertNotIn('return new VoxelShape[] {Shapes.block()};', mid_pipe)
+        # Gate text must receive the normal translated direction component, not a raw enum string.
+        self.assertIn('Component.translatable("direction." + direction.getName())', legacy_action)
+
     def test_jade_21_typed_groups_and_all_module_bases(self):
         plugin = self.java('buildcraft/compat/jade/BuildCraftJadePlugin.java')
         for view in ('FluidView','EnergyView','ProgressView'):

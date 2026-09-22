@@ -47,7 +47,7 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
      * The glass texture still supplies its own alpha, so this value is multiplied with texture alpha at render time.
      * 1.0 = vanilla glass texture opacity; 0.0 = fully invisible.
      */
-    private static final double GLASS_FACADE_ALPHA = 1.0D;
+    private static final double GLASS_FACADE_ALPHA = 0.2D;
 
     private final RandomSource random = RandomSource.create();
 

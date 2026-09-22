@@ -574,7 +574,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 		}
 		if(added)
 			return result;
-		return new VoxelShape[] {Shapes.block()};
+		return new VoxelShape[] {BOX_CENTER};
 	}
 
 	@Override

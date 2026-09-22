@@ -1252,8 +1252,12 @@ public class BuildCraftJeiPlugin implements IModPlugin {
             slot.draw(stack, 0, 0);
             exchanger.draw(stack, 18, 0);
             slot.draw(stack, 72, 0);
-            String mode = recipe.heating() ? "Heat " : "Cool ";
-            Minecraft.getInstance().font.draw(stack, sanitizeJeiText(mode + recipe.recipe().heatFrom() + " -> " + recipe.recipe().heatTo()),
+            Component mode = Component.translatable(recipe.heating()
+                    ? "buildcraft.jei.heat_exchange.mode.heat"
+                    : "buildcraft.jei.heat_exchange.mode.cool");
+            Component text = Component.translatable("buildcraft.jei.heat_exchange.range", mode,
+                    recipe.recipe().heatFrom(), recipe.recipe().heatTo());
+            Minecraft.getInstance().font.draw(stack, text,
                     1, 21, 0xFF707070);
         }
     }

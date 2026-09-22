@@ -10,11 +10,20 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 
+import net.minecraft.client.ClientRecipeBook;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.components.WidgetSprites;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ServerboundRecipeBookChangeSettingsPacket;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.context.ContextMap;
+import net.minecraft.world.entity.player.StackedItemContents;
+import net.minecraft.world.inventory.RecipeBookType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -43,16 +52,29 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
     private static final int GRID_Y = 24;
     private static final int GRID_COLUMNS = 5;
     private static final int CATEGORY_SIZE = 24;
+    private static final WidgetSprites FILTER_BUTTON_SPRITES = new WidgetSprites(
+        Identifier.withDefaultNamespace("recipe_book/filter_enabled"),
+        Identifier.withDefaultNamespace("recipe_book/filter_disabled"),
+        Identifier.withDefaultNamespace("recipe_book/filter_enabled_highlighted"),
+        Identifier.withDefaultNamespace("recipe_book/filter_disabled_highlighted")
+    );
+    private static final Component ONLY_CRAFTABLES_TOOLTIP =
+        Component.translatable("gui.recipebook.toggleRecipes.craftable");
+    private static final Component ALL_RECIPES_TOOLTIP =
+        Component.translatable("gui.recipebook.toggleRecipes.all");
 
     public final Consumer<RecipeDisplay> recipeSetter;
 
     private final RecipeBookPagePhantom page = new RecipeBookPagePhantom();
     private final List<GuiButtonRecipePhantom> buttons = new ArrayList<>();
     private final List<CategoryTab> categoryTabs = new ArrayList<>();
+    private final StackedItemContents stackedContents = new StackedItemContents();
 
     private Minecraft minecraft;
     private ContextMap displayContext;
     private EditBox searchBox;
+    private CycleButton<Boolean> filterButton;
+    private Consumer<StackedItemContents> materialContentsFiller = ignored -> {};
     private List<RecipeDisplayEntry> allEntries = List.of();
     private Object selectedCategory;
     private boolean visible;
@@ -62,25 +84,39 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
     private int panelX;
     private int panelY;
     private int refreshTicker;
+    private int inventoryChangeCount = -1;
 
     public GuiRecipeBookPhantom(Consumer<RecipeDisplay> recipeSetter) {
         this.recipeSetter = recipeSetter;
     }
 
-    public void init(int width, int height, Minecraft minecraft, boolean narrow) {
+    public void init(int width, int height, Minecraft minecraft, boolean narrow,
+        Consumer<StackedItemContents> materialContentsFiller) {
         String previousSearch = searchBox == null ? "" : searchBox.getValue();
         this.minecraft = minecraft;
         this.narrow = narrow;
         this.screenWidth = width;
         this.screenHeight = height;
+        this.materialContentsFiller = materialContentsFiller == null ? ignored -> {} : materialContentsFiller;
         this.displayContext = minecraft.level == null ? null : SlotDisplayContext.fromLevel(minecraft.level);
+        this.inventoryChangeCount = minecraft.player == null ? -1 : minecraft.player.getInventory().getTimesChanged();
+        refreshStackedContents();
         updatePanelPosition((width - 176) / 2);
 
-        searchBox = new EditBox(minecraft.font, panelX + 26, panelY + 6, 108, 14,
+        searchBox = new EditBox(minecraft.font, panelX + 26, panelY + 6, 80, 14,
             Component.translatable("gui.recipebook.search_hint"));
         searchBox.setMaxLength(50);
         searchBox.setValue(previousSearch);
         searchBox.setResponder(value -> applyFilters(true));
+
+        filterButton = CycleButton.booleanBuilder(ONLY_CRAFTABLES_TOOLTIP, ALL_RECIPES_TOOLTIP, isFiltering())
+            .withTooltip(value -> value ? Tooltip.create(ONLY_CRAFTABLES_TOOLTIP) : Tooltip.create(ALL_RECIPES_TOOLTIP))
+            .withSprite((button, value) -> FILTER_BUTTON_SPRITES.get(value, button.isHoveredOrFocused()))
+            .displayState(CycleButton.DisplayState.HIDE)
+            .create(panelX + 110, panelY + 5, 26, 16, CommonComponents.EMPTY, (button, value) -> {
+                setFiltering(value);
+                applyFilters(true);
+            });
 
         rebuildRecipes(false);
     }
@@ -101,13 +137,29 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
         if (searchBox != null) {
             searchBox.setPosition(panelX + 26, panelY + 6);
         }
+        if (filterButton != null) {
+            filterButton.setPosition(panelX + 110, panelY + 5);
+        }
         rebuildButtons();
         rebuildCategoryTabs();
     }
 
     public void tick() {
+        if (minecraft != null && minecraft.player != null) {
+            int changed = minecraft.player.getInventory().getTimesChanged();
+            if (changed != inventoryChangeCount) {
+                inventoryChangeCount = changed;
+                refreshStackedContents();
+                applyFilters(false);
+            }
+            if (filterButton != null && filterButton.getValue() != isFiltering()) {
+                filterButton.setValue(isFiltering());
+                applyFilters(false);
+            }
+        }
         if (++refreshTicker >= 20) {
             refreshTicker = 0;
+            refreshStackedContents();
             rebuildRecipes(false);
         }
     }
@@ -125,6 +177,9 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
         graphics.drawString(minecraft.font, Component.literal("\u2315"), panelX + 9, panelY + 9, 0xFFA0A0A0, false);
         if (searchBox != null) {
             searchBox.render(graphics, mouseX, mouseY, partialTicks);
+        }
+        if (filterButton != null) {
+            filterButton.render(graphics, mouseX, mouseY, partialTicks);
         }
 
         for (CategoryTab tab : categoryTabs) {
@@ -187,6 +242,9 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
                     applyFilters(true);
                     return true;
                 }
+            }
+            if (filterButton != null && BCGuiInput.click(filterButton, mouseX, mouseY, mouseButton)) {
+                return true;
             }
             if (searchBox != null && BCGuiInput.click(searchBox, mouseX, mouseY, mouseButton)) {
                 return true;
@@ -251,9 +309,9 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
             recipeHeight = Math.min(3, shaped.height());
         } else if (display instanceof ShapelessCraftingRecipeDisplay shapeless) {
             ingredients = shapeless.ingredients();
-            recipeWidth = Math.min(3, Math.max(1, ingredients.size()));
-            recipeHeight = Math.min(3, (ingredients.size() + 2) / 3);
-            if (ingredients.size() > 1) recipeWidth = 3;
+            // Shapeless recipes fill the phantom crafting grid row-major from the top-left.
+            recipeWidth = 3;
+            recipeHeight = 3;
         } else {
             return Optional.empty();
         }
@@ -310,11 +368,41 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
             if (!query.isEmpty() && !matchesSearch(entry, query)) {
                 continue;
             }
+            if (isFiltering() && !entry.canCraft(stackedContents)) {
+                continue;
+            }
             filtered.add(entry);
         }
         if (resetPage) page.reset();
         page.setEntries(filtered);
         rebuildButtons();
+    }
+
+    private void refreshStackedContents() {
+        stackedContents.clear();
+        if (minecraft == null || minecraft.player == null) {
+            return;
+        }
+        minecraft.player.getInventory().fillStackedContents(stackedContents);
+        materialContentsFiller.accept(stackedContents);
+    }
+
+    private boolean isFiltering() {
+        return minecraft != null && minecraft.player != null
+            && minecraft.player.getRecipeBook().isFiltering(RecipeBookType.CRAFTING);
+    }
+
+    private void setFiltering(boolean value) {
+        if (minecraft == null || minecraft.player == null) {
+            return;
+        }
+        ClientRecipeBook recipeBook = minecraft.player.getRecipeBook();
+        recipeBook.setFiltering(RecipeBookType.CRAFTING, value);
+        if (minecraft.getConnection() != null) {
+            minecraft.getConnection().send(new ServerboundRecipeBookChangeSettingsPacket(
+                RecipeBookType.CRAFTING, recipeBook.isOpen(RecipeBookType.CRAFTING), value
+            ));
+        }
     }
 
     private boolean matchesSearch(RecipeDisplayEntry entry, String query) {

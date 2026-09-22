@@ -247,6 +247,11 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         if (item != Items.AIR) {
             return new ItemStack(item, 1);
         }
+        ItemStack clone = block.getCloneItemStack(new SingleBlockAccess(state), BlockPos.ZERO, state);
+        if (!clone.isEmpty()) {
+            clone.setCount(1);
+            return clone;
+        }
         return StackUtil.EMPTY;
     }
 

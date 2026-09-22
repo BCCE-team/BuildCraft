@@ -56,13 +56,16 @@ public class ItemMarkerConnector extends Item {
             return InteractionResult.SUCCESS;
         }
 
+        boolean markerConnected = false;
         for (MarkerCache<?> cache : MarkerCache.CACHES) {
             if (interactCache(cache.getSubCache(world), player)) {
                 player.swing(hand);
-                return InteractionResult.SUCCESS;
+                markerConnected = true;
+                break;
             }
         }
-        return onItemRightClickVolumeBoxes(world, player);
+        InteractionResult volumeResult = onItemRightClickVolumeBoxes(world, player);
+        return markerConnected && volumeResult == InteractionResult.FAIL ? InteractionResult.SUCCESS : volumeResult;
     }
 
 

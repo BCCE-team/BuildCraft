@@ -225,6 +225,28 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertNotIn('PlatformClientEvents.logout(BCLibEventDist::onDisconnectFromServer);', events)
         self.assertNotIn('PlatformClientEvents.tick(BCEvents.Phase.END, BCLibEventDist::clientTick);', events)
 
+    def test_legacy_tooltip_clamps_to_screen_bounds(self):
+        gui = (ROOT / 'version-src/1.19.2-forge/src/main/java/buildcraft/lib/misc/GuiUtil.java').read_text(encoding='utf-8')
+        self.assertIn('tooltipX = Mth.clamp(tooltipX, 4, Math.max(4, screenWidth - tooltipTextWidth - 4));', gui)
+        self.assertIn('tooltipY = Mth.clamp(mouseY - 12, 4, Math.max(4, screenHeight - tooltipHeight - 6));', gui)
+        self.assertNotIn('tooltipY + 1 > screenWidth', gui)
+
+    def test_marker_connector_keeps_volume_box_processing_after_marker_connection(self):
+        connector = (
+            self.roots['1.21.11-neoforge'] / 'buildcraft/core/item/ItemMarkerConnector.java'
+        ).read_text(encoding='utf-8')
+        use_start = connector.index('public InteractionResult use(')
+        use_end = connector.index('private static <S extends MarkerSubCache', use_start)
+        use = connector[use_start:use_end]
+        self.assertIn('boolean markerConnected = false;', use)
+        self.assertIn('markerConnected = true;', use)
+        self.assertIn('break;', use)
+        self.assertIn('InteractionResult volumeResult = onItemRightClickVolumeBoxes(world, player);', use)
+        self.assertIn('markerConnected && volumeResult == InteractionResult.FAIL', use)
+        loop_start = use.index('for (MarkerCache<?> cache')
+        volume_start = use.index('InteractionResult volumeResult')
+        self.assertNotIn('return InteractionResult.SUCCESS;', use[loop_start:volume_start])
+
     def test_legacy_pipe_targeting_uses_block_reach(self):
         pipe = (ROOT / 'version-src/1.19.2-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text(encoding='utf-8')
         shape = pipe[pipe.index('public VoxelShape getShape('):]

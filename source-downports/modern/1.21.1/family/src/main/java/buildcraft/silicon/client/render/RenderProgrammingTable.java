@@ -37,10 +37,10 @@ public class RenderProgrammingTable implements BCGeometryRenderer<TileProgrammin
         TextureAtlasSprite whiteStainedGlass = Minecraft.getInstance()
             .getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(WHITE_STAINED_GLASS);
         PoseStack.Pose pose = matrix.last();
-        bb.addVertex(pose.pose(), 4 / 16F, 9 / 16F, 4 / 16F).setColor(255, 255, 255, 255).setUv(whiteStainedGlass.getU(4 / 16.0F), whiteStainedGlass.getV(4 / 16.0F)).setOverlay(overlay).setLight(combinedLight).setNormal(pose, 0, 0, 1);
-        bb.addVertex(pose.pose(), 12 / 16F, 9 / 16F, 4 / 16F).setColor(255, 255, 255, 255).setUv(whiteStainedGlass.getU(12 / 16.0F), whiteStainedGlass.getV(4 / 16.0F)).setOverlay(overlay).setLight(combinedLight).setNormal(pose, 0, 0, 1);
-        bb.addVertex(pose.pose(), 12 / 16F, 9 / 16F, 12 / 16F).setColor(255, 255, 255, 255).setUv(whiteStainedGlass.getU(12 / 16.0F), whiteStainedGlass.getV(12 / 16.0F)).setOverlay(overlay).setLight(combinedLight).setNormal(pose, 0, 0, 1);
-        bb.addVertex(pose.pose(), 4 / 16F, 9 / 16F, 12 / 16F).setColor(255, 255, 255, 255).setUv(whiteStainedGlass.getU(4 / 16.0F), whiteStainedGlass.getV(12 / 16.0F)).setOverlay(overlay).setLight(combinedLight).setNormal(pose, 0, 0, 1);
+        bb.addVertex(pose.pose(), 4 / 16F, 9 / 16F, 4 / 16F).setColor(255, 255, 255, 255).setUv(whiteStainedGlass.getU(4 / 16.0F), whiteStainedGlass.getV(4 / 16.0F)).setOverlay(overlay).setLight(combinedLight).setNormal(pose, 0, 1, 0);
+        bb.addVertex(pose.pose(), 4 / 16F, 9 / 16F, 12 / 16F).setColor(255, 255, 255, 255).setUv(whiteStainedGlass.getU(4 / 16.0F), whiteStainedGlass.getV(12 / 16.0F)).setOverlay(overlay).setLight(combinedLight).setNormal(pose, 0, 1, 0);
+        bb.addVertex(pose.pose(), 12 / 16F, 9 / 16F, 12 / 16F).setColor(255, 255, 255, 255).setUv(whiteStainedGlass.getU(12 / 16.0F), whiteStainedGlass.getV(12 / 16.0F)).setOverlay(overlay).setLight(combinedLight).setNormal(pose, 0, 1, 0);
+        bb.addVertex(pose.pose(), 12 / 16F, 9 / 16F, 4 / 16F).setColor(255, 255, 255, 255).setUv(whiteStainedGlass.getU(12 / 16.0F), whiteStainedGlass.getV(4 / 16.0F)).setOverlay(overlay).setLight(combinedLight).setNormal(pose, 0, 1, 0);
 
         Minecraft.getInstance().getProfiler().pop();
         Minecraft.getInstance().getProfiler().pop();

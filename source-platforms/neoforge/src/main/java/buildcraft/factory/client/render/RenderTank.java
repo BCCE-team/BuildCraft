@@ -37,7 +37,7 @@ public class RenderTank implements BlockEntityRenderer<TileTank> {
             return;
         }
         matrix.pushPose();
-        VertexConsumer bb = buffer.getBuffer(RenderType.cutout());
+        VertexConsumer bb = buffer.getBuffer(RenderType.translucent());
         
         boolean[] sideRender = { true, true, true, true, true, true };
         boolean connectedUp = isFullyConnected(tile, Direction.UP, partialTicks);

@@ -162,16 +162,13 @@ public class GuiUtil {
 
 			int titleLinesCount = 1;
 			int tooltipX = mouseX + 12;
-			if (tooltipX + tooltipTextWidth > screenWidth) {
-				tooltipX -= 28 + tooltipTextWidth;
+			if (tooltipX + tooltipTextWidth + 4 > screenWidth) {
+				tooltipX = mouseX - 16 - tooltipTextWidth;
 			}
+            tooltipX = Mth.clamp(tooltipX, 4, Math.max(4, screenWidth - tooltipTextWidth - 4));
 
-            int tooltipY = mouseY - 12;
-            int tooltipHeight =  height;
-
-            if (tooltipY + 1 > screenWidth) {
-            	tooltipY = screenHeight - height - 6;
-            }
+            int tooltipHeight = height;
+            int tooltipY = Mth.clamp(mouseY - 12, 4, Math.max(4, screenHeight - tooltipHeight - 6));
 
             final int zLevel = 0;
             final int backgroundColor = 0xF0100010;

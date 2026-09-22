@@ -99,9 +99,10 @@ public class RenderDistiller implements BCGeometryRenderer<TileDistiller_BC8> {
             profiler.pop();
             profiler.popPush("fluid");
 
-            renderTank(sizes.tankIn, tile.smoothedTankIn, combinedLight, partialTicks, bb, last);
-            renderTank(sizes.tankOutGas, tile.smoothedTankGasOut, combinedLight, partialTicks, bb, last);
-            renderTank(sizes.tankOutLiquid, tile.smoothedTankLiquidOut, combinedLight, partialTicks, bb, last);
+            VertexConsumer fluidBuffer = buffer.getBuffer(BCRenderTypes.translucent());
+            renderTank(sizes.tankIn, tile.smoothedTankIn, combinedLight, partialTicks, fluidBuffer, last);
+            renderTank(sizes.tankOutGas, tile.smoothedTankGasOut, combinedLight, partialTicks, fluidBuffer, last);
+            renderTank(sizes.tankOutLiquid, tile.smoothedTankLiquidOut, combinedLight, partialTicks, fluidBuffer, last);
 
             // buffer finish
             profiler.popPush("draw");
@@ -121,7 +122,7 @@ public class RenderDistiller implements BCGeometryRenderer<TileDistiller_BC8> {
             return;
         }
         int blockLight = fluid.fluid.getFluid().getFluidType().getLightLevel(fluid.fluid) & 0xF;
-        combinedLight |= blockLight << 4;
+        combinedLight = (combinedLight & ~0xF0) | (Math.max((combinedLight >>> 4) & 15, blockLight) << 4);
         FluidRenderer.vertex.lighti(combinedLight);
         FluidRenderer.renderFluid(FluidSpriteType.STILL, fluid.fluid, fluid.amount, tank.getCapacity(), size.min,
             size.max, bb, pose, null);

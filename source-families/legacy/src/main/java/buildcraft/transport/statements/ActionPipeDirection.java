@@ -31,8 +31,8 @@ public class ActionPipeDirection extends BCStatement implements IActionInternal 
 
     @Override
     public Component getDescription() {
-        // The translation receives the canonical direction enum as its argument.
-        return Component.translatable("gate.action.pipe.direction", direction);//, ColourUtil.getTextFullTooltip(direction));
+        Component side = Component.translatable("direction." + direction.getName());
+        return Component.translatable("gate.action.pipe.direction", side);
     }
 
     @Override

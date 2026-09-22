@@ -6,7 +6,6 @@ import java.util.function.Consumer;
 import buildcraft.lib.gui.slot.SlotPhantom;
 import buildcraft.lib.tile.item.ItemHandlerManager;
 import buildcraft.lib.tile.item.ItemHandlerManager.EnumAccess;
-import net.minecraft.client.gui.components.StateSwitchingButton;
 import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 import net.minecraft.client.gui.screens.recipebook.RecipeBookPage;
 import net.minecraft.world.entity.player.StackedContents;
@@ -51,11 +50,4 @@ public class GuiRecipeBookPhantom extends RecipeBookComponent {
         }
     }
 
-    @Override
-    public void initVisuals() {
-        super.initVisuals();
-        StateSwitchingButton button = this.filterButton;
-        button.setX(-100000);
-        button.setY(-100000);
-    }
 }

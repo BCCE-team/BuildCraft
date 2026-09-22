@@ -67,9 +67,12 @@ public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
 
 	@Override
 	public void init() {
+		String currentName = nameField == null ? container.tile.name : nameField.getValue();
+		boolean focusName = nameField == null || nameField.isFocused();
 		super.init();
 		nameField = new EditBox(font, leftPos + NAME_X, topPos + NAME_Y, NAME_W, NAME_H, Component.empty());
-		nameField.setValue(container.tile.name);
+		nameField.setMaxLength(ContainerArchitectTable.MAX_BLUEPRINT_NAME_LENGTH);
+		nameField.setValue(currentName);
 		nameField.setResponder((s) -> container.sendNameToServer(s.trim()));
 		
 		int p = container.setting.get();
@@ -111,7 +114,9 @@ public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
                             sendSettingsToServer();
 						}));
 		this.addWidget(nameField);
-		setInitialFocus(nameField);
+		if (focusName) {
+			setInitialFocus(nameField);
+		}
 	}
 
     private boolean canUseCreativeSetting() {

@@ -45,10 +45,10 @@ public class RenderProgrammingTable implements BlockEntityRenderer<TileProgrammi
         TextureAtlasSprite whiteStainedGlass = Minecraft.getInstance().getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(WHITE_STAINED_GLASS);
         Matrix4f pose = matrix.last().pose();
         Matrix3f normal = matrix.last().normal();
-        bb.vertex(pose, 4 / 16F, 9 / 16F, 4 / 16F).color(255, 255, 255, 255).uv(whiteStainedGlass.getU(4), whiteStainedGlass.getV(4)).overlayCoords(overlay).uv2(light1, light2).normal(normal, 0, 0, 1).endVertex();
-        bb.vertex(pose, 12 / 16F, 9 / 16F, 4 / 16F).color(255, 255, 255, 255).uv(whiteStainedGlass.getU(12), whiteStainedGlass.getV(4)).overlayCoords(overlay).uv2(light1, light2).normal(normal, 0, 0, 1).endVertex();
-        bb.vertex(pose, 12 / 16F, 9 / 16F, 12 / 16F).color(255, 255, 255, 255).uv(whiteStainedGlass.getU(12), whiteStainedGlass.getV(12)).overlayCoords(overlay).uv2(light1, light2).normal(normal, 0, 0, 1).endVertex();
-        bb.vertex(pose, 4 / 16F, 9 / 16F, 12 / 16F).color(255, 255, 255, 255).uv(whiteStainedGlass.getU(4), whiteStainedGlass.getV(12)).overlayCoords(overlay).uv2(light1, light2).normal(normal, 0, 0, 1).endVertex();
+        bb.vertex(pose, 4 / 16F, 9 / 16F, 4 / 16F).color(255, 255, 255, 255).uv(whiteStainedGlass.getU(4), whiteStainedGlass.getV(4)).overlayCoords(overlay).uv2(light1, light2).normal(normal, 0, 1, 0).endVertex();
+        bb.vertex(pose, 4 / 16F, 9 / 16F, 12 / 16F).color(255, 255, 255, 255).uv(whiteStainedGlass.getU(4), whiteStainedGlass.getV(12)).overlayCoords(overlay).uv2(light1, light2).normal(normal, 0, 1, 0).endVertex();
+        bb.vertex(pose, 12 / 16F, 9 / 16F, 12 / 16F).color(255, 255, 255, 255).uv(whiteStainedGlass.getU(12), whiteStainedGlass.getV(12)).overlayCoords(overlay).uv2(light1, light2).normal(normal, 0, 1, 0).endVertex();
+        bb.vertex(pose, 12 / 16F, 9 / 16F, 4 / 16F).color(255, 255, 255, 255).uv(whiteStainedGlass.getU(12), whiteStainedGlass.getV(4)).overlayCoords(overlay).uv2(light1, light2).normal(normal, 0, 1, 0).endVertex();
 
         Minecraft.getInstance().getProfiler().pop();
         Minecraft.getInstance().getProfiler().pop();

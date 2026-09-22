@@ -47,7 +47,7 @@ public class RenderHeatExchange implements BCGeometryRenderer<TileHeatExchange>{
 		if(section instanceof ExchangeSectionStart start) {
 			FluidStackInterp input = start.smoothedTankInput.getFluidForRender(partialTicks);
 			FluidStackInterp output = start.smoothedTankOutput.getFluidForRender(partialTicks);
-			VertexConsumer bb = buffer.getBuffer(BCRenderTypes.cutout());
+			VertexConsumer bb = buffer.getBuffer(BCRenderTypes.translucent());
 			ExchangeSectionEnd sectionEnd = start.getEndSection();
 			int middles = start.middleCount;
 			if (middles > 0 && sectionEnd != null) {
@@ -105,7 +105,7 @@ public class RenderHeatExchange implements BCGeometryRenderer<TileHeatExchange>{
 		else if(section instanceof ExchangeSectionEnd end) {
 			FluidStackInterp input = end.smoothedTankInput.getFluidForRender(partialTicks);
 			FluidStackInterp output = end.smoothedTankOutput.getFluidForRender(partialTicks);
-			VertexConsumer bb = buffer.getBuffer(BCRenderTypes.cutout());
+			VertexConsumer bb = buffer.getBuffer(BCRenderTypes.translucent());
 			matrix.translate(0.5, 0.5, 0.5);
 	        switch(face) {
 			case NORTH:
