@@ -108,6 +108,28 @@ public final class FeMjAdversarialGameTests {
         helper.succeed();
     }
 
+    @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 20)
+    public static void malformedFeAcceptanceCannotCreateMjOrBreakMetadata(GameTestHelper helper) {
+        BCLibConfig.PowerMode previousMode = BCLibConfig.powerMode;
+        try {
+            BCLibConfig.powerMode = BCLibConfig.PowerMode.MJ_AUTOCONVERT_FE;
+            long ratio = BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjPerFe();
+            IMjReceiver converter = MjToFeAutoConverter.createReceiver(new MalformedEnergyStorage());
+            require(helper, converter != null, "failed to construct automatic FE converter");
+
+            long offered = 7L * ratio + 1;
+            require(helper, converter.receivePower(offered, FluidAction.SIMULATE) == 1,
+                "invalid FE simulation result created or lost MJ");
+            require(helper, converter.receivePower(offered, FluidAction.EXECUTE) == 1,
+                "invalid FE execute result created or lost MJ");
+            require(helper, converter.getStored() == 0 && converter.getCapacity() == 0,
+                "negative FE metadata escaped into the MJ adapter");
+        } finally {
+            BCLibConfig.powerMode = previousMode;
+        }
+        helper.succeed();
+    }
+
     private static void require(GameTestHelper helper, boolean condition, String message) {
         if (!condition) helper.fail(message);
     }
@@ -149,5 +171,14 @@ public final class FeMjAdversarialGameTests {
         @Override public boolean canConnect(@Nonnull IMjConnector other) { return true; }
         @Override public long getStored() { return stored; }
         @Override public long getCapacity() { return capacity; }
+    }
+
+    private static final class MalformedEnergyStorage implements IEnergyStorage {
+        @Override public int receiveEnergy(int maxReceive, boolean simulate) { return maxReceive == 0 ? -1 : Integer.MAX_VALUE; }
+        @Override public int extractEnergy(int maxExtract, boolean simulate) { return 0; }
+        @Override public int getEnergyStored() { return -1; }
+        @Override public int getMaxEnergyStored() { return -1; }
+        @Override public boolean canExtract() { return false; }
+        @Override public boolean canReceive() { return true; }
     }
 }

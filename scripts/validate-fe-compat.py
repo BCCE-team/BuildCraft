@@ -132,6 +132,12 @@ for loader in ("forge", "neoforge"):
         "EnergyStorage",
     )
     require(
+        f"source-platforms/{loader}/src/main/java/buildcraft/lib/internal/mj/MjToFeAutoConverter.java",
+        "clampAccepted",
+        "Math.max(0, fe.getEnergyStored())",
+        "Math.max(0, fe.getMaxEnergyStored())",
+    )
+    require(
         f"source-platforms/{loader}/src/main/java/buildcraft/transport/pipe/PipeRegistry.java" if loader == "forge"
         else "source-families/modern/src/main/java/buildcraft/transport/pipe/PipeRegistry.java",
         "registerAlias",

@@ -54,17 +54,23 @@ public final class MjToFeAutoConverter implements IMjReceiver, IMjReadable {
         long convertible = microJoules / ratio;
         if (convertible <= 0) return microJoules;
         int offeredFe = (int) Math.min(Integer.MAX_VALUE, convertible);
-        int acceptedFe = fe.receiveEnergy(offeredFe, action == FluidAction.SIMULATE);
+        // Capabilities belong to other mods. Keep this boundary conservative even if one returns
+        // an invalid result (negative or greater than the amount it was offered).
+        int acceptedFe = clampAccepted(fe.receiveEnergy(offeredFe, action == FluidAction.SIMULATE), offeredFe);
         return microJoules - (long) acceptedFe * ratio;
+    }
+
+    private static int clampAccepted(int accepted, int offered) {
+        return Math.max(0, Math.min(offered, accepted));
     }
 
     @Override
     public long getStored() {
-        return BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMj(fe.getEnergyStored());
+        return BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMj(Math.max(0, fe.getEnergyStored()));
     }
 
     @Override
     public long getCapacity() {
-        return BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMj(fe.getMaxEnergyStored());
+        return BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMj(Math.max(0, fe.getMaxEnergyStored()));
     }
 }
