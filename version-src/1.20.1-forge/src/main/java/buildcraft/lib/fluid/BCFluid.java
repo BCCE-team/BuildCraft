@@ -235,6 +235,8 @@ public abstract class BCFluid extends ForgeFlowingFluid {
 	protected boolean canSpreadTo(BlockGetter p_75978_, BlockPos p_75979_, BlockState p_75980_, Direction p_75981_,
 			BlockPos p_75982_, BlockState p_75983_, FluidState fluidState, Fluid p_75985_) {
 		return super.canSpreadTo(p_75978_, p_75979_, p_75980_, p_75981_, p_75982_, p_75983_, fluidState, p_75985_)
+				// Oil generation and flowing oil must preserve existing water sources instead of replacing them.
+				&& !fluidState.is(FluidTags.WATER)
 				&& (fluidState.isEmpty() || fluidState.getFluidType().getDensity() < this.getFluidType().getDensity());
 	}
 

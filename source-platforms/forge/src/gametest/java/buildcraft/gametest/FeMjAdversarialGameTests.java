@@ -116,13 +116,17 @@ public final class FeMjAdversarialGameTests {
             long ratio = BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjPerFe();
             IMjReceiver converter = MjToFeAutoConverter.createReceiver(new MalformedEnergyStorage());
             require(helper, converter != null, "failed to construct automatic FE converter");
+            if (!(converter instanceof IMjReadable readable)) {
+                helper.fail("automatic FE converter must expose readable MJ metadata");
+                return;
+            }
 
             long offered = 7L * ratio + 1;
             require(helper, converter.receivePower(offered, FluidAction.SIMULATE) == 1,
                 "invalid FE simulation result created or lost MJ");
             require(helper, converter.receivePower(offered, FluidAction.EXECUTE) == 1,
                 "invalid FE execute result created or lost MJ");
-            require(helper, converter.getStored() == 0 && converter.getCapacity() == 0,
+            require(helper, readable.getStored() == 0 && readable.getCapacity() == 0,
                 "negative FE metadata escaped into the MJ adapter");
         } finally {
             BCLibConfig.powerMode = previousMode;
