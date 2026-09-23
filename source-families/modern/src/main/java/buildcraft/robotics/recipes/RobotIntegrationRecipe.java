@@ -64,7 +64,7 @@ public class RobotIntegrationRecipe implements IntegrationRecipeDefinition {
 
     @Override
     public long requiredMicroJoules(ItemStack output) {
-        return 10_000L * MjAmount.MICRO_MJ_PER_MJ;
+        return 50_000L * MjAmount.MICRO_MJ_PER_MJ;
     }
 
     @Override

@@ -173,6 +173,29 @@ for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
     ):
         require_effective(target, rel, '"tag": "c:glass_blocks"')
 
+# Assembly-table values use the original BC8 balance; programming and integration
+# of robots retain their BC7 costs. These values are player-visible laser energy.
+for rel in (
+    "version-src/1.19.2-forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
+    "version-src/1.20.1-forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
+    "source-platforms/neoforge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
+):
+    require(rel, "return wholeMj * MjAmount.MICRO_MJ_PER_MJ;")
+
+for family in ("legacy", "modern"):
+    require(
+        f"source-families/{family}/src/main/java/buildcraft/robotics/BCRoboticsBoards.java",
+        '"robot_delivery", 128000',
+        '"robot_knight", 128000',
+        '"robot_bomber", 128000',
+        '"robot_stripes", 128000',
+        '"robot_builder", 512000',
+    )
+    require(
+        f"source-families/{family}/src/main/java/buildcraft/robotics/recipes/RobotIntegrationRecipe.java",
+        "return 50_000L * MjAmount.MICRO_MJ_PER_MJ;",
+    )
+
 
 if errors:
     for error in errors:
@@ -186,3 +209,4 @@ print(" - Construction Marker and Flood Gate interaction parity is guarded")
 print(" - dead custom oil biomes and their legacy Forge tag hooks are removed")
 print(" - Programming Table selection packets use an allocated container message ID")
 print(" - 1.21.1/1.21.11 gate and clear-lens recipes use live NeoForge ingredients/tags")
+print(" - BC8 assembly and BC7 robotics laser-energy balances are preserved")

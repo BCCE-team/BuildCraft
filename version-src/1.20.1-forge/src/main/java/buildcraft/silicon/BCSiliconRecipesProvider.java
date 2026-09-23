@@ -237,9 +237,9 @@ public class BCSiliconRecipesProvider extends RecipeProvider{
         }
 	}
 	
-    /** Keeps generated assembly-table recipes in sync with the 50% energy rebalance. */
+    /** Converts the canonical BuildCraft 8 assembly-table costs to micro-MJ. */
     private static long assemblyCost(long wholeMj) {
-        return wholeMj * MjAmount.MICRO_MJ_PER_MJ / 2L;
+        return wholeMj * MjAmount.MICRO_MJ_PER_MJ;
     }
 
     private static void saveSerializerOnlyRecipe(

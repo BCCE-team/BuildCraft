@@ -47,9 +47,9 @@ import net.minecraft.core.registries.BuiltInRegistries;
 
 public class BCSiliconRecipesProvider extends RecipeProvider{
 
-    /** 8.0.12 assembly energy rebalance: generated assembly costs are halved. */
+    /** Converts the canonical BuildCraft 8 assembly-table costs to micro-MJ. */
     private static long assemblyCost(long wholeMj) {
-        return wholeMj * MjAmount.MICRO_MJ_PER_MJ / 2L;
+        return wholeMj * MjAmount.MICRO_MJ_PER_MJ;
     }
 
     public BCSiliconRecipesProvider(PackOutput output, CompletableFuture<HolderLookup.Provider> registries) {

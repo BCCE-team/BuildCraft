@@ -66,12 +66,12 @@ public final class BCRoboticsBoards {
         board("buildcraft:shovelman", "shovelman", "blue", "robot_shovelman", 32000);
         board("buildcraft:boardRobotPump", "pump", "blue", "robot_pump", 32000);
 
-        board("buildcraft:boardRobotDelivery", "delivery", "green", "robot_delivery", 64000);
-        board("buildcraft:boardRobotKnight", "knight", "red", "robot_knight", 64000);
-        board("buildcraft:boardRobotBomber", "bomber", "red", "robot_bomber", 64000);
-        board("buildcraft:boardRobotStripes", "stripes", "yellow", "robot_stripes", 64000);
+        board("buildcraft:boardRobotDelivery", "delivery", "green", "robot_delivery", 128000);
+        board("buildcraft:boardRobotKnight", "knight", "red", "robot_knight", 128000);
+        board("buildcraft:boardRobotBomber", "bomber", "red", "robot_bomber", 128000);
+        board("buildcraft:boardRobotStripes", "stripes", "yellow", "robot_stripes", 128000);
 
-        board("buildcraft:boardRobotBuilder", "builder", "yellow", "robot_builder", 128000);
+        board("buildcraft:boardRobotBuilder", "builder", "yellow", "robot_builder", 512000);
     }
 
     private BCRoboticsBoards() {
