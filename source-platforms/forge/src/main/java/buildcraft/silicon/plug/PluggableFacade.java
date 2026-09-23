@@ -6,9 +6,13 @@
 
 package buildcraft.silicon.plug;
 
+import java.util.ArrayList;
+
 import javax.annotation.Nullable;
 
 import buildcraft.lib.internal.module.BCModules;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 import buildcraft.transport.internal.pipe.IPipeHolder;
 import buildcraft.transport.internal.pluggable.PipePluggable;
 import buildcraft.transport.internal.pluggable.PluggableDefinition;
@@ -29,8 +33,10 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Explosion;
+import net.minecraft.world.level.block.StainedGlassBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -59,7 +65,7 @@ public class PluggableFacade extends PipePluggable {
     }
 
     public static final int SIZE = 2;
-    public final FacadeInstance states;
+    public FacadeInstance states;
     public final boolean isSideSolid;
     public int activeState;
 
@@ -86,12 +92,77 @@ public class PluggableFacade extends PipePluggable {
         isSideSolid = states.areAllStatesSolid(side);
     }
 
-    @Override
+    @Nullable
+    public DyeColor getColour() {
+        if (activeState < 0 || activeState >= states.phasedStates.length) {
+            return null;
+        }
+        return states.phasedStates[activeState].activeColour;
+    }
+
+    public boolean setColour(@Nullable DyeColor colour) {
+        if (activeState >= 0 && activeState < states.phasedStates.length
+            && states.phasedStates[activeState].activeColour == colour) {
+            return false;
+        }
+        int fallback = -1;
+        for (int i = 0; i < states.phasedStates.length; i++) {
+            FacadePhasedState phasedState = states.phasedStates[i];
+            if (phasedState.activeColour == colour) {
+                activeState = i;
+                return true;
+            }
+            if (fallback < 0 && phasedState.activeColour == null) {
+                fallback = i;
+            }
+        }
+        if (colour == null && fallback >= 0) {
+            activeState = fallback;
+            return true;
+        }
+        if (states.type == FacadeType.Basic && enableStainedGlassPhases() && setColour(colour)) {
+            return true;
+        }
+        return false;
+    }
+
+    /** Turns a basic stained-glass facade into switchable glass-colour phases on its first brush use. */
+    private boolean enableStainedGlassPhases() {
+        FacadeBlockStateInfo current = states.phasedStates[activeState].stateInfo;
+        if (!(current.state.getBlock() instanceof StainedGlassBlock)) {
+            return false;
+        }
+        ArrayList<FacadePhasedState> phases = new ArrayList<>();
+        phases.add(current.createPhased(null));
+        for (BlockState state : FacadeStateManager.validFacadeStates.keySet()) {
+            if (state.getBlock() instanceof StainedGlassBlock glass && glass.getColor() != null) {
+                phases.add(FacadeStateManager.validFacadeStates.get(state).createPhased(glass.getColor()));
+            }
+        }
+        if (phases.size() <= 1) {
+            return false;
+        }
+        states = new FacadeInstance(phases.toArray(FacadePhasedState[]::new), states.isHollow);
+        activeState = 0;
+        return true;
+    }
+
     public CompoundTag writeToNbt() {
         CompoundTag nbt = super.writeToNbt();
         nbt.put("facade", states.writeToNbt());
         nbt.putInt("activeState", activeState);
         return nbt;
+    }
+
+    @Override
+    public CompoundTag writeSyncState(BCNetworkSide side) {
+        return writeToNbt();
+    }
+
+    @Override
+    public void readSyncState(CompoundTag nbt, BCNetworkSide side, BCPacketContext ctx) {
+        states = FacadeInstance.readFromNbt(nbt.getCompound("facade"));
+        activeState = MathUtil.clamp(nbt.getInt("activeState"), 0, states.phasedStates.length - 1);
     }
 
     // Networking
@@ -100,12 +171,26 @@ public class PluggableFacade extends PipePluggable {
         super(def, holder, side);
         states = FacadeInstance.readFromBuffer(buffer);
         isSideSolid = buffer.readBoolean();
+        activeState = MathUtil.clamp(buffer.readVarInt(), 0, states.phasedStates.length - 1);
     }
 
     @Override
     public void writeCreationPayload(FriendlyByteBuf buffer) {
         states.writeToBuffer(buffer);
         buffer.writeBoolean(isSideSolid);
+        buffer.writeVarInt(activeState);
+    }
+
+    @Override
+    public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
+        // Painting changes only the selected phase; creation data is not resent for an existing facade.
+        buffer.writeVarInt(activeState);
+    }
+
+    @Override
+    public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) {
+        int receivedState = buffer.readVarInt();
+        activeState = MathUtil.clamp(receivedState, 0, states.phasedStates.length - 1);
     }
 
     // Pluggable methods

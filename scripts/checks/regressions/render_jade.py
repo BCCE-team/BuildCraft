@@ -74,6 +74,47 @@ for platform in ("forge", "neoforge"):
         "refreshEngineModelData();",
     )
 
+
+# Jade 1.21.11 scans file-level @WailaPlugin annotations once per NeoForge ModContainer.
+# BuildCraft intentionally exposes several module ids from one jar, so deduplicate the scan
+# result before Jade rejects the repeated class as a fatal duplicate. Keep this shim scoped
+# to Jade and to the 1.21.11 modern NeoForge source band.
+require(
+    "source-platforms/neoforge/src/main/resources/META-INF/neoforge.mods.toml",
+    'config="buildcraft.jade.mixins.json"',
+    'requiredMods=["jade"]',
+)
+require(
+    "source-family-platforms/modern/neoforge/src/main/resources/buildcraft.jade.mixins.json",
+    '//? source if >=1.21.11',
+    '"JadeEntrypointDedupMixin"',
+)
+require(
+    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/compat/jade/mixin/JadeEntrypointDedupMixin.java",
+    '//? source if >=1.21.11',
+    '@Pseudo',
+    'targets = "snownee.jade.util.CommonProxy"',
+    'method = "loadEntrypoints"',
+    'require = 0',
+    'seenClasses.add(className)',
+    'cir.setReturnValue(List.copyOf(unique));',
+)
+
+# Since Minecraft 1.21.6 Jade forbids one object from being both a server data
+# provider and a client component provider. Keep those roles split with distinct UIDs.
+require(
+    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    'BlockServerDataProvider.INSTANCE',
+    'RobotServerDataProvider.INSTANCE',
+    'UID_BLOCK_DATA = id("block_data")',
+    'UID_ENTITY_ROBOT_DATA = id("robot_data")',
+)
+forbid(
+    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    'implements IBlockComponentProvider, IServerDataProvider',
+    'implements IEntityComponentProvider, IServerDataProvider',
+)
+
 # Jade should expose native FE storage on BuildCraft blocks in addition to MJ. Do not count the compatibility adapter
 # that merely presents an MJ receiver as FE, otherwise a pure MJ battery would be displayed twice in different units.
 for rel in (
@@ -87,7 +128,6 @@ for rel in (
         "MjReceiverEnergyStorage",
         'group.id = "fe";',
         'group.getExtraData().putString("Unit", "FE");',
-        'case "robot", "inventory", "tank", "robot_tank", "robot_energy", "mj", "fe", "zone_planner", "laser"',
     )
 
 require(
@@ -155,6 +195,18 @@ require(
     '"buildcraft.fluid.flow.milli.seconds.short": "%s mB/s"',
 )
 
+
+# Jade ClientViewGroup titles cause Jade to wrap BCCE storage/progress views in a themed BoxElement.
+# Keep these views inline so BuildCraft information uses Jade's normal tooltip background only.
+for rel in (
+    "version-src/1.19.2-forge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    "version-src/1.20.1-forge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    "source-platforms/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+):
+    require(rel, "clientGroup.title = null;")
+    forbid(rel, "clientGroup.title = Component.translatable")
+
 if errors:
     for error in errors:
         print("ERROR:", error)
@@ -164,6 +216,7 @@ print("Render/Jade regression guards OK")
 print(" - saved volume boxes render only while all intersecting client chunks are resident")
 print(" - marker/map lasers use actual client chunk residency instead of hasChunkAt")
 print(" - engine redraw invalidates baked model data and immediately rebuilds facing-dependent geometry")
+print(" - Jade 1.21.11 multi-mod entrypoints are deduplicated and server/client providers remain separated")
 print(" - Jade exposes native FE storage without duplicating MJ compatibility wrappers")
 print(" - energy/fluid pipes show rolling throughput vs effective transfer capacity instead of energy-buffer contents")
 print(" - fluid throughput formatting follows the shared per-second/per-tick display setting independently of B/mB units")

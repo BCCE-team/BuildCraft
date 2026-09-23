@@ -289,7 +289,13 @@ public enum PipeBaseModelGenStandard implements IPipeBaseModelGen {
     }
 
     private static int getPipeModelColour(DyeColor c) {
+        // The native 1.21.11 terrain path applies vertex alpha in addition to the colour-overlay sprite alpha.
+        // Keep its vertex colour opaque; the 1.21.1 renderer retains the historical alpha on the legacy quad path.
+        //? if >=1.21.11 {
+        return 0xFF_00_00_00 | ColourUtil.getLightHex(c);
+        //?} else {
         return 0x40_00_00_00 | ColourUtil.getLightHex(c);
+        //?}
     }
 
     private static void addQuads(MutableQuad[] from, List<MutableQuad> to, TextureAtlasSprite sprite) {

@@ -3,6 +3,12 @@ loaderVersion="${loader_version_range}"
 license="${mod_license}"
 showAsResourcePack=false
 
+//? if >=1.21.11 {
+[[mixins]]
+    config="buildcraft.jade.mixins.json"
+    requiredMods=["jade"]
+//?}
+
 [[mods]]
     modId="buildcraftlib"
     version="${mod_version}"

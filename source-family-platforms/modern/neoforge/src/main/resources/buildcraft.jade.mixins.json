@@ -1,0 +1,13 @@
+//? source if >=1.21.11
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "buildcraft.lib.compat.jade.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "JadeEntrypointDedupMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

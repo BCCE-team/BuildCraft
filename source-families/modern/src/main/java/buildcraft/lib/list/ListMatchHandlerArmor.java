@@ -33,6 +33,6 @@ public class ListMatchHandlerArmor extends ListMatchHandlerBackend {
     }
 
     public boolean isValidSource(ListMatchType type, @Nonnull ItemStack stack) {
-        return !getArmorTypes(stack).isEmpty();
+        return type == ListMatchType.TYPE && !getArmorTypes(stack).isEmpty();
     }
 }

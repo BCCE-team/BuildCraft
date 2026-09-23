@@ -19,6 +19,7 @@ import buildcraft.lib.gui.help.ElementHelpInfo;
 import buildcraft.lib.gui.help.ElementHelpInfo.HelpPosition;
 import buildcraft.lib.gui.ledger.LedgerEngine;
 import buildcraft.lib.gui.pos.GuiRectangle;
+import buildcraft.lib.misc.GuiUtil;
 import buildcraft.lib.misc.LocaleUtil;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -83,6 +84,17 @@ public class GuiEngineFE extends GuiBC8<ContainerEngineFE> {
                 }
             }
         });
+        addGearIcon(BCCoreItems.GEAR_IRON.get(), 78, 22);
+        addGearIcon(BCCoreItems.GEAR_GOLD.get(), 101, 22);
+    }
+
+    private void addGearIcon(Item item, int x, int y) {
+        mainGui.shownElements.add(new GuiElementSimple(mainGui, new GuiRectangle(x, y, 16, 16).offset(mainGui.rootElement)) {
+            @Override
+            public void drawBackground(GuiGraphics guiGraphics, float partialTicks) {
+                guiGraphics.renderItem(new ItemStack(item), (int) getX(), (int) getY());
+            }
+        });
     }
 
     @Override
@@ -108,12 +120,7 @@ public class GuiEngineFE extends GuiBC8<ContainerEngineFE> {
             FE.drawCutInside(getActiveGraphics(), new GuiRectangle(31, 78 - height, 6, height).offset(mainGui.rootElement));
         }
 
-        // Original BC8 draw order: base GUI -> gear icons -> translucent slot overlay.
-        // Draw directly in the screen layer so GuiGraphics item depth is deterministic.
         GuiGraphics guiGraphics = getActiveGraphics();
-        RenderSystem.enableDepthTest();
-        guiGraphics.renderItem(new ItemStack(BCCoreItems.GEAR_IRON.get()), leftPos + 78, topPos + 22);
-        guiGraphics.renderItem(new ItemStack(BCCoreItems.GEAR_GOLD.get()), leftPos + 101, topPos + 22);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableDepthTest();

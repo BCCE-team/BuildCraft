@@ -27,6 +27,15 @@ import net.minecraft.world.item.ItemStack;
  * legacy ore-dictionary "type", while the final path component is its material.
  */
 public class ListMatchHandlerOreDictionary extends ListMatchHandlerBackend {
+    /**
+     * Only these common-tag roots model the old OreDictionary form/material naming convention.
+     * Arbitrary slash-separated tags (minecraft:enchantable/*, mod progression tags, etc.) are not
+     * OreDictionary names and must never broaden a List filter.
+     */
+    private static final java.util.Set<String> MATERIAL_FORM_ROOTS = java.util.Set.of(
+        "ingots", "nuggets", "dusts", "gems", "ores", "raw_materials", "storage_blocks",
+        "plates", "rods", "gears", "wires", "sheets", "crystals"
+    );
     private static final class TagParts {
         final String type;
         final String material;
@@ -42,6 +51,10 @@ public class ListMatchHandlerOreDictionary extends ListMatchHandlerBackend {
     }
 
     private static TagParts getParts(TagKey<Item> tag) {
+        String namespace = tag.location().getNamespace();
+        if (!namespace.equals("c") && !namespace.equals("forge")) {
+            return null;
+        }
         String path = tag.location().getPath();
         int split = path.lastIndexOf('/');
         if (split <= 0 || split >= path.length() - 1) {
@@ -50,14 +63,10 @@ public class ListMatchHandlerOreDictionary extends ListMatchHandlerBackend {
 
         String type = path.substring(0, split);
         String material = path.substring(split + 1);
-
-        // These Forge tags describe a category, tool class, armour slot, or
-        // world-generation property rather than an item form/material pair.
-        // Treating them as Ore Dictionary names creates very broad false
-        // matches (for example every axe becoming the same "material").
-        if (type.contains("ores_in_ground") || type.contains("ore_rates")
-            || type.equals("tools") || type.startsWith("tools/")
-            || type.equals("armors") || type.startsWith("armors/")) {
+        // The old OreDictionary encoded a form/material pair (ingotIron, dustCopper, ...).
+        // Modern common tags encode that contract as c:ingots/iron, forge:dusts/copper, etc.
+        // Do not interpret unrelated tags as List material/type information.
+        if (!MATERIAL_FORM_ROOTS.contains(type)) {
             return null;
         }
         return new TagParts(type, material);
@@ -73,7 +82,7 @@ public class ListMatchHandlerOreDictionary extends ListMatchHandlerBackend {
 
         if (type == ListMatchType.CLASS) {
             for (TagKey<Item> source : sourceTags) {
-                if (targetTags.contains(source)) {
+                if (getParts(source) != null && targetTags.contains(source)) {
                     return true;
                 }
             }
@@ -105,7 +114,7 @@ public class ListMatchHandlerOreDictionary extends ListMatchHandlerBackend {
     public boolean isValidSource(ListMatchType type, @Nonnull ItemStack stack) {
         List<TagKey<Item>> tags = getTags(stack);
         if (type == ListMatchType.CLASS) {
-            return !tags.isEmpty();
+            return tags.stream().anyMatch(tag -> getParts(tag) != null);
         }
         for (TagKey<Item> tag : tags) {
             if (getParts(tag) != null) {

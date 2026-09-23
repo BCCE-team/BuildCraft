@@ -22,6 +22,7 @@ import buildcraft.transport.client.model.PipeModelCacheBase.PipeBaseTranslucentK
 import buildcraft.transport.client.model.key.PipeModelKey;
 import buildcraft.transport.pipe.Pipe;
 import buildcraft.transport.tile.TilePipeHolder;
+import buildcraft.silicon.plug.PluggableFacade;
 
 import net.minecraft.client.model.geom.builders.UVPair;
 import net.minecraft.client.renderer.block.model.BakedQuad;
@@ -89,9 +90,11 @@ public final class ModelPipeNative121111 implements DynamicBlockStateModel {
         List<buildcraft.lib.compat.mc121111.client.renderer.block.model.BakedQuad> legacyPlugTranslucent;
 
         PipeModelCachePluggable.PluggableKey plugCutoutKey =
-            new PipeModelCachePluggable.PluggableKey(buildcraft.lib.compat.RenderCompat.cutout(), tile);
+            new PipeModelCachePluggable.PluggableKey(buildcraft.lib.compat.RenderCompat.cutout(), tile,
+                ModelPipeNative121111::isNativeStaticPluggable);
         PipeModelCachePluggable.PluggableKey plugTranslucentKey =
-            new PipeModelCachePluggable.PluggableKey(buildcraft.lib.compat.RenderCompat.translucent(), tile);
+            new PipeModelCachePluggable.PluggableKey(buildcraft.lib.compat.RenderCompat.translucent(), tile,
+                ModelPipeNative121111::isNativeStaticPluggable);
 
         // PipeBaseModelGenStandard temporarily stretches shared template quads while it bakes long connections. Keep
         // both the pipe body and the static pluggable bakers behind the same lock. The immutable native quads produced
@@ -134,6 +137,17 @@ public final class ModelPipeNative121111 implements DynamicBlockStateModel {
         boolean translucentLayer
     ) {
         return convert(legacy, translucentLayer, true);
+    }
+
+    private static boolean isNativeStaticPluggable(buildcraft.transport.internal.pluggable.PipePluggable pluggable) {
+        // The native terrain quad path drops the glass alpha. Render only glass facades in RenderPipeHolder's
+        // translucent dynamic pass; all other pluggables stay in the terrain model.
+        if (!(pluggable instanceof PluggableFacade facade)) {
+            return true;
+        }
+        int phase = facade.activeState;
+        return phase < 0 || phase >= facade.states.phasedStates.length
+            || !PluggableFacade.isGlass(facade.states.phasedStates[phase].stateInfo.state);
     }
 
     private static List<BakedQuad> convertPluggables(
@@ -180,7 +194,17 @@ public final class ModelPipeNative121111 implements DynamicBlockStateModel {
                     face,
                     sprite,
                     true,
-                    0
+                    0,
+                    BakedNormals.of(
+                        BakedNormals.pack(quad.vertex_0.normal_x, quad.vertex_0.normal_y, quad.vertex_0.normal_z),
+                        BakedNormals.pack(quad.vertex_1.normal_x, quad.vertex_1.normal_y, quad.vertex_1.normal_z),
+                        BakedNormals.pack(quad.vertex_2.normal_x, quad.vertex_2.normal_y, quad.vertex_2.normal_z),
+                        BakedNormals.pack(quad.vertex_3.normal_x, quad.vertex_3.normal_y, quad.vertex_3.normal_z)
+                    ),
+                    // Pipe RGB comes from the BlockColor tint above. Native terrain quads still need an explicit
+                    // opaque vertex colour; the short constructor defaults this layer to a weak alpha.
+                    BakedColors.of(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF),
+                    false
                 ));
             } else {
                 result.add(new BakedQuad(

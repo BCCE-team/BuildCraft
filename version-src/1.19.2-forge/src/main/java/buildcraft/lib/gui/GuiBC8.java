@@ -36,6 +36,7 @@ import net.minecraft.world.item.ItemStack;
 public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainerScreen<C> {
     public final BuildCraftGui mainGui;
     public final C container;
+    private int persistentElementCount = -1;
 
     public GuiBC8(C container, Inventory inv, Component title) {
         this(container, g -> new BuildCraftGui(g, BuildCraftGui.createWindowedArea(g)), inv, title);
@@ -181,6 +182,16 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
     }
     
     
+
+    @Override
+    public void init() {
+        if (persistentElementCount < 0) {
+            persistentElementCount = mainGui.shownElements.size();
+        } else if (mainGui.shownElements.size() > persistentElementCount) {
+            mainGui.shownElements.subList(persistentElementCount, mainGui.shownElements.size()).clear();
+        }
+        super.init();
+    }
 
     @Override
 	public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {

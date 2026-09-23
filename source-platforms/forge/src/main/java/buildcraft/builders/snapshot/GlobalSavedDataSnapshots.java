@@ -12,6 +12,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,21 +37,23 @@ import buildcraft.lib.misc.SingleCache;
 import buildcraft.lib.nbt.NbtSquisher;
 import buildcraft.lib.net.BCNetworkSide;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraftforge.fml.loading.FMLLoader;
 
 /**
  * Persistent snapshot storage with deliberately different client and server responsibilities.
  *
- * <p>The client library is the player's portable blueprint collection. The dedicated-server store keeps the same
- * complete serialized snapshots, but exposes no user-library semantics: it is persistent machine-side storage keyed
- * by content for builders and other server systems. Integrated servers read the local client library directly and
- * therefore do not create a second server-side copy.</p>
+ * <p>The client library contains only blueprints explicitly saved by the player through an Electronic Library.
+ * Every server-side blueprint, including a newly created one in singleplayer, belongs to that world's machine
+ * storage. The world store is therefore the construction authority; it must never silently fall back to the
+ * portable client library.</p>
  */
 public final class GlobalSavedDataSnapshots {
     private static final String SNAPSHOT_FILE_EXTENSION = ".bcnbt";
     private static final String CLIENT_LIBRARY_DIRECTORY = "blueprints";
     private static final String LEGACY_CLIENT_DIRECTORY = "snapshots-client";
     private static final String SERVER_CACHE_DIRECTORY = "snapshots-server";
+    private static final String SERVER_WORLD_DIRECTORY = "buildcraft/blueprints/server";
     private static final int CLIENT_FILENAME_HASH_LENGTH = 12;
     private static final int CLIENT_FILENAME_NAME_LENGTH = 80;
 
@@ -65,16 +68,19 @@ public final class GlobalSavedDataSnapshots {
     private final SingleCache<List<Snapshot.Key>> listCache = new SingleCache<>(this::readClientList, 1, TimeUnit.SECONDS);
 
     private GlobalSavedDataSnapshots(BCNetworkSide side) {
-        this.side = side;
-        File gameDirectory = FMLLoader.getGamePath().toAbsolutePath().toFile();
-        snapshotsFile = new File(
-            gameDirectory,
+        this(side, new File(
+            FMLLoader.getGamePath().toAbsolutePath().toFile(),
             side == BCNetworkSide.CLIENT ? CLIENT_LIBRARY_DIRECTORY : SERVER_CACHE_DIRECTORY
-        );
-        ensureDirectory(snapshotsFile);
+        ));
         if (side == BCNetworkSide.CLIENT) {
-            migrateLegacyClientLibrary(new File(gameDirectory, LEGACY_CLIENT_DIRECTORY));
+            migrateLegacyClientLibrary(new File(FMLLoader.getGamePath().toAbsolutePath().toFile(), LEGACY_CLIENT_DIRECTORY));
         }
+    }
+
+    private GlobalSavedDataSnapshots(BCNetworkSide side, File snapshotsFile) {
+        this.side = side;
+        this.snapshotsFile = snapshotsFile;
+        ensureDirectory(snapshotsFile);
     }
 
     public static void reInit(BCNetworkSide side) {
@@ -83,6 +89,17 @@ public final class GlobalSavedDataSnapshots {
 
     private static GlobalSavedDataSnapshots get(BCNetworkSide side) {
         return INSTANCES.computeIfAbsent(side, GlobalSavedDataSnapshots::new);
+    }
+
+    private static GlobalSavedDataSnapshots getServerStore(Level level) {
+        File directory = getServerSnapshotDirectory(level);
+        GlobalSavedDataSnapshots existing = INSTANCES.get(BCNetworkSide.SERVER);
+        if (existing != null && existing.snapshotsFile.equals(directory)) {
+            return existing;
+        }
+        GlobalSavedDataSnapshots created = new GlobalSavedDataSnapshots(BCNetworkSide.SERVER, directory);
+        INSTANCES.put(BCNetworkSide.SERVER, created);
+        return created;
     }
 
     public static void saveClientSnapshot(Snapshot snapshot) {
@@ -103,18 +120,14 @@ public final class GlobalSavedDataSnapshots {
     }
 
     /**
-     * Stores the complete snapshot in persistent dedicated-server machine storage. This is the same serialized
-     * blueprint data the client owns, but the server does not expose it as a browsable user library. Integrated
-     * servers intentionally keep no snapshots-server copy because the local client library is available in-process.
+     * Stores a complete snapshot in the current world's machine storage. This applies to both dedicated and
+     * integrated servers: creating a blueprint must not make it globally available in the client's library.
      */
     public static void cacheServerSnapshot(Level level, Snapshot snapshot) {
         if (level == null || level.isClientSide) {
             throw new IllegalArgumentException("Server snapshot caching requires a server level");
         }
-        if (!level.getServer().isDedicatedServer()) {
-            return;
-        }
-        get(BCNetworkSide.SERVER).writeServerSnapshot(snapshot);
+        getServerStore(level).writeServerSnapshot(snapshot);
     }
 
     @Nullable
@@ -134,8 +147,7 @@ public final class GlobalSavedDataSnapshots {
     }
 
     /**
-     * Resolves snapshot data for machines. Dedicated servers use their cache; singleplayer uses the local client
-     * library so a duplicate snapshots-server directory is never required.
+     * Resolves snapshot data for machines from the current world's authoritative store.
      */
     @Nullable
     public static Snapshot getSnapshotForConstruction(Level level, @Nullable Snapshot.Key key) {
@@ -145,11 +157,23 @@ public final class GlobalSavedDataSnapshots {
         if (level.isClientSide) {
             return getClientSnapshot(key);
         }
-        if (!level.getServer().isDedicatedServer()) {
-            Snapshot local = getClientSnapshot(key);
-            return local != null ? local : getServerSnapshot(key);
+        return getServerStore(level).getSnapshot(key);
+    }
+
+
+    private static File getServerSnapshotDirectory(@Nullable Level level) {
+        File gameDirectory = FMLLoader.getGamePath().toAbsolutePath().toFile();
+        if (level != null && !level.isClientSide && level.getServer() != null) {
+            try {
+                Path worldRoot = level.getServer().getWorldPath(LevelResource.ROOT);
+                File directory = worldRoot.resolve(SERVER_WORLD_DIRECTORY).toFile();
+                ensureDirectory(directory);
+                return directory;
+            } catch (RuntimeException e) {
+                BCLog.logger.warn("Falling back to the global server snapshot directory", e);
+            }
         }
-        return getServerSnapshot(key);
+        return new File(gameDirectory, SERVER_CACHE_DIRECTORY);
     }
 
     private static void ensureDirectory(File directory) {

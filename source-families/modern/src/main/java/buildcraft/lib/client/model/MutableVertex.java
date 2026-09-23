@@ -132,8 +132,8 @@ public class MutableVertex {
         position_x = Float.intBitsToFloat(data[offset + 0]);
         position_y = Float.intBitsToFloat(data[offset + 1]);
         position_z = Float.intBitsToFloat(data[offset + 2]);
-        // COLOR_4UB
-        colouri(data[offset + 3]);
+        // COLOR_4UB is packed as ABGR in the legacy baked-quad layout.
+        colourAbgr(data[offset + 3]);
         // TEX_2F
         tex_u = Float.intBitsToFloat(data[offset + 4]);
         tex_v = Float.intBitsToFloat(data[offset + 5]);
@@ -148,8 +148,8 @@ public class MutableVertex {
         position_x = Float.intBitsToFloat(data[offset + 0]);
         position_y = Float.intBitsToFloat(data[offset + 1]);
         position_z = Float.intBitsToFloat(data[offset + 2]);
-        // COLOR_4UB
-        colouri(data[offset + 3]);
+        // COLOR_4UB is packed as ABGR in the legacy baked-quad layout.
+        colourAbgr(data[offset + 3]);
         // TEX_2F
         tex_u = Float.intBitsToFloat(data[offset + 4]);
         tex_v = Float.intBitsToFloat(data[offset + 5]);
@@ -293,6 +293,10 @@ public class MutableVertex {
 
     public MutableVertex colouri(int argb) {
         return colouri(argb>>16, argb >> 8, argb, argb >>> 24);
+    }
+
+    private MutableVertex colourAbgr(int abgr) {
+        return colouri(abgr, abgr >> 8, abgr >> 16, abgr >>> 24);
     }
 
     public MutableVertex colouri(int r, int g, int b, int a) {

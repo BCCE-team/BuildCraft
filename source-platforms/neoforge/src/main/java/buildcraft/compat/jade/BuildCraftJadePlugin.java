@@ -29,6 +29,7 @@ import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.transport.internal.EnumWirePart;
 import buildcraft.transport.internal.pipe.IPipe.ConnectedType;
 import buildcraft.transport.internal.pluggable.PipePluggable;
+import buildcraft.transport.BCTransportBlocks;
 import buildcraft.core.BCCoreBlocks;
 import buildcraft.core.blockEntity.TileEngineCreative;
 import buildcraft.energy.BCEnergyFluids;
@@ -44,6 +45,7 @@ import buildcraft.robotics.entity.EntityRobot;
 import buildcraft.robotics.tile.TileZonePlanner;
 import buildcraft.silicon.tile.TileLaserTableBase;
 import buildcraft.transport.pipe.Pipe;
+import buildcraft.transport.pipe.PipeRegistry;
 import buildcraft.transport.pipe.flow.PipeFlowFluids;
 import buildcraft.transport.pipe.flow.PipeFlowForgeEnergy;
 import buildcraft.transport.pipe.flow.PipeFlowPower;
@@ -145,8 +147,8 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         registration.addConfig(CONFIG_PIPE, true);
         registration.addConfig(CONFIG_ROBOT, true);
 
-        registration.registerBlockComponent(BlockComponentProvider.INSTANCE, BlockBCTile_Neptune.class);
-        registration.registerEntityComponent(RobotComponentProvider.INSTANCE, EntityRobot.class);
+        registration.registerBlockComponent(BlockProvider.INSTANCE, BlockBCTile_Neptune.class);
+        registration.registerEntityComponent(RobotProvider.INSTANCE, EntityRobot.class);
 
         registration.registerItemStorageClient(ItemStorageProvider.INSTANCE);
         registration.registerFluidStorageClient(FluidStorageProvider.INSTANCE);
@@ -154,6 +156,7 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         registration.registerProgressClient(ProgressProvider.INSTANCE);
 
         registration.usePickedResult(BCCoreBlocks.ENGINE_BC8.get());
+        registration.usePickedResult(BCTransportBlocks.pipeHolder.get());
         for (BCRegistryEntry<LiquidBlock> block : BCEnergyFluids.OIL_BLOCK) {
             try {
                 registration.usePickedResult(block.get());
@@ -164,26 +167,7 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         registration.addTooltipCollectedCallback(1000, BuildCraftJadePlugin::preserveBuildCraftTitleColours);
     }
 
-    private enum BlockComponentProvider implements IBlockComponentProvider {
-        INSTANCE;
-
-        @Override
-        public ResourceLocation getUid() {
-            return UID_BLOCK;
-        }
-
-        @Override
-        public int getDefaultPriority() {
-            return PROVIDER_PRIORITY;
-        }
-
-        @Override
-        public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
-            BlockProvider.INSTANCE.appendTooltip(tooltip, accessor, config);
-        }
-    }
-
-    private enum BlockProvider implements IServerDataProvider<BlockAccessor> {
+    private enum BlockProvider implements IBlockComponentProvider, IServerDataProvider<BlockAccessor> {
         INSTANCE;
 
         @Override
@@ -243,26 +227,7 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         }
     }
 
-    private enum RobotComponentProvider implements IEntityComponentProvider {
-        INSTANCE;
-
-        @Override
-        public ResourceLocation getUid() {
-            return UID_ENTITY_ROBOT;
-        }
-
-        @Override
-        public int getDefaultPriority() {
-            return PROVIDER_PRIORITY;
-        }
-
-        @Override
-        public void appendTooltip(ITooltip tooltip, EntityAccessor accessor, IPluginConfig config) {
-            RobotProvider.INSTANCE.appendTooltip(tooltip, accessor, config);
-        }
-    }
-
-    private enum RobotProvider implements IServerDataProvider<EntityAccessor> {
+    private enum RobotProvider implements IEntityComponentProvider, IServerDataProvider<EntityAccessor> {
         INSTANCE;
 
         @Override
@@ -793,6 +758,8 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         }
         CompoundTag tag = new CompoundTag();
         tag.putString("Id", pipe.definition.identifier.toString());
+        // Keep the actual pipe title in server data: the client block item is only the generic Pipe Holder.
+        tag.putString("NameKey", pipe.definition.identifier.toLanguageKey("pipe"));
         DyeColor colour = pipe.getColour();
         if (colour != null) {
             tag.putString("Colour", colour.getName());
@@ -1047,15 +1014,10 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
     }
 
     private static void decorateGroupTitle(ViewGroup<?> serverGroup, ClientViewGroup<?> clientGroup) {
-        if (serverGroup.id == null || serverGroup.id.isBlank()) {
-            return;
-        }
-        String id = safeTranslationPart(serverGroup.id);
-        switch (id) {
-            case "robot", "inventory", "tank", "robot_tank", "robot_energy", "mj", "fe", "zone_planner", "laser", "pipe_mj_flow", "pipe_fe_flow", "pipe_fluid_flow" ->
-                    clientGroup.title = Component.translatable("buildcraft.jade.group." + id);
-            default -> clientGroup.title = Component.translatable("buildcraft.jade.group.generic", Component.literal(serverGroup.id));
-        }
+        // A non-null ClientViewGroup title makes Jade wrap the group in a themed BoxElement.
+        // BuildCraft already labels its values, so that wrapper only adds an unexpected coloured
+        // background behind BCCE data. Keep native item/fluid/energy/progress views inline.
+        clientGroup.title = null;
     }
 
     private static Component robotState(CompoundTag robotTag) {
@@ -1135,6 +1097,21 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             Block block = state.getBlock();
             if (blockAccessor.getBlockEntity() instanceof TileEngineBase_BC8 engine) {
                 return Component.translatable(engineNameKey(engine)).withStyle(ChatFormatting.WHITE);
+            }
+            if (blockAccessor.getBlockEntity() instanceof TilePipeHolder holder) {
+                CompoundTag root = blockAccessor.getServerData().getCompound(DATA_ROOT);
+                CompoundTag pipeData = root.getCompound("Pipe");
+                String nameKey = pipeData.getString("NameKey");
+                if (!nameKey.isEmpty()) {
+                    return Component.translatable(nameKey).withStyle(ChatFormatting.WHITE);
+                }
+                Pipe pipe = holder.getPipe();
+                if (pipe != null && pipe != Pipe.EMPTY) {
+                    var pipeItem = PipeRegistry.INSTANCE.getItemForPipe(pipe.getDefinition());
+                    if (pipeItem instanceof Item item) {
+                        return new ItemStack(item).getHoverName();
+                    }
+                }
             }
             if (state.hasProperty(BuildCraftProperties.ENGINE_TYPE)) {
                 return Component.translatable(engineNameKey(state)).withStyle(ChatFormatting.WHITE);

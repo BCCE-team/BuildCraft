@@ -46,6 +46,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
     public final BuildCraftGui mainGui;
     public final C container;
     private GuiGraphics activeGraphics;
+    private int persistentElementCount = -1;
 
     public GuiBC8(C container, Inventory inventory, Component title) {
         this(container, gui -> new BuildCraftGui(gui, BuildCraftGui.createWindowedArea(gui)), inventory, title);
@@ -82,6 +83,15 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
     }
 
     @Override
+    public void init() {
+        if (persistentElementCount < 0) {
+            persistentElementCount = mainGui.shownElements.size();
+        } else if (mainGui.shownElements.size() > persistentElementCount) {
+            mainGui.shownElements.subList(persistentElementCount, mainGui.shownElements.size()).clear();
+        }
+        super.init();
+    }
+
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
         activeGraphics = guiGraphics;
         try {

@@ -7,6 +7,7 @@
 package buildcraft.transport.client.model;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -61,10 +62,19 @@ public class PipeModelCachePluggable {
         private final int hash;
 
         public PluggableKey(RenderType layer, IPipeHolder holder) {
+            this(layer, holder, pluggable -> true);
+        }
+
+        /**
+         * Builds a static-model key for a selected subset of pluggables. Native 1.21.11 terrain rendering uses this
+         * to leave glass facades to the dynamic translucent renderer, which is the only path that preserves alpha.
+         */
+        public PluggableKey(RenderType layer, IPipeHolder holder, Predicate<PipePluggable> include) {
             ImmutableSet.Builder<PluggableModelKey> builder = ImmutableSet.builder();
             for (Direction side : Direction.values()) {
                 PipePluggable pluggable = holder.getPluggable(side);
                 if (pluggable == PipePluggable.EMPTY) continue;
+                if (!include.test(pluggable)) continue;
                 PluggableModelKey key = pluggable.getModelRenderKey(layer);
                 if (key == null) continue;
                 builder.add(key);

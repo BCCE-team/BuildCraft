@@ -56,7 +56,7 @@ public enum PlugFacadeRenderer implements IPlugDynamicRenderer<PluggableFacade> 
         KeyPlugFacade key = new KeyPlugFacade(RenderType.translucent(), facade.side, blockState, facade.isHollow());
         List<MutableQuad> quads = CACHE.computeIfAbsent(
             key,
-            modelKey -> List.copyOf(PlugBakerFacade.INSTANCE.bakeForKey(modelKey, false))
+            modelKey -> List.copyOf(PlugBakerFacade.INSTANCE.bakeForKey(modelKey, true))
         );
 
         Matrix4f pose = poseStack.last().pose();

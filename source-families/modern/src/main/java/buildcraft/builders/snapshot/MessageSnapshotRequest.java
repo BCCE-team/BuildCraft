@@ -37,7 +37,10 @@ public class MessageSnapshotRequest{
                 if (!(context.player() instanceof ServerPlayer player) || !SnapshotRequestLimiter.allow(player)) {
                     return;
                 }
-                Snapshot snapshot = GlobalSavedDataSnapshots.getServerSnapshot(message.key);
+                // Resolve through the requesting player's server level. The generic SERVER singleton may still
+                // point at a previously visited integrated world, which makes a valid world-local blueprint look
+                // missing (or exposes the wrong world's copy).
+                Snapshot snapshot = GlobalSavedDataSnapshots.getSnapshotForConstruction(player.serverLevel(), message.key);
                 if (snapshot != null) {
                     Snapshot transientSnapshot = snapshot.copy();
                     transientSnapshot.key = new Snapshot.Key(transientSnapshot.key, (Snapshot.Header) null);

@@ -8,9 +8,9 @@ public final class MessageSnapshotResponseClientHandler {
 
     public static void handle(MessageSnapshotResponse message) {
         if (message.getSnapshot() != null) {
-            if (message.getSnapshot().key.header != null) {
-                GlobalSavedDataSnapshots.saveClientSnapshot(message.getSnapshot());
-            }
+            // A normal server response is a temporary construction/tooltip copy. Only NET_DOWN from the
+            // Electronic Library explicitly calls saveClientSnapshot; otherwise simply viewing/creating a
+            // blueprint would incorrectly turn it into a cross-world client-library entry.
             ClientSnapshots.INSTANCE.onSnapshotReceived(message.getSnapshot());
         }
     }

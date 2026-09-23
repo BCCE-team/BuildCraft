@@ -7,7 +7,6 @@
 package buildcraft.lib.list;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -215,7 +214,6 @@ public final class ListHandler {
                     }
                 }
             }
-            Collections.shuffle(stackList);
             return stackList;
         }
     }

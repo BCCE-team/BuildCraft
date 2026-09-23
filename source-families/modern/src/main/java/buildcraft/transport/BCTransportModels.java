@@ -124,8 +124,14 @@ public class BCTransportModels {
         // A fresh model per bake owns its dye cache, so F3+T cannot retain stale atlas sprites.
         for (Item item : BuiltInRegistries.ITEM) {
             if (item instanceof IItemPipe pipeItem) {
-                event.itemStackModels().put(BuiltInRegistries.ITEM.getKey(item),
-                    new ModelPipeItem(pipeItem.getDefinition()));
+                var id = BuiltInRegistries.ITEM.getKey(item);
+                var baseModel = event.itemStackModels().get(id);
+                if (baseModel != null) {
+                    // Keep Minecraft's already-baked JSON item model as the pipe body. The old
+                    // 1.21.11 bridge rebuilt the whole item from atlas sprites and could cache an
+                    // empty/missing result depending on reload ordering. Only add BCCE's dye layer.
+                    event.itemStackModels().put(id, new ModelPipeItem(pipeItem.getDefinition(), baseModel));
+                }
             }
         }
         for (var state : BCTransportBlocks.pipeHolder.get().getStateDefinition().getPossibleStates()) {

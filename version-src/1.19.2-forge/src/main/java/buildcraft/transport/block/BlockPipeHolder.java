@@ -989,17 +989,38 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 			return InteractionResult.PASS;
 		}
 
+		// A facade occupies its complete outer face; do not let the small-part octant heuristic
+		// select the pipe behind the point the player actually clicked.
+		if (hitSide != null) {
+			Direction face = hitSide;
+			PipePluggable pluggable = tile.getPluggable(face);
+			if (pluggable instanceof buildcraft.silicon.plug.PluggableFacade facade) {
+				if (!facade.setColour(paintColour)) {
+					return InteractionResult.FAIL;
+				}
+				tile.scheduleNetworkUpdate(IPipeHolder.PipeMessageReceiver.PLUGGABLES[face.ordinal()]);
+				tile.requestModelDataUpdate();
+				tile.scheduleRenderUpdate();
+				tile.redrawBlock();
+				tile.setChanged();
+				return InteractionResult.SUCCESS;
+			}
+		}
+
 		Pipe pipe = tile.getPipe();
 		if (pipe == Pipe.EMPTY) {
 			return InteractionResult.FAIL;
 		}
 		if (pipe.getColour() == paintColour || !pipe.definition.canBeColoured) {
 			return InteractionResult.FAIL;
-		} else {
-			pipe.setColour(paintColour);
-			pipe.getHolder().getPipeTile().requestModelDataUpdate();
-			return InteractionResult.SUCCESS;
 		}
+		pipe.setColour(paintColour);
+		tile.scheduleNetworkUpdate(IPipeHolder.PipeMessageReceiver.BEHAVIOUR);
+		tile.requestModelDataUpdate();
+		tile.scheduleRenderUpdate();
+		tile.redrawBlock();
+		tile.setChanged();
+		return InteractionResult.SUCCESS;
 	}
 
 	@Override

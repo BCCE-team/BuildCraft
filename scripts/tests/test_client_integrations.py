@@ -45,11 +45,13 @@ class ClientIntegrations(unittest.TestCase):
         current = self.java('buildcraft/transport/BCTransportModels.java')
         self.assertIn('for (Item item : BuiltInRegistries.ITEM)', current)
         self.assertIn('event.itemStackModels().put(', current)
-        self.assertIn('new ModelPipeItem(pipeItem.getDefinition())', current)
+        self.assertIn('new ModelPipeItem(pipeItem.getDefinition(), baseModel)', current)
         model = self.java('buildcraft/transport/client/model/ModelPipeItem.java')
         self.assertIn('implements ItemModel', model)
         self.assertNotIn('BakedModel', model)
-        self.assertIn('new ModelPipeItem', current)
+        self.assertIn('var baseModel = event.itemStackModels().get(id);', current)
+        self.assertIn('this.colours[0] = baseModel;', model)
+        self.assertIn('new CompositeModel(List.of(baseModel,', model)
         self.assertIn('BakedModel', self.java('buildcraft/transport/client/model/ModelPipeItem.java', old=True))
 
     def test_native_recipe_book_not_jei_only(self):
@@ -99,8 +101,11 @@ class ClientIntegrations(unittest.TestCase):
     def test_click_areas_and_transfer_routes(self):
         plugin = self.java('buildcraft/compat/jei/BuildCraftJeiPlugin.java')
         for screen in ('GuiAssemblyTable','GuiProgrammingTable','GuiIntegrationTable',
-                       'GuiAdvancedCraftingTable','GuiAutoCraftItems','ScreenHeatExchange','GuiEngineIron_BC8','GuiEngineStone_BC8'):
+                       'GuiAdvancedCraftingTable','GuiAutoCraftItems','ScreenHeatExchange','GuiEngineStone_BC8'):
             self.assertIn('addRecipeClickArea('+screen+'.class', plugin)
+        # The combustion engine's former 26,18,16,60 click area is the actual fuel tank.
+        # JEI must not steal bucket clicks from WidgetFluidTank.
+        self.assertNotIn('addRecipeClickArea(GuiEngineIron_BC8.class', plugin)
         self.assertIn('new AutoWorkbenchRecipeTransferHandler()', plugin)
         self.assertIn('new AdvancedCraftingRecipeTransferHandler()', plugin)
         self.assertIn('ContainerAssemblyTable.class', plugin)
@@ -131,8 +136,8 @@ class ClientIntegrations(unittest.TestCase):
         old_pipe = (ROOT / 'version-src/1.19.2-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text()
         mid_pipe = (ROOT / 'version-src/1.20.1-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text()
 
-        # Keep the thin translucent facade consistent with legacy geometry rather than rendering vanilla glass opaque.
-        self.assertIn('GLASS_FACADE_ALPHA = 0.2D', current_baker)
+        # Preserve vanilla glass texture alpha exactly; multiplying it again makes facades almost invisible.
+        self.assertIn('GLASS_FACADE_ALPHA = 1.0D', current_baker)
         # Blocks without a normal item form remain valid facade materials when vanilla supplies a clone stack.
         # The public extension signature differs between 1.21.1 and 1.21.11, so the bridge resolves both without
         # falling back to asItem() and losing state-dependent variants.
@@ -253,6 +258,136 @@ class ClientIntegrations(unittest.TestCase):
         self.assertIn('ledger.getX()', jei)
         self.assertIn('ledger.getY()', jei)
 
+    def test_runtime_gui_regressions_found_on_12111(self):
+        current_root = self.roots['1.21.11-neoforge'] / 'src/main/java'
+        old_root = self.roots['1.21.1-neoforge'] / 'src/main/java'
+
+        # Filler JSON slots must see SlotBase even though NeoForge now backs it with ItemHandlerCopySlot.
+        for root in (old_root, current_root):
+            holder = (root / 'buildcraft/lib/gui/json/InventorySlotHolder.java').read_text()
+            self.assertIn('slot instanceof SlotBase baseSlot', holder)
+            self.assertIn('baseSlot.itemHandler == inventory', holder)
+
+        # 1.21.11 must preserve vanilla Screen/ContainerScreen input dispatch. Without these calls
+        # List edit boxes and other native widgets never receive mouse/keyboard input.
+        gui = (current_root / 'buildcraft/lib/gui/GuiBC8.java').read_text()
+        self.assertIn('super.mouseClicked(mouseX, mouseY, mouseButton)', gui)
+        self.assertIn('super.mouseDragged(mouseX, mouseY, button, dragX, dragY)', gui)
+        self.assertIn('super.mouseReleased(mouseX, mouseY, button)', gui)
+        self.assertIn('super.keyPressed(keyCode, scanCode, modifiers)', gui)
+        self.assertIn('super.charTyped(codePoint, modifiers)', gui)
+        self.assertIn('persistentElementCount', gui)
+        self.assertIn('shownElements.subList(persistentElementCount', gui)
+
+        # The modern facade dynamic renderer must keep the baker path, while the baker preserves source glass alpha.
+        facade = (current_root / 'buildcraft/silicon/client/render/PlugFacadeRenderer.java').read_text()
+        self.assertIn('bakeForKey(modelKey, true)', facade)
+        self.assertNotIn('bakeForKey(modelKey, false)', facade)
+        silicon_models = (current_root / 'buildcraft/silicon/BCSiliconModels.java').read_text()
+        self.assertIn('registry.registerRenderer(PluggableFacade.class, PlugFacadeRenderer.INSTANCE)', silicon_models)
+
+        # The holder's collision shape can report its pipe rather than the visible facade. Paint therefore resolves
+        # the facade from its actual shape at the hit position and must not fall through to the pipe.
+        for root in (old_root, current_root):
+            pipe_holder = (root / 'buildcraft/transport/block/BlockPipeHolder.java').read_text()
+            paint = pipe_holder[pipe_holder.index('InteractionResult attemptPaint'):]
+            self.assertIn('Direction facadeSide = getFacadeSideAt(tile, pos, hitPos)', paint)
+            self.assertIn('pluggable.getBoundingBox().bounds().contains(localHit)', paint)
+            self.assertNotIn('computSubhit(tile, localHit', paint)
+
+        # 1.21.11 uses the real vanilla Recipe Book texture/sprites/layout rather than a recoloured custom panel.
+        book = (current_root / 'buildcraft/lib/gui/recipe/GuiRecipeBookPhantom.java').read_text()
+        button = (current_root / 'buildcraft/lib/gui/recipe/GuiButtonRecipePhantom.java').read_text()
+        for token in (
+            'textures/gui/recipe_book.png',
+            'recipe_book/tab_selected',
+            'recipe_book/page_forward',
+            'recipe_book/page_backward',
+            'PANEL_WIDTH = 147',
+            'PANEL_HEIGHT = 166',
+            'panelX + 11 + (i % GRID_COLUMNS) * 25',
+            'panelY + 31 + (i / GRID_COLUMNS) * 25',
+        ):
+            self.assertIn(token, book)
+        self.assertIn('recipe_book/slot_craftable', button)
+        self.assertIn('recipe_book/slot_uncraftable', button)
+        self.assertNotIn('fill(', book)
+
+        # Live Zone Planner render states must not reference textures that a wall-clock cache can release underneath them.
+        zone = (current_root / 'buildcraft/robotics/client/render/RenderZonePlanner.java').read_text()
+        self.assertIn('.maximumSize(256)', zone)
+        self.assertNotIn('expireAfterAccess(', zone)
+        self.assertIn('colours[textureY * TEXTURE_WIDTH + textureX] = MAP_BACKGROUND_COLOUR;', zone)
+
+        # Jade gets the concrete translation key from the server data. At header assembly time its client block
+        # entity can still expose only the generic Pipe Holder item, so item lookup is only a fallback.
+        jade = (current_root / 'buildcraft/compat/jade/BuildCraftJadePlugin.java').read_text()
+        self.assertIn('blockAccessor.getBlockEntity() instanceof TilePipeHolder holder', jade)
+        self.assertIn('tag.putString("NameKey", pipe.definition.identifier.toLanguageKey("pipe"))', jade)
+        self.assertIn('NbtCompat.getCompound(root, "Pipe")', jade)
+        self.assertIn('Component.translatable(nameKey).withStyle(ChatFormatting.WHITE)', jade)
+        self.assertIn('PipeRegistry.INSTANCE.getItemForPipe(pipe.getDefinition())', jade)
+        self.assertIn('BuiltInRegistries.BLOCK.getKey(BCTransportBlocks.pipeHolder.get())', jade)
+
+        # The facade's active phase must be part of both initial creation data and incremental updates.
+        # Otherwise the server accepts a brush colour, but a joining/reloaded client keeps rendering phase zero.
+        facade_state = self.java('buildcraft/silicon/plug/PluggableFacade.java')
+        self.assertIn('activeState = MathUtil.clamp(buffer.readVarInt(), 0, states.phasedStates.length - 1);', facade_state)
+        self.assertIn('buffer.writeVarInt(activeState);', facade_state)
+        self.assertIn('states.type == FacadeType.Basic && enableStainedGlassPhases()', facade_state)
+        self.assertIn('public CompoundTag writeSyncState(BCNetworkSide side)', facade_state)
+
+        # Legacy baked vertices are ABGR. The native 1.21.11 pipe converter reads these vertices before passing
+        # their colours through BlockColor, so an ARGB decode swaps red and blue (red pipes become blue).
+        mutable_vertex = (current_root / 'buildcraft/lib/client/model/MutableVertex.java').read_text()
+        self.assertIn('colourAbgr(data[offset + 3]);', mutable_vertex)
+        self.assertIn('return colouri(abgr, abgr >> 8, abgr >> 16, abgr >>> 24);', mutable_vertex)
+
+        pipe_colours = (current_root / 'buildcraft/transport/client/model/PipeBaseModelGenStandard.java').read_text()
+        old_pipe_colours = (old_root / 'buildcraft/transport/client/model/PipeBaseModelGenStandard.java').read_text()
+        self.assertIn('return 0xFF_00_00_00 | ColourUtil.getLightHex(c);', pipe_colours)
+        self.assertIn('return 0x40_00_00_00 | ColourUtil.getLightHex(c);', old_pipe_colours)
+
+        native_pipe = (current_root / 'buildcraft/transport/client/model/ModelPipeNative121111.java').read_text()
+        self.assertIn('BakedColors.of(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF)', native_pipe)
+
+        # The native 1.21.11 terrain model must not bake glass facades: that pass loses their alpha. Glass is
+        # deliberately left for RenderPipeHolder's dynamic translucent renderer.
+        native_model = (current_root / 'buildcraft/transport/client/model/ModelPipeNative121111.java').read_text()
+        cache = (current_root / 'buildcraft/transport/client/model/PipeModelCachePluggable.java').read_text()
+        self.assertIn('ModelPipeNative121111::isNativeStaticPluggable', native_model)
+        self.assertIn('PluggableFacade.isGlass(', native_model)
+        self.assertIn('Predicate<PipePluggable> include', cache)
+
+        # Decorative gears are regular GUI elements, rendered after the texture overlay by GuiBC8's guaranteed
+        # element layer instead of an unreliable direct call from the legacy background hook.
+        for gui_name in ('GuiEngineFE.java', 'GuiDynamoMJ.java'):
+            energy_gui = (current_root / 'buildcraft/energy/client/gui' / gui_name).read_text()
+            self.assertIn('private void addGearIcon(Item item, int x, int y)', energy_gui)
+            self.assertIn('public void drawBackground(GuiGraphics guiGraphics, float partialTicks)', energy_gui)
+            self.assertIn('guiGraphics.renderItem(new ItemStack(item)', energy_gui)
+
+        # Snapshot creation stays in the world store. A normal request response is only a transient client copy;
+        # NET_DOWN is the sole route that may write the portable blueprints directory.
+        snapshots = (current_root / 'buildcraft/builders/snapshot/GlobalSavedDataSnapshots.java').read_text()
+        response = (current_root / 'buildcraft/builders/snapshot/MessageSnapshotResponseClientHandler.java').read_text()
+        self.assertNotIn('!level.getServer().isDedicatedServer()', snapshots)
+        self.assertNotIn('Snapshot local = getClientSnapshot(key)', snapshots)
+        self.assertNotIn('GlobalSavedDataSnapshots.saveClientSnapshot(message.getSnapshot())', response)
+        request = (current_root / 'buildcraft/builders/snapshot/MessageSnapshotRequest.java').read_text()
+        self.assertIn('GlobalSavedDataSnapshots.getSnapshotForConstruction(', request)
+        self.assertIn('player.level()', request)
+
+        # List matching may only interpret common c:/forge: material-form tags as OreDictionary equivalents.
+        ore = (current_root / 'buildcraft/lib/list/ListMatchHandlerOreDictionary.java').read_text()
+        armor = (current_root / 'buildcraft/lib/list/ListMatchHandlerArmor.java').read_text()
+        lists = (current_root / 'buildcraft/lib/list/ListHandler.java').read_text()
+        self.assertIn('MATERIAL_FORM_ROOTS', ore)
+        self.assertIn('namespace.equals("c")', ore)
+        self.assertIn('namespace.equals("forge")', ore)
+        self.assertIn('type == ListMatchType.TYPE', armor)
+        self.assertNotIn('Collections.shuffle(stackList)', lists)
+
     def test_optional_dependencies_enabled_not_required(self):
         for mod in ('jei','jade'):
             self.assertEqual('true', self.props['target.1.21.11-neoforge.compat.'+mod+'.enabled'])
@@ -279,6 +414,38 @@ class ClientIntegrations(unittest.TestCase):
         self.assertNotIn('implements IBlockComponentProvider, IServerDataProvider', plugin)
         self.assertNotIn('implements IEntityComponentProvider, IServerDataProvider', plugin)
 
+    def test_12111_jade_multimod_plugin_scan_is_deduplicated(self):
+        root = self.roots['1.21.11-neoforge']
+        metadata = (root / 'src/main/resources/META-INF/neoforge.mods.toml').read_text()
+        mixin_config = (root / 'src/main/resources/buildcraft.jade.mixins.json').read_text()
+        mixin = (root / 'src/main/java/buildcraft/lib/compat/jade/mixin/JadeEntrypointDedupMixin.java').read_text()
+
+        # BuildCraft intentionally exposes several module mod ids from one physical NeoForge jar.
+        # Jade 1.21.11 scans the same file-level annotation data once per ModContainer, so the
+        # single @WailaPlugin class otherwise appears repeatedly and Jade rejects it as a duplicate.
+        self.assertGreaterEqual(metadata.count('[[mods]]'), 8)
+        self.assertIn('config="buildcraft.jade.mixins.json"', metadata)
+        self.assertIn('requiredMods=["jade"]', metadata)
+        self.assertIn('"JadeEntrypointDedupMixin"', mixin_config)
+        self.assertIn('@Pseudo', mixin)
+        self.assertIn('targets = "snownee.jade.util.CommonProxy"', mixin)
+        self.assertIn('method = "loadEntrypoints"', mixin)
+        self.assertIn('require = 0', mixin)
+        self.assertIn('seenClasses.add(className)', mixin)
+        self.assertIn('cir.setReturnValue(List.copyOf(unique));', mixin)
+
+        # Keep the actual plugin singular in the materialized target. The mixin fixes only Jade's
+        # repeated scan result and must not introduce another BuildCraft plugin class itself.
+        plugins = list((root / 'src/main/java').rglob('*.java'))
+        annotated = [path for path in plugins if re.search(r'^\s*@WailaPlugin\s*$', path.read_text(encoding='utf-8'), re.M)]
+        self.assertEqual(1, len(annotated))
+
+        # The 1.21.1 Jade loader scans file data globally and does not have this duplicate-entrypoint bug.
+        old_root = self.roots['1.21.1-neoforge']
+        old_metadata = (old_root / 'src/main/resources/META-INF/neoforge.mods.toml').read_text()
+        self.assertNotIn('buildcraft.jade.mixins.json', old_metadata)
+        self.assertFalse((old_root / 'src/main/resources/buildcraft.jade.mixins.json').exists())
+        self.assertFalse((old_root / 'src/main/java/buildcraft/lib/compat/jade/mixin/JadeEntrypointDedupMixin.java').exists())
 
 
 if __name__ == '__main__':

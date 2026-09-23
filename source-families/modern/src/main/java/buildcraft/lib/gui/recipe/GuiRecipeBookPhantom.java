@@ -2,10 +2,8 @@
 package buildcraft.lib.gui.recipe;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -17,6 +15,7 @@ import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.WidgetSprites;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ServerboundRecipeBookChangeSettingsPacket;
@@ -27,6 +26,7 @@ import net.minecraft.world.inventory.RecipeBookType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.crafting.RecipeBookCategories;
 import net.minecraft.world.item.crafting.display.RecipeDisplay;
 import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
 import net.minecraft.world.item.crafting.display.ShapedCraftingRecipeDisplay;
@@ -46,12 +46,18 @@ import buildcraft.lib.compat.minecraft.gui.BCGuiInput;
  * pages and deterministic phantom placement.</p>
  */
 public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecraft.gui.BCWidgetInput {
-    private static final int PANEL_WIDTH = 142;
-    private static final int PANEL_HEIGHT = 148;
-    private static final int GRID_X = 9;
-    private static final int GRID_Y = 24;
+    private static final int PANEL_WIDTH = 147;
+    private static final int PANEL_HEIGHT = 166;
     private static final int GRID_COLUMNS = 5;
-    private static final int CATEGORY_SIZE = 24;
+    private static final int CATEGORY_WIDTH = 35;
+    private static final int CATEGORY_HEIGHT = 27;
+    private static final Identifier RECIPE_BOOK_LOCATION = Identifier.withDefaultNamespace("textures/gui/recipe_book.png");
+    private static final Identifier TAB = Identifier.withDefaultNamespace("recipe_book/tab");
+    private static final Identifier TAB_SELECTED = Identifier.withDefaultNamespace("recipe_book/tab_selected");
+    private static final Identifier PAGE_FORWARD = Identifier.withDefaultNamespace("recipe_book/page_forward");
+    private static final Identifier PAGE_FORWARD_HIGHLIGHTED = Identifier.withDefaultNamespace("recipe_book/page_forward_highlighted");
+    private static final Identifier PAGE_BACKWARD = Identifier.withDefaultNamespace("recipe_book/page_backward");
+    private static final Identifier PAGE_BACKWARD_HIGHLIGHTED = Identifier.withDefaultNamespace("recipe_book/page_backward_highlighted");
     private static final WidgetSprites FILTER_BUTTON_SPRITES = new WidgetSprites(
         Identifier.withDefaultNamespace("recipe_book/filter_enabled"),
         Identifier.withDefaultNamespace("recipe_book/filter_disabled"),
@@ -103,7 +109,7 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
         refreshStackedContents();
         updatePanelPosition((width - 176) / 2);
 
-        searchBox = new EditBox(minecraft.font, panelX + 26, panelY + 6, 80, 14,
+        searchBox = new EditBox(minecraft.font, panelX + 25, panelY + 13, 81, 14,
             Component.translatable("gui.recipebook.search_hint"));
         searchBox.setMaxLength(50);
         searchBox.setValue(previousSearch);
@@ -113,7 +119,7 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
             .withTooltip(value -> value ? Tooltip.create(ONLY_CRAFTABLES_TOOLTIP) : Tooltip.create(ALL_RECIPES_TOOLTIP))
             .withSprite((button, value) -> FILTER_BUTTON_SPRITES.get(value, button.isHoveredOrFocused()))
             .displayState(CycleButton.DisplayState.HIDE)
-            .create(panelX + 110, panelY + 5, 26, 16, CommonComponents.EMPTY, (button, value) -> {
+            .create(panelX + 110, panelY + 12, 26, 16, CommonComponents.EMPTY, (button, value) -> {
                 setFiltering(value);
                 applyFilters(true);
             });
@@ -123,22 +129,21 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
 
     public int updateScreenPosition(int width, int imageWidth) {
         this.screenWidth = width;
-        int left = (width - imageWidth) / 2;
-        if (visible && !narrow) {
-            left += 76;
-        }
+        int left = visible && !narrow
+            ? 177 + (width - imageWidth - 200) / 2
+            : (width - imageWidth) / 2;
         updatePanelPosition(left);
         return left;
     }
 
     private void updatePanelPosition(int guiLeft) {
-        panelX = narrow ? (screenWidth - PANEL_WIDTH) / 2 : guiLeft - PANEL_WIDTH - 4;
+        panelX = narrow ? (screenWidth - PANEL_WIDTH) / 2 : (screenWidth - PANEL_WIDTH) / 2 - 86;
         panelY = (screenHeight - PANEL_HEIGHT) / 2;
         if (searchBox != null) {
-            searchBox.setPosition(panelX + 26, panelY + 6);
+            searchBox.setPosition(panelX + 25, panelY + 13);
         }
         if (filterButton != null) {
-            filterButton.setPosition(panelX + 110, panelY + 5);
+            filterButton.setPosition(panelX + 110, panelY + 12);
         }
         rebuildButtons();
         rebuildCategoryTabs();
@@ -172,9 +177,10 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
         if (!visible || minecraft == null) return;
 
         graphics.nextStratum();
-        graphics.fill(panelX, panelY, panelX + PANEL_WIDTH, panelY + PANEL_HEIGHT, 0xF0101010);
-        graphics.renderOutline(panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT, 0xFF808080);
-        graphics.drawString(minecraft.font, Component.literal("\u2315"), panelX + 9, panelY + 9, 0xFFA0A0A0, false);
+        // Use the actual vanilla Recipe Book texture and sprite set. This is intentionally not a BCCE
+        // recreation: geometry, spacing and controls mirror RecipeBookComponent/RecipeBookPage 1.21.11.
+        graphics.blit(RenderPipelines.GUI_TEXTURED, RECIPE_BOOK_LOCATION, panelX, panelY,
+            1.0F, 1.0F, PANEL_WIDTH, PANEL_HEIGHT, 256, 256);
         if (searchBox != null) {
             searchBox.render(graphics, mouseX, mouseY, partialTicks);
         }
@@ -183,14 +189,16 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
         }
 
         for (CategoryTab tab : categoryTabs) {
-            boolean hovered = tab.contains(mouseX, mouseY);
             boolean selected = Objects.equals(selectedCategory, tab.category());
-            int background = selected ? 0xFF8A8A8A : hovered ? 0xFF707070 : 0xFF4A4A4A;
-            graphics.fill(tab.x(), tab.y(), tab.x() + CATEGORY_SIZE, tab.y() + CATEGORY_SIZE, background);
-            graphics.fill(tab.x() + 1, tab.y() + 1, tab.x() + CATEGORY_SIZE - 1, tab.y() + CATEGORY_SIZE - 1,
-                0xFF202020);
-            if (!tab.icon().isEmpty()) {
-                graphics.renderFakeItem(tab.icon(), tab.x() + 4, tab.y() + 4);
+            int drawX = selected ? tab.x() - 2 : tab.x();
+            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, selected ? TAB_SELECTED : TAB,
+                drawX, tab.y(), CATEGORY_WIDTH, CATEGORY_HEIGHT);
+            int iconOffset = selected ? -2 : 0;
+            if (!tab.secondaryIcon().isEmpty()) {
+                graphics.renderFakeItem(tab.primaryIcon(), tab.x() + 3 + iconOffset, tab.y() + 5);
+                graphics.renderFakeItem(tab.secondaryIcon(), tab.x() + 14 + iconOffset, tab.y() + 5);
+            } else if (!tab.primaryIcon().isEmpty()) {
+                graphics.renderFakeItem(tab.primaryIcon(), tab.x() + 9 + iconOffset, tab.y() + 5);
             }
         }
 
@@ -198,12 +206,24 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
             button.render(graphics, button.contains(mouseX, mouseY));
         }
 
-        String pageText = (page.page() + 1) + "/" + page.pageCount();
-        graphics.drawCenteredString(minecraft.font, pageText, panelX + PANEL_WIDTH / 2, panelY + 132, 0xFFFFFFFF);
-        graphics.drawString(minecraft.font, "<", panelX + 12, panelY + 131,
-            page.page() > 0 ? 0xFFFFFFFF : 0xFF606060, false);
-        graphics.drawString(minecraft.font, ">", panelX + PANEL_WIDTH - 17, panelY + 131,
-            page.page() + 1 < page.pageCount() ? 0xFFFFFFFF : 0xFF606060, false);
+        if (page.pageCount() > 1) {
+            Component pageText = Component.translatable("gui.recipebook.page", page.page() + 1, page.pageCount());
+            int textWidth = minecraft.font.width(pageText);
+            graphics.drawString(minecraft.font, pageText, panelX + 73 - textWidth / 2, panelY + 141, -1);
+
+            if (page.page() > 0) {
+                boolean hovered = mouseX >= panelX + 38 && mouseX < panelX + 50
+                    && mouseY >= panelY + 137 && mouseY < panelY + 154;
+                graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
+                    hovered ? PAGE_BACKWARD_HIGHLIGHTED : PAGE_BACKWARD, panelX + 38, panelY + 137, 12, 17);
+            }
+            if (page.page() + 1 < page.pageCount()) {
+                boolean hovered = mouseX >= panelX + 93 && mouseX < panelX + 105
+                    && mouseY >= panelY + 137 && mouseY < panelY + 154;
+                graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
+                    hovered ? PAGE_FORWARD_HIGHLIGHTED : PAGE_FORWARD, panelX + 93, panelY + 137, 12, 17);
+            }
+        }
     }
 
     public void renderGhostRecipe(GuiGraphics graphics, int leftPos, int topPos, boolean big, float partialTicks) {
@@ -213,8 +233,8 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
     public void renderTooltip(GuiGraphics graphics, int leftPos, int topPos, int mouseX, int mouseY) {
         if (!visible || minecraft == null) return;
         for (CategoryTab tab : categoryTabs) {
-            if (tab.contains(mouseX, mouseY) && !tab.icon().isEmpty()) {
-                graphics.setTooltipForNextFrame(minecraft.font, tab.icon(), mouseX, mouseY);
+            if (tab.contains(mouseX, mouseY) && !tab.primaryIcon().isEmpty()) {
+                graphics.setTooltipForNextFrame(minecraft.font, tab.primaryIcon(), mouseX, mouseY);
                 return;
             }
         }
@@ -258,12 +278,12 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
                     return true;
                 }
             }
-            if (mouseY >= panelY + 125 && mouseY < panelY + 146) {
-                if (mouseX >= panelX + 4 && mouseX < panelX + 32) {
+            if (mouseY >= panelY + 137 && mouseY < panelY + 154) {
+                if (mouseX >= panelX + 38 && mouseX < panelX + 50 && page.page() > 0) {
                     if (page.previous()) rebuildButtons();
                     return true;
                 }
-                if (mouseX >= panelX + PANEL_WIDTH - 32 && mouseX < panelX + PANEL_WIDTH - 4) {
+                if (mouseX >= panelX + 93 && mouseX < panelX + 105 && page.page() + 1 < page.pageCount()) {
                     if (page.next()) rebuildButtons();
                     return true;
                 }
@@ -419,18 +439,28 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
         categoryTabs.clear();
         if (displayContext == null) return;
 
-        categoryTabs.add(new CategoryTab(null, new ItemStack(Items.CRAFTING_TABLE), panelX - CATEGORY_SIZE - 2, panelY + 8));
-        Map<Object, ItemStack> categories = new LinkedHashMap<>();
-        for (RecipeDisplayEntry entry : allEntries) {
-            categories.computeIfAbsent(entry.category(), ignored -> entry.resultItems(displayContext).stream()
-                .findFirst().map(ItemStack::copy).orElse(ItemStack.EMPTY));
+        int x = panelX - 30;
+        int y = panelY + 3;
+        int index = 0;
+        // Match vanilla CraftingRecipeBookComponent.TABS exactly. Search is always visible; the other
+        // four tabs appear only when their vanilla recipe-book category has at least one entry.
+        categoryTabs.add(new CategoryTab(null, new ItemStack(Items.COMPASS), ItemStack.EMPTY, x, y + 27 * index++));
+        index = addVanillaCategoryTab(index, RecipeBookCategories.CRAFTING_EQUIPMENT,
+            new ItemStack(Items.IRON_AXE), new ItemStack(Items.GOLDEN_SWORD), x, y);
+        index = addVanillaCategoryTab(index, RecipeBookCategories.CRAFTING_BUILDING_BLOCKS,
+            new ItemStack(Items.BRICKS), ItemStack.EMPTY, x, y);
+        index = addVanillaCategoryTab(index, RecipeBookCategories.CRAFTING_MISC,
+            new ItemStack(Items.LAVA_BUCKET), new ItemStack(Items.APPLE), x, y);
+        addVanillaCategoryTab(index, RecipeBookCategories.CRAFTING_REDSTONE,
+            new ItemStack(Items.REDSTONE), ItemStack.EMPTY, x, y);
+    }
+
+    private int addVanillaCategoryTab(int index, Object category, ItemStack primary, ItemStack secondary, int x, int y) {
+        if (allEntries.stream().noneMatch(entry -> Objects.equals(entry.category(), category))) {
+            return index;
         }
-        int index = 1;
-        for (Map.Entry<Object, ItemStack> entry : categories.entrySet()) {
-            categoryTabs.add(new CategoryTab(entry.getKey(), entry.getValue(), panelX - CATEGORY_SIZE - 2,
-                panelY + 8 + index * 27));
-            index++;
-        }
+        categoryTabs.add(new CategoryTab(category, primary, secondary, x, y + 27 * index));
+        return index + 1;
     }
 
     private void rebuildButtons() {
@@ -438,15 +468,16 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
         if (displayContext == null) return;
         List<RecipeDisplayEntry> entries = page.visibleEntries();
         for (int i = 0; i < entries.size(); i++) {
-            int x = panelX + GRID_X + (i % GRID_COLUMNS) * 25;
-            int y = panelY + GRID_Y + (i / GRID_COLUMNS) * 25;
-            buttons.add(new GuiButtonRecipePhantom(entries.get(i), displayContext, x, y));
+            int x = panelX + 11 + (i % GRID_COLUMNS) * 25;
+            int y = panelY + 31 + (i / GRID_COLUMNS) * 25;
+            RecipeDisplayEntry entry = entries.get(i);
+            buttons.add(new GuiButtonRecipePhantom(entry, displayContext, entry.canCraft(stackedContents), x, y));
         }
     }
 
-    private record CategoryTab(Object category, ItemStack icon, int x, int y) {
+    private record CategoryTab(Object category, ItemStack primaryIcon, ItemStack secondaryIcon, int x, int y) {
         boolean contains(double mouseX, double mouseY) {
-            return mouseX >= x && mouseX < x + CATEGORY_SIZE && mouseY >= y && mouseY < y + CATEGORY_SIZE;
+            return mouseX >= x && mouseX < x + CATEGORY_WIDTH && mouseY >= y && mouseY < y + CATEGORY_HEIGHT;
         }
     }
 }

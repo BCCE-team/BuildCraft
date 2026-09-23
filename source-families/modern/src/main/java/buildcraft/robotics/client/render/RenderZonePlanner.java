@@ -8,7 +8,6 @@ package buildcraft.robotics.client.render;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
@@ -59,7 +58,7 @@ public class RenderZonePlanner implements BlockEntityRenderer<TileZonePlanner, R
 
     private static final Cache<PreviewKey, PreviewTexture> TEXTURES = CacheBuilder
         .<PreviewKey, PreviewTexture>newBuilder()
-        .expireAfterAccess(30, TimeUnit.SECONDS)
+        .maximumSize(256)
         .removalListener(RenderZonePlanner::onTextureRemoved)
         .build();
 
@@ -82,7 +81,7 @@ public class RenderZonePlanner implements BlockEntityRenderer<TileZonePlanner, R
         }
 
         Direction front = tile.getBlockState().getValue(BlockBCBase_Neptune.PROP_FACING);
-        PreviewKey key = new PreviewKey(level.dimension().identifier().toString(), tile.getBlockPos());
+        PreviewKey key = new PreviewKey(level, level.dimension().identifier().toString(), tile.getBlockPos());
         PreviewTexture preview = TEXTURES.getIfPresent(key);
         if (preview == null) {
             preview = new PreviewTexture(key);
@@ -179,6 +178,7 @@ public class RenderZonePlanner implements BlockEntityRenderer<TileZonePlanner, R
         private PreviewTexture(PreviewKey key) {
             texture = RenderCompat.newDynamicTexture(TEXTURE_WIDTH, TEXTURE_HEIGHT, true);
             String path = "dynamic/zone_planner_preview/" + Integer.toUnsignedString(key.dimension.hashCode(), 16)
+                + "/" + Integer.toUnsignedString(System.identityHashCode(key.level), 16)
                 + "/" + Long.toUnsignedString(key.pos.asLong(), 16);
             location = Identifier.fromNamespaceAndPath("buildcraftrobotics", path);
             Minecraft.getInstance().getTextureManager().register(location, texture);
@@ -263,8 +263,12 @@ public class RenderZonePlanner implements BlockEntityRenderer<TileZonePlanner, R
                             new ZonePlannerMapChunkKey(chunkPos, dimension, mapLevel));
                         chunks.put(chunkPos, mapChunk);
                     }
+                    // A map pixel may straddle a client chunk that is still arriving. Do not discard the whole
+                    // preview (and leave the render state blank) for that one sample; retain a stable background
+                    // until the chunk becomes available on a later refresh.
                     if (!mapChunk.isAvailable()) {
-                        return false;
+                        colours[textureY * TEXTURE_WIDTH + textureX] = MAP_BACKGROUND_COLOUR;
+                        continue;
                     }
                     MapColourData colour = mapChunk.getData(worldX, worldZ);
                     colours[textureY * TEXTURE_WIDTH + textureX] = colour == null
@@ -292,10 +296,12 @@ public class RenderZonePlanner implements BlockEntityRenderer<TileZonePlanner, R
     }
 
     private static final class PreviewKey {
+        private final Level level;
         private final String dimension;
         private final BlockPos pos;
 
-        private PreviewKey(String dimension, BlockPos pos) {
+        private PreviewKey(Level level, String dimension, BlockPos pos) {
+            this.level = level;
             this.dimension = dimension;
             this.pos = pos.immutable();
         }
@@ -307,11 +313,11 @@ public class RenderZonePlanner implements BlockEntityRenderer<TileZonePlanner, R
             if (!(obj instanceof PreviewKey other)) {
                 return false;
             }
-            return dimension.equals(other.dimension) && pos.equals(other.pos);
+            return level == other.level && dimension.equals(other.dimension) && pos.equals(other.pos);
         }
 
         public int hashCode() {
-            return Objects.hash(dimension, pos);
+            return 31 * System.identityHashCode(level) + Objects.hash(dimension, pos);
         }
     }
 

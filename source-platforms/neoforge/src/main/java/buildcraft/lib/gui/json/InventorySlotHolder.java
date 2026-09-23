@@ -3,6 +3,7 @@ package buildcraft.lib.gui.json;
 import java.util.ArrayList;
 import java.util.List;
 
+import buildcraft.lib.gui.slot.SlotBase;
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
@@ -26,7 +27,11 @@ public class InventorySlotHolder {
     public InventorySlotHolder(AbstractContainerMenu container, IItemHandler inventory) {
         List<Slot> list = new ArrayList<>();
         for (Slot slot : container.slots) {
-            if (slot instanceof SlotItemHandler itemSlot && itemSlot.getItemHandler() == inventory) {
+            // NeoForge 1.21.x SlotBase uses ItemHandlerCopySlot so vanilla/NeoForge can safely
+            // mutate copied stacks. Do not assume every item-handler slot is a SlotItemHandler.
+            if (slot instanceof SlotBase baseSlot && baseSlot.itemHandler == inventory) {
+                list.add(slot);
+            } else if (slot instanceof SlotItemHandler itemSlot && itemSlot.getItemHandler() == inventory) {
                 list.add(slot);
             }
         }

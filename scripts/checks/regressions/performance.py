@@ -252,13 +252,6 @@ for family in ("legacy", "modern"):
         "case WEST:", "case EAST:", "case DOWN:", "case UP:", "case NORTH:", "case SOUTH:",
     )
     require(
-        f"source-families/{family}/src/main/java/buildcraft/transport/client/model/ModelPipeItem.java",
-        "QUADS_TOP",
-        "QUADS_CENTER",
-        "QUADS_BOTTOM",
-        "createSectionQuads",
-    )
-    require(
         f"source-families/{family}/src/main/java/buildcraft/factory/client/render/RenderPump.java",
         "getFluidStackForRender",
         "FluidRenderer.renderFluid",
@@ -268,6 +261,19 @@ for family in ("legacy", "modern"):
         "clientAtDestination",
         "return vecTo",
     )
+
+# Legacy/1.21.1 still build the pipe item body from cached quads. 1.21.11 instead keeps the
+# already-baked JSON item body and composes only the colour overlay, avoiding an empty/stale custom body after reload.
+require(
+    "source-families/legacy/src/main/java/buildcraft/transport/client/model/ModelPipeItem.java",
+    "QUADS_TOP", "QUADS_CENTER", "QUADS_BOTTOM", "createSectionQuads",
+)
+require(
+    "source-families/modern/src/main/java/buildcraft/transport/client/model/ModelPipeItem.java",
+    "private final ItemModel baseModel",
+    "this.colours[0] = baseModel",
+    "new CompositeModel(List.of(baseModel",
+)
 
 require(
     "source-shared/src/main/java/buildcraft/lib/client/model/AdvModelCache.java",

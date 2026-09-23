@@ -995,17 +995,51 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 			return InteractionResult.PASS;
 		}
 
+		// The holder collision shape can report the pipe's face even when the visible hit is a facade.
+		// Select the facade by its actual volume, so a failed facade paint never falls through to the pipe.
+		Direction facadeSide = getFacadeSideAt(tile, pos, hitPos);
+		if (facadeSide != null) {
+			PipePluggable pluggable = tile.getPluggable(facadeSide);
+			if (pluggable instanceof buildcraft.silicon.plug.PluggableFacade facade) {
+				if (!facade.setColour(paintColour)) {
+					return InteractionResult.FAIL;
+				}
+				tile.scheduleNetworkUpdate(IPipeHolder.PipeMessageReceiver.PLUGGABLES[facadeSide.ordinal()]);
+				tile.requestModelDataUpdate();
+				tile.scheduleRenderUpdate();
+				tile.redrawBlock();
+				tile.setChanged();
+				return InteractionResult.SUCCESS;
+			}
+		}
+
 		Pipe pipe = tile.getPipe();
 		if (pipe == Pipe.EMPTY) {
 			return InteractionResult.FAIL;
 		}
 		if (pipe.getColour() == paintColour || !pipe.definition.canBeColoured) {
 			return InteractionResult.FAIL;
-		} else {
-			pipe.setColour(paintColour);
-			pipe.getHolder().getPipeTile().requestModelDataUpdate();
-			return InteractionResult.SUCCESS;
 		}
+		pipe.setColour(paintColour);
+		tile.scheduleNetworkUpdate(IPipeHolder.PipeMessageReceiver.BEHAVIOUR);
+		tile.requestModelDataUpdate();
+		tile.scheduleRenderUpdate();
+		tile.redrawBlock();
+		tile.setChanged();
+		return InteractionResult.SUCCESS;
+	}
+
+	@Nullable
+	private static Direction getFacadeSideAt(TilePipeHolder tile, BlockPos pos, Vec3 hitPos) {
+		Vec3 localHit = hitPos.subtract(pos.getX(), pos.getY(), pos.getZ());
+		for (Direction side : Direction.values()) {
+			PipePluggable pluggable = tile.getPluggable(side);
+			if (pluggable instanceof buildcraft.silicon.plug.PluggableFacade
+				&& pluggable.getBoundingBox().bounds().contains(localHit)) {
+				return side;
+			}
+		}
+		return null;
 	}
 
 	@Override

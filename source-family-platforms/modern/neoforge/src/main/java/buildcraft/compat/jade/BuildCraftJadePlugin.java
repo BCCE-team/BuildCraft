@@ -29,6 +29,7 @@ import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.transport.internal.EnumWirePart;
 import buildcraft.transport.internal.pipe.IPipe.ConnectedType;
 import buildcraft.transport.internal.pluggable.PipePluggable;
+import buildcraft.transport.BCTransportBlocks;
 import buildcraft.core.BCCoreBlocks;
 import buildcraft.core.blockEntity.TileEngineCreative;
 import buildcraft.energy.BCEnergyFluids;
@@ -44,6 +45,7 @@ import buildcraft.robotics.entity.EntityRobot;
 import buildcraft.robotics.tile.TileZonePlanner;
 import buildcraft.silicon.tile.TileLaserTableBase;
 import buildcraft.transport.pipe.Pipe;
+import buildcraft.transport.pipe.PipeRegistry;
 import buildcraft.transport.pipe.flow.PipeFlowFluids;
 import buildcraft.transport.pipe.flow.PipeFlowForgeEnergy;
 import buildcraft.transport.pipe.flow.PipeFlowPower;
@@ -126,6 +128,8 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
     public void register(IWailaCommonRegistration registration) {
         registration.blockOperations().pick(ResourceKey.create(Registries.BLOCK,
                 BuiltInRegistries.BLOCK.getKey(BCCoreBlocks.ENGINE_BC8.get())));
+        registration.blockOperations().pick(ResourceKey.create(Registries.BLOCK,
+                BuiltInRegistries.BLOCK.getKey(BCTransportBlocks.pipeHolder.get())));
         for (BCRegistryEntry<LiquidBlock> block : BCEnergyFluids.OIL_BLOCK) {
             if (block.isBound()) {
                 registration.blockOperations().pick(ResourceKey.create(Registries.BLOCK,
@@ -727,6 +731,9 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         }
         CompoundTag tag = new CompoundTag();
         tag.putString("Id", pipe.definition.identifier.toString());
+        // The client-side pipe holder can still be the generic holder while Jade assembles its header. Send the
+        // concrete translation key with the server data so the header never needs to guess from that holder item.
+        tag.putString("NameKey", pipe.definition.identifier.toLanguageKey("pipe"));
         DyeColor colour = pipe.getColour();
         if (colour != null) {
             tag.putString("Colour", colour.getName());
@@ -943,15 +950,10 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
     }
 
     private static void decorateGroupTitle(ViewGroup<?> serverGroup, ClientViewGroup<?> clientGroup) {
-        if (serverGroup.id == null || serverGroup.id.isBlank()) {
-            return;
-        }
-        String id = safeTranslationPart(serverGroup.id);
-        switch (id) {
-            case "robot", "inventory", "tank", "robot_tank", "robot_energy", "mj", "fe", "zone_planner", "laser", "pipe_mj_flow", "pipe_fe_flow", "pipe_fluid_flow" ->
-                    clientGroup.title = Component.translatable("buildcraft.jade.group." + id);
-            default -> clientGroup.title = Component.translatable("buildcraft.jade.group.generic", Component.literal(serverGroup.id));
-        }
+        // A non-null ClientViewGroup title makes Jade wrap the group in a themed BoxElement.
+        // BuildCraft already labels its values, so that wrapper only adds an unexpected coloured
+        // background behind BCCE data. Keep native item/fluid/energy/progress views inline.
+        clientGroup.title = null;
     }
 
     private static Component robotState(CompoundTag robotTag) {
@@ -1022,6 +1024,23 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             Block block = state.getBlock();
             if (blockAccessor.getBlockEntity() instanceof TileEngineBase_BC8 engine) {
                 return Component.translatable(engineNameKey(engine)).withStyle(ChatFormatting.WHITE);
+            }
+            if (blockAccessor.getBlockEntity() instanceof TilePipeHolder holder) {
+                CompoundTag root = blockAccessor.getServerData().getCompoundOrEmpty(DATA_ROOT);
+                CompoundTag pipeData = NbtCompat.getCompound(root, "Pipe");
+                String nameKey = NbtCompat.getString(pipeData, "NameKey");
+                if (!nameKey.isEmpty()) {
+                    return Component.translatable(nameKey).withStyle(ChatFormatting.WHITE);
+                }
+                Pipe pipe = holder.getPipe();
+                if (pipe != null && pipe != Pipe.EMPTY) {
+                    // Jade is initialised before the public PipeApi bridge is guaranteed to be assigned on every
+                    // client reload. The concrete runtime registry owns the actual item mapping at this point.
+                    var pipeItem = PipeRegistry.INSTANCE.getItemForPipe(pipe.getDefinition());
+                    if (pipeItem instanceof Item item) {
+                        return new ItemStack(item).getHoverName();
+                    }
+                }
             }
             if (state.hasProperty(BuildCraftProperties.ENGINE_TYPE)) {
                 return Component.translatable(engineNameKey(state)).withStyle(ChatFormatting.WHITE);

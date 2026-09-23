@@ -95,11 +95,28 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
             int colour = isSelected ? 0xffffa0 : 0xe0e0e0;
             Header header = key.header;
             String text = header == null ? key.toString() : header.name;
-            drawString(guiGraphics, font, text, rect.x, rect.y, colour);
+            drawString(guiGraphics, font, fitSnapshotName(text, (int) rect.width), rect.x, rect.y, colour);
         });
         delButton.enabled = GlobalSavedDataSnapshots.getClientSnapshot(container.tile.selected) != null;
     }
 
+
+
+    private String fitSnapshotName(String text, int maxWidth) {
+        if (text == null || text.isEmpty() || font.width(text) <= maxWidth) {
+            return text;
+        }
+        String ellipsis = "...";
+        int ellipsisWidth = font.width(ellipsis);
+        if (ellipsisWidth >= maxWidth) {
+            return font.plainSubstrByWidth(text, maxWidth);
+        }
+        String prefix = font.plainSubstrByWidth(text, Math.max(0, maxWidth - ellipsisWidth));
+        while (!prefix.isEmpty() && font.width(prefix + ellipsis) > maxWidth) {
+            prefix = prefix.substring(0, prefix.length() - 1);
+        }
+        return prefix + ellipsis;
+    }
 
     private void drawHorizontalProgress(GuiGraphics guiGraphics, GuiRectangle rect, GuiIcon icon, double progress, boolean rightToLeft) {
         if (progress <= 0) {

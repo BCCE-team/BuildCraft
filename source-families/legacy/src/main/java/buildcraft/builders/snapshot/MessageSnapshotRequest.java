@@ -36,7 +36,11 @@ public class MessageSnapshotRequest{
                 if (context.getSender() == null || !SnapshotRequestLimiter.allow(context.getSender())) {
                     return;
                 }
-                Snapshot snapshot = GlobalSavedDataSnapshots.getServerSnapshot(message.key);
+                //? if <1.20 {
+                Snapshot snapshot = GlobalSavedDataSnapshots.getSnapshotForConstruction(context.getSender().getLevel(), message.key);
+                //?} else {
+                Snapshot snapshot = GlobalSavedDataSnapshots.getSnapshotForConstruction(context.getSender().serverLevel(), message.key);
+                //?}
                 if (snapshot != null) {
                     Snapshot transientSnapshot = snapshot.copy();
                     transientSnapshot.key = new Snapshot.Key(transientSnapshot.key, (Snapshot.Header) null);

@@ -45,6 +45,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
     public final BuildCraftGui mainGui;
     public final C container;
     private GuiGraphics activeGraphics;
+    private int persistentElementCount = -1;
 
     public GuiBC8(C container, Inventory inventory, Component title) {
         this(container, gui -> new BuildCraftGui(gui, BuildCraftGui.createWindowedArea(gui)), inventory, title);
@@ -78,6 +79,16 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         if (shouldAddHelpLedger()) {
             mainGui.shownElements.add(new LedgerHelp(mainGui, false));
         }
+    }
+
+    @Override
+    public void init() {
+        if (persistentElementCount < 0) {
+            persistentElementCount = mainGui.shownElements.size();
+        } else if (mainGui.shownElements.size() > persistentElementCount) {
+            mainGui.shownElements.subList(persistentElementCount, mainGui.shownElements.size()).clear();
+        }
+        super.init();
     }
 
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
@@ -238,28 +249,31 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
             mainGui.onMouseClicked(mouseX, mouseY, mouseButton);
             return true;
         }
-        return false
+        return super.mouseClicked(mouseX, mouseY, mouseButton)
             | mainGui.onMouseClicked(mouseX, mouseY, mouseButton);
     }
 
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        boolean result = false;
+        boolean result = super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
         mainGui.onMouseDragged(mouseX, mouseY, button, dragX, dragY);
         return result;
     }
 
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        boolean result = false;
+        boolean result = super.mouseReleased(mouseX, mouseY, button);
         mainGui.onMouseReleased(mouseX, mouseY, button);
         return result;
     }
 
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        return mainGui.onKeyTyped(modifiers, RenderCompat.inputKey(keyCode, scanCode));
+        if (!mainGui.onKeyTyped(modifiers, RenderCompat.inputKey(keyCode, scanCode))) {
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+        return true;
     }
 
     public boolean charTyped(char codePoint, int modifiers) {
-        return false;
+        return super.charTyped(codePoint, modifiers);
     }
 
     /** Legacy drawing hook used by module GUIs through the lib compatibility path. */

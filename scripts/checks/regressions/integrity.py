@@ -42,17 +42,29 @@ require(
     "source-families/modern/src/main/java/buildcraft/lib/inventory/filter/ArrayStackFilter.java",
     "ItemStack.isSameItemSameComponents(s, stack)",
 )
+# Workbench material changes must include count-only mutations. ItemStack.matches compares
+# both stack contents/components and count, unlike the old item-only comparisons.
 for rel in (
     "source-platforms/forge/src/main/java/buildcraft/factory/tile/TileAutoWorkbenchBase.java",
-    "source-platforms/forge/src/main/java/buildcraft/silicon/tile/TileAdvancedCraftingTable.java",
-):
-    require(rel, "ItemStack.isSame(before, after)", "ItemStack.isSameItemSameTags(before, after)")
-for rel in (
     "source-platforms/neoforge/src/main/java/buildcraft/factory/tile/TileAutoWorkbenchBase.java",
-    "source-platforms/neoforge/src/main/java/buildcraft/silicon/tile/TileAdvancedCraftingTable.java",
 ):
-    require(rel, "ItemStack.isSameItemSameComponents(before, after)")
-    forbid(rel, "ItemStack.isSameItem(before, after)")
+    require(rel, "!ItemStack.matches(before, after)")
+
+# Advanced Crafting Table still uses the platform-generation comparison helpers; keep
+# guarding component/NBT identity there independently from the Auto Workbench contract.
+require(
+    "source-platforms/forge/src/main/java/buildcraft/silicon/tile/TileAdvancedCraftingTable.java",
+    "ItemStack.isSame(before, after)",
+    "ItemStack.isSameItemSameTags(before, after)",
+)
+require(
+    "source-platforms/neoforge/src/main/java/buildcraft/silicon/tile/TileAdvancedCraftingTable.java",
+    "ItemStack.isSameItemSameComponents(before, after)",
+)
+forbid(
+    "source-platforms/neoforge/src/main/java/buildcraft/silicon/tile/TileAdvancedCraftingTable.java",
+    "ItemStack.isSameItem(before, after)",
+)
 
 # Stripes: result-aware placement, real block-pass dispatch, and entity/block API2 permissions.
 require(

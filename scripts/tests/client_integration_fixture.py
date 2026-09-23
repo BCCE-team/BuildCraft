@@ -573,32 +573,35 @@ import buildcraft.transport.client.model.*;
 import buildcraft.transport.internal.pipe.*;
 import net.minecraft.world.item.*;
 import net.minecraft.client.renderer.item.*;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import java.util.*;
 public class ModelProbe {
+ static final class Base implements ItemModel {
+  int calls;
+  final BlockModelWrapper layer=new BlockModelWrapper(List.of(),List.of(),
+   new ModelRenderProperties(true,new net.minecraft.client.renderer.texture.TextureAtlasSprite("base"),buildcraft.lib.client.model.ModelItemSimple.TRANSFORM_BLOCK),
+   c->new RenderType("base"));
+  public void update(ItemStackRenderState state,ItemStack stack,ItemModelResolver resolver,ItemDisplayContext context,
+   net.minecraft.client.multiplayer.ClientLevel level,net.minecraft.world.entity.ItemOwner owner,int seed){calls++;state.layers.add(layer);}
+ }
  static ItemStackRenderState render(ModelPipeItem m,int color,ItemDisplayContext context){var state=new ItemStackRenderState();var stack=new ItemStack(new Item());stack.data.putInt("color",color);m.update(state,stack,null,context,null,null,42);return state;}
  public static void run(){
-  var d=new PipeDefinition(PipeFaceTex.get(0));var model=new ModelPipeItem(d);
-  for(var context:ItemDisplayContext.values())for(int color=0;color<=16;color++){
-   var state=render(model,color,context);that(state.layers.size()==(color==0?1:2),"dye layer count");
-   var body=state.layers.getFirst();that(body.quads().size()==6,"body geometry");that(body.properties().usesBlockLight(),"normal item lighting");
-   that(body.properties().transforms()==buildcraft.lib.client.model.ModelItemSimple.TRANSFORM_BLOCK,"item transforms");
-   that(body.renderType().apply(context).name().equals("cutout"),"body layer");
-   for(var q:body.quads()){that(q.colors().a()==0xffffffff,"body color unchanged");that(q.lightEmission()==0,"not fullbright");that(q.tintIndex()==-1,"no second tint");}
-   if(color>0){var dye=state.layers.get(1);that(dye.quads().size()==6,"sleeve faces");that(dye.renderType().apply(context).name().equals("translucent"),"dye alpha layer");that(dye.quads().getFirst().colors().a()==(0xff123400|color-1),"ARGB not ABGR");}
+  var d=new PipeDefinition(PipeFaceTex.get(0));var base=new Base();var model=new ModelPipeItem(d,base);
+  for(var context:ItemDisplayContext.values()){
+   var plain=render(model,0,context);that(plain.layers.size()==1&&plain.layers.getFirst()==base.layer,"plain pipe delegates baked JSON body");
+   var dyed=render(model,1,context);that(dyed.layers.size()==2&&dyed.layers.getFirst()==base.layer,"dyed pipe keeps baked JSON body");
+   var overlay=dyed.layers.get(1);that(overlay.quads().size()==6,"dye sleeve faces");that(overlay.renderType().apply(context).name().equals("translucent"),"translucent dye layer");
+   that(overlay.quads().getFirst().colors().a()==0xff123400,"ARGB overlay colour");
   }
-  that(PipeModelCacheBase.generator.calls==17,"17-entry cache shared across contexts");
   that(render(model,-1,ItemDisplayContext.GUI).layers.size()==1&&render(model,100,ItemDisplayContext.GUI).layers.size()==1,"invalid color safe");
-  for(var kind:new EnumPipeColourType[]{EnumPipeColourType.BORDER_INNER,EnumPipeColourType.BORDER_OUTER,EnumPipeColourType.CUSTOM}){
-   var def=new PipeDefinition(PipeFaceTex.get(0));def.colourType=kind;var layer=render(new ModelPipeItem(def),1,ItemDisplayContext.GUI).layers;
-   that(layer.size()==1&&layer.getFirst().quads().size()==(kind==EnumPipeColourType.CUSTOM?6:12),"border or custom tint");
+  for(var kind:new EnumPipeColourType[]{EnumPipeColourType.BORDER_INNER,EnumPipeColourType.BORDER_OUTER}){
+   var def=new PipeDefinition(PipeFaceTex.get(0));def.colourType=kind;var b=new Base();var layers=render(new ModelPipeItem(def,b),1,ItemDisplayContext.GUI).layers;
+   that(layers.size()==2&&layers.getFirst()==b.layer&&layers.get(1).quads().size()==6,"border overlay preserves base");
+   that(layers.get(1).renderType().apply(ItemDisplayContext.GUI).name().equals("cutout"),"border cutout layer");
   }
-  var segmented=new PipeDefinition(PipeFaceTex.get(1));segmented.itemModelTop=PipeFaceTex.get(0);segmented.itemModelBottom=PipeFaceTex.get(2);
-  var quads=render(new ModelPipeItem(segmented),0,ItemDisplayContext.GUI).layers.getFirst().quads();
-  that(quads.size()==14,"segmented 5+4+5");that(quads.stream().filter(q->q.sprite().name().equals("zero")).count()==5,"top sprite");
-  that(quads.stream().filter(q->q.sprite().name().equals("one")).count()==4,"center sprite");that(quads.stream().filter(q->q.sprite().name().equals("two")).count()==5,"bottom sprite");
-  var tint=new PipeDefinition(PipeFaceTex.get(new int[]{0},0x1245ab));that(render(new ModelPipeItem(tint),0,ItemDisplayContext.GUI).layers.getFirst().quads().getFirst().colors().a()==0xff1245ab,"per-layer color");
-  var missing=new PipeDefinition(PipeFaceTex.get(3));that(render(new ModelPipeItem(missing),0,ItemDisplayContext.GUI).layers.getFirst().quads().getFirst().sprite()==buildcraft.lib.misc.SpriteUtil.MISSING,"missing sprite fallback");
-  var previous=render(model,0,ItemDisplayContext.GUI).layers.getFirst();PipeModelCacheBase.generator.sprites[0]=new net.minecraft.client.renderer.texture.TextureAtlasSprite("reloaded");
-  var fresh=render(new ModelPipeItem(d),0,ItemDisplayContext.GUI).layers.getFirst();that(fresh.quads().getFirst().sprite().name().equals("reloaded"),"new resource bake uses new atlas");that(previous.quads().getFirst().sprite().name().equals("zero"),"old geometry not mutated");
+  var custom=new PipeDefinition(PipeFaceTex.get(0));custom.colourType=EnumPipeColourType.CUSTOM;var customBase=new Base();
+  that(render(new ModelPipeItem(custom,customBase),1,ItemDisplayContext.GUI).layers.size()==1,"custom colouring remains owned by baked base model");
+  that(base.calls>0,"base model invoked");
  }
 }
 ''')

@@ -44,10 +44,10 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
 
     /**
      * 1.21.11-only extra alpha multiplier for glass facade vertex colours.
-     * The glass texture still supplies its own alpha, so this value is multiplied with texture alpha at render time.
-     * 1.0 = vanilla glass texture opacity; 0.0 = fully invisible.
+     * The glass texture already supplies the original vanilla transparency. Do not multiply it by an extra facade opacity: doing so makes glass facades far more transparent than the source block.
+     * 1.0 preserves the source texture alpha exactly.
      */
-    private static final double GLASS_FACADE_ALPHA = 0.2D;
+    private static final double GLASS_FACADE_ALPHA = 1.0D;
 
     private final RandomSource random = RandomSource.create();
 
