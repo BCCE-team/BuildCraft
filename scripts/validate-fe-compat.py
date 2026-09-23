@@ -36,6 +36,12 @@ def require_file(path: str) -> None:
         fail(f"missing file: {path}")
 
 
+def require_any(path: str, *needles: str) -> None:
+    data = text(path)
+    if not any(needle in data for needle in needles):
+        fail(f"{path}: missing one of {needles!r}")
+
+
 # Converter recipes and loot, in both resource layouts.
 for path in (
     "source-families/legacy/src/main/resources/data/buildcraftenergy/recipes/fe_engine.json",
@@ -298,8 +304,9 @@ for path in (
 ):
     require(
         path, "LedgerEngine", "RECT_FE_BATTERY", "FE_UPGRADES", "OVERLAY", "GEAR_IRON", "GEAR_GOLD",
-        "getMjPerTick(container.upgrades)", "Original BC8 draw order: base GUI -> gear icons -> translucent slot overlay"
+        "getMjPerTick(container.upgrades)"
     )
+    require_any(path, "Original BC8 draw order: base GUI -> gear icons -> translucent slot overlay", "addGearIcon(")
 for path in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
@@ -307,8 +314,9 @@ for path in (
 ):
     require(
         path, "LedgerDynamoMJ", "RECT_FE_BATTERY", "FE_UPGRADES", "OVERLAY", "GEAR_IRON", "GEAR_GOLD",
-        "getMjPerTick(container.upgrades)", "Original BC8 draw order: base GUI -> gear icons -> translucent slot overlay"
+        "getMjPerTick(container.upgrades)"
     )
+    require_any(path, "Original BC8 draw order: base GUI -> gear icons -> translucent slot overlay", "addGearIcon(")
 for path in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/energy/client/gui/LedgerDynamoMJ.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/energy/client/gui/LedgerDynamoMJ.java",
@@ -385,7 +393,10 @@ for bad in (
 for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "source-family-platforms", ROOT / "version-src"):
     for p in base.rglob("*.json"):
         try:
-            json.loads(p.read_text(encoding="utf-8"))
+            # Stonecutter condition headers are removed when a target is materialized;
+            # they are source metadata, not part of the JSON payload.
+            payload = "\n".join(line for line in p.read_text(encoding="utf-8").splitlines() if not line.startswith("//?"))
+            json.loads(payload)
         except Exception as exc:
             fail(f"invalid JSON {p.relative_to(ROOT)}: {exc}")
 

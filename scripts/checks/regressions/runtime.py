@@ -67,7 +67,9 @@ def validate_zone_planner() -> None:
 
 
 def validate_gui_gears() -> None:
-    # 1.19.2 already uses the original item-render + blend sequence; 1.20.1/modern use GuiGraphics.
+    # 1.19.2 already uses the original item-render + blend sequence; 1.20.1 keeps its
+    # direct GuiGraphics call. Modern registers the gears as persistent GUI elements so
+    # they render in the guaranteed element layer before the translucent slot overlay.
     checks = [
         (
             "version-src/1.19.2-forge/src/main/java/buildcraft/energy/client/gui/GuiEngineFE.java",
@@ -89,21 +91,43 @@ def validate_gui_gears() -> None:
             "guiGraphics.renderItem(new ItemStack(BCCoreItems.GEAR_IRON.get()), leftPos + 60, topPos + 22)",
             "guiGraphics.renderItem(new ItemStack(BCCoreItems.GEAR_GOLD.get()), leftPos + 83, topPos + 22)",
         ),
-        (
-            "source-families/modern/src/main/java/buildcraft/energy/client/gui/GuiEngineFE.java",
-            "guiGraphics.renderItem(new ItemStack(BCCoreItems.GEAR_IRON.get()), leftPos + 78, topPos + 22)",
-            "guiGraphics.renderItem(new ItemStack(BCCoreItems.GEAR_GOLD.get()), leftPos + 101, topPos + 22)",
-        ),
-        (
-            "source-families/modern/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
-            "guiGraphics.renderItem(new ItemStack(BCCoreItems.GEAR_IRON.get()), leftPos + 60, topPos + 22)",
-            "guiGraphics.renderItem(new ItemStack(BCCoreItems.GEAR_GOLD.get()), leftPos + 83, topPos + 22)",
-        ),
     ]
     for rel, iron, gold in checks:
         text = read(rel)
         require(text, iron, rel)
         require(text, gold, rel)
+        for state in (
+            "RenderSystem.enableDepthTest();",
+            "RenderSystem.enableBlend();",
+            "RenderSystem.defaultBlendFunc();",
+            "RenderSystem.disableDepthTest();",
+            "RenderSystem.disableBlend();",
+        ):
+            require(text, state, rel)
+        gear_pos = min(text.index(iron), text.index(gold))
+        blend_pos = text.index("RenderSystem.enableBlend();", gear_pos)
+        overlay_pos = text.index("OVERLAY.drawAt", blend_pos)
+        if not (gear_pos < blend_pos < overlay_pos):
+            fail(f"gear/overlay render order regressed in {rel}")
+
+    modern_checks = [
+        (
+            "source-families/modern/src/main/java/buildcraft/energy/client/gui/GuiEngineFE.java",
+            "addGearIcon(BCCoreItems.GEAR_IRON.get(), 78, 22);",
+            "addGearIcon(BCCoreItems.GEAR_GOLD.get(), 101, 22);",
+        ),
+        (
+            "source-families/modern/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
+            "addGearIcon(BCCoreItems.GEAR_IRON.get(), 60, 22);",
+            "addGearIcon(BCCoreItems.GEAR_GOLD.get(), 83, 22);",
+        ),
+    ]
+    for rel, iron, gold in modern_checks:
+        text = read(rel)
+        require(text, iron, rel)
+        require(text, gold, rel)
+        require(text, "private void addGearIcon(Item item, int x, int y)", rel)
+        require(text, "guiGraphics.renderItem(new ItemStack(item), (int) getX(), (int) getY());", rel)
         for state in (
             "RenderSystem.enableDepthTest();",
             "RenderSystem.enableBlend();",
