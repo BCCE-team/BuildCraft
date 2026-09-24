@@ -141,6 +141,8 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
     ):
         if token not in common_text:
             fail(f"build-logic/common-target.gradle lacks {token!r}")
+    if 'accesstransformer.cfg' in common_text or 'targetAccessTransformer' in common_text:
+        fail('build-logic/common-target.gradle must stay loader-neutral; access transformers belong in loader adapters')
 
     for target in targets:
         if target_build_root(target, props) != build_root.resolve():
@@ -171,9 +173,17 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
                 fail("Forge adapter must use fg.deobf for mod dependencies")
             if "tasks.findByName('reobfJar')" not in adapter_text:
                 fail("Forge adapter must attach reobfJar conditionally")
+            if "resolveSourceFile('src/main/resources/META-INF/accesstransformer.cfg')" not in adapter_text:
+                fail("Forge adapter must resolve its access transformer from the effective source layers")
+            if "accessTransformer = targetAccessTransformer" not in adapter_text:
+                fail("Forge adapter must wire its access transformer inside the loader adapter")
         elif loader == "neoforge":
             if "id 'net.neoforged.moddev'" not in wrapper_text:
                 fail("NeoForge build must resolve ModDevGradle in its build-root shim")
+            if "resolveSourceFile('src/main/resources/META-INF/accesstransformer.cfg')" not in adapter_text:
+                fail("NeoForge adapter must resolve its access transformer from the effective source layers")
+            if "accessTransformers.from(targetAccessTransformer)" not in adapter_text:
+                fail("NeoForge adapter must wire its access transformer inside the loader adapter")
 
         required = TARGET_REQUIRED + (FORGE_REQUIRED if loader == "forge" else NEOFORGE_REQUIRED if loader == "neoforge" else ())
         for key in required:

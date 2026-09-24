@@ -434,7 +434,47 @@ def get_metric(metrics: dict[str, object], path: str) -> int:
     return value
 
 
-def validate(metrics: dict[str, object], budget: dict[str, object]) -> list[str]:
+
+
+def ratchet_rows(metrics: dict[str, object], budget: dict[str, object], previous: dict[str, object] | None) -> list[tuple[str, int, int, int | None, int | None]]:
+    rows: list[tuple[str, int, int, int | None, int | None]] = []
+    limits = budget.get("limits", {})
+    previous_limits = previous.get("limits", {}) if isinstance(previous, dict) else {}
+    for path, maximum in sorted(limits.items()):
+        current = get_metric(metrics, path)
+        prior = previous_limits.get(path) if isinstance(previous_limits, dict) else None
+        ratchet_target = current if current < int(maximum) else None
+        rows.append((path, current, int(maximum), int(prior) if isinstance(prior, int) else None, ratchet_target))
+    return rows
+
+
+def ratchet_errors(metrics: dict[str, object], budget: dict[str, object], previous: dict[str, object] | None) -> list[str]:
+    if not isinstance(previous, dict):
+        return []
+    limits = budget.get("limits", {})
+    previous_limits = previous.get("limits", {})
+    if not isinstance(limits, dict) or not isinstance(previous_limits, dict):
+        return []
+
+    errors: list[str] = []
+    for path, maximum in sorted(limits.items()):
+        if not isinstance(maximum, int):
+            continue
+        previous_maximum = previous_limits.get(path)
+        if not isinstance(previous_maximum, int):
+            continue
+        current = get_metric(metrics, path)
+        if maximum > previous_maximum:
+            errors.append(f"{path}: ratchet cannot increase budget from {previous_maximum} to {maximum}")
+            continue
+        if current < previous_maximum and maximum != current:
+            errors.append(
+                f"{path}: metric improved to {current}; ratchet budget must be tightened from {previous_maximum} to {current} (found {maximum})"
+            )
+    return errors
+
+
+def validate(metrics: dict[str, object], budget: dict[str, object], previous: dict[str, object] | None = None) -> list[str]:
     errors: list[str] = []
     limits = budget.get("limits", {})
     if not isinstance(limits, dict):
@@ -502,6 +542,7 @@ def validate(metrics: dict[str, object], budget: dict[str, object]) -> list[str]
     if canonical["canonical_target_uses_downport"]:
         errors.append("canonical modern target must not resolve through an older-version downport")
 
+    errors.extend(ratchet_errors(metrics, budget, previous))
     return errors
 
 
@@ -524,13 +565,14 @@ def markdown(metrics: dict[str, object], budget: dict[str, object], previous: di
         "",
         "## Budget trend",
         "",
-        "| Metric | Current | Budget | Previous budget | Delta vs previous |",
-        "|---|---:|---:|---:|---:|",
+        "| Metric | Current | Budget | Previous budget | Delta vs previous | Ratchet target |",
+        "|---|---:|---:|---:|---:|---:|",
     ]
-    for path, current, maximum, prior in trend_rows(metrics, budget, previous):
+    for path, current, maximum, prior, ratchet_target in ratchet_rows(metrics, budget, previous):
         prior_text = "-" if prior is None else str(prior)
         delta_text = "-" if prior is None else f"{current - prior:+d}"
-        lines.append(f"| `{path}` | {current} | {maximum} | {prior_text} | {delta_text} |")
+        ratchet_text = "-" if ratchet_target is None else str(ratchet_target)
+        lines.append(f"| `{path}` | {current} | {maximum} | {prior_text} | {delta_text} | {ratchet_text} |")
 
     cond = metrics["conditions"]
     lines.extend([
@@ -595,7 +637,7 @@ def main() -> int:
     budget = load_budget_file()
     previous = load_budget_from_git(args.budget_ref)
     metrics = current_metrics()
-    errors = validate(metrics, budget)
+    errors = validate(metrics, budget, previous)
 
     report = {
         "schema_version": 1,

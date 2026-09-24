@@ -168,6 +168,16 @@ def load_properties(path: Path | None = None) -> dict[str, str]:
 
 
 @dataclass(frozen=True)
+class TargetMetadata:
+    target: str
+    generation: str
+    family: str
+    platform: str
+    minecraft: str
+    java_version: int
+
+
+@dataclass(frozen=True)
 class TargetLayout:
     target: str
     generation: str
@@ -258,6 +268,33 @@ def generation_targets(properties: dict[str, str] | None = None) -> dict[str, li
     return result
 
 
+def target_metadata(target: str, properties: dict[str, str] | None = None) -> TargetMetadata:
+    props = properties or load_properties()
+    prefix = f"target.{target}."
+    generation = props.get(prefix + "build.generation", "").strip()
+    family = props.get(prefix + "source.family", "").strip()
+    platform = props.get(prefix + "source.platform", "").strip()
+    minecraft = props.get(prefix + "deps.minecraft", "").strip()
+    raw_java = props.get(prefix + "java.version", "").strip()
+    if not all((generation, family, platform, minecraft, raw_java)):
+        raise ValueError(
+            f"{target}: incomplete target registry metadata; require generation/family/platform/minecraft/java"
+        )
+    return TargetMetadata(
+        target=target,
+        generation=generation,
+        family=family,
+        platform=platform,
+        minecraft=minecraft,
+        java_version=int(raw_java),
+    )
+
+
+def target_registry(properties: dict[str, str] | None = None) -> tuple[TargetMetadata, ...]:
+    props = properties or load_properties()
+    return tuple(target_metadata(target, props) for target in target_ids(props))
+
+
 def target_build_root(target: str, properties: dict[str, str] | None = None) -> Path:
     props = properties or load_properties()
     generation = props.get(f"target.{target}.build.generation", "").strip()
@@ -334,8 +371,8 @@ def family_platform_targets(properties: dict[str, str] | None = None) -> dict[tu
 
 __all__ = [
     "ROOT", "COMMON_PROPERTIES", "TARGETS_PROPERTIES", "GENERATIONS_PROPERTIES",
-    "SOURCE_LAYER_MARKER", "TargetLayout", "read_properties", "generation_config_paths",
-    "load_generation_properties", "load_properties", "target_ids", "generation_targets",
+    "SOURCE_LAYER_MARKER", "TargetMetadata", "TargetLayout", "read_properties", "generation_config_paths",
+    "load_generation_properties", "load_properties", "target_ids", "target_metadata", "target_registry", "generation_targets",
     "target_build_root", "target_layout", "configured_layer_paths", "family_targets",
     "platform_targets", "family_platform_targets",
 ]

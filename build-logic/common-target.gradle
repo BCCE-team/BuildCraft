@@ -91,15 +91,11 @@ def resolveSourceFile = { String relative ->
     [targetOverlayRoot, familyPlatformSourceRoot, platformSourceRoot, familySourceRoot, sharedSourceRoot]
             .collect { new File(it, relative) }.find { it.isFile() }
 }
-def targetAccessTransformer = resolveSourceFile('src/main/resources/META-INF/accesstransformer.cfg')
 
 for (def layer : sourceLayers) {
     if (!layer.isDirectory()) {
         throw new GradleException("Configured source layer '${layer}' for '${targetName}' does not exist")
     }
-}
-if (targetAccessTransformer == null) {
-    throw new GradleException("No access transformer found for '${targetName}'")
 }
 
 def effectiveSourceRoot = layout.buildDirectory.dir("effective-source/${targetName}")
@@ -158,24 +154,6 @@ def prepareEffectiveSource = tasks.register('prepareEffectiveSource', Exec) {
 def effectiveSourceDir = effectiveSourceRoot.get().asFile
 def effectiveDirs = { String relative -> [new File(effectiveSourceDir, relative)] }
 
-// Keep every JAR artifact for a Minecraft version in one repository-level folder.
-// The target remains part of project.version, so Forge/Fabric/NeoForge artifacts for
-// the same Minecraft version can coexist without filename collisions.
-def centralJarOutputDir = new File(repositoryRoot, "build/${minecraftVersion}")
-def targetArtifactVersionMarker = "+${targetName.replace('-', '+')}"
-def cleanCentralJarOutput = tasks.register('cleanCentralJarOutput', Delete) {
-    group = 'build'
-    description = "Remove stale ${targetName} JAR artifacts from the shared Minecraft ${minecraftVersion} output folder"
-    delete fileTree(centralJarOutputDir) {
-        include "${archiveName}-*${targetArtifactVersionMarker}*.jar"
-    }
-}
-
-tasks.withType(org.gradle.api.tasks.bundling.Jar).configureEach {
-    dependsOn cleanCentralJarOutput
-    destinationDirectory.set(centralJarOutputDir)
-}
-
 version = "${modVersion}+${targetName.replace('-', '+')}"
 group = requiredProperty('mod.group')
 base.archivesName = archiveName
@@ -214,13 +192,10 @@ project.ext.bcTarget = [
         targetOverlayRoot: targetOverlayRoot,
         sourceLayers: sourceLayers,
         resolveSourceFile: resolveSourceFile,
-        targetAccessTransformer: targetAccessTransformer,
         effectiveSourceRoot: effectiveSourceRoot,
         sourceLayoutScript: sourceLayoutScript,
         pythonExecutable: pythonExecutable,
         prepareEffectiveSource: prepareEffectiveSource,
         effectiveSourceDir: effectiveSourceDir,
         effectiveDirs: effectiveDirs,
-        centralJarOutputDir: centralJarOutputDir,
-        cleanCentralJarOutput: cleanCentralJarOutput,
 ]

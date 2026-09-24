@@ -5,41 +5,52 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from source_config import load_properties, target_ids, target_layout
+
 ROOT = Path(__file__).resolve().parents[1]
 
-JAVA_ROOTS = (
-    "source-shared/src/main/java",
-    "source-families/legacy/src/main/java",
-    "source-families/modern/src/main/java",
-    "source-platforms/forge/src/main/java",
-    "source-platforms/neoforge/src/main/java",
-    "source-family-platforms/legacy/forge/src/main/java",
-    "source-family-platforms/legacy/fabric/src/main/java",
-    "source-family-platforms/modern/neoforge/src/main/java",
-    "source-family-platforms/modern/fabric/src/main/java",
-    "version-src/1.19.2-forge/src/main/java",
-    "version-src/1.20.1-forge/src/main/java",
-    "version-src/1.21.1-neoforge/src/main/java",
-    "source-shared/src/test/java",
-    "source-families/legacy/src/test/java",
-    "source-families/modern/src/test/java",
-    "source-platforms/forge/src/test/java",
-    "source-platforms/neoforge/src/test/java",
-    "source-family-platforms/legacy/forge/src/test/java",
-    "source-family-platforms/legacy/fabric/src/test/java",
-    "source-family-platforms/modern/neoforge/src/test/java",
-    "source-family-platforms/modern/fabric/src/test/java",
-    "source-shared/src/gametest/java",
-    "source-families/legacy/src/gametest/java",
-    "source-families/modern/src/gametest/java",
-    "source-platforms/forge/src/gametest/java",
-    "source-platforms/neoforge/src/gametest/java",
-    "source-family-platforms/legacy/forge/src/gametest/java",
-    "source-family-platforms/legacy/fabric/src/gametest/java",
-    "source-family-platforms/modern/neoforge/src/gametest/java",
-    "source-family-platforms/modern/fabric/src/gametest/java",
-    "addon-fixture/src/main/java",
-)
+
+def java_roots() -> tuple[str, ...]:
+    props = load_properties()
+    roots: list[str] = []
+    seen: set[str] = set()
+
+    def add(relative: str) -> None:
+        value = relative.strip('/')
+        if value and value not in seen:
+            seen.add(value)
+            roots.append(value)
+
+    for base in (
+        'source-shared',
+        'source-families',
+        'source-platforms',
+        'source-family-platforms',
+    ):
+        base_dir = ROOT / base
+        if not base_dir.exists():
+            continue
+        for path in sorted(base_dir.rglob('src/main/java')):
+            add(path.relative_to(ROOT).as_posix())
+        for path in sorted(base_dir.rglob('src/test/java')):
+            add(path.relative_to(ROOT).as_posix())
+        for path in sorted(base_dir.rglob('src/gametest/java')):
+            add(path.relative_to(ROOT).as_posix())
+
+    for target in target_ids(props):
+        overlay = target_layout(target, props).overlay_root
+        if not overlay.exists():
+            continue
+        for relative in ('src/main/java', 'src/test/java', 'src/gametest/java'):
+            candidate = overlay / relative
+            if candidate.is_dir():
+                add(candidate.relative_to(ROOT).as_posix())
+
+    add('addon-fixture/src/main/java')
+    return tuple(roots)
+
+
+JAVA_ROOTS = java_roots()
 
 PACKAGE_OR_IMPORT = re.compile(
     r"^\s*(?:package|import)\s+(?:static\s+)?(buildcraft\.api(?:\.[\w$*]+)*)\s*;",

@@ -24,14 +24,16 @@ def familyPlatformSourceRoot = bc.familyPlatformSourceRoot
 def targetOverlayRoot = bc.targetOverlayRoot
 def sourceLayers = bc.sourceLayers
 def resolveSourceFile = bc.resolveSourceFile
-def targetAccessTransformer = bc.targetAccessTransformer
+def targetAccessTransformer = resolveSourceFile('src/main/resources/META-INF/accesstransformer.cfg')
+if (targetAccessTransformer == null) {
+    throw new GradleException("Forge target '${targetName}' is missing META-INF/accesstransformer.cfg in its effective source layers")
+}
 def effectiveSourceRoot = bc.effectiveSourceRoot
 def sourceLayoutScript = bc.sourceLayoutScript
 def pythonExecutable = bc.pythonExecutable
 def prepareEffectiveSource = bc.prepareEffectiveSource
 def effectiveSourceDir = bc.effectiveSourceDir
 def effectiveDirs = bc.effectiveDirs
-def centralJarOutputDir = bc.centralJarOutputDir
 def jeiCompatEnabled = booleanProperty('compat.jei.enabled', true)
 def jadeCompatEnabled = booleanProperty('compat.jade.enabled', true)
 def ic2CompatEnabled = booleanProperty('compat.ic2.enabled', true)
@@ -426,8 +428,8 @@ tasks.named('jar', Jar) {
     }
 }
 
-// JAR tasks already write directly to build/<minecraft-version> through common-target.gradle.
-// Keep buildAndCollect as the stable CI/root-build entry point without a second copy step.
+// Builds this target and copies its production jar to one shared release folder.
+def releaseOutputDir = new File(repositoryRoot, "build/libs/${buildGeneration}/${modVersion}")
 def cleanupStandaloneApiV2Artifacts = tasks.register('cleanupStandaloneApiV2Artifacts', Delete) {
     group = 'build'
     description = "Remove obsolete standalone API 2 jars for ${targetName}"
@@ -435,7 +437,7 @@ def cleanupStandaloneApiV2Artifacts = tasks.register('cleanupStandaloneApiV2Arti
         include '*-api-v2.jar'
         include '*-api-v2-sources.jar'
     }
-    delete fileTree(centralJarOutputDir) {
+    delete fileTree(releaseOutputDir) {
         include "${archiveName}-${project.version}-api-v2.jar"
         include "${archiveName}-${project.version}-api-v2-sources.jar"
     }
@@ -445,10 +447,14 @@ tasks.named('assemble') {
     dependsOn cleanupStandaloneApiV2Artifacts
 }
 
-tasks.register('buildAndCollect') {
+tasks.register('buildAndCollect', Copy) {
     group = 'build'
-    description = "Build ${targetName}; JAR artifacts are written to ${centralJarOutputDir}"
+    description = "Build and collect the ${targetName} production jar"
+    // `build` includes JUnit checks and `assemble`; assemble already produces
+    // the renamed production jar through the dependency above.
     dependsOn tasks.named('build')
+    from tasks.named('jar', Jar).flatMap { it.archiveFile }
+    into releaseOutputDir
 }
 
 // API 2 is bundled directly in the normal BuildCraft production jar.
