@@ -38,7 +38,7 @@ class ResourcePipeline(unittest.TestCase):
 
     def test_target_resource_overlays_are_escape_hatches_only(self):
         expected = {
-            "1.19.2-forge": 1,
+            "1.19.2-forge": 0,
             "1.20.1-forge": 0,
             "1.21.1-neoforge": 0,
             "1.21.11-neoforge": 0,

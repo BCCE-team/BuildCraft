@@ -27,9 +27,11 @@ def main() -> int:
     if not isinstance(limits, dict):
         raise SystemExit("architecture budgets: limits must be an object")
 
-    updated: dict[str, int] = {}
+    ratchets = validator.ratchet_metric_paths(budget)
+    updated: dict[str, int] = dict(limits)
     changed = False
-    for metric_path, maximum in sorted(limits.items()):
+    for metric_path in sorted(ratchets):
+        maximum = limits[metric_path]
         if not isinstance(maximum, int):
             raise SystemExit(f"architecture budget {metric_path!r} must be an integer")
         current = validator.get_metric(metrics, metric_path)

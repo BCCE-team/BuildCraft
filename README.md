@@ -52,7 +52,7 @@ source-shared
 + version-src/<target>
 ```
 
-Small Minecraft-version differences may use localized Stonecutter conditions inside family/family-platform files. Loader-wide code belongs in `source-platforms`; loader code tied to one source family belongs in `source-family-platforms`. `version-src` is reserved for irreducible target-specific files and resources. Per-target metadata is centralized in `build-config/targets.properties`.
+Small Minecraft-version differences may use localized Stonecutter conditions inside family/family-platform files. Loader-wide code belongs in `source-platforms`; loader code tied to one source family belongs in `source-family-platforms`. The legacy family is canonical on Minecraft 1.20.1 and downports to 1.19.2 through `source-downports/legacy/1.19.2`; the modern family is canonical on 1.21.11 and downports to 1.21.1. `version-src` is reserved for irreducible target-specific files and resources. Per-target metadata is centralized in `build-config/targets.properties`.
 
 The 1.19.2 implementation is the gameplay reference, but source code is allowed to differ when newer Minecraft APIs require another implementation. The compatibility target is player-visible behaviour: **different implementation, indistinguishable BuildCraft**.
 
@@ -78,7 +78,7 @@ Crash reports require a crash log in addition to the information above.
 
 ### BuildCraft Community Edition Localizations
 
-- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/buildcraft-community-edition-localizations) [Modrinth](https://modrinth.com/mod/buildcraft-community-edition-localizations) [GitHub](https://github.com/BCCE-team/BuildCraft-Localizations)
+- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/buildcraft-community-edition-localizations) [Modrinth](https://modrinth.com/mod/buildcraft-community-edition-localizations) [GitHub](https://github.com/CurativeTree/BuildCraft/tree/Localizations)
 
 ### IronTanks Community Edition
 

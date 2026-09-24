@@ -20,8 +20,8 @@ class LoaderBoundaries(unittest.TestCase):
             "source-downports/modern/1.21.1/neoforge/src/main/java/buildcraft/lib/net/MessageManager.java",
             "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/net/NeoForgePacketContext.java",
             "source-family-platforms/legacy/forge/src/main/java/buildcraft/lib/net/ForgePacketContext.java",
-            "version-src/1.19.2-forge/src/main/java/buildcraft/lib/net/MessageManager.java",
-            "version-src/1.20.1-forge/src/main/java/buildcraft/lib/net/MessageManager.java",
+            "source-family-platforms/legacy/forge/src/main/java/buildcraft/lib/net/MessageManager.java",
+            "source-downports/legacy/1.19.2/forge/src/main/java/buildcraft/lib/net/MessageManager.java",
         }
         offenders = []
         roots = ("source-shared", "source-families", "source-platforms", "source-family-platforms", "source-downports", "version-src")

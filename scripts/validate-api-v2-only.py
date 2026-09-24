@@ -26,6 +26,7 @@ def java_roots() -> tuple[str, ...]:
         'source-families',
         'source-platforms',
         'source-family-platforms',
+        'source-downports',
     ):
         base_dir = ROOT / base
         if not base_dir.exists():

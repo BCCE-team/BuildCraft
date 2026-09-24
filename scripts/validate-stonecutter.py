@@ -136,7 +136,9 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
     common_text = common_adapter.read_text(encoding="utf-8")
     for token in (
         "build-config/targets.properties", "familyPlatformSourceRoot",
-        "sourceLayers = [sharedSourceRoot, familySourceRoot, platformSourceRoot, familyPlatformSourceRoot, targetOverlayRoot]",
+        "familyDownportSourceRoot", "familyPlatformDownportSourceRoot",
+        "sourceLayers = [sharedSourceRoot, familySourceRoot]",
+        "sourceLayers.add(platformSourceRoot)", "sourceLayers.add(targetOverlayRoot)",
         "scripts/source_preprocessor.py", "scripts/transforms", "prepareEffectiveSource",
     ):
         if token not in common_text:

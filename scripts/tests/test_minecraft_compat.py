@@ -9,6 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from source_layout import load_properties, materialize_target
+from source_lookup import resolve_target_source
 from transforms.java_symbols import downport_symbols
 from minecraft_compat_fixture import run, parse_sources
 from minecraft_compat_probes import probe
@@ -228,7 +229,7 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertNotIn('PlatformClientEvents.tick(BCEvents.Phase.END, BCLibEventDist::clientTick);', events)
 
     def test_legacy_pipe_targeting_uses_block_reach(self):
-        pipe = (ROOT / 'version-src/1.19.2-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text(encoding='utf-8')
+        pipe = resolve_target_source('1.19.2-forge', 'src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text(encoding='utf-8')
         shape = pipe[pipe.index('public VoxelShape getShape('):]
         self.assertIn('player.getReachDistance()', shape)
         self.assertNotIn('player.getAttackRange()', shape)

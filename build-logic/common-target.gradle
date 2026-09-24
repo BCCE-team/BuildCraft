@@ -2,7 +2,7 @@
  * Shared target/bootstrap logic for every loader adapter.
  *
  * Loader scripts set project.ext.bcBuildGeneration before applying this file.
- * This file owns target metadata, the five source layers and effective-source
+ * This file owns target metadata, canonical ownership layers, optional downports and effective-source
  * materialization. Loader-specific runs/dependencies/remapping stay in
  * build-logic/loaders/<loader>-target.gradle.
  */
@@ -77,6 +77,8 @@ def sourcePlatform = requiredProperty('source.platform')
 
 def sharedSourceRoot = new File(repositoryRoot, requiredProperty('source.shared_root'))
 def familySourceRoot = new File(repositoryRoot, requiredProperty('source.root'))
+def familyDownportRootValue = optionalProperty('source.family_downport_root')
+def familyDownportSourceRoot = familyDownportRootValue ? new File(repositoryRoot, familyDownportRootValue) : null
 def platformSourceRoot = new File(repositoryRoot, requiredProperty('source.platform_root'))
 def familyPlatformRootKey = "source.family_platform.${sourceFamily}.${sourcePlatform}.root"
 def familyPlatformRootValue = targetConfiguration.getProperty(familyPlatformRootKey)?.trim()
@@ -84,12 +86,18 @@ if (!familyPlatformRootValue) {
     throw new GradleException("Missing '${familyPlatformRootKey}' in build-config/common.properties")
 }
 def familyPlatformSourceRoot = new File(repositoryRoot, familyPlatformRootValue)
+def familyPlatformDownportRootValue = optionalProperty('source.family_platform_downport_root')
+def familyPlatformDownportSourceRoot = familyPlatformDownportRootValue ? new File(repositoryRoot, familyPlatformDownportRootValue) : null
 def targetOverlayRoot = new File(repositoryRoot, requiredProperty('source.overlay_root'))
-def sourceLayers = [sharedSourceRoot, familySourceRoot, platformSourceRoot, familyPlatformSourceRoot, targetOverlayRoot]
+def sourceLayers = [sharedSourceRoot, familySourceRoot]
+if (familyDownportSourceRoot != null) sourceLayers.add(familyDownportSourceRoot)
+sourceLayers.add(platformSourceRoot)
+sourceLayers.add(familyPlatformSourceRoot)
+if (familyPlatformDownportSourceRoot != null) sourceLayers.add(familyPlatformDownportSourceRoot)
+sourceLayers.add(targetOverlayRoot)
 
 def resolveSourceFile = { String relative ->
-    [targetOverlayRoot, familyPlatformSourceRoot, platformSourceRoot, familySourceRoot, sharedSourceRoot]
-            .collect { new File(it, relative) }.find { it.isFile() }
+    sourceLayers.reverse().collect { new File(it, relative) }.find { it.isFile() }
 }
 
 for (def layer : sourceLayers) {
@@ -187,8 +195,10 @@ project.ext.bcTarget = [
         sourcePlatform: sourcePlatform,
         sharedSourceRoot: sharedSourceRoot,
         familySourceRoot: familySourceRoot,
+        familyDownportSourceRoot: familyDownportSourceRoot,
         platformSourceRoot: platformSourceRoot,
         familyPlatformSourceRoot: familyPlatformSourceRoot,
+        familyPlatformDownportSourceRoot: familyPlatformDownportSourceRoot,
         targetOverlayRoot: targetOverlayRoot,
         sourceLayers: sourceLayers,
         resolveSourceFile: resolveSourceFile,

@@ -237,27 +237,38 @@ def read_allowlist() -> set[str]:
 
 
 def downport_metrics(props: dict[str, str]) -> dict[str, object]:
-    canonical_target = "1.21.11-neoforge"
-    canonical_layout = target_layout(canonical_target, props)
-    canonical_effective = effective_source_files(canonical_layout, props)
+    canonical_effective_by_family: dict[str, dict[str, Path]] = {}
+    for family in {target_layout(target, props).family for target in target_ids(props)}:
+        canonical_minecraft = props.get(f"source.family.{family}.canonical_minecraft", "").strip()
+        canonical_target = next(
+            (
+                target for target in target_ids(props)
+                if target_layout(target, props).family == family
+                and props.get(f"target.{target}.deps.minecraft", "").strip() == canonical_minecraft
+            ),
+            None,
+        )
+        if canonical_target is not None:
+            canonical_effective_by_family[family] = effective_source_files(target_layout(canonical_target, props), props)
 
-    roots: list[tuple[str, Path]] = []
+    roots: list[tuple[str, str, Path]] = []
     seen: set[Path] = set()
     for target in target_ids(props):
         layout = target_layout(target, props)
         for root in (layout.family_downport_root, layout.family_platform_downport_root):
             if root is not None and root not in seen:
                 seen.add(root)
-                roots.append((root.relative_to(ROOT).as_posix(), root))
+                roots.append((layout.family, root.relative_to(ROOT).as_posix(), root))
 
     by_root: dict[str, int] = {}
     identical: list[str] = []
     similar_ge_90: list[dict[str, object]] = []
     total = 0
-    for label, root in sorted(roots):
+    for family, label, root in sorted(roots):
         paths = java_files(root)
         by_root[label] = len(paths)
         total += len(paths)
+        canonical_effective = canonical_effective_by_family.get(family, {})
         for path in paths:
             rel = path.relative_to(root).as_posix()
             canonical = canonical_effective.get(rel)
@@ -340,21 +351,26 @@ def foreign_package_metrics() -> dict[str, object]:
 
 
 def canonical_metrics(props: dict[str, str]) -> dict[str, object]:
-    canonical = props.get("source.family.modern.canonical_minecraft", "").strip()
-    modern_targets = [target for target in target_ids(props) if target_layout(target, props).family == "modern"]
-    modern_versions = {target: props.get(f"target.{target}.deps.minecraft", "").strip() for target in modern_targets}
-    newest = max(modern_versions.values(), key=version_tuple) if modern_versions else ""
-    canonical_target = next((target for target, version in modern_versions.items() if version == canonical), None)
-    has_downport = False
-    if canonical_target:
-        layout = target_layout(canonical_target, props)
-        has_downport = layout.family_downport_root is not None or layout.family_platform_downport_root is not None
-    return {
-        "configured": canonical,
-        "newest_modern": newest,
-        "target": canonical_target,
-        "canonical_target_uses_downport": has_downport,
-    }
+    families: dict[str, dict[str, object]] = {}
+    configured_families = [item.strip() for item in props.get("sourceFamilies", "").split(",") if item.strip()]
+    for family in configured_families:
+        canonical = props.get(f"source.family.{family}.canonical_minecraft", "").strip()
+        targets = [target for target in target_ids(props) if target_layout(target, props).family == family]
+        versions = {target: props.get(f"target.{target}.deps.minecraft", "").strip() for target in targets}
+        newest = max(versions.values(), key=version_tuple) if versions else ""
+        canonical_targets = [target for target, version in versions.items() if version == canonical]
+        downport_targets: list[str] = []
+        for target in canonical_targets:
+            layout = target_layout(target, props)
+            if layout.family_downport_root is not None or layout.family_platform_downport_root is not None:
+                downport_targets.append(target)
+        families[family] = {
+            "configured": canonical,
+            "newest": newest,
+            "targets": canonical_targets,
+            "canonical_targets_using_downports": downport_targets,
+        }
+    return {"families": families}
 
 
 def current_metrics() -> dict[str, object]:
@@ -436,14 +452,28 @@ def get_metric(metrics: dict[str, object], path: str) -> int:
 
 
 
+def ratchet_metric_paths(budget: dict[str, object]) -> set[str]:
+    raw = budget.get("ratchet_limits", [])
+    if not isinstance(raw, list) or any(not isinstance(item, str) for item in raw):
+        fail("architecture budgets: ratchet_limits must be an array of metric paths")
+    limits = budget.get("limits", {})
+    if not isinstance(limits, dict):
+        fail("architecture budgets: limits must be an object")
+    unknown = sorted(set(raw) - set(limits))
+    if unknown:
+        fail(f"architecture ratchet references unknown budget metric {unknown[0]!r}")
+    return set(raw)
+
+
 def ratchet_rows(metrics: dict[str, object], budget: dict[str, object], previous: dict[str, object] | None) -> list[tuple[str, int, int, int | None, int | None]]:
     rows: list[tuple[str, int, int, int | None, int | None]] = []
     limits = budget.get("limits", {})
     previous_limits = previous.get("limits", {}) if isinstance(previous, dict) else {}
+    ratchets = ratchet_metric_paths(budget)
     for path, maximum in sorted(limits.items()):
         current = get_metric(metrics, path)
         prior = previous_limits.get(path) if isinstance(previous_limits, dict) else None
-        ratchet_target = current if current < int(maximum) else None
+        ratchet_target = current if path in ratchets and current < int(maximum) else None
         rows.append((path, current, int(maximum), int(prior) if isinstance(prior, int) else None, ratchet_target))
     return rows
 
@@ -457,11 +487,10 @@ def ratchet_errors(metrics: dict[str, object], budget: dict[str, object], previo
         return []
 
     errors: list[str] = []
-    for path, maximum in sorted(limits.items()):
-        if not isinstance(maximum, int):
-            continue
+    for path in sorted(ratchet_metric_paths(budget)):
+        maximum = limits.get(path)
         previous_maximum = previous_limits.get(path)
-        if not isinstance(previous_maximum, int):
+        if not isinstance(maximum, int) or not isinstance(previous_maximum, int):
             continue
         current = get_metric(metrics, path)
         if maximum > previous_maximum:
@@ -533,14 +562,23 @@ def validate(metrics: dict[str, object], budget: dict[str, object], previous: di
     if int(foreign["count"]) != 0:
         errors.append(f"foreign package declaration in maintained source: {foreign['violations'][0]}")
 
-    canonical = metrics["canonical"]
-    expected_canonical = invariants.get("canonical_modern_minecraft", "1.21.11")
-    if canonical["configured"] != expected_canonical:
-        errors.append(f"modern canonical Minecraft changed unexpectedly: {canonical['configured']} != {expected_canonical}")
-    if canonical["configured"] != canonical["newest_modern"]:
-        errors.append(f"modern canonical source is not newest-first: canonical={canonical['configured']} newest={canonical['newest_modern']}")
-    if canonical["canonical_target_uses_downport"]:
-        errors.append("canonical modern target must not resolve through an older-version downport")
+    canonical_families = metrics["canonical"]["families"]
+    for family in ("legacy", "modern"):
+        state = canonical_families.get(family, {})
+        expected = invariants.get(f"canonical_{family}_minecraft", "")
+        configured = state.get("configured", "")
+        newest = state.get("newest", "")
+        if configured != expected:
+            errors.append(f"{family} canonical Minecraft changed unexpectedly: {configured} != {expected}")
+        if configured != newest:
+            errors.append(f"{family} canonical source is not newest-first: canonical={configured} newest={newest}")
+        if not state.get("targets"):
+            errors.append(f"{family} canonical Minecraft {configured!r} has no configured production target")
+        if state.get("canonical_targets_using_downports"):
+            errors.append(
+                f"canonical {family} target must not resolve through an older-version downport: "
+                f"{state['canonical_targets_using_downports'][0]}"
+            )
 
     errors.extend(ratchet_errors(metrics, budget, previous))
     return errors

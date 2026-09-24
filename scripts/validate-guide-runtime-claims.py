@@ -6,6 +6,8 @@ import json
 import re
 from pathlib import Path
 
+from source_lookup import resolve_target_source
+
 ROOT = Path(__file__).resolve().parents[1]
 GUIDE = ROOT / "source-shared/src/main/resources/assets/buildcraft/guide/text/en_us.json"
 
@@ -36,10 +38,9 @@ def forbid(text: str, needle: str, label: str) -> None:
 # key drift between GuiGuide and en_us.json (for example loaded vs loaded_modules).
 LANG = ROOT / "source-shared/src/main/resources/assets/buildcraft/lang/en_us.json"
 lang = json.loads(LANG.read_text(encoding="utf-8"))
-guide_gui_paths = (
-    ROOT / "version-src/1.19.2-forge/src/main/java/buildcraft/lib/client/guide/GuiGuide.java",
-    ROOT / "version-src/1.20.1-forge/src/main/java/buildcraft/lib/client/guide/GuiGuide.java",
-    ROOT / "source-families/modern/src/main/java/buildcraft/lib/client/guide/GuiGuide.java",
+guide_gui_paths = tuple(
+    resolve_target_source(target, "src/main/java/buildcraft/lib/client/guide/GuiGuide.java")
+    for target in ("1.19.2-forge", "1.20.1-forge", "1.21.1-neoforge", "1.21.11-neoforge")
 )
 key_pattern = re.compile(r'"(buildcraft\.guide\.contents\.[a-zA-Z0-9_.-]+)"')
 for gui_path in guide_gui_paths:

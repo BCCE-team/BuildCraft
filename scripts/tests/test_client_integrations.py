@@ -12,6 +12,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from source_layout import load_properties, materialize_target
+from source_lookup import resolve_target_source
 from client_integration_fixture import run_probe
 from minecraft_compat_fixture import parse_sources
 
@@ -133,8 +134,8 @@ class ClientIntegrations(unittest.TestCase):
         current_facades = self.java('buildcraft/silicon/plug/FacadeStateManager.java')
         current_pipe = self.java('buildcraft/transport/block/BlockPipeHolder.java')
         shared_action = (ROOT / 'source-shared/src/main/java/buildcraft/transport/statements/ActionPipeDirection.java').read_text()
-        old_pipe = (ROOT / 'version-src/1.19.2-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text()
-        mid_pipe = (ROOT / 'version-src/1.20.1-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text()
+        old_pipe = resolve_target_source('1.19.2-forge', 'src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text()
+        mid_pipe = resolve_target_source('1.20.1-forge', 'src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text()
 
         # Preserve vanilla glass texture alpha exactly; multiplying it again makes facades almost invisible.
         self.assertIn('GLASS_FACADE_ALPHA = 1.0D', current_baker)

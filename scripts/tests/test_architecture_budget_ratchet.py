@@ -22,8 +22,8 @@ validator = load_validator_module()
 class ArchitectureBudgetRatchetTests(unittest.TestCase):
     def test_requires_budget_tightening_when_metric_improves(self) -> None:
         metrics = {"platform": {"gameplay_override_count": 100}}
-        budget = {"limits": {"platform.gameplay_override_count": 116}}
-        previous = {"limits": {"platform.gameplay_override_count": 116}}
+        budget = {"limits": {"platform.gameplay_override_count": 116}, "ratchet_limits": ["platform.gameplay_override_count"]}
+        previous = {"limits": {"platform.gameplay_override_count": 116}, "ratchet_limits": ["platform.gameplay_override_count"]}
 
         errors = validator.ratchet_errors(metrics, budget, previous)
 
@@ -32,8 +32,8 @@ class ArchitectureBudgetRatchetTests(unittest.TestCase):
 
     def test_rejects_budget_increase(self) -> None:
         metrics = {"platform": {"gameplay_override_count": 116}}
-        budget = {"limits": {"platform.gameplay_override_count": 120}}
-        previous = {"limits": {"platform.gameplay_override_count": 116}}
+        budget = {"limits": {"platform.gameplay_override_count": 120}, "ratchet_limits": ["platform.gameplay_override_count"]}
+        previous = {"limits": {"platform.gameplay_override_count": 116}, "ratchet_limits": ["platform.gameplay_override_count"]}
 
         errors = validator.ratchet_errors(metrics, budget, previous)
 
@@ -42,8 +42,8 @@ class ArchitectureBudgetRatchetTests(unittest.TestCase):
 
     def test_accepts_already_ratcheted_budget(self) -> None:
         metrics = {"platform": {"gameplay_override_count": 100}}
-        budget = {"limits": {"platform.gameplay_override_count": 100}}
-        previous = {"limits": {"platform.gameplay_override_count": 116}}
+        budget = {"limits": {"platform.gameplay_override_count": 100}, "ratchet_limits": ["platform.gameplay_override_count"]}
+        previous = {"limits": {"platform.gameplay_override_count": 116}, "ratchet_limits": ["platform.gameplay_override_count"]}
 
         self.assertEqual([], validator.ratchet_errors(metrics, budget, previous))
 

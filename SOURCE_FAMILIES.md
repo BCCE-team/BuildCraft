@@ -19,7 +19,7 @@ Current targets:
 
 Build root: `builds/legacy`
 
-The legacy build owns ForgeGradle-era targets and currently uses its own Gradle 8 wrapper. `1.19.2-forge` remains the behaviour reference; newer implementations are not required to look identical in source.
+The legacy build owns ForgeGradle-era targets and currently uses its own Gradle 8 wrapper. `1.20.1` is the canonical legacy Minecraft API level; `1.19.2-forge` remains the behaviour reference and is maintained as an explicit downport where the canonical implementation cannot be shared unchanged.
 
 ### `modern`
 
@@ -75,6 +75,10 @@ source-family-platforms/
    └─ fabric/                     loader API tied to one source family
 
 source-downports/
+├─ legacy/
+│  └─ 1.19.2/
+│     ├─ family/                  older Minecraft view of canonical legacy Java
+│     └─ forge/                   older Forge-specific view
 └─ modern/
    └─ 1.21.1/
       ├─ family/                  older Minecraft view of canonical modern Java
@@ -99,7 +103,7 @@ shared
 → target escape hatch
 ```
 
-Downports are not a new ownership axis: they are explicit older-Minecraft views of the canonical source owned by that family/family-platform. The modern canonical Java API is currently **1.21.11**. `1.21.1-neoforge` consumes explicit downports only where the canonical 1.21.11 implementation cannot be shared unchanged.
+Downports are not a new ownership axis: they are explicit older-Minecraft views of the canonical source owned by that family/family-platform. The canonical Java API levels are currently **1.20.1** for `legacy` and **1.21.11** for `modern`. `1.19.2-forge` and `1.21.1-neoforge` consume explicit downports only where their family canonical implementation cannot be shared unchanged.
 
 The generated effective tree is created under the target subproject's `build/effective-source` directory. It is build output, not authoritative source.
 
@@ -110,7 +114,7 @@ The Python side is deliberately split by responsibility:
 - `scripts/source_preprocessor.py` — `//?` condition parsing only;
 - `scripts/transforms/` — path-independent mechanical Java/resource transforms only.
 
-Class-specific Java rewriting is forbidden. `scripts/transforms/java_compat.py` may only perform mechanical API-shape/symbol conversion and must not name BuildCraft source files. Native 1.21.11 implementations live in maintained family/family-platform ownership; explicit 1.21.1 downports preserve the older modern target without making `version-src` an ownership axis.
+Class-specific Java rewriting is forbidden. `scripts/transforms/java_compat.py` may only perform mechanical API-shape/symbol conversion and must not name BuildCraft source files. Native 1.20.1 and 1.21.11 implementations live in maintained family/family-platform ownership; explicit 1.19.2 and 1.21.1 downports preserve the older targets without making `version-src` an ownership axis.
 
 ## Placement rules
 
@@ -151,7 +155,7 @@ Use only when the canonical family/family-platform Java is written against the n
 
 ### `version-src/<target>`
 
-Use only when a complete file or resource is genuinely target-specific and cannot remain readable in a family/platform layer. Target overlays should stay small and must not contain inline version conditions. For `1.21.11-neoforge`, the only remaining Java exception is the frozen API file `buildcraft/api/v2/recipe/CountedIngredient.java`; API restructuring is intentionally outside the architecture migration.
+Use only when a complete file or resource is genuinely target-specific and cannot remain readable in a family/platform layer. Target overlays should stay small and must not contain inline version conditions. `1.19.2-forge` now has no target-owned Java/resources; `1.20.1-forge` retains only five loader-specific gameplay exceptions pending the loader/gameplay separation stage. For `1.21.11-neoforge`, the only remaining Java exception is the frozen API file `buildcraft/api/v2/recipe/CountedIngredient.java`; API restructuring is intentionally outside the architecture migration.
 
 ## Internal actors, permissions and client registration
 

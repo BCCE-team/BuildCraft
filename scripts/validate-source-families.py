@@ -70,6 +70,8 @@ def validate_canonical_target_registry() -> None:
 
     # Build-root files are selectors only. Per-target values must have one owner.
     props = load_properties()
+    if props.get("source.family.legacy.canonical_minecraft", "").strip() != "1.20.1":
+        fail("legacy canonical Java API must remain 1.20.1 until a newer legacy target is intentionally promoted")
     if props.get("source.family.modern.canonical_minecraft", "").strip() != "1.21.11":
         fail("modern canonical Java API must remain 1.21.11 until a newer modern target is intentionally promoted")
 
@@ -361,6 +363,13 @@ def main() -> None:
         fail("1.21.1 Forge must not return to production source generations")
     if props.get("behaviorReference") != "1.19.2-forge":
         fail("behaviorReference must remain 1.19.2-forge")
+
+    legacy_reference = target_layout("1.19.2-forge", props)
+    legacy_canonical = target_layout("1.20.1-forge", props)
+    if legacy_reference.family_downport_root is None or legacy_reference.family_platform_downport_root is None:
+        fail("1.19.2-forge must consume explicit legacy family and Forge downport views")
+    if legacy_canonical.family_downport_root is not None or legacy_canonical.family_platform_downport_root is not None:
+        fail("1.20.1-forge is the legacy canonical target and must not consume downport views")
 
     layouts = [target_layout(target, props) for targets in generations.values() for target in targets]
     family_downport_roots = sorted({
