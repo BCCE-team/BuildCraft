@@ -6,6 +6,7 @@
  */
 package buildcraft.lib.tile;
 
+import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.lib.compat.minecraft.persistence.BCBlockEntity;
@@ -83,7 +84,6 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.capabilities.BlockCapability;
 import buildcraft.lib.net.BCNetworkSide;
-import net.neoforged.neoforge.items.IItemHandlerModifiable;
 import buildcraft.lib.net.BCPacketContext;
 
 public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadReceiver, IAdvDebugTarget, IPlayerOwned, IBCCapabilityProvider {
@@ -368,7 +368,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
     
     
     // Item caps
-    protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before,
+    protected void onSlotChange(MutableItemStorage handler, int slot, @Nonnull ItemStack before,
         @Nonnull ItemStack after) {
         if (level.isLoaded(worldPosition)) {
             if (getBlockState().hasAnalogOutputSignal()) {

@@ -14,6 +14,7 @@ import buildcraft.lib.internal.core.IStackFilter;
 import buildcraft.lib.inventory.AbstractInvItemTransactor;
 import buildcraft.lib.misc.ItemStackUtil;
 import buildcraft.lib.misc.StackUtil;
+import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.tile.item.StackInsertionFunction.InsertionResult;
 
 import net.minecraft.CrashReport;
@@ -29,7 +30,7 @@ import net.neoforged.neoforge.common.util.INBTSerializable;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
 
 public class ItemHandlerSimple extends AbstractInvItemTransactor
-    implements IItemHandlerModifiable, IItemHandlerAdv, INBTSerializable<CompoundTag> {
+    implements IItemHandlerModifiable, IItemHandlerAdv, INBTSerializable<CompoundTag>, MutableItemStorage {
     // Function-called stuff (helpers etc)
     private StackInsertionChecker checker;
     private StackInsertionFunction inserter;

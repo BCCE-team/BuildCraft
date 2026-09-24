@@ -445,6 +445,33 @@ containers, and Minecraft's native Fluid/FluidType classes remain loader-bound.
 This boundary covers storage operations only; native storage types remain
 loader-bound where required by the platform API.
 
+### Transfer operation boundary
+
+API2 neighbour transfer no longer reimplements item/fluid/energy semantics in each
+loader. `PlatformApi2Bootstrap` owns native endpoint discovery only, reduces the
+result to `PlatformTransferLookup`, and installs the shared
+`DefaultPlatformServices`. `TransferAdapters` is the common bridge between the
+internal storage contracts and API2 `ItemPort`, `FluidPort`, and
+`ExternalEnergyPort` views. Loader-native fluid stacks cross that bridge only
+through a lossless `FluidCarrier<F>` supplied by the loader adapter.
+
+`OperationScope` represents one logical transfer operation across nested adapters.
+It is thread-confined, propagates `EXECUTE`/`SIMULATE`, rejects recursive re-entry
+of the same endpoint identity, and owns attachments shared by nested scopes. Forge
+and NeoForge currently use the scope for recursion/simulation discipline. A future
+Fabric adapter can attach its native transaction/journal to the same root scope,
+so multi-hop transfers do not create unrelated transaction owners at every hop.
+The scope is internal implementation infrastructure and is deliberately not part
+of public API v2.
+
+Item inventory callbacks now use `MutableItemStorage` instead of Forge/NeoForge
+`IItemHandlerModifiable`. Menu opening is routed through `PlatformMenus`. Gameplay
+whose remaining differences are Minecraft-family differences lives in
+`source-families/<family>` rather than loader roots; loader-identical Electronic
+Library, Requester, and directional-pipe behaviour are shared. This keeps native
+lookup/registration mechanics in platform layers without making the loader the
+owner of the gameplay algorithm.
+
 Content catalogs preserve ID and definition order. Descriptor creation and bus
 binding never execute a content factory. Factories run under native registry
 lifecycle control; late definitions before the registration event remain allowed,

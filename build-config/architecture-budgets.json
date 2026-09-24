@@ -21,8 +21,8 @@
     "conditions.files": 205,
     "downports.java_total": 278,
     "foreign_packages.count": 0,
-    "platform.gameplay_override_count": 116,
-    "platform.java_total": 608,
+    "platform.gameplay_override_count": 95,
+    "platform.java_total": 585,
     "platform.loader_neutral_count": 0,
     "transforms.class_specific_java_rewrites": 0
   },

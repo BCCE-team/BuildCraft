@@ -12,6 +12,7 @@ import java.io.IOException;
 
 import javax.annotation.Nonnull;
 
+import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.internal.core.EnumPipePart;
 import buildcraft.lib.internal.mj.IMjConnector;
 import buildcraft.lib.internal.mj.IMjRedstoneReceiver;
@@ -39,7 +40,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
-import net.minecraftforge.items.IItemHandlerModifiable;
 import buildcraft.lib.net.BCPacketContext;
 import net.minecraftforge.network.NetworkHooks;
 
@@ -77,7 +77,7 @@ public class TileAdvancedCraftingTable extends TileLaserTableBase implements IAu
     }
 
     @Override
-    protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before,
+    protected void onSlotChange(MutableItemStorage handler, int slot, @Nonnull ItemStack before,
         @Nonnull ItemStack after) {
         super.onSlotChange(handler, slot, before, after);
         //? if <1.20 {

@@ -6,6 +6,7 @@
  */
 package buildcraft.builders.tile;
 
+import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
@@ -101,7 +102,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.fluids.FluidType;
 import buildcraft.lib.net.BCNetworkSide;
-import net.neoforged.neoforge.items.IItemHandlerModifiable;
 import buildcraft.lib.net.BCPacketContext;
 
 public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileForTemplateBuilder, ITileForBlueprintBuilder, IRobotBuilderTarget, MenuProvider {
@@ -227,7 +227,7 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     }
 
     @Override
-    protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before,
+    protected void onSlotChange(MutableItemStorage handler, int slot, @Nonnull ItemStack before,
         @Nonnull ItemStack after) {
         if (!level.isClientSide) {
             if (handler == invSnapshot) {

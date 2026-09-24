@@ -4,6 +4,7 @@ import buildcraft.api.v2.fluid.FluidAmount;
 import buildcraft.api.v2.fluid.FluidMatchContext;
 import buildcraft.api.v2.fluid.FluidVariant;
 import buildcraft.api.v2.fluid.FluidVolume;
+import buildcraft.lib.internal.transfer.FluidCarrier;
 import java.util.Objects;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
@@ -22,6 +23,17 @@ import net.minecraft.core.registries.Registries;
 /** Forge bridge for the loader-neutral API 2 fuel/coolant domain. */
 public final class FuelApiBridge {
     public static final FluidMatchContext MATCH_CONTEXT = FuelApiBridge::isInTag;
+    public static final FluidCarrier<FluidStack> CARRIER = new FluidCarrier<>() {
+        @Override public boolean isEmpty(FluidStack stack) { return stack == null || stack.isEmpty(); }
+        @Override public int amount(FluidStack stack) { return stack == null ? 0 : stack.getAmount(); }
+        @Override public FluidVolume toVolume(FluidStack stack) { return volumeOf(stack); }
+        @Override public FluidStack fromVolume(FluidVolume volume) { return stackOf(volume); }
+        @Override public FluidStack copyWithAmount(FluidStack stack, int amount) {
+            FluidStack copy = stack.copy();
+            copy.setAmount(amount);
+            return copy;
+        }
+    };
 
     private FuelApiBridge() {}
 

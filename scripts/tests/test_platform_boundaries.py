@@ -153,6 +153,86 @@ class PlatformBoundaries(unittest.TestCase):
                     self.assertRegex(source, r'caps\.addFluidStorage\(')
                     self.assertNotRegex(source, r'caps\.addCapability(?:Instance)?\([^\n]*(?:CAP_FLUIDS|FLUID_HANDLER)')
 
+    def test_api2_transfer_services_share_one_operation_runtime(self):
+        operation = (ROOT/'source-shared/src/main/java/buildcraft/lib/internal/transfer/OperationScope.java').read_text(encoding='utf-8')
+        self.assertIn('ThreadLocal<Deque<OperationScope>>', operation)
+        self.assertIn('Guard enter(Object endpointIdentity)', operation)
+        self.assertIn('sharedAttachment(Object key', operation)
+        self.assertIn('parent == null ? new RootState() : parent.root', operation)
+        self.assertNotRegex(operation, r'net\.(?:minecraftforge|neoforged|fabricmc)\.')
+
+        adapters = (ROOT/'source-shared/src/main/java/buildcraft/lib/internal/transfer/TransferAdapters.java').read_text(encoding='utf-8')
+        for token in ('ItemStorage', 'FluidStorage<F>', 'EnergyStorage', 'OperationScope.Guard', 'ItemPort', 'FluidPort', 'ExternalEnergyPort'):
+            self.assertIn(token, adapters)
+        self.assertNotRegex(adapters, r'net\.(?:minecraftforge|neoforged|fabricmc)\.')
+
+        services = (ROOT/'source-shared/src/main/java/buildcraft/lib/internal/api/v2/platform/DefaultPlatformServices.java').read_text(encoding='utf-8')
+        self.assertIn('PlatformTransferLookup', services)
+        self.assertIn('TransferAdapters::itemPort', services)
+        self.assertIn('TransferAdapters::fluidPort', services)
+        self.assertIn('TransferAdapters::energyPort', services)
+
+        for target, java in self.java.items():
+            with self.subTest(target=target):
+                bootstrap = (java/'buildcraft/lib/internal/api/v2/platform/PlatformApi2Bootstrap.java').read_text(encoding='utf-8')
+                self.assertIn('new DefaultPlatformServices(Lookup.INSTANCE)', bootstrap)
+                self.assertIn('implements PlatformTransferLookup', bootstrap)
+                self.assertNotRegex(bootstrap, r'(?:Forge|NeoForge)(?:Item|Fluid|Energy)Port')
+                self.assertIn('TransferAdapters.items(storage)', bootstrap)
+                self.assertIn('TransferAdapters.energy(storage)', bootstrap)
+                fuel = (java/'buildcraft/lib/fluid/FuelApiBridge.java').read_text(encoding='utf-8')
+                self.assertIn('FluidCarrier<FluidStack> CARRIER', fuel)
+
+    def test_item_callbacks_and_promoted_gameplay_are_loader_neutral(self):
+        callback = (ROOT/'source-shared/src/main/java/buildcraft/lib/tile/item/StackChangeCallback.java').read_text(encoding='utf-8')
+        self.assertIn('MutableItemStorage itemHandler', callback)
+        self.assertNotRegex(callback, r'IItemHandlerModifiable|net\.(?:minecraftforge|neoforged)')
+
+        shared_gameplay = (
+            'src/main/java/buildcraft/builders/tile/TileElectronicLibrary.java',
+            'src/main/java/buildcraft/robotics/tile/TileRequester.java',
+            'src/main/java/buildcraft/transport/pipe/behaviour/PipeBehaviourDirectional.java',
+        )
+        family_gameplay = (
+            'src/main/java/buildcraft/builders/tile/TileConstructionMarker.java',
+            'src/main/java/buildcraft/builders/tile/TileFiller.java',
+            'src/main/java/buildcraft/builders/tile/TileReplacer.java',
+            'src/main/java/buildcraft/robotics/tile/TileZonePlanner.java',
+            'src/main/java/buildcraft/transport/pipe/behaviour/PipeBehaviourDiamond.java',
+        )
+        for target in TARGETS:
+            layout = target_layout(target, self.props)
+            for logical in shared_gameplay:
+                owner = resolve_effective_source(layout, self.props, logical)
+                self.assertIsNotNone(owner, (target, logical))
+                self.assertIn('/source-shared/', owner.as_posix(), (target, logical, owner))
+            expected_family = '/source-families/legacy/' if target.endswith('-forge') else '/source-families/modern/'
+            for logical in family_gameplay:
+                owner = resolve_effective_source(layout, self.props, logical)
+                self.assertIsNotNone(owner, (target, logical))
+                self.assertIn(expected_family, owner.as_posix(), (target, logical, owner))
+
+            electronic = (self.java[target]/'buildcraft/builders/tile/TileElectronicLibrary.java').read_text(encoding='utf-8')
+            requester = (self.java[target]/'buildcraft/robotics/tile/TileRequester.java').read_text(encoding='utf-8')
+            directional = (self.java[target]/'buildcraft/transport/pipe/behaviour/PipeBehaviourDirectional.java').read_text(encoding='utf-8')
+            self.assertNotRegex(electronic, r'net\.(?:minecraftforge|neoforged)')
+            self.assertNotRegex(requester, r'net\.(?:minecraftforge|neoforged)')
+            self.assertNotRegex(directional, r'SidedThreadGroups|net\.(?:minecraftforge|neoforged)')
+            self.assertIn('PlatformMenus.open(serverPlayer, this, worldPosition)', requester)
+            self.assertIn('!pipe.getHolder().getPipeWorld().isClientSide()', directional)
+
+    def test_menu_opening_is_a_loader_boundary(self):
+        for target, java in self.java.items():
+            with self.subTest(target=target):
+                menus = (java/'buildcraft/lib/platform/registry/PlatformMenus.java').read_text(encoding='utf-8')
+                self.assertIn('public static void open(ServerPlayer player, MenuProvider provider, BlockPos pos)', menus)
+                requester = (java/'buildcraft/robotics/tile/TileRequester.java').read_text(encoding='utf-8')
+                zone = (java/'buildcraft/robotics/tile/TileZonePlanner.java').read_text(encoding='utf-8')
+                diamond = (java/'buildcraft/transport/pipe/behaviour/PipeBehaviourDiamond.java').read_text(encoding='utf-8')
+                for source in (requester, zone, diamond):
+                    self.assertIn('PlatformMenus.open(', source)
+                    self.assertNotIn('NetworkHooks.openScreen', source)
+
     def test_storage_boundary_regressions_are_guarded(self):
         forge = self.java['1.20.1-forge']
         modern = self.java['1.21.11-neoforge']

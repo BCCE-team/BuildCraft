@@ -13,6 +13,7 @@ import java.util.Arrays;
 
 import javax.annotation.Nonnull;
 
+import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.internal.core.EnumPipePart;
 import buildcraft.lib.internal.mj.IMjConnector;
 import buildcraft.lib.internal.mj.IMjRedstoneReceiver;
@@ -38,7 +39,6 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
-import net.minecraftforge.items.IItemHandlerModifiable;
 import buildcraft.lib.net.BCPacketContext;
 
 public abstract class TileAutoWorkbenchBase extends TileBC_Neptune
@@ -104,7 +104,7 @@ public abstract class TileAutoWorkbenchBase extends TileBC_Neptune
     }
 
     @Override
-    protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before,
+    protected void onSlotChange(MutableItemStorage handler, int slot, @Nonnull ItemStack before,
         @Nonnull ItemStack after) {
         super.onSlotChange(handler, slot, before, after);
         if (!ItemStack.matches(before, after)) {

@@ -33,6 +33,8 @@ def run(java_root: Path, work: Path, target: str) -> str:
     put('net.minecraft.core.Direction', '''package net.minecraft.core;
 public enum Direction {DOWN,UP,NORTH,SOUTH,WEST,EAST}
 ''')
+    put('net.minecraft.core.BlockPos', 'package net.minecraft.core;public record BlockPos(int x,int y,int z) {}')
+    put('net.minecraft.world.MenuProvider', 'package net.minecraft.world;public interface MenuProvider {}')
     put('buildcraft.lib.internal.core.EnumPipePart', '''package buildcraft.lib.internal.core;
 import net.minecraft.core.Direction;
 public enum EnumPipePart {CENTER(null),DOWN(Direction.DOWN),UP(Direction.UP),NORTH(Direction.NORTH),SOUTH(Direction.SOUTH),WEST(Direction.WEST),EAST(Direction.EAST);
@@ -112,7 +114,9 @@ public {spec} build(){{if(!paths.isEmpty())throw new IllegalStateException("uncl
     put('net.minecraft.server.level.ServerLevel','package net.minecraft.server.level;public class ServerLevel extends net.minecraft.world.level.Level {}')
     put('net.minecraft.world.entity.Entity','package net.minecraft.world.entity;public class Entity {}')
     put('net.minecraft.world.entity.player.Player','package net.minecraft.world.entity.player;public class Player extends net.minecraft.world.entity.Entity {}')
-    put('net.minecraft.server.level.ServerPlayer','package net.minecraft.server.level;public class ServerPlayer extends net.minecraft.world.entity.player.Player {private final ServerLevel level;public ServerPlayer(ServerLevel level){this.level=level;}public ServerLevel getLevel(){return level;} }')
+    put('net.minecraft.server.level.ServerPlayer','''package net.minecraft.server.level;
+import java.util.function.Consumer;import net.minecraft.network.FriendlyByteBuf;import net.minecraft.world.MenuProvider;
+public class ServerPlayer extends net.minecraft.world.entity.player.Player {private final ServerLevel level;public ServerPlayer(ServerLevel level){this.level=level;}public ServerLevel getLevel(){return level;}public void openMenu(MenuProvider provider,Consumer<FriendlyByteBuf> writer){writer.accept(new FriendlyByteBuf());}}''')
     put('net.minecraft.world.level.ChunkPos','package net.minecraft.world.level;public record ChunkPos(int x,int z) {}')
     put(prefix+'.common.'+('MinecraftForge' if forge else 'NeoForge'),f"package {prefix}.common;public class {'MinecraftForge' if forge else 'NeoForge'} {{public static final probe.Bus EVENT_BUS=new probe.Bus();}}")
     put(prefix+'.event.entity.EntityJoinLevelEvent',f'package {prefix}.event.entity;public record EntityJoinLevelEvent(net.minecraft.world.entity.Entity getEntity) {{}}')
@@ -136,12 +140,16 @@ public static class PlayerTickEvent extends TickEvent {{public final Player play
             superarg=arg.split()[-1] if arg else ''
             put(prefix+'.event.tick.'+name,f'package {prefix}.event.tick;public class {name} {{{field}private {name}({arg}){{{init}}}{extra}public static class Pre extends {name} {{public Pre({arg}){{super({superarg});}}}}public static class Post extends {name}{{public Post({arg}){{super({superarg});}}}}}}')
         put(prefix+'.client.event.ClientTickEvent',f'package {prefix}.client.event;public class ClientTickEvent {{public static class Pre{{}}public static class Post{{}}}}')
-    put('net.minecraft.network.FriendlyByteBuf','package net.minecraft.network;public class FriendlyByteBuf {}')
+    put('net.minecraft.network.FriendlyByteBuf','package net.minecraft.network;public class FriendlyByteBuf {public void writeBlockPos(net.minecraft.core.BlockPos pos){}}')
     put('net.minecraft.network.RegistryFriendlyByteBuf','package net.minecraft.network;public class RegistryFriendlyByteBuf extends FriendlyByteBuf {}')
     put('net.minecraft.world.entity.player.Inventory','package net.minecraft.world.entity.player;public class Inventory {}')
     put('net.minecraft.world.inventory.AbstractContainerMenu','package net.minecraft.world.inventory;public class AbstractContainerMenu {}')
     put('net.minecraft.world.inventory.MenuType','package net.minecraft.world.inventory;public class MenuType<T extends AbstractContainerMenu> {public final buildcraft.lib.platform.registry.BCMenuFactory<T> factory;public MenuType(buildcraft.lib.platform.registry.BCMenuFactory<T> f){factory=f;}}')
     put('buildcraft.lib.gui.MenuBC_Neptune','package buildcraft.lib.gui;public class MenuBC_Neptune extends net.minecraft.world.inventory.AbstractContainerMenu {}')
+    if forge:
+        put('net.minecraftforge.network.NetworkHooks','''package net.minecraftforge.network;
+import net.minecraft.core.BlockPos;import net.minecraft.server.level.ServerPlayer;import net.minecraft.world.MenuProvider;
+public final class NetworkHooks {public static void openScreen(ServerPlayer player,MenuProvider provider,BlockPos pos){}}''')
     factorybuf = 'FriendlyByteBuf' if forge else 'RegistryFriendlyByteBuf'
     put(prefix+'.network.IContainerFactory',f'package {prefix}.network;public interface IContainerFactory<T extends net.minecraft.world.inventory.AbstractContainerMenu> {{T create(int id,net.minecraft.world.entity.player.Inventory inv,net.minecraft.network.{factorybuf} data);}}')
     menuhook = 'IForgeMenuType' if forge else 'IMenuTypeExtension'

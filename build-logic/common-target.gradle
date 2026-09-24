@@ -162,6 +162,23 @@ def prepareEffectiveSource = tasks.register('prepareEffectiveSource', Exec) {
 def effectiveSourceDir = effectiveSourceRoot.get().asFile
 def effectiveDirs = { String relative -> [new File(effectiveSourceDir, relative)] }
 
+// Keep every JAR artifact for a Minecraft version in one repository-level folder.
+// The target remains part of project.version, so loader variants can coexist.
+def centralJarOutputDir = new File(repositoryRoot, "build/${minecraftVersion}")
+def targetArtifactVersionMarker = "+${targetName.replace('-', '+')}"
+def cleanCentralJarOutput = tasks.register('cleanCentralJarOutput', Delete) {
+    group = 'build'
+    description = "Remove stale ${targetName} JAR artifacts from the shared Minecraft ${minecraftVersion} output folder"
+    delete fileTree(centralJarOutputDir) {
+        include "${archiveName}-*${targetArtifactVersionMarker}*.jar"
+    }
+}
+
+tasks.withType(org.gradle.api.tasks.bundling.Jar).configureEach {
+    dependsOn cleanCentralJarOutput
+    destinationDirectory.set(centralJarOutputDir)
+}
+
 version = "${modVersion}+${targetName.replace('-', '+')}"
 group = requiredProperty('mod.group')
 base.archivesName = archiveName
@@ -208,4 +225,6 @@ project.ext.bcTarget = [
         prepareEffectiveSource: prepareEffectiveSource,
         effectiveSourceDir: effectiveSourceDir,
         effectiveDirs: effectiveDirs,
+        centralJarOutputDir: centralJarOutputDir,
+        cleanCentralJarOutput: cleanCentralJarOutput,
 ]

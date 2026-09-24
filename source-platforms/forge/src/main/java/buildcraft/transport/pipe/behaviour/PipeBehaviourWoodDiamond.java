@@ -8,6 +8,7 @@ package buildcraft.transport.pipe.behaviour;
 
 import java.io.IOException;
 
+import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.internal.core.EnumPipePart;
 import buildcraft.lib.internal.core.IStackFilter;
 import buildcraft.transport.internal.IItemPluggable;
@@ -44,7 +45,6 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidUtil;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
-import net.minecraftforge.items.IItemHandlerModifiable;
 import buildcraft.lib.net.BCPacketContext;
 import net.minecraftforge.network.NetworkHooks;
 
@@ -154,7 +154,7 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
         return true;
     }
     
-    private void onSlotChanged(IItemHandlerModifiable itemHandler, int slot, ItemStack before, ItemStack after) {
+    private void onSlotChanged(MutableItemStorage itemHandler, int slot, ItemStack before, ItemStack after) {
         if (!after.isEmpty()) {
             if (!filterValid) {
                 currentFilter = slot;

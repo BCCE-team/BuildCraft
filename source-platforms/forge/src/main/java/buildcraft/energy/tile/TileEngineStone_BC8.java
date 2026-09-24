@@ -5,6 +5,7 @@
 package buildcraft.energy.tile;
 
 import buildcraft.api.v2.energy.MjAmount;
+import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.internal.mj.MjFormatting;
 
 import java.util.List;
@@ -44,7 +45,6 @@ import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.common.ForgeHooks;
-import net.minecraftforge.items.IItemHandlerModifiable;
 import net.minecraftforge.network.NetworkHooks;
 
 public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvider{
@@ -98,7 +98,7 @@ public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvi
     }
 
     @Override
-    protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before,
+    protected void onSlotChange(MutableItemStorage handler, int slot, @Nonnull ItemStack before,
         @Nonnull ItemStack after) {
         if (handler == invFuel) {
             if (isForceInserting && after.isEmpty()) {

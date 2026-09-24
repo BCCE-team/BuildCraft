@@ -11,6 +11,7 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
+import buildcraft.lib.platform.storage.ItemStorage;
 import buildcraft.lib.inventory.filter.ArrayStackFilter;
 import buildcraft.lib.misc.InventoryUtil;
 import buildcraft.lib.misc.ItemStackKey;
@@ -280,7 +281,7 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         areMaterialsDirty = true;
     }
 
-    public void onInventoryChange(IItemHandler inv) {
+    public void onInventoryChange(ItemStorage inv) {
         if (inv == invBlueprint) {
             isBlueprintDirty = true;
         } else if (inv == invMaterials) {

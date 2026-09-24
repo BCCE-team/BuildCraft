@@ -116,20 +116,43 @@ def validate_runtime_services() -> None:
     if "BuildCraftApi.registry" not in presentation:
         fail("ClientPresentationServiceImpl does not consume the presentation registries")
 
+    shared_platform = require(
+        ROOT / "source-shared/src/main/java/buildcraft/lib/internal/api/v2/platform/DefaultPlatformServices.java",
+        "implements PlatformServices",
+        "Optional<ItemTransfer>",
+        "Optional<FluidTransfer>",
+        "Optional<EnergyTransfer>",
+        "PlatformTransferLookup",
+        "TransferAdapters::itemPort",
+        "TransferAdapters::fluidPort",
+        "TransferAdapters::energyPort",
+    )
+    transfer_adapters = require(
+        ROOT / "source-shared/src/main/java/buildcraft/lib/internal/transfer/TransferAdapters.java",
+        "implements ItemTransferAccess",
+        "implements FluidTransferAccess",
+        "implements EnergyTransferAccess",
+        "scope.simulate()",
+        "scope.mode()",
+        "scope.enter(",
+    )
+    require(
+        ROOT / "source-shared/src/main/java/buildcraft/lib/internal/transfer/OperationScope.java",
+        "ThreadLocal<Deque<OperationScope>>",
+        "Guard enter(Object endpointIdentity)",
+        "sharedAttachment(Object key",
+    )
+
     for platform in ("forge", "neoforge"):
-        impl = require(
+        require(
             ROOT / f"source-platforms/{platform}/src/main/java/buildcraft/lib/internal/api/v2/platform/PlatformApi2Bootstrap.java",
             "BuildCraftServices.PLATFORM",
-            "implements PlatformServices",
-            "Optional<ItemTransfer>",
-            "Optional<FluidTransfer>",
-            "Optional<EnergyTransfer>",
-            "implements ItemPort",
-            "implements FluidPort",
-            "implements ExternalEnergyPort",
+            "new DefaultPlatformServices(Lookup.INSTANCE)",
+            "implements PlatformTransferLookup",
+            "TransferAdapters.items(storage)",
+            "TransferAdapters.fluids(storage",
+            "TransferAdapters.energy(storage)",
         )
-        if "OperationMode.SIMULATE" not in impl:
-            fail(f"{platform}: platform transfer adapters do not preserve simulation semantics")
 
 
 def validate_robot_extensions() -> None:

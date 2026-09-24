@@ -6,6 +6,7 @@
 
 package buildcraft.silicon.tile;
 
+import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
@@ -42,7 +43,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
-import net.neoforged.neoforge.items.IItemHandlerModifiable;
 import buildcraft.lib.net.BCPacketContext;
 
 public class TileAdvancedCraftingTable extends TileLaserTableBase implements IAutoCraft, MenuProvider, IMjRedstoneReceiver {
@@ -81,7 +81,7 @@ public class TileAdvancedCraftingTable extends TileLaserTableBase implements IAu
     }
 
     @Override
-    protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before,
+    protected void onSlotChange(MutableItemStorage handler, int slot, @Nonnull ItemStack before,
         @Nonnull ItemStack after) {
         super.onSlotChange(handler, slot, before, after);
         if (!ItemStack.isSameItemSameComponents(before, after)) {

@@ -8,6 +8,7 @@ package buildcraft.transport.pipe.behaviour;
 
 import java.io.IOException;
 
+import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.internal.core.EnumPipePart;
 import buildcraft.lib.internal.core.IStackFilter;
 import buildcraft.transport.internal.IItemPluggable;
@@ -45,7 +46,6 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidUtil;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
-import net.neoforged.neoforge.items.IItemHandlerModifiable;
 import buildcraft.lib.net.BCPacketContext;
 
 public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuProvider{
@@ -148,7 +148,7 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
         return true;
     }
     
-    private void onSlotChanged(IItemHandlerModifiable itemHandler, int slot, ItemStack before, ItemStack after) {
+    private void onSlotChanged(MutableItemStorage itemHandler, int slot, ItemStack before, ItemStack after) {
         if (!after.isEmpty()) {
             if (!filterValid) {
                 currentFilter = slot;

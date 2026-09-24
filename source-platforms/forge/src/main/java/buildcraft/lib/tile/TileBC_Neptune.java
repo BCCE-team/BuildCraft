@@ -14,6 +14,7 @@ import javax.annotation.Nullable;
 
 import org.jetbrains.annotations.NotNull;
 
+import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.internal.core.EnumPipePart;
@@ -81,7 +82,6 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
 import buildcraft.lib.net.BCNetworkSide;
-import net.minecraftforge.items.IItemHandlerModifiable;
 import buildcraft.lib.net.BCPacketContext;
 
 public abstract class TileBC_Neptune extends BlockEntity implements IPayloadReceiver, IAdvDebugTarget, IPlayerOwned {
@@ -383,7 +383,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     
     
     // Item caps
-    protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before,
+    protected void onSlotChange(MutableItemStorage handler, int slot, @Nonnull ItemStack before,
         @Nonnull ItemStack after) {
         if (level.isLoaded(worldPosition)) {
             if (getBlockState().hasAnalogOutputSignal()) {
