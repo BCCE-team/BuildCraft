@@ -2,14 +2,14 @@
 """Run the GitHub CI acceptance gates locally, in workflow order.
 
 The default mode mirrors .github/workflows/ci.yml as closely as a single local
-machine can: validate first, then every build/test/smoke matrix entry in declared
-order, then compatibility profiles. Every step transcript and the same runtime
-artifacts uploaded by GitHub Actions are copied under logs/ci-local/<run-id>/.
+machine can: validate first, then every build/test/server-smoke matrix entry in
+declared order, then compatibility profiles. The GitHub-only client smoke step is
+intentionally skipped locally so local CI never launches a Minecraft client.
+Every step transcript and runtime artifact is copied under logs/ci-local/<run-id>/.
 
-On Linux the runner invokes the exact CI smoke shell scripts. On Windows it
-runs native equivalents of those two launch/monitor wrappers: the Gradle tasks,
-profiles, readiness/fatal checks and artifacts are the same, while the real
-Windows desktop replaces CI's xvfb virtual display.
+On Linux the runner invokes the exact CI server-smoke shell script. On Windows it
+runs a native equivalent of that launch/monitor wrapper with the same Gradle task,
+profile, readiness/fatal checks and artifacts.
 """
 from __future__ import annotations
 
@@ -95,19 +95,6 @@ SERVER_FATAL_REGEX = (
     r'Mod loading has failed|A fatal error has been detected|ResolutionException|'
     r'UnsupportedClassVersionError'
 )
-CLIENT_READY_REGEX = r'Created: .*minecraft:textures/atlas/blocks\.png-atlas|minecraft:textures/atlas/blocks\.png-atlas'
-CLIENT_FATAL_REGEX = (
-    r'Mod loading has failed|Loading errors encountered|Exception caught during firing event|'
-    r'A fatal error has been detected|UnsupportedClassVersionError|NoClassDefFoundError|'
-    r'ExceptionInInitializerError|ReportedException: Rendering|Caught exception from BuildCraft|'
-    r'Crash report saved to'
-)
-CLIENT_RESOURCE_REGEX = (
-    r'(Missing model for variant|Failed to load model|Unable to load model|Using missing texture, unable to load).*'
-    r'(buildcraft)|buildcraft.*(Missing model for variant|Failed to load model|Unable to load model|'
-    r'Using missing texture, unable to load)|Invalid path in pack: buildcraft'
-)
-
 
 class LocalCIError(RuntimeError):
     pass
@@ -199,7 +186,6 @@ def workflow_alignment_check() -> None:
         '":${STONECUTTER_TARGET}:buildAndCollect"',
         '":${STONECUTTER_TARGET}:runGameTestServer"',
         "bash scripts/ci-server-smoke.sh",
-        "bash scripts/ci-client-smoke.sh",
     ):
         if fragment not in build_text:
             raise LocalCIError(f"Local CI runner is stale: build command changed: {fragment}")
@@ -213,14 +199,11 @@ def workflow_alignment_check() -> None:
             raise LocalCIError(f"Local CI runner is stale: compatibility matrix changed at {target}/{profile}")
         position = found + len(block)
 
-    # Windows uses native launch/process wrappers instead of xvfb/setsid. Keep their
-    # readiness and failure semantics locked to the shell scripts GitHub actually runs.
+    # Windows uses a native server launch/process wrapper instead of setsid. Keep its
+    # readiness and failure semantics locked to the shell script GitHub actually runs.
     smoke_contracts = (
         (ROOT / "scripts" / "ci-server-smoke.sh", "success_regex", SERVER_READY_REGEX),
         (ROOT / "scripts" / "ci-server-smoke.sh", "fatal_regex", SERVER_FATAL_REGEX),
-        (ROOT / "scripts" / "ci-client-smoke.sh", "ready_regex", CLIENT_READY_REGEX),
-        (ROOT / "scripts" / "ci-client-smoke.sh", "fatal_regex", CLIENT_FATAL_REGEX),
-        (ROOT / "scripts" / "ci-client-smoke.sh", "resource_regex", CLIENT_RESOURCE_REGEX),
     )
     for script, variable, expected in smoke_contracts:
         script_text = script.read_text(encoding="utf-8")
@@ -1014,95 +997,6 @@ def run_native_server_smoke(
         return status, step_log
 
 
-def run_native_client_smoke(
-    name: str,
-    *,
-    target: str,
-    generation: str,
-    env: dict[str, str],
-    run_dir: Path,
-    step_number: int,
-) -> tuple[int, Path]:
-    step_log = _step_log_path(run_dir, step_number, name)
-    timeout = int(env.get("CLIENT_STARTUP_TIMEOUT", "480"))
-    stability = int(env.get("CLIENT_STABILITY_SECONDS", "20"))
-    profile = env.get("CLIENT_RUNTIME_PROFILE", "jei")
-    build_root = ROOT / "builds" / generation
-    game_dir = ROOT / "run" / generation / target
-    latest_log = game_dir / "logs" / "latest.log"
-    runtime_log_dir = run_dir / "runtime"
-    runtime_log_dir.mkdir(parents=True, exist_ok=True)
-    client_log = runtime_log_dir / f"ci-client-{generation}-{target}-{profile}.log"
-    game_dir.mkdir(parents=True, exist_ok=True)
-    latest_log.unlink(missing_ok=True)
-    client_log.unlink(missing_ok=True)
-    command = gradle_command(
-        build_root,
-        "--no-daemon", "--console=plain", "--stacktrace",
-        f"-Pci_runtime_profile={profile}", f":{target}:runClient",
-    )
-
-    with step_log.open("w", encoding="utf-8", newline="\n") as log:
-        _emit(log, f"==> {name}")
-        _emit(log, "Native Windows wrapper for scripts/ci-client-smoke.sh; Windows desktop replaces xvfb, checks match CI.")
-        _emit(log, f"Starting client smoke {generation}/{target} (profile={profile}, timeout={timeout}s).")
-        process, output = _start_background(command, cwd=build_root, env=env, output_path=client_log)
-        ready_at: float | None = None
-        resource_error_seen = False
-        status = 1
-        try:
-            deadline = time.monotonic() + timeout
-            while time.monotonic() < deadline:
-                combined = _combined_logs(client_log, latest_log)
-                if re.search(CLIENT_FATAL_REGEX, combined, re.IGNORECASE):
-                    _emit(log, "Client reported a fatal startup/render error.")
-                    _show_log_tail(log, client_log)
-                    _show_log_tail(log, latest_log)
-                    break
-                if re.search(CLIENT_RESOURCE_REGEX, combined, re.IGNORECASE):
-                    if not resource_error_seen:
-                        _emit(log, "Client reported a BuildCraft resource/model error; collecting the rest of the reload before failing.")
-                    resource_error_seen = True
-                now = time.monotonic()
-                if ready_at is None and re.search(CLIENT_READY_REGEX, combined, re.IGNORECASE):
-                    ready_at = now
-                    _emit(log, f"Client completed block-atlas creation; observing {stability}s for late client errors.")
-                if ready_at is not None and now - ready_at >= stability:
-                    if resource_error_seen:
-                        _emit(log, "Client completed model/atlas startup but BuildCraft resource/model errors were detected.")
-                        _show_log_tail(log, client_log)
-                        _show_log_tail(log, latest_log)
-                        break
-                    _emit(log, "Client smoke reached model/atlas-ready state and remained stable.")
-                    status = 0
-                    break
-                process_status = process.poll()
-                if process_status is not None:
-                    if process_status == 0 and ready_at is not None:
-                        stable_for = max(0.0, now - ready_at)
-                        _emit(
-                            log,
-                            f"Client closed cleanly after {stable_for:.1f}s of the required {stability}s "
-                            "post-atlas stability window. Leave the launched client open; local CI closes it "
-                            "automatically after the smoke check passes.",
-                        )
-                    else:
-                        _emit(log, f"Client process exited before smoke completion (status {process_status}).")
-                    _show_log_tail(log, client_log)
-                    _show_log_tail(log, latest_log)
-                    break
-                time.sleep(3)
-            else:
-                _emit(log, f"Client did not finish model/atlas startup within {timeout}s.")
-                _show_log_tail(log, client_log)
-                _show_log_tail(log, latest_log)
-        finally:
-            _stop_process_tree(process)
-            output.close()
-        _emit(log, f"[exit {status}]")
-        return status, step_log
-
-
 def copy_artifact_patterns(patterns: Iterable[str], destination: Path) -> int:
     copied = 0
     for pattern in patterns:
@@ -1124,8 +1018,7 @@ def copy_artifact_patterns(patterns: Iterable[str], destination: Path) -> int:
 
 def build_artifact_patterns(target: str, generation: str) -> tuple[str, ...]:
     return (
-        f"build/libs/{generation}/**",
-        f"builds/{generation}/versions/{target}/build/libs/**",
+        "build/*/*.jar",
         f"builds/{generation}/versions/{target}/build/reports/tests/**",
         f"builds/{generation}/versions/{target}/build/test-results/**",
         f"run/{generation}/{target}/logs/**",
@@ -1187,7 +1080,7 @@ def write_plan(run_dir: Path, validate_only: bool) -> None:
     if not validate_only:
         lines.append("build-test-server (sequential local form of CI matrix):")
         for target, generation, java in TARGETS:
-            lines.append(f"  - {target} ({generation}, Java {java}): build -> GameTests -> server smoke -> client smoke -> artifacts")
+            lines.append(f"  - {target} ({generation}, Java {java}): build -> GameTests -> server smoke -> artifacts")
         lines.append("Compatibility:")
         for target, profile in COMPATIBILITY:
             lines.append(f"  - {target} / {profile}: server smoke -> artifacts")
@@ -1345,7 +1238,7 @@ def main() -> int:
             gradlew.chmod(gradlew.stat().st_mode | 0o111)
         except OSError:
             pass
-        for script in (ROOT / "build-all.sh", ROOT / "scripts/ci-server-smoke.sh", ROOT / "scripts/ci-client-smoke.sh", ROOT / "scripts/source_layout.py"):
+        for script in (ROOT / "build-all.sh", ROOT / "scripts/ci-server-smoke.sh", ROOT / "scripts/source_layout.py"):
             try:
                 script.chmod(script.stat().st_mode | 0o111)
             except OSError:
@@ -1422,27 +1315,6 @@ def main() -> int:
                     run_dir=run_dir, step_number=step_number,
                 )
             record(name, status, log)
-        if status == 0:
-            step_number += 1
-            name = f"Client smoke-test production target [{target}]"
-            client_env = dict(target_env)
-            client_env["CLIENT_STARTUP_TIMEOUT"] = "480"
-            client_env["CLIENT_STABILITY_SECONDS"] = "20"
-            client_env["CLIENT_RUNTIME_PROFILE"] = "jei"
-            runtime_log_dir = run_dir / "runtime"
-            runtime_log_dir.mkdir(parents=True, exist_ok=True)
-            client_env["CLIENT_LOG_FILE"] = str(runtime_log_dir / f"ci-client-{generation}-{target}-jei.log")
-            if os.name == "nt":
-                status, log = run_native_client_smoke(
-                    name, target=target, generation=generation, env=client_env,
-                    run_dir=run_dir, step_number=step_number,
-                )
-            else:
-                status, log = run_command(
-                    name, ("bash", "scripts/ci-client-smoke.sh"), env=client_env,
-                    run_dir=run_dir, step_number=step_number,
-                )
-            record(name, status, log)
 
         destination = run_dir / "artifacts" / f"buildcraft-{target}"
         copied = copy_artifact_patterns(build_artifact_patterns(target, generation), destination)
@@ -1452,7 +1324,6 @@ def main() -> int:
             (
                 f"ci-server-{generation}-{target}-*.log",
                 f"ci-server-install-{generation}-{target}.log",
-                f"ci-client-{generation}-{target}-*.log",
             ),
         )
         print(f"Collected {copied} artifact file(s) for {target} -> {destination.relative_to(ROOT)}")

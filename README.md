@@ -78,7 +78,7 @@ Crash reports require a crash log in addition to the information above.
 
 ### BuildCraft Community Edition Localizations
 
-- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/buildcraft-community-edition-localizations) [Modrinth](https://modrinth.com/mod/buildcraft-community-edition-localizations) [GitHub](https://github.com/CurativeTree/BuildCraft/tree/Localizations)
+- [CurseForge](https://www.curseforge.com/minecraft/mc-mods/buildcraft-community-edition-localizations) [Modrinth](https://modrinth.com/mod/buildcraft-community-edition-localizations) [GitHub](https://github.com/BCCE-team/BuildCraft-Localizations)
 
 ### IronTanks Community Edition
 

@@ -800,7 +800,7 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
         "CLIENT_RUNTIME_PROFILE: jei",
         "scripts/ci-client-smoke.sh",
         "name: buildcraft-${{ matrix.target }}-${{ github.run_number }}-${{ github.run_attempt }}",
-        "versions/${{ matrix.target }}/build/libs/**",
+        "build/*/*.jar",
     ):
         if token not in runtime:
             fail(f"target runtime CI lost required isolated coverage: {token}")
@@ -813,6 +813,7 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
         "gametest_status=0",
         "client_status=0",
         "versions/*/build/libs/**",
+        "build/libs/${{ matrix.generation }}/**",
         "run/${{ matrix.generation }}/*/logs/**",
     ):
         if forbidden in runtime:
@@ -854,11 +855,33 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
     server = server_script.read_text(encoding="utf-8")
     for token in (
         "expected_buildcraft_version",
+        'jar_dir="${repo_root}/build/${minecraft_version}"',
+        'production_jar="${jar_dir}/${archive_name}-${expected_buildcraft_version}.jar"',
         "Starting BuildCraft ${expected_buildcraft_version}",
         "unresolved BuildCraft Java build metadata",
     ):
         if token not in server:
-            fail(f"server smoke script lost runtime build-metadata guard {token!r}")
+            fail(f"server smoke script lost runtime build-metadata/output guard {token!r}")
+
+    common_target = (ROOT / "build-logic/common-target.gradle").read_text(encoding="utf-8")
+    for token in (
+        'new File(repositoryRoot, "build/${minecraftVersion}")',
+        "tasks.withType(org.gradle.api.tasks.bundling.Jar).configureEach",
+        "destinationDirectory.set(centralJarOutputDir)",
+        "cleanCentralJarOutput",
+    ):
+        if token not in common_target:
+            fail(f"shared target build lost centralized JAR output rule {token!r}")
+
+    for loader_script in (
+        ROOT / "build-logic/loaders/forge-target.gradle",
+        ROOT / "build-logic/loaders/neoforge-target.gradle",
+    ):
+        loader = loader_script.read_text(encoding="utf-8")
+        if 'new File(repositoryRoot, "build/libs/${buildGeneration}/${modVersion}")' in loader:
+            fail(f"{loader_script.name} still writes release jars to the old generation/mod-version folder")
+        if "tasks.register('buildAndCollect', Copy)" in loader:
+            fail(f"{loader_script.name} still copies JARs after build instead of using the shared output directory")
 
 
 def main() -> None:

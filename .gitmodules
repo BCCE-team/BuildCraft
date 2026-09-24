@@ -1,0 +1,4 @@
+[submodule "localizations"]
+	path = localizations
+	url = https://github.com/BCCE-team/BuildCraft-Localizations.git
+	branch = main

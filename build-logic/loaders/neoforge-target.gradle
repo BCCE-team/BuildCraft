@@ -31,6 +31,7 @@ def pythonExecutable = bc.pythonExecutable
 def prepareEffectiveSource = bc.prepareEffectiveSource
 def effectiveSourceDir = bc.effectiveSourceDir
 def effectiveDirs = bc.effectiveDirs
+def centralJarOutputDir = bc.centralJarOutputDir
 def jeiCompatEnabled = booleanProperty('compat.jei.enabled', true)
 def jadeCompatEnabled = booleanProperty('compat.jade.enabled', true)
 def ic2CompatEnabled = booleanProperty('compat.ic2.enabled', false)
@@ -403,7 +404,8 @@ tasks.named('jar', Jar) {
     }
 }
 
-def releaseOutputDir = new File(repositoryRoot, "build/libs/${buildGeneration}/${modVersion}")
+// JAR tasks already write directly to build/<minecraft-version> through common-target.gradle.
+// Keep buildAndCollect as the stable CI/root-build entry point without a second copy step.
 def cleanupStandaloneApiV2Artifacts = tasks.register('cleanupStandaloneApiV2Artifacts', Delete) {
     group = 'build'
     description = "Remove obsolete standalone API 2 jars for ${targetName}"
@@ -411,7 +413,7 @@ def cleanupStandaloneApiV2Artifacts = tasks.register('cleanupStandaloneApiV2Arti
         include '*-api-v2.jar'
         include '*-api-v2-sources.jar'
     }
-    delete fileTree(releaseOutputDir) {
+    delete fileTree(centralJarOutputDir) {
         include "${archiveName}-${project.version}-api-v2.jar"
         include "${archiveName}-${project.version}-api-v2-sources.jar"
     }
@@ -421,12 +423,10 @@ tasks.named('assemble') {
     dependsOn cleanupStandaloneApiV2Artifacts
 }
 
-tasks.register('buildAndCollect', Copy) {
+tasks.register('buildAndCollect') {
     group = 'build'
-    description = "Build and collect the ${targetName} production jar"
+    description = "Build ${targetName}; JAR artifacts are written to ${centralJarOutputDir}"
     dependsOn tasks.named('build')
-    from tasks.named('jar').flatMap { it.archiveFile }
-    into releaseOutputDir
 }
 
 // API 2 is bundled directly in the normal BuildCraft production jar.

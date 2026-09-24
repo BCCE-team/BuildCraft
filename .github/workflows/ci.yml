@@ -287,8 +287,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
           path: |
-            build/libs/${{ matrix.generation }}/**
-            builds/${{ matrix.generation }}/versions/${{ matrix.target }}/build/libs/**
+            build/*/*.jar
             builds/${{ matrix.generation }}/versions/${{ matrix.target }}/build/reports/tests/**
             builds/${{ matrix.generation }}/versions/${{ matrix.target }}/build/test-results/**
             run/${{ matrix.generation }}/${{ matrix.target }}/logs/**

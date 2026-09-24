@@ -179,23 +179,14 @@ if [[ "$runtime_profile" == "base" ]]; then
     exit 2
   fi
 
-  jar_dir="${build_root}/versions/${target}/build/libs"
-  if [[ ! -d "$jar_dir" ]]; then
-    echo "Production jar directory does not exist: $jar_dir" >&2
+  archive_name="$(read_property_file "$common_config" "common.mod.archive_name")"
+  jar_dir="${repo_root}/build/${minecraft_version}"
+  production_jar="${jar_dir}/${archive_name}-${expected_buildcraft_version}.jar"
+  if [[ ! -f "$production_jar" ]]; then
+    echo "Production jar does not exist: $production_jar" >&2
     echo "Run the ${generation} buildAndCollect task before the server smoke test." >&2
     exit 2
   fi
-
-  mapfile -t production_jars < <(
-    find "$jar_dir" -maxdepth 1 -type f -name '*.jar' \
-      ! -name '*-sources.jar' ! -name '*-javadoc.jar' | sort
-  )
-  if (( ${#production_jars[@]} != 1 )); then
-    echo "Expected exactly one production jar in $jar_dir, found ${#production_jars[@]}." >&2
-    printf '  %s\n' "${production_jars[@]}" >&2
-    exit 2
-  fi
-  production_jar="${production_jars[0]}"
 
   server_dir="${repo_root}/run-server/${generation}/${target}"
   install_log="${SERVER_INSTALL_LOG_FILE:-${repo_root}/ci-server-install-${generation}-${target}.log}"
