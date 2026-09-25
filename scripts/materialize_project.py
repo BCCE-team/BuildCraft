@@ -573,6 +573,7 @@ def _fabric_build_gradle(properties: dict[str, str], target: str) -> str:
     loom_version = _target_property(properties, target, "deps.fabric_loom")
     loader_version = _target_property(properties, target, "deps.fabric_loader")
     api_version = _target_property(properties, target, "deps.fabric_api")
+    energy_version = _target_property(properties, target, "deps.energy_api")
     junit = _target_property(properties, target, "deps.junit")
     return f"""plugins {{
     id 'java'
@@ -594,7 +595,15 @@ sourceSets {{
     main {{
         java.include 'buildcraft/api/v2/**'
         java.include 'buildcraft/fabric/**'
+        java.include 'buildcraft/lib/net/BC*.java'
+        java.include 'buildcraft/lib/net/Fabric*.java'
         java.include 'buildcraft/lib/net/BuildCraftTarget.java'
+        java.include 'buildcraft/lib/internal/module/IBuildCraftMod.java'
+        java.include 'buildcraft/lib/internal/module/BCModules.java'
+        java.include 'buildcraft/lib/internal/transfer/**'
+        java.include 'buildcraft/lib/internal/api/v2/**'
+        java.include 'buildcraft/lib/internal/mj/MjApi2PlatformBridge.java'
+        java.include 'buildcraft/lib/platform/**'
         resources.include 'fabric.mod.json'
         resources.include 'buildcraft.accesswidener'
         resources.include 'buildcraft.fabric.mixins.json'
@@ -612,6 +621,8 @@ dependencies {{
     mappings loom.officialMojangMappings()
     modImplementation {_groovy('net.fabricmc:fabric-loader:' + loader_version)}
     modImplementation {_groovy('net.fabricmc.fabric-api:fabric-api:' + api_version)}
+    modImplementation {_groovy('teamreborn:energy:' + energy_version)}
+    include {_groovy('teamreborn:energy:' + energy_version)}
     testImplementation {_groovy('org.junit.jupiter:junit-jupiter-api:' + junit)}
     testImplementation {_groovy('org.junit.jupiter:junit-jupiter-params:' + junit)}
     testRuntimeOnly {_groovy('org.junit.jupiter:junit-jupiter-engine:' + junit)}

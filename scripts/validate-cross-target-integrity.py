@@ -743,27 +743,27 @@ def validate_compat_runtime_dependencies(props: dict[str, str]) -> None:
             f"({required_hotfix}); found {carbon!r}."
         )
 
-def validate_fabric_skeleton(props: dict[str, str]) -> None:
+def validate_fabric_server_foundation(props: dict[str, str]) -> None:
     target = "1.20.1-fabric"
     if target not in target_ids(props):
-        fail(f"missing configured Fabric skeleton target {target}")
-    if props.get(f"target.{target}.build.profile") != "skeleton":
-        fail(f"{target}: build.profile must remain skeleton until the server-foundation stage")
+        fail(f"missing configured Fabric server-foundation target {target}")
+    if props.get(f"target.{target}.build.profile") != "server_foundation":
+        fail(f"{target}: build.profile must be server_foundation during Stage 4")
     layout = target_layout(target, props)
     if layout.platform != "fabric" or layout.family != "legacy":
         fail(f"{target}: expected legacy/fabric ownership, got {layout.family}/{layout.platform}")
     overlay_java = list(layout.overlay_root.rglob("*.java"))
     if overlay_java:
-        fail(f"{target}: Fabric skeleton target overlay must contain 0 Java files")
+        fail(f"{target}: Fabric server-foundation target overlay must contain 0 Java files")
     resources = resource_map(target, props)
     for relative in ("fabric.mod.json", "buildcraft.accesswidener", "buildcraft.fabric.mixins.json", "pack.mcmeta"):
         if relative not in resources:
-            fail(f"{target}: missing Fabric skeleton resource {relative}")
+            fail(f"{target}: missing Fabric server-foundation resource {relative}")
     metadata = json.loads(resources["fabric.mod.json"].read_text(encoding="utf-8"))
     if metadata.get("id") != "buildcraftlib":
         fail(f"{target}: Fabric primary mod id must be buildcraftlib")
-    if metadata.get("custom", {}).get("buildcraft:skeleton") is not True:
-        fail(f"{target}: Fabric metadata must advertise the skeleton status")
+    if metadata.get("custom", {}).get("buildcraft:server_foundation") is not True:
+        fail(f"{target}: Fabric metadata must advertise the server-foundation status")
     entrypoints = metadata.get("entrypoints", {})
     if "buildcraft.fabric.BuildCraftFabric" not in entrypoints.get("main", []):
         fail(f"{target}: missing Fabric common bootstrap entrypoint")
@@ -814,16 +814,16 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
     if actual_matrix != expected_matrix:
         fail(f"target runtime CI matrix drifted: expected {expected_matrix}, found {actual_matrix}")
 
-    fabric_skeleton_entry = (
+    fabric_foundation_entry = (
         "- target: 1.20.1-fabric\n"
         "            generation: legacy\n"
         "            java: '17'\n"
-        "            skeleton: true"
+        "            foundation: true"
     )
-    if fabric_skeleton_entry not in runtime:
-        fail("1.20.1-fabric CI matrix entry must remain explicitly marked skeleton: true")
-    if runtime.count("if: matrix.skeleton != true") < 4:
-        fail("Fabric skeleton must skip runtime-only client, GameTest and server smoke gates")
+    if fabric_foundation_entry not in runtime:
+        fail("1.20.1-fabric CI matrix entry must be explicitly marked foundation: true")
+    if runtime.count("if: matrix.foundation != true") < 3:
+        fail("Fabric server foundation must skip client/GameTest gates while still running server smoke")
 
     for token in (
         "name: Build, test and smoke ${{ matrix.target }}",
@@ -944,7 +944,7 @@ def main() -> None:
     validate_facade_swap_recipe(props)
     validate_snapshot_renderer_and_client_isolation(props)
     validate_compat_runtime_dependencies(props)
-    validate_fabric_skeleton(props)
+    validate_fabric_server_foundation(props)
     validate_ci_wiring(props)
     print("Cross-target integrity OK:")
     print(" - exact-case atlas/model resources verified")

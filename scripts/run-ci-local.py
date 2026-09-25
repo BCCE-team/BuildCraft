@@ -40,7 +40,7 @@ TARGETS = (
     ("1.21.1-neoforge", "modern", 21),
     ("1.21.11-neoforge", "modern", 21),
 )
-SKELETON_TARGETS = {"1.20.1-fabric"}
+SERVER_FOUNDATION_TARGETS = {"1.20.1-fabric"}
 COMPATIBILITY = (
     ("1.19.2-forge", "forestry"),
     ("1.19.2-forge", "ic2"),
@@ -71,6 +71,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test loader-neutral packet boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_loader_boundaries.py", "-v")),
     ("Test Fabric runtime preparation boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_runtime_boundaries.py", "-v")),
     ("Test Fabric loader target bootstrap", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_fabric_loader_target.py", "-v")),
+    ("Test Fabric server foundation", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_fabric_server_foundation.py", "-v")),
     ("Test storage, event, registry and config boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_platform_boundaries.py", "-v")),
     ("Test capability lifecycle invalidation and revival", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_capability_lifecycle.py", "-v")),
     ("Test platform contracts", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_platform_contracts.py", "-v")),
@@ -192,7 +193,7 @@ def workflow_alignment_check() -> None:
         '":${STONECUTTER_TARGET}:buildAndCollect"',
         '":${STONECUTTER_TARGET}:runGameTestServer"',
         "bash scripts/ci-server-smoke.sh",
-        "if: matrix.skeleton != true",
+        "if: matrix.foundation != true",
     ):
         if fragment not in build_text:
             raise LocalCIError(f"Local CI runner is stale: build command changed: {fragment}")
@@ -1087,8 +1088,8 @@ def write_plan(run_dir: Path, validate_only: bool) -> None:
     if not validate_only:
         lines.append("build-test-server (sequential local form of CI matrix):")
         for target, generation, java in TARGETS:
-            if target in SKELETON_TARGETS:
-                lines.append(f"  - {target} ({generation}, Java {java}): skeleton build -> artifacts")
+            if target in SERVER_FOUNDATION_TARGETS:
+                lines.append(f"  - {target} ({generation}, Java {java}): server-foundation build -> server smoke -> artifacts")
             else:
                 lines.append(f"  - {target} ({generation}, Java {java}): build -> GameTests -> server smoke -> artifacts")
         lines.append("Compatibility:")
@@ -1293,14 +1294,38 @@ def main() -> int:
             copy_artifact_patterns(build_artifact_patterns(target, generation), destination)
             return status
 
-        if target in SKELETON_TARGETS:
+        if target in SERVER_FOUNDATION_TARGETS:
             game_name = f"Run GameTests [{target}]"
-            smoke_name = f"Smoke-test production jar [{target}]"
             record(game_name, 0, None, skipped=True)
-            record(smoke_name, 0, None, skipped=True)
+            step_number += 1
+            smoke_name = f"Smoke-test production jar [{target}]"
+            server_env = dict(target_env)
+            server_env["SERVER_STARTUP_TIMEOUT"] = "360"
+            server_env["SERVER_RUNTIME_PROFILE"] = "base"
+            runtime_log_dir = run_dir / "runtime"
+            runtime_log_dir.mkdir(parents=True, exist_ok=True)
+            server_env["SERVER_LOG_FILE"] = str(runtime_log_dir / f"ci-server-{generation}-{target}-base.log")
+            server_env["SERVER_INSTALL_LOG_FILE"] = str(runtime_log_dir / f"ci-server-install-{generation}-{target}.log")
+            if os.name == "nt":
+                status, log = run_native_server_smoke(
+                    smoke_name, target=target, generation=generation, profile="base", java_home=jdks[java],
+                    env=server_env, run_dir=run_dir, step_number=step_number,
+                )
+            else:
+                status, log = run_command(
+                    smoke_name, ("bash", "scripts/ci-server-smoke.sh"), env=server_env,
+                    run_dir=run_dir, step_number=step_number,
+                )
+            record(smoke_name, status, log)
             destination = run_dir / "artifacts" / f"buildcraft-{target}"
             copied = copy_artifact_patterns(build_artifact_patterns(target, generation), destination)
-            print(f"Collected {copied} skeleton artifact file(s) for {target} -> {destination.relative_to(ROOT)}")
+            copied += copy_runtime_logs(
+                run_dir, destination,
+                (f"ci-server-{generation}-{target}-*.log", f"ci-server-install-{generation}-{target}.log"),
+            )
+            print(f"Collected {copied} server-foundation artifact file(s) for {target} -> {destination.relative_to(ROOT)}")
+            if status != 0:
+                return status
             continue
 
         step_number += 1

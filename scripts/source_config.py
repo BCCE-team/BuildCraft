@@ -264,7 +264,7 @@ def target_build_profile(target: str, properties: dict[str, str] | None = None) 
 
 def gameplay_target_ids(properties: dict[str, str] | None = None) -> list[str]:
     props = properties or load_properties()
-    return [target for target in target_ids(props) if target_build_profile(target, props) != "skeleton"]
+    return [target for target in target_ids(props) if target_build_profile(target, props) not in {"skeleton", "server_foundation"}]
 
 
 def generation_targets(properties: dict[str, str] | None = None) -> dict[str, list[str]]:

@@ -308,9 +308,9 @@ def main() -> None:
     if missing_targets:
         fail(f"required production targets are missing: {sorted(missing_targets)}")
     if "1.20.1-fabric" not in targets:
-        fail("required experimental Fabric skeleton target is missing: 1.20.1-fabric")
-    if props.get("target.1.20.1-fabric.build.profile", "").strip() != "skeleton":
-        fail("1.20.1-fabric must remain a skeleton target until the server-foundation stage")
+        fail("required Fabric server-foundation target is missing: 1.20.1-fabric")
+    if props.get("target.1.20.1-fabric.build.profile", "").strip() != "server_foundation":
+        fail("1.20.1-fabric must use the server_foundation profile during Stage 4")
     if "1.21.1-forge" in targets:
         fail("1.21.1 Forge must not return to the production matrix")
 
