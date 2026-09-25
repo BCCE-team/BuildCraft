@@ -1,0 +1,10 @@
+plugins {
+    id 'java'
+    id 'idea'
+    id 'eclipse'
+    id 'maven-publish'
+    id 'fabric-loom'
+}
+
+ext.bcBuildGeneration = 'legacy'
+apply from: new File(rootProject.file('../..').canonicalFile, 'build-logic/loaders/fabric-target.gradle')

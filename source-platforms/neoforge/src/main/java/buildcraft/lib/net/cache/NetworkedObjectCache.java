@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 
 import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
@@ -337,7 +337,7 @@ public abstract class NetworkedObjectCache<T> {
                 BCLog.logger
                     .info("[lib.net.cache] The cache " + getNameAndId() + " requests ID's " + Arrays.toString(ids));
             }
-            MessageManager.sendToServer(new MessageObjectCacheRequest(this, ids));
+            BCNetwork.sendToServer(new MessageObjectCacheRequest(this, ids));
         }
     }
 

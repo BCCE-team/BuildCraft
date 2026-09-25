@@ -7,6 +7,7 @@
 
 package buildcraft.transport.tile;
 
+import buildcraft.api.v2.pipe.PipeRemovalReason;
 import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import java.io.IOException;
@@ -87,6 +88,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
     public static final int NET_UPDATE_PLUG_WEST = getReceiverId(PipeMessageReceiver.PLUGGABLE_WEST);
     public static final int NET_UPDATE_PLUG_EAST = getReceiverId(PipeMessageReceiver.PLUGGABLE_EAST);
     public static final int NET_UPDATE_WIRES = getReceiverId(PipeMessageReceiver.WIRES);
+    public static final int NET_UPDATE_API_COMPONENTS = getReceiverId(PipeMessageReceiver.API_COMPONENTS);
 
     private static final Identifier ADVANCEMENT_PLACE_PIPE = Identifier.parse(
         "buildcrafttransport:pipe_dream"
@@ -273,6 +275,9 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
     }
 
     public void onRemove(boolean dropSelf) {
+        if (pipe != Pipe.EMPTY) {
+            pipe.onApiRemoved(dropSelf ? PipeRemovalReason.DESTROYED : PipeRemovalReason.REPLACED);
+        }
         if (level != null && !level.isClientSide()) {
             for (Direction face : Direction.values()) {
                 PipePluggable pluggable = getPluggable(face);
@@ -284,6 +289,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
     }
 
 	public void setRemoved() {
+        if (pipe != Pipe.EMPTY) pipe.onApiUnload(PipeRemovalReason.INVALIDATED);
 		super.setRemoved();
 		eventBus.fireEvent(new PipeEventTileState.Invalidate(this));
 		wireManager.invalidate();
@@ -296,6 +302,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
     }
 
     public void onChunkUnloaded() {
+        if (pipe != Pipe.EMPTY) pipe.onApiUnload(PipeRemovalReason.CHUNK_UNLOAD);
         super.onChunkUnloaded();
         eventBus.fireEvent(new PipeEventTileState.ChunkUnload(this));
     }
@@ -304,6 +311,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         super.onLoad();
         if (pipe != Pipe.EMPTY) {
             pipe.onLoad();
+            pipe.onApiLoad();
         }
         wireManager.validate();
     }
@@ -447,6 +455,13 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
                 }
             } else if (id == NET_UPDATE_WIRES) {
                 wireManager.writePayload(buffer, side);
+            } else if (id == NET_UPDATE_API_COMPONENTS) {
+                if (pipe == Pipe.EMPTY) {
+                    buffer.writeBoolean(false);
+                } else {
+                    buffer.writeBoolean(true);
+                    pipe.writeApiComponentSync(buffer);
+                }
             }
         }
         if (id == NET_UPDATE_PIPE_FLOW) {
@@ -506,6 +521,11 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
             } else if (id == NET_UPDATE_WIRES) {
                 wireManager.readPayload(buffer, side, ctx);
                 refreshClientPipeModel();
+            } else if (id == NET_UPDATE_API_COMPONENTS) {
+                if (buffer.readBoolean()) {
+                    if (pipe == Pipe.EMPTY) throw new IllegalStateException("API component sync arrived without a pipe");
+                    pipe.readApiComponentSync(buffer);
+                }
             }
         }
         if (id == NET_UPDATE_PIPE_FLOW) {

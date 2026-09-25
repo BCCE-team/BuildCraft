@@ -50,6 +50,42 @@ import buildcraft.api.v2.permission.AutomationActor;
 import buildcraft.api.v2.permission.PermissionDecision;
 import buildcraft.api.v2.permission.PermissionServiceRegistry;
 import buildcraft.api.v2.pipe.ItemTransportProfile;
+import buildcraft.api.v2.energy.MjPort;
+import buildcraft.api.v2.energy.MjTransferResult;
+import buildcraft.api.v2.fluid.FluidAmount;
+import buildcraft.api.v2.fluid.FluidMatcher;
+import buildcraft.api.v2.fluid.FluidPort;
+import buildcraft.api.v2.fluid.FluidTransferResult;
+import buildcraft.api.v2.item.ItemMatcher;
+import buildcraft.api.v2.item.ItemPort;
+import buildcraft.api.v2.item.ItemTransferResult;
+import buildcraft.api.v2.pipe.FluidIngressComponent;
+import buildcraft.api.v2.pipe.FluidIngressContext;
+import buildcraft.api.v2.pipe.FluidIngressResult;
+import buildcraft.api.v2.pipe.ItemEjectionComponent;
+import buildcraft.api.v2.pipe.ItemEjectionContext;
+import buildcraft.api.v2.pipe.ItemEjectionDecision;
+import buildcraft.api.v2.pipe.ItemTransitComponent;
+import buildcraft.api.v2.pipe.ItemTransitContext;
+import buildcraft.api.v2.pipe.ItemTransitDecision;
+import buildcraft.api.v2.pipe.ItemTransitModifierComponent;
+import buildcraft.api.v2.pipe.MjNetworkComponent;
+import buildcraft.api.v2.pipe.MjNetworkContext;
+import buildcraft.api.v2.pipe.PipeComponent;
+import buildcraft.api.v2.pipe.PipeComponentState;
+import buildcraft.api.v2.pipe.PipeComponentType;
+import buildcraft.api.v2.pipe.PipeDropComponent;
+import buildcraft.api.v2.pipe.PipeDropContext;
+import buildcraft.api.v2.pipe.PipeExecutionContext;
+import buildcraft.api.v2.pipe.PipeLifecycleComponent;
+import buildcraft.api.v2.pipe.PipePortContext;
+import buildcraft.api.v2.pipe.PipePortProviderComponent;
+import buildcraft.api.v2.pipe.PipeRemovalReason;
+import buildcraft.api.v2.pipe.PipeSyncBinding;
+import buildcraft.api.v2.pipe.PipeSyncChannel;
+import buildcraft.api.v2.pipe.PipeSyncComponent;
+import buildcraft.api.v2.pipe.ItemTransitData;
+import buildcraft.api.v2.platform.ExternalEnergyPort;
 import buildcraft.api.v2.pipe.PipeType;
 import buildcraft.api.v2.recipe.DistillationRecipeDefinition;
 import buildcraft.api.v2.recipe.FluidIngredient;
@@ -116,6 +152,17 @@ public final class ApiV2FixtureAddon {
     private static final DockPortType<String> FIXTURE_DOCK_PORT = new DockPortType<>(
         id("fixture_dock_port"), String.class, context -> Optional.of("fixture@" + context.position())
     );
+    private static final ResourceLocation PIPE_COMPONENT_ID = id("fixture_pipe_component");
+    private static final PersistentType<Boolean, OpaqueData> PIPE_COMPONENT_STATE_TYPE = PersistentType
+        .<Boolean, OpaqueData>builder(id("fixture_pipe_state"), 0, BOOL_CODEC).build();
+    private static final PipeSyncChannel<Boolean> PIPE_COMPONENT_SYNC = new PipeSyncChannel<>(
+        id("fixture_pipe_sync"), BOOL_CODEC, 16
+    );
+    private static final PipeComponentState<FixturePipeComponent, Boolean> PIPE_COMPONENT_STATE = new PipeComponentState<>() {
+        @Override public PersistentType<Boolean, OpaqueData> persistence() { return PIPE_COMPONENT_STATE_TYPE; }
+        @Override public Boolean snapshot(FixturePipeComponent component) { return component.enabled; }
+        @Override public void apply(FixturePipeComponent component, Boolean state) { component.enabled = state; }
+    };
 
     private ApiV2FixtureAddon() {}
 
@@ -150,11 +197,21 @@ public final class ApiV2FixtureAddon {
     }
 
     private static void registerTransportAndContentExamples() {
+        BuildCraftApi.runtime().requireRegistry(BuildCraftRegistries.PIPE_SYNC_CHANNELS).register(
+            PIPE_COMPONENT_SYNC.id(), PIPE_COMPONENT_SYNC, () -> "api-v2-fixture"
+        );
+        BuildCraftApi.runtime().requireRegistry(BuildCraftRegistries.PIPE_COMPONENT_TYPES).register(
+            PIPE_COMPONENT_ID,
+            new PipeComponentType<>(PIPE_COMPONENT_ID, pipe -> new FixturePipeComponent(), null, PIPE_COMPONENT_STATE),
+            () -> "api-v2-fixture"
+        );
+
         ApiRegistry<PipeType> pipes = BuildCraftApi.runtime().requireRegistry(BuildCraftRegistries.PIPE_TYPES);
         pipes.register(
             id("brass_item_pipe"),
             PipeType.builder(id("brass_item_pipe"))
                 .itemProfile(new ItemTransportProfile(16, 10))
+                .component(PIPE_COMPONENT_ID)
                 .build(),
             () -> "api-v2-fixture"
         );
@@ -365,6 +422,58 @@ public final class ApiV2FixtureAddon {
         BuildCraftApi.service(BuildCraftServices.REQUESTS).provider(level, pos, side)
             .ifPresent(provider -> provider.requests().size());
         BuildCraftApi.registry(BuildCraftRegistries.ROBOT_BOARD_TYPES).get(BuildCraftRobotBoards.PICKER);
+    }
+
+    private static final class FixturePipeComponent implements PipeComponent, PipeSyncComponent,
+        PipeLifecycleComponent, PipeDropComponent, PipePortProviderComponent, ItemTransitComponent,
+        ItemTransitModifierComponent, ItemEjectionComponent, FluidIngressComponent, MjNetworkComponent {
+
+        private boolean enabled;
+
+        @Override public ResourceLocation typeId() { return PIPE_COMPONENT_ID; }
+
+        @Override
+        public List<PipeSyncBinding<?>> syncBindings() {
+            return List.of(new PipeSyncBinding<Boolean>() {
+                @Override public PipeSyncChannel<Boolean> channel() { return PIPE_COMPONENT_SYNC; }
+                @Override public Boolean snapshot() { return enabled; }
+                @Override public void apply(Boolean state) { enabled = state; }
+            });
+        }
+
+        @Override
+        public void onLoad(PipeExecutionContext context) {
+            context.neighbour(Direction.NORTH).itemPort();
+        }
+
+        @Override public void onUnload(PipeExecutionContext context, PipeRemovalReason reason) { }
+        @Override public void onRemoved(PipeExecutionContext context, PipeRemovalReason reason) { }
+        @Override public void collectDrops(PipeDropContext context, java.util.function.Consumer<ItemStack> output) { }
+
+        @Override
+        public Optional<ItemPort> itemPort(PipePortContext context) {
+            return Optional.of(new ItemPort() {
+                @Override public ItemTransferResult insert(ItemStack offered, OperationMode mode) {
+                    return ItemTransferResult.nothing(offered.getCount());
+                }
+                @Override public ItemTransferResult extract(ItemMatcher matcher, int maxCount, OperationMode mode) {
+                    return ItemTransferResult.nothing(maxCount);
+                }
+            });
+        }
+
+        @Override public Optional<FluidPort> fluidPort(PipePortContext context) { return Optional.empty(); }
+        @Override public Optional<MjPort> mjPort(PipePortContext context) { return Optional.empty(); }
+        @Override public Optional<ExternalEnergyPort> externalEnergyPort(PipePortContext context) { return Optional.empty(); }
+
+        @Override public ItemTransitDecision onEnter(ItemTransitContext context) { return ItemTransitDecision.pass(); }
+        @Override public ItemTransitData modifyTransit(ItemTransitContext context, ItemTransitData current) { return current; }
+        @Override public ItemEjectionDecision onEject(ItemEjectionContext context) { return ItemEjectionDecision.PASS; }
+        @Override public FluidIngressResult insert(FluidIngressContext context, FluidVolume offered) { return FluidIngressResult.pass(); }
+        @Override public MjAmount queryDemand(MjNetworkContext context, Direction from, MjAmount maximum) { return MjAmount.ZERO; }
+        @Override public MjTransferResult receive(MjNetworkContext context, Direction from, MjAmount offered) {
+            return MjTransferResult.none(offered);
+        }
     }
 
     private record FixtureRobotResource() implements RobotResource {

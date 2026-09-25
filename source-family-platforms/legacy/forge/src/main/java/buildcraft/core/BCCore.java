@@ -35,6 +35,7 @@ import buildcraft.lib.client.render.DetachedRenderer.RenderMatrixType;
 import buildcraft.lib.gui.BCContainerFactory;
 import buildcraft.lib.marker.MarkerCache;
 import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.LegacyNetworkCatalog;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.network.chat.Component;
@@ -99,7 +100,7 @@ public class BCCore {
         RegistryBinding.register(MENUS, modEventBus);
         BCCoreConfig.registry();
         ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCCoreConfig.config));
-        MessageManager.registerMessageClass(BCModules.CORE, MessageVolumeBoxes.class, MessageVolumeBoxes.HANDLER, MessageVolumeBoxes::toBytes, MessageVolumeBoxes::new, Dist.CLIENT);
+        LegacyNetworkCatalog.registerCore(MessageManager::registerCatalogMessage);
         MinecraftForge.EVENT_BUS.register(this);
         IEventBus eventBus = MinecraftForge.EVENT_BUS;
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {

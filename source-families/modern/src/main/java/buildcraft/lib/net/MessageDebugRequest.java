@@ -6,6 +6,7 @@
 
 package buildcraft.lib.net;
 
+import buildcraft.lib.net.BCNetwork;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -52,7 +53,7 @@ public class MessageDebugRequest {
                 return;
             }
 			if (!ItemDebugger.isShowDebugInfo(player)) { 
-				MessageManager.sendTo(new MessageDebugResponse(), player);
+				BCNetwork.sendTo(new MessageDebugResponse(), player);
 				return;
 			}
             if (!player.level().hasChunkAt(message.pos)
@@ -63,7 +64,7 @@ public class MessageDebugRequest {
 				List<String> left = new ArrayList<>();
 				List<String> right = new ArrayList<>();
 				((IDebuggable) tile).getDebugInfo(left, right, message.side);
-				MessageManager.sendTo(new MessageDebugResponse(left, right), player);
+				BCNetwork.sendTo(new MessageDebugResponse(left, right), player);
 			}
 		});
 	};

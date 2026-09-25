@@ -30,7 +30,7 @@ import buildcraft.api.v2.signal.SignalPort;
 import buildcraft.api.v2.signal.SignalPortProvider;
 import buildcraft.transport.internal.EnumWirePart;
 import buildcraft.transport.internal.pipe.IPipeHolder;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -177,7 +177,7 @@ public class WorldSavedDataWireSystems extends SavedData {
                     .filter(wireSystem -> wireSystem.isPlayerWatching(player) && (structureChanged || changedPlayers.contains(player)))
                     .collect(Collectors.toMap(WireSystem::getWiresHashCode, Function.identity()));
             if(!changedWires.isEmpty()) {
-                MessageManager.sendTo(new MessageWireSystems(changedWires), player);
+                BCNetwork.sendTo(new MessageWireSystems(changedWires), player);
             }
             Map<Integer, Boolean> hashesPowered = this.wireSystems.entrySet().stream()
                     .filter(systemPower ->
@@ -187,7 +187,7 @@ public class WorldSavedDataWireSystems extends SavedData {
                     .map(systemPowered -> Pair.of(systemPowered.getKey().getWiresHashCode(), systemPowered.getValue()))
                     .collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
             if(!hashesPowered.isEmpty()) {
-                MessageManager.sendTo(new MessageWireSystemsPowered(hashesPowered), player);
+                BCNetwork.sendTo(new MessageWireSystemsPowered(hashesPowered), player);
             }
         });
         if(structureChanged || !changedSystems.isEmpty()) {

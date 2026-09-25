@@ -14,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-from source_layout import effective_source_files, load_properties, resolve_effective_source, target_ids, target_layout, version_tuple
+from source_layout import effective_source_files, gameplay_target_ids, load_properties, resolve_effective_source, target_layout, version_tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_REL = Path("src/main/java/buildcraft/compat/jei/BuildCraftJeiPlugin.java")
@@ -119,7 +119,7 @@ def main() -> int:
     props = load_properties()
     errors: list[str] = []
     summaries: list[str] = []
-    for target in target_ids(props):
+    for target in gameplay_target_ids(props):
         base, upgrade, downgrade = validate_target(target, props, errors)
         summaries.append(f"{target}: {base} base 3x1, {upgrade} upgrade shapeless, {downgrade} downgrade shapeless")
 

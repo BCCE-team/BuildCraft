@@ -4,7 +4,7 @@
 The maintained repository remains the source of truth.  This exporter resolves the
 layered source tree with ``materialize_target()``, applies the target's compile-time
 source exclusions, bakes target metadata into resources/BuildCraftTarget, and writes
-a normal single-target Forge or NeoForge Gradle project that no longer depends on
+a normal single-target Forge, NeoForge or Fabric Gradle project that no longer depends on
 Stonecutter, build-config, build-logic, or the source materializer.
 """
 from __future__ import annotations
@@ -142,6 +142,8 @@ def _resource_values(properties: dict[str, str], target: str) -> dict[str, str]:
         values["forge_version_range"] = _target_property(properties, target, "forge.version_range")
     elif platform == "neoforge":
         values["neo_version_range"] = _target_property(properties, target, "neoforge.version_range")
+    elif platform == "fabric":
+        values["fabric_api_version_range"] = _target_property(properties, target, "fabric_api.version_range")
     return values
 
 
@@ -151,7 +153,13 @@ def _expand_target_resources(project_root: Path, properties: dict[str, str], tar
         project_root / "src/main/resources/META-INF/mods.toml"
         if platform == "forge"
         else project_root / "src/main/resources/META-INF/neoforge.mods.toml"
+        if platform == "neoforge"
+        else project_root / "src/main/resources/fabric.mod.json"
+        if platform == "fabric"
+        else None
     )
+    if metadata is None:
+        raise ValueError(f"{target}: unsupported metadata loader {platform!r}")
     files = [metadata, project_root / "src/main/resources/pack.mcmeta"]
     values = _resource_values(properties, target)
     for path in files:
@@ -184,6 +192,10 @@ def _settings_gradle(platform: str, project_name: str) -> str:
         "        maven { url = 'https://maven.minecraftforge.net/' }\n"
         if platform == "forge"
         else "        maven { url = 'https://maven.neoforged.net/releases' }\n"
+        if platform == "neoforge"
+        else "        maven { url = 'https://maven.fabricmc.net/' }\n"
+        if platform == "fabric"
+        else ""
     )
     return (
         "pluginManagement {\n"
@@ -555,6 +567,121 @@ eclipse.classpath {{
 """
 
 
+
+def _fabric_build_gradle(properties: dict[str, str], target: str) -> str:
+    minecraft = _target_property(properties, target, "deps.minecraft")
+    loom_version = _target_property(properties, target, "deps.fabric_loom")
+    loader_version = _target_property(properties, target, "deps.fabric_loader")
+    api_version = _target_property(properties, target, "deps.fabric_api")
+    junit = _target_property(properties, target, "deps.junit")
+    return f"""plugins {{
+    id 'java'
+    id 'idea'
+    id 'eclipse'
+    id 'maven-publish'
+    id 'fabric-loom' version {_groovy(loom_version)}
+}}
+
+version = {_groovy(_project_version(properties, target))}
+group = {_groovy(_target_property(properties, target, 'mod.group'))}
+base.archivesName = {_groovy(_target_property(properties, target, 'mod.archive_name'))}
+
+java {{
+    toolchain.languageVersion = JavaLanguageVersion.of({_target_property(properties, target, 'java.version')})
+}}
+
+sourceSets {{
+    main {{
+        java.include 'buildcraft/api/v2/**'
+        java.include 'buildcraft/fabric/**'
+        java.include 'buildcraft/lib/net/BuildCraftTarget.java'
+        resources.include 'fabric.mod.json'
+        resources.include 'buildcraft.accesswidener'
+        resources.include 'buildcraft.fabric.mixins.json'
+        resources.include 'pack.mcmeta'
+    }}
+}}
+
+repositories {{
+    maven {{ url = 'https://maven.fabricmc.net/' }}
+    mavenCentral()
+}}
+
+dependencies {{
+    minecraft {_groovy('com.mojang:minecraft:' + minecraft)}
+    mappings loom.officialMojangMappings()
+    modImplementation {_groovy('net.fabricmc:fabric-loader:' + loader_version)}
+    modImplementation {_groovy('net.fabricmc.fabric-api:fabric-api:' + api_version)}
+    testImplementation {_groovy('org.junit.jupiter:junit-jupiter-api:' + junit)}
+    testImplementation {_groovy('org.junit.jupiter:junit-jupiter-params:' + junit)}
+    testRuntimeOnly {_groovy('org.junit.jupiter:junit-jupiter-engine:' + junit)}
+}}
+
+loom {{
+    accessWidenerPath = file('src/main/resources/buildcraft.accesswidener')
+    runs {{
+        client {{
+            client()
+            runDir = file('run').absolutePath
+        }}
+        server {{
+            server()
+            runDir = file('run').absolutePath
+        }}
+    }}
+}}
+
+tasks.named('test', Test) {{
+    useJUnitPlatform()
+}}
+
+tasks.named('processResources', ProcessResources) {{
+    filesMatching(['fabric.mod.json', 'pack.mcmeta']) {{
+        expand([
+                mod_version: project.version.toString(),
+                mod_authors: {_groovy(_target_property(properties, target, 'mod.authors'))},
+                mod_license: {_groovy(_target_property(properties, target, 'mod.license'))},
+                loader_version_range: {_groovy(_target_property(properties, target, 'loader.version_range'))},
+                fabric_api_version_range: {_groovy(_target_property(properties, target, 'fabric_api.version_range'))},
+                minecraft_version_range: {_groovy(_target_property(properties, target, 'minecraft.version_range'))},
+                pack_format: {_groovy(_target_property(properties, target, 'pack.format'))},
+                resource_pack_format: {_groovy(_target_property(properties, target, 'pack.resource_format'))},
+                data_pack_format: {_groovy(_target_property(properties, target, 'pack.data_format'))}
+        ])
+    }}
+}}
+
+tasks.named('jar', Jar) {{
+    archiveClassifier = 'dev'
+}}
+
+tasks.named('remapJar') {{
+    archiveClassifier = ''
+}}
+
+tasks.withType(JavaCompile).configureEach {{
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-Xlint:none')
+}}
+
+publishing {{
+    publications {{
+        register('mavenJava', MavenPublication) {{
+            artifact tasks.named('remapJar')
+        }}
+    }}
+}}
+
+idea.module {{
+    downloadJavadoc = true
+    downloadSources = true
+}}
+eclipse.classpath {{
+    downloadJavadoc = true
+    downloadSources = true
+}}
+"""
+
 def _write_gradle_project(project_root: Path, properties: dict[str, str], target: str) -> None:
     layout = target_layout(target, properties)
     project_name = f"BuildCraft-{target}"
@@ -566,6 +693,8 @@ def _write_gradle_project(project_root: Path, properties: dict[str, str], target
         if layout.platform == "forge"
         else _neoforge_build_gradle(properties, target)
         if layout.platform == "neoforge"
+        else _fabric_build_gradle(properties, target)
+        if layout.platform == "fabric"
         else None
     )
     if build_gradle is None:

@@ -31,7 +31,7 @@ import buildcraft.builders.snapshot.Snapshot;
 import buildcraft.lib.misc.StackUtil;
 import buildcraft.lib.misc.data.IdAllocator;
 import buildcraft.lib.nbt.NbtSquisher;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import buildcraft.lib.net.NetworkSecurity;
 import buildcraft.lib.tile.TileBC_Neptune;
 import buildcraft.lib.tile.item.ItemHandlerManager.EnumAccess;
@@ -305,7 +305,7 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
                             private boolean closed = false;
                             
                             private void write(boolean last) throws IOException {
-                                MessageManager.sendToServer(createMessage(NET_UP, localBuffer -> {
+                                BCNetwork.sendToServer(createMessage(NET_UP, localBuffer -> {
                                     selected.writeToByteBuf(localBuffer);
                                     localBuffer.writeBoolean(last);
                                     localBuffer.writeByteArray(buf);

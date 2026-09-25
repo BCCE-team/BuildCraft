@@ -57,6 +57,13 @@ PACKAGE_OR_IMPORT = re.compile(
     r"^\s*(?:package|import)\s+(?:static\s+)?(buildcraft\.api(?:\.[\w$*]+)*)\s*;",
     re.MULTILINE,
 )
+IMPORT_RE = re.compile(r"^\s*import\s+(?:static\s+)?([A-Za-z0-9_.$*]+)\s*;", re.MULTILINE)
+FORBIDDEN_API_IMPORT_PREFIXES = (
+    "net.minecraftforge.",
+    "net.neoforged.",
+    "net.fabricmc.",
+    "team.reborn.energy.",
+)
 V2_PREFIX = "buildcraft.api.v2"
 
 OBSOLETE_MIGRATION_SCRIPTS = (
@@ -103,6 +110,13 @@ def main() -> int:
             for name in PACKAGE_OR_IMPORT.findall(text):
                 if not is_v2(name):
                     errors.append(f"{rel}: non-v2 BuildCraft API package/import remains: {name}")
+
+            if marker in posix and posix.split(marker, 1)[1].startswith("v2/"):
+                for imported in IMPORT_RE.findall(text):
+                    if imported.startswith(FORBIDDEN_API_IMPORT_PREFIXES):
+                        errors.append(f"{rel}: loader-specific import leaked into API v2 common: {imported}")
+                    if imported.startswith("buildcraft.") and not is_v2(imported):
+                        errors.append(f"{rel}: implementation import leaked into API v2 common: {imported}")
 
     api_root = ROOT / "source-shared/src/main/java/buildcraft/api"
     if not api_root.is_dir():
@@ -167,7 +181,7 @@ def main() -> int:
         "API v2-only finalization OK: "
         f"{public_api_files} public API2 Java source(s); "
         f"{scanned_java} Java source(s) scanned; "
-        "0 non-v2 buildcraft.api packages/imports"
+        "0 non-v2 or loader/implementation API imports"
     )
     return 0
 

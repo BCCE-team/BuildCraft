@@ -12,7 +12,7 @@ import java.util.List;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 
 public enum ClientSnapshots {
     INSTANCE;
@@ -33,7 +33,7 @@ public enum ClientSnapshots {
         }
         if (found == null && !pending.contains(key)) {
             pending.add(key);
-            MessageManager.sendToServer(new MessageSnapshotRequest(key));
+            BCNetwork.sendToServer(new MessageSnapshotRequest(key));
         }
         return found;
     }

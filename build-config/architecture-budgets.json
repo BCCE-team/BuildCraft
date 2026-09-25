@@ -13,6 +13,8 @@
     "/targets/1.19.2-forge/resources": 0,
     "/targets/1.20.1-forge/java": 5,
     "/targets/1.20.1-forge/resources": 0,
+    "/targets/1.20.1-fabric/java": 0,
+    "/targets/1.20.1-fabric/resources": 0,
     "/targets/1.21.1-neoforge/java": 0,
     "/targets/1.21.1-neoforge/resources": 0,
     "/targets/1.21.11-neoforge/java": 1,
@@ -21,8 +23,9 @@
     "conditions.files": 205,
     "downports.java_total": 278,
     "foreign_packages.count": 0,
+    "platform.fabric_gameplay_override_count": 0,
     "platform.gameplay_override_count": 95,
-    "platform.java_total": 585,
+    "platform.java_total": 589,
     "platform.loader_neutral_count": 0,
     "transforms.class_specific_java_rewrites": 0
   },
@@ -31,12 +34,15 @@
     "/targets/1.19.2-forge/resources",
     "/targets/1.20.1-forge/java",
     "/targets/1.20.1-forge/resources",
-    "conditions.files",
+    "/targets/1.20.1-fabric/java",
+    "/targets/1.20.1-fabric/resources",
     "conditions.blocks",
-    "platform.loader_neutral_count",
+    "conditions.files",
+    "foreign_packages.count",
+    "platform.fabric_gameplay_override_count",
     "platform.gameplay_override_count",
-    "transforms.class_specific_java_rewrites",
-    "foreign_packages.count"
+    "platform.loader_neutral_count",
+    "transforms.class_specific_java_rewrites"
   ],
   "schema_version": 1
 }

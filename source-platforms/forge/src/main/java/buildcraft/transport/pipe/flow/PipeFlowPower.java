@@ -6,6 +6,7 @@
 
 package buildcraft.transport.pipe.flow;
 
+import buildcraft.api.v2.OperationMode;
 import buildcraft.lib.internal.mj.MjCapabilities;
 import buildcraft.lib.logic.distribution.WeightedAllocation;
 import buildcraft.lib.logic.energy.EnergyMath;
@@ -582,6 +583,12 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
         if (disabled) {
             return 0;
         }
+        long local = getLocalPowerRequested(side);
+        long api = pipe instanceof Pipe runtimePipe ? runtimePipe.apiMjDemand(side, maxPower) : 0L;
+        return Math.min(maxPower, saturatingAdd(local, api));
+    }
+
+    private long getLocalPowerRequested(@Nullable Direction side) {
         long req = 0;
         for (Direction face : Direction.values()) {
             if (side == null || face != side) {
@@ -673,10 +680,14 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
                 return sent;
             }
             debugPowerOffered = saturatingAdd(debugPowerOffered, sent);
+            long remaining = sent;
+            if (pipe instanceof Pipe runtimePipe) {
+                remaining -= runtimePipe.apiReceiveMj(side, remaining, OperationMode.EXECUTE);
+            }
             long free = Math.max(0, maxPower - internalNextPower);
-            long accepted = Math.min(sent, free);
+            long accepted = Math.min(remaining, free);
             internalNextPower += accepted;
-            return sent - accepted;
+            return remaining - accepted;
         }
 
         @Override
@@ -685,21 +696,20 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
                 return microJoules;
             }
 
-            long requested = Math.min(maxPower, getPowerRequested());
-            long free = Math.max(0, maxPower - getEffectivePendingPower());
-            long accepted = Math.min(microJoules, Math.min(requested, free));
             if (action == FluidAction.SIMULATE) {
-                return microJoules - accepted;
+                long apiAccepted = pipe instanceof Pipe runtimePipe
+                    ? runtimePipe.apiReceiveMj(side, microJoules, OperationMode.SIMULATE) : 0L;
+                long remaining = microJoules - apiAccepted;
+                long requested = Math.min(maxPower, getLocalPowerRequested(side));
+                long free = Math.max(0, maxPower - getEffectivePendingPower());
+                long localAccepted = Math.min(remaining, Math.min(requested, free));
+                return remaining - localAccepted;
             }
 
             PipeFlowPower.this.step();
-            // Recalculate after stepping because another nested transfer may have changed this section.
-            requested = Math.min(maxPower, getPowerRequested());
-            free = Math.max(0, maxPower - internalNextPower);
-            accepted = Math.min(microJoules, Math.min(requested, free));
-            if (accepted <= 0) {
-                return microJoules;
-            }
+            long requested = Math.min(maxPower, getPowerRequested());
+            long accepted = Math.min(microJoules, requested);
+            if (accepted <= 0) return microJoules;
             return microJoules - accepted + receivePowerInternal(accepted);
         }
 

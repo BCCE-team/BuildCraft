@@ -8,7 +8,7 @@ import java.util.WeakHashMap;
 
 import javax.annotation.Nullable;
 
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -25,7 +25,7 @@ public class PipeItemMessageQueue {
         for (Entry<LevelChunk, List<MessageMultiPipeItem>> entry : cachedPlayerPackets.entrySet()) {
         	LevelChunk chunk = entry.getKey();
         	for(MessageMultiPipeItem msg : entry.getValue()) {
-        		MessageManager.sendToAllWatching(msg, chunk);
+        		BCNetwork.sendToAllWatching(msg, chunk);
         	}
         }
         cachedPlayerPackets.clear();

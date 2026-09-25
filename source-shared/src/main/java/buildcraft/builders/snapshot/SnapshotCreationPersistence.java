@@ -5,7 +5,7 @@
  */
 package buildcraft.builders.snapshot;
 
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 
@@ -25,7 +25,7 @@ public final class SnapshotCreationPersistence {
 
         ServerPlayer owner = level.getServer().getPlayerList().getPlayer(header.owner);
         if (owner != null) {
-            MessageManager.sendTo(new MessageSnapshotResponse(persistedSnapshot), owner);
+            BCNetwork.sendTo(new MessageSnapshotResponse(persistedSnapshot), owner);
         }
     }
 }

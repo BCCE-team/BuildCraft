@@ -9,16 +9,18 @@ echo BuildCraft Community Edition - materialize standalone project
 echo.
 echo   1. Minecraft 1.19.2  - Forge
 echo   2. Minecraft 1.20.1  - Forge
-echo   3. Minecraft 1.21.1  - NeoForge
-echo   4. Minecraft 1.21.11 - NeoForge
+echo   3. Minecraft 1.20.1  - Fabric ^(skeleton^)
+echo   4. Minecraft 1.21.1  - NeoForge
+echo   5. Minecraft 1.21.11 - NeoForge
 echo.
 
 set "TARGET="
-set /p "CHOICE=Select target [1-4]: "
+set /p "CHOICE=Select target [1-5]: "
 if "%CHOICE%"=="1" set "TARGET=1.19.2-forge"
 if "%CHOICE%"=="2" set "TARGET=1.20.1-forge"
-if "%CHOICE%"=="3" set "TARGET=1.21.1-neoforge"
-if "%CHOICE%"=="4" set "TARGET=1.21.11-neoforge"
+if "%CHOICE%"=="3" set "TARGET=1.20.1-fabric"
+if "%CHOICE%"=="4" set "TARGET=1.21.1-neoforge"
+if "%CHOICE%"=="5" set "TARGET=1.21.11-neoforge"
 
 if not defined TARGET (
     echo.

@@ -1,5 +1,7 @@
 package buildcraft.robotics;
 
+import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.LegacyNetworkCatalog;
 import buildcraft.lib.platform.client.PlatformClientModels;
 import buildcraft.robotics.BCRoboticsClientRenderers;
 import buildcraft.lib.platform.client.PlatformClientRegistration;
@@ -118,12 +120,7 @@ public class BCRobotics {
         BCRoboticsGuis.registry(RegistryBinding.on(modEventBus));
 
         // Register the zone planner messages used for map request and synchronization.
-        buildcraft.lib.net.MessageManager.registerMessageClass(BCModules.ROBOTICS, MessageZoneMapRequest.class,
-                MessageZoneMapRequest.HANDLER, MessageZoneMapRequest::toBytes, MessageZoneMapRequest::new,
-                Dist.DEDICATED_SERVER);
-        buildcraft.lib.net.MessageManager.registerMessageClass(BCModules.ROBOTICS, MessageZoneMapResponse.class,
-                MessageZoneMapResponse.HANDLER, MessageZoneMapResponse::toBytes, MessageZoneMapResponse::new,
-                Dist.CLIENT);
+        LegacyNetworkCatalog.registerRobotics(MessageManager::registerCatalogMessage);
 
         RobotManager.registryProvider = SimpleRobotRegistryProvider.INSTANCE;
         SimpleRobotRegistryProvider.registerGameplayEvents();

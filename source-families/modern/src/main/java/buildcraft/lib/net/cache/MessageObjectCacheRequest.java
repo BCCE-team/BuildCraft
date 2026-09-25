@@ -10,7 +10,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import buildcraft.lib.internal.debug.BCLog;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.DecoderException;
 import net.minecraft.network.FriendlyByteBuf;
@@ -96,7 +96,7 @@ public class MessageObjectCacheRequest {
                     buffer.readBytes(values[i]);
                     buffer.clear();
                 }
-                MessageManager.sendTo(new MessageObjectCacheResponse(message.cacheId, message.ids, values), sender);
+                BCNetwork.sendTo(new MessageObjectCacheResponse(message.cacheId, message.ids, values), sender);
             } catch (RuntimeException e) {
                 BCLog.logger.debug("Dropped invalid object cache request", e);
             } finally {

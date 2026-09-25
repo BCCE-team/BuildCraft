@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet("1.19.2", "1.20.1", "1.21.1", "1.21.11")]
+    [ValidateSet("1.19.2", "1.20.1", "1.20.1-fabric", "1.21.1", "1.21.11")]
     [string] $Version,
 
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -13,6 +13,7 @@ $RepositoryRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Targets = @{
     "1.19.2"  = @{ Generation = "legacy"; Target = "1.19.2-forge" }
     "1.20.1"  = @{ Generation = "legacy"; Target = "1.20.1-forge" }
+    "1.20.1-fabric" = @{ Generation = "legacy"; Target = "1.20.1-fabric" }
     "1.21.1"  = @{ Generation = "modern"; Target = "1.21.1-neoforge" }
     "1.21.11" = @{ Generation = "modern"; Target = "1.21.11-neoforge" }
 }

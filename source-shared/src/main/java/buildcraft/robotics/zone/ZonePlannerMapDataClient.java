@@ -9,7 +9,7 @@ package buildcraft.robotics.zone;
 import java.util.HashSet;
 import java.util.Set;
 
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import net.minecraft.world.level.Level;
 
 public class ZonePlannerMapDataClient extends ZonePlannerMapData {
@@ -21,7 +21,7 @@ public class ZonePlannerMapDataClient extends ZonePlannerMapData {
     @Override
     public ZonePlannerMapChunk loadChunk(Level world, ZonePlannerMapChunkKey key) {
         if (pending.add(key)) {
-            MessageManager.sendToServer(new MessageZoneMapRequest(key));
+            BCNetwork.sendToServer(new MessageZoneMapRequest(key));
         }
         return null;
     }

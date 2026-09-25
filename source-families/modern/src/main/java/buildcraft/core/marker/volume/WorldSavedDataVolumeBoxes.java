@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 import com.mojang.serialization.Codec;
 
 import buildcraft.lib.misc.NBTUtilBC;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
@@ -137,10 +137,10 @@ public class WorldSavedDataVolumeBoxes extends SavedData {
         boolean fullSync = lastSyncedState.isEmpty() || playerCount != lastPlayerCount
             || lastFullSyncTick == Long.MIN_VALUE || now - lastFullSyncTick >= 100;
         if (fullSync) {
-            MessageManager.sendToDimension(new MessageVolumeBoxes(volumeBoxes), world.dimension());
+            BCNetwork.sendToDimension(new MessageVolumeBoxes(volumeBoxes), world.dimension());
             lastFullSyncTick = now;
         } else if (!changed.isEmpty() || !removed.isEmpty()) {
-            MessageManager.sendToDimension(MessageVolumeBoxes.delta(changed, removed), world.dimension());
+            BCNetwork.sendToDimension(MessageVolumeBoxes.delta(changed, removed), world.dimension());
         }
 
         lastSyncedState.clear();

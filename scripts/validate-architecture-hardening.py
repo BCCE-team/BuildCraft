@@ -206,6 +206,7 @@ def platform_metrics() -> dict[str, object]:
     by_root: dict[str, int] = {}
     neutral: list[str] = []
     gameplay: list[str] = []
+    gameplay_by_platform: Counter[str] = Counter()
     for platform, label, root in platform_roots():
         paths = java_files(root)
         by_root[label] = len(paths)
@@ -216,11 +217,14 @@ def platform_metrics() -> dict[str, object]:
                 neutral.append(path.relative_to(ROOT).as_posix())
             if "/src/main/java/" in path.as_posix() and GAMEPLAY_NAME_RE.match(path.name):
                 gameplay.append(path.relative_to(ROOT).as_posix())
+                gameplay_by_platform[platform] += 1
     return {
         "by_root": dict(sorted(by_root.items())),
         "java_total": sum(by_root.values()),
         "loader_neutral_java": sorted(neutral),
         "gameplay_override_candidates": sorted(gameplay),
+        "gameplay_override_by_platform": dict(sorted(gameplay_by_platform.items())),
+        "fabric_gameplay_override_count": int(gameplay_by_platform.get("fabric", 0)),
     }
 
 
@@ -547,6 +551,10 @@ def validate(metrics: dict[str, object], budget: dict[str, object], previous: di
         errors.append(f"platform gameplay override missing explicit allowlist entry: {platform['gameplay_unallowlisted'][0]}")
     if platform["gameplay_stale_allowlist"]:
         errors.append(f"stale platform gameplay allowlist entry: {platform['gameplay_stale_allowlist'][0]}")
+    if int(platform.get("fabric_gameplay_override_count", 0)) != 0:
+        errors.append(
+            "Fabric platform/family-platform layers must not own gameplay Tile/Pipe/Robot/Gate/Builder/Engine classes"
+        )
 
     downports = metrics["downports"]
     if downports["identical_to_canonical"]:
@@ -646,6 +654,7 @@ def markdown(metrics: dict[str, object], budget: dict[str, object], previous: di
         f"- Loader-neutral Java in platform layers: **{len(plat['loader_neutral_java'])}**",
         f"- Explicit gameplay override allowlist: **{plat['gameplay_allowlist_entries']}** entries",
         f"- Unallowlisted gameplay overrides: **{len(plat['gameplay_unallowlisted'])}**",
+        f"- Fabric gameplay overrides: **{plat.get('fabric_gameplay_override_count', 0)}** (hard limit: 0)",
         "",
         "| Platform root | Java |",
         "|---|---:|",

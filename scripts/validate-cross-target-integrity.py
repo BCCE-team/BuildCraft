@@ -15,7 +15,7 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
-from source_layout import ROOT, load_properties, materialize_target, preprocess_text, resolve_effective_source, target_ids, target_layout
+from source_layout import ROOT, gameplay_target_ids, load_properties, materialize_target, preprocess_text, resolve_effective_source, target_ids, target_layout
 from source_preprocessor import strip_source_condition
 
 
@@ -67,7 +67,7 @@ def effective_java(target: str, rel: str, props: dict[str, str]) -> str:
 
 
 def validate_atlases_and_case(props: dict[str, str]) -> None:
-    for target in target_ids(props):
+    for target in gameplay_target_ids(props):
         resources = resource_map(target, props)
 
         # Minecraft resource locations are lowercase-only. Checking the effective
@@ -223,7 +223,7 @@ def validate_atlases_and_case(props: dict[str, str]) -> None:
 def validate_stack_parity(props: dict[str, str]) -> None:
     builders_rel = "buildcraft/builders/BCBuildersItems.java"
     core_rel = "buildcraft/core/BCCoreItems.java"
-    for target in target_ids(props):
+    for target in gameplay_target_ids(props):
         builders = effective_java(target, builders_rel, props)
         core = effective_java(target, core_rel, props)
         lines = {line.strip() for line in builders.splitlines()}
@@ -268,7 +268,7 @@ def validate_stack_parity(props: dict[str, str]) -> None:
 
 
 def validate_machine_fluid_drop_ownership(props: dict[str, str]) -> None:
-    for target in target_ids(props):
+    for target in gameplay_target_ids(props):
         for rel, name in (
             ("buildcraft/factory/tile/TilePump.java", "Pump"),
             ("buildcraft/factory/tile/TileFloodGate.java", "Flood Gate"),
@@ -291,8 +291,9 @@ def validate_metadata(props: dict[str, str]) -> None:
         parts = [int(x) for x in version.split(".")]
         if len(parts) != 3:
             fail(f"{target}: expected x.y.z Minecraft version, got {version}")
+        loader = props[f"target.{target}.source.platform"]
         upper = f"{parts[0]}.{parts[1]}.{parts[2] + 1}"
-        expected = f"[{version},{upper})"
+        expected = f"~{version}" if loader == "fabric" else f"[{version},{upper})"
         actual = props.get(f"target.{target}.minecraft.version_range")
         if actual != expected:
             fail(f"{target}: Minecraft range must be exact patch line {expected}, got {actual}")
@@ -442,7 +443,7 @@ def validate_hotspots(props: dict[str, str]) -> None:
             "isStandaloneWaterBlock", "api2MachineTypeId",
         ),
     }
-    for target in target_ids(props):
+    for target in gameplay_target_ids(props):
         for rel, tokens in common.items():
             text = effective_java(target, rel, props)
             for token in tokens:
@@ -631,7 +632,7 @@ def validate_build_metadata_and_source_hygiene(props: dict[str, str]) -> None:
             if token not in text:
                 fail(f"{rel}: generated Java build metadata wiring lost {token!r}")
 
-    for target in target_ids(props):
+    for target in gameplay_target_ids(props):
         bclib = effective_java(target, "buildcraft/lib/BCLib.java", props)
         for token in (
             "BuildCraftTarget.MOD_VERSION",
@@ -689,7 +690,7 @@ def validate_facade_swap_recipe(props: dict[str, str]) -> None:
 
 def validate_snapshot_renderer_and_client_isolation(props: dict[str, str]) -> None:
     snapshot_rel = "buildcraft/builders/snapshot/ClientSnapshots.java"
-    for target in target_ids(props):
+    for target in gameplay_target_ids(props):
         text = effective_java(target, snapshot_rel, props)
         for token in (
             "3D blueprint/template previews are intentionally disabled",
@@ -742,6 +743,34 @@ def validate_compat_runtime_dependencies(props: dict[str, str]) -> None:
             f"({required_hotfix}); found {carbon!r}."
         )
 
+def validate_fabric_skeleton(props: dict[str, str]) -> None:
+    target = "1.20.1-fabric"
+    if target not in target_ids(props):
+        fail(f"missing configured Fabric skeleton target {target}")
+    if props.get(f"target.{target}.build.profile") != "skeleton":
+        fail(f"{target}: build.profile must remain skeleton until the server-foundation stage")
+    layout = target_layout(target, props)
+    if layout.platform != "fabric" or layout.family != "legacy":
+        fail(f"{target}: expected legacy/fabric ownership, got {layout.family}/{layout.platform}")
+    overlay_java = list(layout.overlay_root.rglob("*.java"))
+    if overlay_java:
+        fail(f"{target}: Fabric skeleton target overlay must contain 0 Java files")
+    resources = resource_map(target, props)
+    for relative in ("fabric.mod.json", "buildcraft.accesswidener", "buildcraft.fabric.mixins.json", "pack.mcmeta"):
+        if relative not in resources:
+            fail(f"{target}: missing Fabric skeleton resource {relative}")
+    metadata = json.loads(resources["fabric.mod.json"].read_text(encoding="utf-8"))
+    if metadata.get("id") != "buildcraftlib":
+        fail(f"{target}: Fabric primary mod id must be buildcraftlib")
+    if metadata.get("custom", {}).get("buildcraft:skeleton") is not True:
+        fail(f"{target}: Fabric metadata must advertise the skeleton status")
+    entrypoints = metadata.get("entrypoints", {})
+    if "buildcraft.fabric.BuildCraftFabric" not in entrypoints.get("main", []):
+        fail(f"{target}: missing Fabric common bootstrap entrypoint")
+    if "buildcraft.fabric.BuildCraftFabricClient" not in entrypoints.get("client", []):
+        fail(f"{target}: missing Fabric client bootstrap entrypoint")
+
+
 def validate_ci_wiring(props: dict[str, str]) -> None:
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
@@ -784,6 +813,17 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
     }
     if actual_matrix != expected_matrix:
         fail(f"target runtime CI matrix drifted: expected {expected_matrix}, found {actual_matrix}")
+
+    fabric_skeleton_entry = (
+        "- target: 1.20.1-fabric\n"
+        "            generation: legacy\n"
+        "            java: '17'\n"
+        "            skeleton: true"
+    )
+    if fabric_skeleton_entry not in runtime:
+        fail("1.20.1-fabric CI matrix entry must remain explicitly marked skeleton: true")
+    if runtime.count("if: matrix.skeleton != true") < 4:
+        fail("Fabric skeleton must skip runtime-only client, GameTest and server smoke gates")
 
     for token in (
         "name: Build, test and smoke ${{ matrix.target }}",
@@ -904,6 +944,7 @@ def main() -> None:
     validate_facade_swap_recipe(props)
     validate_snapshot_renderer_and_client_isolation(props)
     validate_compat_runtime_dependencies(props)
+    validate_fabric_skeleton(props)
     validate_ci_wiring(props)
     print("Cross-target integrity OK:")
     print(" - exact-case atlas/model resources verified")

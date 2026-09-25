@@ -38,6 +38,7 @@ from source_config import (
     family_targets,
     generation_config_paths,
     generation_targets,
+    gameplay_target_ids,
     load_generation_properties,
     load_properties,
     platform_targets,

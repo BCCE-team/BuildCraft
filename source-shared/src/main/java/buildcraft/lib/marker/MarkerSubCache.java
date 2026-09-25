@@ -22,7 +22,7 @@ import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.block.BlockMarkerBase;
 import buildcraft.lib.client.render.laser.LaserData_BC8.LaserType;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import buildcraft.lib.net.MessageMarker;
 import buildcraft.lib.tile.TileMarker;
 import com.google.common.collect.ImmutableList;
@@ -63,7 +63,7 @@ public abstract class MarkerSubCache<C extends MarkerConnection<C>> {
                 message.connection = false;
                 message.cacheId = cacheId;
                 message.positions.addAll(tileCache.keySet());
-                MessageManager.sendTo(message, player);
+                BCNetwork.sendTo(message, player);
             }
             // Send ALL connections.
             for (C connection : connectionToPos.keySet()) {
@@ -72,7 +72,7 @@ public abstract class MarkerSubCache<C extends MarkerConnection<C>> {
                 message.connection = true;
                 message.cacheId = cacheId;
                 message.positions.addAll(connection.getMarkerPositions());
-                MessageManager.sendTo(message, player);
+                BCNetwork.sendTo(message, player);
             }
         }
     }
@@ -160,7 +160,7 @@ public abstract class MarkerSubCache<C extends MarkerConnection<C>> {
         message.cacheId = cacheId;
         message.count = 1;
         message.positions.add(pos);
-        MessageManager.sendToDimension(message, dimensionId);
+        BCNetwork.sendToDimension(message, dimensionId);
     }
 
     private void sendMarkerRemovedToDimension(BlockPos pos) {
@@ -171,7 +171,7 @@ public abstract class MarkerSubCache<C extends MarkerConnection<C>> {
         message.cacheId = cacheId;
         message.count = 1;
         message.positions.add(pos);
-        MessageManager.sendToDimension(message, dimensionId);
+        BCNetwork.sendToDimension(message, dimensionId);
     }
 
     private void sendConnectionAddedToDimension(C connection) {
@@ -182,7 +182,7 @@ public abstract class MarkerSubCache<C extends MarkerConnection<C>> {
         message.positions.addAll(connection.getMarkerPositions());
         message.count = message.positions.size();
         message.multiple = message.count > 1;
-        MessageManager.sendToDimension(message, dimensionId);
+        BCNetwork.sendToDimension(message, dimensionId);
     }
 
     private void sendConnectionRemovedToDimension(Set<BlockPos> positions) {
@@ -193,7 +193,7 @@ public abstract class MarkerSubCache<C extends MarkerConnection<C>> {
         message.positions.addAll(positions);
         message.count = message.positions.size();
         message.multiple = message.count > 1;
-        MessageManager.sendToDimension(message, dimensionId);
+        BCNetwork.sendToDimension(message, dimensionId);
     }
 
     public ImmutableList<BlockPos> getAllMarkers() {

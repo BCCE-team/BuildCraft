@@ -6,7 +6,7 @@ import sys
 import re
 from pathlib import Path
 
-from source_layout import ROOT, load_properties, preprocess_text, resolve_effective_source, target_ids, target_layout
+from source_layout import ROOT, load_properties, preprocess_text, resolve_effective_source, gameplay_target_ids, target_ids, target_layout
 from source_preprocessor import strip_source_condition
 from source_lookup import resolve_source_path
 
@@ -76,7 +76,7 @@ def validate_lifecycle(props: dict[str, str]) -> None:
     if "INSTANCE.advanceLifecycle(ApiLifecycle.TYPE_REGISTRATION);\n    }" in runtime and "if (INSTANCE.lifecycle == ApiLifecycle.DISCOVERY)" not in runtime:
         fail("BuildCraftApiRuntime.bootstrap is not idempotent after content registration")
 
-    for target in target_ids(props):
+    for target in gameplay_target_ids(props):
         bclib = effective_java(target, "buildcraft/lib/BCLib.java", props)
         if "evt.enqueueWork(BCLibRegistries::fmlPostInit)" not in bclib:
             fail(f"{target}: load-complete event does not freeze/start API2 lifecycle")
@@ -194,6 +194,79 @@ def validate_robot_extensions() -> None:
             fail(f"{platform}: built-in block robot resource type is not registered")
 
 
+def validate_pipe_component_runtime(props: dict[str, str]) -> None:
+    require(
+        ROOT / "source-shared/src/main/java/buildcraft/transport/api2/ApiPipeComponentRuntime.java",
+        "readState(",
+        "writeState(",
+        "writeInitialSync(",
+        "writeRequestedSync(",
+        "readSync(",
+        "statePersistence()",
+        "unresolved",
+    )
+    for rel, tokens in {
+        "pipe/PipeExecutionContext.java": ("Level level()", "PipeNeighbourView neighbour(Direction side)"),
+        "pipe/PipeLifecycleComponent.java": ("onLoad", "onUnload", "onRemoved"),
+        "pipe/PipeDropComponent.java": ("collectDrops",),
+        "pipe/PipePortProviderComponent.java": ("itemPort", "fluidPort", "mjPort", "externalEnergyPort"),
+        "pipe/ItemTransitComponent.java": ("onEnter",),
+        "pipe/ItemEjectionComponent.java": ("onEject",),
+        "pipe/FluidIngressComponent.java": ("FluidIngressResult insert",),
+        "pipe/MjNetworkComponent.java": ("queryDemand", "MjTransferResult receive"),
+    }.items():
+        require(ROOT / "source-shared/src/main/java/buildcraft/api/v2" / rel, *tokens)
+
+    for target in gameplay_target_ids(props):
+        pipe = effective_java(target, "buildcraft/transport/pipe/Pipe.java", props)
+        for token in (
+            "implements IPipe, IDebuggable, PipeExecutionContext",
+            "ApiPipeComponentRuntime.readState",
+            "ApiPipeComponentRuntime.writeState",
+            "ApiPipeComponentRuntime.writeInitialSync",
+            "ApiPipeComponentRuntime.readSync",
+            "PipeMessageReceiver.API_COMPONENTS",
+            "public PipeNeighbourView neighbour(Direction side)",
+            "PipePortProviderComponent",
+            "applyItemIngress",
+            "applyFluidIngress",
+            "apiMjDemand",
+            "apiReceiveMj",
+        ):
+            if token not in pipe:
+                fail(f"{target}: pipe API2 runtime missing {token!r}")
+
+        holder = effective_java(target, "buildcraft/transport/tile/TilePipeHolder.java", props)
+        for token in (
+            "NET_UPDATE_API_COMPONENTS",
+            "pipe.writeApiComponentSync(buffer)",
+            "pipe.readApiComponentSync(buffer)",
+            "PipeRemovalReason.CHUNK_UNLOAD",
+            "PipeRemovalReason.INVALIDATED",
+            "pipe.onApiLoad()",
+            "pipe.onApiRemoved",
+        ):
+            if token not in holder:
+                fail(f"{target}: tile pipe holder missing component runtime hook {token!r}")
+
+        items = effective_java(target, "buildcraft/transport/pipe/flow/PipeFlowItems.java", props)
+        for token in ("applyItemIngress", "consumeItemEjection"):
+            if token not in items:
+                fail(f"{target}: item pipe flow missing {token!r}")
+        fluids = effective_java(target, "buildcraft/transport/pipe/flow/PipeFlowFluids.java", props)
+        if "applyFluidIngress" not in fluids:
+            fail(f"{target}: fluid pipe flow does not intercept API2 ingress")
+        power = effective_java(target, "buildcraft/transport/pipe/flow/PipeFlowPower.java", props)
+        for token in ("apiMjDemand", "apiReceiveMj"):
+            if token not in power:
+                fail(f"{target}: MJ pipe flow missing {token!r}")
+
+    runtime = require(
+        ROOT / "source-shared/src/main/java/buildcraft/lib/internal/api/v2/BuildCraftApiRuntime.java",
+        "new ApiFeature(BuildCraftFeatures.PIPES, 2)",
+    )
+
+
 def validate_fixture_extensions() -> None:
     fixture = require(
         ROOT / "addon-fixture/src/main/java/dev/bcce/apifixture/ApiV2FixtureAddon.java",
@@ -204,6 +277,14 @@ def validate_fixture_extensions() -> None:
         "BuildCraftRegistries.ROBOT_RESOURCE_TYPES",
         "BuildCraftRegistries.ROBOT_DOCK_PORT_TYPES",
         "dock.port(FIXTURE_DOCK_PORT)",
+        "new PipeComponentType<>(",
+        "PipeComponentState<FixturePipeComponent",
+        "PipeSyncChannel<Boolean>",
+        "PipeExecutionContext",
+        "PipePortProviderComponent",
+        "ItemTransitComponent",
+        "FluidIngressComponent",
+        "MjNetworkComponent",
     )
     if "buildcraft.lib.internal" in fixture or "net.minecraftforge" in fixture or "net.neoforged" in fixture:
         fail("addon fixture robot extensions leaked implementation/loader APIs")
@@ -248,6 +329,7 @@ def main() -> None:
     validate_lifecycle(props)
     validate_runtime_services()
     validate_robot_extensions()
+    validate_pipe_component_runtime(props)
     validate_fixture_extensions()
     validate_retired_dead_surface()
     validate_parser_and_snapshot()
@@ -260,6 +342,7 @@ def main() -> None:
     print(" - production lifecycle reaches CONTENT_REGISTRATION -> FROZEN -> RUNNING")
     print(" - world rules, diagnostics, presentations and loader transfer services are live")
     print(" - robot resource/task/dock registries dispatch into runtime consumers")
+    print(" - pipe component persistence/sync, execution context, lifecycle and transport interception are wired")
     print(" - backend-less pre-release network/chipset/pipe-event surfaces stay retired")
     print(" - unsupported custom-model face syntax fails cleanly, not with AbstractMethodError")
 

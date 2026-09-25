@@ -63,7 +63,7 @@ def main() -> int:
     for path in pipe_paths:
         src = text(path)
         for token in [
-            "implements IPipe, IDebuggable, PipeMutationContext",
+            "implements IPipe, IDebuggable, PipeExecutionContext",
             "applyItemRouting(",
             "applyFluidRouting(",
             "applyMjRouting(",

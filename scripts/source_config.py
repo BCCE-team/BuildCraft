@@ -257,6 +257,16 @@ def target_ids(properties: dict[str, str] | None = None) -> list[str]:
     return _all_target_ids(props)
 
 
+def target_build_profile(target: str, properties: dict[str, str] | None = None) -> str:
+    props = properties or load_properties()
+    return props.get(f"target.{target}.build.profile", "production").strip() or "production"
+
+
+def gameplay_target_ids(properties: dict[str, str] | None = None) -> list[str]:
+    props = properties or load_properties()
+    return [target for target in target_ids(props) if target_build_profile(target, props) != "skeleton"]
+
+
 def generation_targets(properties: dict[str, str] | None = None) -> dict[str, list[str]]:
     props = properties or load_properties()
     result: dict[str, list[str]] = {}
@@ -372,7 +382,7 @@ def family_platform_targets(properties: dict[str, str] | None = None) -> dict[tu
 __all__ = [
     "ROOT", "COMMON_PROPERTIES", "TARGETS_PROPERTIES", "GENERATIONS_PROPERTIES",
     "SOURCE_LAYER_MARKER", "TargetMetadata", "TargetLayout", "read_properties", "generation_config_paths",
-    "load_generation_properties", "load_properties", "target_ids", "target_metadata", "target_registry", "generation_targets",
+    "load_generation_properties", "load_properties", "target_ids", "target_build_profile", "gameplay_target_ids", "target_metadata", "target_registry", "generation_targets",
     "target_build_root", "target_layout", "configured_layer_paths", "family_targets",
     "platform_targets", "family_platform_targets",
 ]

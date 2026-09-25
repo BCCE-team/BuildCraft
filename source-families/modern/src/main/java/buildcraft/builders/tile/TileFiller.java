@@ -55,7 +55,7 @@ import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.lib.misc.data.Box;
 import buildcraft.lib.misc.data.IdAllocator;
 import buildcraft.lib.internal.mj.MjBatteryReceiver;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import buildcraft.lib.statement.FullStatement;
 import buildcraft.lib.tile.TileBC_Neptune;
 import buildcraft.lib.tile.item.ItemHandlerManager.EnumAccess;
@@ -421,7 +421,7 @@ public class TileFiller extends TileBC_Neptune
     }
 
     public void sendCanExcavate(boolean newValue) {
-        MessageManager.sendToServer(createMessage(NET_CAN_EXCAVATE, buffer -> buffer.writeBoolean(newValue)));
+        BCNetwork.sendToServer(createMessage(NET_CAN_EXCAVATE, buffer -> buffer.writeBoolean(newValue)));
     }
 
     public void onStatementChange() {

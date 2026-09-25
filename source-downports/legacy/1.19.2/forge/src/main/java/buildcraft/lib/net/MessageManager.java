@@ -145,6 +145,22 @@ public class MessageManager {
         }
     }
 
+    /** Registers one loader-neutral legacy catalogue entry on Forge. */
+    public static <I> void registerCatalogMessage(
+        IBuildCraftMod module,
+        Class<I> messageClass,
+        BiConsumer<I, Supplier<BCPacketContext>> messageHandler,
+        BiConsumer<I, FriendlyByteBuf> encoder,
+        Function<FriendlyByteBuf, I> decoder,
+        BCMessageDirection direction
+    ) {
+        switch (direction) {
+            case CLIENTBOUND -> registerMessageClass(module, messageClass, messageHandler, encoder, decoder, Dist.CLIENT);
+            case SERVERBOUND -> registerMessageClass(module, messageClass, messageHandler, encoder, decoder, Dist.DEDICATED_SERVER);
+            case BIDIRECTIONAL -> registerMessageClass(module, messageClass, messageHandler, encoder, decoder);
+        }
+    }
+
     /** Sets the handler for the specified handler.
      *
      * @param side The side that the given handler will receive messages on. */

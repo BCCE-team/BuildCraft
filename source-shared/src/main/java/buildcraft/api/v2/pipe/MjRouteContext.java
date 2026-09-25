@@ -10,4 +10,10 @@ public record MjRouteContext(PipeView pipe, Direction input, MjAmount amount, Se
         Objects.requireNonNull(pipe, "pipe"); Objects.requireNonNull(input, "input"); Objects.requireNonNull(amount, "amount");
         candidates = Set.copyOf(Objects.requireNonNull(candidates, "candidates"));
     }
+
+    /** Runtime environment for neighbour/world-aware routing. */
+    public PipeExecutionContext execution() {
+        if (pipe instanceof PipeExecutionContext context) return context;
+        throw new IllegalStateException("Pipe runtime does not expose PipeExecutionContext");
+    }
 }

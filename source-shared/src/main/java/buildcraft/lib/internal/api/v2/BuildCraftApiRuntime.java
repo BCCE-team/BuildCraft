@@ -36,7 +36,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         new ApiFeature(BuildCraftFeatures.PERMISSIONS, 1),
         new ApiFeature(BuildCraftFeatures.ENERGY, 1),
         new ApiFeature(BuildCraftFeatures.DATA_DOMAINS, 1),
-        new ApiFeature(BuildCraftFeatures.PIPES, 1),
+        new ApiFeature(BuildCraftFeatures.PIPES, 2),
         new ApiFeature(BuildCraftFeatures.STATEMENTS, 1),
         new ApiFeature(BuildCraftFeatures.SIGNALS, 1),
         new ApiFeature(BuildCraftFeatures.AUTOMATION, 1),

@@ -36,9 +36,11 @@ LOG_ROOT = ROOT / "logs" / "ci-local"
 TARGETS = (
     ("1.19.2-forge", "legacy", 17),
     ("1.20.1-forge", "legacy", 17),
+    ("1.20.1-fabric", "legacy", 17),
     ("1.21.1-neoforge", "modern", 21),
     ("1.21.11-neoforge", "modern", 21),
 )
+SKELETON_TARGETS = {"1.20.1-fabric"}
 COMPATIBILITY = (
     ("1.19.2-forge", "forestry"),
     ("1.19.2-forge", "ic2"),
@@ -51,6 +53,8 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Enforce architecture budgets and trend", ("__ARCHITECTURE__",)),
     ("Validate API v2 boundary", (sys.executable, "scripts/validate-api-v2.py")),
     ("Validate API v2-only public surface", (sys.executable, "scripts/validate-api-v2-only.py")),
+    ("Validate API v2 symbol baseline", (sys.executable, "scripts/validate-api-v2-symbol-baseline.py")),
+    ("Validate API v2 coverage matrix", (sys.executable, "scripts/validate-api-v2-coverage.py")),
     ("Validate API2 runtime completeness", (sys.executable, "scripts/validate-api2-runtime-completeness.py")),
     ("Validate API2 module contracts", ("__API2_MODULE_CONTRACTS__",)),
     ("Validate repository cleanliness", (sys.executable, "scripts/validate-repository-cleanliness.py")),
@@ -65,6 +69,8 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test internal Minecraft compatibility boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_minecraft_compat.py", "-v")),
     ("Test actor tickets and client registration boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_actor_client_boundaries.py", "-v")),
     ("Test loader-neutral packet boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_loader_boundaries.py", "-v")),
+    ("Test Fabric runtime preparation boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_runtime_boundaries.py", "-v")),
+    ("Test Fabric loader target bootstrap", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_fabric_loader_target.py", "-v")),
     ("Test storage, event, registry and config boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_platform_boundaries.py", "-v")),
     ("Test capability lifecycle invalidation and revival", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_capability_lifecycle.py", "-v")),
     ("Test platform contracts", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_platform_contracts.py", "-v")),
@@ -186,6 +192,7 @@ def workflow_alignment_check() -> None:
         '":${STONECUTTER_TARGET}:buildAndCollect"',
         '":${STONECUTTER_TARGET}:runGameTestServer"',
         "bash scripts/ci-server-smoke.sh",
+        "if: matrix.skeleton != true",
     ):
         if fragment not in build_text:
             raise LocalCIError(f"Local CI runner is stale: build command changed: {fragment}")
@@ -1080,7 +1087,10 @@ def write_plan(run_dir: Path, validate_only: bool) -> None:
     if not validate_only:
         lines.append("build-test-server (sequential local form of CI matrix):")
         for target, generation, java in TARGETS:
-            lines.append(f"  - {target} ({generation}, Java {java}): build -> GameTests -> server smoke -> artifacts")
+            if target in SKELETON_TARGETS:
+                lines.append(f"  - {target} ({generation}, Java {java}): skeleton build -> artifacts")
+            else:
+                lines.append(f"  - {target} ({generation}, Java {java}): build -> GameTests -> server smoke -> artifacts")
         lines.append("Compatibility:")
         for target, profile in COMPATIBILITY:
             lines.append(f"  - {target} / {profile}: server smoke -> artifacts")
@@ -1264,7 +1274,7 @@ def main() -> int:
             build_root, "--no-daemon", "--console=plain", "--stacktrace", f":{target}:buildAndCollect"
         )
         status, log = run_command(name, build_command, env=target_env, run_dir=run_dir, step_number=step_number, cwd=build_root)
-        if status != 0 and generation == "legacy":
+        if status != 0 and target.endswith("-forge"):
             content = log.read_text(encoding="utf-8", errors="replace")
             if re.search(r"ZipException|invalid LOC header|zip END header not found", content):
                 print(f"ForgeGradle cache corruption detected for {target}; clearing dependency caches and retrying once.")
@@ -1282,6 +1292,16 @@ def main() -> int:
             destination = run_dir / "artifacts" / f"buildcraft-{target}"
             copy_artifact_patterns(build_artifact_patterns(target, generation), destination)
             return status
+
+        if target in SKELETON_TARGETS:
+            game_name = f"Run GameTests [{target}]"
+            smoke_name = f"Smoke-test production jar [{target}]"
+            record(game_name, 0, None, skipped=True)
+            record(smoke_name, 0, None, skipped=True)
+            destination = run_dir / "artifacts" / f"buildcraft-{target}"
+            copied = copy_artifact_patterns(build_artifact_patterns(target, generation), destination)
+            print(f"Collected {copied} skeleton artifact file(s) for {target} -> {destination.relative_to(ROOT)}")
+            continue
 
         step_number += 1
         name = f"Run GameTests [{target}]"

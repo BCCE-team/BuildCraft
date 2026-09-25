@@ -7,6 +7,9 @@
 
 package buildcraft.transport.pipe.flow;
 
+import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.fluid.FluidAmount;
+import buildcraft.api.v2.fluid.FluidVolume;
 import buildcraft.lib.platform.storage.StorageAdapters;
 import buildcraft.lib.platform.storage.FilteredFluidStorage;
 import buildcraft.lib.platform.storage.FluidStorage;
@@ -368,6 +371,14 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         Section s = sections.get(EnumPipePart.CENTER);
         if (fluid.isEmpty() || fluid.getAmount() == 0) {
             return 0;
+        }
+        if (pipe instanceof Pipe runtimePipe) {
+            FluidVolume offered = FuelApiBridge.volumeOf(fluid);
+            OperationMode mode = simulate.simulate() ? OperationMode.SIMULATE : OperationMode.EXECUTE;
+            java.util.Optional<FluidAmount> handled = runtimePipe.applyFluidIngress(from, offered, mode);
+            if (handled.isPresent()) {
+                return (int) Math.min(fluid.getAmount(), handled.get().milliBuckets());
+            }
         }
         if (!currentFluid.isEmpty() && !FluidCompatRegistry.areEquivalent(currentFluid, fluid)) {
             return 0;

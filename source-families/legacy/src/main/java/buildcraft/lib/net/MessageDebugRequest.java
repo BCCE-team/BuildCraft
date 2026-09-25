@@ -6,6 +6,7 @@
 
 package buildcraft.lib.net;
 
+import buildcraft.lib.net.BCNetwork;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -50,7 +51,7 @@ public class MessageDebugRequest {
 			if(player == null||ctx.get().side()!=BCNetworkSide.SERVER)
 				return;
 			if (!ItemDebugger.isShowDebugInfo(player)) { 
-				MessageManager.sendTo(new MessageDebugResponse(), player);
+				BCNetwork.sendTo(new MessageDebugResponse(), player);
 				return;
 			}
             // Debug packets are never a remote-inspection API: the sender must be near an already-loaded tile.
@@ -71,7 +72,7 @@ public class MessageDebugRequest {
 				List<String> left = new ArrayList<>();
 				List<String> right = new ArrayList<>();
 				((IDebuggable) tile).getDebugInfo(left, right, message.side);
-				MessageManager.sendTo(new MessageDebugResponse(left, right), player);
+				BCNetwork.sendTo(new MessageDebugResponse(left, right), player);
 			}
 		});
 		ctx.get().setPacketHandled(true);

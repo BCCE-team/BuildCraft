@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "stage": "fabric-1.20.1-preparation-api-coverage",
+  "domains": {
+    "pipe_component_persistence": {
+      "priority": "P0",
+      "status": "covered",
+      "contract": "PipeComponentType persistence/statePersistence is stored and restored by the runtime while unknown payloads round-trip.",
+      "evidence": [
+        "source-shared/src/main/java/buildcraft/transport/api2/ApiPipeComponentRuntime.java",
+        "source-platforms/forge/src/main/java/buildcraft/transport/pipe/Pipe.java",
+        "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/Pipe.java"
+      ]
+    },
+    "pipe_component_sync": {
+      "priority": "P0",
+      "status": "covered",
+      "contract": "PipeSyncChannel carries typed component payloads over a dedicated pipe receiver instead of aliasing behaviour/flow updates.",
+      "evidence": [
+        "source-shared/src/main/java/buildcraft/transport/api2/ApiPipeComponentRuntime.java",
+        "source-platforms/forge/src/main/java/buildcraft/transport/internal/pipe/IPipeHolder.java",
+        "source-platforms/neoforge/src/main/java/buildcraft/transport/internal/pipe/IPipeHolder.java"
+      ]
+    },
+    "pipe_execution_neighbours": {
+      "priority": "P1",
+      "status": "covered",
+      "contract": "Components can access Level and loader-neutral neighbour pipe/item/fluid/MJ/external-energy views.",
+      "evidence": [
+        "source-shared/src/main/java/buildcraft/api/v2/pipe/PipeExecutionContext.java",
+        "source-shared/src/main/java/buildcraft/api/v2/pipe/PipeNeighbourView.java"
+      ]
+    },
+    "pipe_component_lifecycle": {
+      "priority": "P1",
+      "status": "covered",
+      "contract": "Load, chunk unload/invalidation and physical removal are distinct callbacks; component drops are explicit.",
+      "evidence": [
+        "source-shared/src/main/java/buildcraft/api/v2/pipe/PipeLifecycleComponent.java",
+        "source-shared/src/main/java/buildcraft/api/v2/pipe/PipeDropComponent.java"
+      ]
+    },
+    "pipe_component_ports": {
+      "priority": "P1",
+      "status": "covered",
+      "contract": "Components can provide loader-neutral item/fluid/MJ/external-energy ports. Native loader exposure remains platform-adapter work for Fabric.",
+      "evidence": [
+        "source-shared/src/main/java/buildcraft/api/v2/pipe/PipePortProviderComponent.java"
+      ]
+    },
+    "item_transit_interception": {
+      "priority": "P1",
+      "status": "covered",
+      "contract": "Item entry, stable transit metadata and world ejection have typed hooks with simulation-aware entry semantics.",
+      "evidence": [
+        "source-shared/src/main/java/buildcraft/api/v2/pipe/ItemTransitComponent.java",
+        "source-shared/src/main/java/buildcraft/api/v2/pipe/ItemEjectionComponent.java",
+        "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+        "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+        "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java"
+      ]
+    },
+    "fluid_ingress_interception": {
+      "priority": "P1",
+      "status": "covered",
+      "contract": "Incoming fluid can be intercepted before local pipe storage in SIMULATE and EXECUTE modes.",
+      "evidence": [
+        "source-shared/src/main/java/buildcraft/api/v2/pipe/FluidIngressComponent.java",
+        "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
+        "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
+        "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"
+      ]
+    },
+    "mj_network_interception": {
+      "priority": "P1",
+      "status": "covered",
+      "contract": "Components can advertise MJ demand and consume MJ from native pipe-network receive paths with simulation semantics.",
+      "evidence": [
+        "source-shared/src/main/java/buildcraft/api/v2/pipe/MjNetworkComponent.java",
+        "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java",
+        "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java",
+        "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java"
+      ]
+    },
+    "declarative_pipe_presentation": {
+      "priority": "P2",
+      "status": "deferred",
+      "target_stage": "fabric-client-layer",
+      "contract": "PipePresentation must become renderer-consumed declarative state rather than registry-only metadata."
+    },
+    "assembly_recipe_extension": {
+      "priority": "P2",
+      "status": "deferred",
+      "target_stage": "consumer-validation",
+      "contract": "Assembly recipes need a public addon definition after transport coverage is proven."
+    }
+  }
+}

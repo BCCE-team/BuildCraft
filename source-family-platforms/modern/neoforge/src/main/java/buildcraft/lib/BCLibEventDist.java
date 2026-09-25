@@ -35,6 +35,7 @@ import buildcraft.lib.misc.SpriteUtil;
 import buildcraft.lib.misc.data.ModelVariableData;
 import buildcraft.lib.net.MessageDebugRequest;
 import buildcraft.lib.net.MessageDebugResponse;
+import buildcraft.lib.net.BCNetwork;
 import buildcraft.lib.net.MessageManager;
 import buildcraft.lib.net.MessageMarker;
 import buildcraft.lib.net.MessageMarkerClientHandler;
@@ -161,7 +162,7 @@ public class BCLibEventDist {
                 if (mouseOver != null) {
                     IDebuggable debuggable = ClientDebuggables.getDebuggableObject(mouseOver);
                     if (debuggable instanceof BlockEntity tile && mouseOver instanceof BlockHitResult blockHit) {
-                        MessageManager.sendToServer(new MessageDebugRequest(tile.getBlockPos(), blockHit.getDirection()));
+                        BCNetwork.sendToServer(new MessageDebugRequest(tile.getBlockPos(), blockHit.getDirection()));
                     } else if (debuggable instanceof Entity) {
                         // Entity debug-info requests are intentionally ignored by this block-only debug handler.
                     }
@@ -189,7 +190,7 @@ public class BCLibEventDist {
             MessageUtil.doDelayedServer(5, () -> MarkerCache.onPlayerJoinLevel(playerMP));
             MessageUtil.doDelayedServer(20, () -> MarkerCache.onPlayerJoinLevel(playerMP));
             MessageUtil.doDelayedServer(60, () -> MarkerCache.onPlayerJoinLevel(playerMP));
-            MessageUtil.doDelayedServer(5, () -> MessageManager.sendTo(
+            MessageUtil.doDelayedServer(5, () -> BCNetwork.sendTo(
                 buildcraft.lib.net.MessageGuideRecipeDisplays.create(playerMP), playerMP));
         }
     }
@@ -200,7 +201,7 @@ public class BCLibEventDist {
         // The existing delayed join sync waits until the client world exists. This branch is specifically for a
         // full datapack reload, where all connected players must replace their live Guide recipe preview index.
         if (event.getPlayer() == null) {
-            event.getRelevantPlayers().forEach(player -> MessageUtil.doDelayedServer(1, () -> MessageManager.sendTo(
+            event.getRelevantPlayers().forEach(player -> MessageUtil.doDelayedServer(1, () -> BCNetwork.sendTo(
                 buildcraft.lib.net.MessageGuideRecipeDisplays.create(player), player)));
         }
     }

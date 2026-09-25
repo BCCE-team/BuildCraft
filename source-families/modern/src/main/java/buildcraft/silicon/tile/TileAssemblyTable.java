@@ -28,7 +28,7 @@ import buildcraft.lib.misc.InventoryUtil;
 import buildcraft.lib.misc.LocaleUtil;
 import buildcraft.lib.misc.ItemStackUtil;
 import buildcraft.lib.misc.data.IdAllocator;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import buildcraft.lib.net.NetworkSecurity;
 import buildcraft.lib.net.MessageUpdateTile;
 import buildcraft.lib.recipe.AssemblyRecipeBasic;
@@ -359,7 +359,7 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
             ItemStackUtil.writeOptional(buffer, instruction.output);
             buffer.writeInt(state.ordinal());
         });
-        MessageManager.sendToServer(message);
+        BCNetwork.sendToServer(message);
     }
 
     public InteractionResult onActivated(Player player, InteractionHand hand, BlockHitResult hit) {

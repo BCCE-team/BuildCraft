@@ -23,6 +23,7 @@ import buildcraft.builders.client.render.RenderQuarry;
 import buildcraft.builders.snapshot.MessageSnapshotRequest;
 import buildcraft.builders.snapshot.MessageSnapshotResponse;
 import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.LegacyNetworkCatalog;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.client.event.ModelEvent.BakingCompleted;
@@ -57,13 +58,7 @@ public class BCBuilders {
         BCBuildersRegistries.preInit();
         BCBuildersGuis.preInit(RegistryBinding.on(modEventBus));
         ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCBuildersConfig.config));
-
-        MessageManager.registerMessageClass(BCModules.BUILDERS, MessageSnapshotRequest.class,
-                MessageSnapshotRequest.HANDLER, MessageSnapshotRequest::toBytes, MessageSnapshotRequest::new,
-                Dist.DEDICATED_SERVER);
-        MessageManager.registerMessageClass(BCModules.BUILDERS, MessageSnapshotResponse.class,
-                MessageSnapshotResponse.HANDLER, MessageSnapshotResponse::toBytes, MessageSnapshotResponse::new,
-                Dist.CLIENT);
+        LegacyNetworkCatalog.registerBuilders(MessageManager::registerCatalogMessage);
 
         MinecraftForge.EVENT_BUS.register(this);
         BCBuildersEventDist.registerGameplayEvents();

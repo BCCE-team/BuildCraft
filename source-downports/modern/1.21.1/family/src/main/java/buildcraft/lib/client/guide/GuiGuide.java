@@ -56,7 +56,7 @@ import buildcraft.lib.misc.ColourUtil;
 import buildcraft.lib.misc.LocaleUtil;
 import buildcraft.lib.item.ItemGuide;
 import buildcraft.lib.net.MessageGuideState;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import buildcraft.lib.recipe.AssemblyRecipeBasic;
 import buildcraft.lib.misc.ItemStackUtil;
 import buildcraft.silicon.BCSiliconRecipes;
@@ -310,7 +310,7 @@ public final class GuiGuide extends Screen {
         }
         ItemGuide.GuideState state = currentGuideState();
         ItemGuide.writeGuideState(stack, state);
-        MessageManager.sendToServer(new MessageGuideState(guideHand, state));
+        BCNetwork.sendToServer(new MessageGuideState(guideHand, state));
     }
 
     private void rebuildContents() {

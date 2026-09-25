@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "buildcraftlib",
+  "version": "${mod_version}",
+  "name": "BuildCraft Community Edition - Fabric Skeleton",
+  "description": "Experimental 1.20.1 Fabric loader skeleton. Gameplay modules are intentionally not enabled yet.",
+  "authors": ["${mod_authors}"],
+  "license": "${mod_license}",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["buildcraft.fabric.BuildCraftFabric"],
+    "client": ["buildcraft.fabric.BuildCraftFabricClient"]
+  },
+  "mixins": ["buildcraft.fabric.mixins.json"],
+  "accessWidener": "buildcraft.accesswidener",
+  "depends": {
+    "fabricloader": "${loader_version_range}",
+    "fabric-api": "${fabric_api_version_range}",
+    "minecraft": "${minecraft_version_range}",
+    "java": ">=17"
+  },
+  "custom": {
+    "buildcraft:skeleton": true,
+    "buildcraft:target": "1.20.1-fabric"
+  }
+}

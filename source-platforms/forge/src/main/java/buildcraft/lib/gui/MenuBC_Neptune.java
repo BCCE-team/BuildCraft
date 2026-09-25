@@ -24,7 +24,7 @@ import buildcraft.lib.misc.StackUtil;
 import buildcraft.lib.misc.data.IdAllocator;
 import buildcraft.lib.net.IPayloadWriter;
 import buildcraft.lib.net.MessageContainer;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import buildcraft.lib.net.NetworkSecurity;
 import buildcraft.lib.tile.item.IItemHandlerAdv;
 import io.netty.handler.codec.DecoderException;
@@ -161,9 +161,9 @@ public abstract class MenuBC_Neptune extends AbstractContainerMenu {
         if (playerInventory.player.level().isClientSide) {
         ?*/
         //?}
-            MessageManager.sendToServer(message);
+            BCNetwork.sendToServer(message);
         } else if (playerInventory.player instanceof ServerPlayer serverPlayer) {
-            MessageManager.sendTo(message, serverPlayer);
+            BCNetwork.sendTo(message, serverPlayer);
         }
     }
 

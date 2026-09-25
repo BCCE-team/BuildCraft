@@ -11,16 +11,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 
-import buildcraft.lib.internal.module.BCModules;
-import buildcraft.lib.net.MessageContainer;
-import buildcraft.lib.net.MessageDebugRequest;
-import buildcraft.lib.net.MessageDebugResponse;
-import buildcraft.lib.net.MessageGuideState;
-import buildcraft.lib.net.MessageManager;
-import buildcraft.lib.net.MessageMarker;
-import buildcraft.lib.net.MessageUpdateTile;
-import buildcraft.lib.net.cache.MessageObjectCacheRequest;
-import buildcraft.lib.net.cache.MessageObjectCacheResponse;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
@@ -30,71 +20,6 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 
 public abstract class BCLibProxy {
-
-    static void MessageRegistry() {
-        MessageManager.registerMessageClass(
-            BCModules.LIB,
-            MessageUpdateTile.class,
-            MessageUpdateTile.HANDLER,
-            MessageUpdateTile::toBytes,
-            MessageUpdateTile::new
-        );
-        MessageManager.registerMessageClass(
-            BCModules.LIB,
-            MessageContainer.class,
-            MessageContainer.HANDLER,
-            MessageContainer::toBytes,
-            MessageContainer::new
-        );
-        MessageManager.registerMessageClass(
-            BCModules.LIB,
-            MessageMarker.class,
-            MessageMarker.HANDLER,
-            MessageMarker::toBytes,
-            MessageMarker::new,
-            Dist.CLIENT
-        );
-        MessageManager.registerMessageClass(
-            BCModules.LIB,
-            MessageObjectCacheRequest.class,
-            MessageObjectCacheRequest.HANDLER,
-            MessageObjectCacheRequest::toBytes,
-            MessageObjectCacheRequest::new,
-            Dist.DEDICATED_SERVER
-        );
-        MessageManager.registerMessageClass(
-            BCModules.LIB,
-            MessageObjectCacheResponse.class,
-            MessageObjectCacheResponse.HANDLER,
-            MessageObjectCacheResponse::toBytes,
-            MessageObjectCacheResponse::new,
-            Dist.CLIENT
-        );
-        MessageManager.registerMessageClass(
-            BCModules.LIB,
-            MessageDebugRequest.class,
-            MessageDebugRequest.HANDLER,
-            MessageDebugRequest::toBytes,
-            MessageDebugRequest::new,
-            Dist.DEDICATED_SERVER
-        );
-        MessageManager.registerMessageClass(
-            BCModules.LIB,
-            MessageDebugResponse.class,
-            MessageDebugResponse.HANDLER,
-            MessageDebugResponse::toBytes,
-            MessageDebugResponse::new,
-            Dist.CLIENT
-        );
-        MessageManager.registerMessageClass(
-            BCModules.LIB,
-            MessageGuideState.class,
-            MessageGuideState.HANDLER,
-            MessageGuideState::toBytes,
-            MessageGuideState::new,
-            Dist.DEDICATED_SERVER
-        );
-    }
 
     static void fmlInit() {}
 

@@ -16,6 +16,7 @@ Current targets:
 
 - `1.19.2-forge`
 - `1.20.1-forge`
+- `1.20.1-fabric` - experimental build skeleton; gameplay/runtime bootstrap is intentionally not enabled yet
 
 Build root: `builds/legacy`
 
@@ -87,6 +88,7 @@ source-downports/
 version-src/
 ├─ 1.19.2-forge/
 ├─ 1.20.1-forge/
+├─ 1.20.1-fabric/                  empty escape hatch for the Fabric skeleton
 ├─ 1.21.1-neoforge/
 └─ 1.21.11-neoforge/               irreducible target-only files/resources
 ```
@@ -115,6 +117,12 @@ The Python side is deliberately split by responsibility:
 - `scripts/transforms/` — path-independent mechanical Java/resource transforms only.
 
 Class-specific Java rewriting is forbidden. `scripts/transforms/java_compat.py` may only perform mechanical API-shape/symbol conversion and must not name BuildCraft source files. Native 1.20.1 and 1.21.11 implementations live in maintained family/family-platform ownership; explicit 1.19.2 and 1.21.1 downports preserve the older targets without making `version-src` an ownership axis.
+
+## Fabric 1.20.1 skeleton
+
+`1.20.1-fabric` is intentionally a build/loader target rather than a gameplay claim. Its Gradle adapter compiles only the public API v2 surface, generated target metadata and the two Fabric bootstrap entrypoints. Loom uses official Mojang mappings, a wired access widener, an empty mixin configuration, client/server dev runs and `remapJar`. CI builds the remapped skeleton JAR but deliberately skips GameTests and production server/client smoke until the next server-foundation stage.
+
+The skeleton may add loader bootstrap code under `source-platforms/fabric`, but the architecture hard limit remains **0 Fabric gameplay overrides**. Do not add Fabric-owned `Tile*`, `Pipe*`, `Robot*`, Builder or machine implementations to make the skeleton compile.
 
 ## Placement rules
 
@@ -147,7 +155,21 @@ Use when code is genuinely loader-specific **and** tied to one source family. Th
 
 ### Loader-neutral network boundary
 
-Gameplay and internal module code use `BCPacketContext` and `BCNetworkSide`. Forge and NeoForge packet contexts are converted exactly at the networking boundary by `ForgePacketContext` and `NeoForgePacketContext`; raw `NetworkEvent.Context`, `IPayloadContext` and loader-side enums must not leak into shared/family gameplay. The transport/registration implementation remains loader-owned.
+Gameplay and internal module code use `BCPacketContext` and `BCNetworkSide`. Forge and NeoForge packet contexts are converted exactly at the networking boundary by `ForgePacketContext` and `NeoForgePacketContext`; raw `NetworkEvent.Context`, `IPayloadContext` and loader-side enums must not leak into shared/family gameplay. `BCNetwork` is the common send facade and `PlatformNetworkTransport` owns loader delivery. The legacy family declares message codecs, directions and handlers once in `LegacyNetworkCatalog`; Forge maps that catalogue into its channel implementation and the future 1.20.1 Fabric adapter must consume the same declarations instead of copying packet registration lists.
+
+### Runtime, lifecycle and persistence boundaries
+
+`PlatformRuntime` is installed by the loader-owned `BCLib` bootstrap before API/runtime services are queried. It owns loader presence checks and the network transport; common module identity lives in `BCModules`, not in Forge/NeoForge copies. A future Fabric bootstrap must install its own `RuntimePlatform` implementation before it initializes BCCE modules.
+
+`BCBlockEntityLifecycle` defines common activation, chunk-unload, invalidation/revival and confirmed-destruction hooks. Chunk unload and vanilla invalidation are explicitly **not** gameplay destruction and must not trigger break-only drops, refunds or cleanup. Loader/version block-entity bases translate native callbacks to these hooks.
+
+The legacy family now has the same internal `BCValueInput`/`BCValueOutput` persistence boundary as the modern family. The 1.19.2/1.20.1 Forge block-entity base preserves the existing NBT layout while exposing `readData`/`writeData` hooks for gameplay code. These classes are internal compatibility boundaries, not new public API v2 surface.
+
+### API v2 baseline and Fabric debt gate
+
+`build-config/api-v2-symbol-baseline.json` records the materialized API v2 source surface for every production target. `scripts/validate-api-v2-symbol-baseline.py` runs in both GitHub and local CI; intentional public API changes refresh it with `scripts/update-api-v2-symbol-baseline.py`. This is a change detector, not a ban on closing API coverage holes.
+
+Architecture hardening also exposes `platform.fabric_gameplay_override_count` with a hard budget of **0**. Fabric may add loader adapters, registration, networking, storage bridges and client integration, but a new Fabric-specific `Tile*`, `Pipe*`, `Robot*`, `Builder*` or `Engine*` gameplay implementation is rejected rather than silently creating a third gameplay fork.
 
 ### `source-downports/<family>/<minecraft>/...`
 
@@ -155,7 +177,7 @@ Use only when the canonical family/family-platform Java is written against the n
 
 ### `version-src/<target>`
 
-Use only when a complete file or resource is genuinely target-specific and cannot remain readable in a family/platform layer. Target overlays should stay small and must not contain inline version conditions. `1.19.2-forge` now has no target-owned Java/resources; `1.20.1-forge` retains only five loader-specific gameplay exceptions pending the loader/gameplay separation stage. For `1.21.11-neoforge`, the only remaining Java exception is the frozen API file `buildcraft/api/v2/recipe/CountedIngredient.java`; API restructuring is intentionally outside the architecture migration.
+Use only when a complete file or resource is genuinely target-specific and cannot remain readable in a family/platform layer. Target overlays should stay small and must not contain inline version conditions. `1.19.2-forge` and the `1.20.1-fabric` skeleton have no target-owned Java/resources; `1.20.1-forge` retains only five loader-specific gameplay exceptions pending later cleanup. For `1.21.11-neoforge`, the only remaining Java exception is the frozen API file `buildcraft/api/v2/recipe/CountedIngredient.java`; API restructuring is intentionally outside the architecture migration.
 
 ## Internal actors, permissions and client registration
 

@@ -17,6 +17,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 
+import buildcraft.api.v2.OperationMode;
 import buildcraft.lib.internal.core.IStackFilter;
 import buildcraft.lib.internal.inventory.IItemTransactor;
 import buildcraft.transport.internal.IInjectable;
@@ -579,6 +580,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         }
 
         IPipeHolder holder = pipe.getHolder();
+        if (pipe instanceof Pipe runtimePipe && runtimePipe.consumeItemEjection(stack, side, motion, speed)) {
+            return;
+        }
         Level world = holder.getPipeWorld();
         BlockPos pos = holder.getPipePos();
 
@@ -632,6 +636,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         ItemStack toSplit = stack.copy();
         ItemStack toInsert = toSplit.split(accepted);
 
+        if (!doAdd && pipe instanceof Pipe runtimePipe) {
+            runtimePipe.applyItemIngress(toInsert, from, colour, speed, OperationMode.SIMULATE);
+        }
         if (doAdd) {
             insertItemEvents(toInsert, colour, speed, from);
         }
@@ -696,6 +703,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         ItemStack toSplit = stack.copy();
         ItemStack toInsert = toSplit.split(accepted);
 
+        if (!doAdd && pipe instanceof Pipe runtimePipe) {
+            runtimePipe.applyItemIngress(toInsert, from, colour, speed, OperationMode.SIMULATE);
+        }
         if (doAdd) {
             insertItemEvents(toInsert, colour, speed, from);
         }
@@ -722,9 +732,22 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             return;
         }
 
+        DyeColor finalColour = onInsert.colour;
+        double finalSpeed = speed;
+        if (pipe instanceof Pipe runtimePipe) {
+            Pipe.ApiItemIngressResult ingress = runtimePipe.applyItemIngress(
+                inserted, from, finalColour, finalSpeed, OperationMode.EXECUTE
+            );
+            if (ingress.consumed()) return;
+            inserted = ingress.stack();
+            finalColour = ingress.transit().color().orElse(null);
+            finalSpeed = ingress.transit().speedBlocksPerTick();
+            if (inserted.isEmpty()) return;
+        }
+
         ItemStack remaining = inserted.copy();
         while (!remaining.isEmpty()) {
-            addTravellingItem(splitSingleTravellingStack(remaining), onInsert.colour, speed, from, getPipeLength(from), true);
+            addTravellingItem(splitSingleTravellingStack(remaining), finalColour, finalSpeed, from, getPipeLength(from), true);
         }
     }
 

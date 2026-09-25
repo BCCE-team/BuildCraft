@@ -34,6 +34,7 @@ import buildcraft.lib.misc.data.ModelVariableData;
 import buildcraft.lib.misc.SpriteUtil;
 import buildcraft.lib.net.MessageDebugRequest;
 import buildcraft.lib.net.MessageDebugResponse;
+import buildcraft.lib.net.BCNetwork;
 import buildcraft.lib.net.MessageManager;
 import buildcraft.lib.net.MessageMarker;
 import buildcraft.lib.net.MessageMarkerClientHandler;
@@ -227,7 +228,7 @@ public class BCLibEventDist {
                     IDebuggable debuggable = ClientDebuggables.getDebuggableObject(mouseOver);
                     if (debuggable instanceof BlockEntity) {
                         BlockEntity tile = (BlockEntity) debuggable;
-                        MessageManager.sendToServer(new MessageDebugRequest(tile.getBlockPos(), Direction.getNearest(mouseOver.getLocation().x, mouseOver.getLocation().y, mouseOver.getLocation().z)));
+                        BCNetwork.sendToServer(new MessageDebugRequest(tile.getBlockPos(), Direction.getNearest(mouseOver.getLocation().x, mouseOver.getLocation().y, mouseOver.getLocation().z)));
                     } else if (debuggable instanceof Entity) {
                         // Entity debug-info requests are intentionally ignored by this block-only debug handler.
                     }

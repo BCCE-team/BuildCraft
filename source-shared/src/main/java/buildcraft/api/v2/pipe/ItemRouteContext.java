@@ -11,4 +11,10 @@ public record ItemRouteContext(PipeView pipe, Direction input, ItemStack stack, 
         stack = Objects.requireNonNull(stack, "stack").copy(); candidates = Set.copyOf(Objects.requireNonNull(candidates, "candidates"));
     }
     @Override public ItemStack stack() { return stack.copy(); }
+
+    /** Runtime environment for neighbour/world-aware routing. */
+    public PipeExecutionContext execution() {
+        if (pipe instanceof PipeExecutionContext context) return context;
+        throw new IllegalStateException("Pipe runtime does not expose PipeExecutionContext");
+    }
 }

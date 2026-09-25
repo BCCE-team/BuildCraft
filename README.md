@@ -15,13 +15,17 @@ The goal of the project is to preserve and continue the classic BuildCraft exper
 | 1.21.1 | NeoForge |
 | 1.21.11 | NeoForge |
 
+### Experimental build targets
+
+- `1.20.1-fabric` - loader/build skeleton only; gameplay is not enabled yet.
+
 ## Roadmap 2.0
 
 - [x] Drop support for 1.21.1 Forge
 - [x] Introduce the new API v2 system
 - [x] Add Forge Energy (FE) compatibility
 - [x] Port to 1.21.11 NeoForge
-- [ ] Port to 1.20.1 Fabric
+- [ ] Port to 1.20.1 Fabric (build/loader skeleton complete)
 - [ ] Port to 1.21.11 Fabric
 - [ ] Port to Minecraft 26.x Fabric / NeoForge
 
@@ -56,7 +60,7 @@ Small Minecraft-version differences may use localized Stonecutter conditions ins
 
 The 1.19.2 implementation is the gameplay reference, but source code is allowed to differ when newer Minecraft APIs require another implementation. The compatibility target is player-visible behaviour: **different implementation, indistinguishable BuildCraft**.
 
-CI builds and tests each maintained target independently. Every target has its own build, GameTest, dedicated-server smoke and client smoke run, while cross-target architecture and parity checks remain global.
+CI builds each configured target independently. Production targets additionally run GameTests plus dedicated-server/client smoke. The experimental `1.20.1-fabric` skeleton is build-only until gameplay/server bootstrap is enabled; cross-target architecture and parity checks remain global.
 
 See [`SOURCE_FAMILIES.md`](SOURCE_FAMILIES.md) for layout rules, parity policy and build commands.
 

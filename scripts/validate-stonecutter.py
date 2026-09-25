@@ -43,6 +43,10 @@ NEOFORGE_REQUIRED = (
     "minecraft.version_range", "buildcraft.version_range", "compat.jei.range",
     "compat.jade.range", "compat.ic2.range", "compat.forestry.range",
 )
+FABRIC_REQUIRED = (
+    "build.profile", "deps.fabric_loom", "deps.fabric_loader", "deps.fabric_api",
+    "loader.version_range", "fabric_api.version_range", "minecraft.version_range",
+)
 
 
 def fail(message: str) -> None:
@@ -186,8 +190,36 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
                 fail("NeoForge adapter must resolve its access transformer from the effective source layers")
             if "accessTransformers.from(targetAccessTransformer)" not in adapter_text:
                 fail("NeoForge adapter must wire its access transformer inside the loader adapter")
+        elif loader == "fabric":
+            if 'https://maven.fabricmc.net/' not in settings:
+                fail("Fabric build root must expose the FabricMC plugin repository")
+            if "id 'fabric-loom'" not in wrapper_text:
+                fail("Fabric build must apply Fabric Loom in its build-root shim")
+            if "id 'fabric-loom' version" in wrapper_text:
+                fail("Fabric Loom version must come from the canonical target registry, not the build-root shim")
+            for token in (
+                'deps.fabric_loom',
+                'requested.id.id == "fabric-loom"',
+                'useVersion(fabricLoomVersion',
+            ):
+                if token not in settings:
+                    fail(f"Fabric build root is missing canonical Loom resolution token {token!r}")
+            for token in (
+                "mappings loom.officialMojangMappings()",
+                'modImplementation "net.fabricmc:fabric-loader:',
+                'modImplementation "net.fabricmc.fabric-api:fabric-api:',
+                "accessWidenerPath = targetAccessWidener",
+                "tasks.named('remapJar')",
+                "build.profile",
+            ):
+                if token not in adapter_text:
+                    fail(f"Fabric adapter is missing skeleton wiring token {token!r}")
 
-        required = TARGET_REQUIRED + (FORGE_REQUIRED if loader == "forge" else NEOFORGE_REQUIRED if loader == "neoforge" else ())
+        required = TARGET_REQUIRED + (
+            FORGE_REQUIRED if loader == "forge" else
+            NEOFORGE_REQUIRED if loader == "neoforge" else
+            FABRIC_REQUIRED if loader == "fabric" else ()
+        )
         for key in required:
             value(props, target, key)
         if value(props, target, "source.family") != generation:
@@ -275,6 +307,10 @@ def main() -> None:
     missing_targets = required_targets - set(targets)
     if missing_targets:
         fail(f"required production targets are missing: {sorted(missing_targets)}")
+    if "1.20.1-fabric" not in targets:
+        fail("required experimental Fabric skeleton target is missing: 1.20.1-fabric")
+    if props.get("target.1.20.1-fabric.build.profile", "").strip() != "skeleton":
+        fail("1.20.1-fabric must remain a skeleton target until the server-foundation stage")
     if "1.21.1-forge" in targets:
         fail("1.21.1 Forge must not return to the production matrix")
 

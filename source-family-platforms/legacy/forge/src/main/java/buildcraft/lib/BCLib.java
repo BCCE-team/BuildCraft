@@ -5,6 +5,8 @@
 package buildcraft.lib;
 
 import buildcraft.lib.platform.registry.RegistryBinding;
+import buildcraft.lib.platform.runtime.PlatformRuntime;
+import buildcraft.lib.platform.runtime.ForgeRuntimePlatform;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.module.ModuleInfo;
@@ -18,6 +20,7 @@ import buildcraft.lib.list.VanillaListHandlers;
 import buildcraft.lib.marker.MarkerCache;
 import buildcraft.lib.misc.ExpressionCompat;
 import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.LegacyNetworkCatalog;
 import buildcraft.lib.net.BuildCraftTarget;
 import buildcraft.lib.net.cache.BuildCraftObjectCaches;
 import net.minecraftforge.common.MinecraftForge;
@@ -43,6 +46,7 @@ public class BCLib {
     public static final boolean DEV = !FMLEnvironment.production || Boolean.getBoolean("buildcraft.dev");
 
     public BCLib() {
+        PlatformRuntime.install(ForgeRuntimePlatform.INSTANCE);
         MjApi2PlatformBridge.install();
         PlatformApi2Bootstrap.install();
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -85,7 +89,7 @@ public class BCLib {
 
         // Register library network messages during mod construction, before any sided setup event
         // can attempt to replace their client handlers.
-        BCLibProxy.MessageRegistry();
+        LegacyNetworkCatalog.registerLibrary(MessageManager::registerCatalogMessage);
 
         ExpressionDebugManager.logger = BCLog.logger::info;
         ExpressionCompat.setup();

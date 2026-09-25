@@ -22,7 +22,7 @@ import com.mojang.authlib.GameProfile;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.misc.data.DelayedList;
 import buildcraft.lib.net.IPayloadWriter;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.internal.StringUtil;
@@ -83,14 +83,14 @@ public class MessageUtil {
 
     public static void sendToAllWatching(Level worldObj, BlockPos pos, Object message) {
         if (worldObj instanceof ServerLevel) {
-        	MessageManager.sendToAllWatching(message, worldObj.getChunkAt(pos));
+        	BCNetwork.sendToAllWatching(message, worldObj.getChunkAt(pos));
         }
     }
 
     public static void sendToPlayers(Iterable<Player> players, Object message) {
         for (Player player : players) {
             if (player instanceof ServerPlayer) {
-                MessageManager.sendTo(message, (ServerPlayer) player);
+                BCNetwork.sendTo(message, (ServerPlayer) player);
             }
         }
     }
@@ -281,9 +281,9 @@ public class MessageUtil {
         Player player = context.player();
         if (player instanceof ServerPlayer) {
             ServerPlayer playerMP = (ServerPlayer) player;
-            MessageManager.sendTo(reply, playerMP);
+            BCNetwork.sendTo(reply, playerMP);
         } else if (player != null) {
-            MessageManager.sendToServer(reply);
+            BCNetwork.sendToServer(reply);
         }
     }
 

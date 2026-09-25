@@ -26,6 +26,28 @@ import org.jetbrains.annotations.NotNull;
 import buildcraft.lib.internal.core.InvalidInputDataException;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftRegistries;
+import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.api.v2.pipe.FluidIngressComponent;
+import buildcraft.api.v2.pipe.FluidIngressContext;
+import buildcraft.api.v2.pipe.FluidIngressResult;
+import buildcraft.api.v2.pipe.ItemEjectionComponent;
+import buildcraft.api.v2.pipe.ItemEjectionContext;
+import buildcraft.api.v2.pipe.ItemEjectionDecision;
+import buildcraft.api.v2.pipe.ItemTransitComponent;
+import buildcraft.api.v2.pipe.ItemTransitContext;
+import buildcraft.api.v2.pipe.ItemTransitDecision;
+import buildcraft.api.v2.pipe.ItemTransitModifierComponent;
+import buildcraft.api.v2.pipe.MjNetworkComponent;
+import buildcraft.api.v2.pipe.MjNetworkContext;
+import buildcraft.api.v2.pipe.PipeDropComponent;
+import buildcraft.api.v2.pipe.PipeDropContext;
+import buildcraft.api.v2.pipe.PipeExecutionContext;
+import buildcraft.api.v2.pipe.PipeLifecycleComponent;
+import buildcraft.api.v2.pipe.PipeNeighbourView;
+import buildcraft.api.v2.pipe.PipePortContext;
+import buildcraft.api.v2.pipe.PipePortProviderComponent;
+import buildcraft.api.v2.pipe.PipeRemovalReason;
+import buildcraft.transport.api2.ApiPipeComponentRuntime;
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.api.v2.energy.MjPort;
@@ -61,7 +83,6 @@ import buildcraft.api.v2.pipe.PipeConnectionDecision;
 import buildcraft.api.v2.pipe.PipeConnectionRule;
 import buildcraft.api.v2.pipe.MjRouteComponent;
 import buildcraft.api.v2.pipe.MjRouteContext;
-import buildcraft.api.v2.pipe.PipeMutationContext;
 import buildcraft.api.v2.pipe.PipeTickComponent;
 import buildcraft.api.v2.pipe.PipeType;
 import buildcraft.api.v2.platform.ExternalEnergyPort;
@@ -99,6 +120,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -107,7 +129,7 @@ import net.minecraftforge.common.util.LazyOptional;
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
 
-public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
+public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
     private static final float DEFAULT_CONNECTION_DISTANCE = 0.25f;
     
     public final static Pipe EMPTY = new Pipe();
@@ -117,6 +139,8 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
     public final PipeBehaviour behaviour;
     public final PipeFlow flow;
     private final List<PipeComponent> apiComponents;
+    private final Map<ResourceLocation, ApiPipeComponentRuntime.StoredState> unresolvedApiComponentState = new LinkedHashMap<>();
+    private final Set<ResourceLocation> pendingApiSyncChannels = new LinkedHashSet<>();
     private DyeColor colour = null;
     private boolean updateMarked = true;
     private final EnumMap<Direction, Float> connected = new EnumMap<>(Direction.class);
@@ -151,7 +175,7 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
         }
         this.behaviour = definition.logicLoader.loadBehaviour(this, nbt.getCompound("beh"));
         this.flow = definition.flowType.loader.loadFlow(this, nbt.getCompound("flow"));
-        this.apiComponents = createApiComponents();
+        this.apiComponents = ApiPipeComponentRuntime.readState(nbt, createApiComponents(), unresolvedApiComponentState);
 
         int connectionData = nbt.getInt("con");
         for (Direction face : Direction.values()) {
@@ -176,6 +200,7 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
         nbt.putString("def", definition.identifier.toString());
         nbt.put("beh", behaviour.writeToNbt());
         nbt.put("flow", flow.writeToNbt());
+        ApiPipeComponentRuntime.writeState(nbt, apiComponents, unresolvedApiComponentState);
 
         int connectionData = 0;
         for (Direction face : Direction.values()) {
@@ -203,12 +228,14 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
         this.flow = definition.flowType.creator.createFlow(this);
         this.apiComponents = createApiComponents();
         this.flow.readPayload(PipeFlow.NET_ID_FULL_STATE, buffer, BCNetworkSide.CLIENT);
+        ApiPipeComponentRuntime.readSync(buffer, apiComponents);
     }
 
     public void writeCreationPayload(FriendlyByteBuf buffer) {
         buffer.writeUtf(definition.identifier.toString(), 64);
         writePayload(buffer, BCNetworkSide.SERVER);
         flow.writePayload(PipeFlow.NET_ID_FULL_STATE, buffer, BCNetworkSide.SERVER);
+        ApiPipeComponentRuntime.writeInitialSync(buffer, apiComponents);
     }
 
     public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
@@ -314,7 +341,7 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
         flow.onTick();
         for (PipeComponent component : apiComponents) {
             if (component instanceof PipeTickComponent tickComponent) {
-                tickComponent.tick(this);
+                tickComponent.tick((PipeExecutionContext) this);
             }
         }
         if (updateMarked) {
@@ -415,7 +442,7 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
                 );
             }
         }
-        return List.copyOf(created);
+        return created;
     }
 
     @Override
@@ -426,6 +453,50 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
     @Override
     public BlockPos position() {
         return holder.getPipePos();
+    }
+
+    @Override
+    public Level level() {
+        return holder.getPipeWorld();
+    }
+
+    @Override
+    public PipeNeighbourView neighbour(Direction side) {
+        Objects.requireNonNull(side, "side");
+        Level level = holder.getPipeWorld();
+        BlockPos neighbourPos = holder.getPipePos().relative(side);
+        Direction exposedSide = side.getOpposite();
+        IPipe connectedPipe = holder.getNeighbourPipe(side);
+        PipeExecutionContext pipeView = connectedPipe instanceof PipeExecutionContext context ? context : null;
+        PipeEndpointKind kind = connectedPipe != null && connectedPipe != Pipe.EMPTY
+            ? PipeEndpointKind.PIPE
+            : (level.getBlockState(neighbourPos).isAir() ? PipeEndpointKind.NONE : PipeEndpointKind.BLOCK);
+        return new PipeNeighbourView() {
+            @Override public BlockPos position() { return neighbourPos; }
+            @Override public PipeEndpointKind kind() { return kind; }
+            @Override public Optional<buildcraft.api.v2.pipe.PipeView> pipe() {
+                return Optional.ofNullable(pipeView).map(value -> (buildcraft.api.v2.pipe.PipeView) value);
+            }
+            @Override public Optional<ItemPort> itemPort() {
+                if (pipeView != null) return pipeView.itemPort(exposedSide);
+                return BuildCraftApi.service(BuildCraftServices.PLATFORM).itemTransfer()
+                    .flatMap(service -> service.find(level, neighbourPos, exposedSide));
+            }
+            @Override public Optional<FluidPort> fluidPort() {
+                if (pipeView != null) return pipeView.fluidPort(exposedSide);
+                return BuildCraftApi.service(BuildCraftServices.PLATFORM).fluidTransfer()
+                    .flatMap(service -> service.find(level, neighbourPos, exposedSide));
+            }
+            @Override public Optional<MjPort> mjPort() {
+                if (pipeView != null) return pipeView.mjPort(exposedSide);
+                return BuildCraftApi.service(BuildCraftServices.ENERGY).port(level, neighbourPos, exposedSide);
+            }
+            @Override public Optional<ExternalEnergyPort> externalEnergyPort() {
+                if (pipeView != null) return pipeView.externalEnergyPort(exposedSide);
+                return BuildCraftApi.service(BuildCraftServices.PLATFORM).energyTransfer()
+                    .flatMap(service -> service.find(level, neighbourPos, exposedSide));
+            }
+        };
     }
 
     @Override
@@ -464,7 +535,7 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
 
     @Override
     public List<PipeComponent> components() {
-        return apiComponents;
+        return Collections.unmodifiableList(apiComponents);
     }
 
     @Override
@@ -475,6 +546,14 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
 
     @Override
     public Optional<ItemPort> itemPort(Direction side) {
+        Objects.requireNonNull(side, "side");
+        PipePortContext context = new PipePortContext(this, side);
+        for (PipeComponent component : apiComponents) {
+            if (component instanceof PipePortProviderComponent provider) {
+                Optional<ItemPort> port = provider.itemPort(context);
+                if (port.isPresent()) return port;
+            }
+        }
         return itemPipePort(side).map(port -> (ItemPort) port);
     }
 
@@ -516,6 +595,13 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
     @Override
     public Optional<FluidPort> fluidPort(Direction side) {
         Objects.requireNonNull(side, "side");
+        PipePortContext context = new PipePortContext(this, side);
+        for (PipeComponent component : apiComponents) {
+            if (component instanceof PipePortProviderComponent provider) {
+                Optional<FluidPort> port = provider.fluidPort(context);
+                if (port.isPresent()) return port;
+            }
+        }
         if (!(flow instanceof IFlowFluid fluidFlow)) return Optional.empty();
         return Optional.of(new FluidPort() {
             @Override
@@ -557,6 +643,13 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
     @Override
     public Optional<MjPort> mjPort(Direction side) {
         Objects.requireNonNull(side, "side");
+        PipePortContext context = new PipePortContext(this, side);
+        for (PipeComponent component : apiComponents) {
+            if (component instanceof PipePortProviderComponent provider) {
+                Optional<MjPort> port = provider.mjPort(context);
+                if (port.isPresent()) return port;
+            }
+        }
         if (!(flow instanceof PipeFlowPower powerFlow)) return Optional.empty();
         return Optional.of(new MjPort() {
             @Override
@@ -578,6 +671,13 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
     @Override
     public Optional<ExternalEnergyPort> externalEnergyPort(Direction side) {
         Objects.requireNonNull(side, "side");
+        PipePortContext context = new PipePortContext(this, side);
+        for (PipeComponent component : apiComponents) {
+            if (component instanceof PipePortProviderComponent provider) {
+                Optional<ExternalEnergyPort> port = provider.externalEnergyPort(context);
+                if (port.isPresent()) return port;
+            }
+        }
         if (!(flow instanceof PipeFlowForgeEnergy energyFlow)) return Optional.empty();
         return Optional.of(new ExternalEnergyPort() {
             @Override
@@ -608,9 +708,143 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
         if (BuildCraftApi.registry(BuildCraftRegistries.PIPE_SYNC_CHANNELS).get(channelId) == null) {
             throw new IllegalArgumentException("Unknown pipe sync channel: " + channelId);
         }
-        // The legacy-compatible transport packet is still the wire format underneath API2. Until individual
-        // API2 channels receive dedicated packet slots, requesting a channel schedules both mutable pipe halves.
-        holder.scheduleNetworkUpdate(PipeMessageReceiver.BEHAVIOUR, PipeMessageReceiver.FLOW);
+        if (!ApiPipeComponentRuntime.hasSyncBinding(apiComponents, channelId)) {
+            throw new IllegalArgumentException("No component on " + typeId() + " owns pipe sync channel " + channelId);
+        }
+        pendingApiSyncChannels.add(channelId);
+        holder.scheduleNetworkUpdate(PipeMessageReceiver.API_COMPONENTS);
+    }
+
+    public void writeApiComponentSync(FriendlyByteBuf buffer) {
+        Set<ResourceLocation> requested = Set.copyOf(pendingApiSyncChannels);
+        pendingApiSyncChannels.clear();
+        ApiPipeComponentRuntime.writeRequestedSync(buffer, apiComponents, requested);
+    }
+
+    public void readApiComponentSync(FriendlyByteBuf buffer) throws IOException {
+        ApiPipeComponentRuntime.readSync(buffer, apiComponents);
+    }
+
+    public void onApiLoad() {
+        for (PipeComponent component : apiComponents) {
+            if (component instanceof PipeLifecycleComponent lifecycle) lifecycle.onLoad(this);
+        }
+    }
+
+    public void onApiUnload(PipeRemovalReason reason) {
+        Objects.requireNonNull(reason, "reason");
+        for (PipeComponent component : apiComponents) {
+            if (component instanceof PipeLifecycleComponent lifecycle) lifecycle.onUnload(this, reason);
+        }
+    }
+
+    public void onApiRemoved(PipeRemovalReason reason) {
+        Objects.requireNonNull(reason, "reason");
+        for (PipeComponent component : apiComponents) {
+            if (component instanceof PipeLifecycleComponent lifecycle) lifecycle.onRemoved(this, reason);
+        }
+    }
+
+    public record ApiItemIngressResult(boolean consumed, ItemStack stack, ItemTransitData transit) {
+        public ApiItemIngressResult {
+            stack = Objects.requireNonNull(stack, "stack").copy();
+            Objects.requireNonNull(transit, "transit");
+        }
+        @Override public ItemStack stack() { return stack.copy(); }
+    }
+
+    public ApiItemIngressResult applyItemIngress(
+        ItemStack stack, Direction input, DyeColor color, double speed, OperationMode mode
+    ) {
+        Objects.requireNonNull(stack, "stack");
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(mode, "mode");
+        ItemStack currentStack = stack.copy();
+        ItemTransitData currentTransit = new ItemTransitData(Optional.ofNullable(color), Math.max(0.0, speed));
+        for (PipeComponent component : apiComponents) {
+            if (!(component instanceof ItemTransitComponent transitComponent)) continue;
+            ItemTransitContext context = new ItemTransitContext(this, input, currentStack, currentTransit, mode);
+            ItemTransitDecision decision = Objects.requireNonNull(transitComponent.onEnter(context), "item transit decision");
+            if (decision.action() == ItemTransitDecision.Action.CONSUME) {
+                return new ApiItemIngressResult(true, ItemStack.EMPTY, currentTransit);
+            }
+            if (decision.action() == ItemTransitDecision.Action.REPLACE) {
+                ItemStack replacement = decision.replacement().orElseThrow();
+                if (replacement.getCount() > currentStack.getCount()) {
+                    throw new IllegalStateException("Pipe component " + component.typeId() + " expanded item count during transit");
+                }
+                currentStack = replacement;
+                currentTransit = decision.transit().orElse(currentTransit);
+            }
+        }
+        for (PipeComponent component : apiComponents) {
+            if (!(component instanceof ItemTransitModifierComponent modifier)) continue;
+            ItemTransitContext context = new ItemTransitContext(this, input, currentStack, currentTransit, mode);
+            currentTransit = Objects.requireNonNull(modifier.modifyTransit(context, currentTransit), "item transit metadata");
+        }
+        return new ApiItemIngressResult(false, currentStack, currentTransit);
+    }
+
+    public boolean consumeItemEjection(ItemStack stack, Direction side, Direction motion, double speed) {
+        ItemEjectionContext context = new ItemEjectionContext(
+            this, stack, Optional.ofNullable(side), motion, Math.max(0.0, speed)
+        );
+        for (PipeComponent component : apiComponents) {
+            if (component instanceof ItemEjectionComponent ejection
+                && Objects.requireNonNull(ejection.onEject(context), "item ejection decision") == ItemEjectionDecision.CONSUME) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public Optional<FluidAmount> applyFluidIngress(Direction input, FluidVolume offered, OperationMode mode) {
+        Objects.requireNonNull(offered, "offered");
+        Objects.requireNonNull(mode, "mode");
+        FluidIngressContext context = new FluidIngressContext(this, Optional.ofNullable(input), mode);
+        for (PipeComponent component : apiComponents) {
+            if (!(component instanceof FluidIngressComponent ingress)) continue;
+            FluidIngressResult result = Objects.requireNonNull(ingress.insert(context, offered), "fluid ingress result");
+            if (!result.handled()) continue;
+            if (result.accepted().compareTo(offered.amount()) > 0) {
+                throw new IllegalStateException("Pipe component " + component.typeId() + " accepted more fluid than offered");
+            }
+            return Optional.of(result.accepted());
+        }
+        return Optional.empty();
+    }
+
+    public long apiMjDemand(Direction from, long maximum) {
+        if (maximum <= 0) return 0;
+        long demand = 0;
+        MjAmount cap = MjAmount.ofMicro(maximum);
+        MjNetworkContext context = new MjNetworkContext(this, OperationMode.SIMULATE);
+        for (PipeComponent component : apiComponents) {
+            if (!(component instanceof MjNetworkComponent network)) continue;
+            MjAmount requested = Objects.requireNonNull(network.queryDemand(context, from, cap), "MJ demand");
+            long value = Math.max(0, Math.min(maximum, requested.microMj()));
+            demand = demand > maximum - value ? maximum : demand + value;
+            if (demand >= maximum) return maximum;
+        }
+        return demand;
+    }
+
+    public long apiReceiveMj(Direction from, long offered, OperationMode mode) {
+        if (offered <= 0) return 0;
+        Objects.requireNonNull(mode, "mode");
+        long remaining = offered;
+        MjNetworkContext context = new MjNetworkContext(this, mode);
+        for (PipeComponent component : apiComponents) {
+            if (!(component instanceof MjNetworkComponent network) || remaining <= 0) continue;
+            MjAmount request = MjAmount.ofMicro(remaining);
+            MjTransferResult result = Objects.requireNonNull(network.receive(context, from, request), "MJ receive result");
+            if (!result.requested().equals(request) || result.transferred().microMj() < 0
+                || result.transferred().microMj() > remaining) {
+                throw new IllegalStateException("Invalid MJ transfer result from pipe component " + component.typeId());
+            }
+            remaining -= result.transferred().microMj();
+        }
+        return offered - remaining;
     }
 
     public PipeActivationResult activateApiComponents(Direction side, ItemStack held, AutomationActor actor, OperationMode mode) {
@@ -798,6 +1032,12 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
         }
         flow.addDrops(toDrop, fortune);
         behaviour.addDrops(toDrop, fortune);
+        PipeDropContext context = new PipeDropContext(this, fortune, true);
+        for (PipeComponent component : apiComponents) {
+            if (component instanceof PipeDropComponent drops) {
+                drops.collectDrops(context, stack -> { if (stack != null && !stack.isEmpty()) toDrop.add(stack.copy()); });
+            }
+        }
     }
 
     public static boolean canPipesConnect(Direction to, IPipe one, IPipe two) {

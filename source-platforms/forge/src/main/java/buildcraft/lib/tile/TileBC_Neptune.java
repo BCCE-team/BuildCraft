@@ -18,7 +18,10 @@ import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.internal.core.EnumPipePart;
+import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
+import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.internal.permission.IPlayerOwned;
+import buildcraft.lib.lifecycle.BCBlockEntityLifecycle;
 import buildcraft.lib.cache.CachedChunk;
 import buildcraft.lib.cache.IChunkCache;
 import buildcraft.lib.cache.ITileCache;
@@ -36,7 +39,7 @@ import buildcraft.lib.misc.PermissionUtil.PermissionBlock;
 import buildcraft.lib.misc.data.IdAllocator;
 import buildcraft.lib.net.IPayloadReceiver;
 import buildcraft.lib.net.IPayloadWriter;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import buildcraft.lib.net.MessageUpdateTile;
 import buildcraft.lib.net.NetworkSecurity;
 import buildcraft.lib.tile.item.ItemHandlerManager;
@@ -84,7 +87,7 @@ import net.minecraftforge.common.util.LazyOptional;
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
 
-public abstract class TileBC_Neptune extends BlockEntity implements IPayloadReceiver, IAdvDebugTarget, IPlayerOwned {
+public abstract class TileBC_Neptune extends BlockEntity implements IPayloadReceiver, IAdvDebugTarget, IPlayerOwned, BCBlockEntityLifecycle {
 
 	public static final boolean DEBUG = BCDebugging.shouldDebugLog("lib.tile");
 
@@ -259,6 +262,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     /** Called whenever the block is removed. Called by {@link #onExplode(Explosion)}, and
      * {@link Block#breakBlock(Level, BlockPos, BlockState)} */
     public void onRemove(boolean dropSelf) {
+        bcOnDestroyed(dropSelf);
 /*        NonNullList<ItemStack> toDrop = NonNullList.create();
         if(dropSelf)
         	toDrop.add(this.getBlockState()
@@ -271,6 +275,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     @Override
     public void setRemoved() {
         super.setRemoved();
+        bcOnInvalidated();
         chunkCache.invalidate();
         tileCache.invalidate();
     }
@@ -278,6 +283,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     @Override
     public void clearRemoved() {
         super.clearRemoved();
+        bcOnRevived();
         chunkCache.invalidate();
         tileCache.invalidate();
     }
@@ -285,6 +291,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     @Override
     public void onLoad() {
         super.onLoad();
+        bcOnLoad();
         chunkCache.invalidate();
         tileCache.invalidate();
     }
@@ -292,6 +299,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     @Override
     public void onChunkUnloaded() {
         super.onChunkUnloaded();
+        bcOnChunkUnload();
         chunkCache.invalidate();
         tileCache.invalidate();
     }
@@ -491,7 +499,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
         if (hasLevel()) {
             MessageUpdateTile message = createNetworkUpdate(id);
             if (level.isClientSide()) {
-                MessageManager.sendToServer(message);
+                BCNetwork.sendToServer(message);
             } else {
                 MessageUtil.sendToAllWatching(level, worldPosition, message);
             }
@@ -505,7 +513,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
                 return;
             }
             if (player instanceof ServerPlayer serverPlayer) {
-                MessageManager.sendTo(message, serverPlayer);
+                BCNetwork.sendTo(message, serverPlayer);
             }
         }
     }
@@ -521,7 +529,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     public final void sendNetworkUpdate(int id, Player target) {
         if (hasLevel() && target instanceof ServerPlayer) {
             MessageUpdateTile message = createNetworkUpdate(id);
-            MessageManager.sendTo(message, (ServerPlayer) target);
+            BCNetwork.sendTo(message, (ServerPlayer) target);
         }
     }
 
@@ -539,7 +547,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
         if (hasLevel()) {
             Object message = createMessage(id, writer);
             if (level.isClientSide()) {
-                MessageManager.sendToServer(message);
+                BCNetwork.sendToServer(message);
             } else {
                 MessageUtil.sendToAllWatching(level, worldPosition, message);
             }
@@ -550,7 +558,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
         if (hasLevel()) {
             Object message = createMessage(id, writer);
             if (level.isClientSide()) {
-                MessageManager.sendToServer(message);
+                BCNetwork.sendToServer(message);
             } else {
                 MessageUtil.sendToPlayers(usingPlayers, message);
             }
@@ -560,7 +568,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     public final void createAndSendMessage(int id, ServerPlayer player, IPayloadWriter writer) {
         if (hasLevel()) {
             Object message = createMessage(id, writer);
-            MessageManager.sendTo(message, player);
+            BCNetwork.sendTo(message, player);
         }
     }
 
@@ -735,17 +743,23 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     @Override
     public void load(CompoundTag nbt) {
         super.load(nbt);
-//        migrateOldNBT(nbt.getInt("data-version"), nbt);
-        deltaManager.readFromNBT(nbt.getCompound("deltas"));
-        if (nbt.contains("owner")) {
-            owner = NbtUtils.readGameProfile(nbt.getCompound("owner"));
+        BCValueInput input = new BCValueInput(nbt);
+//        migrateOldNBT(input.readInt("data-version"), nbt);
+        deltaManager.readFromNBT(input.readCompound("deltas"));
+        if (input.has("owner", Tag.TAG_COMPOUND)) {
+            owner = NbtUtils.readGameProfile(input.readCompound("owner"));
         }
-        if (nbt.contains("items", Tag.TAG_COMPOUND)) {
-            itemManager.deserializeNBT(nbt.getCompound("items"));
-        }
-        if (nbt.contains("tanks", Tag.TAG_COMPOUND)) {
-            tankManager.deserializeNBT(nbt.getCompound("tanks"));
-        }
+        input.findCompound("items").ifPresent(itemManager::deserializeNBT);
+        input.findCompound("tanks").ifPresent(tankManager::deserializeNBT);
+        readData(input);
+    }
+
+    /** Loader/version-neutral machine persistence hook for legacy gameplay classes. */
+    protected void readData(BCValueInput input) {
+    }
+
+    /** Loader/version-neutral machine persistence hook for legacy gameplay classes. */
+    protected void writeData(BCValueOutput output) {
     }
 
     protected void migrateOldNBT(int version, CompoundTag nbt) {
@@ -761,19 +775,21 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
 
     @Override
     public void saveAdditional(CompoundTag nbt) {
-        nbt.putInt("data-version", BCVersion.CURRENT.dataVersion);
-        nbt.put("deltas", deltaManager.writeToNBT());
+        BCValueOutput output = new BCValueOutput(nbt);
+        output.writeInt("data-version", BCVersion.CURRENT.dataVersion);
+        output.put("deltas", deltaManager.writeToNBT());
         if (owner != null && owner.isComplete() && owner != FakePlayerProvider.NULL_PROFILE) {
-            nbt.put("owner", NbtUtils.writeGameProfile(new CompoundTag(), owner));
+            output.put("owner", NbtUtils.writeGameProfile(new CompoundTag(), owner));
         }
         CompoundTag items = itemManager.serializeNBT();
         if (!items.isEmpty()) {
-            nbt.put("items", items);
+            output.put("items", items);
         }
         CompoundTag tanks = tankManager.serializeNBT();
         if (!tanks.isEmpty()) {
-            nbt.put("tanks", tanks);
+            output.put("tanks", tanks);
         }
+        writeData(output);
         super.saveAdditional(nbt);
     }
 

@@ -16,6 +16,7 @@ import buildcraft.lib.BCLibRegistries;
 import buildcraft.lib.CreativeTabManager;
 import buildcraft.lib.CreativeTabManager.CreativeTabBC;
 import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.LegacyNetworkCatalog;
 import buildcraft.core.BCCore;
 import buildcraft.transport.net.MessageMultiPipeItem;
 import buildcraft.transport.api2.TransportApi2;
@@ -84,10 +85,7 @@ public class BCTransport {
         BCTransportStatements.preInit();
 
         ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCTransportConfig.config));
-
-        MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageWireSystems.class, MessageWireSystems.HANDLER, MessageWireSystems::toBytes, MessageWireSystems::new, Dist.CLIENT);
-        MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageWireSystemsPowered.class, MessageWireSystemsPowered.HANDLER, MessageWireSystemsPowered::toBytes, MessageWireSystemsPowered::new, Dist.CLIENT);
-        MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageMultiPipeItem.class, MessageMultiPipeItem.HANDLER, MessageMultiPipeItem::toBytes, MessageMultiPipeItem::new, Dist.CLIENT);
+        LegacyNetworkCatalog.registerTransport(MessageManager::registerCatalogMessage);
         BCTransportEventDist.registerGameplayEvents();
 
         SchematicBlockFactoryRegistry.registerFactory("pipe", 300, SchematicBlockPipe::predicate,

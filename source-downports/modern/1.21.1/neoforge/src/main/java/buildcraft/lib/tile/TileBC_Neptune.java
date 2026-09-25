@@ -22,6 +22,7 @@ import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.internal.core.EnumPipePart;
 import buildcraft.lib.internal.permission.IPlayerOwned;
+import buildcraft.lib.lifecycle.BCBlockEntityLifecycle;
 import buildcraft.lib.cache.CachedChunk;
 import buildcraft.lib.cache.IChunkCache;
 import buildcraft.lib.cache.ITileCache;
@@ -39,7 +40,7 @@ import buildcraft.lib.misc.PermissionUtil.PermissionBlock;
 import buildcraft.lib.misc.data.IdAllocator;
 import buildcraft.lib.net.IPayloadReceiver;
 import buildcraft.lib.net.IPayloadWriter;
-import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.BCNetwork;
 import buildcraft.lib.net.MessageUpdateTile;
 import buildcraft.lib.net.NetworkSecurity;
 import buildcraft.lib.tile.item.ItemHandlerManager;
@@ -261,6 +262,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
     /** Called whenever the block is removed. Called by {@link #onExplode(Explosion)}, and
      * {@link Block#breakBlock(Level, BlockPos, BlockState)} */
     public void onRemove(boolean dropSelf) {
+        bcOnDestroyed(dropSelf);
 /*        NonNullList<ItemStack> toDrop = NonNullList.create();
         if(dropSelf)
         	toDrop.add(this.getBlockState()
@@ -273,6 +275,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
     @Override
     public void setRemoved() {
         super.setRemoved();
+        bcOnInvalidated();
         chunkCache.invalidate();
         tileCache.invalidate();
     }
@@ -280,6 +283,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
     @Override
     public void clearRemoved() {
         super.clearRemoved();
+        bcOnRevived();
         chunkCache.invalidate();
         tileCache.invalidate();
     }
@@ -287,6 +291,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
     @Override
     public void onLoad() {
         super.onLoad();
+        bcOnLoad();
         chunkCache.invalidate();
         tileCache.invalidate();
     }
@@ -294,6 +299,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
     @Override
     public void onChunkUnloaded() {
         super.onChunkUnloaded();
+        bcOnChunkUnload();
         chunkCache.invalidate();
         tileCache.invalidate();
     }
@@ -487,7 +493,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
         if (hasLevel()) {
             MessageUpdateTile message = createNetworkUpdate(id);
             if (level.isClientSide()) {
-                MessageManager.sendToServer(message);
+                BCNetwork.sendToServer(message);
             } else {
                 MessageUtil.sendToAllWatching(level, worldPosition, message);
             }
@@ -501,7 +507,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
                 return;
             }
             if (player instanceof ServerPlayer serverPlayer) {
-                MessageManager.sendTo(message, serverPlayer);
+                BCNetwork.sendTo(message, serverPlayer);
             }
         }
     }
@@ -517,7 +523,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
     public final void sendNetworkUpdate(int id, Player target) {
         if (hasLevel() && target instanceof ServerPlayer) {
             MessageUpdateTile message = createNetworkUpdate(id);
-            MessageManager.sendTo(message, (ServerPlayer) target);
+            BCNetwork.sendTo(message, (ServerPlayer) target);
         }
     }
 
@@ -535,7 +541,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
         if (hasLevel()) {
             Object message = createMessage(id, writer);
             if (level.isClientSide()) {
-                MessageManager.sendToServer(message);
+                BCNetwork.sendToServer(message);
             } else {
                 MessageUtil.sendToAllWatching(level, worldPosition, message);
             }
@@ -546,7 +552,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
         if (hasLevel()) {
             Object message = createMessage(id, writer);
             if (level.isClientSide()) {
-                MessageManager.sendToServer(message);
+                BCNetwork.sendToServer(message);
             } else {
                 MessageUtil.sendToPlayers(usingPlayers, message);
             }
@@ -556,7 +562,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
     public final void createAndSendMessage(int id, ServerPlayer player, IPayloadWriter writer) {
         if (hasLevel()) {
             Object message = createMessage(id, writer);
-            MessageManager.sendTo(message, player);
+            BCNetwork.sendTo(message, player);
         }
     }
 
