@@ -153,6 +153,32 @@ require(
     "minecraft:deep_cold_ocean",
 )
 
+# Every NeoForge module that owns a native config must expose NeoForge's generated
+# config screen. Keep client GUI references out of ConfigBinding: that boundary is
+# exercised by the dedicated platform config contract and is server-safe by design.
+for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
+    require_effective(
+        target,
+        "src/main/java/buildcraft/lib/platform/config/ConfigScreenRegistration.java",
+        "FMLEnvironment",
+        "Dist.CLIENT",
+        "IConfigScreenFactory.class",
+        "ConfigurationScreen::new",
+    )
+    for module_rel in (
+        "buildcraft/core/BCCore.java",
+        "buildcraft/transport/BCTransport.java",
+        "buildcraft/energy/BCEnergy.java",
+        "buildcraft/builders/BCBuilders.java",
+        "buildcraft/silicon/BCSilicon.java",
+    ):
+        require_effective(
+            target,
+            f"src/main/java/{module_rel}",
+            "registerConfig(Type.COMMON, ConfigBinding.bind(",
+            "ConfigScreenRegistration.register(modContainer);",
+        )
+
 # NeoForge committed resources must stay aligned with the current datagen provider.
 # 1.21.1 and 1.21.11 must use the same corrected recipe ingredients.
 for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
@@ -208,5 +234,6 @@ print(" - conflicting crafting outputs have a persistent GUI selector without un
 print(" - Construction Marker and Flood Gate interaction parity is guarded")
 print(" - dead custom oil biomes and their legacy Forge tag hooks are removed")
 print(" - Programming Table selection packets use an allocated container message ID")
+print(" - NeoForge config-owning modules expose the native generated config screen")
 print(" - 1.21.1/1.21.11 gate and clear-lens recipes use live NeoForge ingredients/tags")
 print(" - BC8 assembly and BC7 robotics laser-energy balances are preserved")

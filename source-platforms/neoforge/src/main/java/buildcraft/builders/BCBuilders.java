@@ -8,6 +8,7 @@ import buildcraft.builders.BCBuildersClientRenderers;
 import buildcraft.lib.platform.client.PlatformClientRegistration;
 import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.lib.platform.config.ConfigBinding;
+import buildcraft.lib.platform.config.ConfigScreenRegistration;
 import buildcraft.lib.internal.mj.MjCapabilities;
 
 import org.slf4j.Logger;
@@ -77,6 +78,7 @@ public class BCBuilders {
         BCBuildersRegistries.preInit();
         BCBuildersGuis.preInit(RegistryBinding.on(modEventBus));
         modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCBuildersConfig.config));
+        ConfigScreenRegistration.register(modContainer);
         ConfigBinding.listen(modEventBus, BCBuildersConfig::onLoadConfig, BCBuildersConfig::onReloadConfig);
 
 

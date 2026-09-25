@@ -5,6 +5,7 @@ import buildcraft.lib.platform.events.BCEvents;
 import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.lib.platform.registry.BCDeferredRegister;
 import buildcraft.lib.platform.config.ConfigBinding;
+import buildcraft.lib.platform.config.ConfigScreenRegistration;
 import buildcraft.lib.internal.mj.MjCapabilities;
 
 import buildcraft.lib.internal.capabilities.BCCapabilityRegistration;
@@ -63,6 +64,7 @@ public class BCEnergy {
         BCCore.tabFluids.addItemProvider(BCEnergyFluids::getCreativeTabItems);
 
         modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCEnergyConfig.config));
+        ConfigScreenRegistration.register(modContainer);
         RegistryBinding.register(ITEMS, modEventBus);
         RegistryBinding.register(MENUS, modEventBus);
         registerGameplayEvents();

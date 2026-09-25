@@ -13,6 +13,7 @@ import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.lib.platform.registry.BCRegistryEntry;
 import buildcraft.lib.platform.registry.BCDeferredRegister;
 import buildcraft.lib.platform.config.ConfigBinding;
+import buildcraft.lib.platform.config.ConfigScreenRegistration;
 import buildcraft.lib.internal.mj.MjCapabilities;
 
 import java.util.List;
@@ -85,6 +86,7 @@ public class BCSilicon {
 
         BCSiliconConfig.preInit();
         modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCSiliconConfig.config));
+        ConfigScreenRegistration.register(modContainer);
         BCSiliconStatements.preInit();
         BCSiliconPlugs.preInit();
         BCSiliconBlocks.registry(RegistryBinding.on(modEventBus));
