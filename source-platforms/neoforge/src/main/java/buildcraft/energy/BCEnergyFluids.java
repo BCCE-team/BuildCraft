@@ -35,6 +35,7 @@ public final class BCEnergyFluids {
     public static final int SEARING_TEM = 500;
     public static final int[] TEMS = { COOL_TEM, HOT_TEM, SEARING_TEM };
     public static final String[] HEAT_NAMES = { "cool", "hot", "searing" };
+    public static final int SPOUT_OIL_SPREAD_LIMIT = 5;
 
     public static final BCFluid[] crudeOil = new BCFluid[3];
     public static final BCFluid[] oilDistilled = new BCFluid[3];
@@ -67,6 +68,9 @@ public final class BCEnergyFluids {
     public static final List<BCRegistryEntry<BCFluid>> OIL_SOURCE = new ArrayList<>();
     public static final List<BCRegistryEntry<BucketItem>> OIL_BUCKET = new ArrayList<>();
     public static final List<BCRegistryEntry<LiquidBlock>> OIL_BLOCK = new ArrayList<>();
+    public static BCRegistryEntry<BCFluid> SPOUT_OIL_SOURCE;
+    public static BCRegistryEntry<BCFluid> SPOUT_OIL_FLOWING;
+    public static BCRegistryEntry<LiquidBlock> SPOUT_OIL_BLOCK;
 
     public static final BCDeferredRegister<Fluid> FLUIDS = BCDeferredRegister.create("minecraft:fluid", BCEnergy.MODID);
     public static final BCDeferredRegister<FluidType> FLUID_TYPES =
@@ -126,6 +130,12 @@ public final class BCEnergyFluids {
                 FluidCompatRegistry.registerCanonical(tag, OIL_SOURCE.get(index++).get());
             }
         }
+        TagKey<Fluid> crudeOilTag = TagKey.create(
+            Registries.FLUID, ResourceLocation.fromNamespaceAndPath("c", "oil")
+        );
+        FluidCompatRegistry.registerCanonical(crudeOilTag, OIL_SOURCE.get(0).get(),
+            ResourceLocation.fromNamespaceAndPath(BCEnergy.MODID, "spout_oil"),
+            ResourceLocation.fromNamespaceAndPath(BCEnergy.MODID, "spout_oil_flowing"));
     }
 
     public static List<ItemStack> getCreativeTabItems() {
@@ -140,6 +150,7 @@ public final class BCEnergyFluids {
         for (int id = 0; id < NAME.length; id++) {
             defineFluids(DATA[id], NAME[id]);
         }
+        defineSpoutOil();
     }
 
     private static void defineFluids(int[] data, String name) {
@@ -211,6 +222,34 @@ public final class BCEnergyFluids {
         OIL_BLOCK.add(block);
     }
 
+
+    private static void defineSpoutOil() {
+        FluidReferences refs = new FluidReferences();
+        Supplier<BCFluid> source = () -> refs.source.get();
+        Supplier<BCFluid> flowing = () -> refs.flowing.get();
+        SPOUT_OIL_BLOCK = BCEnergyBlocks.BLOCKS.register("spout_oil", () -> new BCLiquidBlock(
+            source.get(),
+            BlockBehaviour.Properties.of()
+                .mapColor(MapColor.COLOR_BLACK)
+                .replaceable()
+                .noCollission()
+                .strength(100.0F)
+                .noLootTable()
+                .liquid()
+                .pushReaction(PushReaction.DESTROY),
+            true, 10, 40
+        ));
+        BaseFlowingFluid.Properties properties = new BaseFlowingFluid.Properties(OIL_TYPE.get(0), source, flowing)
+            .bucket(OIL_BUCKET.get(0))
+            .block(SPOUT_OIL_BLOCK)
+            .tickRate(30);
+        refs.source = FLUIDS.register("spout_oil", () ->
+            new BCFluid.Source(properties).setHeat(0).setMaxSourceSpreadDistance(SPOUT_OIL_SPREAD_LIMIT));
+        refs.flowing = FLUIDS.register("spout_oil_flowing", () ->
+            new BCFluid.Flowing(properties).setHeat(0).setMaxSourceSpreadDistance(SPOUT_OIL_SPREAD_LIMIT));
+        SPOUT_OIL_SOURCE = refs.source;
+        SPOUT_OIL_FLOWING = refs.flowing;
+    }
     private static final class FluidReferences {
         private BCRegistryEntry<BCFluid> source;
         private BCRegistryEntry<BCFluid> flowing;

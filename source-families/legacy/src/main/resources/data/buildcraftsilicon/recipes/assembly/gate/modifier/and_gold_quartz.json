@@ -1,6 +1,6 @@
 {
   "type": "buildcraftsilicon:assembly",
-  "MJ": 70000000000,
+  "MJ": 140000000000,
   "group": "buildcraftsilicon:gate_modifier",
   "ingredient_counts": [
     1,

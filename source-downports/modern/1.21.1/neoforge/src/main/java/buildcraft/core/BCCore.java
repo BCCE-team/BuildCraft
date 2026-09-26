@@ -4,6 +4,7 @@ import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.lib.platform.registry.BCRegistryEntry;
 import buildcraft.lib.platform.registry.BCDeferredRegister;
 import buildcraft.lib.platform.config.ConfigBinding;
+import buildcraft.lib.platform.config.ConfigScreenRegistration;
 import buildcraft.lib.internal.mj.MjCapabilities;
 
 import java.util.HashMap;
@@ -84,6 +85,7 @@ public class BCCore {
         RegistryBinding.register(MENUS, modEventBus);
         BCCoreConfig.registry();
         modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCCoreConfig.config));
+        ConfigScreenRegistration.register(modContainer);
         MessageManager.registerClientboundMessageClass(BCModules.CORE, MessageVolumeBoxes.class, MessageVolumeBoxes.HANDLER, MessageVolumeBoxes::toBytes, MessageVolumeBoxes::new);
         BCCoreStatements.preInit();
     }

@@ -35,6 +35,7 @@ public class BCEnergyFluids {
     public static final int SEARING_TEM = 500;
     public static final int[] TEMS = {COOL_TEM, HOT_TEM, SEARING_TEM};
     public static final String[] HEAT_NAMES = {"cool", "hot", "searing"};
+    public static final int SPOUT_OIL_SPREAD_LIMIT = 5;
 
     public static BCFluid[] crudeOil = new BCFluid[3];
     /** All 3 fuels (no residue) */
@@ -81,6 +82,9 @@ public class BCEnergyFluids {
     public static final List<BCRegistryEntry<BCFluid>> OIL_SOURCE = new ArrayList<>();
     public static final List<BCRegistryEntry<BucketItem>> OIL_BUCKET = new ArrayList<>();
     public static final List<BCRegistryEntry<LiquidBlock>> OIL_BLOCK = new ArrayList<>();
+    public static BCRegistryEntry<BCFluid> SPOUT_OIL_SOURCE;
+    public static BCRegistryEntry<BCFluid> SPOUT_OIL_FLOWING;
+    public static BCRegistryEntry<LiquidBlock> SPOUT_OIL_BLOCK;
 
     public static final BCDeferredRegister<Fluid> FLUIDS = BCDeferredRegister.create("minecraft:fluid", BCEnergy.MODID);
     public static final BCDeferredRegister<FluidType> FLUID_TYPES = BCDeferredRegister.create(ForgeRegistries.Keys.FLUID_TYPES, BCEnergy.MODID);
@@ -150,11 +154,16 @@ public class BCEnergyFluids {
                     new ResourceLocation("ic2", name + "_" + HEAT_NAMES[heat]));
             }
         }
+        TagKey<Fluid> crudeOilTag = TagKey.create(Registry.FLUID_REGISTRY, new ResourceLocation("forge", "oil"));
+        FluidCompatRegistry.registerCanonical(crudeOilTag, OIL_SOURCE.get(0).get(),
+            new ResourceLocation(BCEnergy.MODID, "spout_oil"),
+            new ResourceLocation(BCEnergy.MODID, "spout_oil_flowing"));
     }
 
     public static void registryFluid() {
         for(int id=0;id<NAME.length;id++)
                 defineFluids(data[id], NAME[id]);
+        defineSpoutOil();
     }
 
     private static void defineFluids(int[] data, String name) {
@@ -200,6 +209,22 @@ public class BCEnergyFluids {
 
 
     }
+    private static void defineSpoutOil() {
+        FluidReferences refs = new FluidReferences();
+        java.util.function.Supplier<BCFluid> source = () -> refs.source.get();
+        java.util.function.Supplier<BCFluid> flowing = () -> refs.flowing.get();
+        SPOUT_OIL_BLOCK = BCEnergyBlocks.BLOCKS.register("spout_oil", () ->
+            new BCLiquidBlock(source, BlockBehaviour.Properties.of(FLAMMABLELIQUID).noCollission().strength(100.0F).noLootTable(), true, 10, 40));
+        ForgeFlowingFluid.Properties properties = new ForgeFlowingFluid.Properties(OIL_TYPE.get(0), source, flowing)
+            .bucket(OIL_BUCKET.get(0)).block(SPOUT_OIL_BLOCK).tickRate(30);
+        refs.source = FLUIDS.register("spout_oil", () ->
+            new BCFluid.Source(properties).setHeat(0).setMaxSourceSpreadDistance(SPOUT_OIL_SPREAD_LIMIT));
+        refs.flowing = FLUIDS.register("spout_oil_flowing", () ->
+            new BCFluid.Flowing(properties).setHeat(0).setMaxSourceSpreadDistance(SPOUT_OIL_SPREAD_LIMIT));
+        SPOUT_OIL_SOURCE = refs.source;
+        SPOUT_OIL_FLOWING = refs.flowing;
+    }
+
     private static final class FluidReferences {
         private BCRegistryEntry<BCFluid> source;
         private BCRegistryEntry<BCFluid> flowing;

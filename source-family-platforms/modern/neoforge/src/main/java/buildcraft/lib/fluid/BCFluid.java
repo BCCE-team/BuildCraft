@@ -44,6 +44,8 @@ public abstract class BCFluid extends BaseFlowingFluid {
 	private int heatLevel;// int heat
 	private boolean heatable;
 	private String blockName;
+	/** Negative means unlimited. Natural worldgen oil uses a bounded radius from a source block. */
+	private int maxSourceSpreadDistance = -1;
 
 	private static MethodHandle canPassThroughWall;
 
@@ -252,6 +254,9 @@ public abstract class BCFluid extends BaseFlowingFluid {
 
 	protected boolean canSpreadTo(BlockGetter p_75978_, BlockPos p_75979_, BlockState p_75980_, Direction p_75981_,
 			BlockPos p_75982_, BlockState p_75983_, FluidState fluidState, Fluid p_75985_) {
+		if (!isWithinSourceSpreadLimit(p_75978_, p_75982_)) {
+			return false;
+		}
 		if (isWater(fluidState)) {
 			return false;
 		}
@@ -259,6 +264,37 @@ public abstract class BCFluid extends BaseFlowingFluid {
 			&& fluidState.canBeReplacedWith(p_75978_, p_75982_, p_75985_, p_75981_)
 			&& canHoldFluid(p_75978_, p_75982_, p_75983_, p_75985_)
 			&& (fluidState.isEmpty() || fluidState.getFluidType().getDensity() < this.getFluidType().getDensity());
+	}
+
+	private boolean isWithinSourceSpreadLimit(BlockGetter level, BlockPos targetPos) {
+		int limit = maxSourceSpreadDistance;
+		if (limit < 0) {
+			return true;
+		}
+		for (int distance = 0; distance <= limit; distance++) {
+			for (int dx = -distance; dx <= distance; dx++) {
+				int yzDistance = distance - Math.abs(dx);
+				for (int dy = -yzDistance; dy <= yzDistance; dy++) {
+					int dz = yzDistance - Math.abs(dy);
+					FluidState candidate = level.getFluidState(targetPos.offset(dx, dy, dz));
+					if (candidate.isSource() && candidate.getType().isSame(this)) {
+						return true;
+					}
+					if (dz != 0) {
+						candidate = level.getFluidState(targetPos.offset(dx, dy, -dz));
+						if (candidate.isSource() && candidate.getType().isSame(this)) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+	public BCFluid setMaxSourceSpreadDistance(int distance) {
+		this.maxSourceSpreadDistance = distance < 0 ? -1 : distance;
+		return this;
 	}
 
 	public Component getBareLocalizedName(FluidStack stack) {

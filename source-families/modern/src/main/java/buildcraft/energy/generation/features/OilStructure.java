@@ -29,6 +29,13 @@ import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 
 public abstract class OilStructure {
+    /**
+     * Surface oil is generated around the well's X/Z origin. Do not let sparse tendril noise
+     * climb a cliff or mountain far above that origin: isolated high cells become extra natural
+     * oil sources and can create huge downhill cascades on terrain-overhaul worlds.
+     */
+    private static final int MAX_SURFACE_RISE_ABOVE_SPOT = 4;
+
     public final Box box;
     public final ReplaceType replaceType;
 
@@ -60,15 +67,15 @@ public abstract class OilStructure {
         return replaceType.canReplace(world, pos);
     }
 
-    private static FluidState crudeOil() {
-        if (BCEnergyFluids.OIL_SOURCE.isEmpty() || !BCEnergyFluids.OIL_SOURCE.get(0).isBound()) {
+    private static FluidState worldgenOil() {
+        if (BCEnergyFluids.SPOUT_OIL_SOURCE == null || !BCEnergyFluids.SPOUT_OIL_SOURCE.isBound()) {
             return Fluids.EMPTY.defaultFluidState();
         }
-        return BCEnergyFluids.OIL_SOURCE.get(0).get().defaultFluidState();
+        return BCEnergyFluids.SPOUT_OIL_SOURCE.get().defaultFluidState();
     }
 
     public static void setOil(WorldGenLevel world, BlockPos pos) {
-        FluidState oil = crudeOil();
+        FluidState oil = worldgenOil();
         if (oil.isEmpty()) {
             return;
         }
@@ -76,29 +83,245 @@ public abstract class OilStructure {
         world.scheduleTick(pos, oil.getType(), 0);
     }
 
+    /**
+     * Returns whether oil worldgen may replace this block. This is intentionally conservative:
+     * unknown/constructed blocks are protected by default, while normal terrain, replaceable
+     * vegetation and fluids remain eligible. That keeps deposits from eating player builds or
+     * generated structures from other mods.
+     */
+    private static boolean canReplaceNaturalTerrain(WorldGenLevel world, BlockPos pos, BlockState state) {
+        // Never touch blocks that are creative-only/unbreakable (bedrock, end portal frames,
+        // barriers, command/structure blocks, etc.) or blocks carrying persistent state.
+        if (state.getDestroySpeed(world, pos) < 0.0F || state.hasBlockEntity()) {
+            return false;
+        }
+
+        // Trees and processed wood are deliberately preserved even though logs/leaves can be
+        // naturally generated: an oil deposit should flow around them instead of deleting them.
+        if (state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES) || state.is(BlockTags.PLANKS)) {
+            return false;
+        }
+
+        ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        if (key == null) {
+            // Unknown/unregistered blocks are safest to treat as structure/player content.
+            return false;
+        }
+        String path = key.getPath();
+        if (isProtectedConstructionPath(path)) {
+            return false;
+        }
+
+        if (state.isAir()) {
+            return true;
+        }
+
+        // Existing natural fluids may be displaced by an oil deposit.
+        if (!state.getFluidState().isEmpty()) {
+            return true;
+        }
+
+        // Only known natural decoration is allowed through the generic replaceable-block path.
+        // A modded/player block being replaceable is not, by itself, permission to destroy it.
+        if (state.canBeReplaced() && isNaturalDecorationPath(path)) {
+            return true;
+        }
+
+        // Everything solid is denied unless it looks like ordinary geological terrain. This
+        // makes modded machines/decorative blocks safe by default while still accepting common
+        // modded ores and terrain blocks whose registry names follow vanilla conventions.
+        return isNaturalTerrainPath(path);
+    }
+
+    private static boolean isProtectedConstructionPath(String path) {
+        return path.contains("cobble")
+            || path.contains("prismarine")
+            || path.equals("sea_lantern")
+            || path.equals("conduit")
+            || path.contains("brick")
+            || path.contains("planks")
+            || path.contains("leaves")
+            || path.contains("glass")
+            || path.contains("concrete")
+            || path.contains("glazed_terracotta")
+            || path.contains("wool")
+            || path.contains("carpet")
+            || path.contains("purpur")
+            || path.contains("polished")
+            || path.contains("chiseled")
+            || path.contains("_tiles")
+            || path.contains("tiled_")
+            || path.startsWith("cut_")
+            || path.contains("_cut_")
+            || path.equals("smooth_stone")
+            || path.contains("quartz_block")
+            || path.contains("quartz_pillar")
+            || path.endsWith("_slab")
+            || path.endsWith("_stairs")
+            || path.endsWith("_wall")
+            || path.endsWith("_fence")
+            || path.endsWith("_fence_gate")
+            || path.endsWith("_door")
+            || path.endsWith("_trapdoor")
+            || path.endsWith("_button")
+            || path.endsWith("_pressure_plate")
+            || path.endsWith("_sign")
+            || path.endsWith("_hanging_sign")
+            || path.contains("torch")
+            || path.contains("rail")
+            || path.equals("redstone_wire")
+            || path.equals("redstone_block")
+            || path.equals("redstone_lamp")
+            || path.contains("repeater")
+            || path.contains("comparator")
+            || path.contains("lever")
+            || path.contains("tripwire")
+            || path.contains("ladder")
+            || path.contains("lantern")
+            || path.equals("chain")
+            || path.contains("iron_bars")
+            || path.contains("candle")
+            || path.contains("scaffolding")
+            || path.contains("mushroom");
+    }
+
+    private static boolean isNaturalDecorationPath(String path) {
+        return path.equals("grass")
+            || path.equals("short_grass")
+            || path.equals("tall_grass")
+            || path.equals("fern")
+            || path.equals("large_fern")
+            || path.equals("dead_bush")
+            || path.equals("lily_pad")
+            || path.equals("sugar_cane")
+            || path.equals("bamboo")
+            || path.equals("bamboo_sapling")
+            || path.equals("cactus")
+            || path.equals("seagrass")
+            || path.equals("tall_seagrass")
+            || path.equals("kelp")
+            || path.equals("kelp_plant")
+            || path.equals("vine")
+            || path.equals("glow_lichen")
+            || path.equals("hanging_roots")
+            || path.equals("nether_sprouts")
+            || path.equals("crimson_roots")
+            || path.equals("warped_roots")
+            || path.equals("weeping_vines")
+            || path.equals("weeping_vines_plant")
+            || path.equals("twisting_vines")
+            || path.equals("twisting_vines_plant")
+            || path.equals("cave_vines")
+            || path.equals("cave_vines_plant")
+            || path.equals("small_dripleaf")
+            || path.equals("big_dripleaf")
+            || path.equals("big_dripleaf_stem")
+            || path.equals("moss_carpet")
+            || path.equals("snow")
+            || path.endsWith("_flower")
+            || path.endsWith("_tulip")
+            || path.endsWith("_orchid")
+            || path.endsWith("_bluet")
+            || path.endsWith("_daisy")
+            || path.endsWith("_cornflower")
+            || path.endsWith("_rose")
+            || path.endsWith("_sunflower")
+            || path.endsWith("_lilac")
+            || path.endsWith("_peony")
+            || path.endsWith("_sapling");
+    }
+
+    private static boolean isNaturalTerrainPath(String path) {
+        if (path.endsWith("_ore")) {
+            return true;
+        }
+        if (path.endsWith("_terracotta") && !path.contains("glazed_terracotta")) {
+            return true;
+        }
+        if (path.endsWith("_stone") && !path.equals("smooth_stone") && !path.equals("lodestone")) {
+            return true;
+        }
+        if (path.endsWith("_dirt") || path.endsWith("_sand") || path.endsWith("_gravel")
+            || path.endsWith("_clay") || path.endsWith("_tuff") || path.endsWith("_basalt")
+            || path.endsWith("_nylium") || path.endsWith("_soil") || path.endsWith("_ice")
+            || path.endsWith("_snow")) {
+            return true;
+        }
+        return path.equals("stone")
+            || path.equals("deepslate")
+            || path.equals("granite")
+            || path.equals("diorite")
+            || path.equals("andesite")
+            || path.equals("tuff")
+            || path.equals("calcite")
+            || path.equals("dripstone_block")
+            || path.equals("pointed_dripstone")
+            || path.equals("dirt")
+            || path.equals("grass_block")
+            || path.equals("gravel")
+            || path.equals("clay")
+            || path.equals("sand")
+            || path.equals("red_sand")
+            || path.equals("sandstone")
+            || path.equals("red_sandstone")
+            || path.equals("terracotta")
+            || path.equals("snow")
+            || path.equals("snow_block")
+            || path.equals("powder_snow")
+            || path.equals("ice")
+            || path.equals("packed_ice")
+            || path.equals("blue_ice")
+            || path.equals("mud")
+            || path.equals("moss_block")
+            || path.equals("netherrack")
+            || path.equals("basalt")
+            || path.equals("smooth_basalt")
+            || path.equals("blackstone")
+            || path.equals("soul_sand")
+            || path.equals("soul_soil")
+            || path.equals("crimson_nylium")
+            || path.equals("warped_nylium")
+            || path.equals("magma_block")
+            || path.equals("end_stone")
+            || path.equals("glowstone")
+            || path.equals("ancient_debris")
+            || path.equals("sculk")
+            || path.equals("sculk_vein");
+    }
+
+    private static int getGeneratorSurfaceY(WorldGenLevel world, int x, int z) {
+        ServerLevel level = world.getLevel();
+        return level.getChunkSource().getGenerator().getBaseHeight(
+            x,
+            z,
+            Heightmap.Types.WORLD_SURFACE_WG,
+            level,
+            level.getChunkSource().randomState()
+        ) - 1;
+    }
+
+    private static boolean canClearSurfaceColumn(WorldGenLevel world, int x, int baseY, int z) {
+        for (int offsetY = 0; offsetY < 5; offsetY++) {
+            BlockPos checkPos = new BlockPos(x, baseY + offsetY, z);
+            BlockState state = world.getBlockState(checkPos);
+            if (!canReplaceNaturalTerrain(world, checkPos, state)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public enum ReplaceType {
         ALWAYS {
             @Override
             public boolean canReplace(WorldGenLevel world, BlockPos pos) {
-                BlockState state = world.getBlockState(pos);
-                // Oil deposits must never punch holes through the world's bedrock floor.
-                if (state.is(Blocks.BEDROCK)) {
-                    return false;
-                }
-                if (state.is(BlockTags.LOGS)) {
-                    return false;
-                }
-                ResourceLocation key = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock());
-                if (key != null && key.getPath().contains("mushroom")) {
-                    return false;
-                }
-                return true;
+                return canReplaceNaturalTerrain(world, pos, world.getBlockState(pos));
             }
         },
         IS_FOR_LAKE {
             @Override
             public boolean canReplace(WorldGenLevel world, BlockPos pos) {
-                return ALWAYS.canReplace(world, pos);
+                return canReplaceNaturalTerrain(world, pos, world.getBlockState(pos));
             }
         };
         public abstract boolean canReplace(WorldGenLevel world, BlockPos pos);
@@ -201,6 +424,11 @@ public abstract class OilStructure {
         @Override
         protected void generateWithin(WorldGenLevel world, Box intersect) {
             MutableBlockPos pos = new MutableBlockPos();
+            int centerX = box.min().getX() + pattern.length / 2;
+            int centerZ = box.min().getZ() + (pattern.length == 0 ? 0 : pattern[0].length / 2);
+            int spotSurfaceY = getGeneratorSurfaceY(world, centerX, centerZ);
+            int maxSurfaceY = spotSurfaceY + MAX_SURFACE_RISE_ABOVE_SPOT;
+
             for (int x = intersect.min().getX(); x <= intersect.max().getX(); x++) {
                 int px = x - box.min().getX();
 
@@ -210,12 +438,15 @@ public abstract class OilStructure {
                     if (pattern[px][pz]) {
                         BlockPos.MutableBlockPos upper = world.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, pos.set(x, 0, z)).mutable().move(0, -1, 0);
                         int h = upper.getY();
-                        if (canReplaceForOil(world, upper)) {
+                        if (h > maxSurfaceY) {
+                            continue;
+                        }
+                        if (canReplaceForOil(world, upper) && canClearSurfaceColumn(world, x, h, z)) {
                             for (int y = 0; y < 5; y++) {
-                                world.setBlock(upper.setY(y+h), Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
+                                world.setBlock(upper.setY(y + h), Blocks.AIR.defaultBlockState(), Block.UPDATE_CLIENTS);
                             }
                             for (int y = 0; y < depth; y++) {
-                                setOilIfCanReplace(world, upper.setY(h-y));
+                                setOilIfCanReplace(world, upper.setY(h - y));
                             }
                         }
                     }

@@ -1,6 +1,6 @@
 {
   "type": "buildcraftsilicon:assembly",
-  "MJ": 30000000000,
+  "MJ": 60000000000,
   "group": "buildcraftsilicon:chipsets",
   "ingredient_counts": [
     1,

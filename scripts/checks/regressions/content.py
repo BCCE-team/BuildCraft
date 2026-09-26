@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import json
 import sys
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -153,6 +154,32 @@ require(
     "minecraft:deep_cold_ocean",
 )
 
+# Every NeoForge module that owns a native config must expose NeoForge's generated
+# config screen. Keep client GUI references out of ConfigBinding: that boundary is
+# exercised by the dedicated platform config contract and is server-safe by design.
+for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
+    require_effective(
+        target,
+        "src/main/java/buildcraft/lib/platform/config/ConfigScreenRegistration.java",
+        "FMLEnvironment",
+        "Dist.CLIENT",
+        "IConfigScreenFactory.class",
+        "ConfigurationScreen::new",
+    )
+    for module_rel in (
+        "buildcraft/core/BCCore.java",
+        "buildcraft/transport/BCTransport.java",
+        "buildcraft/energy/BCEnergy.java",
+        "buildcraft/builders/BCBuilders.java",
+        "buildcraft/silicon/BCSilicon.java",
+    ):
+        require_effective(
+            target,
+            f"src/main/java/{module_rel}",
+            "registerConfig(Type.COMMON, ConfigBinding.bind(",
+            "ConfigScreenRegistration.register(modContainer);",
+        )
+
 # NeoForge committed resources must stay aligned with the current datagen provider.
 # 1.21.1 and 1.21.11 must use the same corrected recipe ingredients.
 for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
@@ -173,27 +200,145 @@ for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
     ):
         require_effective(target, rel, '"tag": "c:glass_blocks"')
 
-# Assembly-table values use the original BC8 balance; programming and integration
-# of robots retain their BC7 costs. These values are player-visible laser energy.
+# Energy-priced crafting keeps the original source balance in BCCE's MJ units.
+# BuildCraft 8.0.0 Assembly Table values were already expressed in MJ and therefore stay unchanged.
+# BuildCraft 7.1.27 Robotics used RF, so its Programming/Integration Table costs are converted at 10 RF = 1 MJ.
 for rel in (
-    "version-src/1.19.2-forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
-    "version-src/1.20.1-forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
+    "source-downports/legacy/1.19.2/forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
+    "source-family-platforms/legacy/forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
     "source-platforms/neoforge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
 ):
-    require(rel, "return wholeMj * MjAmount.MICRO_MJ_PER_MJ;")
+    require(
+        rel,
+        "return wholeMj * MjAmount.MICRO_MJ_PER_MJ;",
+        "assemblyCost(1000)",
+        "assemblyCost(500)",
+    )
+
+# The remaining BC8 Assembly Table balance is represented by the original gate/chipset tiers.
+# Underscores differ between source generations, so guard stable surrounding recipe calls instead of spelling every literal twice.
+for rel in (
+    "source-downports/legacy/1.19.2/forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
+    "source-family-platforms/legacy/forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
+    "source-platforms/neoforge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
+):
+    source = text(rel).replace("_", "")
+    for token in (
+        "makeGateAssembly(writer, 20000",
+        "makeGateAssembly(writer, 40000",
+        "makeGateAssembly(writer, 80000",
+        "makeGateModifierAssembly(writer, 60000",
+        "makeGateModifierAssembly(writer, 100000",
+        "makeGateModifierAssembly(writer, 120000",
+        "makeGateModifierAssembly(writer, 140000",
+        "makeGateModifierAssembly(writer, 180000",
+        "assemblyCost(10000)",
+        "assemblyCost(20000)",
+        "assemblyCost(40000)",
+        "assemblyCost(60000)",
+        "assemblyCost(80000)",
+    ):
+        if token not in source:
+            errors.append(f"{rel}: missing BC8 8.0.0 assembly-energy balance token {token!r}")
+
+for rel in (
+    "source-downports/legacy/1.19.2/forge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
+    "source-family-platforms/legacy/forge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
+    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
+    "source-downports/modern/1.21.1/neoforge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
+):
+    require(rel, "MJ_COST = 64 * MjAmount.MICRO_MJ_PER_MJ")
+
+# Committed Assembly recipe JSON is loaded at runtime, so it must match the restored BC8 provider balance.
+# These values intentionally cover every price tier that the provider emits; family/platform copies must agree.
+ASSEMBLY_JSON_COSTS = {
+    "redstone_chipset.json": 10_000,
+    "iron_chipset.json": 20_000,
+    "gold_chipset.json": 40_000,
+    "quartz_chipset.json": 60_000,
+    "diamond_chipset.json": 80_000,
+    "redstone_crystal.json": 100_000,
+    "plug_pulsar.json": 1_000,
+    "plug_timer.json": 500,
+    "light_sensor.json": 500,
+    "gate_copier.json": 500,
+}
+
+
+def expected_assembly_cost_mj(path: Path):
+    name = path.name
+    if name in ASSEMBLY_JSON_COSTS:
+        return ASSEMBLY_JSON_COSTS[name]
+    parts = path.parts
+    if "wire" in parts:
+        return 5_000
+    if "lens" in parts:
+        return 500
+    if "gate" in parts:
+        material = next((part for part in ("iron", "nether_brick", "gold") if f"_{part}_" in name), None)
+        if material is None:
+            return None
+        base = {"iron": 20_000, "nether_brick": 40_000, "gold": 80_000}[material]
+        if "modifier" not in parts:
+            return base
+        modifier = next((part for part in ("lapis", "quartz", "diamond") if name.endswith(f"_{part}.json")), None)
+        if modifier is None:
+            return None
+        return {
+            ("iron", "lapis"): 40_000,
+            ("iron", "quartz"): 60_000,
+            ("iron", "diamond"): 80_000,
+            ("nether_brick", "lapis"): 80_000,
+            ("nether_brick", "quartz"): 100_000,
+            ("nether_brick", "diamond"): 120_000,
+            ("gold", "lapis"): 100_000,
+            ("gold", "quartz"): 140_000,
+            ("gold", "diamond"): 180_000,
+        }[(material, modifier)]
+    return None
+
+
+assembly_json_count = 0
+for base in (
+    ROOT / "source-families",
+    ROOT / "source-family-platforms",
+):
+    for path in base.rglob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if data.get("type") != "buildcraftsilicon:assembly" or "MJ" not in data:
+            continue
+        assembly_json_count += 1
+        expected_mj = expected_assembly_cost_mj(path)
+        if expected_mj is None:
+            errors.append(f"{path.relative_to(ROOT)}: unclassified Assembly recipe price")
+            continue
+        expected_micro_mj = expected_mj * 1_000_000
+        if data["MJ"] != expected_micro_mj:
+            errors.append(
+                f"{path.relative_to(ROOT)}: stale Assembly recipe price {data['MJ']}, "
+                f"expected {expected_micro_mj} micro-MJ ({expected_mj} MJ)"
+            )
+
+if assembly_json_count != 170:
+    errors.append(f"expected 170 committed Assembly recipe JSON files, found {assembly_json_count}")
 
 for family in ("legacy", "modern"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/BCRoboticsBoards.java",
-        '"robot_delivery", 128000',
-        '"robot_knight", 128000',
-        '"robot_bomber", 128000',
-        '"robot_stripes", 128000',
-        '"robot_builder", 512000',
+        "LEGACY_ENERGY_UNITS_PER_MJ = 10",
+        '"robot_picker", legacyEnergyToMj(8_000)',
+        '"robot_lumberjack", legacyEnergyToMj(32_000)',
+        '"robot_delivery", legacyEnergyToMj(128_000)',
+        '"robot_builder", legacyEnergyToMj(512_000)',
+        "legacyEnergyToMj(Math.round(160000 / probability))",
     )
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/recipes/RobotIntegrationRecipe.java",
-        "return 50_000L * MjAmount.MICRO_MJ_PER_MJ;",
+        "BuildCraft 7.1.27 charged 50,000 legacy energy units",
+        "return 5_000L * MjAmount.MICRO_MJ_PER_MJ;",
     )
 
 
@@ -208,5 +353,6 @@ print(" - conflicting crafting outputs have a persistent GUI selector without un
 print(" - Construction Marker and Flood Gate interaction parity is guarded")
 print(" - dead custom oil biomes and their legacy Forge tag hooks are removed")
 print(" - Programming Table selection packets use an allocated container message ID")
+print(" - NeoForge config-owning modules expose the native generated config screen")
 print(" - 1.21.1/1.21.11 gate and clear-lens recipes use live NeoForge ingredients/tags")
-print(" - BC8 assembly and BC7 robotics laser-energy balances are preserved")
+print(" - BC8 assembly JSON/provider prices and BC7 robotics laser-energy balances are preserved")

@@ -15,7 +15,10 @@ import net.minecraft.resources.ResourceLocation;
 public abstract class RedstoneBoardRegistry {
     public static RedstoneBoardRegistry instance;
 
-    /** Register a redstone board type. The energy cost is measured in whole BuildCraft MJ, matching the 1.7 API. */
+    /**
+     * Register a redstone board type. The energy cost is measured in whole BuildCraft MJ.
+     * Legacy 1.7 recipe costs must be converted first using the preserved 10 legacy units = 1 MJ scale.
+     */
     public abstract void registerBoardType(RedstoneBoardNBT<?> redstoneBoardNBT, int energyCost);
 
     /** Deprecated 1.7 compatibility entry point. Prefer {@link #registerBoardType(RedstoneBoardNBT, int)}. */

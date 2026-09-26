@@ -53,6 +53,7 @@ public class BCTagsProvider {
 			if(BCEnergyFluids.crudeOil[0] != null) {
 			tag(BCEnergyFluids.IS_OIL)
 			.add(BCEnergyFluids.crudeOil)
+			.add(BCEnergyFluids.SPOUT_OIL_SOURCE.get(), BCEnergyFluids.SPOUT_OIL_FLOWING.get())
 			.add(BCEnergyFluids.oilDense)
 			.add(BCEnergyFluids.oilDistilled)
 			.add(BCEnergyFluids.oilHeavy)

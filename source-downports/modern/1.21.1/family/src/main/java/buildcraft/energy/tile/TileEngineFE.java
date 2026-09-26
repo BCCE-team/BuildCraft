@@ -79,7 +79,7 @@ public class TileEngineFE extends TileEngineBase_BC8 implements MenuProvider {
             "upgrades", 4, (slot, stack) -> isValidUpgrade(stack), EnumAccess.NONE
         ).setLimitedInsertor(1);
         caps.addProvider(itemManager);
-        caps.addEnergyStorage(feStorage, EnumPipePart.VALUES);
+        caps.addEnergyStorage(side -> side != currentDirection ? feStorage : null, EnumPipePart.VALUES);
     }
 
     private static void ensureUpgradeMap() {
@@ -183,7 +183,7 @@ public class TileEngineFE extends TileEngineBase_BC8 implements MenuProvider {
     @Nonnull @Override protected IMjConnector createConnector() { return new EngineConnector(false); }
     @Override
     public Optional<ExternalEnergyPort> externalEnergyPort(Direction side) {
-        return Optional.of(api2FeInputPort);
+        return side != currentDirection ? Optional.of(api2FeInputPort) : Optional.empty();
     }
 
     @Override public long getMaxPower() { return 1000 * MjAmount.MICRO_MJ_PER_MJ; }

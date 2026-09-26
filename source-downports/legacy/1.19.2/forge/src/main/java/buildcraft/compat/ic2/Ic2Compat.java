@@ -11,6 +11,7 @@ import buildcraft.energy.BCEnergyFluids;
 import ic2.api.recipes.RecipeRegistry;
 import ic2.api.recipes.registries.IFluidFuelRegistry;
 import ic2.api.tiles.IFluidMachine;
+import ic2.core.item.misc.CellItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.fluids.capability.IFluidHandler;
@@ -54,9 +55,21 @@ public final class Ic2Compat {
         initialized = true;
 
         registerFluidMachineBridge();
+        registerNaturalOilCellAlias();
         registerFluidFuels();
 
         BCLog.logger.info("Enabled IC2 Classic fluid compatibility with {} BuildCraft fluid cells", FLUID_CELLS.size());
+    }
+
+    private static void registerNaturalOilCellAlias() {
+        if (!FLUID_CELLS.isEmpty() && BCEnergyFluids.SPOUT_OIL_SOURCE != null
+            && BCEnergyFluids.SPOUT_OIL_SOURCE.isBound()) {
+            // Natural worldgen oil is intentionally internal. Picking it up with an IC2 cell
+            // must yield the normal crude-oil cell, just like the shared oil bucket does.
+            CellItem.registerFluidFilling(
+                BCEnergyFluids.SPOUT_OIL_SOURCE.get(), FLUID_CELLS.get(0).get(), false
+            );
+        }
     }
 
     private static void registerFluidMachineBridge() {

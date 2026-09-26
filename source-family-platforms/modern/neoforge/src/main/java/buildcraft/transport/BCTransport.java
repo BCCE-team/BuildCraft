@@ -11,6 +11,7 @@ import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.lib.platform.registry.BCRegistryEntry;
 import buildcraft.lib.platform.registry.BCDeferredRegister;
 import buildcraft.lib.platform.config.ConfigBinding;
+import buildcraft.lib.platform.config.ConfigScreenRegistration;
 import buildcraft.lib.internal.mj.MjCapabilities;
 
 import buildcraft.lib.internal.module.BCModules;
@@ -91,6 +92,7 @@ public class BCTransport {
         BCTransportStatements.preInit();
 
         modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCTransportConfig.config));
+        ConfigScreenRegistration.register(modContainer);
 
         MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageWireSystems.class, MessageWireSystems.HANDLER, MessageWireSystems::toBytes, MessageWireSystems::new, Dist.CLIENT);
         MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageWireSystemsPowered.class, MessageWireSystemsPowered.HANDLER, MessageWireSystemsPowered::toBytes, MessageWireSystemsPowered::new, Dist.CLIENT);

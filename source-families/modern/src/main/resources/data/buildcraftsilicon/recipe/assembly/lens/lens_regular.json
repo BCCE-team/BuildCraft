@@ -1,6 +1,6 @@
 {
   "type": "buildcraftsilicon:assembly",
-  "MJ": 250000000,
+  "MJ": 500000000,
   "group": "buildcraftsilicon:lens_regulars",
   "ingredient_counts": [
     1

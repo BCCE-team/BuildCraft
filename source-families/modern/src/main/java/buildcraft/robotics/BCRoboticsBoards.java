@@ -49,33 +49,40 @@ public final class BCRoboticsBoards {
     private static final Map<String, BoardEntry> ENTRIES_BY_KEY = new LinkedHashMap<>();
     private static boolean initialized;
 
+    /** BuildCraft 7.1.27 laser recipes used legacy energy units. BCCE preserves their balance at 10 legacy units = 1 MJ. */
+    private static final int LEGACY_ENERGY_UNITS_PER_MJ = 10;
+
     public static final BoardEntry EMPTY = board("buildcraft:boardRobotEmpty", "empty", "clean", "robot_base", 0);
 
     static {
         // Order copied from BuildCraft 7.1.x BuildCraftRobotics.preInit(). This order is also used by the creative tab.
-        board("buildcraft:boardRobotPicker", "picker", "green", "robot_picker", 8000);
-        board("buildcraft:boardRobotCarrier", "carrier", "green", "robot_carrier", 8000);
-        board("buildcraft:boardRobotFluidCarrier", "fluid_carrier", "green", "robot_fluid_carrier", 8000);
+        board("buildcraft:boardRobotPicker", "picker", "green", "robot_picker", legacyEnergyToMj(8_000));
+        board("buildcraft:boardRobotCarrier", "carrier", "green", "robot_carrier", legacyEnergyToMj(8_000));
+        board("buildcraft:boardRobotFluidCarrier", "fluid_carrier", "green", "robot_fluid_carrier", legacyEnergyToMj(8_000));
 
-        board("buildcraft:boardRobotLumberjack", "lumberjack", "blue", "robot_lumberjack", 32000);
-        board("buildcraft:boardRobotHarvester", "harvester", "blue", "robot_harvester", 32000);
-        board("buildcraft:miner", "miner", "blue", "robot_miner", 32000);
-        board("buildcraft:boardRobotPlanter", "planter", "blue", "robot_planter", 32000);
-        board("buildcraft:boardRobotFarmer", "farmer", "blue", "robot_farmer", 32000);
-        board("buildcraft:leave_cutter", "leave_cutter", "blue", "robot_leave_cutter", 32000);
-        board("buildcraft:boardRobotButcher", "butcher", "blue", "robot_butcher", 32000);
-        board("buildcraft:shovelman", "shovelman", "blue", "robot_shovelman", 32000);
-        board("buildcraft:boardRobotPump", "pump", "blue", "robot_pump", 32000);
+        board("buildcraft:boardRobotLumberjack", "lumberjack", "blue", "robot_lumberjack", legacyEnergyToMj(32_000));
+        board("buildcraft:boardRobotHarvester", "harvester", "blue", "robot_harvester", legacyEnergyToMj(32_000));
+        board("buildcraft:miner", "miner", "blue", "robot_miner", legacyEnergyToMj(32_000));
+        board("buildcraft:boardRobotPlanter", "planter", "blue", "robot_planter", legacyEnergyToMj(32_000));
+        board("buildcraft:boardRobotFarmer", "farmer", "blue", "robot_farmer", legacyEnergyToMj(32_000));
+        board("buildcraft:leave_cutter", "leave_cutter", "blue", "robot_leave_cutter", legacyEnergyToMj(32_000));
+        board("buildcraft:boardRobotButcher", "butcher", "blue", "robot_butcher", legacyEnergyToMj(32_000));
+        board("buildcraft:shovelman", "shovelman", "blue", "robot_shovelman", legacyEnergyToMj(32_000));
+        board("buildcraft:boardRobotPump", "pump", "blue", "robot_pump", legacyEnergyToMj(32_000));
 
-        board("buildcraft:boardRobotDelivery", "delivery", "green", "robot_delivery", 128000);
-        board("buildcraft:boardRobotKnight", "knight", "red", "robot_knight", 128000);
-        board("buildcraft:boardRobotBomber", "bomber", "red", "robot_bomber", 128000);
-        board("buildcraft:boardRobotStripes", "stripes", "yellow", "robot_stripes", 128000);
+        board("buildcraft:boardRobotDelivery", "delivery", "green", "robot_delivery", legacyEnergyToMj(128_000));
+        board("buildcraft:boardRobotKnight", "knight", "red", "robot_knight", legacyEnergyToMj(128_000));
+        board("buildcraft:boardRobotBomber", "bomber", "red", "robot_bomber", legacyEnergyToMj(128_000));
+        board("buildcraft:boardRobotStripes", "stripes", "yellow", "robot_stripes", legacyEnergyToMj(128_000));
 
-        board("buildcraft:boardRobotBuilder", "builder", "yellow", "robot_builder", 512000);
+        board("buildcraft:boardRobotBuilder", "builder", "yellow", "robot_builder", legacyEnergyToMj(512_000));
     }
 
     private BCRoboticsBoards() {
+    }
+
+    private static int legacyEnergyToMj(int legacyEnergyUnits) {
+        return Math.round(legacyEnergyUnits / (float) LEGACY_ENERGY_UNITS_PER_MJ);
     }
 
     private static BoardEntry board(String legacyId, String key, String boardColor, String robotTexture, int energyCost) {
@@ -87,8 +94,8 @@ public final class BCRoboticsBoards {
     }
 
     /**
-     * Board programming costs are stored as whole BuildCraft MJ values for 1.7 compatibility and recipe balancing.
-     * Convert only when displaying them through the modern micro-MJ formatter.
+     * Board programming costs are stored as whole BuildCraft MJ after converting the original 7.1.27 balance
+     * at 10 legacy energy units = 1 MJ. Convert to micro-MJ only when feeding modern energy APIs or formatting the tooltip.
      */
     public static String formatBoardEnergyCost(int energyCostMj) {
         if (BCLibConfig.hidePowerValues) {
@@ -335,7 +342,7 @@ public final class BCRoboticsBoards {
 
         @Override
         public void registerBoardClass(RedstoneBoardNBT<?> redstoneBoardNBT, float probability) {
-            registerBoardType(redstoneBoardNBT, Math.round(160000 / probability));
+            registerBoardType(redstoneBoardNBT, legacyEnergyToMj(Math.round(160000 / probability)));
         }
 
         @Override
