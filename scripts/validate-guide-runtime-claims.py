@@ -110,4 +110,78 @@ for key in (
     require(text, "stack to <bold>16</bold>", key)
     require(text, "maximum stack size of <bold>1</bold>", key)
 
-print("Guide/runtime claims OK: transport, factory, builders, engines, facades and 16/1 utility-item stacks guarded")
+# Robotics programming costs follow the restored BC7 balance converted at 10 legacy energy units = 1 MJ.
+redstone_board = page(pages, "buildcraftrobotics/item/redstone_board")
+programming_table = page(pages, "buildcraftsilicon/block/programming_table")
+integration_table = page(pages, "buildcraftsilicon/block/integration_table")
+for text, label in ((redstone_board, "redstone board"), (programming_table, "programming table")):
+    for cost in ("800 MJ", "3,200 MJ", "12,800 MJ", "51,200 MJ"):
+        require(text, cost, label)
+    for stale in ("8,000 MJ", "32,000 MJ", "64,000 MJ", "128,000 MJ"):
+        forbid(text, stale, label)
+require(redstone_board, "Installing a board requires 5,000 MJ", "redstone board")
+require(integration_table, "That operation requires 5,000 MJ", "integration table")
+forbid(redstone_board, "Installing a board requires 10,000 MJ", "redstone board")
+forbid(integration_table, "That operation requires 10,000 MJ", "integration table")
+
+robot_career_costs = {
+    "picker": "800 MJ",
+    "carrier": "800 MJ",
+    "fluid_carrier": "800 MJ",
+    "lumberjack": "3,200 MJ",
+    "harvester": "3,200 MJ",
+    "miner": "3,200 MJ",
+    "planter": "3,200 MJ",
+    "farmer": "3,200 MJ",
+    "leave_cutter": "3,200 MJ",
+    "butcher": "3,200 MJ",
+    "shovelman": "3,200 MJ",
+    "pump": "3,200 MJ",
+    "delivery": "12,800 MJ",
+    "knight": "12,800 MJ",
+    "bomber": "12,800 MJ",
+    "stripes": "12,800 MJ",
+    "builder": "51,200 MJ",
+}
+for career, cost in robot_career_costs.items():
+    text = page(pages, f"buildcraftrobotics/robot/{career}")
+    require(text, f"programmed into a Redstone Board for {cost}", f"robot {career}")
+
+# Station actions are filters over robot parameters; Go to Station additionally accepts a Map Location target.
+forbid_robot = page(pages, "buildcraftrobotics/action/forbid_robot")
+force_robot = page(pages, "buildcraftrobotics/action/force_robot")
+goto_station = page(pages, "buildcraftrobotics/action/goto_station")
+require(forbid_robot, "robots matching the configured robot parameters", "forbid robot action")
+require(force_robot, "only robots matching the configured robot parameters", "force robot action")
+forbid(force_robot, "prefer or return to this station", "force robot action")
+require(goto_station, "Docking Station stored in a Map Location parameter", "go to station action")
+
+# Recent table behaviour: direct MJ charging and deterministic selection when multiple recipes match one phantom grid.
+charging_table = page(pages, "buildcraftsilicon/block/charging_table")
+require(charging_table, "Supply MJ directly or with nearby Lasers", "charging table")
+forbid(charging_table, "uses laser power to charge Forge Energy items", "charging table")
+auto_workbench = page(pages, "buildcraftfactory/block/auto_workbench")
+advanced_crafting = page(pages, "buildcraftsilicon/block/advanced_crafting_table")
+require(auto_workbench, "Recipe Book can fill the phantom grid directly without consuming ingredients", "auto workbench")
+require(auto_workbench, "left-click the recipe output selector for the next recipe", "auto workbench")
+require(auto_workbench, "right-click for the previous one; the choice is saved", "auto workbench")
+require(advanced_crafting, "Recipe Book can fill the phantom grid directly without consuming ingredients", "advanced crafting table")
+require(advanced_crafting, "left-click the result preview for the next recipe", "advanced crafting table")
+require(advanced_crafting, "right-click for the previous one; the choice is saved", "advanced crafting table")
+
+# The local blueprint library and the world's machine storage are deliberately separate, even in singleplayer.
+library = page(pages, "buildcraftbuilders/block/library")
+blueprint = page(pages, "buildcraftbuilders/item/blueprint")
+require(library, "player's local blueprint library", "electronic library")
+require(library, "current world's machine storage", "electronic library")
+require(library, "stores remain separate even in singleplayer", "electronic library")
+require(library, "reuses the server-side copy when it already exists", "electronic library")
+forbid(library, "Use one Library as the project archive and another near the work site", "electronic library")
+require(blueprint, "save a master copy to your local blueprint library", "blueprint")
+
+filler_planner = page(pages, "buildcraftbuilders/item/filler_planner")
+require(filler_planner, "Open the Filler interface to configure the planner's pattern", "filler planner")
+require(filler_planner, "settings are stored in the Volume Box add-on", "filler planner")
+forbid(filler_planner, "resize and inspect the planned operation", "filler planner")
+
+print("Guide/runtime claims OK: transport, factory, builders, robotics, silicon, engines, facades and utility-item stacks guarded")
