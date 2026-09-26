@@ -63,17 +63,28 @@ require(
     "dynamo.attemptRotation()",
 )
 
-# FE Engine parity: FE enters on every side, MJ exits through the normal engine head, max chain = four additional engines.
-for platform in ("forge", "neoforge"):
-    rel = f"source-platforms/{platform}/src/main/java/buildcraft/energy/tile/TileEngineFE.java"
+# FE Engine parity: FE enters only through non-output faces, MJ exits through the engine head,
+# and the engine chain length remains four additional engines. The FE input capability must not
+# leak onto currentDirection, otherwise FE pipes render a false connection to the MJ output.
+for rel in (
+    "source-platforms/forge/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
+    "source-families/modern/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
+    "source-downports/modern/1.21.1/family/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
+):
     require(
         rel,
-        "return Optional.of(api2FeInputPort);",
+        "side -> side != currentDirection ? feStorage : null",
+        "return side != currentDirection ? Optional.of(api2FeInputPort) : Optional.empty();",
         "getMaxChainLength() { return 4; }",
-        "caps.addEnergyStorage(feStorage,",
         "EnumPipePart.VALUES",
     )
-    forbid(rel, "return feCapability.cast();", "Capabilities.EnergyStorage.BLOCK")
+    forbid(
+        rel,
+        "caps.addEnergyStorage(feStorage,",
+        "return Optional.of(api2FeInputPort);",
+        "return feCapability.cast();",
+        "Capabilities.EnergyStorage.BLOCK",
+    )
 
 # MJ Dynamo parity: MJ only enters non-output faces; FE only exits currentDirection; aligned chain length is three.
 for platform in ("forge", "neoforge"):
