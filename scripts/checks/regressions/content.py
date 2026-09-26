@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import json
 import sys
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -248,6 +249,82 @@ for rel in (
 ):
     require(rel, "MJ_COST = 64 * MjAmount.MICRO_MJ_PER_MJ")
 
+# Committed Assembly recipe JSON is loaded at runtime, so it must match the restored BC8 provider balance.
+# These values intentionally cover every price tier that the provider emits; family/platform copies must agree.
+ASSEMBLY_JSON_COSTS = {
+    "redstone_chipset.json": 10_000,
+    "iron_chipset.json": 20_000,
+    "gold_chipset.json": 40_000,
+    "quartz_chipset.json": 60_000,
+    "diamond_chipset.json": 80_000,
+    "redstone_crystal.json": 100_000,
+    "plug_pulsar.json": 1_000,
+    "plug_timer.json": 500,
+    "light_sensor.json": 500,
+    "gate_copier.json": 500,
+}
+
+
+def expected_assembly_cost_mj(path: Path):
+    name = path.name
+    if name in ASSEMBLY_JSON_COSTS:
+        return ASSEMBLY_JSON_COSTS[name]
+    parts = path.parts
+    if "wire" in parts:
+        return 5_000
+    if "lens" in parts:
+        return 500
+    if "gate" in parts:
+        material = next((part for part in ("iron", "nether_brick", "gold") if f"_{part}_" in name), None)
+        if material is None:
+            return None
+        base = {"iron": 20_000, "nether_brick": 40_000, "gold": 80_000}[material]
+        if "modifier" not in parts:
+            return base
+        modifier = next((part for part in ("lapis", "quartz", "diamond") if name.endswith(f"_{part}.json")), None)
+        if modifier is None:
+            return None
+        return {
+            ("iron", "lapis"): 40_000,
+            ("iron", "quartz"): 60_000,
+            ("iron", "diamond"): 80_000,
+            ("nether_brick", "lapis"): 80_000,
+            ("nether_brick", "quartz"): 100_000,
+            ("nether_brick", "diamond"): 120_000,
+            ("gold", "lapis"): 100_000,
+            ("gold", "quartz"): 140_000,
+            ("gold", "diamond"): 180_000,
+        }[(material, modifier)]
+    return None
+
+
+assembly_json_count = 0
+for base in (
+    ROOT / "source-families",
+    ROOT / "source-family-platforms",
+):
+    for path in base.rglob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if data.get("type") != "buildcraftsilicon:assembly" or "MJ" not in data:
+            continue
+        assembly_json_count += 1
+        expected_mj = expected_assembly_cost_mj(path)
+        if expected_mj is None:
+            errors.append(f"{path.relative_to(ROOT)}: unclassified Assembly recipe price")
+            continue
+        expected_micro_mj = expected_mj * 1_000_000
+        if data["MJ"] != expected_micro_mj:
+            errors.append(
+                f"{path.relative_to(ROOT)}: stale Assembly recipe price {data['MJ']}, "
+                f"expected {expected_micro_mj} micro-MJ ({expected_mj} MJ)"
+            )
+
+if assembly_json_count != 170:
+    errors.append(f"expected 170 committed Assembly recipe JSON files, found {assembly_json_count}")
+
 for family in ("legacy", "modern"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/BCRoboticsBoards.java",
@@ -278,4 +355,4 @@ print(" - dead custom oil biomes and their legacy Forge tag hooks are removed")
 print(" - Programming Table selection packets use an allocated container message ID")
 print(" - NeoForge config-owning modules expose the native generated config screen")
 print(" - 1.21.1/1.21.11 gate and clear-lens recipes use live NeoForge ingredients/tags")
-print(" - BC8 assembly and BC7 robotics laser-energy balances are preserved")
+print(" - BC8 assembly JSON/provider prices and BC7 robotics laser-energy balances are preserved")

@@ -311,18 +311,27 @@ def main() -> int:
                 f"Robot AI class set diverged: old={len(old_ai)} new={len(new_ai)}")
 
         # Registration order, profession IDs, textures and programming costs drive item variants and board creation.
-        def board_registrations(source: str) -> list[tuple[str, str, str, str, str]]:
-            return re.findall(
-                r'board\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*(\d+)\)',
+        def board_registrations(source: str) -> list[tuple[str, str, str, str, int]]:
+            rows: list[tuple[str, str, str, str, int]] = []
+            for legacy_id, key, color, texture, raw_cost in re.findall(
+                r'board\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*'
+                r'(legacyRfToMj\(\s*[\d_]+\s*\)|[\d_]+)\)',
                 source,
-            )
+            ):
+                if raw_cost.startswith("legacyRfToMj"):
+                    legacy_rf = int(re.search(r'[\d_]+', raw_cost).group(0).replace("_", ""))
+                    cost_mj = (legacy_rf + 5) // 10
+                else:
+                    cost_mj = int(raw_cost.replace("_", ""))
+                rows.append((legacy_id, key, color, texture, cost_mj))
+            return rows
 
         old_boards_registry = src(old, "robotics/BCRoboticsBoards.java")
         new_boards_registry = src(new, "robotics/BCRoboticsBoards.java")
         old_regs = board_registrations(old_boards_registry)
         new_regs = board_registrations(new_boards_registry)
         require(old_regs == new_regs and len(new_regs) == 18,
-                "Robot profession registration/order/texture/cost diverged from 1.21.1")
+                "Robot profession registration/order/texture/effective cost diverged from 1.21.1")
         require(len([entry for entry in new_regs if entry[1] != "empty"]) == 17,
                 "Expected all 17 playable robot professions")
 
