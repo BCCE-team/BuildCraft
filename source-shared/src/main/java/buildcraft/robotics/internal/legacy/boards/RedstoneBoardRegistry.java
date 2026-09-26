@@ -17,7 +17,7 @@ public abstract class RedstoneBoardRegistry {
 
     /**
      * Register a redstone board type. The energy cost is measured in whole BuildCraft MJ.
-     * Legacy 1.7 RF costs must be converted first using 10 RF = 1 MJ.
+     * Legacy 1.7 recipe costs must be converted first using the preserved 10 legacy units = 1 MJ scale.
      */
     public abstract void registerBoardType(RedstoneBoardNBT<?> redstoneBoardNBT, int energyCost);
 

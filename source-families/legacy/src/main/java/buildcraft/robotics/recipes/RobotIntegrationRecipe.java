@@ -64,7 +64,7 @@ public class RobotIntegrationRecipe implements IntegrationRecipeDefinition {
 
     @Override
     public long requiredMicroJoules(ItemStack output) {
-        // BuildCraft 7.1.27 charged 50,000 RF here; BCCE uses the classic 10 RF = 1 MJ conversion.
+        // BuildCraft 7.1.27 charged 50,000 legacy energy units here; BCCE preserves that balance at 10 legacy units = 1 MJ.
         return 5_000L * MjAmount.MICRO_MJ_PER_MJ;
     }
 

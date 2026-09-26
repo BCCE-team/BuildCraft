@@ -328,16 +328,16 @@ if assembly_json_count != 170:
 for family in ("legacy", "modern"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/BCRoboticsBoards.java",
-        "LEGACY_RF_PER_MJ = 10",
-        '"robot_picker", legacyRfToMj(8_000)',
-        '"robot_lumberjack", legacyRfToMj(32_000)',
-        '"robot_delivery", legacyRfToMj(128_000)',
-        '"robot_builder", legacyRfToMj(512_000)',
-        "legacyRfToMj(Math.round(160000 / probability))",
+        "LEGACY_ENERGY_UNITS_PER_MJ = 10",
+        '"robot_picker", legacyEnergyToMj(8_000)',
+        '"robot_lumberjack", legacyEnergyToMj(32_000)',
+        '"robot_delivery", legacyEnergyToMj(128_000)',
+        '"robot_builder", legacyEnergyToMj(512_000)',
+        "legacyEnergyToMj(Math.round(160000 / probability))",
     )
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/recipes/RobotIntegrationRecipe.java",
-        "BuildCraft 7.1.27 charged 50,000 RF",
+        "BuildCraft 7.1.27 charged 50,000 legacy energy units",
         "return 5_000L * MjAmount.MICRO_MJ_PER_MJ;",
     )
 

@@ -315,12 +315,12 @@ def main() -> int:
             rows: list[tuple[str, str, str, str, int]] = []
             for legacy_id, key, color, texture, raw_cost in re.findall(
                 r'board\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*'
-                r'(legacyRfToMj\(\s*[\d_]+\s*\)|[\d_]+)\)',
+                r'(legacyEnergyToMj\(\s*[\d_]+\s*\)|[\d_]+)\)',
                 source,
             ):
-                if raw_cost.startswith("legacyRfToMj"):
-                    legacy_rf = int(re.search(r'[\d_]+', raw_cost).group(0).replace("_", ""))
-                    cost_mj = (legacy_rf + 5) // 10
+                if raw_cost.startswith("legacyEnergyToMj"):
+                    legacy_energy = int(re.search(r'[\d_]+', raw_cost).group(0).replace("_", ""))
+                    cost_mj = (legacy_energy + 5) // 10
                 else:
                     cost_mj = int(raw_cost.replace("_", ""))
                 rows.append((legacy_id, key, color, texture, cost_mj))
