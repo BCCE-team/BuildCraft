@@ -199,27 +199,69 @@ for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
     ):
         require_effective(target, rel, '"tag": "c:glass_blocks"')
 
-# Assembly-table values use the original BC8 balance; programming and integration
-# of robots retain their BC7 costs. These values are player-visible laser energy.
+# Energy-priced crafting keeps the original source balance in BCCE's MJ units.
+# BuildCraft 8.0.0 Assembly Table values were already expressed in MJ and therefore stay unchanged.
+# BuildCraft 7.1.27 Robotics used RF, so its Programming/Integration Table costs are converted at 10 RF = 1 MJ.
 for rel in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
     "source-platforms/neoforge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
 ):
-    require(rel, "return wholeMj * MjAmount.MICRO_MJ_PER_MJ;")
+    require(
+        rel,
+        "return wholeMj * MjAmount.MICRO_MJ_PER_MJ;",
+        "assemblyCost(1000)",
+        "assemblyCost(500)",
+    )
+
+# The remaining BC8 Assembly Table balance is represented by the original gate/chipset tiers.
+# Underscores differ between source generations, so guard stable surrounding recipe calls instead of spelling every literal twice.
+for rel in (
+    "version-src/1.19.2-forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
+    "version-src/1.20.1-forge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
+    "source-platforms/neoforge/src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java",
+):
+    source = text(rel).replace("_", "")
+    for token in (
+        "makeGateAssembly(writer, 20000",
+        "makeGateAssembly(writer, 40000",
+        "makeGateAssembly(writer, 80000",
+        "makeGateModifierAssembly(writer, 60000",
+        "makeGateModifierAssembly(writer, 100000",
+        "makeGateModifierAssembly(writer, 120000",
+        "makeGateModifierAssembly(writer, 140000",
+        "makeGateModifierAssembly(writer, 180000",
+        "assemblyCost(10000)",
+        "assemblyCost(20000)",
+        "assemblyCost(40000)",
+        "assemblyCost(60000)",
+        "assemblyCost(80000)",
+    ):
+        if token not in source:
+            errors.append(f"{rel}: missing BC8 8.0.0 assembly-energy balance token {token!r}")
+
+for rel in (
+    "version-src/1.19.2-forge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
+    "version-src/1.20.1-forge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
+    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
+    "source-downports/modern/1.21.1/neoforge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
+):
+    require(rel, "MJ_COST = 64 * MjAmount.MICRO_MJ_PER_MJ")
 
 for family in ("legacy", "modern"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/BCRoboticsBoards.java",
-        '"robot_delivery", 128000',
-        '"robot_knight", 128000',
-        '"robot_bomber", 128000',
-        '"robot_stripes", 128000',
-        '"robot_builder", 512000',
+        "LEGACY_RF_PER_MJ = 10",
+        '"robot_picker", legacyRfToMj(8_000)',
+        '"robot_lumberjack", legacyRfToMj(32_000)',
+        '"robot_delivery", legacyRfToMj(128_000)',
+        '"robot_builder", legacyRfToMj(512_000)',
+        "legacyRfToMj(Math.round(160000 / probability))",
     )
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/recipes/RobotIntegrationRecipe.java",
-        "return 50_000L * MjAmount.MICRO_MJ_PER_MJ;",
+        "BuildCraft 7.1.27 charged 50,000 RF",
+        "return 5_000L * MjAmount.MICRO_MJ_PER_MJ;",
     )
 
 
