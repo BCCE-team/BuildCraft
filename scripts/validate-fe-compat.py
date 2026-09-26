@@ -214,14 +214,24 @@ for loader in ("forge", "neoforge"):
     if "convertedInput" in text(dynamo):
         fail(f"{dynamo}: MJ Dynamo must not accept auto-converted FE input; BC8 powerMode excludes dedicated converters")
 
-# Forge FE Engine must accept energy on all sides, like BC8.
-forge_engine = text("source-platforms/forge/src/main/java/buildcraft/energy/tile/TileEngineFE.java")
-if "side == currentDirection ? feCapability" in forge_engine or "facing == currentDirection ? feCapability" in forge_engine:
-    fail("Forge FE Engine is incorrectly direction-restricted")
-# Neo FE Engine must likewise not direction-gate its FE storage.
-neo_engine = text("source-platforms/neoforge/src/main/java/buildcraft/energy/tile/TileEngineFE.java")
-if re.search(r"currentDirection.*EnergyStorage|EnergyStorage.*currentDirection", neo_engine):
-    fail("NeoForge FE Engine appears direction-restricted")
+# Dedicated converters are strictly sided: FE Engine consumes FE on non-output faces and emits MJ through
+# currentDirection, while MJ Dynamo consumes MJ on non-output faces and exposes FE only on currentDirection.
+for path in (
+    "source-platforms/forge/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
+    "source-families/modern/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
+    "source-downports/modern/1.21.1/family/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
+):
+    require(
+        path,
+        "side -> side != currentDirection ? feStorage : null",
+        "return side != currentDirection ? Optional.of(api2FeInputPort) : Optional.empty();",
+    )
+for path in (
+    "source-platforms/forge/src/main/java/buildcraft/energy/tile/TileDynamoMJ.java",
+    "source-platforms/neoforge/src/main/java/buildcraft/energy/tile/TileDynamoMJ.java",
+    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/energy/tile/TileDynamoMJ.java",
+):
+    require(path, "side == currentDirection ? feStorage : null")
 
 # Dynamo renderer/model parity and non-full collision shape.
 require("source-shared/src/main/java/buildcraft/energy/block/BlockDynamoMJ.java", "hasDynamicShape", "getEngineShape")
