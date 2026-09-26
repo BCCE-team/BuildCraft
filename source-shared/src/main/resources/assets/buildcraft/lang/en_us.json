@@ -1999,5 +1999,7 @@
   "buildcraft.guide.chapter.subtype.unlisted": "Other",
   "item.buildcraftlib.guide": "BuildCraft Guide Book",
   "item.buildcraftlib.guide_note": "BuildCraft Guide Book Note",
-  "gui.ledger.help.hint": "Hover over a highlighted control to see its help."
+  "gui.ledger.help.hint": "Hover over a highlighted control to see its help.",
+  "fluid_type.buildcraftenergy.spout_oil": "Oil (§bCool§r)",
+  "block.buildcraftenergy.spout_oil": "Oil (§bCool§r)"
 }

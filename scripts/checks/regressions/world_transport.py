@@ -118,6 +118,74 @@ for platform in ("forge", "neoforge"):
         "fullForceExtractionThenRefillDoesNotGhostJamPipe",
     )
 
+# Natural oil uses an internal worldgen-only fluid whose flow is hard-bounded to five
+# block transitions from any natural source. This prevents long downhill terrain from
+# turning one oil spout into an effectively unbounded cascade.
+for rel in (
+    "version-src/1.19.2-forge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
+    "version-src/1.20.1-forge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
+    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
+    "source-downports/modern/1.21.1/neoforge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
+):
+    require(
+        rel,
+        "maxSourceSpreadDistance",
+        "isWithinSourceSpreadLimit",
+        "candidate.isSource() && candidate.getType().isSame(this)",
+        "distance - Math.abs(dx)",
+    )
+
+for rel in (
+    "version-src/1.19.2-forge/src/main/java/buildcraft/energy/BCEnergyFluids.java",
+    "version-src/1.20.1-forge/src/main/java/buildcraft/energy/BCEnergyFluids.java",
+    "source-platforms/neoforge/src/main/java/buildcraft/energy/BCEnergyFluids.java",
+):
+    require(
+        rel,
+        "SPOUT_OIL_SPREAD_LIMIT = 5",
+        'FLUIDS.register("spout_oil"',
+        'FLUIDS.register("spout_oil_flowing"',
+        ".bucket(OIL_BUCKET.get(0))",
+        "setMaxSourceSpreadDistance(SPOUT_OIL_SPREAD_LIMIT)",
+    )
+
+for rel in (
+    "version-src/1.19.2-forge/src/main/java/buildcraft/energy/generation/features/OilStructure.java",
+    "version-src/1.20.1-forge/src/main/java/buildcraft/energy/generation/features/OilStructure.java",
+    "source-families/modern/src/main/java/buildcraft/energy/generation/features/OilStructure.java",
+):
+    require(
+        rel,
+        "SPOUT_OIL_SOURCE",
+        "worldgenOil()",
+        "canReplaceNaturalTerrain",
+        "state.getDestroySpeed(world, pos) < 0.0F",
+        "state.hasBlockEntity()",
+        "BlockTags.LEAVES",
+        "BlockTags.PLANKS",
+        'path.contains("cobble")',
+        'path.contains("prismarine")',
+        'path.contains("brick")',
+        "isNaturalTerrainPath",
+        "canClearSurfaceColumn",
+        "MAX_SURFACE_RISE_ABOVE_SPOT = 4",
+        "getGeneratorSurfaceY",
+        "Heightmap.Types.WORLD_SURFACE_WG",
+        "h > maxSurfaceY",
+    )
+    forbid(rel, "OIL_SOURCE.get(0).get().defaultFluidState()")
+
+require(
+    "source-shared/src/main/resources/assets/buildcraftenergy/blockstates/spout_oil.json",
+    "buildcraftenergy:fluids/oil/cool",
+)
+
+require(
+    "source-shared/src/main/resources/assets/buildcraft/lang/en_us.json",
+    '"fluid_type.buildcraftenergy.spout_oil": "Oil (§bCool§r)"',
+    '"block.buildcraftenergy.spout_oil": "Oil (§bCool§r)"',
+)
+
 if errors:
     print("ERROR: world/transport regression validation failed")
     for error in errors:

@@ -75,7 +75,18 @@ class ResourcePipeline(unittest.TestCase):
         new = self.read_json("1.20.1-forge", "data/forge/tags/fluids/oil.json")["values"]
         self.assertIn({"id": "ic2:oil", "required": False}, old)
         self.assertIn({"id": "ic2:flowing_oil_cool", "required": False}, old)
-        self.assertEqual(["buildcraftenergy:oil", "buildcraftenergy:oil_flowing"], new)
+        self.assertEqual([
+            "buildcraftenergy:oil",
+            "buildcraftenergy:spout_oil",
+            "buildcraftenergy:oil_flowing",
+            "buildcraftenergy:spout_oil_flowing",
+        ], new)
+
+    def test_natural_spout_oil_is_in_the_common_oil_tag(self):
+        for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
+            values = self.read_json(target, "data/c/tags/fluid/oil.json")["values"]
+            self.assertIn("buildcraftenergy:spout_oil", values, target)
+            self.assertIn("buildcraftenergy:spout_oil_flowing", values, target)
 
     def test_ic2_cell_models_are_generated_only_for_119(self):
         rel = Path("assets/buildcraftenergy/models/item/ic2_cell")

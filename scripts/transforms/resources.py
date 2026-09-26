@@ -399,6 +399,8 @@ def _legacy_energy_tag_values(base: str, heat: int, *, include_ic2: bool) -> lis
     values: list[object] = [
         f"buildcraftenergy:{fluid}",
     ]
+    if base == "oil" and heat == 0:
+        values.append("buildcraftenergy:spout_oil")
     if include_ic2:
         if heat == 0:
             aliases = (
@@ -419,6 +421,8 @@ def _legacy_energy_tag_values(base: str, heat: int, *, include_ic2: bool) -> lis
             )
         values.extend(_optional_id(f"ic2:{alias}") for alias in aliases)
     values.append(f"buildcraftenergy:{fluid}_flowing")
+    if base == "oil" and heat == 0:
+        values.append("buildcraftenergy:spout_oil_flowing")
     if include_ic2:
         if heat == 0:
             flow_aliases = (
