@@ -1,14 +1,12 @@
-import java.util.Properties
-
 pluginManagement {
     // Resolve loader-plugin versions from the canonical target registry so the
     // Stonecutter build root cannot drift away from materialized projects.
     val repositoryRoot = file("../..").canonicalFile
-    val targetRegistry = Properties().apply {
-        repositoryRoot.resolve("build-config/targets.properties").inputStream().use { load(it) }
+    val targetRegistry = java.util.Properties().apply {
+        repositoryRoot.resolve("build-config/targets.properties").inputStream().use { input -> load(input) }
     }
-    val generationConfiguration = Properties().apply {
-        file("targets.properties").inputStream().use { load(it) }
+    val generationConfiguration = java.util.Properties().apply {
+        file("targets.properties").inputStream().use { input -> load(input) }
     }
     val generation = generationConfiguration.getProperty("generation")?.trim()?.takeIf(String::isNotEmpty)
         ?: error("Missing generation in targets.properties")
@@ -52,14 +50,14 @@ plugins {
 }
 
 val repositoryRoot = file("../..").canonicalFile
-val commonConfiguration = Properties().apply {
-    repositoryRoot.resolve("build-config/common.properties").inputStream().use { load(it) }
+val commonConfiguration = java.util.Properties().apply {
+    repositoryRoot.resolve("build-config/common.properties").inputStream().use { input -> load(input) }
 }
-val targetRegistry = Properties().apply {
-    repositoryRoot.resolve("build-config/targets.properties").inputStream().use { load(it) }
+val targetRegistry = java.util.Properties().apply {
+    repositoryRoot.resolve("build-config/targets.properties").inputStream().use { input -> load(input) }
 }
-val generationConfiguration = Properties().apply {
-    file("targets.properties").inputStream().use { load(it) }
+val generationConfiguration = java.util.Properties().apply {
+    file("targets.properties").inputStream().use { input -> load(input) }
 }
 val generation = generationConfiguration.getProperty("generation")?.trim()?.takeIf(String::isNotEmpty)
     ?: error("Missing generation in targets.properties")

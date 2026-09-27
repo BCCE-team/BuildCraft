@@ -339,6 +339,44 @@ class FabricServerFoundationTests(unittest.TestCase):
         self.assertFalse((FABRIC / "buildcraft/transport/internal/pipe/PipeEventFluid.java").exists())
         self.assertFalse((FABRIC / "buildcraft/transport/pipe/behaviour").exists())
 
+    def test_stage_5_6_machine_world_actions_use_fabric_protection_hook(self) -> None:
+        actions = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/platform/permission/PlatformWorldActions.java"
+        )
+        automation = self.read(
+            "source-shared/src/main/java/buildcraft/robotics/internal/api2/RoboticsApi2Bootstrap.java"
+        )
+
+        # Machines must be able to share the same operation boundary as robotics rather than grow
+        # a Fabric-only Tile implementation. Break permissions go through Fabric's public hook;
+        # placement also keeps vanilla's state-survival invariant for raw construction actions.
+        for token in (
+            "PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(",
+            "actor.mayBuild()",
+            "actor.mayUseItemAt(pos, Direction.UP, ItemStack.EMPTY)",
+            "world.getWorldBorder().isWithinBounds(pos)",
+            "state.canSurvive(level, pos)",
+        ):
+            self.assertIn(token, actions)
+        self.assertNotRegex(actions, r"net\.(?:minecraftforge|neoforged)\.")
+
+        for token in (
+            "WorldOperationKind.BLOCK_BREAK",
+            "WorldOperationKind.BLOCK_PLACE",
+            "BlockUtil.canBreakBlock(level, request.target(), player)",
+            "BlockUtil.placeBlock(level, request.target(), request.state(), player, Direction.UP, 3)",
+        ):
+            self.assertIn(token, automation)
+
+    def test_stage_5_6_does_not_add_fabric_machine_tile_forks(self) -> None:
+        machine_packages = (
+            "buildcraft/factory/tile",
+            "buildcraft/builders/tile",
+            "buildcraft/silicon/tile",
+        )
+        for package in machine_packages:
+            self.assertFalse((FABRIC / package).exists(), package)
+
     def test_fabric_platform_does_not_fork_gameplay(self) -> None:
         forbidden_prefixes = ("Tile", "PipeFlow", "PipeBehaviour", "Robot", "BoardRobot", "EntityRobot")
         offenders = []
