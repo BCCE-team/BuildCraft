@@ -5,9 +5,11 @@ import buildcraft.api.v2.fluid.FluidMatcher;
 import buildcraft.api.v2.fluid.FluidVolume;
 import buildcraft.api.v2.item.ItemMatcher;
 import buildcraft.api.v2.item.ItemTransferResult;
+import buildcraft.lib.internal.transfer.FabricEnergyTransferAccess;
 import buildcraft.lib.internal.transfer.FabricFluidTransferAccess;
 import buildcraft.lib.internal.transfer.FabricFluidVariants;
 import buildcraft.lib.internal.transfer.FabricTransferTransactions;
+import buildcraft.lib.internal.transfer.EnergyTransferAccess;
 import buildcraft.lib.internal.transfer.FluidTransferAccess;
 import buildcraft.lib.internal.transfer.ItemTransferAccess;
 import buildcraft.lib.internal.transfer.OperationScope;
@@ -116,12 +118,21 @@ public final class PlatformStorage {
     }
 
     public static EnergyStorage energy(Level level, BlockPos pos, Direction face) {
+        team.reborn.energy.api.EnergyStorage storage = findEnergy(level, pos, face);
+        return storage == null ? null : new FabricEnergy(storage);
+    }
+
+    /** Transaction-native external-energy endpoint used by API v2, MJ conversion and energy gameplay. */
+    public static EnergyTransferAccess energyTransfer(Level level, BlockPos pos, Direction face) {
+        team.reborn.energy.api.EnergyStorage storage = findEnergy(level, pos, face);
+        return storage == null ? null : new FabricEnergyTransferAccess(storage);
+    }
+
+    private static team.reborn.energy.api.EnergyStorage findEnergy(Level level, BlockPos pos, Direction face) {
         if (level == null || pos == null) return null;
         var state = level.getBlockState(pos);
         var blockEntity = level.getBlockEntity(pos);
-        team.reborn.energy.api.EnergyStorage storage =
-            team.reborn.energy.api.EnergyStorage.SIDED.find(level, pos, state, blockEntity, face);
-        return storage == null ? null : new FabricEnergy(storage);
+        return team.reborn.energy.api.EnergyStorage.SIDED.find(level, pos, state, blockEntity, face);
     }
 
     public static EnergyStorage pipeEnergy(Object holder, Direction face) {
@@ -129,10 +140,20 @@ public final class PlatformStorage {
     }
 
     public static EnergyStorage energy(ItemStack stack) {
+        team.reborn.energy.api.EnergyStorage storage = findEnergy(stack);
+        return storage == null ? null : new FabricEnergy(storage);
+    }
+
+    /** Item-form transaction-native external-energy endpoint for charging/discharging gameplay. */
+    public static EnergyTransferAccess energyTransfer(ItemStack stack) {
+        team.reborn.energy.api.EnergyStorage storage = findEnergy(stack);
+        return storage == null ? null : new FabricEnergyTransferAccess(storage);
+    }
+
+    private static team.reborn.energy.api.EnergyStorage findEnergy(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return null;
         ContainerItemContext context = ContainerItemContext.withConstant(stack);
-        team.reborn.energy.api.EnergyStorage storage = context.find(team.reborn.energy.api.EnergyStorage.ITEM);
-        return storage == null ? null : new FabricEnergy(storage);
+        return context.find(team.reborn.energy.api.EnergyStorage.ITEM);
     }
 
     private static final class ContainerItems implements MutableItemStorage {
@@ -411,48 +432,46 @@ public final class PlatformStorage {
     }
 
     private static final class FabricEnergy implements EnergyStorage {
-        private final team.reborn.energy.api.EnergyStorage storage;
+        private final FabricEnergyTransferAccess transfer;
 
         private FabricEnergy(team.reborn.energy.api.EnergyStorage storage) {
-            this.storage = storage;
+            this.transfer = new FabricEnergyTransferAccess(storage);
         }
 
         @Override
         public int receiveEnergy(int amount, boolean simulate) {
-            try (Transaction tx = Transaction.openOuter()) {
-                long moved = storage.insert(Math.max(0, amount), tx);
-                if (!simulate) tx.commit();
-                return saturating(moved);
+            if (amount <= 0) return 0;
+            try (OperationScope scope = OperationScope.open(simulate ? OperationMode.SIMULATE : OperationMode.EXECUTE)) {
+                return saturating(transfer.insert(amount, scope));
             }
         }
 
         @Override
         public int extractEnergy(int amount, boolean simulate) {
-            try (Transaction tx = Transaction.openOuter()) {
-                long moved = storage.extract(Math.max(0, amount), tx);
-                if (!simulate) tx.commit();
-                return saturating(moved);
+            if (amount <= 0) return 0;
+            try (OperationScope scope = OperationScope.open(simulate ? OperationMode.SIMULATE : OperationMode.EXECUTE)) {
+                return saturating(transfer.extract(amount, scope));
             }
         }
 
         @Override
         public int getEnergyStored() {
-            return saturating(storage.getAmount());
+            return saturating(transfer.stored());
         }
 
         @Override
         public int getMaxEnergyStored() {
-            return saturating(storage.getCapacity());
+            return saturating(transfer.capacity());
         }
 
         @Override
         public boolean canExtract() {
-            return storage.supportsExtraction();
+            return transfer.canExtract();
         }
 
         @Override
         public boolean canReceive() {
-            return storage.supportsInsertion();
+            return transfer.canInsert();
         }
     }
 

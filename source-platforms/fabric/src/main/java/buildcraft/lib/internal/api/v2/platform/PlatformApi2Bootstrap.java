@@ -7,8 +7,6 @@ import buildcraft.lib.internal.transfer.EnergyTransferAccess;
 import buildcraft.lib.internal.transfer.FluidTransferAccess;
 import buildcraft.lib.internal.transfer.ItemTransferAccess;
 import buildcraft.lib.internal.transfer.PlatformTransferLookup;
-import buildcraft.lib.internal.transfer.TransferAdapters;
-import buildcraft.lib.platform.storage.EnergyStorage;
 import buildcraft.lib.platform.storage.PlatformStorage;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -50,8 +48,7 @@ public final class PlatformApi2Bootstrap {
 
         @Override
         public Optional<EnergyTransferAccess> energy(Level level, BlockPos pos, Direction side) {
-            EnergyStorage storage = PlatformStorage.energy(level, pos, side);
-            return storage == null ? Optional.empty() : Optional.of(TransferAdapters.energy(storage));
+            return Optional.ofNullable(PlatformStorage.energyTransfer(level, pos, side));
         }
     }
 }

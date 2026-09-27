@@ -167,6 +167,64 @@ class FabricServerFoundationTests(unittest.TestCase):
         self.assertIn("slotted.getSlot(tank)", platform)
         self.assertIn("implements FilteredFluidStorage<FluidVolume>", platform)
 
+    def test_stage_5_3_fabric_energy_transfer_uses_operation_scope_transaction(self) -> None:
+        access = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/transfer/FabricEnergyTransferAccess.java"
+        )
+        transactions = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/transfer/FabricTransferTransactions.java"
+        )
+        platform = self.read("source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java")
+        bootstrap = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/api/v2/platform/PlatformApi2Bootstrap.java"
+        )
+
+        for token in (
+            "FabricTransferTransactions.with(scope",
+            "scope.enter(storage)",
+            "storage.insert(offered, transaction)",
+            "storage.extract(requested, transaction)",
+        ):
+            self.assertIn(token, access)
+        self.assertNotIn("Transaction.openOuter()", access)
+        self.assertIn("private static final Object TRANSACTION_KEY", transactions)
+        self.assertIn("public static EnergyTransferAccess energyTransfer(Level level, BlockPos pos, Direction face)", platform)
+        self.assertIn("return Optional.ofNullable(PlatformStorage.energyTransfer(level, pos, side));", bootstrap)
+        self.assertNotIn("TransferAdapters.energy(storage)", bootstrap)
+
+    def test_stage_5_3_external_energy_lookup_is_sided_and_item_aware(self) -> None:
+        platform = self.read("source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java")
+        for token in (
+            "team.reborn.energy.api.EnergyStorage.SIDED.find(level, pos, state, blockEntity, face)",
+            "ContainerItemContext.withConstant(stack)",
+            "context.find(team.reborn.energy.api.EnergyStorage.ITEM)",
+            "public static EnergyTransferAccess energyTransfer(ItemStack stack)",
+        ):
+            self.assertIn(token, platform)
+
+        energy_start = platform.index("private static final class FabricEnergy")
+        energy = platform[energy_start:]
+        self.assertIn("OperationScope.open(simulate ? OperationMode.SIMULATE : OperationMode.EXECUTE)", energy)
+        self.assertIn("transfer.insert(amount, scope)", energy)
+        self.assertIn("transfer.extract(amount, scope)", energy)
+
+    def test_stage_5_3_mj_external_bridge_is_conservative_and_transaction_native(self) -> None:
+        bridge = self.read("source-platforms/fabric/src/main/java/buildcraft/lib/internal/mj/MjApi2PlatformBridge.java")
+        for token in (
+            "PlatformStorage.energyTransfer(level, pos, side)",
+            "conversion.microMjToWholeFe(offered.microMj())",
+            "conversion.microMjToWholeFe(requested.microMj())",
+            "try (OperationScope scope = OperationScope.open(mode))",
+            "storage.insert(external, scope)",
+            "storage.extract(external, scope)",
+            "conversion.feToMicroMj(external)",
+            "if (external > Long.MAX_VALUE / ratio)",
+            "return MjAmount.ofMicro(Long.MAX_VALUE);",
+        ):
+            self.assertIn(token, bridge)
+        self.assertNotIn("Transaction.openOuter()", bridge)
+        self.assertNotIn("team.reborn.energy.api.EnergyStorage", bridge)
+
     def test_fabric_platform_does_not_fork_gameplay(self) -> None:
         forbidden_prefixes = ("Tile", "PipeFlow", "PipeBehaviour", "Robot", "BoardRobot", "EntityRobot")
         offenders = []
