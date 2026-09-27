@@ -28,9 +28,13 @@ for platform in ("forge", "neoforge"):
             "insertOnlyRequestedAmount", "template.getCount()")
     require(f"{base}/buildcraft/robotics/tile/TileZonePlanner.java",
             "OperationMode.SIMULATE", "inputBefore", "setStackInSlot(SLOT_INPUT_MAP, inputBefore)")
-    require(f"{base}/buildcraft/transport/pipe/flow/PipeFlowItems.java",
-            "return stack.getCount()", "inserted.shrink(excess.getCount())")
-    if "IllegalStateException(\"After successfully simulation insertion" in text(f"{base}/buildcraft/transport/pipe/flow/PipeFlowItems.java"):
+    item_flow = (
+        "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java"
+        if platform == "forge"
+        else f"{base}/buildcraft/transport/pipe/flow/PipeFlowItems.java"
+    )
+    require(item_flow, "return stack.getCount()", "inserted.shrink(excess.getCount())")
+    if "IllegalStateException(\"After successfully simulation insertion" in text(item_flow):
         errors.append(f"{platform}: item-pipe extraction race still crashes")
     require(f"{base}/buildcraft/robotics/internal/api2/RobotServiceImpl.java",
             "getSlotsForFace", "canTakeItemThroughFace", "ActionStationProvideItems.canExtractItem")

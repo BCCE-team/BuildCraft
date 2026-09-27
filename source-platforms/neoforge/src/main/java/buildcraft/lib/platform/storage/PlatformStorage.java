@@ -6,6 +6,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.item.ItemStack;
 import buildcraft.lib.misc.CapUtil;
+import buildcraft.lib.internal.transfer.ItemTransferAccess;
+import buildcraft.lib.internal.transfer.TransferAdapters;
 import net.neoforged.neoforge.fluids.FluidStack;
 
 /** Fresh sided lookups. NeoForge standard/legacy/transaction fallback order remains owned by CapUtil. */
@@ -17,6 +19,12 @@ public final class PlatformStorage {
     public static ItemStorage items(Level level, BlockPos pos, Direction face) {
         return level == null || pos == null ? null : StorageAdapters.fromNativeItems(CapUtil.getItemHandler(level, pos, face));
     }
+    /** Slotless item-transfer endpoint used by item-pipe gameplay and API v2. */
+    public static ItemTransferAccess itemTransfer(Level level, BlockPos pos, Direction face) {
+        ItemStorage storage = items(level, pos, face);
+        return storage == null ? null : TransferAdapters.items(storage);
+    }
+
     public static FluidStorage<FluidStack> fluids(Level level, BlockPos pos, Direction face) {
         return level == null || pos == null ? null : StorageAdapters.fromNativeFluids(CapUtil.getFluidHandler(level, pos, face));
     }

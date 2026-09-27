@@ -225,6 +225,45 @@ class FabricServerFoundationTests(unittest.TestCase):
         self.assertNotIn("Transaction.openOuter()", bridge)
         self.assertNotIn("team.reborn.energy.api.EnergyStorage", bridge)
 
+    def test_stage_5_4_item_flow_contract_is_loader_neutral(self) -> None:
+        flow_contract = self.read(
+            "source-shared/src/main/java/buildcraft/transport/internal/pipe/IFlowItems.java"
+        )
+        legacy_flow = self.read(
+            "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java"
+        )
+
+        self.assertIn("OperationMode mode", flow_contract)
+        self.assertNotRegex(flow_contract, r"net\.(?:minecraftforge|neoforged|fabricmc)\.")
+        self.assertIn("PlatformItemPipeTransfer.extract(", legacy_flow)
+        self.assertIn("PlatformItemPipeTransfer.insert(", legacy_flow)
+        self.assertNotRegex(legacy_flow, r"net\.(?:minecraftforge|neoforged|fabricmc)\.")
+        self.assertNotIn("IItemTransactor", legacy_flow)
+        self.assertNotIn("ItemTransactorHelper", legacy_flow)
+        self.assertNotIn("FluidAction", legacy_flow)
+
+    def test_stage_5_4_fabric_item_pipe_endpoint_is_transaction_native(self) -> None:
+        endpoint = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformItemPipeTransfer.java"
+        )
+        platform = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java"
+        )
+
+        self.assertIn("PlatformStorage.itemTransfer(level, pos, side)", endpoint)
+        self.assertIn("OperationScope.open(OperationMode.SIMULATE)", endpoint)
+        self.assertIn("OperationScope.open(OperationMode.EXECUTE)", endpoint)
+        self.assertIn("scope.markFailed();", endpoint)
+        self.assertIn("ItemStorage.SIDED.find(level, pos, state, blockEntity, face)", platform)
+        self.assertNotIn("getStackInSlot", endpoint)
+        self.assertNotIn("SlottedStorage", endpoint)
+
+    def test_stage_5_4_does_not_add_fabric_pipeflow_or_behaviour_forks(self) -> None:
+        item_flow = FABRIC / "buildcraft/transport/pipe/flow/PipeFlowItems.java"
+        behaviours = FABRIC / "buildcraft/transport/pipe/behaviour"
+        self.assertFalse(item_flow.exists())
+        self.assertFalse(behaviours.exists())
+
     def test_fabric_platform_does_not_fork_gameplay(self) -> None:
         forbidden_prefixes = ("Tile", "PipeFlow", "PipeBehaviour", "Robot", "BoardRobot", "EntityRobot")
         offenders = []

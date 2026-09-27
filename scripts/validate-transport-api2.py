@@ -78,7 +78,7 @@ def main() -> int:
                 errors.append(f"{path}: missing API2 runtime hook {token}")
 
     flow_checks = {
-        "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java": ["applyItemRouting(", "requireItemProfile()", "maxItemsPerCycle()"],
+        "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java": ["applyItemRouting(", "requireItemProfile()", "maxItemsPerCycle()"],
         "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java": ["applyItemRouting(", "requireItemProfile()", "maxItemsPerCycle()"],
         "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java": ["PipeApi.getFluidTransferInfo(pipe.getDefinition())", "applyFluidRouting("],
         "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java": ["PipeApi.getFluidTransferInfo(pipe.getDefinition())", "applyFluidRouting("],

@@ -57,7 +57,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.capabilities.BlockCapability;
-import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.compat.NbtCompat;
 
@@ -253,7 +252,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
 
     // IFlowItems
 
-    public int tryExtractItems(int count, Direction from, DyeColor colour, IStackFilter filter, FluidAction simulate) {
+    public int tryExtractItems(int count, Direction from, DyeColor colour, IStackFilter filter, OperationMode mode) {
         loadPendingItems();
         if (pipe.getHolder().getPipeWorld().isClientSide()) {
             throw new IllegalStateException("Cannot extract items on the client side!");
@@ -286,7 +285,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
 
         count = Math.min(count, tryInsert.accepted);
 
-        ItemStack stack = trans.extract(filter, count, count, simulate == FluidAction.SIMULATE);
+        ItemStack stack = trans.extract(filter, count, count, mode == OperationMode.SIMULATE);
 
         if (stack.isEmpty()) {
             // Inventories may change between simulation and execution (or expose intentionally dynamic handlers).
@@ -294,7 +293,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             return 0;
         }
 
-        if (simulate == FluidAction.EXECUTE) {
+        if (mode == OperationMode.EXECUTE) {
             insertItemEvents(stack, colour, EXTRACT_SPEED, from);
         }
 

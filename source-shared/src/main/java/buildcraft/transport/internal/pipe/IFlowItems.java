@@ -3,20 +3,20 @@ package buildcraft.transport.internal.pipe;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import buildcraft.api.v2.OperationMode;
 import buildcraft.lib.internal.core.IStackFilter;
 import buildcraft.transport.internal.IInjectable;
 
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 
 public interface IFlowItems extends IInjectable {
 
     /** @deprecated Use the version below with a simulate paramater. */
     @Deprecated
     default int tryExtractItems(int count, Direction from, @Nullable DyeColor colour, IStackFilter filter) {
-        return tryExtractItems(count, from, colour, filter, FluidAction.EXECUTE);
+        return tryExtractItems(count, from, colour, filter, OperationMode.EXECUTE);
     }
 
     /** Attempts to extract items from the inventory connected to this pipe on the given side.
@@ -25,9 +25,9 @@ public interface IFlowItems extends IInjectable {
      * @param from The direction to extract from.
      * @param colour The colour that extracted items should be painted.
      * @param filter The filter to determine what can be extracted.
-     * @param simulate If true then only simulate the extraction.
+     * @param mode Whether to simulate or execute the extraction.
      * @return The number of items extracted. */
-    int tryExtractItems(int count, Direction from, @Nullable DyeColor colour, IStackFilter filter, FluidAction simulate);
+    int tryExtractItems(int count, Direction from, @Nullable DyeColor colour, IStackFilter filter, OperationMode mode);
 
     /** Inserts an item directly into the centre of this pipe, going in the given direction. This should ONLY be called
      * from an instance of {@link PipeBehaviour}, as otherwise it can lead to problems. (For example crashing if a pipe

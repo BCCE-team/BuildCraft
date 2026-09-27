@@ -1,4 +1,5 @@
 package buildcraft.lib.internal.transfer;
+// Loader boundary owner: net.fabricmc / Team Reborn Energy API.
 
 import java.util.Objects;
 

@@ -55,7 +55,7 @@
       "evidence": [
         "source-shared/src/main/java/buildcraft/api/v2/pipe/ItemTransitComponent.java",
         "source-shared/src/main/java/buildcraft/api/v2/pipe/ItemEjectionComponent.java",
-        "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+        "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
         "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
         "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java"
       ]

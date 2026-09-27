@@ -10,6 +10,7 @@ import java.io.IOException;
 
 import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.internal.core.EnumPipePart;
+import buildcraft.api.v2.OperationMode;
 import buildcraft.lib.internal.core.IStackFilter;
 import buildcraft.transport.internal.IItemPluggable;
 import buildcraft.transport.internal.pipe.IFlowFluid;
@@ -184,7 +185,7 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
         if (filters.getStackInSlot(currentFilter).isEmpty()) {
             advanceFilter();
         }
-        int extracted = flow.tryExtractItems(1, getCurrentDir(), null, getStackFilter(), simulate);
+        int extracted = flow.tryExtractItems(1, getCurrentDir(), null, getStackFilter(), simulate.execute() ? OperationMode.EXECUTE : OperationMode.SIMULATE);
         if (extracted > 0 && filterMode == FilterMode.ROUND_ROBIN && simulate.execute()) {
             advanceFilter();
         }

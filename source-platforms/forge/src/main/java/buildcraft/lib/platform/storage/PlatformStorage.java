@@ -6,6 +6,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.item.ItemStack;
 import buildcraft.lib.misc.CapUtil;
+import buildcraft.lib.internal.transfer.ItemTransferAccess;
+import buildcraft.lib.internal.transfer.TransferAdapters;
 import buildcraft.transport.internal.pipe.IPipeHolder;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.fluids.FluidStack;
@@ -22,6 +24,12 @@ public final class PlatformStorage {
     public static ItemStorage items(Level level, BlockPos pos, Direction face) {
         return level == null || pos == null ? null : items(level.getBlockEntity(pos), face);
     }
+    /** Slotless item-transfer endpoint used by item-pipe gameplay and API v2. */
+    public static ItemTransferAccess itemTransfer(Level level, BlockPos pos, Direction face) {
+        ItemStorage storage = items(level, pos, face);
+        return storage == null ? null : TransferAdapters.items(storage);
+    }
+
     public static FluidStorage<FluidStack> fluids(ICapabilityProvider provider, Direction face) {
         return provider == null ? null : StorageAdapters.fromNativeFluids(buildcraft.compat.CompatCapTransfromer.INSTANCE.getCap(provider, CapUtil.CAP_FLUIDS, face).orElse(null));
     }

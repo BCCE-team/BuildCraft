@@ -6,6 +6,7 @@
 
 package buildcraft.transport.pipe.behaviour;
 
+import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.energy.MjAmount;
 
 import java.util.List;
@@ -109,7 +110,7 @@ public class PipeBehaviourWood extends PipeBehaviourDirectional implements IMjRe
     }
 
     protected int extractItems(IFlowItems flow, Direction dir, int count, FluidAction simulate) {
-        return flow.tryExtractItems(count, dir, null, StackFilter.ALL, simulate);
+        return flow.tryExtractItems(count, dir, null, StackFilter.ALL, simulate.execute() ? OperationMode.EXECUTE : OperationMode.SIMULATE);
     }
 
     @Nullable

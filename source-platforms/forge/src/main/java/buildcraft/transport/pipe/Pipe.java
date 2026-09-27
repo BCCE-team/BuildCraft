@@ -90,6 +90,8 @@ import buildcraft.lib.internal.tiles.IDebuggable;
 import buildcraft.lib.logic.routing.WeightedOrder;
 import buildcraft.transport.internal.pipe.ICustomPipeConnection;
 import buildcraft.transport.internal.pipe.IFlowFluid;
+import buildcraft.lib.inventory.ItemTransactorHelper;
+import buildcraft.lib.misc.CapUtil;
 import buildcraft.transport.internal.pipe.IFlowItems;
 import buildcraft.transport.internal.pipe.IPipe;
 import buildcraft.transport.internal.pipe.IPipeHolder;
@@ -322,6 +324,16 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
     public <T> @NotNull LazyOptional<T> getCapability(@Nonnull Capability<T> capability, Direction facing) {
         LazyOptional<T> val = behaviour.getCapability(capability, facing);
         if (val.isPresent()) return val;
+
+        // Item-flow gameplay is loader-neutral. Forge capability exposure belongs here in the platform shell.
+        if (flow instanceof IFlowItems itemFlow) {
+            if (capability == PipeApi.CAP_INJECTABLE) {
+                return LazyOptional.of(() -> itemFlow).cast();
+            }
+            if (capability == CapUtil.CAP_ITEM_TRANSACTOR) {
+                return LazyOptional.of(() -> ItemTransactorHelper.wrapInjectable(itemFlow, facing)).cast();
+            }
+        }
         return flow.getCapability(capability, facing);
     }
 

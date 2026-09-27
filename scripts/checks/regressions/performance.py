@@ -135,8 +135,13 @@ for platform in ("forge", "neoforge"):
         f"source-platforms/{platform}/src/main/java/buildcraft/lib/misc/StackUtil.java",
         'remove("display")',
     )
+    item_flow = (
+        "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java"
+        if platform == "forge"
+        else f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java"
+    )
     require(
-        f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+        item_flow,
         "getConnectedDist(side)",
         "if (item.clientAtDestination)",
         "clientAtDestination = true",

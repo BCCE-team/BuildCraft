@@ -15,28 +15,22 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.jetbrains.annotations.NotNull;
 
 import com.google.common.collect.ImmutableList;
 
 import buildcraft.lib.internal.core.IStackFilter;
-import buildcraft.lib.internal.inventory.IItemTransactor;
-import buildcraft.transport.internal.IInjectable;
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.pipe.ItemTransportProfile;
 import buildcraft.transport.internal.pipe.IFlowItems;
 import buildcraft.transport.internal.pipe.IPipe;
 import buildcraft.transport.internal.pipe.IPipe.ConnectedType;
 import buildcraft.transport.internal.pipe.IPipeHolder;
-import buildcraft.transport.internal.pipe.PipeApi;
 import buildcraft.transport.internal.pipe.PipeEventHandler;
 import buildcraft.transport.internal.pipe.PipeEventItem;
 import buildcraft.transport.internal.pipe.PipeEventStatement;
 import buildcraft.transport.internal.pipe.PipeFlow;
-import buildcraft.lib.inventory.ItemTransactorHelper;
-import buildcraft.lib.inventory.NoSpaceTransactor;
-import buildcraft.lib.misc.CapUtil;
 import buildcraft.lib.misc.MessageUtil;
+import buildcraft.lib.platform.storage.PlatformItemPipeTransfer;
 import buildcraft.lib.misc.StackUtil;
 import buildcraft.lib.misc.data.DelayedList;
 import buildcraft.lib.net.cache.BuildCraftObjectCaches;
@@ -57,9 +51,6 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
 
 public final class PipeFlowItems extends PipeFlow implements IFlowItems {
@@ -186,18 +177,22 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     // IFlowItems
 
     @Override
-    public int tryExtractItems(int count, Direction from, DyeColor colour, IStackFilter filter, FluidAction simulate) {
-        if (pipe.getHolder().getPipeWorld().isClientSide()) {
+    public int tryExtractItems(int count, Direction from, DyeColor colour, IStackFilter filter, OperationMode mode) {
+        Level level = pipe.getHolder().getPipeWorld();
+        if (level.isClientSide()) {
             throw new IllegalStateException("Cannot extract items on the client side!");
         }
-        if (from == null) {
+        if (from == null || count <= 0) {
             return 0;
         }
 
-        BlockEntity tile = pipe.getConnectedTile(from);
-        IItemTransactor trans = ItemTransactorHelper.getTransactor(tile, from.getOpposite());
-
-        ItemStack possible = trans.extract(filter, 1, count, true);
+        IPipeHolder holder = pipe.getHolder();
+        BlockPos targetPos = holder.getPipePos().relative(from);
+        BlockEntity tile = level.getBlockEntity(targetPos);
+        Direction targetSide = from.getOpposite();
+        ItemStack possible = PlatformItemPipeTransfer.extract(
+            level, targetPos, tile, targetSide, filter, 1, count, OperationMode.SIMULATE
+        );
 
         if (possible.isEmpty()) {
             return 0;
@@ -207,7 +202,6 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             count = possible.getMaxStackSize();
         }
 
-        IPipeHolder holder = pipe.getHolder();
         PipeEventItem.TryInsert tryInsert = new PipeEventItem.TryInsert(holder, this, colour, from, possible);
         holder.fireEvent(tryInsert);
         if (tryInsert.isCanceled() || tryInsert.accepted <= 0) {
@@ -215,8 +209,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         }
 
         count = Math.min(count, tryInsert.accepted);
-
-        ItemStack stack = trans.extract(filter, count, count, simulate == FluidAction.SIMULATE);
+        ItemStack stack = PlatformItemPipeTransfer.extract(
+            level, targetPos, tile, targetSide, filter, count, count, mode
+        );
 
         if (stack.isEmpty()) {
             // Inventories may change between simulation and execution (or expose intentionally dynamic handlers).
@@ -224,10 +219,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             return 0;
         }
 
-        if (simulate == FluidAction.EXECUTE) {
+        if (mode == OperationMode.EXECUTE) {
             insertItemEvents(stack, colour, EXTRACT_SPEED, from);
         }
-
         return stack.getCount();
     }
 
@@ -270,24 +264,20 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     // PipeFlow
 
     @Override
-    public <T> @NotNull LazyOptional<T> getCapability(@Nonnull Capability<T> capability, Direction facing) {
-        if (capability == PipeApi.CAP_INJECTABLE) {
-            return LazyOptional.of(() -> this).cast();
-        } else if (capability == CapUtil.CAP_ITEM_TRANSACTOR) {
-            return LazyOptional.of(() -> ItemTransactorHelper.wrapInjectable(this, facing)).cast();
-        } else {
-            return super.getCapability(capability, facing);
-        }
-    }
-
-    @Override
     public boolean canConnect(Direction face, PipeFlow other) {
         return other instanceof IFlowItems;
     }
 
     @Override
     public boolean canConnect(Direction face, BlockEntity oTile) {
-        return ItemTransactorHelper.getTransactor(oTile, face.getOpposite()) != NoSpaceTransactor.INSTANCE;
+        if (oTile == null || oTile.getLevel() == null) return false;
+        return canConnect(face, oTile.getLevel(), oTile.getBlockPos(), oTile);
+    }
+
+    /** Position-aware lookup for loaders whose item storage can exist without a block entity. */
+    public boolean canConnect(Direction face, Level level, BlockPos pos, @Nullable BlockEntity oTile) {
+        return level != null && pos != null
+            && PlatformItemPipeTransfer.canConnect(level, pos, oTile, face.getOpposite());
     }
 
     @Override
@@ -477,15 +467,13 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                     break;
                 }
                 case TILE: {
-                    BlockEntity tile = pipe.getConnectedTile(item.side);
-                    IInjectable injectable = ItemTransactorHelper.getInjectable(tile, oppositeSide);
-                    ItemStack before = excess;
-                    excess = injectable.injectItem(excess.copy(), true, oppositeSide, item.colour, item.speed);
-
-                    if (!excess.isEmpty()) {
-                        IItemTransactor transactor = ItemTransactorHelper.getTransactor(tile, oppositeSide);
-                        excess = transactor.insert(excess, false, false);
-                    }
+                    Level level = holder.getPipeWorld();
+                    BlockPos targetPos = holder.getPipePos().relative(item.side);
+                    BlockEntity tile = level.getBlockEntity(targetPos);
+                    ItemStack before = excess.copy();
+                    excess = PlatformItemPipeTransfer.insert(
+                        level, targetPos, tile, oppositeSide, excess, item.colour, item.speed, OperationMode.EXECUTE
+                    );
                     ItemStack inserted = before.copy();
                     inserted.shrink(excess.getCount());
                     excess = fireEventEjectIntoTile(tile, item.side, inserted, excess);

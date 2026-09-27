@@ -14,6 +14,7 @@ import java.util.EnumSet;
 import javax.annotation.Nonnull;
 
 import buildcraft.lib.internal.core.EnumPipePart;
+import buildcraft.api.v2.OperationMode;
 import buildcraft.lib.internal.core.IStackFilter;
 import buildcraft.transport.internal.pipe.IFlowItems;
 import buildcraft.transport.internal.pipe.IPipe;
@@ -150,7 +151,7 @@ public class PipeBehaviourEmzuli extends PipeBehaviourWood implements MenuProvid
             currentSlot = getNextSlot();
         }
         if (currentSlot == null) return 0;
-        int extracted = flow.tryExtractItems(count, dir, slotColours.get(currentSlot), filter, simulate);
+        int extracted = flow.tryExtractItems(count, dir, slotColours.get(currentSlot), filter, simulate.execute() ? OperationMode.EXECUTE : OperationMode.SIMULATE);
         if (extracted > 0 && simulate.execute()) {
             currentSlot = getNextSlot();
             pipe.getHolder().scheduleNetworkUpdate(PipeMessageReceiver.BEHAVIOUR);

@@ -1,4 +1,5 @@
 package buildcraft.lib.internal.mj;
+// Loader boundary owner: net.fabricmc (Team Reborn/Fabric external-energy bridge).
 
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
