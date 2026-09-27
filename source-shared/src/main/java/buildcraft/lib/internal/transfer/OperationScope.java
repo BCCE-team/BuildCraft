@@ -2,8 +2,10 @@ package buildcraft.lib.internal.transfer;
 
 import buildcraft.api.v2.OperationMode;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -12,8 +14,8 @@ import java.util.function.Supplier;
  * One logical transfer operation shared across nested BuildCraft/platform adapters.
  *
  * <p>The scope intentionally stays internal. Forge/NeoForge use it as a recursion and
- * simulation boundary today; a Fabric adapter may attach its native transaction object
- * to the shared scope so a multi-hop transfer keeps one transaction owner instead of
+ * simulation boundary today; Fabric adapters may attach one native transaction object
+ * to the shared root so a multi-hop transfer keeps one transaction owner instead of
  * opening unrelated transactions at every adapter boundary.</p>
  */
 public final class OperationScope implements AutoCloseable {
@@ -30,6 +32,7 @@ public final class OperationScope implements AutoCloseable {
         this.mode = Objects.requireNonNull(mode, "mode");
         this.parent = parent;
         this.root = parent == null ? new RootState() : parent.root;
+        if (parent == null) this.root.mode = mode;
         this.owner = Thread.currentThread();
     }
 
@@ -46,6 +49,11 @@ public final class OperationScope implements AutoCloseable {
 
     public OperationMode mode() {
         return mode;
+    }
+
+    /** The mode selected by the outermost logical operation. */
+    public OperationMode rootMode() {
+        return root.mode;
     }
 
     public boolean simulate() {
@@ -98,6 +106,21 @@ public final class OperationScope implements AutoCloseable {
         return created;
     }
 
+    /**
+     * Registers a callback that runs exactly once when the outermost logical operation closes.
+     * Platform adapters use this to commit or abort native transaction state attached to the root scope.
+     */
+    public void onRootClose(RootCloseListener listener) {
+        requireOpen();
+        root.closeListeners.add(Objects.requireNonNull(listener, "listener"));
+    }
+
+    /** Marks the whole logical operation as failed so root-owned native transactions are aborted. */
+    public void markFailed() {
+        requireOpen();
+        root.failed = true;
+    }
+
     private void requireOpen() {
         if (closed) throw new IllegalStateException("Operation scope is already closed");
         if (Thread.currentThread() != owner) {
@@ -116,15 +139,41 @@ public final class OperationScope implements AutoCloseable {
         stack.pop();
         closed = true;
         if (stack.isEmpty()) {
-            STACK.remove();
-            root.active.clear();
-            root.attachments.clear();
+            RuntimeException runtimeFailure = null;
+            Error errorFailure = null;
+            boolean commit = root.mode == OperationMode.EXECUTE && !root.failed;
+            try {
+                for (int i = root.closeListeners.size() - 1; i >= 0; i--) {
+                    try {
+                        root.closeListeners.get(i).onRootClose(commit);
+                    } catch (Error error) {
+                        if (errorFailure == null) errorFailure = error;
+                    } catch (RuntimeException error) {
+                        if (runtimeFailure == null) runtimeFailure = error;
+                    }
+                }
+            } finally {
+                STACK.remove();
+                root.active.clear();
+                root.attachments.clear();
+                root.closeListeners.clear();
+            }
+            if (errorFailure != null) throw errorFailure;
+            if (runtimeFailure != null) throw runtimeFailure;
         }
+    }
+
+    @FunctionalInterface
+    public interface RootCloseListener {
+        void onRootClose(boolean commit);
     }
 
     private static final class RootState {
         final IdentityHashMap<Object, Boolean> active = new IdentityHashMap<>();
         final IdentityHashMap<Object, Object> attachments = new IdentityHashMap<>();
+        final List<RootCloseListener> closeListeners = new ArrayList<>();
+        OperationMode mode;
+        boolean failed;
     }
 
     public static final class Guard implements AutoCloseable {

@@ -2,8 +2,14 @@ package buildcraft.lib.platform.storage;
 
 import net.minecraft.world.item.ItemStack;
 
-/** Internal slot view. Insert returns the remainder; extract returns the extracted stack.
- * Simulation must not mutate storage. Returned slot stacks retain the backing handler's read-only semantics. */
+/**
+ * Internal <em>slotted</em> item-storage view.
+ *
+ * <p>Insert returns the remainder; extract returns the extracted stack. Simulation must not mutate storage.
+ * Returned slot stacks retain the backing handler's read-only semantics. Native storages that do not expose
+ * stable indexed slots (notably generic Fabric {@code Storage<ItemVariant>}) must use the slotless transfer
+ * boundary instead of inventing slot indices.</p>
+ */
 public interface ItemStorage {
     int getSlots();
     ItemStack getStackInSlot(int slot);

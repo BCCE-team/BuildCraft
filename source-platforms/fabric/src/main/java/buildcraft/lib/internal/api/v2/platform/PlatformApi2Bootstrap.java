@@ -13,7 +13,6 @@ import buildcraft.lib.internal.transfer.PlatformTransferLookup;
 import buildcraft.lib.internal.transfer.TransferAdapters;
 import buildcraft.lib.platform.storage.EnergyStorage;
 import buildcraft.lib.platform.storage.FluidStorage;
-import buildcraft.lib.platform.storage.ItemStorage;
 import buildcraft.lib.platform.storage.PlatformStorage;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -32,11 +31,19 @@ public final class PlatformApi2Bootstrap {
     };
     private static final FluidCarrier<FluidVolume> FLUIDS = new FluidCarrier<>() {
         @Override public boolean isEmpty(FluidVolume stack) { return stack == null || stack.isEmpty(); }
-        @Override public int amount(FluidVolume stack) { return stack == null ? 0 : (int) Math.min(Integer.MAX_VALUE, stack.amount().milliBuckets()); }
-        @Override public FluidVolume toVolume(FluidVolume stack) { return stack == null ? FluidVolume.empty() : stack; }
-        @Override public FluidVolume fromVolume(FluidVolume volume) { return volume == null ? FluidVolume.empty() : volume; }
+        @Override public int amount(FluidVolume stack) {
+            return stack == null ? 0 : (int) Math.min(Integer.MAX_VALUE, stack.amount().milliBuckets());
+        }
+        @Override public FluidVolume toVolume(FluidVolume stack) {
+            return stack == null ? FluidVolume.empty() : stack;
+        }
+        @Override public FluidVolume fromVolume(FluidVolume volume) {
+            return volume == null ? FluidVolume.empty() : volume;
+        }
         @Override public FluidVolume copyWithAmount(FluidVolume stack, int amount) {
-            return stack == null || stack.isEmpty() || amount <= 0 ? FluidVolume.empty() : stack.withAmount(buildcraft.api.v2.fluid.FluidAmount.of(amount));
+            return stack == null || stack.isEmpty() || amount <= 0
+                ? FluidVolume.empty()
+                : stack.withAmount(buildcraft.api.v2.fluid.FluidAmount.of(amount));
         }
     };
 
@@ -45,22 +52,33 @@ public final class PlatformApi2Bootstrap {
     public static synchronized void install() {
         if (installed) return;
         if (BuildCraftApiRuntime.INSTANCE.service(BuildCraftServices.PLATFORM).isEmpty()) {
-            BuildCraftApiRuntime.INSTANCE.installService(BuildCraftServices.PLATFORM, new DefaultPlatformServices(Lookup.INSTANCE));
+            BuildCraftApiRuntime.INSTANCE.installService(
+                BuildCraftServices.PLATFORM,
+                new DefaultPlatformServices(Lookup.INSTANCE)
+            );
         }
         installed = true;
     }
 
     private enum Lookup implements PlatformTransferLookup {
         INSTANCE;
-        @Override public Optional<ItemTransferAccess> items(Level level, BlockPos pos, Direction side) {
-            ItemStorage storage = PlatformStorage.items(level, pos, side);
-            return storage == null ? Optional.empty() : Optional.of(TransferAdapters.items(storage));
+
+        @Override
+        public Optional<ItemTransferAccess> items(Level level, BlockPos pos, Direction side) {
+            // Fabric Storage<ItemVariant> is slotless unless it explicitly implements SlottedStorage.
+            // Keep API v2 on the slotless transfer boundary so dynamic/modded storages remain valid endpoints.
+            return Optional.ofNullable(PlatformStorage.itemTransfer(level, pos, side));
         }
-        @Override public Optional<FluidTransferAccess> fluids(Level level, BlockPos pos, Direction side) {
+
+        @Override
+        public Optional<FluidTransferAccess> fluids(Level level, BlockPos pos, Direction side) {
             FluidStorage<FluidVolume> storage = PlatformStorage.fluids(level, pos, side);
-            return storage == null ? Optional.empty() : Optional.of(TransferAdapters.fluids(storage, FLUIDS, FLUID_MATCH));
+            return storage == null ? Optional.empty()
+                : Optional.of(TransferAdapters.fluids(storage, FLUIDS, FLUID_MATCH));
         }
-        @Override public Optional<EnergyTransferAccess> energy(Level level, BlockPos pos, Direction side) {
+
+        @Override
+        public Optional<EnergyTransferAccess> energy(Level level, BlockPos pos, Direction side) {
             EnergyStorage storage = PlatformStorage.energy(level, pos, side);
             return storage == null ? Optional.empty() : Optional.of(TransferAdapters.energy(storage));
         }

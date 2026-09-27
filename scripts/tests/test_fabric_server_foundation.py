@@ -45,6 +45,55 @@ class FabricServerFoundationTests(unittest.TestCase):
         self.assertIn("team.reborn.energy.api.EnergyStorage.SIDED.find", text)
         self.assertIn("Transaction.openOuter()", text)
 
+    def test_stage_5_1_generic_fabric_item_storage_stays_slotless(self) -> None:
+        platform = self.read("source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java")
+        bootstrap = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/api/v2/platform/PlatformApi2Bootstrap.java"
+        )
+        storage_contract = self.read("source-shared/src/main/java/buildcraft/lib/platform/storage/ItemStorage.java")
+
+        self.assertIn("storage instanceof SlottedStorage<?> rawSlotted", platform)
+        self.assertIn("public static ItemTransferAccess itemTransfer(Level level, BlockPos pos, Direction face)", platform)
+        self.assertIn("return Optional.ofNullable(PlatformStorage.itemTransfer(level, pos, side));", bootstrap)
+        self.assertNotIn("TransferAdapters.items(storage)", bootstrap)
+        self.assertIn("Internal <em>slotted</em> item-storage view", storage_contract)
+        self.assertIn("must use the slotless transfer", storage_contract)
+
+    def test_stage_5_1_slotted_adapter_targets_the_requested_native_slot(self) -> None:
+        text = self.read("source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java")
+        start = text.index("private static final class FabricSlottedItems")
+        end = text.index("private static <T> T withItemTransaction", start)
+        slotted = text[start:end]
+
+        self.assertIn("slotted.getSlot(slot)", slotted)
+        self.assertIn("target.insert(ItemVariant.of(stack)", slotted)
+        self.assertIn("target.extract(variant, amount", slotted)
+        self.assertNotIn("storage.insert(ItemVariant.of(stack)", slotted)
+        self.assertNotIn("storage.extract(variant, amount", slotted)
+
+    def test_stage_5_1_operation_scope_owns_one_fabric_item_transaction(self) -> None:
+        platform = self.read("source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java")
+        operation = self.read("source-shared/src/main/java/buildcraft/lib/internal/transfer/OperationScope.java")
+
+        for token in (
+            "scope.sharedAttachment(ITEM_TRANSACTION_KEY",
+            "scope.onRootClose(commit ->",
+            "if (commit) transaction.commit();",
+            "else transaction.abort();",
+            "Transaction.openNested(root)",
+            "scope.rootMode() == OperationMode.EXECUTE",
+            "scope.markFailed();",
+        ):
+            self.assertIn(token, platform)
+
+        for token in (
+            "public OperationMode rootMode()",
+            "public void onRootClose(RootCloseListener listener)",
+            "public void markFailed()",
+            "boolean commit = root.mode == OperationMode.EXECUTE && !root.failed",
+        ):
+            self.assertIn(token, operation)
+
     def test_fabric_platform_does_not_fork_gameplay(self) -> None:
         forbidden_prefixes = ("Tile", "PipeFlow", "PipeBehaviour", "Robot", "BoardRobot", "EntityRobot")
         offenders = []
