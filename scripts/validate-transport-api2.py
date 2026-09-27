@@ -80,7 +80,7 @@ def main() -> int:
     flow_checks = {
         "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java": ["applyItemRouting(", "requireItemProfile()", "maxItemsPerCycle()"],
         "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java": ["applyItemRouting(", "requireItemProfile()", "maxItemsPerCycle()"],
-        "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java": ["PipeApi.getFluidTransferInfo(pipe.getDefinition())", "applyFluidRouting("],
+        "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java": ["PipeApi.getFluidTransferInfo(pipe.getDefinition())", "applyFluidRouting("],
         "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java": ["PipeApi.getFluidTransferInfo(pipe.getDefinition())", "applyFluidRouting("],
         "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java": ["PipeApi.getPowerTransferInfo(pipe.getDefinition())", "applyMjRouting("],
         "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java": ["PipeApi.getPowerTransferInfo(pipe.getDefinition())", "applyMjRouting("],

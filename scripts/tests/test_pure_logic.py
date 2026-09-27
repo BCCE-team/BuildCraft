@@ -30,8 +30,7 @@ class PureLogic(unittest.TestCase):
             "source-shared/src/main/java/buildcraft/lib/misc/RotationUtil.java": "BlueprintRotation.rotateUnit",
             "source-platforms/forge/src/main/java/buildcraft/transport/pipe/Pipe.java": "WeightedOrder.order",
             "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/Pipe.java": "WeightedOrder.order",
-            "source-platforms/forge/src/main/java/buildcraft/robotics/tile/TileRequester.java": "RequestMath.",
-            "source-platforms/neoforge/src/main/java/buildcraft/robotics/tile/TileRequester.java": "RequestMath.",
+            "source-shared/src/main/java/buildcraft/robotics/tile/TileRequester.java": "RequestMath.",
         }
         for rel, token in expected.items():
             self.assertIn(token, (ROOT / rel).read_text(encoding="utf-8"), rel)
@@ -55,7 +54,7 @@ class PureLogic(unittest.TestCase):
             self.assertIn("EnergyMath", text, rel)
 
         for rel in (
-            "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
+            "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
             "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
             "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
         ):

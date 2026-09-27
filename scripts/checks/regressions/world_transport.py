@@ -88,8 +88,8 @@ for platform in ("forge", "neoforge"):
         "pipe.flow.requiresPeriodicSave() || pipe.behaviour.requiresPeriodicSave()",
     )
     require(
-        f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
-        "s.forceDrain(amount)",
+        ("source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java" if platform == "forge" else f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"),
+        "forceDrain(amount)",
         "section.incomingTotalCache = 0",
         "trimDelayedFluidToAmount",
         "removeDelayedFluid",

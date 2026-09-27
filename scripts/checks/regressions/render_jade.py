@@ -151,7 +151,7 @@ for platform in ("forge", "neoforge"):
         "public int getTransferCapacityPerTick()",
     )
     require(
-        f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
+        ("source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java" if platform == "forge" else f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"),
         "new AverageInt(10)",
         "movedFromCentre = moveFromCenter()",
         "movedToCentre = moveToCenter()",

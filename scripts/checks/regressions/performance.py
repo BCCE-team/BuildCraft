@@ -95,7 +95,7 @@ for platform in ("forge", "neoforge"):
         "this.transferPerTick * transferDelay",
     )
     require(
-        f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
+        ("source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java" if platform == "forge" else f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"),
         "fluidTransferInfo.bufferCapacity",
     )
     require(

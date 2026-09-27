@@ -17,6 +17,7 @@ import buildcraft.transport.internal.pipe.IPipe;
 import buildcraft.transport.internal.pipe.PipeEventFluid;
 import buildcraft.transport.internal.pipe.PipeEventHandler;
 import buildcraft.lib.fluid.FluidCompatRegistry;
+import buildcraft.lib.platform.storage.PlatformFluidPipeTransfer;
 
 public class PipeBehaviourDiamondFluid extends PipeBehaviourDiamond {
     public PipeBehaviourDiamondFluid(IPipe pipe, CompoundTag nbt) {
@@ -29,7 +30,8 @@ public class PipeBehaviourDiamondFluid extends PipeBehaviourDiamond {
 
     @PipeEventHandler
     public void sideCheck(PipeEventFluid.SideCheck sideCheck) {
-        FluidStack toCompare = sideCheck.fluid;
+        FluidStack toCompare = PlatformFluidPipeTransfer.toNative(sideCheck.fluid);
+        if (toCompare.isEmpty()) return;
         for (Direction face : Direction.values()) {
             if (sideCheck.isAllowed(face) && pipe.isConnected(face)) {
                 int offset = FILTERS_PER_SIDE * face.ordinal();

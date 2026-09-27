@@ -24,6 +24,7 @@ import buildcraft.transport.internal.pipe.PipeEventItem.ItemEntry;
 import buildcraft.gametest.PipeGameTestSupport;
 import buildcraft.gametest.PipeGameTestSupport.TestPipe;
 import buildcraft.lib.BCLib;
+import buildcraft.lib.platform.storage.PlatformFluidPipeTransfer;
 import buildcraft.transport.pipe.Pipe;
 import buildcraft.lib.misc.NBTUtilBC;
 
@@ -118,12 +119,12 @@ public final class PipeBehaviourGameTests {
         require(helper, bounce.canBounce, "iron pipe did not allow an item to bounce");
 
         PipeEventFluid.TryInsert fromOutput = new PipeEventFluid.TryInsert(pipe.getHolder(), null, Direction.EAST,
-            new FluidStack(Fluids.WATER, 1000));
+            PlatformFluidPipeTransfer.toVolume(new FluidStack(Fluids.WATER, 1000)));
         behaviour.fluidInsert(fromOutput);
         require(helper, fromOutput.isCanceled(), "iron fluid pipe accepted fluid from its output side");
 
         PipeEventFluid.TryInsert fromInput = new PipeEventFluid.TryInsert(pipe.getHolder(), null, Direction.WEST,
-            new FluidStack(Fluids.WATER, 1000));
+            PlatformFluidPipeTransfer.toVolume(new FluidStack(Fluids.WATER, 1000)));
         behaviour.fluidInsert(fromInput);
         require(helper, !fromInput.isCanceled(), "iron fluid pipe rejected a valid input side");
         helper.succeed();

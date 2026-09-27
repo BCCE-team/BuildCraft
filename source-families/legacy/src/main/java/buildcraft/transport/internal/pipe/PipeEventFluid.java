@@ -6,9 +6,10 @@ import java.util.EnumSet;
 
 import javax.annotation.Nonnull;
 
+import buildcraft.api.v2.fluid.FluidVolume;
 import net.minecraft.core.Direction;
-import net.minecraftforge.fluids.FluidStack;
 
+/** Loader-neutral legacy fluid-pipe events. */
 public abstract class PipeEventFluid extends PipeEvent {
 
     public final IFlowFluid flow;
@@ -27,11 +28,11 @@ public abstract class PipeEventFluid extends PipeEvent {
 
     public static class TryInsert extends PipeEventFluid {
         public final Direction from;
-        /** The incoming fluidstack. Currently changing this does nothing. */
+        /** Incoming fluid. Changing this field does not replace the offered volume. */
         @Nonnull
-        public final FluidStack fluid;
+        public final FluidVolume fluid;
 
-        public TryInsert(IPipeHolder holder, IFlowFluid flow, Direction from, @Nonnull FluidStack fluid) {
+        public TryInsert(IPipeHolder holder, IFlowFluid flow, Direction from, @Nonnull FluidVolume fluid) {
             super(true, holder, flow);
             this.from = from;
             this.fluid = fluid;
@@ -40,24 +41,13 @@ public abstract class PipeEventFluid extends PipeEvent {
 
     /** Fired after collecting the amounts of fluid that can be moved from each pipe part into the centre. */
     public static class PreMoveToCentre extends PipeEventFluid {
-        /** The single fluid type being moved by this pipe event. */
-        public final FluidStack fluid;
-
-        /** The maximum amount of fluid that the centre pipe could accept. */
+        public final FluidVolume fluid;
         public final int totalAcceptable;
-
-        /** Array of {@link Direction#getIndex()} to the maximum amount of fluid that a given side can offer. DO NOT
-         * CHANGE THIS! */
         public final int[] totalOffered;
-
-        // Used for checking the state
         private final int[] totalOfferedCheck;
-
-        /** Array of {@link Direction#getIndex()} to the amount of fluid that the given side will actually offer to the
-         * centre. This should *never* be larger than */
         public final int[] actuallyOffered;
 
-        public PreMoveToCentre(IPipeHolder holder, IFlowFluid flow, FluidStack fluid, int totalAcceptable,
+        public PreMoveToCentre(IPipeHolder holder, IFlowFluid flow, FluidVolume fluid, int totalAcceptable,
             int[] totalOffered, int[] actuallyOffered) {
             super(holder, flow);
             this.fluid = fluid;
@@ -84,16 +74,12 @@ public abstract class PipeEventFluid extends PipeEvent {
 
     /** Fired after {@link PreMoveToCentre} when all of the amounts have been totalled up. */
     public static class OnMoveToCentre extends PipeEventFluid {
-        /** The single fluid type being moved by this pipe event. */
-        public final FluidStack fluid;
-
+        public final FluidVolume fluid;
         public final int[] fluidLeavingSide;
         public final int[] fluidEnteringCentre;
-
-        // Used for checking the state maximums
         private final int[] fluidLeaveCheck, fluidEnterCheck;
 
-        public OnMoveToCentre(IPipeHolder holder, IFlowFluid flow, FluidStack fluid, int[] fluidLeavingSide,
+        public OnMoveToCentre(IPipeHolder holder, IFlowFluid flow, FluidVolume fluid, int[] fluidLeavingSide,
             int[] fluidEnteringCentre) {
             super(holder, flow);
             this.fluid = fluid;
@@ -124,31 +110,21 @@ public abstract class PipeEventFluid extends PipeEvent {
     }
 
     public static class SideCheck extends PipeEventFluid {
-        public final FluidStack fluid;
-
-        /** The priorities of each side. Stored inversely to the values given, so a higher priority will have a lower
-         * value than a lower priority. */
+        public final FluidVolume fluid;
         private final int[] priority = new int[6];
         private final EnumSet<Direction> allowed = EnumSet.allOf(Direction.class);
 
-        public SideCheck(IPipeHolder holder, IFlowFluid flow, FluidStack fluid) {
+        public SideCheck(IPipeHolder holder, IFlowFluid flow, FluidVolume fluid) {
             super(holder, flow);
             this.fluid = fluid;
         }
 
-        /** Checks to see if a side if allowed. Note that this may return true even though a later handler might
-         * disallow a side, so you should only use this to skip checking a side (for example a diamond pipe might not
-         * check the filters for a specific side if its already been disallowed) */
         public boolean isAllowed(Direction side) {
             return allowed.contains(side);
         }
 
-        /** Disallows the specific side(s) from being a destination for the item. If no sides are allowed, then the
-         * fluid will stay in the current pipe section. */
         public void disallow(Direction... sides) {
-            for (Direction side : sides) {
-                allowed.remove(side);
-            }
+            for (Direction side : sides) allowed.remove(side);
         }
 
         public void disallowAll(Collection<Direction> sides) {
@@ -166,33 +142,15 @@ public abstract class PipeEventFluid extends PipeEvent {
 
         public void disallowAllExcept(Direction... sides) {
             switch (sides.length) {
-                case 0: {
-                    allowed.clear();
-                    return;
-                }
-                case 1: {
-                    disallowAllExcept(sides[0]);
-                    return;
-                }
-                case 2: {
-                    allowed.retainAll(EnumSet.of(sides[0], sides[1]));
-                    return;
-                }
-                case 3: {
-                    allowed.retainAll(EnumSet.of(sides[0], sides[1], sides[2]));
-                    return;
-                }
-                case 4: {
-                    allowed.retainAll(EnumSet.of(sides[0], sides[1], sides[2], sides[3]));
-                    return;
-                }
-                default: {
+                case 0 -> allowed.clear();
+                case 1 -> disallowAllExcept(sides[0]);
+                case 2 -> allowed.retainAll(EnumSet.of(sides[0], sides[1]));
+                case 3 -> allowed.retainAll(EnumSet.of(sides[0], sides[1], sides[2]));
+                case 4 -> allowed.retainAll(EnumSet.of(sides[0], sides[1], sides[2], sides[3]));
+                default -> {
                     EnumSet<Direction> except = EnumSet.noneOf(Direction.class);
-                    for (Direction face : sides) {
-                        except.add(face);
-                    }
-                    this.allowed.retainAll(except);
-                    return;
+                    for (Direction face : sides) except.add(face);
+                    allowed.retainAll(except);
                 }
             }
         }
@@ -222,45 +180,29 @@ public abstract class PipeEventFluid extends PipeEvent {
         }
 
         public EnumSet<Direction> getOrder() {
-            if (allowed.isEmpty()) {
-                return EnumSet.noneOf(Direction.class);
-            }
-            if (allowed.size() == 1) {
-                return allowed;
-            }
-            priority_search: {
-                int val = priority[0];
-                for (int i = 1; i < priority.length; i++) {
-                    if (priority[i] != val) {
-                        break priority_search;
-                    }
+            if (allowed.isEmpty()) return EnumSet.noneOf(Direction.class);
+            if (allowed.size() == 1) return EnumSet.copyOf(allowed);
+
+            boolean allEqual = true;
+            int val = priority[0];
+            for (int i = 1; i < priority.length; i++) {
+                if (priority[i] != val) {
+                    allEqual = false;
+                    break;
                 }
-                // No need to work out the order when all destinations have the same priority
-                return allowed;
             }
+            if (allEqual) return EnumSet.copyOf(allowed);
 
             int[] ordered = Arrays.copyOf(priority, 6);
             Arrays.sort(ordered);
-            int last = 0;
-            for (int i = 0; i < 6; i++) {
-                int current = ordered[i];
-                if (i != 0 && current == last) {
-                    continue;
-                }
-                last = current;
-                EnumSet<Direction> set = EnumSet.noneOf(Direction.class);
+            EnumSet<Direction> result = EnumSet.noneOf(Direction.class);
+            for (int current : ordered) {
                 for (Direction face : Direction.values()) {
-                    if (allowed.contains(face)) {
-                        if (priority[face.ordinal()] == current) {
-                            set.add(face);
-                        }
-                    }
+                    if (allowed.contains(face) && priority[face.ordinal()] == current) result.add(face);
                 }
-                if (set.size() > 0) {
-                    return set;
-                }
+                if (!result.isEmpty()) return result;
             }
-            return EnumSet.noneOf(Direction.class);
+            return result;
         }
     }
 }

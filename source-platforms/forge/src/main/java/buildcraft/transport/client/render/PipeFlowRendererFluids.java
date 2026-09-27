@@ -14,6 +14,7 @@ import buildcraft.lib.client.render.fluid.FluidSpriteType;
 import buildcraft.lib.misc.VecUtil;
 import buildcraft.transport.pipe.Pipe;
 import buildcraft.transport.pipe.flow.PipeFlowFluids;
+import buildcraft.lib.platform.storage.PlatformFluidPipeTransfer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
@@ -31,7 +32,7 @@ public enum PipeFlowRendererFluids implements IPipeFlowRenderer<PipeFlowFluids> 
 	@Override
 	public void render(PipeFlowFluids flow, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int lightc,
 			int combinedOverlay) {
-		FluidStack forRender = flow.getFluidStackForRender();
+		FluidStack forRender = PlatformFluidPipeTransfer.toNative(flow.getFluidForRender());
 		if (forRender.isEmpty()) {
 			return;
 		}

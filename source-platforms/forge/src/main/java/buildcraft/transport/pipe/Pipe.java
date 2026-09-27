@@ -107,7 +107,7 @@ import buildcraft.transport.internal.pluggable.PipePluggable;
 import buildcraft.lib.misc.MessageUtil;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.transport.item.ItemPipeHolder;
-import buildcraft.lib.fluid.FuelApiBridge;
+import buildcraft.lib.platform.storage.PlatformFluidPipeTransfer;
 import buildcraft.transport.api2.PipeTypeBridge;
 import buildcraft.transport.api2.LegacyPipeAttachmentView;
 import buildcraft.transport.pipe.flow.PipeFlowForgeEnergy;
@@ -333,6 +333,10 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
             if (capability == CapUtil.CAP_ITEM_TRANSACTOR) {
                 return LazyOptional.of(() -> ItemTransactorHelper.wrapInjectable(itemFlow, facing)).cast();
             }
+        }
+        // Fluid-flow gameplay is common as well; only this Forge shell owns IFluidHandler capability exposure.
+        if (flow instanceof IFlowFluid fluidFlow && capability == CapUtil.CAP_FLUIDS) {
+            return LazyOptional.of(() -> PlatformFluidPipeTransfer.expose(fluidFlow, facing)).cast();
         }
         return flow.getCapability(capability, facing);
     }
@@ -623,9 +627,7 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
                 if (offered.isEmpty()) return FluidTransferResult.ofInsertion(offered, FluidAmount.ZERO);
                 long amount = Math.min(Integer.MAX_VALUE, offered.amount().milliBuckets());
                 FluidVolume bounded = offered.withAmount(FluidAmount.of(amount));
-                var stack = FuelApiBridge.stackOf(bounded);
-                if (stack.isEmpty()) return FluidTransferResult.ofInsertion(offered, FluidAmount.ZERO);
-                int accepted = fluidFlow.insertFluidsForce(stack, side, fluidAction(mode));
+                int accepted = fluidFlow.insertFluidsForce(bounded, side, mode);
                 return FluidTransferResult.ofInsertion(offered, FluidAmount.of(Math.max(0, accepted)));
             }
 
@@ -636,18 +638,18 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
                 Objects.requireNonNull(mode, "mode");
                 if (maxAmount.isZero()) return FluidTransferResult.nothing(maxAmount);
                 int max = (int) Math.min(Integer.MAX_VALUE, maxAmount.milliBuckets());
-                var simulated = fluidFlow.extractFluidsForce(1, max, side, fluidAction(OperationMode.SIMULATE));
-                if (simulated == null || simulated.isEmpty()) return FluidTransferResult.nothing(maxAmount);
-                FluidVolume simulatedVolume = FuelApiBridge.volumeOf(simulated);
-                if (!matcher.matches(simulatedVolume.requireVariant(), FuelApiBridge.MATCH_CONTEXT)) {
+                FluidVolume simulated = fluidFlow.extractFluidsForce(1, max, side, OperationMode.SIMULATE);
+                if (simulated.isEmpty() || !PlatformFluidPipeTransfer.matches(matcher, simulated)) {
                     return FluidTransferResult.nothing(maxAmount);
                 }
                 if (mode == OperationMode.SIMULATE) {
-                    return FluidTransferResult.ofExtraction(maxAmount, simulatedVolume);
+                    return FluidTransferResult.ofExtraction(maxAmount, simulated);
                 }
-                var extracted = fluidFlow.extractFluidsForce(1, max, side, fluidAction(OperationMode.EXECUTE));
-                FluidVolume volume = extracted == null ? FluidVolume.empty() : FuelApiBridge.volumeOf(extracted);
-                return FluidTransferResult.ofExtraction(maxAmount, volume);
+                FluidVolume extracted = fluidFlow.extractFluidsForce(1, max, side, OperationMode.EXECUTE);
+                if (!extracted.isEmpty() && !PlatformFluidPipeTransfer.matches(matcher, extracted)) {
+                    throw new IllegalStateException("Fluid pipe variant changed between simulation and execution");
+                }
+                return FluidTransferResult.ofExtraction(maxAmount, extracted);
             }
         });
     }
@@ -1029,10 +1031,6 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
             if (current == PipeConnectionDecision.ALLOW) result = current;
         }
         return result;
-    }
-
-    private static net.minecraftforge.fluids.capability.IFluidHandler.FluidAction fluidAction(OperationMode mode) {
-        return mode == OperationMode.EXECUTE ? net.minecraftforge.fluids.capability.IFluidHandler.FluidAction.EXECUTE : net.minecraftforge.fluids.capability.IFluidHandler.FluidAction.SIMULATE;
     }
 
     public void addDrops(NonNullList<ItemStack> toDrop, int fortune) {

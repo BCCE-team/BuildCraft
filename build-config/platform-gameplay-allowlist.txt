@@ -43,7 +43,6 @@ source-platforms/forge/src/main/java/buildcraft/transport/client/render/PipeFlow
 source-platforms/forge/src/main/java/buildcraft/transport/internal/pipe/PipeApi.java
 source-platforms/forge/src/main/java/buildcraft/transport/internal/pipe/PipeBehaviour.java
 source-platforms/forge/src/main/java/buildcraft/transport/internal/pipe/PipeDefinition.java
-source-platforms/forge/src/main/java/buildcraft/transport/internal/pipe/PipeEventFluid.java
 source-platforms/forge/src/main/java/buildcraft/transport/internal/pipe/PipeFlow.java
 source-platforms/forge/src/main/java/buildcraft/transport/internal/pluggable/PipePluggable.java
 source-platforms/forge/src/main/java/buildcraft/transport/pipe/Pipe.java
@@ -53,7 +52,6 @@ source-platforms/forge/src/main/java/buildcraft/transport/pipe/behaviour/PipeBeh
 source-platforms/forge/src/main/java/buildcraft/transport/pipe/behaviour/PipeBehaviourStripes.java
 source-platforms/forge/src/main/java/buildcraft/transport/pipe/behaviour/PipeBehaviourWood.java
 source-platforms/forge/src/main/java/buildcraft/transport/pipe/behaviour/PipeBehaviourWoodDiamond.java
-source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java
 source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowForgeEnergy.java
 source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java
 source-platforms/forge/src/main/java/buildcraft/transport/stripes/PipeExtensionManager.java

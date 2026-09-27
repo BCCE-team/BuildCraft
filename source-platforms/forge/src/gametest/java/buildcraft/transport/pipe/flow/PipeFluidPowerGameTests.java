@@ -1,6 +1,8 @@
 package buildcraft.transport.pipe.flow;
 
+import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.energy.MjAmount;
+import buildcraft.api.v2.fluid.FluidVolume;
 import buildcraft.lib.internal.mj.MjCapabilities;
 
 import java.math.BigInteger;
@@ -41,6 +43,7 @@ import buildcraft.gametest.PipeGameTestSupport;
 import buildcraft.gametest.PipeGameTestSupport.TestPipe;
 import buildcraft.lib.BCLib;
 import buildcraft.lib.fluid.FluidCompatRegistry;
+import buildcraft.lib.platform.storage.PlatformFluidPipeTransfer;
 import buildcraft.lib.fluid.Tank;
 import buildcraft.lib.misc.CapUtil;
 import buildcraft.transport.BCTransportConfig;
@@ -66,18 +69,18 @@ public final class PipeFluidPowerGameTests {
         int rate = PipeApi.getFluidTransferInfo(BCTransportPipes.cobbleFluid).transferPerTick;
         FluidStack water = new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate + 25);
 
-        int simulated = flow.insertFluidsForce(water, Direction.WEST, FluidAction.SIMULATE);
+        int simulated = flow.insertFluidsForce(PlatformFluidPipeTransfer.toVolume(water), Direction.WEST, OperationMode.SIMULATE);
         require(helper, simulated == rate, "fluid simulation ignored the per-tick transfer limit");
         require(helper, totalFluid(flow) == 0, "fluid simulation mutated the pipe");
 
-        int inserted = flow.insertFluidsForce(water, Direction.WEST, FluidAction.EXECUTE);
+        int inserted = flow.insertFluidsForce(PlatformFluidPipeTransfer.toVolume(water), Direction.WEST, OperationMode.EXECUTE);
         require(helper, inserted == simulated, "executed fluid insertion disagreed with simulation");
         require(helper, totalFluid(flow) == rate, "executed insertion stored the wrong amount");
 
         int mixed = flow.insertFluidsForce(
-            new FluidStack(net.minecraft.world.level.material.Fluids.LAVA, rate),
+            PlatformFluidPipeTransfer.toVolume(new FluidStack(net.minecraft.world.level.material.Fluids.LAVA, rate)),
             Direction.EAST,
-            FluidAction.EXECUTE
+            OperationMode.EXECUTE
         );
         require(helper, mixed == 0, "pipe accepted lava while it already contained water");
         require(helper, totalFluid(flow) == rate, "rejected mixed fluid changed the stored amount");
@@ -116,7 +119,7 @@ public final class PipeFluidPowerGameTests {
         PipeFlowFluids flow = new PipeFlowFluids(pipe);
         pipe.setFlow(flow);
 
-        IFluidHandler handler = flow.getCapability(CapUtil.CAP_FLUIDS, Direction.EAST).orElse(null);
+        IFluidHandler handler = PlatformFluidPipeTransfer.expose(flow, Direction.EAST);
         require(helper, handler != null, "fluid pipe did not expose its fluid capability");
         require(helper, handler.getTanks() == 1, "fluid pipe capability reported no tanks");
         require(helper, handler.getTankCapacity(0) == flow.capacity, "fluid pipe reported the wrong tank capacity");
@@ -147,24 +150,24 @@ public final class PipeFluidPowerGameTests {
 
         int rate = PipeApi.getFluidTransferInfo(BCTransportPipes.stoneFluid).transferPerTick;
         int inserted = flow.insertFluidsForce(
-            new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate),
+            PlatformFluidPipeTransfer.toVolume(new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate)),
             null,
-            FluidAction.EXECUTE
+            OperationMode.EXECUTE
         );
         require(helper, inserted == rate, "test setup failed to fill the centre section");
 
-        FluidStack belowMinimum = flow.extractFluidsForce(rate + 1, rate + 1, null, FluidAction.EXECUTE);
+        FluidVolume belowMinimum = flow.extractFluidsForce(rate + 1, rate + 1, null, OperationMode.EXECUTE);
         require(helper, belowMinimum.isEmpty(), "force extraction ignored its minimum");
         require(helper, totalFluid(flow) == rate, "failed minimum check still drained fluid");
 
         int requested = Math.max(1, rate / 2);
-        FluidStack simulated = flow.extractFluidsForce(0, requested, null, FluidAction.SIMULATE);
-        require(helper, simulated.getAmount() == requested, "simulated extraction returned the wrong amount");
+        FluidVolume simulated = flow.extractFluidsForce(0, requested, null, OperationMode.SIMULATE);
+        require(helper, simulated.amount().milliBuckets() == requested, "simulated extraction returned the wrong amount");
         require(helper, totalFluid(flow) == rate, "simulated extraction mutated the pipe");
 
-        FluidStack executed = flow.extractFluidsForce(0, requested, null, FluidAction.EXECUTE);
-        require(helper, executed.getAmount() == requested, "executed extraction returned the wrong amount");
-        require(helper, FluidCompatRegistry.areEquivalent(simulated, executed),
+        FluidVolume executed = flow.extractFluidsForce(0, requested, null, OperationMode.EXECUTE);
+        require(helper, executed.amount().milliBuckets() == requested, "executed extraction returned the wrong amount");
+        require(helper, PlatformFluidPipeTransfer.equivalent(simulated, executed),
             "simulation and execution selected different fluids");
         require(helper, totalFluid(flow) == rate - requested, "executed extraction drained the wrong amount");
         helper.succeed();
@@ -181,13 +184,15 @@ public final class PipeFluidPowerGameTests {
         pipe.setFlow(flow);
 
         require(helper, flow.insertFluidsForce(
-            new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate), null, FluidAction.EXECUTE
+            PlatformFluidPipeTransfer.toVolume(new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate)),
+            null, OperationMode.EXECUTE
         ) == rate, "test setup failed to seed fluid pipe");
-        require(helper, flow.extractFluidsForce(0, rate, null, FluidAction.EXECUTE).getAmount() == rate,
+        require(helper, flow.extractFluidsForce(0, rate, null, OperationMode.EXECUTE).amount().milliBuckets() == rate,
             "force extraction did not fully empty the pipe");
         require(helper, totalFluid(flow) == 0, "force extraction left fluid behind");
         require(helper, flow.insertFluidsForce(
-            new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate), null, FluidAction.EXECUTE
+            PlatformFluidPipeTransfer.toVolume(new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate)),
+            null, OperationMode.EXECUTE
         ) == rate, "pipe could not be refilled after force extraction");
 
         int delay = Math.max(1, (int) Math.ceil(
@@ -215,9 +220,9 @@ public final class PipeFluidPowerGameTests {
             PipeFlowFluids flow = (PipeFlowFluids) first.getPipe().getFlow();
             int rate = PipeApi.getFluidTransferInfo(BCTransportPipes.cobbleFluid).transferPerTick;
             inserted[0] = flow.insertFluidsForce(
-                new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate),
+                PlatformFluidPipeTransfer.toVolume(new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate)),
                 Direction.WEST,
-                FluidAction.EXECUTE
+                OperationMode.EXECUTE
             );
             require(helper, inserted[0] == rate, "failed to seed the fluid network");
         });
@@ -258,9 +263,9 @@ public final class PipeFluidPowerGameTests {
                 PipeFlowFluids flow = (PipeFlowFluids) first.getPipe().getFlow();
                 int rate = PipeApi.getFluidTransferInfo(BCTransportPipes.stoneFluid).transferPerTick;
                 flow.insertFluidsForce(
-                    new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate),
+                    PlatformFluidPipeTransfer.toVolume(new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate)),
                     null,
-                    FluidAction.EXECUTE
+                    OperationMode.EXECUTE
                 );
             });
         }
@@ -348,7 +353,8 @@ public final class PipeFluidPowerGameTests {
         );
 
         PipeEventFluid.SideCheck water = new PipeEventFluid.SideCheck(
-            pipe.getHolder(), flow, new FluidStack(net.minecraft.world.level.material.Fluids.WATER, 100)
+            pipe.getHolder(), flow,
+            PlatformFluidPipeTransfer.toVolume(new FluidStack(net.minecraft.world.level.material.Fluids.WATER, 100))
         );
         water.disallowAllExcept(Direction.EAST, Direction.SOUTH, Direction.WEST);
         behaviour.sideCheck(water);
@@ -359,7 +365,8 @@ public final class PipeFluidPowerGameTests {
             "matching filtered side did not outrank the unfiltered fallback");
 
         PipeEventFluid.SideCheck lava = new PipeEventFluid.SideCheck(
-            pipe.getHolder(), flow, new FluidStack(net.minecraft.world.level.material.Fluids.LAVA, 100)
+            pipe.getHolder(), flow,
+            PlatformFluidPipeTransfer.toVolume(new FluidStack(net.minecraft.world.level.material.Fluids.LAVA, 100))
         );
         lava.disallowAllExcept(Direction.EAST, Direction.SOUTH, Direction.WEST);
         behaviour.sideCheck(lava);
@@ -649,7 +656,7 @@ public final class PipeFluidPowerGameTests {
         if (!nbt.contains("fluid")) {
             return false;
         }
-        FluidStack stack = FluidStack.loadFluidStackFromNBT(nbt.getCompound("fluid"));
+        FluidStack stack = PlatformFluidPipeTransfer.toNative(FluidPipeData.read(nbt.getCompound("fluid")));
         return !stack.isEmpty() && stack.getFluid() == fluid;
     }
 

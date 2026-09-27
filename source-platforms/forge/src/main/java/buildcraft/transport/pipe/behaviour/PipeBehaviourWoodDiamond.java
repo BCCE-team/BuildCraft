@@ -11,6 +11,8 @@ import java.io.IOException;
 import buildcraft.lib.platform.storage.MutableItemStorage;
 import buildcraft.lib.internal.core.EnumPipePart;
 import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.fluid.FluidVolume;
+import buildcraft.lib.platform.storage.PlatformFluidPipeTransfer;
 import buildcraft.lib.internal.core.IStackFilter;
 import buildcraft.transport.internal.IItemPluggable;
 import buildcraft.transport.internal.pipe.IFlowFluid;
@@ -32,8 +34,6 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -199,64 +199,45 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
     }
 
     @Override
-    protected FluidStack extractFluid(IFlowFluid flow, Direction dir, int millibuckets, FluidAction simulate) {
+    protected FluidVolume extractFluid(IFlowFluid flow, Direction dir, int millibuckets, FluidAction simulate) {
         if (filterMode != FilterMode.ROUND_ROBIN && filters.getStackInSlot(currentFilter).isEmpty()) {
             advanceFilter();
         }
-
+        OperationMode mode = simulate.execute() ? OperationMode.EXECUTE : OperationMode.SIMULATE;
         ArrayFluidFilter fluidFilter = new ArrayFluidFilter(filters.stacks);
+
         switch (filterMode) {
             default:
             case WHITE_LIST:
-                // Empty slots and non-fluid items are not fluid filters. If no valid fluid is configured,
-                // preserve the unfiltered wooden-pipe behaviour.
+                // Empty/non-fluid filter slots mean the wooden pipe remains unfiltered.
                 if (!fluidFilter.hasFilter()) {
-                    return flow.tryExtractFluid(millibuckets, dir, FluidStack.EMPTY, simulate);
+                    return flow.tryExtractFluid(millibuckets, dir, FluidVolume.empty(), mode);
                 }
-                // Firstly try the advanced version - if that fails we will need to try the basic version.
-                InteractionResultHolder<FluidStack> result =
-                    flow.tryExtractFluidAdv(millibuckets, dir, fluidFilter, simulate);
-                FluidStack extracted = result.getObject();
-                if (result.getResult() != InteractionResult.PASS) {
-                    return extracted == null ? FluidStack.EMPTY : extracted;
-                }
-
-                // Some IFlowFluid implementations can only perform basic, exact-fluid extraction.
-                // Try each valid fluid filter and skip ordinary/empty filter items.
-                for (int i = 0; i < filters.getSlots(); i++) {
-                    ItemStack stack = filters.getStackInSlot(i);
-                    if (stack.isEmpty()) {
-                        continue;
-                    }
-                    FluidStack target = FluidUtil.getFluidContained(stack).orElse(FluidStack.EMPTY);
-                    if (target.isEmpty() || target.getAmount() <= 0) {
-                        continue;
-                    }
-                    extracted = flow.tryExtractFluid(millibuckets, dir, target, simulate);
-                    if (extracted != null && !extracted.isEmpty() && extracted.getAmount() > 0) {
-                        return extracted;
-                    }
-                }
-                return FluidStack.EMPTY;
+                return flow.tryExtractFluidMatching(
+                    millibuckets, dir, PlatformFluidPipeTransfer.matcher(fluidFilter), mode
+                );
             case BLACK_LIST:
-                // With no valid fluid entries the blacklist blocks nothing.
+                // An empty blacklist excludes nothing.
                 if (!fluidFilter.hasFilter()) {
-                    return flow.tryExtractFluid(millibuckets, dir, FluidStack.EMPTY, simulate);
+                    return flow.tryExtractFluid(millibuckets, dir, FluidVolume.empty(), mode);
                 }
-                // We cannot fallback to the basic version - only use the advanced version.
-                InvertedFluidFilter filter = new InvertedFluidFilter(fluidFilter);
-                FluidStack blacklistedResult = flow.tryExtractFluidAdv(millibuckets, dir, filter, simulate).getObject();
-                return blacklistedResult == null ? FluidStack.EMPTY : blacklistedResult;
+                return flow.tryExtractFluidMatching(
+                    millibuckets, dir, PlatformFluidPipeTransfer.matcher(new InvertedFluidFilter(fluidFilter)), mode
+                );
             case ROUND_ROBIN:
                 int slots = filters.getSlots();
                 for (int offset = 0; offset < slots; offset++) {
                     int filterIndex = (currentFilter + offset) % slots;
                     ItemStack stack = filters.getStackInSlot(filterIndex);
-                    FluidStack target = stack.isEmpty() ? FluidStack.EMPTY : FluidUtil.getFluidContained(stack).orElse(FluidStack.EMPTY);
+                    FluidStack target = stack.isEmpty()
+                        ? FluidStack.EMPTY
+                        : FluidUtil.getFluidContained(stack).orElse(FluidStack.EMPTY);
                     if (target.isEmpty()) continue;
 
-                    FluidStack roundRobinResult = flow.tryExtractFluid(millibuckets, dir, target, simulate);
-                    if (roundRobinResult != null && !roundRobinResult.isEmpty() && roundRobinResult.getAmount() > 0) {
+                    FluidVolume roundRobinResult = flow.tryExtractFluid(
+                        millibuckets, dir, PlatformFluidPipeTransfer.toVolume(target), mode
+                    );
+                    if (!roundRobinResult.isEmpty()) {
                         if (simulate.execute()) {
                             currentFilter = filterIndex;
                             filterValid = true;
@@ -265,7 +246,7 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
                         return roundRobinResult;
                     }
                 }
-                return FluidStack.EMPTY;
+                return FluidVolume.empty();
         }
     }
 

@@ -249,8 +249,10 @@ def validate_fluid_filter_safety() -> None:
         require(target, diamond_wood,
                 "ArrayFluidFilter fluidFilter = new ArrayFluidFilter(filters.stacks);",
                 "if (!fluidFilter.hasFilter())",
-                "FluidUtil.getFluidContained(stack).orElse(FluidStack.EMPTY)",
-                "return FluidStack.EMPTY;")
+                "FluidUtil.getFluidContained(stack).orElse(FluidStack.EMPTY)")
+        diamond_wood_text = text(target, diamond_wood)
+        if "return FluidStack.EMPTY;" not in diamond_wood_text and "return FluidVolume.empty();" not in diamond_wood_text:
+            fail(f"{target}: filtered wood fluid extraction lost its explicit empty-result safety path")
         forbid(target, diamond_wood,
                "FluidUtil.getFluidContained(stack).get()",
                "return null;")

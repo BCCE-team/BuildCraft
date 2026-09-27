@@ -20,6 +20,8 @@ import net.minecraft.world.level.material.Fluids;
 public final class FabricFluidVariants {
     /** Canonical SNBT payload used to preserve Fabric 1.20.x TransferVariant NBT through API v2 and reloads. */
     public static final ResourceLocation NBT_FORMAT = new ResourceLocation("buildcraft", "fabric_transfer_snbt_v1");
+    private static final ResourceLocation FORGE_NBT_FORMAT =
+        new ResourceLocation("buildcraft", "forge_fluid_stack_snbt_v1");
     public static final FluidMatchContext MATCH_CONTEXT = FabricFluidVariants::isInTag;
 
     private FabricFluidVariants() {
@@ -51,7 +53,8 @@ public final class FabricFluidVariants {
         if (components.isEmpty()) {
             return Optional.of(net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant.of(fluid));
         }
-        if (!NBT_FORMAT.equals(components.formatId().orElse(null))) {
+        ResourceLocation format = components.formatId().orElse(null);
+        if (!NBT_FORMAT.equals(format) && !FORGE_NBT_FORMAT.equals(format)) {
             return Optional.empty();
         }
         try {

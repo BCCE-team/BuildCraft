@@ -9,6 +9,7 @@ import buildcraft.lib.internal.statement.StatementParameterItemStack;
 import buildcraft.core.statements.BCStatement;
 import buildcraft.transport.BCTransportSprites;
 import buildcraft.transport.pipe.flow.PipeFlowFluids;
+import buildcraft.lib.platform.storage.PlatformFluidPipeTransfer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
@@ -39,7 +40,7 @@ public class TriggerFluidsTraversing extends BCStatement implements ITriggerInte
         }
         return source instanceof IGate gate 
         		&& gate.getPipeHolder().getPipe().getFlow() instanceof PipeFlowFluids fluidflow
-        		&& fluidflow.doesContainFluid(searchedFluid);
+        		&& fluidflow.doesContainFluid(PlatformFluidPipeTransfer.toVolume(searchedFluid));
     }
     
     @Override

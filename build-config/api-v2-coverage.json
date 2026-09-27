@@ -66,7 +66,7 @@
       "contract": "Incoming fluid can be intercepted before local pipe storage in SIMULATE and EXECUTE modes.",
       "evidence": [
         "source-shared/src/main/java/buildcraft/api/v2/pipe/FluidIngressComponent.java",
-        "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
+        "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
         "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
         "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"
       ]

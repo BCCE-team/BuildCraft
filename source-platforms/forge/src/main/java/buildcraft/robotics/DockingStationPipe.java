@@ -25,6 +25,7 @@ import buildcraft.lib.misc.BlockUtil;
 import buildcraft.lib.misc.CapUtil;
 import buildcraft.lib.platform.storage.FluidStorage;
 import buildcraft.lib.platform.storage.PlatformStorage;
+import buildcraft.lib.platform.storage.PlatformFluidPipeTransfer;
 import buildcraft.lib.platform.storage.StorageAdapters;
 import buildcraft.robotics.statements.ActionStationRequestItems;
 import buildcraft.robotics.plug.RobotStationPluggable;
@@ -109,7 +110,10 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
                     || !(getPipe().getPipe().flow instanceof PipeFlowFluids fluids)) {
                 return 0;
             }
-            return fluids.insertFluidsForce(resource.copy(), normalizeOutputSide(side()), action);
+            return fluids.insertFluidsForce(
+                PlatformFluidPipeTransfer.toVolume(resource), normalizeOutputSide(side()),
+                action.execute() ? OperationMode.EXECUTE : OperationMode.SIMULATE
+            );
         }
 
         @Override
@@ -127,7 +131,9 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
                     || !(getPipe().getPipe().flow instanceof PipeFlowFluids fluids)) {
                 return false;
             }
-            return fluids.insertFluidsForce(stack.copy(), normalizeOutputSide(side()), FluidAction.SIMULATE) > 0;
+            return fluids.insertFluidsForce(
+                PlatformFluidPipeTransfer.toVolume(stack), normalizeOutputSide(side()), OperationMode.SIMULATE
+            ) > 0;
         }
     };
 

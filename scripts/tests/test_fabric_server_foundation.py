@@ -153,7 +153,7 @@ class FabricServerFoundationTests(unittest.TestCase):
             "components.copyCanonicalBytes()",
             "new StringTagVisitor().visit(tag)",
             "TagParser.parseTag(new String(bytes, StandardCharsets.UTF_8))",
-            "if (!NBT_FORMAT.equals(components.formatId().orElse(null)))",
+            "if (!NBT_FORMAT.equals(format) && !FORGE_NBT_FORMAT.equals(format))",
             "catch (IllegalArgumentException malformedPayload)",
             "return Optional.empty();",
         ):
@@ -263,6 +263,81 @@ class FabricServerFoundationTests(unittest.TestCase):
         behaviours = FABRIC / "buildcraft/transport/pipe/behaviour"
         self.assertFalse(item_flow.exists())
         self.assertFalse(behaviours.exists())
+
+    def test_stage_5_5_fluid_flow_contract_is_loader_neutral(self) -> None:
+        flow_contract = self.read(
+            "source-families/legacy/src/main/java/buildcraft/transport/internal/pipe/IFlowFluid.java"
+        )
+        legacy_flow = self.read(
+            "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"
+        )
+        fluid_event = self.read(
+            "source-families/legacy/src/main/java/buildcraft/transport/internal/pipe/PipeEventFluid.java"
+        )
+
+        for text in (flow_contract, legacy_flow, fluid_event):
+            self.assertNotRegex(text, r"net\.(?:minecraftforge|neoforged|fabricmc)\.")
+        self.assertIn("FluidVolume tryExtractFluid(", flow_contract)
+        self.assertIn("OperationMode mode", flow_contract)
+        self.assertIn("PlatformFluidPipeTransfer.extract(", legacy_flow)
+        self.assertIn("PlatformFluidPipeTransfer.insert(", legacy_flow)
+        self.assertIn("runtimePipe.applyFluidIngress", legacy_flow)
+        self.assertIn("runtimePipe.applyFluidRouting", legacy_flow)
+        self.assertNotIn("FluidStack", flow_contract)
+        self.assertNotIn("IFluidHandler", legacy_flow)
+        self.assertNotIn("LazyOptional", legacy_flow)
+
+    def test_stage_5_5_fabric_fluid_endpoint_uses_transfer_api_and_skips_unloaded_chunks(self) -> None:
+        endpoint = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformFluidPipeTransfer.java"
+        )
+        flow = self.read(
+            "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"
+        )
+
+        self.assertIn("PlatformStorage.fluidTransfer(level, pos, side)", endpoint)
+        self.assertIn("OperationScope.open(OperationMode.SIMULATE)", endpoint)
+        self.assertIn("OperationScope.open(OperationMode.EXECUTE)", endpoint)
+        self.assertIn("scope.markFailed();", endpoint)
+        self.assertIn("!level.hasChunkAt(pos)", endpoint)
+        self.assertGreaterEqual(flow.count("hasChunkAt(targetPos)"), 3)
+        self.assertNotIn("net.minecraftforge", endpoint)
+        self.assertNotIn("IFluidHandler", endpoint)
+
+    def test_stage_5_5_fluid_save_and_cross_loader_variant_data_are_lossless(self) -> None:
+        pipe_data = self.read(
+            "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/FluidPipeData.java"
+        )
+        variants = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/transfer/FabricFluidVariants.java"
+        )
+        forge_endpoint = self.read(
+            "source-platforms/forge/src/main/java/buildcraft/lib/platform/storage/PlatformFluidPipeTransfer.java"
+        )
+
+        for token in ("bcFluidVolume", "componentFormat", "componentData", "copyCanonicalBytes()"):
+            self.assertIn(token, pipe_data)
+        self.assertIn("forge_fluid_stack_snbt_v1", variants)
+        self.assertIn("fabric_transfer_snbt_v1", forge_endpoint)
+        self.assertIn("readLegacyNbt", forge_endpoint)
+
+    def test_stage_5_5_forge_capability_is_only_a_platform_shell(self) -> None:
+        pipe = self.read("source-platforms/forge/src/main/java/buildcraft/transport/pipe/Pipe.java")
+        endpoint = self.read(
+            "source-platforms/forge/src/main/java/buildcraft/lib/platform/storage/PlatformFluidPipeTransfer.java"
+        )
+        self.assertIn("PlatformFluidPipeTransfer.expose(fluidFlow, facing)", pipe)
+        self.assertIn("public static IFluidHandler expose(IFlowFluid flow, Direction side)", endpoint)
+        self.assertIn("flow.insertFluidsExternal(", endpoint)
+        self.assertNotIn("getCapability", self.read(
+            "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"
+        ))
+
+    def test_stage_5_5_does_not_add_fabric_fluid_pipe_gameplay_forks(self) -> None:
+        self.assertFalse((FABRIC / "buildcraft/transport/pipe/flow/PipeFlowFluids.java").exists())
+        self.assertFalse((FABRIC / "buildcraft/transport/internal/pipe/IFlowFluid.java").exists())
+        self.assertFalse((FABRIC / "buildcraft/transport/internal/pipe/PipeEventFluid.java").exists())
+        self.assertFalse((FABRIC / "buildcraft/transport/pipe/behaviour").exists())
 
     def test_fabric_platform_does_not_fork_gameplay(self) -> None:
         forbidden_prefixes = ("Tile", "PipeFlow", "PipeBehaviour", "Robot", "BoardRobot", "EntityRobot")

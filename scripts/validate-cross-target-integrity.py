@@ -534,7 +534,11 @@ def validate_pipe_transfer_wiring() -> None:
             "pipe/flow/PipeFlowForgeEnergy.java": "getApiType().externalEnergyProfile()",
         }
         for rel, token in flow_expectations.items():
-            path = base / rel
+            path = (
+                ROOT / "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"
+                if platform == "forge" and rel == "pipe/flow/PipeFlowFluids.java"
+                else base / rel
+            )
             text = path.read_text(encoding="utf-8")
             if token not in text:
                 fail(f"{path.relative_to(ROOT)}: runtime flow bypasses configured PipeApi transfer data")

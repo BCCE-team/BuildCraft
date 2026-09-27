@@ -8,6 +8,7 @@ package buildcraft.transport.pipe.behaviour;
 
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.energy.MjAmount;
+import buildcraft.api.v2.fluid.FluidVolume;
 
 import java.util.List;
 
@@ -34,7 +35,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
 
 public class PipeBehaviourWood extends PipeBehaviourDirectional implements IMjRedstoneReceiver, IDebuggable {
@@ -99,9 +99,9 @@ public class PipeBehaviourWood extends PipeBehaviourDirectional implements IMjRe
                 IFlowFluid flow = (IFlowFluid) pipe.getFlow();
                 int maxMillibuckets = (int) (power / BCTransportConfig.mjPerMillibucket);
                 if (maxMillibuckets > 0) {
-                    FluidStack extracted = extractFluid(flow, getCurrentDir(), maxMillibuckets, simulate);
-                    if (!extracted.isEmpty() && extracted.getAmount() > 0) {
-                        return power - extracted.getAmount() * BCTransportConfig.mjPerMillibucket;
+                    FluidVolume extracted = extractFluid(flow, getCurrentDir(), maxMillibuckets, simulate);
+                    if (!extracted.isEmpty() && extracted.amount().milliBuckets() > 0) {
+                        return power - extracted.amount().milliBuckets() * BCTransportConfig.mjPerMillibucket;
                     }
                 }
             }
@@ -113,9 +113,11 @@ public class PipeBehaviourWood extends PipeBehaviourDirectional implements IMjRe
         return flow.tryExtractItems(count, dir, null, StackFilter.ALL, simulate.execute() ? OperationMode.EXECUTE : OperationMode.SIMULATE);
     }
 
-    @Nullable
-    protected FluidStack extractFluid(IFlowFluid flow, Direction dir, int millibuckets, FluidAction simulate) {
-        return flow.tryExtractFluid(millibuckets, dir, FluidStack.EMPTY, simulate);
+    protected FluidVolume extractFluid(IFlowFluid flow, Direction dir, int millibuckets, FluidAction simulate) {
+        return flow.tryExtractFluid(
+            millibuckets, dir, FluidVolume.empty(),
+            simulate.execute() ? OperationMode.EXECUTE : OperationMode.SIMULATE
+        );
     }
 
     // IMjRedstoneReceiver

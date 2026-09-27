@@ -50,7 +50,11 @@ for rel in (
 
 # Preserve the delayed-fluid ring-buffer phase across unload/reload.
 for platform in ("forge", "neoforge"):
-    flow = f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"
+    flow = (
+        "source-families/legacy/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"
+        if platform == "forge"
+        else f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java"
+    )
     require(
         flow,
         'nbt.putInt("currentTime", currentTime)',
