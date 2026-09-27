@@ -1,15 +1,18 @@
 package buildcraft.lib.platform.storage;
 
 import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.fluid.FluidMatcher;
 import buildcraft.api.v2.fluid.FluidVolume;
 import buildcraft.api.v2.item.ItemMatcher;
 import buildcraft.api.v2.item.ItemTransferResult;
+import buildcraft.lib.internal.transfer.FabricFluidTransferAccess;
+import buildcraft.lib.internal.transfer.FabricFluidVariants;
+import buildcraft.lib.internal.transfer.FabricTransferTransactions;
+import buildcraft.lib.internal.transfer.FluidTransferAccess;
 import buildcraft.lib.internal.transfer.ItemTransferAccess;
 import buildcraft.lib.internal.transfer.OperationScope;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import net.fabricmc.fabric.api.transfer.v1.context.ContainerItemContext;
 import net.fabricmc.fabric.api.transfer.v1.fluid.FluidConstants;
 import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
@@ -18,10 +21,8 @@ import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
 import net.fabricmc.fabric.api.transfer.v1.storage.StorageView;
 import net.fabricmc.fabric.api.transfer.v1.storage.base.SingleSlotStorage;
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
-import net.fabricmc.fabric.api.transfer.v1.transaction.TransactionContext;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -29,7 +30,6 @@ import net.minecraft.world.level.Level;
 /** Fabric Transfer API bridge for loader-neutral BuildCraft storage views. */
 public final class PlatformStorage {
     private static final long DROPLETS_PER_MB = FluidConstants.BUCKET / 1000L;
-    private static final Object ITEM_TRANSACTION_KEY = new Object();
 
     private PlatformStorage() { }
 
@@ -75,13 +75,36 @@ public final class PlatformStorage {
         return null;
     }
 
+    /**
+     * Returns an indexed tank view only when the native endpoint explicitly implements Fabric's SlottedStorage.
+     * Generic Storage<FluidVariant> endpoints stay slotless and are exposed through {@link #fluidTransfer}.
+     */
     public static FluidStorage<FluidVolume> fluids(Level level, BlockPos pos, Direction face) {
+        Storage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> storage = findFluids(level, pos, face);
+        if (!(storage instanceof SlottedStorage<?> rawSlotted)) return null;
+        @SuppressWarnings("unchecked")
+        SlottedStorage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> slotted =
+            (SlottedStorage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant>) rawSlotted;
+        return new FabricSlottedFluids(slotted);
+    }
+
+    /** Slotless Fabric fluid endpoint used by API v2 and gameplay transfer operations. */
+    public static FluidTransferAccess fluidTransfer(Level level, BlockPos pos, Direction face) {
+        Storage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> storage = findFluids(level, pos, face);
+        return storage == null ? null : new FabricFluidTransferAccess(storage);
+    }
+
+    private static Storage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> findFluids(
+        Level level,
+        BlockPos pos,
+        Direction face
+    ) {
         if (level == null || pos == null) return null;
         var state = level.getBlockState(pos);
         var blockEntity = level.getBlockEntity(pos);
-        Storage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> storage =
-            net.fabricmc.fabric.api.transfer.v1.fluid.FluidStorage.SIDED.find(level, pos, state, blockEntity, face);
-        return storage == null ? null : new FabricFluids(storage);
+        return net.fabricmc.fabric.api.transfer.v1.fluid.FluidStorage.SIDED.find(
+            level, pos, state, blockEntity, face
+        );
     }
 
     public static FluidStorage<FluidVolume> pipeFluids(Object holder, Direction face) {
@@ -198,7 +221,7 @@ public final class PlatformStorage {
             Objects.requireNonNull(scope, "scope");
             try (OperationScope.Guard guard = scope.enter(storage)) {
                 if (!guard.entered()) return ItemTransferResult.nothing(requested);
-                return withItemTransaction(scope, transaction -> {
+                return FabricTransferTransactions.with(scope, transaction -> {
                     long inserted = storage.insert(ItemVariant.of(offered), requested, transaction);
                     int accepted = (int) Math.min((long) requested, Math.max(0L, inserted));
                     return ItemTransferResult.ofInsertion(offered, accepted);
@@ -214,7 +237,7 @@ public final class PlatformStorage {
             Objects.requireNonNull(scope, "scope");
             try (OperationScope.Guard guard = scope.enter(storage)) {
                 if (!guard.entered()) return ItemTransferResult.nothing(maxCount);
-                return withItemTransaction(scope, transaction -> {
+                return FabricTransferTransactions.with(scope, transaction -> {
                     for (StorageView<ItemVariant> view : storage) {
                         if (view.isResourceBlank() || view.getAmount() <= 0) continue;
                         ItemVariant variant = view.getResource();
@@ -300,129 +323,90 @@ public final class PlatformStorage {
         }
     }
 
-    /**
-     * Reuses one outer Fabric transaction for the entire root BuildCraft operation.
-     * A nested SIMULATE scope under an executing root receives an aborted nested transaction so it cannot leak
-     * simulated mutations into the eventual root commit.
-     */
-    private static <T> T withItemTransaction(OperationScope scope, Function<TransactionContext, T> action) {
-        Objects.requireNonNull(action, "action");
-        Transaction root = scope.sharedAttachment(ITEM_TRANSACTION_KEY, () -> {
-            Transaction transaction = Transaction.openOuter();
-            scope.onRootClose(commit -> {
-                if (commit) transaction.commit();
-                else transaction.abort();
-            });
-            return transaction;
-        });
+    /** Indexed tank adapter used only when Fabric exposes stable native fluid slots. */
+    private static final class FabricSlottedFluids implements FilteredFluidStorage<FluidVolume> {
+        private final SlottedStorage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> slotted;
+        private final FabricFluidTransferAccess transfer;
 
-        if (scope.simulate() && scope.rootMode() == OperationMode.EXECUTE) {
-            try (Transaction nested = Transaction.openNested(root)) {
-                try {
-                    return action.apply(nested);
-                } catch (RuntimeException | Error failure) {
-                    scope.markFailed();
-                    throw failure;
-                }
-            }
-        }
-
-        try {
-            return action.apply(root);
-        } catch (RuntimeException | Error failure) {
-            scope.markFailed();
-            throw failure;
-        }
-    }
-
-    private static final class FabricFluids implements FluidStorage<FluidVolume> {
-        private final Storage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> storage;
-
-        private FabricFluids(Storage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> storage) {
-            this.storage = storage;
-        }
-
-        private List<StorageView<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant>> views() {
-            List<StorageView<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant>> list = new ArrayList<>();
-            for (var view : storage) list.add(view);
-            return list;
+        private FabricSlottedFluids(
+            SlottedStorage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> slotted
+        ) {
+            this.slotted = slotted;
+            this.transfer = new FabricFluidTransferAccess(slotted);
         }
 
         @Override
         public int getTanks() {
-            return views().size();
+            return slotted.getSlotCount();
         }
 
         @Override
         public FluidVolume getFluidInTank(int tank) {
-            var views = views();
-            if (tank < 0 || tank >= views.size()) return FluidVolume.empty();
-            var view = views.get(tank);
-            return view.isResourceBlank() ? FluidVolume.empty() : toVolume(view.getResource(), view.getAmount());
+            SingleSlotStorage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> view = tank(tank);
+            if (view == null || view.isResourceBlank() || view.getAmount() < DROPLETS_PER_MB) {
+                return FluidVolume.empty();
+            }
+            return FluidVolume.of(
+                FabricFluidVariants.toApi(view.getResource()),
+                view.getAmount() / DROPLETS_PER_MB
+            );
         }
 
         @Override
         public int getTankCapacity(int tank) {
-            var views = views();
-            return tank < 0 || tank >= views.size() ? 0 : mb(views.get(tank).getCapacity());
+            SingleSlotStorage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> view = tank(tank);
+            return view == null ? 0 : saturating(view.getCapacity() / DROPLETS_PER_MB);
         }
 
         @Override
         public boolean isFluidValid(int tank, FluidVolume fluid) {
-            return fluid != null && !fluid.isEmpty();
+            SingleSlotStorage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> target = tank(tank);
+            if (target == null || fluid == null || fluid.isEmpty() || !target.supportsInsertion()) return false;
+            var nativeVariant = FabricFluidVariants.fromApi(fluid.requireVariant()).orElse(null);
+            if (nativeVariant == null) return false;
+            try (Transaction transaction = Transaction.openOuter()) {
+                return target.insert(nativeVariant, DROPLETS_PER_MB, transaction) >= DROPLETS_PER_MB;
+            }
         }
 
         @Override
         public int fill(FluidVolume fluid, boolean simulate) {
             if (fluid == null || fluid.isEmpty()) return 0;
-            var variant = fromVolume(fluid);
-            long moved;
-            try (Transaction tx = Transaction.openOuter()) {
-                moved = storage.insert(variant, droplets(fluid.amount().milliBuckets()), tx);
-                if (!simulate) tx.commit();
+            try (OperationScope scope = OperationScope.open(simulate ? OperationMode.SIMULATE : OperationMode.EXECUTE)) {
+                return saturating(transfer.insert(fluid, scope).transferredAmount().milliBuckets());
             }
-            return mb(moved);
         }
 
         @Override
         public FluidVolume drain(FluidVolume fluid, boolean simulate) {
             if (fluid == null || fluid.isEmpty()) return FluidVolume.empty();
-            var variant = fromVolume(fluid);
-            long moved;
-            try (Transaction tx = Transaction.openOuter()) {
-                moved = storage.extract(variant, droplets(fluid.amount().milliBuckets()), tx);
-                if (!simulate) tx.commit();
+            try (OperationScope scope = OperationScope.open(simulate ? OperationMode.SIMULATE : OperationMode.EXECUTE)) {
+                return transfer.extract(
+                    FluidMatcher.exact(fluid.requireVariant()), fluid.amount(), scope
+                ).transferred();
             }
-            return moved <= 0 ? FluidVolume.empty() : toVolume(variant, moved);
         }
 
         @Override
         public FluidVolume drain(int amount, boolean simulate) {
             if (amount <= 0) return FluidVolume.empty();
-            for (var view : views()) {
-                if (view.isResourceBlank()) continue;
-                var variant = view.getResource();
-                long moved;
-                try (Transaction tx = Transaction.openOuter()) {
-                    moved = storage.extract(variant, droplets(amount), tx);
-                    if (!simulate) tx.commit();
-                }
-                if (moved > 0) return toVolume(variant, moved);
+            try (OperationScope scope = OperationScope.open(simulate ? OperationMode.SIMULATE : OperationMode.EXECUTE)) {
+                return transfer.extract(FluidMatcher.any(), buildcraft.api.v2.fluid.FluidAmount.of(amount), scope)
+                    .transferred();
             }
-            return FluidVolume.empty();
         }
 
-        private static FluidVolume toVolume(
-            net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant variant,
-            long droplets
-        ) {
-            var id = BuiltInRegistries.FLUID.getKey(variant.getFluid());
-            return FluidVolume.of(buildcraft.api.v2.fluid.FluidVariant.of(id), mb(droplets));
+        @Override
+        public FluidVolume drain(Predicate<FluidVolume> filter, int amount, boolean simulate) {
+            if (filter == null || amount <= 0) return FluidVolume.empty();
+            FluidMatcher matcher = (variant, context) -> filter.test(FluidVolume.of(variant, 1));
+            try (OperationScope scope = OperationScope.open(simulate ? OperationMode.SIMULATE : OperationMode.EXECUTE)) {
+                return transfer.extract(matcher, buildcraft.api.v2.fluid.FluidAmount.of(amount), scope).transferred();
+            }
         }
 
-        private static net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant fromVolume(FluidVolume volume) {
-            var fluid = BuiltInRegistries.FLUID.get(volume.requireVariant().fluidId());
-            return net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant.of(fluid);
+        private SingleSlotStorage<net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant> tank(int tank) {
+            return tank < 0 || tank >= slotted.getSlotCount() ? null : slotted.getSlot(tank);
         }
     }
 
@@ -481,14 +465,6 @@ public final class PlatformStorage {
         ItemStack copy = stack.copy();
         copy.setCount(count);
         return copy;
-    }
-
-    private static long droplets(long mb) {
-        return Math.max(0, mb) * DROPLETS_PER_MB;
-    }
-
-    private static int mb(long droplets) {
-        return saturating(droplets / DROPLETS_PER_MB);
     }
 
     private static int saturating(long value) {

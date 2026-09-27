@@ -1,8 +1,16 @@
 package buildcraft.lib.platform.storage;
 
-/** Internal fluid operations. F preserves the existing fluid/components carrier losslessly.
- * Fill returns accepted volume; drain returns extracted fluid. Amounts remain millibuckets.
- * No conversion to a public API fluid representation or native transaction bypass is performed. */
+/**
+ * Internal <em>tank-indexed</em> fluid storage view.
+ *
+ * <p>{@code F} preserves the existing fluid/components carrier losslessly. Fill returns accepted volume;
+ * drain returns extracted fluid, and amounts remain millibuckets. This contract is intentionally reserved for
+ * storages that expose stable tank indices. Transaction-native or dynamically-viewed native storages (for example a
+ * generic Fabric {@code Storage<FluidVariant>}) must stay on the slotless {@code FluidTransferAccess} boundary rather
+ * than fabricating tank numbers from an iterator.</p>
+ *
+ * <p>No conversion to a public API fluid representation or native transaction bypass is performed here.</p>
+ */
 public interface FluidStorage<F> {
     int getTanks();
     F getFluidInTank(int tank);

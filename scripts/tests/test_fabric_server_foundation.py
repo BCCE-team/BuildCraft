@@ -62,7 +62,7 @@ class FabricServerFoundationTests(unittest.TestCase):
     def test_stage_5_1_slotted_adapter_targets_the_requested_native_slot(self) -> None:
         text = self.read("source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java")
         start = text.index("private static final class FabricSlottedItems")
-        end = text.index("private static <T> T withItemTransaction", start)
+        end = text.index("private static final class FabricSlottedFluids", start)
         slotted = text[start:end]
 
         self.assertIn("slotted.getSlot(slot)", slotted)
@@ -73,10 +73,14 @@ class FabricServerFoundationTests(unittest.TestCase):
 
     def test_stage_5_1_operation_scope_owns_one_fabric_item_transaction(self) -> None:
         platform = self.read("source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java")
+        transactions = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/transfer/FabricTransferTransactions.java"
+        )
         operation = self.read("source-shared/src/main/java/buildcraft/lib/internal/transfer/OperationScope.java")
 
+        self.assertIn("FabricTransferTransactions.with(scope", platform)
         for token in (
-            "scope.sharedAttachment(ITEM_TRANSACTION_KEY",
+            "scope.sharedAttachment(TRANSACTION_KEY",
             "scope.onRootClose(commit ->",
             "if (commit) transaction.commit();",
             "else transaction.abort();",
@@ -84,7 +88,7 @@ class FabricServerFoundationTests(unittest.TestCase):
             "scope.rootMode() == OperationMode.EXECUTE",
             "scope.markFailed();",
         ):
-            self.assertIn(token, platform)
+            self.assertIn(token, transactions)
 
         for token in (
             "public OperationMode rootMode()",
@@ -93,6 +97,75 @@ class FabricServerFoundationTests(unittest.TestCase):
             "boolean commit = root.mode == OperationMode.EXECUTE && !root.failed",
         ):
             self.assertIn(token, operation)
+
+    def test_stage_5_2_generic_fabric_fluid_storage_stays_slotless(self) -> None:
+        platform = self.read("source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java")
+        bootstrap = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/api/v2/platform/PlatformApi2Bootstrap.java"
+        )
+        storage_contract = self.read("source-shared/src/main/java/buildcraft/lib/platform/storage/FluidStorage.java")
+
+        self.assertIn("storage instanceof SlottedStorage<?> rawSlotted", platform)
+        self.assertIn("public static FluidTransferAccess fluidTransfer(Level level, BlockPos pos, Direction face)", platform)
+        self.assertIn("return Optional.ofNullable(PlatformStorage.fluidTransfer(level, pos, side));", bootstrap)
+        self.assertNotIn("TransferAdapters.fluids(storage", bootstrap)
+        self.assertIn("tank-indexed", storage_contract)
+        self.assertIn("must stay on the slotless", storage_contract)
+
+    def test_stage_5_2_fabric_fluid_transfer_uses_operation_scope_transaction(self) -> None:
+        access = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/transfer/FabricFluidTransferAccess.java"
+        )
+        transactions = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/transfer/FabricTransferTransactions.java"
+        )
+        platform = self.read("source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java")
+
+        self.assertIn("FabricTransferTransactions.with(scope", access)
+        self.assertIn("FabricTransferTransactions.probe(", access)
+        self.assertNotIn("Transaction.openOuter()", access)
+        self.assertIn("FabricTransferTransactions.with(scope", platform)
+        self.assertIn("private static final Object TRANSACTION_KEY", transactions)
+        self.assertIn("Transaction.openNested(parent)", transactions)
+
+    def test_stage_5_2_fabric_fluid_amounts_commit_only_whole_millibuckets(self) -> None:
+        access = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/transfer/FabricFluidTransferAccess.java"
+        )
+        for token in (
+            "long aligned = alignDroplets(probed);",
+            "return Math.max(0L, droplets) / DROPLETS_PER_MB * DROPLETS_PER_MB;",
+            "storage.insert(variant, aligned, transaction)",
+            "storage.extract(variant, aligned, transaction)",
+            'requireExact(scope, "insert", aligned, executed)',
+            'requireExact(scope, "extract", aligned, executed)',
+            "scope.markFailed();",
+        ):
+            self.assertIn(token, access)
+
+    def test_stage_5_2_fabric_fluid_variant_nbt_is_lossless_or_rejected(self) -> None:
+        variants = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/transfer/FabricFluidVariants.java"
+        )
+        for token in (
+            "nativeVariant.copyNbt()",
+            "FluidComponentPayload.of(NBT_FORMAT, encode(nbt))",
+            "components.copyCanonicalBytes()",
+            "new StringTagVisitor().visit(tag)",
+            "TagParser.parseTag(new String(bytes, StandardCharsets.UTF_8))",
+            "if (!NBT_FORMAT.equals(components.formatId().orElse(null)))",
+            "catch (IllegalArgumentException malformedPayload)",
+            "return Optional.empty();",
+        ):
+            self.assertIn(token, variants)
+
+    def test_stage_5_2_sided_fluid_lookup_and_stable_tank_view(self) -> None:
+        platform = self.read("source-platforms/fabric/src/main/java/buildcraft/lib/platform/storage/PlatformStorage.java")
+        self.assertIn("FluidStorage.SIDED.find(", platform)
+        self.assertIn("level, pos, state, blockEntity, face", platform)
+        self.assertIn("slotted.getSlotCount()", platform)
+        self.assertIn("slotted.getSlot(tank)", platform)
+        self.assertIn("implements FilteredFluidStorage<FluidVolume>", platform)
 
     def test_fabric_platform_does_not_fork_gameplay(self) -> None:
         forbidden_prefixes = ("Tile", "PipeFlow", "PipeBehaviour", "Robot", "BoardRobot", "EntityRobot")
