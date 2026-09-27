@@ -377,6 +377,40 @@ class FabricServerFoundationTests(unittest.TestCase):
         for package in machine_packages:
             self.assertFalse((FABRIC / package).exists(), package)
 
+    def test_stage_5_7_robotics_actor_lifecycle_is_a_platform_service(self) -> None:
+        bootstrap = self.read("source-platforms/fabric/src/main/java/buildcraft/fabric/BuildCraftFabric.java")
+        actors = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/platform/actor/PlatformActors.java"
+        )
+        shared_actors = self.read("source-shared/src/main/java/buildcraft/lib/platform/actor/BCActors.java")
+
+        # Robot ownership must use the existing actor cache, but never make a Fabric-only robot
+        # entity, task or AI. World unload and server stop release the cached detached players.
+        for token in (
+            "ServerWorldEvents.UNLOAD.register((server, level) -> BCActors.unloadWorld(level));",
+            "BCActors.stopServer();",
+            "FabricServerState.stopped(server);",
+        ):
+            self.assertIn(token, bootstrap)
+        for token in (
+            "new ServerPlayer(level.getServer(), level, profile)",
+            "public static void afterAcquire",
+        ):
+            self.assertIn(token, actors)
+        self.assertNotRegex(actors, r"net\.(?:minecraftforge|neoforged)\.")
+        self.assertIn("private static final ActorCache<ServerLevel, GameProfile, ServerPlayer> PLAYERS", shared_actors)
+        self.assertIn("public static void unloadWorld(ServerLevel level)", shared_actors)
+        self.assertIn("public static void stopServer()", shared_actors)
+
+    def test_stage_5_7_does_not_add_fabric_robot_gameplay_forks(self) -> None:
+        forbidden = (
+            "buildcraft/robotics/ai",
+            "buildcraft/robotics/entity",
+            "buildcraft/robotics/internal/legacy/robots",
+        )
+        for package in forbidden:
+            self.assertFalse((FABRIC / package).exists(), package)
+
     def test_fabric_platform_does_not_fork_gameplay(self) -> None:
         forbidden_prefixes = ("Tile", "PipeFlow", "PipeBehaviour", "Robot", "BoardRobot", "EntityRobot")
         offenders = []

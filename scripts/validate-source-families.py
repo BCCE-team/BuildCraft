@@ -125,12 +125,20 @@ def validate_loader_boundaries(
         "neoforge": ("net.neoforged",),
         "fabric": ("net.fabricmc",),
     }
+    # A small number of classes are loader boundaries by responsibility rather than by a direct
+    # loader-API import. Fabric has no shared FakePlayer implementation: constructing the detached
+    # ServerPlayer belongs to its platform actor factory even though vanilla supplies the class.
+    platform_service_relatives = {
+        "fabric": {"src/main/java/buildcraft/lib/platform/actor/PlatformActors.java"},
+    }
     for platform, root in platform_roots.items():
         if not root.exists():
             continue
         for path in root.rglob("*.java"):
             text = path.read_text(encoding="utf-8", errors="replace")
-            if not any(token in text for token in own_loader_tokens.get(platform, ())):
+            relative = path.relative_to(root).as_posix()
+            platform_service = relative in platform_service_relatives.get(platform, set())
+            if not platform_service and not any(token in text for token in own_loader_tokens.get(platform, ())):
                 fail(
                     f"loader-neutral Java stranded in source-platforms/{platform}: "
                     f"{path.relative_to(ROOT)}; promote it to shared/family ownership"
