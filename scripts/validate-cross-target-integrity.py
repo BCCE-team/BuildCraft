@@ -747,32 +747,68 @@ def validate_compat_runtime_dependencies(props: dict[str, str]) -> None:
             f"({required_hotfix}); found {carbon!r}."
         )
 
-def validate_fabric_server_foundation(props: dict[str, str]) -> None:
+def validate_fabric_gameplay_target(props: dict[str, str]) -> None:
     target = "1.20.1-fabric"
     if target not in target_ids(props):
-        fail(f"missing configured Fabric server-foundation target {target}")
-    if props.get(f"target.{target}.build.profile") != "server_foundation":
-        fail(f"{target}: build.profile must be server_foundation during Stage 4")
+        fail(f"missing configured Fabric gameplay-parity target {target}")
+    if props.get(f"target.{target}.build.profile") != "gameplay_parity":
+        fail(f"{target}: build.profile must be gameplay_parity during Stage 5")
     layout = target_layout(target, props)
     if layout.platform != "fabric" or layout.family != "legacy":
         fail(f"{target}: expected legacy/fabric ownership, got {layout.family}/{layout.platform}")
     overlay_java = list(layout.overlay_root.rglob("*.java"))
     if overlay_java:
-        fail(f"{target}: Fabric server-foundation target overlay must contain 0 Java files")
+        fail(f"{target}: Fabric gameplay-parity target overlay must contain 0 Java files")
+
     resources = resource_map(target, props)
     for relative in ("fabric.mod.json", "buildcraft.accesswidener", "buildcraft.fabric.mixins.json", "pack.mcmeta"):
         if relative not in resources:
-            fail(f"{target}: missing Fabric server-foundation resource {relative}")
+            fail(f"{target}: missing Fabric gameplay-parity resource {relative}")
     metadata = json.loads(resources["fabric.mod.json"].read_text(encoding="utf-8"))
     if metadata.get("id") != "buildcraftlib":
         fail(f"{target}: Fabric primary mod id must be buildcraftlib")
-    if metadata.get("custom", {}).get("buildcraft:server_foundation") is not True:
-        fail(f"{target}: Fabric metadata must advertise the server-foundation status")
+    custom = metadata.get("custom", {})
+    if custom.get("buildcraft:gameplay_parity") is not True:
+        fail(f"{target}: Fabric metadata must advertise gameplay-parity bring-up")
+    if "buildcraft:server_foundation" in custom:
+        fail(f"{target}: Fabric metadata still advertises the obsolete server-foundation stage")
+    if "provides" in metadata:
+        fail(f"{target}: Stage 5.8 must not advertise module aliases before the Stage 5.9 bootstrap")
     entrypoints = metadata.get("entrypoints", {})
     if "buildcraft.fabric.BuildCraftFabric" not in entrypoints.get("main", []):
         fail(f"{target}: missing Fabric common bootstrap entrypoint")
     if "buildcraft.fabric.BuildCraftFabricClient" not in entrypoints.get("client", []):
         fail(f"{target}: missing Fabric client bootstrap entrypoint")
+
+    adapter = (ROOT / "build-logic/loaders/fabric-target.gradle").read_text(encoding="utf-8")
+    for token in (
+        "Fabric adapter expects the Stage 5 gameplay_parity profile",
+        "java.setSrcDirs(effectiveDirs('src/main/java'))",
+        "resources.setSrcDirs(effectiveDirs('src/main/resources'))",
+        "'BuildCraft-Fabric-Stage': 'gameplay-parity'",
+        "sourceSets.main.java.exclude 'buildcraft/compat/jei/**'",
+        "sourceSets.main.java.exclude 'buildcraft/compat/jade/**'",
+        "sourceSets.main.java.exclude 'buildcraft/compat/ic2/**'",
+        "sourceSets.main.java.exclude 'buildcraft/compat/forestry/**'",
+    ):
+        if token not in adapter:
+            fail(f"Fabric gameplay-parity adapter lost {token!r}")
+    for forbidden in (
+        "java.include 'buildcraft/fabric/**'",
+        "java.include 'buildcraft/lib/platform/**'",
+        "resources.include 'fabric.mod.json'",
+    ):
+        if forbidden in adapter:
+            fail(f"Fabric gameplay-parity main source set still contains Stage-4 allow-list token {forbidden!r}")
+
+    materializer = (ROOT / "scripts/materialize_project.py").read_text(encoding="utf-8")
+    for forbidden in (
+        "java.include 'buildcraft/fabric/**'",
+        "java.include 'buildcraft/lib/platform/**'",
+        "resources.include 'fabric.mod.json'",
+    ):
+        if forbidden in materializer:
+            fail(f"standalone Fabric materializer still contains Stage-4 allow-list token {forbidden!r}")
 
 
 def validate_ci_wiring(props: dict[str, str]) -> None:
@@ -818,16 +854,16 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
     if actual_matrix != expected_matrix:
         fail(f"target runtime CI matrix drifted: expected {expected_matrix}, found {actual_matrix}")
 
-    fabric_foundation_entry = (
+    fabric_bringup_entry = (
         "- target: 1.20.1-fabric\n"
         "            generation: legacy\n"
         "            java: '17'\n"
-        "            foundation: true"
+        "            bringup: true"
     )
-    if fabric_foundation_entry not in runtime:
-        fail("1.20.1-fabric CI matrix entry must be explicitly marked foundation: true")
-    if runtime.count("if: matrix.foundation != true") < 3:
-        fail("Fabric server foundation must skip client/GameTest gates while still running server smoke")
+    if fabric_bringup_entry not in runtime:
+        fail("1.20.1-fabric CI matrix entry must be explicitly marked bringup: true")
+    if runtime.count("if: matrix.bringup != true") < 3:
+        fail("Fabric gameplay bring-up must skip client/GameTest gates until the Stage 5.12 acceptance step")
 
     for token in (
         "name: Build, test and smoke ${{ matrix.target }}",
@@ -948,7 +984,7 @@ def main() -> None:
     validate_facade_swap_recipe(props)
     validate_snapshot_renderer_and_client_isolation(props)
     validate_compat_runtime_dependencies(props)
-    validate_fabric_server_foundation(props)
+    validate_fabric_gameplay_target(props)
     validate_ci_wiring(props)
     print("Cross-target integrity OK:")
     print(" - exact-case atlas/model resources verified")

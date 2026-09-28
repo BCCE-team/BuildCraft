@@ -40,7 +40,7 @@ public final class PlatformEvents {
     }
 
     public static void entityJoin(Consumer<BCEvents.EntityJoin> handler) {
-        // No generic postable entity-join callback is required by the legacy server foundation today.
+        // The legacy runtime currently requires no generic postable entity-join callback.
         // Keep the boundary explicit instead of leaking a Fabric callback into common gameplay.
     }
 

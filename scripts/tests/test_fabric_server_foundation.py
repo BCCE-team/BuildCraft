@@ -419,9 +419,10 @@ class FabricServerFoundationTests(unittest.TestCase):
                 offenders.append(path.relative_to(ROOT).as_posix())
         self.assertEqual([], offenders)
 
-    def test_server_foundation_metadata_does_not_claim_gameplay_modules(self) -> None:
+    def test_gameplay_parity_metadata_does_not_claim_module_bootstrap(self) -> None:
         text = self.read("source-platforms/fabric/src/main/resources/fabric.mod.json")
-        self.assertIn('"buildcraft:server_foundation": true', text)
+        self.assertIn('"buildcraft:gameplay_parity": true', text)
+        self.assertNotIn('"buildcraft:server_foundation"', text)
         self.assertNotIn('"buildcraft:skeleton"', text)
         self.assertNotIn('"provides"', text)
 

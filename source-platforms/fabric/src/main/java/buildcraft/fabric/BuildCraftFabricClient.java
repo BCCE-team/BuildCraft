@@ -9,7 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 
-/** Client bootstrap currently installs only the networking half required by the server foundation. */
+/** Client bootstrap stays intentionally minimal until the Stage 6 client/render layer is enabled. */
 public final class BuildCraftFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {

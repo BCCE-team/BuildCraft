@@ -127,7 +127,7 @@ jobs:
       - name: Test Fabric loader target bootstrap
         run: python -m unittest discover -s scripts/tests -p test_fabric_loader_target.py -v
 
-      - name: Test Fabric server foundation
+      - name: Test Fabric gameplay parity adapters
         run: python -m unittest discover -s scripts/tests -p test_fabric_server_foundation.py -v
 
       - name: Test storage, event, registry and config boundaries
@@ -185,7 +185,7 @@ jobs:
           - target: 1.20.1-fabric
             generation: legacy
             java: '17'
-            foundation: true
+            bringup: true
           - target: 1.21.1-neoforge
             generation: modern
             java: '21'
@@ -220,7 +220,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Install headless client runtime
-        if: matrix.foundation != true
+        if: matrix.bringup != true
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0
@@ -265,7 +265,7 @@ jobs:
             ":${STONECUTTER_TARGET}:buildAndCollect"
 
       - name: Run GameTests
-        if: matrix.foundation != true
+        if: matrix.bringup != true
         shell: bash
         run: |
           set -euo pipefail
@@ -287,7 +287,7 @@ jobs:
           bash scripts/ci-server-smoke.sh
 
       - name: Client smoke-test production target
-        if: matrix.foundation != true
+        if: matrix.bringup != true
         shell: bash
         env:
           CLIENT_STARTUP_TIMEOUT: '480'

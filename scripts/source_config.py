@@ -264,7 +264,10 @@ def target_build_profile(target: str, properties: dict[str, str] | None = None) 
 
 def gameplay_target_ids(properties: dict[str, str] | None = None) -> list[str]:
     props = properties or load_properties()
-    return [target for target in target_ids(props) if target_build_profile(target, props) not in {"skeleton", "server_foundation"}]
+    # gameplay_parity activates the full source graph during Stage 5, but it is not
+    # an accepted cross-target parity target until the Stage 5 runtime/GameTest gate closes.
+    incomplete_profiles = {"skeleton", "server_foundation", "gameplay_parity"}
+    return [target for target in target_ids(props) if target_build_profile(target, props) not in incomplete_profiles]
 
 
 def generation_targets(properties: dict[str, str] | None = None) -> dict[str, list[str]]:

@@ -591,26 +591,6 @@ java {{
     toolchain.languageVersion = JavaLanguageVersion.of({_target_property(properties, target, 'java.version')})
 }}
 
-sourceSets {{
-    main {{
-        java.include 'buildcraft/api/v2/**'
-        java.include 'buildcraft/fabric/**'
-        java.include 'buildcraft/lib/net/BC*.java'
-        java.include 'buildcraft/lib/net/Fabric*.java'
-        java.include 'buildcraft/lib/net/BuildCraftTarget.java'
-        java.include 'buildcraft/lib/internal/module/IBuildCraftMod.java'
-        java.include 'buildcraft/lib/internal/module/BCModules.java'
-        java.include 'buildcraft/lib/internal/transfer/**'
-        java.include 'buildcraft/lib/internal/api/v2/**'
-        java.include 'buildcraft/lib/internal/mj/MjApi2PlatformBridge.java'
-        java.include 'buildcraft/lib/platform/**'
-        resources.include 'fabric.mod.json'
-        resources.include 'buildcraft.accesswidener'
-        resources.include 'buildcraft.fabric.mixins.json'
-        resources.include 'pack.mcmeta'
-    }}
-}}
-
 repositories {{
     maven {{ url = 'https://maven.fabricmc.net/' }}
     mavenCentral()

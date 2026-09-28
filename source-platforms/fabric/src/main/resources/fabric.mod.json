@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "buildcraftlib",
   "version": "${mod_version}",
-  "name": "BuildCraft Community Edition - Fabric Server Foundation",
-  "description": "Experimental 1.20.1 Fabric server/platform foundation. Gameplay parity is enabled in the next stage.",
+  "name": "BuildCraft Community Edition - Fabric Gameplay Parity",
+  "description": "Experimental 1.20.1 Fabric gameplay-parity target. Server/gameplay sources are active; module bootstrap and the client/render layer remain staged separately.",
   "authors": ["${mod_authors}"],
   "license": "${mod_license}",
   "environment": "*",
@@ -20,7 +20,7 @@
     "java": ">=17"
   },
   "custom": {
-    "buildcraft:server_foundation": true,
+    "buildcraft:gameplay_parity": true,
     "buildcraft:target": "1.20.1-fabric"
   }
 }

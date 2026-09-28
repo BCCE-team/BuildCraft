@@ -10,7 +10,8 @@ SCRIPT_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from source_layout import ROOT, load_properties, materialize_target, target_layout
+from source_layout import ROOT, load_properties, target_layout
+from materialize_project import export_standalone_project
 
 
 class FabricLoaderTargetTests(unittest.TestCase):
@@ -19,8 +20,8 @@ class FabricLoaderTargetTests(unittest.TestCase):
         cls.props = load_properties()
         cls.target = "1.20.1-fabric"
 
-    def test_registry_declares_server_foundation_target(self) -> None:
-        self.assertEqual("server_foundation", self.props[f"target.{self.target}.build.profile"])
+    def test_registry_declares_gameplay_parity_target(self) -> None:
+        self.assertEqual("gameplay_parity", self.props[f"target.{self.target}.build.profile"])
         self.assertEqual("legacy", self.props[f"target.{self.target}.source.family"])
         self.assertEqual("fabric", self.props[f"target.{self.target}.source.platform"])
         self.assertEqual("1.20.1", self.props[f"target.{self.target}.deps.minecraft"])
@@ -42,44 +43,63 @@ class FabricLoaderTargetTests(unittest.TestCase):
         layout = target_layout(self.target, self.props)
         self.assertEqual([], list(layout.overlay_root.rglob("*.java")))
 
-    def test_fabric_build_is_server_foundation_only(self) -> None:
+    def test_fabric_build_activates_effective_gameplay_source_graph(self) -> None:
         adapter = (ROOT / "build-logic/loaders/fabric-target.gradle").read_text(encoding="utf-8")
         for token in (
-            "java.include 'buildcraft/api/v2/**'",
-            "java.include 'buildcraft/fabric/**'",
-            "java.include 'buildcraft/lib/platform/**'",
+            "Fabric adapter expects the Stage 5 gameplay_parity profile",
+            "java.setSrcDirs(effectiveDirs('src/main/java'))",
+            "resources.setSrcDirs(effectiveDirs('src/main/resources'))",
             "teamreborn:energy:${energyApiVersion}",
             "mappings loom.officialMojangMappings()",
             "accessWidenerPath = targetAccessWidener",
             "tasks.named('remapJar')",
-            "resources.include 'fabric.mod.json'",
-            "resources.include 'buildcraft.accesswidener'",
-            "resources.include 'buildcraft.fabric.mixins.json'",
+            "'BuildCraft-Fabric-Stage': 'gameplay-parity'",
+            "sourceSets.main.java.exclude 'buildcraft/compat/jei/**'",
+            "sourceSets.main.java.exclude 'buildcraft/compat/jade/**'",
+            "sourceSets.main.java.exclude 'buildcraft/compat/ic2/**'",
+            "sourceSets.main.java.exclude 'buildcraft/compat/forestry/**'",
         ):
             self.assertIn(token, adapter)
-        for forbidden in ("TilePipeHolder", "PipeFlowItems", "Robot", "TileBuilder"):
+        for forbidden in (
+            "java.include 'buildcraft/fabric/**'",
+            "java.include 'buildcraft/lib/platform/**'",
+            "resources.include 'fabric.mod.json'",
+        ):
             self.assertNotIn(forbidden, adapter)
+
 
     def test_materialized_metadata_and_loader_assets(self) -> None:
         with tempfile.TemporaryDirectory(prefix="bc-fabric-target-") as temp:
-            root = materialize_target(self.target, Path(temp), self.props)
+            root = export_standalone_project(self.target, Path(temp) / "project", self.props)
             resources = root / "src/main/resources"
             metadata = json.loads((resources / "fabric.mod.json").read_text(encoding="utf-8"))
             self.assertEqual("buildcraftlib", metadata["id"])
-            self.assertTrue(metadata["custom"]["buildcraft:server_foundation"])
-            self.assertNotIn("provides", metadata, "server foundation must not advertise gameplay module aliases before parity bootstrap")
+            self.assertTrue(metadata["custom"]["buildcraft:gameplay_parity"])
+            self.assertNotIn("buildcraft:server_foundation", metadata["custom"])
+            self.assertNotIn("provides", metadata, "Stage 5.8 must not advertise module aliases before parity bootstrap")
             self.assertIn("buildcraft.fabric.BuildCraftFabric", metadata["entrypoints"]["main"])
             self.assertIn("buildcraft.fabric.BuildCraftFabricClient", metadata["entrypoints"]["client"])
             self.assertTrue((resources / "buildcraft.accesswidener").is_file())
             self.assertTrue((resources / "buildcraft.fabric.mixins.json").is_file())
 
-            materializer = (ROOT / "scripts/materialize_project.py").read_text(encoding="utf-8")
-            for token in (
-                "java.include 'buildcraft/lib/platform/**'",
-                "java.include 'buildcraft/lib/internal/transfer/**'",
-                "teamreborn:energy:",
+            java_root = root / "src/main/java"
+            self.assertGreater(len(list(java_root.rglob("*.java"))), 1000)
+            for relative in (
+                "buildcraft/transport/pipe/flow/PipeFlowItems.java",
+                "buildcraft/transport/pipe/flow/PipeFlowFluids.java",
+                "buildcraft/energy/tile/TileEngineFE.java",
+                "buildcraft/silicon/tile/TileAssemblyTable.java",
+                "buildcraft/robotics/boards/BoardRobotBuilder.java",
             ):
-                self.assertIn(token, materializer)
+                self.assertTrue((java_root / relative).is_file(), relative)
+
+            for compat in ("jei", "jade", "ic2", "forestry"):
+                self.assertFalse((java_root / "buildcraft/compat" / compat).exists(), compat)
+
+            standalone_gradle = (root / "build.gradle").read_text(encoding="utf-8")
+            self.assertNotIn("java.include", standalone_gradle)
+            self.assertNotIn("resources.include", standalone_gradle)
+            self.assertIn("teamreborn:energy:", standalone_gradle)
 
 
 if __name__ == "__main__":
