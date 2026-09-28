@@ -772,8 +772,14 @@ def validate_fabric_gameplay_target(props: dict[str, str]) -> None:
         fail(f"{target}: Fabric metadata must advertise gameplay-parity bring-up")
     if "buildcraft:server_foundation" in custom:
         fail(f"{target}: Fabric metadata still advertises the obsolete server-foundation stage")
-    if "provides" in metadata:
-        fail(f"{target}: Stage 5.8 must not advertise module aliases before the Stage 5.9 bootstrap")
+    if custom.get("buildcraft:module_bootstrap") is not True:
+        fail(f"{target}: Fabric metadata must advertise the Stage 5.9 common module bootstrap")
+    expected_aliases = {
+        "buildcraftcore", "buildcraftbuilders", "buildcraftenergy", "buildcraftfactory",
+        "buildcraftrobotics", "buildcraftsilicon", "buildcrafttransport",
+    }
+    if set(metadata.get("provides", [])) != expected_aliases:
+        fail(f"{target}: Fabric module aliases differ from the legacy BuildCraft module set")
     entrypoints = metadata.get("entrypoints", {})
     if "buildcraft.fabric.BuildCraftFabric" not in entrypoints.get("main", []):
         fail(f"{target}: missing Fabric common bootstrap entrypoint")

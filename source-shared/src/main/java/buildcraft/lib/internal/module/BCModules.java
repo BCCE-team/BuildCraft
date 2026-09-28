@@ -37,6 +37,29 @@ public enum BCModules implements IBuildCraftMod {
         }
     }
 
+    /**
+     * Installs an explicit loaded-set for unified-loader distributions (Fabric uses one mod container for all BC modules).
+     * Must run before the module service is queried. Forge/NeoForge continue to discover separate module containers.
+     */
+    public static synchronized void installLoadedModules(Iterable<BCModules> modules) {
+        if (hasChecked) {
+            throw new IllegalStateException("BuildCraft module load status was already resolved");
+        }
+        java.util.EnumSet<BCModules> explicit = java.util.EnumSet.noneOf(BCModules.class);
+        for (BCModules module : modules) {
+            explicit.add(java.util.Objects.requireNonNull(module, "module"));
+        }
+        List<BCModules> found = new ArrayList<>();
+        List<BCModules> missing = new ArrayList<>();
+        for (BCModules module : VALUES) {
+            module.loaded = explicit.contains(module);
+            (module.loaded ? found : missing).add(module);
+        }
+        loadedModules = found.toArray(new BCModules[0]);
+        missingModules = missing.toArray(new BCModules[0]);
+        hasChecked = true;
+    }
+
     private static synchronized void load0() {
         if (hasChecked) {
             return;

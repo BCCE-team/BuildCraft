@@ -3,15 +3,23 @@
   "id": "buildcraftlib",
   "version": "${mod_version}",
   "name": "BuildCraft Community Edition - Fabric Gameplay Parity",
-  "description": "Experimental 1.20.1 Fabric gameplay-parity target. Server/gameplay sources are active; module bootstrap and the client/render layer remain staged separately.",
-  "authors": ["${mod_authors}"],
+  "description": "Experimental 1.20.1 Fabric gameplay-parity target with the shared BuildCraft module bootstrap and server registrations enabled.",
+  "authors": [
+    "${mod_authors}"
+  ],
   "license": "${mod_license}",
   "environment": "*",
   "entrypoints": {
-    "main": ["buildcraft.fabric.BuildCraftFabric"],
-    "client": ["buildcraft.fabric.BuildCraftFabricClient"]
+    "main": [
+      "buildcraft.fabric.BuildCraftFabric"
+    ],
+    "client": [
+      "buildcraft.fabric.BuildCraftFabricClient"
+    ]
   },
-  "mixins": ["buildcraft.fabric.mixins.json"],
+  "mixins": [
+    "buildcraft.fabric.mixins.json"
+  ],
   "accessWidener": "buildcraft.accesswidener",
   "depends": {
     "fabricloader": "${loader_version_range}",
@@ -21,6 +29,16 @@
   },
   "custom": {
     "buildcraft:gameplay_parity": true,
-    "buildcraft:target": "1.20.1-fabric"
-  }
+    "buildcraft:target": "1.20.1-fabric",
+    "buildcraft:module_bootstrap": true
+  },
+  "provides": [
+    "buildcraftcore",
+    "buildcraftbuilders",
+    "buildcraftenergy",
+    "buildcraftfactory",
+    "buildcraftrobotics",
+    "buildcraftsilicon",
+    "buildcrafttransport"
+  ]
 }

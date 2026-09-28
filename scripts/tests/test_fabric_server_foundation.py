@@ -419,12 +419,75 @@ class FabricServerFoundationTests(unittest.TestCase):
                 offenders.append(path.relative_to(ROOT).as_posix())
         self.assertEqual([], offenders)
 
-    def test_gameplay_parity_metadata_does_not_claim_module_bootstrap(self) -> None:
-        text = self.read("source-platforms/fabric/src/main/resources/fabric.mod.json")
-        self.assertIn('"buildcraft:gameplay_parity": true', text)
-        self.assertNotIn('"buildcraft:server_foundation"', text)
-        self.assertNotIn('"buildcraft:skeleton"', text)
-        self.assertNotIn('"provides"', text)
+    def test_stage_5_9_uses_common_module_bootstrap_and_aliases(self) -> None:
+        bootstrap = self.read("source-platforms/fabric/src/main/java/buildcraft/fabric/BuildCraftFabric.java")
+        context = self.read(
+            "source-platforms/fabric/src/main/java/buildcraft/lib/internal/module/FabricModuleBootstrapContext.java"
+        )
+        common = self.read(
+            "source-families/legacy/src/main/java/buildcraft/lib/internal/module/LegacyModuleBootstrap.java"
+        )
+        metadata = self.read("source-platforms/fabric/src/main/resources/fabric.mod.json")
+
+        self.assertIn("LegacyModuleBootstrap.bootstrap(modules);", bootstrap)
+        self.assertIn("modules.finish();", bootstrap)
+        self.assertLess(
+            bootstrap.index("LegacyModuleBootstrap.bootstrap(modules);"),
+            bootstrap.index("FabricNetworkManager.installServerReceivers();"),
+        )
+        for module in ("LIB", "CORE", "BUILDERS", "ENERGY", "FACTORY", "ROBOTICS", "SILICON", "TRANSPORT"):
+            self.assertIn(f"BCModules.{module}", common)
+        for helper in (
+            "LegacyLibModule.bootstrap(context)",
+            "LegacyCoreModule.bootstrap(context)",
+            "LegacyBuildersModule.bootstrap(context)",
+            "LegacyEnergyModule.bootstrap(context)",
+            "LegacyFactoryModule.bootstrap(context)",
+            "LegacyTransportModule.bootstrap(context)",
+            "LegacySiliconModule.bootstrap(context)",
+            "LegacyRoboticsModule.bootstrap(context)",
+        ):
+            self.assertIn(helper, common)
+        self.assertIn("RegistryBinding.direct()", context)
+        self.assertIn("FabricNetworkManager::registerCatalogMessage", context)
+        self.assertIn("FabricDefaultAttributeRegistry.register", context)
+        self.assertIn("FabricConfigEvents::fireLoad", context)
+        self.assertIn('"buildcraft:module_bootstrap": true', metadata)
+        for alias in (
+            "buildcraftcore", "buildcraftbuilders", "buildcraftenergy", "buildcraftfactory",
+            "buildcraftrobotics", "buildcraftsilicon", "buildcrafttransport",
+        ):
+            self.assertIn(f'"{alias}"', metadata)
+
+    def test_stage_5_9_does_not_add_fabric_module_or_gameplay_initializers(self) -> None:
+        forbidden_names = (
+            "FabricBCCore.java", "FabricBCBuilders.java", "FabricBCEnergy.java", "FabricBCFactory.java",
+            "FabricBCRobotics.java", "FabricBCSilicon.java", "FabricBCTransport.java",
+        )
+        names = {path.name for path in FABRIC.rglob("*.java")}
+        self.assertTrue(names.isdisjoint(forbidden_names))
+
+    def test_stage_5_9_common_module_bootstrap_stays_loader_neutral(self) -> None:
+        module_files = [
+            "source-families/legacy/src/main/java/buildcraft/lib/internal/module/LegacyModuleBootstrap.java",
+            "source-families/legacy/src/main/java/buildcraft/lib/LegacyLibModule.java",
+            "source-families/legacy/src/main/java/buildcraft/core/LegacyCoreModule.java",
+            "source-families/legacy/src/main/java/buildcraft/builders/LegacyBuildersModule.java",
+            "source-families/legacy/src/main/java/buildcraft/energy/LegacyEnergyModule.java",
+            "source-families/legacy/src/main/java/buildcraft/factory/LegacyFactoryModule.java",
+            "source-families/legacy/src/main/java/buildcraft/transport/LegacyTransportModule.java",
+            "source-families/legacy/src/main/java/buildcraft/silicon/LegacySiliconModule.java",
+            "source-families/legacy/src/main/java/buildcraft/robotics/LegacyRoboticsModule.java",
+        ]
+        for relative in module_files:
+            text = self.read(relative)
+            self.assertNotIn("net.minecraftforge", text, relative)
+            self.assertNotIn("net.neoforged", text, relative)
+            self.assertNotIn("net.fabricmc", text, relative)
+
+        for platform in ("forge", "neoforge"):
+            stale = ROOT / "source-platforms" / platform / "src/main/java/buildcraft/lib/internal/module/BCModules.java"
+            self.assertFalse(stale.exists(), stale.relative_to(ROOT).as_posix())
 
 
 if __name__ == "__main__":

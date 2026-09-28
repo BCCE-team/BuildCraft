@@ -76,7 +76,14 @@ class FabricLoaderTargetTests(unittest.TestCase):
             self.assertEqual("buildcraftlib", metadata["id"])
             self.assertTrue(metadata["custom"]["buildcraft:gameplay_parity"])
             self.assertNotIn("buildcraft:server_foundation", metadata["custom"])
-            self.assertNotIn("provides", metadata, "Stage 5.8 must not advertise module aliases before parity bootstrap")
+            self.assertTrue(metadata["custom"]["buildcraft:module_bootstrap"])
+            self.assertEqual(
+                {
+                    "buildcraftcore", "buildcraftbuilders", "buildcraftenergy", "buildcraftfactory",
+                    "buildcraftrobotics", "buildcraftsilicon", "buildcrafttransport",
+                },
+                set(metadata["provides"]),
+            )
             self.assertIn("buildcraft.fabric.BuildCraftFabric", metadata["entrypoints"]["main"])
             self.assertIn("buildcraft.fabric.BuildCraftFabricClient", metadata["entrypoints"]["client"])
             self.assertTrue((resources / "buildcraft.accesswidener").is_file())
