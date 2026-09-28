@@ -96,6 +96,35 @@ for platform in ("forge", "neoforge"):
         "Math.max(0, amount - incomingTotalCache)",
     )
     require(
+        f"source-platforms/{platform}/src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java",
+        "boolean pulsedPower = isPulsedPowerReceiver(currentDirection);",
+        "descriptor.has(MjPortRole.REDSTONE_RECEIVER)",
+        "if (pulsedPower) {",
+        "if (!pulsedPower && isRedstonePowered && isActive()) {",
+        "if (!level.isClientSide) {",
+        "return Math.max(0.16 * getHeatLevel(), 0.01);",
+        "return 0.16;",
+        "private float clientPistonSpeed = Float.NaN;",
+        "clientPistonSpeed = buffer.readFloat();",
+        "buffer.writeFloat((float) getPistonSpeed());",
+        "double pistonSpeed = Float.isFinite(clientPistonSpeed)",
+        "boolean wasPumping = isPumping;",
+        "if (wasPumping) {",
+        "sendNetworkUpdate(NET_RENDER_DATA);",
+    )
+    forbid(
+        f"source-platforms/{platform}/src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java",
+        "return 0.12;",
+    )
+    require(
+        f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+        "if (!pipe.isConnected(item.side)) {",
+        "dropItem(excess, item.side, item.side, item.speed);",
+        "boolean hasConnectedOutput = hasConnectedOutputOtherThan(reachCenter.from);",
+        "boolean retryConnectedPipe = hasConnectedOutput",
+        "private boolean hasConnectedOutputOtherThan(Direction from)",
+    )
+    require(
         f"source-platforms/{platform}/src/main/java/buildcraft/energy/BCEnergyConfig.java",
         "return !destination.isEmpty();",
     )
@@ -117,6 +146,15 @@ for platform in ("forge", "neoforge"):
         f"source-platforms/{platform}/src/gametest/java/buildcraft/transport/pipe/flow/PipeFluidPowerGameTests.java",
         "fullForceExtractionThenRefillDoesNotGhostJamPipe",
     )
+
+require(
+    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+    "if (!pipe.isConnected(item.side)) {",
+    "dropItem(excess, item.side, item.side, item.speed);",
+    "boolean hasConnectedOutput = hasConnectedOutputOtherThan(reachCenter.from);",
+    "boolean retryConnectedPipe = hasConnectedOutput",
+    "private boolean hasConnectedOutputOtherThan(Direction from)",
+)
 
 # Natural oil uses an internal worldgen-only fluid whose flow is hard-bounded to five
 # block transitions from any natural source. This prevents long downhill terrain from

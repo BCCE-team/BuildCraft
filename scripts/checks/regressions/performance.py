@@ -138,9 +138,31 @@ for platform in ("forge", "neoforge"):
     require(
         f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
         "getConnectedDist(side)",
-        "if (item.clientAtDestination)",
-        "clientAtDestination = true",
-        "retaining it again would pin a ghost",
+        "clientBoundaryPrediction",
+        "clientCenterPrediction",
+        "CLIENT_INTERPOLATION_DELAY_TICKS = 1",
+        "CLIENT_PREDICTION_TICKS = 4",
+        "clientSuccessorLinked",
+        "predecessor == null ? now + CLIENT_INTERPOLATION_DELAY_TICKS : predecessor.tickFinished",
+        "scheduleClientItem(item, stackId)",
+        "claimClientPredecessor(item)",
+        "previousFlow.claimClientPredecessorInThisFlow",
+        "TravellingItem localBounce = claimClientPredecessorInThisFlow",
+        "items.add(CLIENT_PREDICTION_TICKS - 1, item)",
+        "inherits its finish tick",
+        "lastItemsAdvanceTick",
+        "scheduleTravellingItem(item)",
+        "getQueueDelay(item.tickFinished, now)",
+        "if (lastItemsAdvanceTick == now && remaining > 0L)",
+        "remaining--",
+    )
+    forbid(
+        f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+        "clientAtDestination",
+        "tickFinished = currentTime + 1",
+        "items.add(1, item)",
+        "getGameTime() + 1",
+        "item.timeToDest + 1",
     )
     require(
         f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java",
@@ -179,6 +201,7 @@ for platform in ("forge", "neoforge"):
         "hasExternalSignalPort",
         "SignalPortProvider",
     )
+
 
 require(
     "source-platforms/forge/src/gametest/java/buildcraft/transport/pipe/flow/PipeFluidPowerGameTests.java",
@@ -258,8 +281,20 @@ for family in ("legacy", "modern"):
     )
     require(
         f"source-families/{family}/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
+        "clientBoundaryPrediction",
+        "clientCenterPrediction",
+        "clientCenterPredictionSide",
+        "int clientStackId = -1",
+        "clientSuccessorLinked",
+        "tick + partialTicks - tickFinished",
+        "float maxInterp = clientBoundaryPrediction ? 2.0f : 1.0f",
+        "public boolean shouldRender(long tick, float partialTicks)",
+        "renderTime >= tickFinished",
+        "clientSuccessorLinked && !clientBoundaryPrediction && !clientCenterPrediction",
+    )
+    forbid(
+        f"source-families/{family}/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
         "clientAtDestination",
-        "return vecTo",
     )
 
 # Legacy/1.21.1 still build the pipe item body from cached quads. 1.21.11 instead keeps the

@@ -62,10 +62,26 @@ import buildcraft.lib.compat.NbtCompat;
 
 public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     private static final double EXTRACT_SPEED = 0.08;
+    /**
+     * Keep the client one tick behind the server transport timeline. This gives the next authoritative segment time
+     * to arrive before the rendered item reaches a center or pipe boundary, avoiding high-speed prediction/correction
+     * snaps without reintroducing a per-segment pause. Only roots receive this delay; linked successors inherit the
+     * predecessor finish tick and therefore remain on one continuous local timeline.
+     */
+    private static final int CLIENT_INTERPOLATION_DELAY_TICKS = 1;
+    /** Maximum client-only hand-off bridge while waiting for an authoritative successor segment. */
+    private static final int CLIENT_PREDICTION_TICKS = 4;
     public static final int NET_CREATE_ITEM = 2;
 
     private final ItemTransportProfile itemTransportProfile = requireItemProfile();
     private final DelayedList<TravellingItem> items = new DelayedList<>();
+    /**
+     * Game tick on which this flow last advanced its timing wheel. Cross-pipe insertion can happen either before or
+     * after the destination pipe has ticked, so a raw relative DelayedList delay is otherwise off by one depending on
+     * block-entity tick order.
+     */
+    private long lastItemsAdvanceTick = Long.MIN_VALUE;
+
     private final buildcraft.lib.compat.transfer.TransferJournal<ItemTransferState> transferJournal =
         new buildcraft.lib.compat.transfer.TransferJournal<>(this::captureItemTransfer, this::restoreItemTransfer,
             old -> pipe.getHolder().getPipeTile().setChanged());
@@ -193,9 +209,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                 item.side = buffer.readEnum(Direction.class);
                 item.colour = MessageUtil.readEnumOrNull(buffer, DyeColor.class);
                 item.timeToDest = buffer.readUnsignedShort();
-                item.tickStarted = pipe.getHolder().getPipeWorld().getGameTime() + 1;
-                item.tickFinished = item.tickStarted + item.timeToDest;
-                items.add(item.timeToDest + 1, item);
+                scheduleClientItem(item, stackId);
             }
         }
     }
@@ -215,9 +229,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         item.side = data.side;
         item.colour = data.colour;
         item.timeToDest = data.timeToDest;
-        item.tickStarted = pipe.getHolder().getPipeWorld().getGameTime() + 1;
-        item.tickFinished = item.tickStarted + item.timeToDest;
-        items.add(item.timeToDest + 1, item);
+        scheduleClientItem(item, stackId);
     }
 
     void sendItemDataToClient(TravellingItem item) {
@@ -320,7 +332,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         firstItem.side = face0 == null ? face1 : face0;
         firstItem.speed = EXTRACT_SPEED;
         firstItem.genTimings(now, getPipeLength(firstItem.side));
-        items.add(firstItem.timeToDest, firstItem);
+        scheduleTravellingItem(firstItem);
         sendItemDataToClient(firstItem);
 
         if (twoItems) {
@@ -331,7 +343,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             secondItem.side = face2;
             secondItem.speed = EXTRACT_SPEED;
             secondItem.genTimings(firstItem.tickFinished, getPipeLength(secondItem.side));
-            items.add(secondItem.timeToDest, secondItem);
+            scheduleTravellingItem(secondItem);
             sendItemDataToClient(secondItem);
         }
     }
@@ -377,31 +389,65 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
  //       	BCLog.d(""+item.clientItemLink.get());
             //if(item.stack.toString().equals("1 ocelot_spawn_egg") ) {
             //	item.clientItemLink.get();
-        List<TravellingItem> toTick = items.advance();
         long currentTime = world.getGameTime();
+        if (lastItemsAdvanceTick == currentTime) {
+            // A logical pipe flow must advance its timing wheel at most once per world tick. Advancing twice shortens
+            // every active segment and makes fast items visibly jump.
+            return;
+        }
+        lastItemsAdvanceTick = currentTime;
+        List<TravellingItem> toTick = items.advance();
 
         for (TravellingItem item : toTick) {
             if (!world.isClientSide() && item.tickFinished > currentTime) {
                 // Can happen if something ticks this tile multiple times in a single real tick
-                items.add((int) (item.tickFinished - currentTime), item);
+                scheduleTravellingItem(item);
                 continue;
             }
             if (item.isPhantom) {
                 continue;
             }
             if (world.isClientSide()) {
-                if (item.clientAtDestination) {
-                    // The previous expiry already granted this client item a short destination grace period.
-                    // No packet explicitly removes travelling items, so retaining it again would pin a ghost in
-                    // every pipe it crossed. Let the timing wheel discard it now.
+                if (item.clientBoundaryPrediction || item.clientCenterPrediction) {
+                    // A prediction is retained for a few ticks and removed early as soon as the matching
+                    // authoritative successor packet arrives. Reaching this queue slot means the bounded fallback
+                    // expired without a successor, so discard it rather than leaving a permanent ghost.
                     continue;
                 }
-                // Keep the item at its locally interpolated destination briefly so normal packet/tick jitter does not
-                // create a visible gap before the server's next authoritative transport segment arrives.
-                item.clientAtDestination = true;
-                item.tickStarted = currentTime;
-                item.tickFinished = currentTime + 1;
-                items.add(1, item);
+                if (item.clientSuccessorLinked) {
+                    // The successor is already scheduled from this segment's exact finish time. No prediction is
+                    // needed, and retaining the predecessor would create a duplicate at the hand-off point.
+                    continue;
+                }
+                if (item.toCenter) {
+                    // The server decides the outgoing side at the center. On a straight/non-ambiguous pipe we can
+                    // extrapolate locally while waiting for that packet; on a junction keep the item at the center.
+                    int candidates = 0;
+                    Direction predictedSide = null;
+                    for (Direction face : Direction.values()) {
+                        if (face == item.side || !pipe.isConnected(face)) {
+                            continue;
+                        }
+                        candidates++;
+                        predictedSide = candidates == 1 ? face : null;
+                    }
+                    if (candidates > 0) {
+                        item.clientCenterPrediction = true;
+                        item.clientCenterPredictionSide = predictedSide;
+                        items.add(CLIENT_PREDICTION_TICKS - 1, item);
+                    }
+                    continue;
+                }
+                // Pipe-to-pipe hand-offs are packet driven. Keep the completed segment as a bounded extrapolation
+                // instead of dropping it after one frame; the incoming segment in the next pipe claims and removes
+                // this predecessor and inherits its finish tick, making the visual trajectory continuous even when
+                // packet processing lands on a later client tick.
+                if (item.side != null
+                    && pipe.isConnected(item.side)
+                    && pipe.getConnectedType(item.side) == ConnectedType.PIPE) {
+                    item.clientBoundaryPrediction = true;
+                    items.add(CLIENT_PREDICTION_TICKS - 1, item);
+                }
                 continue;
             }
             if (item.toCenter) {
@@ -410,6 +456,109 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                 onItemReachEnd(item);
             }
         }
+    }
+
+    private void scheduleClientItem(TravellingItem item, int stackId) {
+        Level world = pipe.getHolder().getPipeWorld();
+        long now = world.getGameTime();
+        item.clientStackId = stackId;
+
+        TravellingItem predecessor = claimClientPredecessor(item);
+        // Apply a small interpolation buffer only to a new visual chain. Successors reuse the predecessor's exact
+        // finish tick, so the delay is not accumulated at every center/boundary like the old +1-per-packet scheme.
+        item.tickStarted = predecessor == null ? now + CLIENT_INTERPOLATION_DELAY_TICKS : predecessor.tickFinished;
+        item.tickFinished = item.tickStarted + item.timeToDest;
+
+        scheduleTravellingItem(item);
+    }
+
+    /**
+     * Schedules an item by its absolute finish tick instead of by a naked relative delay. DelayedList advances once
+     * per PipeFlowItems tick, but a neighbouring pipe may inject before or after that advance depending on block-entity
+     * tick order. Accounting for that phase removes the one-tick cadence error that used to accumulate at centers and
+     * appear nondeterministically at pipe boundaries.
+     */
+    private void scheduleTravellingItem(TravellingItem item) {
+        Level world = pipe.getHolder().getPipeWorld();
+        long now = world == null ? 0 : world.getGameTime();
+        items.add(getQueueDelay(item.tickFinished, now), item);
+    }
+
+    private int getQueueDelay(long tickFinished, long now) {
+        long remaining = Math.max(0L, tickFinished - now);
+        if (lastItemsAdvanceTick == now && remaining > 0L) {
+            // This flow already consumed the current tick's bucket. The next advance is now + 1, so index zero means
+            // "next tick" and every future absolute deadline is one bucket closer than it is before this tick's advance.
+            remaining--;
+        }
+        return remaining > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remaining;
+    }
+
+    private TravellingItem claimClientPredecessor(TravellingItem successor) {
+        if (successor.clientStackId < 0) {
+            return null;
+        }
+        if (!successor.toCenter) {
+            // Center hand-off: incoming and outgoing segments live in the same PipeFlowItems.
+            return claimClientPredecessorInThisFlow(successor.clientStackId, successor.colour, true, null);
+        }
+        if (successor.side == null) {
+            return null;
+        }
+
+        // A rejected pipe hand-off bounces back from the same face, so its predecessor is the outbound segment in
+        // this flow rather than an item in the neighbouring pipe. Prefer that exact local route when present.
+        TravellingItem localBounce = claimClientPredecessorInThisFlow(
+            successor.clientStackId, successor.colour, false, successor.side
+        );
+        if (localBounce != null) {
+            return localBounce;
+        }
+
+        if (!pipe.isConnected(successor.side)
+            || pipe.getConnectedType(successor.side) != ConnectedType.PIPE) {
+            return null;
+        }
+
+        // Normal boundary hand-off: the predecessor is the outbound segment in the neighbouring pipe.
+        IPipe previousPipe = pipe.getConnectedPipe(successor.side);
+        if (previousPipe == null || previousPipe == Pipe.EMPTY || !(previousPipe.getFlow() instanceof PipeFlowItems)) {
+            return null;
+        }
+        PipeFlowItems previousFlow = (PipeFlowItems) previousPipe.getFlow();
+        return previousFlow.claimClientPredecessorInThisFlow(
+            successor.clientStackId, successor.colour, false, successor.side.getOpposite()
+        );
+    }
+
+    private TravellingItem claimClientPredecessorInThisFlow(int stackId, DyeColor colour, boolean toCenter,
+        Direction requiredSide) {
+        TravellingItem best = null;
+        List<TravellingItem> bestList = null;
+        for (List<TravellingItem> delayed : items.getAllElements()) {
+            for (TravellingItem candidate : delayed) {
+                if (candidate.clientSuccessorLinked
+                    || candidate.clientStackId != stackId
+                    || candidate.colour != colour
+                    || candidate.toCenter != toCenter
+                    || (requiredSide != null && candidate.side != requiredSide)) {
+                    continue;
+                }
+                // FIFO pairing keeps equally-looking stacks in transport order. Exact identity is not available in
+                // the legacy packet format, but stackId + colour + route is sufficient for visual continuity.
+                if (best == null || candidate.tickFinished < best.tickFinished) {
+                    best = candidate;
+                    bestList = delayed;
+                }
+            }
+        }
+        if (best != null) {
+            best.clientSuccessorLinked = true;
+            if (best.clientBoundaryPrediction || best.clientCenterPrediction) {
+                bestList.remove(best);
+            }
+        }
+        return best;
     }
 
     private void onItemReachCenter(TravellingItem item) {
@@ -439,13 +588,14 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                 holder, this, reachCenter.colour, reachCenter.from, reachCenter.getStack()
             );
             holder.fireEvent(tryBounce);
-            boolean retryConnectedPipe = reachCenter.from != null
+            boolean hasConnectedOutput = hasConnectedOutputOtherThan(reachCenter.from);
+            boolean retryConnectedPipe = hasConnectedOutput
+                && reachCenter.from != null
                 && pipe.isConnected(reachCenter.from)
                 && pipe.getConnectedType(reachCenter.from) == ConnectedType.PIPE;
             if (tryBounce.canBounce || retryConnectedPipe) {
-                // A connected item pipe can transiently reject a hand-off (connection/capability update races are
-                // especially visible at gold-pipe speed). Keep the cargo in the network and retry instead of
-                // materialising it as an ItemEntity in the middle of an otherwise continuous route.
+                // Only retry through the incoming pipe when this pipe still has some other physical destination.
+                // A true dead-end must eject out of the open face, not reverse back through the pipe network.
                 order = ImmutableList.of(EnumSet.of(reachCenter.from));
             } else {
                 dropItem(item.stack, null, item.side.getOpposite(), item.speed);
@@ -510,10 +660,19 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                 newItem.side = destinations.get(0);
                 newItem.speed = newSpeed;
                 newItem.genTimings(now, getPipeLength(newItem.side));
-                items.add(newItem.timeToDest, newItem);
+                scheduleTravellingItem(newItem);
                 sendItemDataToClient(newItem);
             }
         }
+    }
+
+    private boolean hasConnectedOutputOtherThan(Direction from) {
+        for (Direction face : Direction.values()) {
+            if (face != from && pipe.isConnected(face)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void onItemReachEnd(TravellingItem item) {
@@ -524,6 +683,12 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         item.stack = reachEnd.getStack();
         ItemStack excess = item.stack;
         if (excess.isEmpty()) {
+            return;
+        }
+        if (!pipe.isConnected(item.side)) {
+            // An item that reached an open pipe end has already completed its route. Eject it from that face now;
+            // sending it back to the centre first makes it visibly reverse and can spawn it inside the pipe block.
+            dropItem(excess, item.side, item.side, item.speed);
             return;
         }
         if (pipe.isConnected(item.side)) {
@@ -575,7 +740,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         item.toCenter = true;
         item.stack = excess;
         item.genTimings(holder.getPipeWorld().getGameTime(), getPipeLength(item.side));
-        items.add(item.timeToDest, item);
+        scheduleTravellingItem(item);
         sendItemDataToClient(item);
     }
 
@@ -789,7 +954,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         if (sendToClient) {
             addItemTryMerge(item);
         } else {
-            items.add(item.timeToDest, item);
+            scheduleTravellingItem(item);
         }
     }
 
@@ -807,8 +972,10 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
 
     private void addItemTryMerge(TravellingItem item) {
         List<List<TravellingItem>> delayed = items.getAllElements();
-        int minDelay = Math.max(0, item.timeToDest - 3);
-        int maxDelay = Math.min(delayed.size() - 1, item.timeToDest + 3);
+        long now = pipe.getHolder().getPipeWorld().getGameTime();
+        int expectedDelay = getQueueDelay(item.tickFinished, now);
+        int minDelay = Math.max(0, expectedDelay - 3);
+        int maxDelay = Math.min(delayed.size() - 1, expectedDelay + 3);
         int comparisonsLeft = 64;
         for (int delay = minDelay; delay <= maxDelay && comparisonsLeft > 0; delay++) {
             for (TravellingItem item2 : delayed.get(delay)) {
@@ -820,7 +987,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                 }
             }
         }
-        items.add(item.timeToDest, item);
+        scheduleTravellingItem(item);
         sendItemDataToClient(item);
     }
 

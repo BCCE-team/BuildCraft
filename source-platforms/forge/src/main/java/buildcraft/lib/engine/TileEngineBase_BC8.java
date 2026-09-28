@@ -144,6 +144,9 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     public long currentOutput;
     public boolean isRedstonePowered = false;
     protected boolean isPumping = false;
+    /** Exact server-side piston speed for the current stroke, used by the client to keep the visual cycle aligned
+     * with the authoritative extraction/power pulse. */
+    private float clientPistonSpeed = Float.NaN;
 
     boolean movingState;
     private boolean wasOperationalForAdvancement;
@@ -236,6 +239,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
                 powerStage = buffer.readEnum(EnumPowerStage.class);
                 lastProgress = progress;
                 progress = buffer.readFloat();
+                clientPistonSpeed = buffer.readFloat();
                 syncRenderProgressFromProgress();
                 if (directionChanged) {
                     refreshEngineModelData();
@@ -262,6 +266,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
                 buffer.writeEnum(currentDirection);
                 buffer.writeEnum(powerStage);
                 buffer.writeFloat(progress);
+                // The old client-side stage approximation can differ substantially from the continuous server
+                // speed (notably a hot redstone engine: ~0.064/t instead of the RED-stage 0.08/t). Send the
+                // authoritative speed so one visible piston cycle stays one server stroke/pulse.
+                buffer.writeFloat((float) getPistonSpeed());
             } else if (id == NET_GUI_DATA) {
                 buffer.writeFloat((float) heat);
                 buffer.writeLong(currentOutput);
@@ -394,6 +402,12 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     public double getPistonSpeed() {
+        // BC8 uses the continuous heat-derived speed for server-side engine timing. The stage values below are only
+        // the client-side approximation used to animate the piston between network updates. Using the staged values
+        // on the server slows hot engines (and therefore wooden-pipe extraction pulses) below the original cadence.
+        if (!level.isClientSide) {
+            return Math.max(0.16 * getHeatLevel(), 0.01);
+        }
         switch (getPowerStage()) {
             case BLUE:
                 return 0.02;
@@ -402,7 +416,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
             case YELLOW:
                 return 0.08;
             case RED:
-                return 0.12;
+                return 0.16;
             default:
                 return 0;
         }
@@ -428,7 +442,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
             lastProgress = progress;
 
             if (isPumping) {
-                progress += getPistonSpeed();
+                double pistonSpeed = Float.isFinite(clientPistonSpeed) && clientPistonSpeed > 0
+                    ? clientPistonSpeed
+                    : getPistonSpeed();
+                progress += pistonSpeed;
 
                 if (progress >= 1) {
                     progress = 0;
@@ -458,11 +475,15 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
             return;
         }
 
+        boolean pulsedPower = isPulsedPowerReceiver(currentDirection);
         if (progressPart != 0) {
             progress += getPistonSpeed();
 
             if (progress > 0.5 && progressPart == 1) {
                 progressPart = 2;
+                if (pulsedPower) {
+                    sendPower();
+                }
             } else if (progress >= 1) {
                 progress = 0;
                 progressPart = 0;
@@ -470,7 +491,13 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         } else if (isRedstonePowered && isActive()) {
             if (getPowerToExtract(false) > 0) {
                 progressPart = 1;
+                boolean wasPumping = isPumping;
                 setPumping(true);
+                if (wasPumping) {
+                    // setPumping(true) only sends when the boolean changes. A continuously working engine still
+                    // starts a new authoritative stroke here, so refresh progress + exact piston speed every cycle.
+                    sendNetworkUpdate(NET_RENDER_DATA);
+                }
             } else {
                 setPumping(false);
             }
@@ -478,9 +505,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
             setPumping(false);
         }
 
-        // Power transfer is independent from the piston animation. Keeping it tied to the midpoint of a
-        // stroke leaves usable energy frozen in the internal buffer between strokes and fuel items.
-        if (isRedstonePowered && isActive()) {
+        // Ordinary MJ consumers still receive power continuously. Redstone receivers are pulse-driven by design:
+        // wooden extraction pipes must receive one transfer at the piston midpoint so their extraction cadence stays
+        // in lockstep with the engine stroke instead of turning into a per-tick stream of closely spaced items.
+        if (!pulsedPower && isRedstonePowered && isActive()) {
             sendPower();
         }
 
@@ -724,6 +752,35 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         }
         return BuildCraftApi.service(BuildCraftServices.ENERGY)
             .port(level, tile.getBlockPos(), side.getOpposite()).isPresent();
+    }
+
+    /** Returns true when the final receiver reached through an engine chain uses redstone/piston pulses. */
+    private boolean isPulsedPowerReceiver(Direction side) {
+        if (level == null || side == null) return false;
+        TileEngineBase_BC8 engine = this;
+        BlockEntity next = null;
+
+        for (int len = 0; len <= getMaxChainLength(); len++) {
+            next = engine.getTileBuffer(side).getTile();
+            if (next == null) return false;
+
+            if (next.getClass() == getClass()) {
+                if (side != ((TileEngineBase_BC8) next).currentDirection) return false;
+            }
+
+            if (next instanceof TileEngineBase_BC8) {
+                if (next.getClass() != getClass()) return false;
+                engine = (TileEngineBase_BC8) next;
+            } else {
+                break;
+            }
+        }
+
+        if (next == null || next instanceof TileEngineBase_BC8) return false;
+        return BuildCraftApi.service(BuildCraftServices.ENERGY)
+            .descriptor(level, next.getBlockPos(), side.getOpposite())
+            .map(descriptor -> descriptor.has(MjPortRole.REDSTONE_RECEIVER))
+            .orElse(false);
     }
 
     /** Returns the API2 MJ endpoint reached through a valid same-engine chain. */

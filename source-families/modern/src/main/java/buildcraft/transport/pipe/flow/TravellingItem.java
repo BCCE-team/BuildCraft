@@ -51,7 +51,16 @@ public class TravellingItem {
     /** If true then events won't be fired for this, and this item won't be dropped by the pipe. However it will affect
      * pipe.isEmpty and related gate triggers. */
     boolean isPhantom = false;
-    boolean clientAtDestination = false;
+    /** Client-only fallback used while the authoritative pipe-to-pipe successor packet is in flight. */
+    boolean clientBoundaryPrediction = false;
+    /** Client-only fallback used while the authoritative in-pipe center successor packet is in flight. */
+    boolean clientCenterPrediction = false;
+    /** Predicted outgoing side for a center hand-off. Null means hold at the center when the route is ambiguous. */
+    Direction clientCenterPredictionSide = null;
+    /** Cached network stack id used to match adjacent client transport segments. */
+    int clientStackId = -1;
+    /** True after an authoritative successor segment has been linked to this client segment. */
+    boolean clientSuccessorLinked = false;
 
     // @formatter:off
     /* States (server side):
@@ -193,10 +202,29 @@ public class TravellingItem {
         long afterTick = tick - tickStarted;
 
         float interp = (afterTick + partialTicks) / diff;
-        interp = Math.max(0, Math.min(1, interp));
 
         Vec3 center = Vec3.ZERO;//Vec3.atCenterOf(pos);
         Vec3 vecSide = side == null ? center : VecUtil.offset(center, side, flow.getPipeLength(side));
+
+        if (clientCenterPrediction) {
+            if (clientCenterPredictionSide == null || side == null) {
+                return center;
+            }
+            // Continue from the center for as long as the short client prediction is retained. This is based on
+            // elapsed whole ticks as well as partialTicks, so a delayed successor packet does not make the item
+            // disappear every other pipe. Junctions still hold at the center because guessing a branch is unsafe.
+            double incomingDistance = flow.getPipeLength(side);
+            double distancePerTick = incomingDistance / Math.max(1L, diff);
+            double elapsed = Math.max(0.0, tick + partialTicks - tickFinished);
+            double predictedDistance = Math.min(flow.getPipeLength(clientCenterPredictionSide),
+                distancePerTick * elapsed);
+            return VecUtil.offset(center, clientCenterPredictionSide, predictedDistance);
+        }
+
+        // Normal segments stop exactly at their destination. A boundary prediction may continue through the shared
+        // face as far as the neighbouring pipe centre while the real successor packet is still in flight.
+        float maxInterp = clientBoundaryPrediction ? 2.0f : 1.0f;
+        interp = Math.max(0, Math.min(maxInterp, interp));
 
         Vec3 vecFrom;
         Vec3 vecTo;
@@ -207,9 +235,24 @@ public class TravellingItem {
             vecFrom = center;
             vecTo = vecSide;
         }
-        if (clientAtDestination) return vecTo;
-
         return VecUtil.scale(vecFrom, 1 - interp).add(VecUtil.scale(vecTo, interp));
+    }
+
+    public boolean shouldRender(long tick, float partialTicks) {
+        double renderTime = tick + partialTicks;
+        // Successor packets can arrive before the predecessor segment has reached its hand-off point. Keep the
+        // successor scheduled, but do not render it pinned at its start until its linked start time is reached.
+        if (renderTime < tickStarted) {
+            return false;
+        }
+        // Once an authoritative successor is already queued, the predecessor must stop rendering exactly at the
+        // hand-off. DelayedList may retain it until the next client tick; drawing both segments during that remainder
+        // produced a boundary double-image that is especially visible as a forward/back snap at high speed.
+        if (clientSuccessorLinked && !clientBoundaryPrediction && !clientCenterPrediction
+            && renderTime >= tickFinished) {
+            return false;
+        }
+        return true;
     }
 
     public Direction getRenderDirection(long tick, float partialTicks) {
