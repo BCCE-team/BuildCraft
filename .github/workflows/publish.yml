@@ -1,0 +1,257 @@
+name: publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+env:
+  MODRINTH_PROJECT_ID: z3Aj5eOl
+  CURSEFORGE_PROJECT_ID: '1592400'
+  PUBLISH_DELAY_SECONDS: '60'
+
+jobs:
+  metadata:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - name: Validate Gradle wrappers
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(sed -n 's/^common\.mod\.version=//p' build-config/common.properties)"
+          actual="${{ github.event.release.tag_name }}"
+          if [ -z "$expected" ]; then
+            echo "::error::common.mod.version is missing from build-config/common.properties."
+            exit 1
+          fi
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::Release tag '$actual' does not match common.mod.version '$expected'."
+            exit 1
+          fi
+
+      - name: Validate publication targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='1.19.2-forge,1.20.1-forge,1.21.1-neoforge,1.21.11-neoforge'
+          actual="$(sed -n 's/^targets=//p' build-config/targets.properties)"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::Publication workflow target list is stale. Expected '$expected', repository has '$actual'."
+            exit 1
+          fi
+
+      - name: Validate publishing secrets
+        shell: bash
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+        run: |
+          missing=0
+          if [ -z "$MODRINTH_TOKEN" ]; then
+            echo "::error::Missing repository Actions secret MODRINTH_TOKEN."
+            missing=1
+          fi
+          if [ -z "$CURSEFORGE_TOKEN" ]; then
+            echo "::error::Missing repository Actions secret CURSEFORGE_TOKEN."
+            missing=1
+          fi
+          exit "$missing"
+
+  build:
+    needs: metadata
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - generation: legacy
+            java: '17'
+            targets: '1.19.2-forge,1.20.1-forge'
+          - generation: modern
+            java: '21'
+            targets: '1.21.1-neoforge,1.21.11-neoforge'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+
+      - name: Build and collect ${{ matrix.generation }} targets
+        working-directory: builds/${{ matrix.generation }}
+        run: ./gradlew --no-daemon buildAndCollect
+
+      - name: Capture release artifacts
+        shell: bash
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          TARGETS: ${{ matrix.targets }}
+          GENERATION: ${{ matrix.generation }}
+        run: |
+          set -euo pipefail
+          destination="release/$GENERATION"
+          mkdir -p "$destination"
+
+          IFS=',' read -ra targets <<< "$TARGETS"
+          for target in "${targets[@]}"; do
+            minecraft="${target%%-*}"
+            loader="${target#*-}"
+            jar="build/${minecraft}/BuildCraft-Community-Edition-${TAG}+${minecraft}+${loader}.jar"
+            if [ ! -f "$jar" ]; then
+              echo "::error::Missing release artifact: $jar"
+              find build -maxdepth 3 -type f -name '*.jar' -print || true
+              exit 1
+            fi
+            cp "$jar" "$destination/"
+          done
+
+      - name: Upload ${{ matrix.generation }} release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bcce-release-${{ matrix.generation }}
+          path: release/${{ matrix.generation }}/*.jar
+          if-no-files-found: error
+
+  publish:
+    name: Publish versions sequentially
+    needs: [metadata, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download legacy artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bcce-release-legacy
+          path: release
+
+      - name: Download modern artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bcce-release-modern
+          path: release
+
+      - name: Publish 1.19.2 Forge
+        uses: Kira-NT/mc-publish@v3
+        with:
+          files: release/BuildCraft-Community-Edition-${{ github.event.release.tag_name }}+1.19.2+forge.jar
+          name: ${{ github.event.release.tag_name }}+1.19.2+forge
+          version: ${{ github.event.release.tag_name }}+1.19.2+forge
+          version-type: release
+          loaders: forge
+          game-versions: 1.19.2
+          game-version-filter: none
+          environment: client | server
+
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-changelog: ${{ github.event.release.body }}
+
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-changelog: ${{ github.event.release.body }}
+
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ github.event.release.tag_name }}
+          github-changelog: ''
+
+      - name: Wait 1 minute before 1.20.1
+        run: sleep "$PUBLISH_DELAY_SECONDS"
+
+      - name: Publish 1.20.1 Forge
+        uses: Kira-NT/mc-publish@v3
+        with:
+          files: release/BuildCraft-Community-Edition-${{ github.event.release.tag_name }}+1.20.1+forge.jar
+          name: ${{ github.event.release.tag_name }}+1.20.1+forge
+          version: ${{ github.event.release.tag_name }}+1.20.1+forge
+          version-type: release
+          loaders: forge
+          game-versions: 1.20.1
+          game-version-filter: none
+          environment: client | server
+
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-changelog: ${{ github.event.release.body }}
+
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-changelog: ${{ github.event.release.body }}
+
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ github.event.release.tag_name }}
+          github-changelog: ''
+
+      - name: Wait 1 minute before 1.21.1
+        run: sleep "$PUBLISH_DELAY_SECONDS"
+
+      - name: Publish 1.21.1 NeoForge
+        uses: Kira-NT/mc-publish@v3
+        with:
+          files: release/BuildCraft-Community-Edition-${{ github.event.release.tag_name }}+1.21.1+neoforge.jar
+          name: ${{ github.event.release.tag_name }}+1.21.1+neoforge
+          version: ${{ github.event.release.tag_name }}+1.21.1+neoforge
+          version-type: release
+          loaders: neoforge
+          game-versions: 1.21.1
+          game-version-filter: none
+          environment: client | server
+
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-changelog: ${{ github.event.release.body }}
+
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-changelog: ${{ github.event.release.body }}
+
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ github.event.release.tag_name }}
+          github-changelog: ''
+
+      - name: Wait 1 minute before 1.21.11
+        run: sleep "$PUBLISH_DELAY_SECONDS"
+
+      - name: Publish 1.21.11 NeoForge
+        uses: Kira-NT/mc-publish@v3
+        with:
+          files: release/BuildCraft-Community-Edition-${{ github.event.release.tag_name }}+1.21.11+neoforge.jar
+          name: ${{ github.event.release.tag_name }}+1.21.11+neoforge
+          version: ${{ github.event.release.tag_name }}+1.21.11+neoforge
+          version-type: release
+          loaders: neoforge
+          game-versions: 1.21.11
+          game-version-filter: none
+          environment: client | server
+
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-changelog: ${{ github.event.release.body }}
+
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-changelog: ${{ github.event.release.body }}
+
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ github.event.release.tag_name }}
+          github-changelog: ''
