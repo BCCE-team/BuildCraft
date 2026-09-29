@@ -38,15 +38,23 @@ class ResourcePipeline(unittest.TestCase):
 
     def test_target_resource_overlays_are_escape_hatches_only(self):
         expected = {
-            "1.19.2-forge": 1,
-            "1.20.1-forge": 0,
-            "1.21.1-neoforge": 0,
-            "1.21.11-neoforge": 0,
+            "1.19.2-forge": {
+                "assets/buildcraftenergy/textures/items/ic2_cell_fluid.png",
+            },
+            # 1.20.1-only resources belong in resource-src/legacy/1.20.1, not
+            # the target overlay. The materialized target is checked below.
+            "1.20.1-forge": set(),
+            "1.21.1-neoforge": set(),
+            "1.21.11-neoforge": set(),
         }
-        for target, count in expected.items():
+        for target, expected_paths in expected.items():
             root = ROOT / "version-src" / target / "src/main/resources"
-            actual = sum(1 for path in root.rglob("*") if path.is_file()) if root.exists() else 0
-            self.assertEqual(count, actual, target)
+            actual = {
+                path.relative_to(root).as_posix()
+                for path in root.rglob("*")
+                if path.is_file()
+            } if root.exists() else set()
+            self.assertEqual(expected_paths, actual, target)
 
         forbidden = (
             "data/forge/tags/fluids",

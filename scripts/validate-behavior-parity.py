@@ -757,18 +757,28 @@ def validate_jei_facade_scalability() -> None:
                 "recipe.inputStacks()",
                 "recipe.solidOutputs()",
                 "recipe.hollowOutputs()",
-                "builder.createFocusLink(facadeInputSlot, solidOutputSlot, hollowOutputSlot)")
+                "setFacadeRecipe(builder, facadeRecipe, focuses)",
+                "private void setFacadeRecipe(IRecipeLayoutBuilder builder, FacadeAssemblyJeiRecipe recipe, IFocusGroup focuses)",
+                "List<ItemStack> matchedInputs = new ArrayList<>()",
+                "List<ItemStack> matchedSolidOutputs = new ArrayList<>()",
+                "List<ItemStack> matchedHollowOutputs = new ArrayList<>()")
         forbid(target, plugin,
                'return instance.isHollow() ? "hollow" : "solid";',
                'return instance.isHollow() ? "phased_hollow" : "phased_solid";',
                "getFocusedFacadeInputInfos",
-               "getRepresentativeFacadeInfo()")
+               "getRepresentativeFacadeInfo()",
+               "builder.createFocusLink(facadeInputSlot, solidOutputSlot, hollowOutputSlot)")
         require(target, creative,
                 "Set<ItemStackKey> seen = new HashSet<>();",
                 "seen.add(new ItemStackKey(normalized))")
         forbid(target, creative,
                "for (ItemStack existing : items) {\n                if (ItemStack.isSameItemSame")
 
+    # Keep the facade item hidden from the global ingredient panel. This remains useful for
+    # any path that contributes the facade item outside the dedicated facade creative tab.
+    # The JEI facade recipe must therefore not use createFocusLink across facade outputs: JEI
+    # treats a focus link with only hidden output variants as invisible and drops the recipe.
+    # BuildCraft narrows the three aligned facade lists itself from IFocusGroup instead.
     hidden_tags = (
         ROOT / "source-families/legacy/src/main/resources/data/c/tags/items/hidden_from_recipe_viewers.json",
         ROOT / "source-families/modern/src/main/resources/data/c/tags/item/hidden_from_recipe_viewers.json",
@@ -778,6 +788,52 @@ def validate_jei_facade_scalability() -> None:
             fail(f"missing facade recipe-viewer visibility tag: {tag_path.relative_to(ROOT)}")
         elif '"buildcraftsilicon:plug/facade"' not in tag_path.read_text(encoding="utf-8"):
             fail(f"facade item missing from recipe-viewer visibility tag: {tag_path.relative_to(ROOT)}")
+
+    # JEI 15+ (Minecraft 1.20.1+) checks c:hidden_from_recipe_viewers on the
+    # CreativeModeTab holder *before* calling CreativeModeTab.buildContents(). The facade tab
+    # materializes solid + hollow variants for every visible facade BlockState, so item-level
+    # hiding alone is too late: JEI has already paid the allocation/UID/search-index cost.
+    #
+    # 1.19.2 does not have registry-backed creative tabs, therefore this resource must stay out
+    # of the legacy family and begin at the 1.20.1 target boundary. Modern targets can share it.
+    creative_tab_tag = "src/main/resources/data/c/tags/creative_mode_tab/hidden_from_recipe_viewers.json"
+    latest_modern = materialize_target("1.21.11-neoforge")
+    creative_tab_roots = {
+        "1.20.1-forge": TARGETS["1.20.1-forge"],
+        "1.21.1-neoforge": TARGETS["1.21.1-neoforge"],
+        "1.21.11-neoforge": latest_modern,
+    }
+    for target, root in creative_tab_roots.items():
+        tag_path = root / creative_tab_tag
+        if not tag_path.is_file():
+            fail(f"{target}: missing facade creative-tab recipe-viewer visibility tag")
+            continue
+        try:
+            document = json.loads(tag_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            fail(f"{target}: invalid facade creative-tab recipe-viewer visibility tag: {exc}")
+            continue
+        values = document.get("values", []) if isinstance(document, dict) else []
+        if "buildcraft:facades" not in values:
+            fail(f"{target}: buildcraft:facades missing from creative-tab recipe-viewer visibility tag")
+        if document.get("replace") is not False:
+            fail(f"{target}: facade creative-tab recipe-viewer visibility tag must merge with other c: values")
+
+        silicon_path = root / "src/main/java/buildcraft/silicon/BCSilicon.java"
+        if not silicon_path.is_file():
+            fail(f"{target}: missing BCSilicon.java while validating facade creative-tab id")
+            continue
+        silicon = silicon_path.read_text(encoding="utf-8")
+        for needle in (
+            'BCDeferredRegister.create("minecraft:creative_mode_tab", "buildcraft")',
+            'CREATIVE_TABS.register("facades"',
+        ):
+            if needle not in silicon:
+                fail(f"{target}: facade creative-tab registry id is no longer provably buildcraft:facades")
+
+    legacy_tab_tag = TARGETS["1.19.2-forge"] / creative_tab_tag
+    if legacy_tab_tag.exists():
+        fail("1.19.2-forge: registry-backed creative-mode-tab tag must not leak into the legacy target")
 
 
 def validate_forestry_model_bake_mutation() -> None:

@@ -777,7 +777,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
                 return;
             }
             if (recipe instanceof FacadeAssemblyJeiRecipe facadeRecipe) {
-                setFacadeRecipe(builder, facadeRecipe);
+                setFacadeRecipe(builder, facadeRecipe, focuses);
                 return;
             }
 
@@ -957,24 +957,61 @@ public class BuildCraftJeiPlugin implements IModPlugin {
             builder.createFocusLink(gateSlot, modifierSlot, outputSlot);
         }
 
-        private void setFacadeRecipe(IRecipeLayoutBuilder builder, FacadeAssemblyJeiRecipe recipe) {
+        private void setFacadeRecipe(IRecipeLayoutBuilder builder, FacadeAssemblyJeiRecipe recipe, IFocusGroup focuses) {
             if (recipe.inputStacks().isEmpty()) {
                 return;
             }
 
+            List<ItemStack> inputStacks = recipe.inputStacks();
+            List<ItemStack> solidOutputs = recipe.solidOutputs();
+            List<ItemStack> hollowOutputs = recipe.hollowOutputs();
+
+            // Facades intentionally stay hidden from JEI's global ingredient list. A JEI focus link
+            // that includes those hidden outputs makes the whole synthetic facade recipe invisible.
+            // Narrow the three aligned cycling lists ourselves when R/U supplies a focus instead.
+            List<ItemStack> focused = new ArrayList<>();
+            focuses.getFocuses(RecipeIngredientRole.INPUT)
+                    .map(BuildCraftJeiPlugin::getFocusedItemStack)
+                    .filter(stack -> !stack.isEmpty())
+                    .forEach(focused::add);
+            focuses.getFocuses(RecipeIngredientRole.OUTPUT)
+                    .map(BuildCraftJeiPlugin::getFocusedItemStack)
+                    .filter(stack -> !stack.isEmpty())
+                    .forEach(focused::add);
+
+            if (!focused.isEmpty()) {
+                List<ItemStack> matchedInputs = new ArrayList<>();
+                List<ItemStack> matchedSolidOutputs = new ArrayList<>();
+                List<ItemStack> matchedHollowOutputs = new ArrayList<>();
+                for (int i = 0; i < inputStacks.size(); i++) {
+                    ItemStack input = inputStacks.get(i);
+                    ItemStack solid = solidOutputs.get(i);
+                    ItemStack hollow = hollowOutputs.get(i);
+                    boolean matches = focused.stream().anyMatch(stack ->
+                            ItemStack.isSameItemSameComponents(input, stack)
+                                    || ItemStack.isSameItemSameComponents(solid, stack)
+                                    || ItemStack.isSameItemSameComponents(hollow, stack));
+                    if (matches) {
+                        matchedInputs.add(input);
+                        matchedSolidOutputs.add(solid);
+                        matchedHollowOutputs.add(hollow);
+                    }
+                }
+                if (!matchedInputs.isEmpty()) {
+                    inputStacks = matchedInputs;
+                    solidOutputs = matchedSolidOutputs;
+                    hollowOutputs = matchedHollowOutputs;
+                }
+            }
+
             builder.addSlot(RecipeIngredientRole.INPUT, 3, 12)
                     .addItemStack(createFacadeBaseRequirementStack());
-
-            IRecipeSlotBuilder facadeInputSlot = builder.addSlot(RecipeIngredientRole.INPUT, 21, 12)
-                    .addItemStacks(recipe.inputStacks());
-            IRecipeSlotBuilder solidOutputSlot = builder.addSlot(RecipeIngredientRole.OUTPUT, 111, 12)
-                    .addItemStacks(recipe.solidOutputs());
-            IRecipeSlotBuilder hollowOutputSlot = builder.addSlot(RecipeIngredientRole.OUTPUT, 129, 12)
-                    .addItemStacks(recipe.hollowOutputs());
-
-            // All three cycling lists have exactly the same length/order. JEI can therefore pin the
-            // source block and both facade outputs together for R/U focus without thousands of recipes.
-            builder.createFocusLink(facadeInputSlot, solidOutputSlot, hollowOutputSlot);
+            builder.addSlot(RecipeIngredientRole.INPUT, 21, 12)
+                    .addItemStacks(inputStacks);
+            builder.addSlot(RecipeIngredientRole.OUTPUT, 111, 12)
+                    .addItemStacks(solidOutputs);
+            builder.addSlot(RecipeIngredientRole.OUTPUT, 129, 12)
+                    .addItemStacks(hollowOutputs);
         }
 
         public void draw(AssemblyJeiRecipe view, IRecipeSlotsView recipeSlotsView, GuiGraphics guiGraphics, double mouseX, double mouseY) {
