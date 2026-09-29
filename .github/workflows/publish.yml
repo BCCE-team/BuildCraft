@@ -101,7 +101,7 @@ jobs:
 
       - name: Build and collect ${{ matrix.generation }} targets
         working-directory: builds/${{ matrix.generation }}
-        run: ./gradlew --no-daemon buildAndCollect
+        run: sh ./gradlew --no-daemon buildAndCollect
 
       - name: Capture release artifacts
         shell: bash
