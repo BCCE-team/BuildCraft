@@ -34,6 +34,7 @@ def effectiveDirs = bc.effectiveDirs
 def centralJarOutputDir = bc.centralJarOutputDir
 def jeiCompatEnabled = booleanProperty('compat.jei.enabled', true)
 def jadeCompatEnabled = booleanProperty('compat.jade.enabled', true)
+def createCompatEnabled = booleanProperty('compat.create.enabled', false)
 def ic2CompatEnabled = booleanProperty('compat.ic2.enabled', false)
 def forestryCompatEnabled = booleanProperty('compat.forestry.enabled', false)
 def dataGenSourcesEnabled = booleanProperty('compile.datagen.enabled', true)
@@ -91,6 +92,9 @@ if (!jeiCompatEnabled) {
 }
 if (!jadeCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/jade/**'
+}
+if (!createCompatEnabled) {
+    sourceSets.main.java.exclude 'buildcraft/compat/create/**'
 }
 if (!ic2CompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/ic2/**'
@@ -340,6 +344,11 @@ dependencies {
         if (runtimeEnabled('jade', true)) {
             localRuntime jadeDependency
         }
+    }
+
+    def createDependency = optionalProperty('deps.create')
+    if (createCompatEnabled && createDependency) {
+        compileOnly createDependency
     }
 
     if (ic2CompatEnabled) {

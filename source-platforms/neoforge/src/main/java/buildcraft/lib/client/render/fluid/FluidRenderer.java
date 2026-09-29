@@ -253,7 +253,7 @@ public class FluidRenderer {
         }
 
 //        vertex.colouri(RenderUtil.swapARGBforABGR(fluid.getFluid()));
-        vertex.colouri(IClientFluidTypeExtensions.of(fluidType).getTintColor());
+        vertex.colouri(IClientFluidTypeExtensions.of(fluidType).getTintColor(texParam));
 
         setTexMap(TexMap.XZ, false, false);
         if (sideRender[Direction.UP.ordinal()]) {
@@ -555,3 +555,4 @@ public class FluidRenderer {
         }
     }
 }
+

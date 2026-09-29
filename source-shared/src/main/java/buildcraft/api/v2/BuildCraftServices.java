@@ -16,6 +16,7 @@ import buildcraft.api.v2.energy.PowerLossEffectService;
 import buildcraft.api.v2.facade.FacadeRuleService;
 import buildcraft.api.v2.facade.FacadeService;
 import buildcraft.api.v2.filler.FillerPatternService;
+import buildcraft.api.v2.fluid.FluidItemService;
 import buildcraft.api.v2.fuels.EnergyFluidService;
 import buildcraft.api.v2.gate.GateService;
 import buildcraft.api.v2.guide.GuideService;
@@ -62,6 +63,7 @@ public final class BuildCraftServices {
     public static final ServiceKey<WrenchService> WRENCHES = ServiceKey.of(id("wrenches"));
     public static final ServiceKey<ItemListService> ITEM_LISTS = ServiceKey.of(id("item_lists"));
     public static final ServiceKey<ItemLabelService> ITEM_LABELS = ServiceKey.of(id("item_labels"));
+    public static final ServiceKey<FluidItemService> FLUID_ITEMS = ServiceKey.of(id("fluid_items"));
     public static final ServiceKey<MapLocationService> MAP_LOCATIONS = ServiceKey.of(id("map_locations"));
     public static final ServiceKey<RequestService> REQUESTS = ServiceKey.of(id("requests"));
     public static final ServiceKey<FluidDropService> FLUID_DROPS = ServiceKey.of(id("fluid_drops"));

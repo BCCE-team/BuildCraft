@@ -15,6 +15,7 @@ import buildcraft.api.v2.energy.MjConnectionRule;
 import buildcraft.api.v2.drop.FluidDropProvider;
 import buildcraft.api.v2.debug.DebugContributor;
 import buildcraft.api.v2.facade.FacadeMaterialAdapter;
+import buildcraft.api.v2.fluid.FluidItemAdapter;
 import buildcraft.api.v2.filler.FillerPatternType;
 import buildcraft.api.v2.list.ListMatchAdapter;
 import buildcraft.api.v2.machine.EngineType;
@@ -84,6 +85,7 @@ public final class BuildCraftRegistries {
     public static final RegistryKey<FacadeMaterialAdapter> FACADE_MATERIAL_ADAPTERS = key("facade_material_adapters");
     public static final RegistryKey<ListMatchAdapter> LIST_MATCH_ADAPTERS = key("list_match_adapters");
     public static final RegistryKey<ItemLabelAdapter> ITEM_LABEL_ADAPTERS = key("item_label_adapters");
+    public static final RegistryKey<FluidItemAdapter> FLUID_ITEM_ADAPTERS = key("fluid_item_adapters");
     public static final RegistryKey<MapLocationAdapter> MAP_LOCATION_ADAPTERS = key("map_location_adapters");
     public static final RegistryKey<FluidDropProvider> FLUID_DROP_PROVIDERS = key("fluid_drop_providers");
     public static final RegistryKey<DebugContributor> DEBUG_CONTRIBUTORS = key("debug_contributors");

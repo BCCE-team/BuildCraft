@@ -6,8 +6,10 @@ package buildcraft.lib;
 
 import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftRegistries;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.module.ModuleInfo;
+import buildcraft.lib.fluid.NeoForgeFluidItemAdapter;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.internal.statement.StatementManager;
 import buildcraft.lib.internal.mj.MjApi2PlatformBridge;
@@ -23,6 +25,7 @@ import buildcraft.lib.net.MessageManager;
 import buildcraft.lib.net.BuildCraftTarget;
 import buildcraft.lib.net.cache.BuildCraftObjectCaches;
 import buildcraft.lib.recipe.BCLibIngredientTypes;
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.data.event.GatherDataEvent;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -98,6 +101,10 @@ public class BCLib {
         BCLibItems.registry(RegistryBinding.on(modEventBus));
         BCLibIngredientTypes.register(modEventBus);
         BCLibRegistries.fmlPreInit();
+        BuildCraftApi.registry(BuildCraftRegistries.FLUID_ITEM_ADAPTERS).register(
+                ResourceLocation.tryParse("buildcraft:neoforge_fluid_container"),
+                new NeoForgeFluidItemAdapter()
+        );
         StatementManager.setRegistryProvider(ItemStackUtil::requireActiveRegistryProvider);
 
         // Register library network messages during mod construction, before any sided setup event

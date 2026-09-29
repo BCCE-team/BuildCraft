@@ -6,6 +6,10 @@
 
 package buildcraft.transport.pipe.behaviour;
 
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.lib.fluid.FuelApiBridge;
+import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.api.v2.fluid.FluidVolume;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.Direction;
@@ -38,12 +42,12 @@ public class PipeBehaviourDiamondFluid extends PipeBehaviourDiamond {
                 for (int i = 0; i < FILTERS_PER_SIDE; i++) {
                     ItemStack compareTo = filters.getStackInSlot(offset + i);
                     if (compareTo.isEmpty()) continue;
-                    FluidStack target = FluidUtil.getFluidContained(compareTo).orElse(FluidStack.EMPTY);
-                    if (target.isEmpty() || target.getAmount() <= 0) {
+                    FluidVolume target = BuildCraftApi.service(BuildCraftServices.FLUID_ITEMS).fluid(compareTo);
+                    if (target.isEmpty()) {
                         continue;
                     }
                     foundItem = true;
-                    if (FluidCompatRegistry.areEquivalent(target, toCompare)) {
+                    if (FluidCompatRegistry.areEquivalent(FuelApiBridge.stackOf(target), toCompare)) {
                         sideAllowed = true;
                         break;
                     }
