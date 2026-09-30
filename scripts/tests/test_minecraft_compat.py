@@ -112,6 +112,25 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertNotIn('import net.minecraft.resources.ResourceLocation;', current)
         self.assertIn('Identifier TEXTURE_BASE', current)
 
+    def test_tank_stack_aware_fluid_uses_cross_target_gui_bridge(self):
+        old_root = self.roots['1.21.1-neoforge'] / 'buildcraft'
+        current_root = self.roots['1.21.11-neoforge'] / 'buildcraft'
+
+        for target, root in (('1.21.1-neoforge', old_root), ('1.21.11-neoforge', current_root)):
+            gui = (root / 'factory/gui/GuiTank.java').read_text(encoding='utf-8')
+            self.assertIn(
+                'new GuiRectangle(left, top + TANK_HEIGHT - filled, TANK_WIDTH, filled), fluid, 1, 1);',
+                gui,
+                target,
+            )
+            self.assertNotIn('FluidRenderer.drawFluidForGui(fluid, left', gui, target)
+            self.assertNotIn('RenderCompat.pose(guiGraphics)', gui, target)
+
+        old_util = (old_root / 'lib/misc/GuiUtil.java').read_text(encoding='utf-8')
+        current_util = (current_root / 'lib/misc/GuiUtil.java').read_text(encoding='utf-8')
+        self.assertIn('FluidRenderer.drawFluidForGui(fluid, startX, startY, endX, endY, guiGraphics.pose().last());', old_util)
+        self.assertIn('FluidRenderer.drawFluidForGui(fluid, startX, startY, endX, endY, guiGraphics);', current_util)
+
     def test_gametest_registration_matches_modern_api_generation(self):
         old_root = self.target_roots['1.21.1-neoforge'] / 'src/gametest/java'
         current_root = self.target_roots['1.21.11-neoforge'] / 'src/gametest/java'

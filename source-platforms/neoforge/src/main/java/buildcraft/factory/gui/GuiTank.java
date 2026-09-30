@@ -11,9 +11,9 @@ import com.mojang.blaze3d.vertex.PoseStack;
 
 import java.util.List;
 
-import buildcraft.lib.client.render.fluid.FluidRenderer;
 import buildcraft.lib.fluid.FluidDisplayHelper;
 import buildcraft.lib.fluid.FluidSmoother.FluidStackInterp;
+import buildcraft.lib.misc.GuiUtil;
 import buildcraft.lib.misc.LocaleUtil;
 import net.minecraft.ChatFormatting;
 import net.neoforged.neoforge.fluids.FluidStack;
@@ -109,8 +109,9 @@ public class GuiTank extends GuiBC8<ContainerTank> {
         int filled = Math.min(TANK_HEIGHT, Math.max(1, (int) ((long) TANK_HEIGHT * amount / capacity)));
         int left = (int) mainGui.rootElement.getX() + TANK_X;
         int top = (int) mainGui.rootElement.getY() + TANK_Y;
-        FluidRenderer.drawFluidForGui(fluid, left, top + TANK_HEIGHT,
-            left + TANK_WIDTH, top + TANK_HEIGHT - filled, guiGraphics.pose().last());
+        // The region already represents the interpolated fill height, so render it at a 1:1 fill ratio.
+        GuiUtil.drawFluid(guiGraphics,
+            new GuiRectangle(left, top + TANK_HEIGHT - filled, TANK_WIDTH, filled), fluid, 1, 1);
         return true;
     }
 
