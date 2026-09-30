@@ -107,3 +107,5 @@ Thanks for helping with development:
 - nightovl
 - pietruszka
 - Jimmy
+- Louazgre
+- RainBat
