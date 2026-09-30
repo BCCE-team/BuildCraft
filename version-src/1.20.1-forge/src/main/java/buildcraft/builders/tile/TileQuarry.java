@@ -483,6 +483,10 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
         if (fluidState.isEmpty()) {
             return Fluids.EMPTY;
         }
+        // Bubble columns are standalone water for quarry traversal even though their block identity differs from water.
+        if (state.is(Blocks.BUBBLE_COLUMN)) {
+            return fluidState.getType();
+        }
 
         // FluidState is present for both a real fluid block and a waterlogged solid. Comparing the block with the
         // fluid's legacy block cleanly separates those cases without depending on the concrete LiquidBlock class.

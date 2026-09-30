@@ -566,6 +566,8 @@ public final class BuildCraftLogicGameTests {
         BlockPos absoluteMagmaBelowBubbleColumn = helper.absolutePos(magmaBelowBubbleColumn);
         require(helper, helper.getLevel().getBlockState(absoluteLava).is(Blocks.LAVA),
             "quarry fluid test fixture converted lava before the traversal checks");
+        require(helper, helper.getLevel().getBlockState(absoluteBubbleColumn).is(Blocks.BUBBLE_COLUMN),
+            "quarry bubble-column fixture collapsed before the traversal checks");
 
         require(helper, invokeBoolean(quarry, "canMoveThrough", absoluteWater),
             "quarry drill no longer moves through standalone water");
