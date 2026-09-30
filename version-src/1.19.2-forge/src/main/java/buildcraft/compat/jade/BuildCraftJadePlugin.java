@@ -30,10 +30,12 @@ import buildcraft.core.BCCoreBlocks;
 import buildcraft.core.blockEntity.TileEngineCreative;
 import buildcraft.energy.BCEnergyFluids;
 import buildcraft.energy.tile.TileDynamoMJ;
+import buildcraft.factory.tile.TileTank;
 import buildcraft.lib.BCLibConfig;
 import buildcraft.lib.block.BlockBCTile_Neptune;
 import buildcraft.lib.engine.TileEngineBase_BC8;
 import buildcraft.lib.fluid.Tank;
+import buildcraft.lib.fluid.FluidDisplayHelper;
 import buildcraft.lib.misc.FakePlayerProvider;
 import buildcraft.lib.misc.LocaleUtil;
 import buildcraft.lib.tile.TileBC_Neptune;
@@ -390,6 +392,16 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
                 return groups;
             }
 
+            if (target instanceof TileTank tankTile) {
+                FluidStack fluid = tankTile.getFluidInTank(0);
+                int capacity = tankTile.getTankCapacity(0);
+                CompoundTag view = FluidView.fromFluidStack(fluid.copy(), capacity);
+                ViewGroup<CompoundTag> group = new ViewGroup<>(List.of(view));
+                group.id = "tank";
+                decoratePotionGroup(group, fluid);
+                return List.of(group);
+            }
+
             if (target instanceof TileBC_Neptune tile) {
                 List<ViewGroup<CompoundTag>> groups = new ArrayList<>();
                 for (Tank tank : tile.tankManager) {
@@ -404,6 +416,7 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
                     ViewGroup<CompoundTag> group = new ViewGroup<>(List.of(FluidView.fromFluidStack(fluid.copy(), capacity)));
                     String tankName = tank.getTankName();
                     group.id = tankName == null || tankName.isBlank() ? "tank" : tankName;
+                    decoratePotionGroup(group, fluid);
                     groups.add(group);
                 }
                 if (!groups.isEmpty()) {
@@ -429,7 +442,34 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             if (BCLibConfig.hideFluidValues) {
                 return Collections.emptyList();
             }
-            return ClientViewGroup.map(groups, FluidView::read, BuildCraftJadePlugin::decorateGroupTitle);
+            return ClientViewGroup.map(groups, FluidView::read, (serverGroup, clientGroup) -> {
+                decorateGroupTitle(serverGroup, clientGroup);
+                decoratePotionClientGroup(serverGroup, clientGroup);
+            });
+        }
+    }
+
+    private static void decoratePotionGroup(ViewGroup<CompoundTag> group, FluidStack fluid) {
+        int amplifier = FluidDisplayHelper.potionAmplifier(fluid);
+        if (amplifier < 0) {
+            return;
+        }
+        group.getExtraData().putString("PotionDetails", "1");
+        group.getExtraData().putLong("PotionAmplifier", amplifier);
+        group.getExtraData().putLong("PotionDuration", FluidDisplayHelper.potionDurationTicks(fluid));
+    }
+
+    private static void decoratePotionClientGroup(
+            ViewGroup<CompoundTag> serverGroup, ClientViewGroup<FluidView> clientGroup) {
+        if (!"1".equals(serverGroup.getExtraData().getString("PotionDetails"))) {
+            return;
+        }
+        int amplifier = (int) serverGroup.getExtraData().getLong("PotionAmplifier");
+        int duration = (int) serverGroup.getExtraData().getLong("PotionDuration");
+        for (FluidView view : clientGroup.views) {
+            if (view.fluidName != null) {
+                view.fluidName = FluidDisplayHelper.appendPotionDetails(view.fluidName, amplifier, duration);
+            }
         }
     }
 

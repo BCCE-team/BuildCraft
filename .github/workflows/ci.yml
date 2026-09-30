@@ -256,6 +256,20 @@ jobs:
             exit 1
           fi
 
+      - name: Run Create compatibility GameTests
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="target.${STONECUTTER_TARGET}.deps.create"
+          dependency="$(awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' build-config/targets.properties)"
+          if [[ -z "$dependency" ]]; then
+            echo "Create is not configured for ${STONECUTTER_TARGET}; skipping Create GameTests."
+            exit 0
+          fi
+          cd "builds/${BUILD_GENERATION}"
+          echo "Game-testing ${BUILD_GENERATION}/${STONECUTTER_TARGET} with Create"
+          ./gradlew --no-daemon --console=plain --stacktrace -Pci_runtime_profile=create ":${STONECUTTER_TARGET}:runGameTestServer"
+
       - name: Smoke-test production jar
         shell: bash
         env:

@@ -241,10 +241,28 @@ def validate_fluid_filter_safety() -> None:
         if re.search(r"getFluidContained\(stacks\.get\(i\)\).*?else\s+return;", array_text, re.DOTALL):
             fail(f"{target}: ArrayFluidFilter must skip empty/non-fluid slots instead of stopping at the first gap")
 
-        require(target, diamond_fluid,
-                "FluidUtil.getFluidContained(compareTo).orElse(FluidStack.EMPTY)",
-                "if (target.isEmpty() || target.getAmount() <= 0)")
-        forbid(target, diamond_fluid, "FluidUtil.getFluidContained(compareTo).get()")
+        diamond_text = require(
+            target,
+            diamond_fluid,
+            "FluidVolume target = BuildCraftApi.service(BuildCraftServices.FLUID_ITEMS).fluid(compareTo);",
+            "if (target.isEmpty())",
+            "foundItem = true;",
+            "FluidCompatRegistry.areEquivalent(FuelApiBridge.stackOf(target), toCompare)",
+        )
+        if not re.search(
+            r"FluidVolume\s+target\s*=\s*BuildCraftApi\.service\(BuildCraftServices\.FLUID_ITEMS\)"
+            r"\.fluid\(compareTo\);\s*"
+            r"if\s*\(target\.isEmpty\(\)\)\s*\{\s*continue;\s*\}\s*"
+            r"foundItem\s*=\s*true;\s*"
+            r"if\s*\(FluidCompatRegistry\.areEquivalent\(FuelApiBridge\.stackOf\(target\),\s*toCompare\)\)",
+            diamond_text,
+            re.DOTALL,
+        ):
+            fail(
+                f"{target}: diamond fluid filter must skip empty/unsupported API v2 item adapters before "
+                "marking the side filtered, then compare the resolved fluid variant"
+            )
+        forbid(target, diamond_fluid, "FluidUtil.getFluidContained(compareTo)")
 
         require(target, diamond_wood,
                 "ArrayFluidFilter fluidFilter = new ArrayFluidFilter(filters.stacks);",
@@ -1023,9 +1041,9 @@ def validate_network_hardening() -> None:
 
 def validate_gametest_runtime_guards() -> None:
     expected_tests = {
-        "1.19.2-forge": 95,
-        "1.20.1-forge": 95,
-        "1.21.1-neoforge": 96,
+        "1.19.2-forge": 102,
+        "1.20.1-forge": 102,
+        "1.21.1-neoforge": 103,
     }
     for target in TARGETS:
         test_root = TARGETS[target] / "src/gametest/java"

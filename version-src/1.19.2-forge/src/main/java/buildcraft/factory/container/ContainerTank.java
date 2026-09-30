@@ -94,10 +94,10 @@ public class ContainerTank extends ContainerBCTile<TileTank> {
             return;
         }
 
-        FluidStack fluid = tile.tank.getFluid();
+        FluidStack fluid = tile.getFluidInTank(0);
         int fluidId = FLUIDS.getID(fluid.isEmpty() ? Fluids.EMPTY : fluid.getFluid());
         int amount = fluid.isEmpty() ? 0 : fluid.getAmount();
-        int capacity = tile.tank.getCapacity();
+        int capacity = tile.getTankCapacity(0);
 
         if (fluidId == lastSentFluidId && amount == lastSentFluidAmount && capacity == lastSentCapacity) {
             return;
@@ -203,11 +203,11 @@ public class ContainerTank extends ContainerBCTile<TileTank> {
     }
 
     private void updateLocalState(TileTank tankTile) {
-        FluidStack fluid = tankTile.tank.getFluid();
+        FluidStack fluid = tankTile.getFluidInTank(0);
         updateLocalState(
             FLUIDS.getID(fluid.isEmpty() ? Fluids.EMPTY : fluid.getFluid()),
             fluid.isEmpty() ? 0 : fluid.getAmount(),
-            tankTile.tank.getCapacity()
+            tankTile.getTankCapacity(0)
         );
     }
 

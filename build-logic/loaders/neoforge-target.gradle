@@ -34,6 +34,7 @@ def effectiveDirs = bc.effectiveDirs
 def centralJarOutputDir = bc.centralJarOutputDir
 def jeiCompatEnabled = booleanProperty('compat.jei.enabled', true)
 def jadeCompatEnabled = booleanProperty('compat.jade.enabled', true)
+def createCompatEnabled = booleanProperty('compat.create.enabled', false)
 def ic2CompatEnabled = booleanProperty('compat.ic2.enabled', false)
 def forestryCompatEnabled = booleanProperty('compat.forestry.enabled', false)
 def dataGenSourcesEnabled = booleanProperty('compile.datagen.enabled', true)
@@ -91,6 +92,9 @@ if (!jeiCompatEnabled) {
 }
 if (!jadeCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/jade/**'
+}
+if (!createCompatEnabled) {
+    sourceSets.main.java.exclude 'buildcraft/compat/create/**'
 }
 if (!ic2CompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/ic2/**'
@@ -201,7 +205,7 @@ tasks.named('compileJava') { dependsOn(generateBuildCraftTarget) }
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
         .map { it.trim().toLowerCase() }
         .getOrElse('default')
-def knownCiRuntimeProfiles = ['default', 'base', 'forestry', 'ic2', 'jei', 'jade', 'all']
+def knownCiRuntimeProfiles = ['default', 'base', 'create', 'forestry', 'ic2', 'jei', 'jade', 'all']
 if (!knownCiRuntimeProfiles.contains(ciRuntimeProfile)) {
     throw new GradleException("Unsupported ci_runtime_profile '${ciRuntimeProfile}'. Expected one of: ${knownCiRuntimeProfiles.sort().join(', ')}")
 }
@@ -210,7 +214,7 @@ def gameTestRequested = gradle.startParameter.taskNames.any {
     it.toLowerCase().contains('gametest')
 }
 def runtimeEnabled = { String profile, boolean defaultEnabled ->
-    if (gameTestRequested) return false
+    if (gameTestRequested && ciRuntimeProfile == 'default') return false
     if (ciRuntimeProfile == 'default') return defaultEnabled
     ciRuntimeProfile == 'all' || ciRuntimeProfile == profile
 }
@@ -339,6 +343,14 @@ dependencies {
         compileOnly jadeDependency
         if (runtimeEnabled('jade', true)) {
             localRuntime jadeDependency
+        }
+    }
+
+    def createDependency = optionalProperty('deps.create')
+    if (createCompatEnabled && createDependency) {
+        compileOnly createDependency
+        if (runtimeEnabled('create', true)) {
+            localRuntime createDependency
         }
     }
 

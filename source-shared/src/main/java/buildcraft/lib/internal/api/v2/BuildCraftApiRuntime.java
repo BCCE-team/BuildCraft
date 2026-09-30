@@ -75,6 +75,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     private final DebugServiceImpl debugViews = new DebugServiceImpl();
     private final ItemListServiceImpl itemLists = new ItemListServiceImpl();
     private final ItemLabelServiceImpl itemLabels = new ItemLabelServiceImpl();
+    private final FluidItemServiceImpl fluidItems = new FluidItemServiceImpl();
     private final MapLocationServiceImpl mapLocations = new MapLocationServiceImpl();
     private final FluidDropServiceImpl fluidDrops = new FluidDropServiceImpl();
     private final FacadeServiceImpl facades = new FacadeServiceImpl();
@@ -107,6 +108,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         services.put(BuildCraftServices.DEBUG_VIEWS, debugViews);
         services.put(BuildCraftServices.ITEM_LISTS, itemLists);
         services.put(BuildCraftServices.ITEM_LABELS, itemLabels);
+        services.put(BuildCraftServices.FLUID_ITEMS, fluidItems);
         services.put(BuildCraftServices.MAP_LOCATIONS, mapLocations);
         services.put(BuildCraftServices.FLUID_DROPS, fluidDrops);
         services.put(BuildCraftServices.FACADES, facades);
@@ -143,6 +145,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         registerRegistry(BuildCraftRegistries.FACADE_MATERIAL_ADAPTERS);
         registerRegistry(BuildCraftRegistries.LIST_MATCH_ADAPTERS);
         registerRegistry(BuildCraftRegistries.ITEM_LABEL_ADAPTERS);
+        registerRegistry(BuildCraftRegistries.FLUID_ITEM_ADAPTERS);
         registerRegistry(BuildCraftRegistries.MAP_LOCATION_ADAPTERS);
         registerRegistry(BuildCraftRegistries.FLUID_DROP_PROVIDERS);
         registerRegistry(BuildCraftRegistries.DEBUG_CONTRIBUTORS);

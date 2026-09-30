@@ -9,6 +9,15 @@ package buildcraft.factory.gui;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 
+import java.util.List;
+
+import buildcraft.lib.client.render.fluid.FluidRenderer;
+import buildcraft.lib.fluid.FluidDisplayHelper;
+import buildcraft.lib.fluid.FluidSmoother.FluidStackInterp;
+import buildcraft.lib.misc.LocaleUtil;
+import net.minecraft.ChatFormatting;
+import net.minecraftforge.fluids.FluidStack;
+
 import buildcraft.factory.container.ContainerTank;
 import buildcraft.lib.gui.GuiBC8;
 import buildcraft.lib.gui.GuiIcon;
@@ -25,10 +34,14 @@ public class GuiTank extends GuiBC8<ContainerTank> {
     private static final ResourceLocation TEXTURE_BASE = new ResourceLocation("buildcraftfactory:textures/gui/tank.png");
     private static final int SIZE_X = 176;
     private static final int SIZE_Y = 181;
+    private static final int TANK_X = 80;
+    private static final int TANK_Y = 18;
+    private static final int TANK_WIDTH = 16;
+    private static final int TANK_HEIGHT = 64;
     private static final GuiIcon ICON_GUI = new GuiIcon(TEXTURE_BASE, 0, 0, SIZE_X, SIZE_Y);
 
     private final TankComponent tankComponent = new TankComponent(
-        80, 18, 16, 64,
+        TANK_X, TANK_Y, TANK_WIDTH, TANK_HEIGHT,
         16 * FluidType.BUCKET_VOLUME,
         176, 0,
         2
@@ -57,7 +70,9 @@ public class GuiTank extends GuiBC8<ContainerTank> {
     @Override
     protected void drawBackgroundLayer(PoseStack pose, int mouseX, int mouseY, float partialTicks) {
         ICON_GUI.drawAt(pose, mainGui.rootElement);
-        tankComponent.render(pose, mouseX, mouseY, partialTicks, this);
+        if (!renderStackAwareFluid(pose, partialTicks)) {
+            tankComponent.render(pose, mouseX, mouseY, partialTicks, this);
+        }
         RenderSystem.setShaderTexture(0, TEXTURE_BASE);
         tankComponent.postRender(pose, mouseX, mouseY, partialTicks, this);
     }
@@ -72,8 +87,69 @@ public class GuiTank extends GuiBC8<ContainerTank> {
 
     @Override
     protected void renderTooltip(PoseStack pose, int mouseX, int mouseY) {
-        tankComponent.renderTooltip(pose, mouseX, mouseY);
+        if (!renderStackAwareTooltip(pose, mouseX, mouseY)) {
+            tankComponent.renderTooltip(pose, mouseX, mouseY);
+        }
         super.renderTooltip(pose, mouseX, mouseY);
+    }
+
+    private boolean renderStackAwareFluid(PoseStack pose, float partialTicks) {
+        FluidStack fluid = columnFluid(partialTicks);
+        if (fluid.isEmpty()) {
+            return false;
+        }
+        int capacity = tankCapacity();
+        int amount = Math.max(0, menu.getFluidAmount());
+        if (amount <= 0 || capacity <= 0) {
+            return false;
+        }
+        int filled = Math.min(TANK_HEIGHT, Math.max(1, (int) ((long) TANK_HEIGHT * amount / capacity)));
+        int left = (int) mainGui.rootElement.getX() + TANK_X;
+        int top = (int) mainGui.rootElement.getY() + TANK_Y;
+        FluidRenderer.drawFluidForGui(fluid, left, top + TANK_HEIGHT,
+            left + TANK_WIDTH, top + TANK_HEIGHT - filled, pose.last());
+        return true;
+    }
+
+    private boolean renderStackAwareTooltip(PoseStack pose, int mouseX, int mouseY) {
+        if (!isTankHovered(mouseX, mouseY)) {
+            return false;
+        }
+        FluidStack fluid = columnFluid(1.0F);
+        if (fluid.isEmpty()) {
+            return false;
+        }
+        int amount = Math.max(0, menu.getFluidAmount());
+        renderComponentTooltip(pose, List.of(
+            FluidDisplayHelper.getDisplayName(fluid),
+            LocaleUtil.localizeFluidStaticAmount(amount, tankCapacity()).withStyle(ChatFormatting.GRAY)
+        ), mouseX, mouseY);
+        return true;
+    }
+
+    private FluidStack columnFluid(float partialTicks) {
+        if (menu.tile == null) {
+            return FluidStack.EMPTY;
+        }
+        for (var tankTile : menu.tile.getConnectedTanks()) {
+            FluidStackInterp state = tankTile.getFluidForRender(partialTicks);
+            if (state != null && state.fluid != null && !state.fluid.isEmpty()) {
+                return state.fluid;
+            }
+        }
+        return FluidStack.EMPTY;
+    }
+
+    private int tankCapacity() {
+        int synced = menu.getTankCapacity();
+        return synced > 0 ? synced : 16 * FluidType.BUCKET_VOLUME;
+    }
+
+    private boolean isTankHovered(int mouseX, int mouseY) {
+        int left = (int) mainGui.rootElement.getX() + TANK_X;
+        int top = (int) mainGui.rootElement.getY() + TANK_Y;
+        return mouseX >= left && mouseX < left + TANK_WIDTH
+            && mouseY >= top && mouseY < top + TANK_HEIGHT;
     }
 
     @Override

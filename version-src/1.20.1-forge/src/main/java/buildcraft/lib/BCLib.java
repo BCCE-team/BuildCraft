@@ -14,6 +14,7 @@ import buildcraft.lib.internal.mj.MjApi2PlatformBridge;
 import buildcraft.lib.internal.api.v2.platform.PlatformApi2Bootstrap;
 import buildcraft.lib.chunkload.ChunkLoaderManager;
 import buildcraft.lib.expression.ExpressionDebugManager;
+import buildcraft.lib.fluid.ForgeFluidItemAdapter;
 import buildcraft.lib.list.VanillaListHandlers;
 import buildcraft.lib.marker.MarkerCache;
 import buildcraft.lib.misc.ExpressionCompat;
@@ -82,6 +83,7 @@ public class BCLib {
         }
         BCLibItems.registry(RegistryBinding.on(modEventBus));
         BCLibRegistries.fmlPreInit();
+        ForgeFluidItemAdapter.register();
 
         // Register library network messages during mod construction, before any sided setup event
         // can attempt to replace their client handlers.
