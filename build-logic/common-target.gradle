@@ -158,14 +158,13 @@ def prepareEffectiveSource = tasks.register('prepareEffectiveSource', Exec) {
 def effectiveSourceDir = effectiveSourceRoot.get().asFile
 def effectiveDirs = { String relative -> [new File(effectiveSourceDir, relative)] }
 
-// Keep every JAR artifact for a Minecraft version in one repository-level folder.
-// The target remains part of project.version, so Forge/Fabric/NeoForge artifacts for
-// the same Minecraft version can coexist without filename collisions.
-def centralJarOutputDir = new File(repositoryRoot, "build/${minecraftVersion}")
+// Keep every target JAR in one repository-level folder. The target remains part of
+// project.version, so maintained Minecraft/loader artifacts coexist without collisions.
+def centralJarOutputDir = new File(repositoryRoot, "build")
 def targetArtifactVersionMarker = "+${targetName.replace('-', '+')}"
 def cleanCentralJarOutput = tasks.register('cleanCentralJarOutput', Delete) {
     group = 'build'
-    description = "Remove stale ${targetName} JAR artifacts from the shared Minecraft ${minecraftVersion} output folder"
+    description = "Remove stale ${targetName} JAR artifacts from the shared build output folder"
     delete fileTree(centralJarOutputDir) {
         include "${archiveName}-*${targetArtifactVersionMarker}*.jar"
     }

@@ -28,6 +28,46 @@ public enum PipeFlowRendererFluids implements IPipeFlowRenderer<PipeFlowFluids> 
 	INSTANCE;
 
 	private static final boolean[] sides = { true, true, true, true, true, true };
+	private static final boolean[][] HIDE_FACE_SIDES = createHideFaceSides();
+
+	private static boolean[][] createHideFaceSides() {
+		Direction[] directions = Direction.values();
+		boolean[][] masks = new boolean[directions.length][directions.length];
+		for (Direction hidden : directions) {
+			for (Direction side : directions) {
+				masks[hidden.get3DDataValue()][side.get3DDataValue()] = side != hidden;
+			}
+		}
+		return masks;
+	}
+
+	private static void renderConnectionFluid(FluidStack fluid, double amount, double capacity, Direction face,
+			Vec3 min, Vec3 max, VertexConsumer buffer, PoseStack.Pose pose) {
+		Axis axis = face.getAxis();
+		boolean positive = face.getAxisDirection() == Direction.AxisDirection.POSITIVE;
+		double outerEdge = VecUtil.getValue(positive ? max : min, axis);
+		if ((positive && outerEdge <= 1.0) || (!positive && outerEdge >= 0.0)) {
+			FluidRenderer.renderFluid(FluidSpriteType.FROZEN, fluid, amount, capacity, min, max, buffer, pose, sides);
+			return;
+		}
+
+		Vec3 innerMin = min;
+		Vec3 innerMax = max;
+		Vec3 outerMin = min;
+		Vec3 outerMax = max;
+		if (positive) {
+			innerMax = VecUtil.replaceValue(max, axis, 1.0);
+			outerMin = VecUtil.replaceValue(min, axis, 1.0);
+		} else {
+			innerMin = VecUtil.replaceValue(min, axis, 0.0);
+			outerMax = VecUtil.replaceValue(max, axis, 0.0);
+		}
+
+		FluidRenderer.renderFluid(FluidSpriteType.FROZEN, fluid, amount, capacity, innerMin, innerMax,
+			buffer, pose, HIDE_FACE_SIDES[face.get3DDataValue()]);
+		FluidRenderer.renderFluid(FluidSpriteType.FROZEN, fluid, amount, capacity, outerMin, outerMax,
+			buffer, pose, HIDE_FACE_SIDES[face.getOpposite().get3DDataValue()]);
+	}
 	@Override
 	public void render(PipeFlowFluids flow, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int lightc,
 			int combinedOverlay) {
@@ -35,7 +75,7 @@ public enum PipeFlowRendererFluids implements IPipeFlowRenderer<PipeFlowFluids> 
 		if (forRender.isEmpty()) {
 			return;
 		}
-		VertexConsumer fluidBuffer = buffer.getBuffer(RenderType.cutoutMipped());
+		VertexConsumer fluidBuffer = buffer.getBuffer(RenderType.translucent());
 
 		double[] amounts = flow.getAmountsForRender(partialTicks);
 
@@ -44,6 +84,7 @@ public enum PipeFlowRendererFluids implements IPipeFlowRenderer<PipeFlowFluids> 
 		int combinedLight = holder.getPipeWorld().getBrightness(LightLayer.SKY, holder.getPipePos())<<20|blocklight<<4 ;
 
 		FluidRenderer.vertex.lighti(combinedLight);
+		FluidRenderer.vertex.overlay(combinedOverlay);
 
 		boolean gas = forRender.getFluid().getFluidType().getDensity() <= 0;
 		boolean horizontal = false;
@@ -58,9 +99,9 @@ public enum PipeFlowRendererFluids implements IPipeFlowRenderer<PipeFlowFluids> 
 				horizontal |= flow.pipe.isConnected(face) && amount > 0;
 			}
 
-			Vec3 center = VecUtil.offset(new Vec3(0.5, 0.5, 0.5), face, 0.25 + size / 2);
+			Vec3 center = VecUtil.offset(new Vec3(0.5, 0.5, 0.5), face, 0.245 + size / 2);
 			Vec3 radius = new Vec3(0.24, 0.24, 0.24);
-			radius = VecUtil.replaceValue(radius, face.getAxis(), 0.000 + size / 2);
+			radius = VecUtil.replaceValue(radius, face.getAxis(), 0.005 + size / 2);
 
 			if (face.getAxis() == Axis.Y) {
 				double perc = amount / flow.capacity;
@@ -71,10 +112,9 @@ public enum PipeFlowRendererFluids implements IPipeFlowRenderer<PipeFlowFluids> 
 			Vec3 min = center.subtract(radius);
 			Vec3 max = center.add(radius);
 
-			if(face.getAxis() == Axis.Y) 
-				FluidRenderer.renderFluid(FluidSpriteType.FROZEN, forRender, 1, 1, min, max, fluidBuffer, matrix.last(), sides);
-			else 
-				FluidRenderer.renderFluid(FluidSpriteType.FROZEN, forRender, amount, flow.capacity, min, max, fluidBuffer, matrix.last(), sides);
+			double renderAmount = face.getAxis() == Axis.Y ? 1 : amount;
+			double renderCapacity = face.getAxis() == Axis.Y ? 1 : flow.capacity;
+			renderConnectionFluid(forRender, renderAmount, renderCapacity, face, min, max, fluidBuffer, matrix.last());
 		}
 
 		double amount = amounts[EnumPipePart.CENTER.getIndex()];

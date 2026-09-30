@@ -75,6 +75,7 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
 //    protected final TankManager tankManager = new TankManager();
 
     private int lastComparatorLevel;
+    private boolean needsInitialBalance = true;
 
     public TileTank(BlockPos pos, BlockState state) {
         this(BCFactoryBlocks.ENTITYBLOCKTANK.get(), pos, state);
@@ -130,6 +131,10 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
     // ITickable
 
     public void update() {
+        if (!level.isClientSide && needsInitialBalance) {
+            needsInitialBalance = false;
+            balanceTankFluids();
+        }
         smoothedTank.tick(level);
 
         if (!level.isClientSide) {
@@ -181,12 +186,17 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
         if (fluid.getFluid().getFluidType().isLighterThanAir()) {
             Collections.reverse(tanks);
         }
-        TileTank prev = null;
-        for (TileTank tile : tanks) {
-            if (prev != null) {
-                FluidUtilBC.move(tile.tank, prev.tank);
+        // Compact the whole column in one pass. Moving only each tank into its
+        // immediate predecessor leaves newly transferred fluid stranded in the
+        // middle tank until another rebalance happens (placement order 1,3,2).
+        for (int targetIndex = 0; targetIndex < tanks.size(); targetIndex++) {
+            TileTank target = tanks.get(targetIndex);
+            for (int sourceIndex = targetIndex + 1; sourceIndex < tanks.size(); sourceIndex++) {
+                if (target.tank.getFluidAmount() >= target.tank.getCapacity()) {
+                    break;
+                }
+                FluidUtilBC.move(tanks.get(sourceIndex).tank, target.tank);
             }
-            prev = tile;
         }
     }
 

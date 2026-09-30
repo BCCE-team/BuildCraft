@@ -132,13 +132,16 @@ public class FluidSmoother implements IDebuggable {
     final class _Server extends _Side {
         private int sentAmount = -1;
         private boolean sentHasFluid = false;
+        private FluidStack sentFluid = FluidStack.EMPTY;
         private final SafeTimeTracker tracker = new SafeTimeTracker(BCCoreConfig.networkUpdateRate, 4);
 
         @Override
         void tick(Level world) {
             FluidStack fluid = tank.getFluid();
-            boolean hasFluid = fluid != null;
-            if ((tank.getFluidAmount() != sentAmount || hasFluid != sentHasFluid)) {
+            boolean hasFluid = fluid != null && !fluid.isEmpty();
+            boolean fluidChanged = hasFluid
+                && (sentFluid.isEmpty() || !FluidCompatRegistry.areEquivalent(sentFluid, fluid));
+            if (tank.getFluidAmount() != sentAmount || hasFluid != sentHasFluid || fluidChanged) {
                 if (tracker.markTimeIfDelay(world)) {
                     sender.writePacket(this::writeMessage);
                 }
@@ -147,10 +150,14 @@ public class FluidSmoother implements IDebuggable {
 
         void writeMessage(FriendlyByteBuf buffer) {
             FluidStack fluid = tank.getFluid();
-            boolean hasFluid = !fluid.isEmpty();
+            boolean hasFluid = fluid != null && !fluid.isEmpty();
 
             sentAmount = tank.getFluidAmount();
             sentHasFluid = hasFluid;
+            sentFluid = hasFluid ? fluid.copy() : FluidStack.EMPTY;
+            if (!sentFluid.isEmpty()) {
+                sentFluid.setAmount(1);
+            }
 
             final int amount = sentAmount;
             final int flId = hasFluid ? BuildCraftObjectCaches.CACHE_FLUIDS.server().store(fluid) : -1;
@@ -197,6 +204,8 @@ public class FluidSmoother implements IDebuggable {
             target = buffer.readInt();
             if (buffer.readBoolean()) {
                 link = BuildCraftObjectCaches.CACHE_FLUIDS.client().retrieve(buffer.readInt());
+            } else {
+                link = null;
             }
             lastMessageMinus1 = lastMessage;
             lastMessage = world.getGameTime();

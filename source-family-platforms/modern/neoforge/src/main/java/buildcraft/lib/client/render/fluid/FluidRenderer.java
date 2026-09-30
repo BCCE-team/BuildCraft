@@ -229,21 +229,21 @@ public class FluidRenderer {
         final double zb = realMax.z;
 
         if (type == FluidSpriteType.FROZEN) {
-            if (min.x > 1) {
+            if (min.x >= 1) {
                 xTexDiff = Math.floor(min.x);
             } else if (min.x < 0) {
                 xTexDiff = Math.floor(min.x);
             } else {
                 xTexDiff = 0;
             }
-            if (min.y > 1) {
+            if (min.y >= 1) {
                 yTexDiff = Math.floor(min.y);
             } else if (min.y < 0) {
                 yTexDiff = Math.floor(min.y);
             } else {
                 yTexDiff = 0;
             }
-            if (min.z > 1) {
+            if (min.z >= 1) {
                 zTexDiff = Math.floor(min.z);
             } else if (min.z < 0) {
                 zTexDiff = Math.floor(min.z);
@@ -257,7 +257,7 @@ public class FluidRenderer {
         }
 
 //        vertex.colouri(RenderUtil.swapARGBforABGR(fluid.getFluid()));
-        vertex.colouri(IClientFluidTypeExtensions.of(fluidType).getTintColor());
+        vertex.colouri(IClientFluidTypeExtensions.of(fluidType).getTintColor(texParam));
 
         setTexMap(TexMap.XZ, false, false);
         if (sideRender[Direction.UP.ordinal()]) {
@@ -371,7 +371,7 @@ public class FluidRenderer {
      * {@link GuiUtil}'s fluid drawing methods in preference to this. */
     public static void drawFluidForGui(FluidStack fluid, double startX, double startY, double endX, double endY, Pose matrix) {
     	sprite = getFluidSprite(FluidSpriteType.STILL, fluid.getFluid(), fluid);
-        color = IClientFluidTypeExtensions.of(fluid.getFluid()).getTintColor();
+        color = IClientFluidTypeExtensions.of(fluid.getFluid()).getTintColor(fluid);
         drawFluidForGuiInteral(startX, startY, endX, endY, matrix);
     }
 
@@ -386,7 +386,7 @@ public class FluidRenderer {
     public static void drawFluidForGui(FluidStack fluid, double startX, double startY, double endX, double endY, GuiGraphics guiGraphics) {
         if (fluid == null || fluid.isEmpty()) return;
         TextureAtlasSprite fluidSprite = getFluidSprite(FluidSpriteType.STILL, fluid.getFluid(), fluid);
-        int tint = IClientFluidTypeExtensions.of(fluid.getFluid()).getTintColor();
+        int tint = IClientFluidTypeExtensions.of(fluid.getFluid()).getTintColor(fluid);
         drawFluidForGuiNative(fluidSprite, tint, startX, startY, endX, endY, guiGraphics);
     }
 

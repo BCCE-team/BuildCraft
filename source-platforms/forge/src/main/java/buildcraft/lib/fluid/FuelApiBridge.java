@@ -1,10 +1,15 @@
 package buildcraft.lib.fluid;
 
 import buildcraft.api.v2.fluid.FluidAmount;
+import buildcraft.api.v2.fluid.FluidComponentPayload;
 import buildcraft.api.v2.fluid.FluidMatchContext;
 import buildcraft.api.v2.fluid.FluidVariant;
 import buildcraft.api.v2.fluid.FluidVolume;
+import buildcraft.lib.internal.data.NbtSquishConstants;
+import buildcraft.lib.nbt.NbtSquisher;
+import java.io.IOException;
 import java.util.Objects;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.material.Fluid;
@@ -21,6 +26,8 @@ import net.minecraft.core.registries.Registries;
 
 /** Forge bridge for the loader-neutral API 2 fuel/coolant domain. */
 public final class FuelApiBridge {
+    private static final ResourceLocation COMPONENT_FORMAT = new ResourceLocation("buildcraftlib", "forge_fluid_nbt");
+
     public static final FluidMatchContext MATCH_CONTEXT = FuelApiBridge::isInTag;
 
     private FuelApiBridge() {}
@@ -31,9 +38,12 @@ public final class FuelApiBridge {
         }
         ResourceLocation id = ForgeRegistries.FLUIDS.getKey(stack.getFluid());
         if (id == null) throw new IllegalArgumentException("Unregistered fluid: " + stack.getFluid());
-        // Fuel/coolant matching is registry/tag based. Platform component payload
-        // preservation remains the responsibility of the general FluidService bridge.
-        return FluidVariant.of(id);
+        CompoundTag tag = stack.getTag();
+        if (tag == null || tag.isEmpty()) {
+            return FluidVariant.of(id);
+        }
+        byte[] componentBytes = NbtSquisher.squish(tag, NbtSquishConstants.VANILLA);
+        return FluidVariant.of(id, FluidComponentPayload.of(COMPONENT_FORMAT, componentBytes));
     }
 
     public static FluidVolume volumeOf(FluidStack stack) {
@@ -41,21 +51,38 @@ public final class FuelApiBridge {
         return FluidVolume.of(variantOf(stack), FluidAmount.of(stack.getAmount()));
     }
 
+    private static FluidStack stackOfVariantWithComponents(FluidVariant variant, int amount) {
+        Fluid fluid = ForgeRegistries.FLUIDS.getValue(variant.fluidId());
+        if (fluid == null || fluid == Fluids.EMPTY) return FluidStack.EMPTY;
+
+        FluidStack stack = new FluidStack(fluid, amount);
+        FluidComponentPayload components = variant.components();
+        if (components.isEmpty() || !components.formatId().filter(COMPONENT_FORMAT::equals).isPresent()) {
+            return stack;
+        }
+        try {
+            CompoundTag tag = NbtSquisher.expand(components.copyCanonicalBytes());
+            if (!tag.isEmpty()) {
+                stack.setTag(tag);
+            }
+        } catch (IOException | RuntimeException ignored) {
+            // Malformed or foreign component payloads degrade to the plain fluid stack.
+        }
+        return stack;
+    }
+
     public static FluidStack stackOf(FluidVolume volume) {
         if (volume == null || volume.isEmpty()) return FluidStack.EMPTY;
-        Fluid fluid = ForgeRegistries.FLUIDS.getValue(volume.requireVariant().fluidId());
-        if (fluid == null || fluid == Fluids.EMPTY) return FluidStack.EMPTY;
         long amount = volume.amount().milliBuckets();
         if (amount > Integer.MAX_VALUE) {
             throw new ArithmeticException("Legacy FluidStack cannot represent " + amount + " mB");
         }
-        return new FluidStack(fluid, (int) amount);
+        return stackOfVariantWithComponents(volume.requireVariant(), (int) amount);
     }
 
     public static FluidStack stackOfVariant(FluidVariant variant, int amount) {
         Objects.requireNonNull(variant, "variant");
-        Fluid fluid = ForgeRegistries.FLUIDS.getValue(variant.fluidId());
-        return fluid == null || fluid == Fluids.EMPTY ? FluidStack.EMPTY : new FluidStack(fluid, amount);
+        return stackOfVariantWithComponents(variant, amount);
     }
 
     public static boolean equivalentTo(FluidStack template, FluidVariant candidate) {

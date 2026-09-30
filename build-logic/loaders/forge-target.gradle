@@ -34,6 +34,7 @@ def effectiveDirs = bc.effectiveDirs
 def centralJarOutputDir = bc.centralJarOutputDir
 def jeiCompatEnabled = booleanProperty('compat.jei.enabled', true)
 def jadeCompatEnabled = booleanProperty('compat.jade.enabled', true)
+def createCompatEnabled = booleanProperty('compat.create.enabled', false)
 def ic2CompatEnabled = booleanProperty('compat.ic2.enabled', true)
 def forestryCompatEnabled = booleanProperty('compat.forestry.enabled', true)
 
@@ -93,6 +94,9 @@ if (!jeiCompatEnabled) {
 }
 if (!jadeCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/jade/**'
+}
+if (!createCompatEnabled) {
+    sourceSets.main.java.exclude 'buildcraft/compat/create/**'
 }
 if (!ic2CompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/ic2/**'
@@ -206,7 +210,7 @@ if (useProductionJarRuntime) {
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
         .map { it.trim().toLowerCase() }
         .getOrElse('default')
-def knownCiRuntimeProfiles = ['default', 'base', 'forestry', 'ic2', 'jei', 'jade', 'all']
+def knownCiRuntimeProfiles = ['default', 'base', 'create', 'forestry', 'ic2', 'jei', 'jade', 'all']
 if (!knownCiRuntimeProfiles.contains(ciRuntimeProfile)) {
     throw new GradleException("Unsupported ci_runtime_profile '${ciRuntimeProfile}'. Expected one of: ${knownCiRuntimeProfiles.sort().join(', ')}")
 }
@@ -318,6 +322,14 @@ dependencies {
         compileOnly fg.deobf(jadeDependency)
         if (runtimeEnabled('jade', true)) {
             runtimeOnly fg.deobf(jadeDependency)
+        }
+    }
+
+    def createDependency = optionalProperty('deps.create')
+    if (createCompatEnabled && createDependency) {
+        compileOnly fg.deobf(createDependency)
+        if (runtimeEnabled('create', true)) {
+            runtimeOnly fg.deobf(createDependency)
         }
     }
 
