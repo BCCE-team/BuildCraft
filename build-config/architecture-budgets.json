@@ -9,10 +9,10 @@
     ]
   },
   "limits": {
-    "conditions.files": 205,
-    "conditions.blocks": 390,
+    "conditions.files": 206,
+    "conditions.blocks": 391,
     "downports.java_total": 115,
-    "platform.java_total": 550,
+    "platform.java_total": 560,
     "platform.loader_neutral_count": 0,
     "platform.gameplay_override_count": 116,
     "transforms.class_specific_java_rewrites": 0,

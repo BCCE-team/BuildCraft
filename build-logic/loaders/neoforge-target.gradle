@@ -214,7 +214,7 @@ def gameTestRequested = gradle.startParameter.taskNames.any {
     it.toLowerCase().contains('gametest')
 }
 def runtimeEnabled = { String profile, boolean defaultEnabled ->
-    if (gameTestRequested) return false
+    if (gameTestRequested && ciRuntimeProfile == 'default') return false
     if (ciRuntimeProfile == 'default') return defaultEnabled
     ciRuntimeProfile == 'all' || ciRuntimeProfile == profile
 }

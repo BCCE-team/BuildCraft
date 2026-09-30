@@ -36,7 +36,7 @@ DATAGEN_DISABLED_SOURCES = (
     "src/main/java/buildcraft/core/client/model/ModelEngine.java",
 )
 
-COMPAT_NAMES = ("jei", "jade", "ic2", "forestry")
+COMPAT_NAMES = ("jei", "jade", "ic2", "forestry", "create")
 
 
 def _target_property(properties: dict[str, str], target: str, key: str, default: str = "") -> str:
@@ -255,7 +255,7 @@ def _forge_build_gradle(properties: dict[str, str], target: str) -> str:
     pack_format = _target_property(properties, target, "pack.format")
     deps: list[str] = [f'    minecraft "net.minecraftforge:forge:{minecraft}-{forge}"']
 
-    for name in ("jei", "jade", "ic2", "forestry"):
+    for name in ("jei", "jade", "ic2", "forestry", "create"):
         dep = _target_property(properties, target, f"deps.{name}")
         if dep and _compat_enabled(properties, target, name):
             deps.append(f"    compileOnly fg.deobf({_groovy(dep)})")
@@ -407,7 +407,7 @@ def _neoforge_build_gradle(properties: dict[str, str], target: str) -> str:
     neoforge = _target_property(properties, target, "deps.neoforge")
     pack_format = _target_property(properties, target, "pack.format")
     deps: list[str] = []
-    for name in ("jei", "jade"):
+    for name in ("jei", "jade", "create"):
         dep = _target_property(properties, target, f"deps.{name}")
         if dep and _compat_enabled(properties, target, name):
             deps.append(f"    compileOnly {_groovy(dep)}")
