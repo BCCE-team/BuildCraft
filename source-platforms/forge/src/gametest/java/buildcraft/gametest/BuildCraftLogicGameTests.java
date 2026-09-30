@@ -550,15 +550,23 @@ public final class BuildCraftLogicGameTests {
         BlockPos water = new BlockPos(0, 1, 0);
         BlockPos lava = new BlockPos(2, 1, 0);
         BlockPos waterlogged = new BlockPos(0, 1, 2);
+        BlockPos bubbleColumn = new BlockPos(2, 2, 2);
+        BlockPos magmaBelowBubbleColumn = new BlockPos(2, 1, 2);
         helper.setBlock(water, Blocks.WATER.defaultBlockState());
         helper.setBlock(lava, Blocks.LAVA.defaultBlockState());
         helper.setBlock(waterlogged, Blocks.OAK_SLAB.defaultBlockState().setValue(BlockStateProperties.WATERLOGGED, true));
+        helper.setBlock(bubbleColumn, Blocks.BUBBLE_COLUMN.defaultBlockState());
+        helper.setBlock(magmaBelowBubbleColumn, Blocks.MAGMA_BLOCK.defaultBlockState());
 
         BlockPos absoluteWater = helper.absolutePos(water);
         BlockPos absoluteLava = helper.absolutePos(lava);
         BlockPos absoluteWaterlogged = helper.absolutePos(waterlogged);
+        BlockPos absoluteBubbleColumn = helper.absolutePos(bubbleColumn);
+        BlockPos absoluteMagmaBelowBubbleColumn = helper.absolutePos(magmaBelowBubbleColumn);
         require(helper, helper.getLevel().getBlockState(absoluteLava).is(Blocks.LAVA),
             "quarry fluid test fixture converted lava before the traversal checks");
+        require(helper, helper.getLevel().getBlockState(absoluteBubbleColumn).is(Blocks.BUBBLE_COLUMN),
+            "quarry bubble-column fixture collapsed before the traversal checks");
 
         require(helper, invokeBoolean(quarry, "canMoveThrough", absoluteWater),
             "quarry drill no longer moves through standalone water");
@@ -576,11 +584,17 @@ public final class BuildCraftLogicGameTests {
             miningBox.setMax(absoluteLava);
             require(helper, !invokeBoolean(quarry, "canMoveDownTo", belowLava),
                 "quarry can mine below a high-viscosity fluid barrier");
+            miningBox.setMin(absoluteMagmaBelowBubbleColumn);
+            miningBox.setMax(absoluteBubbleColumn);
+            require(helper, invokeBoolean(quarry, "canMoveDownTo", absoluteMagmaBelowBubbleColumn),
+                "quarry cannot reach magma below a vanilla bubble column");
         } finally {
             // Do not leave a half-configured live quarry behind for the next server tick. A real quarry initializes
             // frameBox and miningBox together; this temporary test-only column must not leak into chunk loading.
             miningBox.reset();
         }
+        require(helper, invokeBoolean(quarry, "canMoveThrough", absoluteBubbleColumn),
+            "quarry drill cannot move through a vanilla bubble column");
         require(helper, !invokeBoolean(quarry, "canMoveThrough", absoluteWaterlogged),
             "quarry incorrectly treats a waterlogged solid block as standalone water");
         require(helper, invokeBoolean(quarry, "canMine", absoluteWaterlogged),
