@@ -12,6 +12,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -82,6 +83,55 @@ public class FluidRenderer {
         }
     }
 
+    private static ResourceLocation getStillTextureSafe(Fluid fluid) {
+        return getFluidTextureSafe(
+            fluid, "still",
+            () -> IClientFluidTypeExtensions.of(fluid).getStillTexture(),
+            MissingTextureAtlasSprite::getLocation
+        );
+    }
+
+    private static ResourceLocation getFlowingTextureSafe(Fluid fluid) {
+        return getFluidTextureSafe(
+            fluid, "flowing",
+            () -> IClientFluidTypeExtensions.of(fluid).getFlowingTexture(),
+            () -> getStillTextureSafe(fluid)
+        );
+    }
+
+    private static ResourceLocation getStillTextureSafe(Fluid fluid, FluidStack stack) {
+        return getFluidTextureSafe(
+            fluid, "still",
+            () -> IClientFluidTypeExtensions.of(fluid).getStillTexture(stack),
+            MissingTextureAtlasSprite::getLocation
+        );
+    }
+
+    private static ResourceLocation getFlowingTextureSafe(Fluid fluid, FluidStack stack) {
+        return getFluidTextureSafe(
+            fluid, "flowing",
+            () -> IClientFluidTypeExtensions.of(fluid).getFlowingTexture(stack),
+            () -> getStillTextureSafe(fluid, stack)
+        );
+    }
+
+    private static ResourceLocation getFluidTextureSafe(
+        Fluid fluid, String kind, Supplier<ResourceLocation> getter, Supplier<ResourceLocation> fallback
+    ) {
+        try {
+            ResourceLocation texture = getter.get();
+            if (texture != null) {
+                return texture;
+            }
+        } catch (RuntimeException exception) {
+            BCLog.logger.warn(
+                "[lib.fluid.render] Failed to resolve {} texture for fluid {}; using fallback",
+                kind, ForgeRegistries.FLUIDS.getKey(fluid), exception
+            );
+        }
+        return fallback.get();
+    }
+
     public static void onTextureStitchPre(ClientAtlas.Before event) {
         clearSpriteCache();
         frozenMap.clear();
@@ -89,12 +139,10 @@ public class FluidRenderer {
     	mixinResourcePack();
         Map<ResourceLocation, ResourceLocation> spritesStitched = new HashMap<>();
         for (Fluid fluid : ForgeRegistries.FLUIDS.getValues()) {
-        	var flu = IClientFluidTypeExtensions.of(fluid);
-            ResourceLocation still = flu.getStillTexture();
-            ResourceLocation flowing = flu.getFlowingTexture();
-            if (still == null || flowing == null) {
-                BCLog.logger.info("Encountered a fluid with a null still sprite! (" + fluid.getFluidType().getDescriptionId()
-                    + " - " + ForgeRegistries.FLUIDS.getKey(fluid) + ")");
+            ResourceLocation still = getStillTextureSafe(fluid);
+            String key = fluid.getFluidType().getDescriptionId();
+            if (MissingTextureAtlasSprite.getLocation().equals(still)) {
+                frozenMap.put(key, still);
                 continue;
             }
             if (spritesStitched.containsKey(still)) {
@@ -102,7 +150,7 @@ public class FluidRenderer {
             } else {
                 ResourceLocation spriteFrozen = pack.registry(still);
                 event.addSprite(spriteFrozen);
-                frozenMap.put(fluid.getFluidType().getDescriptionId(), spriteFrozen);
+                frozenMap.put(key, spriteFrozen);
 /*                event.addSprite(still);
                 event.addSprite(flowing);*/
                 spritesStitched.put(still, spriteFrozen);
@@ -379,17 +427,19 @@ public class FluidRenderer {
     	switch(type){
 		case FLOWING:
 			if(tex == null) 
-				tex = blockTexMap.apply(IClientFluidTypeExtensions.of(fluid).getFlowingTexture(stack));
+				tex = blockTexMap.apply(getFlowingTextureSafe(fluid, stack));
 			fluidSprites.get(type).put(key, tex);
 			break;
 		case STILL:
 			if(tex == null) 
-				tex = blockTexMap.apply(IClientFluidTypeExtensions.of(fluid).getStillTexture(stack));
+				tex = blockTexMap.apply(getStillTextureSafe(fluid, stack));
 			fluidSprites.get(type).put(key, tex);
 			break;
 		case FROZEN:
-			if(tex == null) 
-				tex = blockTexMap.apply(frozenMap.get(key));
+			if (tex == null) {
+                ResourceLocation frozen = frozenMap.get(key);
+                tex = blockTexMap.apply(frozen != null ? frozen : MissingTextureAtlasSprite.getLocation());
+            }
 			fluidSprites.get(type).put(key, tex);
 			break;
     	}

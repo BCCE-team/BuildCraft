@@ -12,6 +12,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -23,6 +24,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 
 import buildcraft.lib.client.model.MutableVertex;
+import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.misc.GuiUtil;
 import buildcraft.lib.misc.MathUtil;
 import buildcraft.lib.misc.SpriteUtil;
@@ -74,6 +76,55 @@ public class FluidRenderer {
         }
     }
 
+    private static Identifier getStillTextureSafe(Fluid fluid) {
+        return getFluidTextureSafe(
+            fluid, "still",
+            () -> IClientFluidTypeExtensions.of(fluid).getStillTexture(),
+            MissingTextureAtlasSprite::getLocation
+        );
+    }
+
+    private static Identifier getFlowingTextureSafe(Fluid fluid) {
+        return getFluidTextureSafe(
+            fluid, "flowing",
+            () -> IClientFluidTypeExtensions.of(fluid).getFlowingTexture(),
+            () -> getStillTextureSafe(fluid)
+        );
+    }
+
+    private static Identifier getStillTextureSafe(Fluid fluid, FluidStack stack) {
+        return getFluidTextureSafe(
+            fluid, "still",
+            () -> IClientFluidTypeExtensions.of(fluid).getStillTexture(stack),
+            MissingTextureAtlasSprite::getLocation
+        );
+    }
+
+    private static Identifier getFlowingTextureSafe(Fluid fluid, FluidStack stack) {
+        return getFluidTextureSafe(
+            fluid, "flowing",
+            () -> IClientFluidTypeExtensions.of(fluid).getFlowingTexture(stack),
+            () -> getStillTextureSafe(fluid, stack)
+        );
+    }
+
+    private static Identifier getFluidTextureSafe(
+        Fluid fluid, String kind, Supplier<Identifier> getter, Supplier<Identifier> fallback
+    ) {
+        try {
+            Identifier texture = getter.get();
+            if (texture != null) {
+                return texture;
+            }
+        } catch (RuntimeException exception) {
+            BCLog.logger.warn(
+                "[lib.fluid.render] Failed to resolve {} texture for fluid {}; using fallback",
+                kind, BuiltInRegistries.FLUID.getKey(fluid), exception
+            );
+        }
+        return fallback.get();
+    }
+
     /** Refreshes all fluid sprites after the 1.20 block atlas has been uploaded. */
     public static void onTextureStitchPost(ClientAtlas.After event) {
         if (!net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_BLOCKS.equals(event.getAtlas().location())) {
@@ -83,12 +134,8 @@ public class FluidRenderer {
         blockTexMap = event.getAtlas()::getSprite;
 
         for (Fluid fluid : BuiltInRegistries.FLUID) {
-            IClientFluidTypeExtensions extensions = IClientFluidTypeExtensions.of(fluid);
-            Identifier still = extensions.getStillTexture();
-            Identifier flowing = extensions.getFlowingTexture();
-            if (still == null || flowing == null) {
-                continue;
-            }
+            Identifier still = getStillTextureSafe(fluid);
+            Identifier flowing = getFlowingTextureSafe(fluid);
             String key = fluid.getFluidType().getDescriptionId();
             TextureAtlasSprite stillSprite = blockTexMap.apply(still);
             fluidSprites.get(FluidSpriteType.STILL).put(key, stillSprite);
@@ -341,17 +388,17 @@ public class FluidRenderer {
     	switch(type){
 		case FLOWING:
 			if(tex == null)
-				tex = blockTexMap.apply(IClientFluidTypeExtensions.of(fluid).getFlowingTexture(stack));
+				tex = blockTexMap.apply(getFlowingTextureSafe(fluid, stack));
 			fluidSprites.get(type).put(key, tex);
 			break;
 		case STILL:
 			if(tex == null)
-				tex = blockTexMap.apply(IClientFluidTypeExtensions.of(fluid).getStillTexture(stack));
+				tex = blockTexMap.apply(getStillTextureSafe(fluid, stack));
 			fluidSprites.get(type).put(key, tex);
 			break;
 		case FROZEN:
 			if (tex == null) {
-                tex = blockTexMap.apply(IClientFluidTypeExtensions.of(fluid).getStillTexture(stack));
+                tex = blockTexMap.apply(getStillTextureSafe(fluid, stack));
             }
 			fluidSprites.get(type).put(key, tex);
 			break;

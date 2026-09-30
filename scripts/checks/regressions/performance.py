@@ -119,6 +119,23 @@ for rel in (
         "setTexMap(TexMap.XY, false, true)",
     )
 
+# A broken third-party fluid client extension must degrade to the missing texture instead of aborting resource reload.
+# Keep the same guard on the 1.21.11 family owner because it is materialized independently of 1.21.1.
+for rel in (
+    "version-src/1.19.2-forge/src/main/java/buildcraft/lib/client/render/fluid/FluidRenderer.java",
+    "version-src/1.20.1-forge/src/main/java/buildcraft/lib/client/render/fluid/FluidRenderer.java",
+    "source-platforms/neoforge/src/main/java/buildcraft/lib/client/render/fluid/FluidRenderer.java",
+    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/client/render/fluid/FluidRenderer.java",
+):
+    require(
+        rel,
+        "getStillTextureSafe(",
+        "getFlowingTextureSafe(",
+        "catch (RuntimeException exception)",
+        "MissingTextureAtlasSprite.getLocation()",
+        "[lib.fluid.render] Failed to resolve {} texture for fluid {}; using fallback",
+    )
+
 # Machine and inventory correctness/perf helpers.
 for platform in ("forge", "neoforge"):
     require(
