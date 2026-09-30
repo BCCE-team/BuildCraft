@@ -22,6 +22,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.item.DyeColor;
@@ -618,6 +619,28 @@ public final class BuildCraftLogicGameTests {
             "quarry frame planner no longer schedules solid obstacles for excavation");
         require(helper, invokeBoolean(quarry, "canIgnoreInFrameBox", helper.absolutePos(frame)),
             "existing frame unexpectedly stopped being a normal non-fluid frame-box block");
+
+        // BC8 called breakBlockAndGetDrops(..., true) for Quarry mining. Besides the block's own drops this picks up
+        // ItemEntities that were already lying within one block of the mined position, so loose items in the working
+        // area are carried out by the Quarry instead of being left behind as the drill passes them.
+        BlockPos pickupTarget = new BlockPos(2, 1, 1);
+        helper.setBlock(pickupTarget, Blocks.STONE.defaultBlockState());
+        BlockPos absolutePickupTarget = helper.absolutePos(pickupTarget);
+        ItemEntity looseItem = new ItemEntity(
+            helper.getLevel(),
+            absolutePickupTarget.getX() + 0.5,
+            absolutePickupTarget.getY() + 0.5,
+            absolutePickupTarget.getZ() + 0.5,
+            new ItemStack(Items.APPLE, 3)
+        );
+        helper.getLevel().addFreshEntity(looseItem);
+        Object pickupTask = newQuarryTask(quarry, "TaskBreakBlock", absolutePickupTarget);
+        require(helper, (Boolean) invoke(pickupTask, "finish", 0L, 0L),
+            "quarry break task failed while testing BC8 loose-item pickup");
+        require(helper, looseItem.isRemoved(),
+            "quarry left a pre-existing loose item beside the block it mined instead of collecting it like BC8");
+        require(helper, helper.getLevel().isEmptyBlock(absolutePickupTarget),
+            "quarry pickup regression fixture was not mined");
         helper.succeed();
     }
 
