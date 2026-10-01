@@ -15,15 +15,17 @@ The goal of the project is to preserve and continue the classic BuildCraft exper
 | 1.21.1 | NeoForge |
 | 1.21.11 | NeoForge |
 
-## Roadmap 2.0
+## Roadmap 2.1
 
 - [x] Drop support for 1.21.1 Forge
 - [x] Introduce the new API v2 system
 - [x] Add Forge Energy (FE) compatibility
 - [x] Port to 1.21.11 NeoForge
+- [ ] Port to 26.x NeoForge
+- [ ] Introduce API v2.1 extension
 - [ ] Port to 1.20.1 Fabric
 - [ ] Port to 1.21.11 Fabric
-- [ ] Port to Minecraft 26.x Fabric / NeoForge
+- [ ] Port to 26.x Fabric
 
 ## API v2
 
