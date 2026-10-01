@@ -54,6 +54,18 @@ class ClientIntegrations(unittest.TestCase):
         self.assertIn('new CompositeModel(List.of(baseModel,', model)
         self.assertIn('BakedModel', self.java('buildcraft/transport/client/model/ModelPipeItem.java', old=True))
 
+    def test_1211_pulsar_inventory_dynamic_layer_resets_item_pose(self):
+        old = self.java('buildcraft/silicon/BCSiliconModels.java', old=True)
+        self.assertIn(
+            'new ModelPluggableItem(PULSAR_STATIC::getCutoutQuads, BCSiliconModels::getPulsarItemDynamicQuads)',
+            old,
+        )
+        helper = old[old.index('private static MutableQuad[] getPulsarItemDynamicQuads()'):]
+        self.assertLess(
+            helper.index('PluggablePulsar.setModelVariablesForItem();'),
+            helper.index('return PULSAR_DYNAMIC.getCutoutQuads();'),
+        )
+
     def test_native_recipe_book_not_jei_only(self):
         recipe = self.java('buildcraft/transport/recipe/PipeRecipe.java')
         self.assertNotIn('PlacementInfo.NOT_PLACEABLE', recipe)

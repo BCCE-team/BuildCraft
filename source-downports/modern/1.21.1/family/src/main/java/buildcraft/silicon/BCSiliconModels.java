@@ -139,9 +139,8 @@ public final class BCSiliconModels {
         init();
         putModel(event, "plug/gate#inventory", ModelGateItem.INSTANCE);
         putModel(event, "plug/lens#inventory", ModelLensItem.INSTANCE);
-        PluggablePulsar.setModelVariablesForItem();
         putModel(event, "plug/pulsar#inventory",
-            new ModelPluggableItem(PULSAR_STATIC::getCutoutQuads, PULSAR_DYNAMIC::getCutoutQuads));
+            new ModelPluggableItem(PULSAR_STATIC::getCutoutQuads, BCSiliconModels::getPulsarItemDynamicQuads));
         putModel(event, "plug/facade#inventory", ModelFacadeItem.INSTANCE);
 
         clearAtlasDependentCaches();
@@ -167,6 +166,14 @@ public final class BCSiliconModels {
             new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(BCSilicon.MODID, path), variant),
             model
         );
+    }
+
+    private static MutableQuad[] getPulsarItemDynamicQuads() {
+        // ModelPluggableItem resolves its suppliers lazily, after world rendering may have changed the pulsar's
+        // shared model variables. Reset them immediately before baking the inventory-only dynamic layer so the
+        // button always stays on the WEST-facing static base instead of inheriting the last rendered pipe side.
+        PluggablePulsar.setModelVariablesForItem();
+        return PULSAR_DYNAMIC.getCutoutQuads();
     }
 
     public static MutableQuad[] getGateStaticQuads(Direction side, GateVariant variant) {
