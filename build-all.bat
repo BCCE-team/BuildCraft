@@ -4,15 +4,15 @@ set "REPOSITORY_ROOT=%~dp0"
 set "GRADLE_ARGS=%*"
 if "%~1"=="" set "GRADLE_ARGS=buildAndCollect"
 
-echo ==^> Running legacy BuildCraft build: %GRADLE_ARGS%
-pushd "%REPOSITORY_ROOT%builds\legacy"
+echo ==^> Running old BuildCraft build: %GRADLE_ARGS%
+pushd "%REPOSITORY_ROOT%builds\old"
 call gradlew.bat %GRADLE_ARGS%
 set "STATUS=%ERRORLEVEL%"
 popd
 if not "%STATUS%"=="0" exit /b %STATUS%
 
-echo ==^> Running modern BuildCraft build: %GRADLE_ARGS%
-pushd "%REPOSITORY_ROOT%builds\modern"
+echo ==^> Running 1.21.X BuildCraft build: %GRADLE_ARGS%
+pushd "%REPOSITORY_ROOT%builds\1.21.X"
 call gradlew.bat %GRADLE_ARGS%
 set "STATUS=%ERRORLEVEL%"
 popd

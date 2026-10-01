@@ -6,7 +6,7 @@ pluginManagement {
         gradlePluginPortal()
         maven("https://maven.kikugie.dev/releases") { name = "KikuGie Releases" }
         maven("https://maven.kikugie.dev/snapshots") { name = "KikuGie Snapshots" }
-        maven("https://maven.minecraftforge.net/") { name = "MinecraftForge" }
+        maven("https://maven.neoforged.net/releases") { name = "NeoForge" }
     }
 }
 
@@ -51,4 +51,4 @@ stonecutter {
     }
 }
 
-rootProject.name = "BuildCraft-Legacy"
+rootProject.name = "BuildCraft-1.21.X"

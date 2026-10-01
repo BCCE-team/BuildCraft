@@ -6,5 +6,5 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.143'
 }
 
-ext.bcBuildGeneration = 'modern'
+ext.bcBuildGeneration = '1.21.X'
 apply from: new File(rootProject.file('../..').canonicalFile, 'build-logic/loaders/neoforge-target.gradle')

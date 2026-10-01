@@ -78,10 +78,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - generation: legacy
+          - generation: old
             java: '17'
             targets: '1.19.2-forge,1.20.1-forge'
-          - generation: modern
+          - generation: 1.21.X
             java: '21'
             targets: '1.21.1-neoforge,1.21.11-neoforge'
     steps:
@@ -139,16 +139,16 @@ jobs:
     needs: [metadata, build]
     runs-on: ubuntu-24.04
     steps:
-      - name: Download legacy artifacts
+      - name: Download old artifacts
         uses: actions/download-artifact@v4
         with:
-          name: bcce-release-legacy
+          name: bcce-release-old
           path: release
 
-      - name: Download modern artifacts
+      - name: Download 1.21.X artifacts
         uses: actions/download-artifact@v4
         with:
-          name: bcce-release-modern
+          name: bcce-release-1.21.X
           path: release
 
       - name: Publish 1.19.2 Forge

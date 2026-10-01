@@ -378,7 +378,7 @@ def validate_guide_resources() -> None:
     if missing:
         fail(f"shared guide textures incomplete: {missing}")
     for base in (
-        ROOT / "source-families/modern/src/main/resources/assets/buildcraftlib/textures/gui/guide",
+        ROOT / "source-families/1.21.X/src/main/resources/assets/buildcraftlib/textures/gui/guide",
         ROOT / "version-src/1.20.1-forge/src/main/resources/assets/buildcraftlib/textures/gui/guide",
     ):
         leftovers = [p.name for p in base.glob("*.png")] if base.is_dir() else []
@@ -410,7 +410,7 @@ def validate_promoted_cross_generation_files() -> None:
     for rel in rels:
         shared = ROOT / "source-shared/src/main" / rel
         old20 = ROOT / "version-src/1.20.1-forge/src/main" / rel
-        old21 = ROOT / "source-families/modern/src/main" / rel
+        old21 = ROOT / "source-families/1.21.X/src/main" / rel
         if not shared.is_file():
             fail(f"promoted cross-generation source missing from shared: {rel}")
         if old20.exists():
@@ -421,7 +421,7 @@ def validate_promoted_cross_generation_files() -> None:
             # shared source may therefore gain a >=1.21.11 family
             # variant without shadowing the shared implementation on 1.21.1.
             if first != "//? source if >=1.21.11":
-                fail(f"promoted source was copied back into modern family without a 1.21.11 selector: {rel}")
+                fail(f"promoted source was copied back into 1.21.X family without a 1.21.11 selector: {rel}")
 
 
 def validate_hotspots(props: dict[str, str]) -> None:

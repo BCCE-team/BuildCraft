@@ -29,7 +29,7 @@ def _representative_target(kind: str, name: str) -> str | None:
     if kind == "platform":
         return {"forge": "1.20.1-forge", "neoforge": "1.21.1-neoforge"}.get(name)
     if kind == "family":
-        return {"legacy": "1.20.1-forge", "modern": "1.21.1-neoforge"}.get(name)
+        return {"old": "1.20.1-forge", "1.21.X": "1.21.1-neoforge"}.get(name)
     return None
 
 
@@ -64,8 +64,8 @@ def resolve_source_path(rel: str | Path) -> Path:
         if m:
             family, platform, logical = m.groups()
             candidates = {
-                ("legacy", "forge"): "1.20.1-forge",
-                ("modern", "neoforge"): "1.21.1-neoforge",
+                ("old", "forge"): "1.20.1-forge",
+                ("1.21.X", "neoforge"): "1.21.1-neoforge",
             }
             target = candidates.get((family, platform))
 
@@ -89,7 +89,7 @@ def resolve_target_source(target: str, logical: str | Path) -> Path:
 
     This is the target-aware companion to :func:`resolve_source_path`.  Use it in
     validators when two supported versions intentionally select different source
-    views (for example modern canonical 1.21.11 versus the 1.21.1 downport).
+    views (for example 1.21.X canonical 1.21.11 versus the 1.21.1 downport).
     """
     logical_s = Path(logical).as_posix()
     props = _props()

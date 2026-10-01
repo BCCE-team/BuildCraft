@@ -175,7 +175,7 @@ class MinecraftBoundaries(unittest.TestCase):
             self.assertIn('loadBlockEntity(', compat)
             self.assertIn('findDeclaredCompatibleMethod(', compat)
             self.assertIn('public static String readString(', compat)
-        self.assertTrue((ROOT / 'source-families/modern/src/gametest/java/buildcraft/gametest/GameTestCompat.java').is_file())
+        self.assertTrue((ROOT / 'source-families/1.21.X/src/gametest/java/buildcraft/gametest/GameTestCompat.java').is_file())
         self.assertFalse((ROOT / 'source-platforms/neoforge/src/gametest/java/buildcraft/gametest/GameTestCompat.java').exists())
 
     def test_modern_fluid_water_guards_survive_12111_api_changes(self):
@@ -261,8 +261,8 @@ class MinecraftBoundaries(unittest.TestCase):
             self.assertNotIn('target_config="${build_root}/targets.properties"', smoke, script)
 
     def test_legacy_fluid_widget_keeps_client_renderer_off_dedicated_server(self):
-        widget = (ROOT / 'source-families/legacy/src/main/java/buildcraft/lib/gui/widget/WidgetFluidTank.java').read_text(encoding='utf-8')
-        client = (ROOT / 'source-families/legacy/src/main/java/buildcraft/lib/gui/widget/GuiElementFluidTank.java').read_text(encoding='utf-8')
+        widget = (ROOT / 'source-families/old/src/main/java/buildcraft/lib/gui/widget/WidgetFluidTank.java').read_text(encoding='utf-8')
+        client = (ROOT / 'source-families/old/src/main/java/buildcraft/lib/gui/widget/GuiElementFluidTank.java').read_text(encoding='utf-8')
         self.assertNotIn('IGuiElement', widget)
         self.assertNotIn('BuildCraftGui', widget)
         self.assertNotIn('GuiElementSimple', widget)
@@ -271,7 +271,7 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertIn('widget.getTank()', client)
 
     def test_new_facades_are_loader_neutral(self):
-        root = ROOT / 'source-families/modern/src/main/java/buildcraft/lib/compat/minecraft'
+        root = ROOT / 'source-families/1.21.X/src/main/java/buildcraft/lib/compat/minecraft'
         for path in root.rglob('*.java'):
             text = path.read_text()
             self.assertNotRegex(text, r'\b(?:net\.neoforged|net\.minecraftforge|net\.fabricmc)\.', str(path))

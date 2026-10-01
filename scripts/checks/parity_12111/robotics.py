@@ -71,7 +71,7 @@ def same_method(old_source: str, new_source: str, signature: str, label: str | N
 
 def main() -> int:
     layout = load_layout()
-    props = layout.load_properties(ROOT / "builds/modern/targets.properties")
+    props = layout.load_properties(ROOT / "builds/1.21.X/targets.properties")
     with tempfile.TemporaryDirectory(prefix="bc-robotics-parity-") as tmp:
         tmp = Path(tmp)
         old = tmp / "1.21.1"
@@ -86,7 +86,7 @@ def main() -> int:
         provider_file = new / "src/main/java/buildcraft/robotics/SimpleRobotRegistryProvider.java"
         require(provider_file.is_file(),
                 "1.21.11 effective source is missing SimpleRobotRegistryProvider.java")
-        modern_build = (ROOT / "builds/modern/build.neoforge.gradle").read_text()
+        modern_build = (ROOT / "builds/1.21.X/build.neoforge.gradle").read_text()
         require("exclude 'buildcraft/robotics/SimpleRobotRegistryProvider.java'" not in modern_build,
                 "Gradle excludes the runtime robot registry provider from sourceSets.main")
         provider_decl = provider_file.read_text()

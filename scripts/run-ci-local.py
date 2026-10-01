@@ -1030,8 +1030,8 @@ def build_artifact_patterns(target: str, generation: str) -> tuple[str, ...]:
 
 def compatibility_artifact_patterns(target: str, profile: str) -> tuple[str, ...]:
     return (
-        f"run/legacy/{target}/logs/**",
-        f"run/legacy/{target}/crash-reports/**",
+        f"run/old/{target}/logs/**",
+        f"run/old/{target}/crash-reports/**",
     )
 
 
@@ -1264,7 +1264,7 @@ def main() -> int:
             build_root, "--no-daemon", "--console=plain", "--stacktrace", f":{target}:buildAndCollect"
         )
         status, log = run_command(name, build_command, env=target_env, run_dir=run_dir, step_number=step_number, cwd=build_root)
-        if status != 0 and generation == "legacy":
+        if status != 0 and generation == "old":
             content = log.read_text(encoding="utf-8", errors="replace")
             if re.search(r"ZipException|invalid LOC header|zip END header not found", content):
                 print(f"ForgeGradle cache corruption detected for {target}; clearing dependency caches and retrying once.")
@@ -1348,7 +1348,7 @@ def main() -> int:
         env["SERVER_RUNTIME_PROFILE"] = profile
         runtime_log_dir = run_dir / "runtime"
         runtime_log_dir.mkdir(parents=True, exist_ok=True)
-        env["SERVER_LOG_FILE"] = str(runtime_log_dir / f"ci-server-legacy-{target}-{profile}.log")
+        env["SERVER_LOG_FILE"] = str(runtime_log_dir / f"ci-server-old-{target}-{profile}.log")
         if os.name == "nt":
             status, log = run_native_server_smoke(
                 name, target=target, generation="legacy", profile=profile, java_home=jdks[17],
@@ -1363,7 +1363,7 @@ def main() -> int:
         destination = run_dir / "artifacts" / f"buildcraft-compat-{target}-{profile}"
         copied = copy_artifact_patterns(compatibility_artifact_patterns(target, profile), destination)
         copied += copy_runtime_logs(
-            run_dir, destination, (f"ci-server-legacy-{target}-{profile}.log",)
+            run_dir, destination, (f"ci-server-old-{target}-{profile}.log",)
         )
         print(f"Collected {copied} compatibility artifact file(s) -> {destination.relative_to(ROOT)}")
         if status != 0:

@@ -70,8 +70,8 @@ def validate_canonical_target_registry() -> None:
 
     # Build-root files are selectors only. Per-target values must have one owner.
     props = load_properties()
-    if props.get("source.family.modern.canonical_minecraft", "").strip() != "1.21.11":
-        fail("modern canonical Java API must remain 1.21.11 until a newer modern target is intentionally promoted")
+    if props.get("source.family.1.21.X.canonical_minecraft", "").strip() != "1.21.11":
+        fail("1.21.X canonical Java API must remain 1.21.11 until a newer 1.21.X target is intentionally promoted")
 
     for generation, path in generation_config_paths().items():
         local = read_properties(path)
@@ -285,9 +285,9 @@ def validate_resource_pipeline_policy(configured_families: list[str], layouts: l
 
 
 def validate_preprocessor_contract() -> None:
-    if not evaluate_condition(">=26 && fabric && modern", minecraft="26.2", family="modern", platform="fabric"):
-        fail("version/loader condition engine rejected a valid future modern Fabric target")
-    if evaluate_condition("<1.20", minecraft="1.20.1", family="legacy", platform="forge"):
+    if not evaluate_condition(">=26 && fabric && mc_26_x", minecraft="26.2", family="26.X", platform="fabric"):
+        fail("version/loader condition engine rejected a valid 26.X Fabric target")
+    if evaluate_condition("<1.20", minecraft="1.20.1", family="old", platform="forge"):
         fail("version condition engine treats Minecraft 1.20.1 as <1.20")
 
     sample = """//? if <1.20 {
@@ -298,15 +298,15 @@ modernMethod()
 ?*/
 //?}
 """
-    legacy = preprocess_text(sample, minecraft="1.19.2", family="legacy", platform="forge")
-    modern = preprocess_text(sample, minecraft="1.20.1", family="legacy", platform="forge")
+    legacy = preprocess_text(sample, minecraft="1.19.2", family="old", platform="forge")
+    modern = preprocess_text(sample, minecraft="1.20.1", family="old", platform="forge")
     if legacy.strip() != "legacyField" or modern.strip() != "modernMethod()":
         fail("Stonecutter-style branch activation contract is broken")
 
     selected = "//? source if >=1.21.11\nclass NativeVariant {}\n"
-    if source_is_enabled(selected, minecraft="1.21.1", family="modern", platform="neoforge"):
+    if source_is_enabled(selected, minecraft="1.21.1", family="1.21.X", platform="neoforge"):
         fail("whole-file source selector activated before its Minecraft boundary")
-    if not source_is_enabled(selected, minecraft="1.21.11", family="modern", platform="neoforge"):
+    if not source_is_enabled(selected, minecraft="1.21.11", family="1.21.X", platform="neoforge"):
         fail("whole-file source selector did not activate at its Minecraft boundary")
     stripped, condition = strip_source_condition(selected)
     if condition != ">=1.21.11" or stripped != "class NativeVariant {}\n":
@@ -348,15 +348,22 @@ def main() -> None:
     validate_canonical_target_registry()
     props = load_properties()
     configured_families = [x.strip() for x in props.get("sourceFamilies", "").split(",") if x.strip()]
-    if configured_families != ["legacy", "modern"]:
-        fail(f"sourceFamilies must be legacy,modern; got {configured_families}")
+    if configured_families != ["old", "1.21.X", "26.X"]:
+        fail(f"sourceFamilies must be old,1.21.X,26.X; got {configured_families}")
+    for family in configured_families:
+        root_key = f"source.family.{family}.root"
+        raw_root = props.get(root_key, "").strip()
+        if not raw_root:
+            fail(f"missing {root_key}")
+        if not (ROOT / raw_root).is_dir():
+            fail(f"{family}: missing source family root {raw_root}")
 
     generations = generation_targets(props)
-    required_legacy = {"1.19.2-forge", "1.20.1-forge"}
-    if not required_legacy.issubset(generations.get("legacy", [])):
-        fail(f"legacy build generation is missing reference targets: {generations.get('legacy')}")
-    if "1.21.1-neoforge" not in generations.get("modern", []):
-        fail(f"modern build generation must contain 1.21.1-neoforge: {generations.get('modern')}")
+    required_old = {"1.19.2-forge", "1.20.1-forge"}
+    if not required_old.issubset(generations.get("old", [])):
+        fail(f"old build generation is missing reference targets: {generations.get('old')}")
+    if "1.21.1-neoforge" not in generations.get("1.21.X", []):
+        fail(f"1.21.X build generation must contain 1.21.1-neoforge: {generations.get('1.21.X')}")
     if "1.21.1-forge" in {target for values in generations.values() for target in values}:
         fail("1.21.1 Forge must not return to production source generations")
     if props.get("behaviorReference") != "1.19.2-forge":
@@ -476,7 +483,7 @@ def main() -> None:
                 f"first: {sorted(redundant)[0]}"
             )
 
-    escaped_global = identical_same_path(family_maps["legacy"], family_maps["modern"])
+    escaped_global = identical_same_path(family_maps["old"], family_maps["1.21.X"])
     if escaped_global:
         fail(
             f"{len(escaped_global)} identical cross-family files escaped source-shared; "
@@ -536,15 +543,15 @@ def main() -> None:
         [layout.overlay_root for layout in layouts],
     )
 
-    # Modern target overlays are emergency escape hatches only. The current
+    # 1.21.X target overlays are emergency escape hatches only. The current
     # 1.21.11 target is allowed one frozen API file because API work is explicitly
     # outside the source-family architecture rules enforced by this validator.
     for layout in layouts:
         java_paths = sorted(rel for rel in overlay_maps[layout.target] if rel.endswith(".java"))
-        if layout.family != "modern":
+        if layout.family != "1.21.X":
             continue
         if len(java_paths) > 10:
-            fail(f"{layout.target}: modern target overlay owns {len(java_paths)} Java files; budget is <=10")
+            fail(f"{layout.target}: 1.21.X target overlay owns {len(java_paths)} Java files; budget is <=10")
         if layout.target == "1.21.11-neoforge":
             allowed = {"src/main/java/buildcraft/api/v2/recipe/CountedIngredient.java"}
             unexpected = [rel for rel in java_paths if rel not in allowed]

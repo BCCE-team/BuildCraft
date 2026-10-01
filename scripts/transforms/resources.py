@@ -269,7 +269,7 @@ def _apply_121111_resource_compat(text: str, *, minecraft: str, relative: str) -
     The recipe ingredient JSON shape also changed from legacy {item/tag}
     objects to holder strings, and NeoForge 21.11 no longer exposes the old
     fluid-container JSON model loaders that the 1.21.1 resource layer used.
-    Keep this as a materialization-only bridge so the maintained modern
+    Keep this as a materialization-only bridge so the maintained 1.21.X
     resources can still serve 1.21.1.
     """
     if _version_tuple(minecraft) < _version_tuple("1.21.11"):
@@ -324,8 +324,8 @@ def generate_modern_item_definitions(destination_root: Path, *, minecraft: str) 
 
     For models without legacy predicate overrides, each definition is fully
     deterministic: it either points at the same item model or uses NeoForge's
-    fluid-container model for BuildCraft Energy buckets. Predicate-driven items are maintained as canonical modern resources in the
-    modern family; only one-to-one definitions are generated here.
+    fluid-container model for BuildCraft Energy buckets. Predicate-driven items are maintained as canonical 1.21.X resources in the
+    1.21.X family; only one-to-one definitions are generated here.
     """
     if _version_tuple(minecraft) < _version_tuple("1.21.11"):
         return 0
@@ -470,7 +470,7 @@ def _write_generated_text(path: Path, text: str) -> None:
 def generate_legacy_forge_energy_tags(
     destination_root: Path, *, minecraft: str, family: str, platform: str
 ) -> int:
-    if family != "legacy" or platform != "forge":
+    if family != "old" or platform != "forge":
         return 0
     if _version_tuple(minecraft) not in {_version_tuple("1.19.2"), _version_tuple("1.20.1")}:
         return 0
@@ -511,7 +511,7 @@ def _ic2_cell_model(fluid: str) -> dict[str, object]:
 def generate_legacy_ic2_cell_models(
     destination_root: Path, *, minecraft: str, family: str, platform: str
 ) -> int:
-    if family != "legacy" or platform != "forge" or _version_tuple(minecraft) >= _version_tuple("1.20"):
+    if family != "old" or platform != "forge" or _version_tuple(minecraft) >= _version_tuple("1.20"):
         return 0
     root = destination_root / "src/main/resources/assets/buildcraftenergy/models/item/ic2_cell"
     generated = 0
@@ -585,7 +585,7 @@ def _augment_legacy_120_block_atlas(text: str, *, minecraft: str, normalized: st
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
 
-CANONICAL_MODERN_RESOURCE_ROOT = ROOT / "source-families/modern/src/main/resources"
+CANONICAL_121X_RESOURCE_ROOT = ROOT / "source-families/1.21.X/src/main/resources"
 VERSIONED_RESOURCE_ROOT = ROOT / "resource-src"
 
 
@@ -631,14 +631,14 @@ def install_versioned_resource_sources(
 def generate_legacy_resources_from_modern_canonical(
     destination_root: Path, *, minecraft: str, family: str, platform: str
 ) -> int:
-    """Downport selected newest-format resources into the legacy family.
+    """Downport selected newest-format resources into the old family.
 
     These resources are identical between 1.20.1 and modern, or have a small
     deterministic 1.19/1.20 compatibility transform. Keeping one authoritative
     copy avoids large target overlays without moving version conditions into
     the shared source layer.
     """
-    if family != "legacy" or platform != "forge":
+    if family != "old" or platform != "forge":
         return 0
 
     always = (
@@ -655,9 +655,9 @@ def generate_legacy_resources_from_modern_canonical(
 
     generated = 0
     for rel in rels:
-        source = CANONICAL_MODERN_RESOURCE_ROOT / rel
+        source = CANONICAL_121X_RESOURCE_ROOT / rel
         if not source.is_file():
-            raise ValueError(f"missing canonical modern resource: {source}")
+            raise ValueError(f"missing canonical 1.21.X resource: {source}")
         text = source.read_text(encoding="utf-8")
         normalized = f"src/main/resources/{rel}"
         text = _downport_legacy_oil_placement(text, minecraft=minecraft, normalized=normalized)

@@ -34,7 +34,7 @@ def forbid(rel: str, *tokens: str) -> None:
 
 # Volume boxes are dimension-synchronized saved data, not chunk-owned marker cache entries. Keep the data cached,
 # but hide the entire laser box unless every chunk intersecting it is actually resident on the client.
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     rel = f"source-families/{family}/src/main/java/buildcraft/core/client/render/RenderVolumeBoxes.java"
     require(
         rel,
@@ -78,19 +78,19 @@ for platform in ("forge", "neoforge"):
 # Jade 1.21.11 scans file-level @WailaPlugin annotations once per NeoForge ModContainer.
 # BuildCraft intentionally exposes several module ids from one jar, so deduplicate the scan
 # result before Jade rejects the repeated class as a fatal duplicate. Keep this shim scoped
-# to Jade and to the 1.21.11 modern NeoForge source band.
+# to Jade and to the 1.21.11 NeoForge source band.
 require(
     "source-platforms/neoforge/src/main/resources/META-INF/neoforge.mods.toml",
     'config="buildcraft.jade.mixins.json"',
     'requiredMods=["jade"]',
 )
 require(
-    "source-family-platforms/modern/neoforge/src/main/resources/buildcraft.jade.mixins.json",
+    "source-family-platforms/1.21.X/neoforge/src/main/resources/buildcraft.jade.mixins.json",
     '//? source if >=1.21.11',
     '"JadeEntrypointDedupMixin"',
 )
 require(
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/compat/jade/mixin/JadeEntrypointDedupMixin.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/compat/jade/mixin/JadeEntrypointDedupMixin.java",
     '//? source if >=1.21.11',
     '@Pseudo',
     'targets = "snownee.jade.util.CommonProxy"',
@@ -103,14 +103,14 @@ require(
 # Since Minecraft 1.21.6 Jade forbids one object from being both a server data
 # provider and a client component provider. Keep those roles split with distinct UIDs.
 require(
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
     'BlockServerDataProvider.INSTANCE',
     'RobotServerDataProvider.INSTANCE',
     'UID_BLOCK_DATA = id("block_data")',
     'UID_ENTITY_ROBOT_DATA = id("robot_data")',
 )
 forbid(
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
     'implements IBlockComponentProvider, IServerDataProvider',
     'implements IEntityComponentProvider, IServerDataProvider',
 )
@@ -202,7 +202,7 @@ for rel in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
     "source-platforms/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
 ):
     require(rel, "clientGroup.title = null;")
     forbid(rel, "clientGroup.title = Component.translatable")

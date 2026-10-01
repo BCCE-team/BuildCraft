@@ -25,7 +25,7 @@ def require(condition: bool, message: str) -> None:
 
 def main() -> int:
     layout = load_layout()
-    props = layout.load_properties(ROOT / "builds/modern/targets.properties")
+    props = layout.load_properties(ROOT / "builds/1.21.X/targets.properties")
     with tempfile.TemporaryDirectory(prefix="bc-12111-world-state-") as tmp:
         root = Path(tmp) / "1.21.11"
         layout.materialize_target("1.21.11-neoforge", root, props)

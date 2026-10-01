@@ -70,7 +70,7 @@ require(
     "Math.floor(progress * 14.0F)",
 )
 
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/ai/AIRobotSearchBlock.java",
         "public boolean canLoadFromNBT()",

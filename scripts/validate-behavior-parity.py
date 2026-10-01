@@ -703,8 +703,8 @@ def validate_modpack_interop_fixes() -> None:
                 "Fluids.WATER.getSource(false)",
                 "world.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(world))")
 
-    legacy_tag = ROOT / "source-families/legacy/src/main/resources/data/c/tags/items/tools/wrench.json"
-    modern_tag = ROOT / "source-families/modern/src/main/resources/data/c/tags/item/tools/wrench.json"
+    legacy_tag = ROOT / "source-families/old/src/main/resources/data/c/tags/items/tools/wrench.json"
+    modern_tag = ROOT / "source-families/1.21.X/src/main/resources/data/c/tags/item/tools/wrench.json"
     for tag_path in (legacy_tag, modern_tag):
         if not tag_path.is_file():
             fail(f"missing common wrench tag: {tag_path.relative_to(ROOT)}")
@@ -798,8 +798,8 @@ def validate_jei_facade_scalability() -> None:
     # treats a focus link with only hidden output variants as invisible and drops the recipe.
     # BuildCraft narrows the three aligned facade lists itself from IFocusGroup instead.
     hidden_tags = (
-        ROOT / "source-families/legacy/src/main/resources/data/c/tags/items/hidden_from_recipe_viewers.json",
-        ROOT / "source-families/modern/src/main/resources/data/c/tags/item/hidden_from_recipe_viewers.json",
+        ROOT / "source-families/old/src/main/resources/data/c/tags/items/hidden_from_recipe_viewers.json",
+        ROOT / "source-families/1.21.X/src/main/resources/data/c/tags/item/hidden_from_recipe_viewers.json",
     )
     for tag_path in hidden_tags:
         if not tag_path.is_file():
@@ -813,7 +813,7 @@ def validate_jei_facade_scalability() -> None:
     # hiding alone is too late: JEI has already paid the allocation/UID/search-index cost.
     #
     # 1.19.2 does not have registry-backed creative tabs, therefore this resource must stay out
-    # of the legacy family and begin at the 1.20.1 target boundary. Modern targets can share it.
+    # of the old family and begin at the 1.20.1 target boundary. 1.21.X targets can share it.
     creative_tab_tag = "src/main/resources/data/c/tags/creative_mode_tab/hidden_from_recipe_viewers.json"
     latest_modern = materialize_target("1.21.11-neoforge")
     creative_tab_roots = {

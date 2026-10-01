@@ -15,17 +15,15 @@ The goal of the project is to preserve and continue the classic BuildCraft exper
 | 1.21.1 | NeoForge |
 | 1.21.11 | NeoForge |
 
-## Roadmap 2.1
+## Roadmap 2.0
 
 - [x] Drop support for 1.21.1 Forge
 - [x] Introduce the new API v2 system
 - [x] Add Forge Energy (FE) compatibility
 - [x] Port to 1.21.11 NeoForge
-- [ ] Port to 26.x NeoForge
-- [ ] Introduce API v2.1 extension
 - [ ] Port to 1.20.1 Fabric
 - [ ] Port to 1.21.11 Fabric
-- [ ] Port to 26.x Fabric
+- [ ] Port to Minecraft 26.x Fabric / NeoForge
 
 ## API v2
 
@@ -37,12 +35,12 @@ The long-term goal is to make addons easier to maintain across BCCE's supported 
 
 ## Multi-version build and source architecture
 
-BCCE is split into two independent Stonecutter/Gradle build generations:
+BCCE currently has two active Stonecutter/Gradle build generations:
 
-- **legacy** — Minecraft 1.19.2 and 1.20.1;
-- **modern** — Minecraft 1.21.1+ targets.
+- **old** — Minecraft 1.19.2 and 1.20.1;
+- **1.21.X** — Minecraft 1.21.1 and 1.21.11.
 
-Each generation has its own Gradle Wrapper and Stonecutter controller under `builds/legacy` or `builds/modern`. This allows the modern build to move to newer Gradle, Java and loader toolchains without breaking the older Forge targets.
+The configured source families are `old`, `1.21.X` and `26.X`. Active build generations have their own Gradle Wrapper and Stonecutter controller under `builds/old` and `builds/1.21.X`.
 
 Every target is assembled from five source layers, with each later layer able to override an earlier one:
 

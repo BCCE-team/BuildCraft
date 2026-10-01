@@ -28,7 +28,7 @@ def forbid(rel, *tokens):
         if token in text:
             errors.append(f"{rel}: forbidden world/transport regression token {token!r}")
 
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     stale_bulk = ROOT / f"source-families/{family}/src/main/java/buildcraft/lib/inventory/AbstractInvItemTransactor.java"
     if stale_bulk.exists():
         errors.append(
@@ -148,7 +148,7 @@ for platform in ("forge", "neoforge"):
     )
 
 require(
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
     "if (!pipe.isConnected(item.side)) {",
     "dropItem(excess, item.side, item.side, item.speed);",
     "boolean hasConnectedOutput = hasConnectedOutputOtherThan(reachCenter.from);",
@@ -162,8 +162,8 @@ require(
 for rel in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
-    "source-downports/modern/1.21.1/neoforge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
+    "source-downports/1.21.X/1.21.1/neoforge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
 ):
     require(
         rel,
@@ -190,7 +190,7 @@ for rel in (
 for rel in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/energy/generation/features/OilStructure.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/energy/generation/features/OilStructure.java",
-    "source-families/modern/src/main/java/buildcraft/energy/generation/features/OilStructure.java",
+    "source-families/1.21.X/src/main/java/buildcraft/energy/generation/features/OilStructure.java",
 ):
     require(
         rel,

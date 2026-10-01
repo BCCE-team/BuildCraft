@@ -29,8 +29,8 @@ stonecutter {
             "forge" to (loader == "forge"),
             "neoforge" to (loader == "neoforge"),
             "fabric" to (loader == "fabric"),
-            "legacy" to (generation == "legacy"),
-            "modern" to (generation == "modern"),
+            "old" to (generation == "old"),
+            "mc_1_21_x" to (generation == "1.21.X"),
         )
     }
 }

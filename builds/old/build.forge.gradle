@@ -6,5 +6,5 @@ plugins {
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
 }
 
-ext.bcBuildGeneration = 'legacy'
+ext.bcBuildGeneration = 'old'
 apply from: new File(rootProject.file('../..').canonicalFile, 'build-logic/loaders/forge-target.gradle')

@@ -10,31 +10,31 @@ Minecraft versions, loaders and build toolchains are implementation details. Unl
 
 ## Build generations
 
-### `legacy`
+### `old`
 
 Current targets:
 
 - `1.19.2-forge`
 - `1.20.1-forge`
 
-Build root: `builds/legacy`
+Build root: `builds/old`
 
-The legacy build owns ForgeGradle-era targets and currently uses its own Gradle 8 wrapper. `1.19.2-forge` remains the behaviour reference; newer implementations are not required to look identical in source.
+The old build owns ForgeGradle-era targets and currently uses its own Gradle 8 wrapper. `1.19.2-forge` remains the behaviour reference; newer implementations are not required to look identical in source.
 
-### `modern`
+### `1.21.X`
 
 Current targets:
 
 - `1.21.1-neoforge`
 - `1.21.11-neoforge`
 
-Planned targets include 26.x NeoForge/Fabric and 1.21.11 Fabric.
+Planned targets include 1.21.11 Fabric.
 
-Build root: `builds/modern`
+Build root: `builds/1.21.X`
 
-The modern wrapper is independent from the legacy wrapper. It may move to a newer Gradle, Stonecutter or Java toolchain when future Minecraft/Fabric/NeoForge versions require it, without forcing those requirements onto the legacy build.
+The 1.21.X wrapper is independent from the old wrapper. It may move to a newer Gradle, Stonecutter or Java toolchain when its Minecraft/Fabric/NeoForge versions require it, without forcing those requirements onto the old build.
 
-If a future generation becomes structurally incompatible with the current modern family, create another independent build generation instead of forcing every version through one wrapper or filling gameplay code with large condition blocks.
+If a source family requires an incompatible toolchain, give it an independent build generation instead of forcing every version through one wrapper or filling gameplay code with large condition blocks.
 
 ## Repository layout
 
@@ -49,17 +49,18 @@ build-logic/
 └─ loaders/                       Forge/NeoForge/Fabric build adapters
 
 builds/
-├─ legacy/                        legacy settings, controller and wrapper
-└─ modern/                        modern settings, controller and wrapper
+├─ old/                           1.19.2/1.20.1 settings, controller and wrapper
+└─ 1.21.X/                        1.21.x settings, controller and wrapper
 
 source-shared/
 └─ src/                           files valid for every target
 
 source-families/
-├─ legacy/
-│  └─ src/                        generation-wide legacy implementation
-└─ modern/
-   └─ src/                        generation-wide modern implementation
+├─ old/
+│  └─ src/                        old-family implementation
+├─ 1.21.X/
+│  └─ src/                        1.21.x-family implementation
+└─ 26.X/
 
 source-platforms/
 ├─ forge/
@@ -67,17 +68,20 @@ source-platforms/
 └─ fabric/                        loader-wide implementation
 
 source-family-platforms/
-├─ legacy/
+├─ old/
 │  ├─ forge/
 │  └─ fabric/
-└─ modern/
+├─ 1.21.X/
+│  ├─ neoforge/
+│  └─ fabric/
+└─ 26.X/
    ├─ neoforge/
    └─ fabric/                     loader API tied to one source family
 
 source-downports/
-└─ modern/
+└─ 1.21.X/
    └─ 1.21.1/
-      ├─ family/                  older Minecraft view of canonical modern Java
+      ├─ family/                  older Minecraft view of canonical 1.21.X Java
       └─ neoforge/                older NeoForge-specific view
 
 version-src/
@@ -99,7 +103,7 @@ shared
 → target escape hatch
 ```
 
-Downports are not a new ownership axis: they are explicit older-Minecraft views of the canonical source owned by that family/family-platform. The modern canonical Java API is currently **1.21.11**. `1.21.1-neoforge` consumes explicit downports only where the canonical 1.21.11 implementation cannot be shared unchanged.
+Downports are not a new ownership axis: they are explicit older-Minecraft views of the canonical source owned by that family/family-platform. The 1.21.X canonical Java API is currently **1.21.11**. `1.21.1-neoforge` consumes explicit downports only where the canonical 1.21.11 implementation cannot be shared unchanged.
 
 The generated effective tree is created under the target subproject's `build/effective-source` directory. It is build output, not authoritative source.
 
@@ -110,7 +114,7 @@ The Python side is deliberately split by responsibility:
 - `scripts/source_preprocessor.py` — `//?` condition parsing only;
 - `scripts/transforms/` — path-independent mechanical Java/resource transforms only.
 
-Class-specific Java rewriting is forbidden. `scripts/transforms/java_compat.py` may only perform mechanical API-shape/symbol conversion and must not name BuildCraft source files. Native 1.21.11 implementations live in maintained family/family-platform ownership; explicit 1.21.1 downports preserve the older modern target without making `version-src` an ownership axis.
+Class-specific Java rewriting is forbidden. `scripts/transforms/java_compat.py` may only perform mechanical API-shape/symbol conversion and must not name BuildCraft source files. Native 1.21.11 implementations live in maintained family/family-platform ownership; explicit 1.21.1 downports preserve the older 1.21.X target without making `version-src` an ownership axis.
 
 ## Placement rules
 
@@ -120,7 +124,7 @@ Choose the narrowest layer that represents the real reason for a difference.
 
 Use for code and resources that are valid for every supported target.
 
-### `source-families/<generation>`
+### `source-families/<family>`
 
 Use for substantial Minecraft-generation differences shared by every target in one build generation. Examples include serialization models, registry architecture, networking generations or broad rendering/API changes.
 
@@ -139,7 +143,7 @@ Loader imports must not escape into `source-shared` or `source-families`. A Java
 
 ### `source-family-platforms/<family>/<loader>`
 
-Use when code is genuinely loader-specific **and** tied to one source family. This is the normal home for a NeoForge/Fabric implementation whose API shape changes between `legacy` and `modern`. It overrides the generic platform layer without forcing a complete target copy.
+Use when code is genuinely loader-specific **and** tied to one source family. This is the normal home for a NeoForge/Fabric implementation whose API shape changes between `old` and `1.21.X`. It overrides the generic platform layer without forcing a complete target copy.
 
 ### Loader-neutral network boundary
 
@@ -294,24 +298,24 @@ PowerShell:
 Build only one generation:
 
 ```text
-cd builds/legacy
+cd builds/old
 ./gradlew buildAndCollect
 ```
 
 ```text
-cd builds/modern
+cd builds/1.21.X
 ./gradlew buildAndCollect
 ```
 
 Run the active target of one generation:
 
 ```text
-cd builds/legacy
+cd builds/old
 ./gradlew runActiveClient
 ```
 
 ```text
-cd builds/modern
+cd builds/1.21.X
 ./gradlew runActiveClient
 ```
 
@@ -319,8 +323,8 @@ List configured targets:
 
 ```text
 python scripts/validate-stonecutter.py --list-targets
-python scripts/validate-stonecutter.py --list-targets --generation legacy
-python scripts/validate-stonecutter.py --list-targets --generation modern
+python scripts/validate-stonecutter.py --list-targets --generation old
+python scripts/validate-stonecutter.py --list-targets --generation 1.21.X
 ```
 
 Validate the complete architecture:
@@ -353,7 +357,7 @@ Do not create another full source-tree copy for a new port.
 
 `buildcraft.lib.compat.minecraft` is internal implementation code, not an addon API.
 The public `buildcraft.api` tree is outside these internal compatibility-boundary rules.
-The boundaries serve the modern target family; the legacy family keeps its established
+The boundaries serve the 1.21.X target family; the old family keeps its established
 effective-source layout.
 
 | Boundary | Responsibilities and current consumers |
@@ -368,7 +372,7 @@ effective-source layout.
 
 ### Persistence rules
 
-- Never override vanilla `loadAdditional` / `saveAdditional` in a modern BCCE machine.
+- Never override vanilla `loadAdditional` / `saveAdditional` in a 1.21.X BCCE machine.
   Their signatures and exactly-once superclass calls belong to `BCBlockEntity`.
 - Keep the existing schema: flat data on 1.21.1; common root fields and `bc_legacy`
   machine data on 1.21.11. Pipe holders, oil springs and quarry drill collision

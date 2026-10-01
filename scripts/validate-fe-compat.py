@@ -44,23 +44,23 @@ def require_any(path: str, *needles: str) -> None:
 
 # Converter recipes and loot, in both resource layouts.
 for path in (
-    "source-families/legacy/src/main/resources/data/buildcraftenergy/recipes/fe_engine.json",
-    "source-families/legacy/src/main/resources/data/buildcraftenergy/recipes/mj_dynamo.json",
-    "source-families/modern/src/main/resources/data/buildcraftenergy/recipe/fe_engine.json",
-    "source-families/modern/src/main/resources/data/buildcraftenergy/recipe/mj_dynamo.json",
-    "source-families/legacy/src/main/resources/data/buildcraftenergy/loot_tables/blocks/mj_dynamo.json",
-    "source-families/modern/src/main/resources/data/buildcraftenergy/loot_table/blocks/mj_dynamo.json",
+    "source-families/old/src/main/resources/data/buildcraftenergy/recipes/fe_engine.json",
+    "source-families/old/src/main/resources/data/buildcraftenergy/recipes/mj_dynamo.json",
+    "source-families/1.21.X/src/main/resources/data/buildcraftenergy/recipe/fe_engine.json",
+    "source-families/1.21.X/src/main/resources/data/buildcraftenergy/recipe/mj_dynamo.json",
+    "source-families/old/src/main/resources/data/buildcraftenergy/loot_tables/blocks/mj_dynamo.json",
+    "source-families/1.21.X/src/main/resources/data/buildcraftenergy/loot_table/blocks/mj_dynamo.json",
 ):
     require_file(path)
 
 for path in (
-    "source-families/legacy/src/main/resources/data/buildcraftcore/loot_tables/blocks/engine.json",
-    "source-families/modern/src/main/resources/data/buildcraftcore/loot_table/blocks/engine.json",
+    "source-families/old/src/main/resources/data/buildcraftcore/loot_tables/blocks/engine.json",
+    "source-families/1.21.X/src/main/resources/data/buildcraftcore/loot_table/blocks/engine.json",
 ):
     require(path, '"type": "fe"', "buildcraftenergy:engine_fe")
 
 # Original BC8 only had upgrade/undo recipes for wood, cobblestone and stone FE pipes.
-for family, recipe_dir in (("legacy", "recipes"), ("modern", "recipe")):
+for family, recipe_dir in (("old", "recipes"), ("1.21.X", "recipe")):
     for stem in ("wood_fe", "cobblestone_fe", "stone_fe"):
         require_file(f"source-families/{family}/src/main/resources/data/buildcrafttransport/{recipe_dir}/{stem}.json")
         require_file(f"source-families/{family}/src/main/resources/data/buildcrafttransport/{recipe_dir}/{stem}_undo.json")
@@ -70,7 +70,7 @@ pipe_ids = (
     "wood_fe", "cobblestone_fe", "stone_fe", "sandstone_fe", "quartz_fe",
     "iron_fe", "gold_fe", "diamond_fe", "diamond_wood_fe",
 )
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     path = f"source-families/{family}/src/main/java/buildcraft/transport/BCTransportPipes.java"
     data = text(path)
     for pipe_id in pipe_ids:
@@ -145,7 +145,7 @@ for loader in ("forge", "neoforge"):
     )
     require(
         f"source-platforms/{loader}/src/main/java/buildcraft/transport/pipe/PipeRegistry.java" if loader == "forge"
-        else "source-families/modern/src/main/java/buildcraft/transport/pipe/PipeRegistry.java",
+        else "source-families/1.21.X/src/main/java/buildcraft/transport/pipe/PipeRegistry.java",
         "registerAlias",
     )
 
@@ -168,7 +168,7 @@ if "getCapability(ForgeCapabilities.ENERGY" in connect_block:
 for path in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/transport/BCTransportSprites.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/transport/BCTransportSprites.java",
-    "source-families/modern/src/main/java/buildcraft/transport/BCTransportSprites.java",
+    "source-families/1.21.X/src/main/java/buildcraft/transport/BCTransportSprites.java",
 ):
     require(path, "FE_LIMIT", "trigger_fe_limiter_m256", "trigger_fe_limiter_m0")
 
@@ -218,8 +218,8 @@ for loader in ("forge", "neoforge"):
 # currentDirection, while MJ Dynamo consumes MJ on non-output faces and exposes FE only on currentDirection.
 for path in (
     "source-platforms/forge/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
-    "source-families/modern/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
-    "source-downports/modern/1.21.1/family/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
+    "source-families/1.21.X/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
+    "source-downports/1.21.X/1.21.1/family/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
 ):
     require(
         path,
@@ -229,7 +229,7 @@ for path in (
 for path in (
     "source-platforms/forge/src/main/java/buildcraft/energy/tile/TileDynamoMJ.java",
     "source-platforms/neoforge/src/main/java/buildcraft/energy/tile/TileDynamoMJ.java",
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/energy/tile/TileDynamoMJ.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/energy/tile/TileDynamoMJ.java",
 ):
     require(path, "side == currentDirection ? feStorage : null")
 
@@ -265,8 +265,8 @@ server_engine_paths = [
 for root in (
     ROOT / "source-platforms/forge/src/main/java",
     ROOT / "source-platforms/neoforge/src/main/java",
-    ROOT / "source-families/legacy/src/main/java",
-    ROOT / "source-families/modern/src/main/java",
+    ROOT / "source-families/old/src/main/java",
+    ROOT / "source-families/1.21.X/src/main/java",
     ROOT / "version-src/1.19.2-forge/src/main/java",
     ROOT / "version-src/1.20.1-forge/src/main/java",
 ):
@@ -310,7 +310,7 @@ require("source-shared/src/main/java/buildcraft/energy/BCEnergyClientRenderers.j
 for path in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/energy/client/gui/GuiEngineFE.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/energy/client/gui/GuiEngineFE.java",
-    "source-families/modern/src/main/java/buildcraft/energy/client/gui/GuiEngineFE.java",
+    "source-families/1.21.X/src/main/java/buildcraft/energy/client/gui/GuiEngineFE.java",
 ):
     require(
         path, "LedgerEngine", "RECT_FE_BATTERY", "FE_UPGRADES", "OVERLAY", "GEAR_IRON", "GEAR_GOLD",
@@ -320,7 +320,7 @@ for path in (
 for path in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
-    "source-families/modern/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
+    "source-families/1.21.X/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
 ):
     require(
         path, "LedgerDynamoMJ", "RECT_FE_BATTERY", "FE_UPGRADES", "OVERLAY", "GEAR_IRON", "GEAR_GOLD",
@@ -330,7 +330,7 @@ for path in (
 for path in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/energy/client/gui/LedgerDynamoMJ.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/energy/client/gui/LedgerDynamoMJ.java",
-    "source-families/modern/src/main/java/buildcraft/energy/client/gui/LedgerDynamoMJ.java",
+    "source-families/1.21.X/src/main/java/buildcraft/energy/client/gui/LedgerDynamoMJ.java",
 ):
     require(path, "localizeFeFlow(engine.getCurrentOutput())", "localizeMj(engine.getMjStored())", "localizeHeat(engine.getHeat())")
 
@@ -365,8 +365,8 @@ for path in (
 ):
     require(path, "contentSignature()")
 for path in (
-    "source-families/legacy/src/main/java/buildcraft/lib/gui/ledger/LedgerHelp.java",
-    "source-families/modern/src/main/java/buildcraft/lib/gui/ledger/LedgerHelp.java",
+    "source-families/old/src/main/java/buildcraft/lib/gui/ledger/LedgerHelp.java",
+    "source-families/1.21.X/src/main/java/buildcraft/lib/gui/ledger/LedgerHelp.java",
 ):
     require(path, "sameContent", "sameTarget", "contentSignature")
 
@@ -374,8 +374,8 @@ require("README.md", "- [x] Add Forge Energy (FE) compatibility")
 
 # Public/new naming is FE. The only old _rf strings permitted are persistence aliases.
 allowed_rf_files = {
-    ROOT / "source-families/legacy/src/main/java/buildcraft/transport/BCTransportPipes.java",
-    ROOT / "source-families/modern/src/main/java/buildcraft/transport/BCTransportPipes.java",
+    ROOT / "source-families/old/src/main/java/buildcraft/transport/BCTransportPipes.java",
+    ROOT / "source-families/1.21.X/src/main/java/buildcraft/transport/BCTransportPipes.java",
     ROOT / "source-shared/src/main/java/buildcraft/transport/statements/ActionPowerLimit.java",
 }
 for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "source-family-platforms", ROOT / "version-src"):

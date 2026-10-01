@@ -72,7 +72,7 @@ machine_files = [
     "source-platforms/neoforge/src/main/java/buildcraft/factory/tile/TilePump.java",
     "version-src/1.19.2-forge/src/main/java/buildcraft/factory/tile/TileMiningWell.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/factory/tile/TileMiningWell.java",
-    "source-families/modern/src/main/java/buildcraft/factory/tile/TileMiningWell.java",
+    "source-families/1.21.X/src/main/java/buildcraft/factory/tile/TileMiningWell.java",
 ]
 for rel in machine_files:
     data = text(rel)

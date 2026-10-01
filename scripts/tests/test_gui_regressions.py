@@ -52,7 +52,7 @@ class GuiRegressions(unittest.TestCase):
         cls.temp = tempfile.TemporaryDirectory(prefix='bc-gui-regression-')
         cls.work = Path(cls.temp.name)
         cls.layout = load_layout()
-        props = cls.layout.load_properties(ROOT/'builds/modern/targets.properties')
+        props = cls.layout.load_properties(ROOT/'builds/1.21.X/targets.properties')
         cls.layout.materialize_target('1.21.11-neoforge', cls.work/'effective', props)
         cls.java = cls.work/'effective/src/main/java'
         cls.resources = cls.work/'effective/src/main/resources'

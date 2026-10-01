@@ -163,16 +163,16 @@ jobs:
       matrix:
         include:
           - target: 1.19.2-forge
-            generation: legacy
+            generation: old
             java: '17'
           - target: 1.20.1-forge
-            generation: legacy
+            generation: old
             java: '17'
           - target: 1.21.1-neoforge
-            generation: modern
+            generation: 1.21.X
             java: '21'
           - target: 1.21.11-neoforge
-            generation: modern
+            generation: 1.21.X
             java: '21'
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dfile.encoding=UTF-8
@@ -207,7 +207,7 @@ jobs:
           sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0
 
       - name: Make build scripts executable
-        run: chmod +x builds/legacy/gradlew builds/modern/gradlew build-all.sh scripts/ci-server-smoke.sh scripts/ci-client-smoke.sh scripts/source_layout.py scripts/validate-stonecutter.py scripts/validate-api-v2.py scripts/validate-api-v2-only.py
+        run: chmod +x builds/old/gradlew builds/1.21.X/gradlew build-all.sh scripts/ci-server-smoke.sh scripts/ci-client-smoke.sh scripts/source_layout.py scripts/validate-stonecutter.py scripts/validate-api-v2.py scripts/validate-api-v2-only.py
 
       - name: Build and test target
         shell: bash
@@ -229,7 +229,7 @@ jobs:
           # Gradle User Home (or restores one from the Actions cache). Only retry
           # failures that are unmistakably ZIP/JAR corruption; real compile/test
           # failures still fail immediately with their original status.
-          if [[ "$BUILD_GENERATION" != "legacy" ]] || ! grep -Eq \
+          if [[ "$BUILD_GENERATION" != "old" ]] || ! grep -Eq \
             'ZipException|invalid LOC header|zip END header not found' "$build_log"; then
             exit "$build_status"
           fi
@@ -331,7 +331,7 @@ jobs:
             profile: forestry
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dfile.encoding=UTF-8
-      BUILD_GENERATION: legacy
+      BUILD_GENERATION: old
       STONECUTTER_TARGET: ${{ matrix.target }}
 
     steps:
@@ -375,7 +375,7 @@ jobs:
 
       - name: Make scripts executable
         if: steps.support.outputs.supported == 'true'
-        run: chmod +x builds/legacy/gradlew scripts/ci-server-smoke.sh scripts/source_layout.py
+        run: chmod +x builds/old/gradlew scripts/ci-server-smoke.sh scripts/source_layout.py
 
       - name: Smoke-test compatibility server
         if: steps.support.outputs.supported == 'true'
@@ -407,6 +407,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
           path: |
-            run/legacy/${{ matrix.target }}/logs/**
-            run/legacy/${{ matrix.target }}/crash-reports/**
-            ci-server-legacy-${{ matrix.target }}-${{ matrix.profile }}.log
+            run/old/${{ matrix.target }}/logs/**
+            run/old/${{ matrix.target }}/crash-reports/**
+            ci-server-old-${{ matrix.target }}-${{ matrix.profile }}.log

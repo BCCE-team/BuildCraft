@@ -39,7 +39,7 @@ lang = json.loads(LANG.read_text(encoding="utf-8"))
 guide_gui_paths = (
     ROOT / "version-src/1.19.2-forge/src/main/java/buildcraft/lib/client/guide/GuiGuide.java",
     ROOT / "version-src/1.20.1-forge/src/main/java/buildcraft/lib/client/guide/GuiGuide.java",
-    ROOT / "source-families/modern/src/main/java/buildcraft/lib/client/guide/GuiGuide.java",
+    ROOT / "source-families/1.21.X/src/main/java/buildcraft/lib/client/guide/GuiGuide.java",
 )
 key_pattern = re.compile(r'"(buildcraft\.guide\.contents\.[a-zA-Z0-9_.-]+)"')
 for gui_path in guide_gui_paths:

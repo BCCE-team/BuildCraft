@@ -68,8 +68,8 @@ require(
 # leak onto currentDirection, otherwise FE pipes render a false connection to the MJ output.
 for rel in (
     "source-platforms/forge/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
-    "source-families/modern/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
-    "source-downports/modern/1.21.1/family/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
+    "source-families/1.21.X/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
+    "source-downports/1.21.X/1.21.1/family/src/main/java/buildcraft/energy/tile/TileEngineFE.java",
 ):
     require(
         rel,

@@ -19,8 +19,8 @@ def run() -> str:
     actual = [
         ROOT / "source-shared/src/main/java/buildcraft/lib/net/BCNetworkSide.java",
         ROOT / "source-shared/src/main/java/buildcraft/lib/net/BCPacketContext.java",
-        ROOT / "source-family-platforms/legacy/forge/src/main/java/buildcraft/lib/net/ForgePacketContext.java",
-        ROOT / "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/net/NeoForgePacketContext.java",
+        ROOT / "source-family-platforms/old/forge/src/main/java/buildcraft/lib/net/ForgePacketContext.java",
+        ROOT / "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/net/NeoForgePacketContext.java",
     ]
     with tempfile.TemporaryDirectory(prefix="bc-loader-boundary-") as td:
         base = Path(td)

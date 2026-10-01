@@ -132,23 +132,23 @@ def check_resource_generation(target: str, family: str) -> None:
             continue
         top = data_parts[0]
         source_label = source_path.relative_to(ROOT)
-        if family == "legacy" and top in modern_only:
+        if family == "old" and top in modern_only:
             errors.append(
-                f"{target}: modern resource directory {top!r} remains in legacy source: {source_label}"
+                f"{target}: modern resource directory {top!r} remains in old source: {source_label}"
             )
-        if family == "modern" and top in legacy_only:
+        if family == "1.21.X" and top in legacy_only:
             errors.append(
-                f"{target}: legacy resource directory {top!r} remains in modern source: {source_label}"
+                f"{target}: legacy resource directory {top!r} remains in 1.21.X source: {source_label}"
             )
         if len(data_parts) >= 2 and top == "tags":
             kind = data_parts[1]
-            if family == "legacy" and kind in modern_tag_kinds:
+            if family == "old" and kind in modern_tag_kinds:
                 errors.append(
-                    f"{target}: modern tag directory {kind!r} remains in legacy source: {source_label}"
+                    f"{target}: modern tag directory {kind!r} remains in old source: {source_label}"
                 )
-            if family == "modern" and kind in legacy_tag_kinds:
+            if family == "1.21.X" and kind in legacy_tag_kinds:
                 errors.append(
-                    f"{target}: legacy tag directory {kind!r} remains in modern source: {source_label}"
+                    f"{target}: legacy tag directory {kind!r} remains in 1.21.X source: {source_label}"
                 )
 
 

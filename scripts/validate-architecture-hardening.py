@@ -340,18 +340,18 @@ def foreign_package_metrics() -> dict[str, object]:
 
 
 def canonical_metrics(props: dict[str, str]) -> dict[str, object]:
-    canonical = props.get("source.family.modern.canonical_minecraft", "").strip()
-    modern_targets = [target for target in target_ids(props) if target_layout(target, props).family == "modern"]
-    modern_versions = {target: props.get(f"target.{target}.deps.minecraft", "").strip() for target in modern_targets}
-    newest = max(modern_versions.values(), key=version_tuple) if modern_versions else ""
-    canonical_target = next((target for target, version in modern_versions.items() if version == canonical), None)
+    canonical = props.get("source.family.1.21.X.canonical_minecraft", "").strip()
+    family_121x_targets = [target for target in target_ids(props) if target_layout(target, props).family == "1.21.X"]
+    family_121x_versions = {target: props.get(f"target.{target}.deps.minecraft", "").strip() for target in family_121x_targets}
+    newest = max(family_121x_versions.values(), key=version_tuple) if family_121x_versions else ""
+    canonical_target = next((target for target, version in family_121x_versions.items() if version == canonical), None)
     has_downport = False
     if canonical_target:
         layout = target_layout(canonical_target, props)
         has_downport = layout.family_downport_root is not None or layout.family_platform_downport_root is not None
     return {
         "configured": canonical,
-        "newest_modern": newest,
+        "newest_1_21_x": newest,
         "target": canonical_target,
         "canonical_target_uses_downport": has_downport,
     }
@@ -494,13 +494,13 @@ def validate(metrics: dict[str, object], budget: dict[str, object]) -> list[str]
         errors.append(f"foreign package declaration in maintained source: {foreign['violations'][0]}")
 
     canonical = metrics["canonical"]
-    expected_canonical = invariants.get("canonical_modern_minecraft", "1.21.11")
+    expected_canonical = invariants.get("canonical_1_21_x_minecraft", "1.21.11")
     if canonical["configured"] != expected_canonical:
-        errors.append(f"modern canonical Minecraft changed unexpectedly: {canonical['configured']} != {expected_canonical}")
-    if canonical["configured"] != canonical["newest_modern"]:
-        errors.append(f"modern canonical source is not newest-first: canonical={canonical['configured']} newest={canonical['newest_modern']}")
+        errors.append(f"1.21.X canonical Minecraft changed unexpectedly: {canonical['configured']} != {expected_canonical}")
+    if canonical["configured"] != canonical["newest_1_21_x"]:
+        errors.append(f"1.21.X canonical source is not newest-first: canonical={canonical['configured']} newest={canonical['newest_1_21_x']}")
     if canonical["canonical_target_uses_downport"]:
-        errors.append("canonical modern target must not resolve through an older-version downport")
+        errors.append("canonical 1.21.X target must not resolve through an older-version downport")
 
     return errors
 

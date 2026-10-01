@@ -112,12 +112,12 @@ def validate_gui_gears() -> None:
 
     modern_checks = [
         (
-            "source-families/modern/src/main/java/buildcraft/energy/client/gui/GuiEngineFE.java",
+            "source-families/1.21.X/src/main/java/buildcraft/energy/client/gui/GuiEngineFE.java",
             "addGearIcon(BCCoreItems.GEAR_IRON.get(), 78, 22);",
             "addGearIcon(BCCoreItems.GEAR_GOLD.get(), 101, 22);",
         ),
         (
-            "source-families/modern/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
+            "source-families/1.21.X/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
             "addGearIcon(BCCoreItems.GEAR_IRON.get(), 60, 22);",
             "addGearIcon(BCCoreItems.GEAR_GOLD.get(), 83, 22);",
         ),
@@ -171,7 +171,7 @@ def validate_texture_stitching() -> None:
     }
 
     for rel in (
-        "source-families/modern/src/main/resources/assets/minecraft/atlases/blocks.json",
+        "source-families/1.21.X/src/main/resources/assets/minecraft/atlases/blocks.json",
     ):
         resources = atlas_resources(rel)
         missing = sorted((expected_pipe | expected_energy) - resources)
