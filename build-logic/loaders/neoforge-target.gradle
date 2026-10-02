@@ -168,6 +168,16 @@ sourceSets {
         compileClasspath = sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.transportPortStubs.output + sourceSets.main.compileClasspath
         runtimeClasspath = output + compileClasspath
     }
+    // Factory is verified as the next complete gameplay slice. Its machines
+    // consume the real transport pipe contracts rather than an API-level
+    // substitute, so ordering remains explicit and independently testable.
+    factoryPort {
+        java.setSrcDirs(effectiveDirs('src/main/java'))
+        java.include 'buildcraft/factory/**'
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
 }
 
 if (!jeiCompatEnabled) {
@@ -214,6 +224,7 @@ if (!dataGenSourcesEnabled) {
     // the runtime energy compilation just as the production source set does.
     sourceSets.energyPort.java.exclude 'buildcraft/energy/BCEnergyProvider.java'
     sourceSets.transportPort.java.exclude 'buildcraft/transport/BCTransportRecipesProvider.java'
+    sourceSets.factoryPort.java.exclude 'buildcraft/factory/BCFactoryRecipesProvider.java'
 }
 
 configurations {
@@ -297,6 +308,7 @@ sourceSets.main.java.srcDir(generatedTargetSources)
 sourceSets.apiLibPort.java.srcDir(generatedTargetSources)
 sourceSets.energyPort.java.srcDir(generatedTargetSources)
 sourceSets.transportPort.java.srcDir(generatedTargetSources)
+sourceSets.factoryPort.java.srcDir(generatedTargetSources)
 tasks.named('compileJava') { dependsOn(generateBuildCraftTarget) }
 
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
@@ -611,6 +623,11 @@ tasks.named('compileTransportPortJava') {
     dependsOn tasks.named('compileTransportPortStubsJava')
     dependsOn(generateBuildCraftTarget)
 }
+tasks.named('compileFactoryPortJava') {
+    dependsOn prepareEffectiveSource
+    dependsOn tasks.named('compileTransportPortJava')
+    dependsOn(generateBuildCraftTarget)
+}
 tasks.register('verifyApiLibPort') {
     group = 'verification'
     description = 'Compile the complete legacy API and library surface against NeoForge.'
@@ -630,6 +647,11 @@ tasks.register('verifyTransportPort') {
     group = 'verification'
     description = 'Compile the complete BuildCraft transport gameplay module against NeoForge.'
     dependsOn tasks.named('compileTransportPortJava')
+}
+tasks.register('verifyFactoryPort') {
+    group = 'verification'
+    description = 'Compile the complete BuildCraft factory gameplay module against NeoForge.'
+    dependsOn tasks.named('compileFactoryPortJava')
 }
 tasks.named('check') {
     dependsOn validateApiV2Boundary
