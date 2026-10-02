@@ -14,6 +14,8 @@ concurrency:
 env:
   MODRINTH_PROJECT_ID: z3Aj5eOl
   CURSEFORGE_PROJECT_ID: '1592400'
+  MODRINTH_DEPENDENCIES: 'MhqIcygN(incompatible)'
+  CURSEFORGE_DEPENDENCIES: '421463(incompatible)'
   PUBLISH_DELAY_SECONDS: '60'
 
 jobs:
@@ -166,10 +168,12 @@ jobs:
           modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           modrinth-changelog: ${{ github.event.release.body }}
+          modrinth-dependencies: ${{ env.MODRINTH_DEPENDENCIES }}
 
           curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           curseforge-changelog: ${{ github.event.release.body }}
+          curseforge-dependencies: ${{ env.CURSEFORGE_DEPENDENCIES }}
 
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-tag: ${{ github.event.release.tag_name }}
@@ -193,10 +197,12 @@ jobs:
           modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           modrinth-changelog: ${{ github.event.release.body }}
+          modrinth-dependencies: ${{ env.MODRINTH_DEPENDENCIES }}
 
           curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           curseforge-changelog: ${{ github.event.release.body }}
+          curseforge-dependencies: ${{ env.CURSEFORGE_DEPENDENCIES }}
 
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-tag: ${{ github.event.release.tag_name }}
@@ -220,10 +226,12 @@ jobs:
           modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           modrinth-changelog: ${{ github.event.release.body }}
+          modrinth-dependencies: ${{ env.MODRINTH_DEPENDENCIES }}
 
           curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           curseforge-changelog: ${{ github.event.release.body }}
+          curseforge-dependencies: ${{ env.CURSEFORGE_DEPENDENCIES }}
 
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-tag: ${{ github.event.release.tag_name }}
@@ -247,10 +255,12 @@ jobs:
           modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           modrinth-changelog: ${{ github.event.release.body }}
+          modrinth-dependencies: ${{ env.MODRINTH_DEPENDENCIES }}
 
           curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           curseforge-changelog: ${{ github.event.release.body }}
+          curseforge-dependencies: ${{ env.CURSEFORGE_DEPENDENCIES }}
 
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-tag: ${{ github.event.release.tag_name }}
