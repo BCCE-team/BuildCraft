@@ -85,6 +85,26 @@ sourceSets {
         compileClasspath = sourceSets.apiV2.output + sourceSets.apiV2.compileClasspath
         runtimeClasspath = output + compileClasspath
     }
+    // Gameplay signatures consumed by the legacy surface. This source set is
+    // verification-only and is intentionally absent from main/the release JAR.
+    apiLibStubs {
+        java.setSrcDirs([new File(repositoryRoot, "version-src/${targetName}/api-lib-stubs/src/main/java")])
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+    // Legacy buildcraft.api and buildcraft.lib deliberately retain their
+    // implementation-facing contracts.  Compile them as a separate target so
+    // the 26.X port can be verified without silently depending on a successful
+    // gameplay-module migration.
+    apiLibPort {
+        java.setSrcDirs(effectiveDirs('src/main/java'))
+        java.include 'buildcraft/api/**'
+        java.include 'buildcraft/lib/**'
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
 }
 
 if (!jeiCompatEnabled) {
@@ -120,6 +140,11 @@ if (!dataGenSourcesEnabled) {
     // so Gradle must not second-guess that resolution by inspecting version-src.
     sourceSets.main.java.exclude 'buildcraft/core/client/model/FragileFluidContainerModel.java'
     sourceSets.main.java.exclude 'buildcraft/core/client/model/ModelEngine.java'
+
+    // The API/lib verifier observes the same datagen opt-out. These generators
+    // depend on gameplay registries and are not part of the runtime library
+    // surface being ported here.
+    sourceSets.apiLibPort.java.exclude 'buildcraft/lib/BCTagsProvider.java'
 }
 
 configurations {
@@ -200,6 +225,7 @@ public final class BuildCraftTarget {
 }
 
 sourceSets.main.java.srcDir(generatedTargetSources)
+sourceSets.apiLibPort.java.srcDir(generatedTargetSources)
 tasks.named('compileJava') { dependsOn(generateBuildCraftTarget) }
 
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
@@ -482,11 +508,23 @@ def validateApiV2Only = tasks.register('validateApiV2Only', Exec) {
 
 tasks.named('compileApiV2Java') { dependsOn prepareEffectiveSource }
 tasks.named('compileAddonFixtureJava') { dependsOn tasks.named('compileApiV2Java') }
+tasks.named('compileApiLibStubsJava') { dependsOn prepareEffectiveSource }
+tasks.named('compileApiLibPortJava') {
+    dependsOn prepareEffectiveSource
+    dependsOn tasks.named('compileApiLibStubsJava')
+    dependsOn(generateBuildCraftTarget)
+}
+tasks.register('verifyApiLibPort') {
+    group = 'verification'
+    description = 'Compile the complete legacy API and library surface against NeoForge.'
+    dependsOn tasks.named('compileApiLibPortJava')
+}
 tasks.named('check') {
     dependsOn validateApiV2Boundary
     dependsOn validateApiV2Only
     dependsOn tasks.named('compileApiV2Java')
     dependsOn tasks.named('compileAddonFixtureJava')
+    dependsOn tasks.named('verifyApiLibPort')
 }
 
 tasks.withType(ProcessResources).configureEach {

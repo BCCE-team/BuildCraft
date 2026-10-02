@@ -1,0 +1,21 @@
+buildscript {
+    repositories {
+        gradlePluginPortal()
+        maven { url = 'https://maven.neoforged.net/releases' }
+    }
+    dependencies {
+        classpath 'net.neoforged:moddev-gradle:2.0.143'
+    }
+}
+
+plugins {
+    id 'java-library'
+    id 'idea'
+    id 'eclipse'
+    id 'maven-publish'
+}
+
+apply plugin: 'net.neoforged.moddev'
+
+ext.bcBuildGeneration = '26.X'
+apply from: new File(rootProject.file('../..').canonicalFile, 'build-logic/loaders/neoforge-target.gradle')

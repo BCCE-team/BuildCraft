@@ -174,10 +174,16 @@ class TargetLayout:
     family: str
     platform: str
     shared_root: Path
+    family_base_root: Path | None
+    family_base_excludes: tuple[Path, ...]
     family_root: Path
+    family_excludes: tuple[Path, ...]
     family_downport_root: Path | None
     platform_root: Path
+    family_platform_base_root: Path | None
+    family_platform_base_excludes: tuple[Path, ...]
     family_platform_root: Path
+    family_platform_excludes: tuple[Path, ...]
     family_platform_downport_root: Path | None
     overlay_root: Path
 
@@ -189,10 +195,15 @@ class TargetLayout:
         supported by that family. Older targets may insert an explicit downport view after
         the canonical owner, without turning ``version-src`` into the primary source tree.
         """
-        roots: list[Path] = [self.shared_root, self.family_root]
+        roots: list[Path] = [self.shared_root]
+        if self.family_base_root is not None:
+            roots.append(self.family_base_root)
+        roots.append(self.family_root)
         if self.family_downport_root is not None:
             roots.append(self.family_downport_root)
         roots.append(self.platform_root)
+        if self.family_platform_base_root is not None:
+            roots.append(self.family_platform_base_root)
         roots.append(self.family_platform_root)
         if self.family_platform_downport_root is not None:
             roots.append(self.family_platform_downport_root)
@@ -202,10 +213,23 @@ class TargetLayout:
     def resolve(self, relative: str | Path) -> Path | None:
         rel = Path(relative)
         for root in reversed(self.layers):
+            if self._excluded_from_layer(root, rel):
+                continue
             path = root / rel
             if path.is_file():
                 return path
         return None
+
+    def _excluded_from_layer(self, root: Path, relative: Path) -> bool:
+        def matches(prefixes: tuple[Path, ...]) -> bool:
+            return any(relative == prefix or prefix in relative.parents for prefix in prefixes)
+
+        return (
+            (root == self.family_base_root and matches(self.family_base_excludes))
+            or (root == self.family_root and matches(self.family_excludes))
+            or (root == self.family_platform_base_root and matches(self.family_platform_base_excludes))
+            or (root == self.family_platform_root and matches(self.family_platform_excludes))
+        )
 
     def effective_files(
         self,
@@ -232,6 +256,8 @@ class TargetLayout:
                 if not path.is_file() or path.name == SOURCE_LAYER_MARKER:
                     continue
                 key = path.relative_to(layer).as_posix()
+                if self._excluded_from_layer(layer, Path(key)):
+                    continue
                 if source_predicate is not None and not source_predicate(path, key):
                     continue
                 result[key] = path
@@ -274,13 +300,35 @@ def target_layout(target: str, properties: dict[str, str] | None = None) -> Targ
     family = props.get(prefix + "source.family", "").strip()
     platform = props.get(prefix + "source.platform", "").strip()
     shared_root = props.get(prefix + "source.shared_root", props.get("common.source.shared_root", "")).strip()
+    family_base_root = props.get(prefix + "source.family_base_root", "").strip()
+    family_base_excludes = tuple(
+        Path(value.strip())
+        for value in props.get(prefix + "source.family_base_excludes", "").split(",")
+        if value.strip()
+    )
     family_root = props.get(prefix + "source.root", props.get(f"source.family.{family}.root", "")).strip()
+    family_excludes = tuple(
+        Path(value.strip())
+        for value in props.get(prefix + "source.family_excludes", "").split(",")
+        if value.strip()
+    )
     family_downport_root = props.get(prefix + "source.family_downport_root", "").strip()
     platform_root = props.get(prefix + "source.platform_root", props.get(f"source.platform.{platform}.root", "")).strip()
     family_platform_root = props.get(
         prefix + "source.family_platform_root",
         props.get(f"source.family_platform.{family}.{platform}.root", ""),
     ).strip()
+    family_platform_base_root = props.get(prefix + "source.family_platform_base_root", "").strip()
+    family_platform_base_excludes = tuple(
+        Path(value.strip())
+        for value in props.get(prefix + "source.family_platform_base_excludes", "").split(",")
+        if value.strip()
+    )
+    family_platform_excludes = tuple(
+        Path(value.strip())
+        for value in props.get(prefix + "source.family_platform_excludes", "").split(",")
+        if value.strip()
+    )
     family_platform_downport_root = props.get(prefix + "source.family_platform_downport_root", "").strip()
     overlay_root = props.get(prefix + "source.overlay_root", "").strip()
     if not all((generation, family, platform, shared_root, family_root, platform_root, family_platform_root, overlay_root)):
@@ -294,10 +342,16 @@ def target_layout(target: str, properties: dict[str, str] | None = None) -> Targ
         family=family,
         platform=platform,
         shared_root=(ROOT / shared_root).resolve(),
+        family_base_root=(ROOT / family_base_root).resolve() if family_base_root else None,
+        family_base_excludes=family_base_excludes,
         family_root=(ROOT / family_root).resolve(),
+        family_excludes=family_excludes,
         family_downport_root=(ROOT / family_downport_root).resolve() if family_downport_root else None,
         platform_root=(ROOT / platform_root).resolve(),
+        family_platform_base_root=(ROOT / family_platform_base_root).resolve() if family_platform_base_root else None,
+        family_platform_base_excludes=family_platform_base_excludes,
         family_platform_root=(ROOT / family_platform_root).resolve(),
+        family_platform_excludes=family_platform_excludes,
         family_platform_downport_root=(ROOT / family_platform_downport_root).resolve() if family_platform_downport_root else None,
         overlay_root=(ROOT / overlay_root).resolve(),
     )

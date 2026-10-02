@@ -34,13 +34,6 @@ Shared library code and runtime helpers used by the BuildCraft Community Edition
     side="BOTH"
 
 [[dependencies.buildcraftlib]]
-    modId="buildcraftrf"
-    type="incompatible"
-    reason="BuildCraft RF: ReFluxified targets a different BuildCraft implementation; BCCE already provides native FE compatibility."
-    ordering="NONE"
-    side="BOTH"
-
-[[dependencies.buildcraftlib]]
     modId="jei"
     type="optional"
     versionRange="${jei_version_range}"
@@ -331,7 +324,7 @@ Robots, docking stations, redstone boards, zones and robotic automation.
     modId="buildcraftcompat"
     version="${mod_version}"
     displayName="BuildCraft Community Edition - Compat"
-    credits="Special thanks to the original BuildCraft and Forestry teams and all contributors."
+    credits="Special thanks to the original BuildCraft team and all contributors."
     authors="CurativeTree, ShipovskijKorp"
     description='''
 Optional cross-mod integration hooks for BuildCraft Community Edition. Integrations without a compatible NeoForge 1.21.1 dependency remain disabled.

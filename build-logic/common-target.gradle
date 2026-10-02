@@ -76,6 +76,8 @@ def sourceFamily = requiredProperty('source.family')
 def sourcePlatform = requiredProperty('source.platform')
 
 def sharedSourceRoot = new File(repositoryRoot, requiredProperty('source.shared_root'))
+def familyBaseRootValue = optionalProperty('source.family_base_root')
+def familyBaseSourceRoot = familyBaseRootValue ? new File(repositoryRoot, familyBaseRootValue) : null
 def familySourceRoot = new File(repositoryRoot, requiredProperty('source.root'))
 def platformSourceRoot = new File(repositoryRoot, requiredProperty('source.platform_root'))
 def familyPlatformRootKey = "source.family_platform.${sourceFamily}.${sourcePlatform}.root"
@@ -84,11 +86,15 @@ if (!familyPlatformRootValue) {
     throw new GradleException("Missing '${familyPlatformRootKey}' in build-config/common.properties")
 }
 def familyPlatformSourceRoot = new File(repositoryRoot, familyPlatformRootValue)
+def familyPlatformBaseRootValue = optionalProperty('source.family_platform_base_root')
+def familyPlatformBaseSourceRoot = familyPlatformBaseRootValue ? new File(repositoryRoot, familyPlatformBaseRootValue) : null
 def targetOverlayRoot = new File(repositoryRoot, requiredProperty('source.overlay_root'))
-def sourceLayers = [sharedSourceRoot, familySourceRoot, platformSourceRoot, familyPlatformSourceRoot, targetOverlayRoot]
+def sourceLayers = [sharedSourceRoot, familyBaseSourceRoot, familySourceRoot, platformSourceRoot,
+                    familyPlatformBaseSourceRoot, familyPlatformSourceRoot, targetOverlayRoot].findAll { it != null }
 
 def resolveSourceFile = { String relative ->
-    [targetOverlayRoot, familyPlatformSourceRoot, platformSourceRoot, familySourceRoot, sharedSourceRoot]
+    [targetOverlayRoot, familyPlatformSourceRoot, familyPlatformBaseSourceRoot, platformSourceRoot,
+     familySourceRoot, familyBaseSourceRoot, sharedSourceRoot].findAll { it != null }
             .collect { new File(it, relative) }.find { it.isFile() }
 }
 def targetAccessTransformer = resolveSourceFile('src/main/resources/META-INF/accesstransformer.cfg')
@@ -208,8 +214,10 @@ project.ext.bcTarget = [
         sourceFamily: sourceFamily,
         sourcePlatform: sourcePlatform,
         sharedSourceRoot: sharedSourceRoot,
+        familyBaseSourceRoot: familyBaseSourceRoot,
         familySourceRoot: familySourceRoot,
         platformSourceRoot: platformSourceRoot,
+        familyPlatformBaseSourceRoot: familyPlatformBaseSourceRoot,
         familyPlatformSourceRoot: familyPlatformSourceRoot,
         targetOverlayRoot: targetOverlayRoot,
         sourceLayers: sourceLayers,

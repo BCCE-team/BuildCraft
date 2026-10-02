@@ -1,0 +1,187 @@
+/** Copyright (c) 2011-2015, SpaceToad and the BuildCraft Team http://www.mod-buildcraft.com
+ *
+ * The BuildCraft API is distributed under the terms of the MIT License. Please check the contents of the license, which
+ * should be located as "LICENSE.API" in the BuildCraft source code distribution. */
+package buildcraft.lib.internal.statement;
+
+import buildcraft.lib.internal.statement.api2.StatementApi2Bridge;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
+
+import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.world.level.block.entity.BlockEntity;
+
+public final class StatementManager {
+
+    public static Map<String, IStatement> statements = new HashMap<>();
+    public static Map<String, IParameterReader> parameters = new HashMap<>();
+    public static Map<String, IParamReaderBuf> paramsBuf = new HashMap<>();
+    private static List<ITriggerProvider> triggerProviders = new LinkedList<>();
+    private static List<IActionProvider> actionProviders = new LinkedList<>();
+    private static final RegistryAccess BUILTIN_REGISTRIES =
+        RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+    private static Supplier<HolderLookup.Provider> registryProvider = () -> BUILTIN_REGISTRIES;
+
+    static {
+        StatementApi2Bridge.registerParameterBridge();
+        registerParameter(nbt -> new StatementParameterItemStack(nbt), StatementParameterItemStack::readFromBuf);
+    }
+
+    @FunctionalInterface
+    public interface IParameterReader {
+        IStatementParameter readFromNbt(CompoundTag nbt);
+    }
+
+    @FunctionalInterface
+    public interface IParamReaderBuf {
+        IStatementParameter readFromBuf(FriendlyByteBuf buffer) throws IOException;
+    }
+
+    /** Deactivate constructor */
+    private StatementManager() {}
+
+
+    /** Installs the active registry lookup used by legacy statement NBT APIs. */
+    public static void setRegistryProvider(Supplier<HolderLookup.Provider> provider) {
+        registryProvider = Objects.requireNonNull(provider, "provider");
+    }
+
+    public static HolderLookup.Provider getRegistryProvider() {
+        HolderLookup.Provider provider = registryProvider.get();
+        return provider == null ? BUILTIN_REGISTRIES : provider;
+    }
+
+    /** Registry access required by RegistryFriendlyByteBuf in Minecraft 1.21.1. */
+    public static RegistryAccess getRegistryAccess() {
+        HolderLookup.Provider provider = getRegistryProvider();
+        return provider instanceof RegistryAccess access ? access : BUILTIN_REGISTRIES;
+    }
+
+    public static void registerTriggerProvider(ITriggerProvider provider) {
+        if (provider != null && !triggerProviders.contains(provider)) {
+            triggerProviders.add(provider);
+        }
+    }
+
+    public static void registerActionProvider(IActionProvider provider) {
+        if (provider != null && !actionProviders.contains(provider)) {
+            actionProviders.add(provider);
+        }
+    }
+
+    public static void registerStatement(IStatement statement) {
+        statements.put(statement.getUniqueTag(), statement);
+        StatementApi2Bridge.mirrorLegacyStatement(statement);
+    }
+
+    public static void registerParameter(IParameterReader reader) {
+        registerParameter(reader, buf -> reader.readFromNbt(buf.readNbt()));
+    }
+
+    public static void registerParameter(IParameterReader reader, IParamReaderBuf bufReader) {
+        String name = reader.readFromNbt(new CompoundTag()).getUniqueTag();
+        registerParameter(name, reader);
+        registerParameter(name, bufReader);
+    }
+
+    public static void registerParameter(String name, IParameterReader reader) {
+        parameters.put(name, reader);
+    }
+
+    public static void registerParameter(String name, IParamReaderBuf reader) {
+        paramsBuf.put(name, reader);
+    }
+
+    public static List<ITriggerExternal> getExternalTriggers(Direction side, BlockEntity entity) {
+        if (entity instanceof IOverrideDefaultStatements) {
+            List<ITriggerExternal> result = ((IOverrideDefaultStatements) entity).overrideTriggers();
+            if (result != null) {
+                return result;
+            }
+        }
+
+        LinkedHashSet<ITriggerExternal> triggers = new LinkedHashSet<>();
+
+        for (ITriggerProvider provider : triggerProviders) {
+            provider.addExternalTriggers(triggers, side, entity);
+        }
+
+        return new ArrayList<>(triggers);
+    }
+
+    public static List<IActionExternal> getExternalActions(Direction side, BlockEntity entity) {
+        if (entity instanceof IOverrideDefaultStatements) {
+            List<IActionExternal> result = ((IOverrideDefaultStatements) entity).overrideActions();
+            if (result != null) {
+                return result;
+            }
+        }
+
+        LinkedHashSet<IActionExternal> actions = new LinkedHashSet<>();
+
+        for (IActionProvider provider : actionProviders) {
+            provider.addExternalActions(actions, side, entity);
+        }
+
+        return new ArrayList<>(actions);
+    }
+
+    public static List<ITriggerInternal> getInternalTriggers(IStatementContainer container) {
+        LinkedHashSet<ITriggerInternal> triggers = new LinkedHashSet<>();
+
+        for (ITriggerProvider provider : triggerProviders) {
+            provider.addInternalTriggers(triggers, container);
+        }
+        triggers.addAll(StatementApi2Bridge.nativeInternalTriggers(container));
+
+        return new ArrayList<>(triggers);
+    }
+
+    public static List<IActionInternal> getInternalActions(IStatementContainer container) {
+        LinkedHashSet<IActionInternal> actions = new LinkedHashSet<>();
+
+        for (IActionProvider provider : actionProviders) {
+            provider.addInternalActions(actions, container);
+        }
+        actions.addAll(StatementApi2Bridge.nativeInternalActions(container));
+
+        return new ArrayList<>(actions);
+    }
+
+    public static List<ITriggerInternalSided> getInternalSidedTriggers(IStatementContainer container, Direction side) {
+        LinkedHashSet<ITriggerInternalSided> triggers = new LinkedHashSet<>();
+
+        for (ITriggerProvider provider : triggerProviders) {
+            provider.addInternalSidedTriggers(triggers, container, side);
+        }
+
+        return new ArrayList<>(triggers);
+    }
+
+    public static List<IActionInternalSided> getInternalSidedActions(IStatementContainer container, Direction side) {
+        LinkedHashSet<IActionInternalSided> actions = new LinkedHashSet<>();
+
+        for (IActionProvider provider : actionProviders) {
+            provider.addInternalSidedActions(actions, container, side);
+        }
+
+        return new ArrayList<>(actions);
+    }
+
+    public static IParameterReader getParameterReader(String kind) {
+        return parameters.get(kind);
+    }
+}

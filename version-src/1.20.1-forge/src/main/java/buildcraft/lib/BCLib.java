@@ -4,8 +4,6 @@
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.lib;
 
-import java.util.List;
-
 import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
@@ -27,8 +25,6 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.data.event.GatherDataEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.ModLoadingException;
-import net.minecraftforge.fml.ModLoadingStage;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent;
@@ -45,14 +41,9 @@ public class BCLib {
     public static final String GIT_COMMIT_MSG = BuildCraftTarget.GIT_COMMIT_MESSAGE;
     public static final String GIT_COMMIT_AUTHOR = BuildCraftTarget.GIT_COMMIT_AUTHOR;
 
-    private static final List<String> INCOMPATIBLE_MODS = List.of(
-        "buildcraftrf"
-    );
-
     public static final boolean DEV = !FMLEnvironment.production || Boolean.getBoolean("buildcraft.dev");
 
     public BCLib() {
-        rejectIncompatibleMods();
         MjApi2PlatformBridge.install();
         PlatformApi2Bootstrap.install();
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -106,24 +97,6 @@ public class BCLib {
         MinecraftForge.EVENT_BUS.register(BCLibEventDist.class);
         BCLibEventDist.registerGameplayEvents();
 
-    }
-
-    private static void rejectIncompatibleMods() {
-        for (String modId : INCOMPATIBLE_MODS) {
-            if (!ModList.get().isLoaded(modId)) {
-                continue;
-            }
-            String displayName = ModList.get().getModContainerById(modId)
-                .map(container -> container.getModInfo().getDisplayName())
-                .orElse(modId);
-            throw new ModLoadingException(
-                ModList.get().getModContainerById(MODID).orElseThrow().getModInfo(),
-                ModLoadingStage.CONSTRUCT,
-                "BuildCraft Community Edition is incompatible with " + displayName + " (" + modId + "). "
-                    + "Remove it before starting the game. BCCE already provides native FE compatibility.",
-                new IllegalStateException("Incompatible mod detected: " + modId)
-            );
-        }
     }
 
     public void gatherData(GatherDataEvent event) {

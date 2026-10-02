@@ -429,10 +429,14 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     )
     for before, after in replacements:
         text = text.replace(before, after)
+    shim_namespace = "2612" if _version_tuple(minecraft) >= _version_tuple("26.1.2") else "121111"
+    if shim_namespace == "2612":
+        text = text.replace("buildcraft.lib.compat.mc121111", "buildcraft.lib.compat.mc2612")
+        text = text.replace("buildcraft.lib.compat.neoforge121111", "buildcraft.lib.compat.neoforge2612")
     for before, after in NEOFORGE_121111_SHIM_RELOCATIONS:
-        text = text.replace(before, after)
+        text = text.replace(before, after.replace("121111", shim_namespace))
     for before, after in MINECRAFT_121111_SHIM_RELOCATIONS:
-        text = text.replace(before, after)
+        text = text.replace(before, after.replace("121111", shim_namespace))
 
     # 1.21.11 removed/renamed several concrete item/entity packages and old event bus selectors.
     text = _apply_121111_eventbus_compat(text)
@@ -772,10 +776,11 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = text.replace("BuiltInRegistries.BLOCK.get(id)", "BuiltInRegistries.BLOCK.get(id).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
     text = text.replace("BuiltInRegistries.BLOCK.get(loc)", "BuiltInRegistries.BLOCK.get(loc).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
     text = text.replace("FakePlayerProvider.NULL_PROFILE.getId()", "GameProfileCompat.id(FakePlayerProvider.NULL_PROFILE)")
-    text = text.replace("Ingredient.of(item)", "IngredientCompat.of(item)")
-    text = text.replace("Ingredient.of(stack)", "IngredientCompat.of(stack)")
-    text = text.replace("Ingredient.of(tag)", "IngredientCompat.of(tag)")
-    text = text.replace("Ingredient.of(Objects.requireNonNull(tag, \"tag\"))", "IngredientCompat.of(Objects.requireNonNull(tag, \"tag\"))")
+    if "package buildcraft.api.v2" not in text:
+        text = text.replace("Ingredient.of(item)", "IngredientCompat.of(item)")
+        text = text.replace("Ingredient.of(stack)", "IngredientCompat.of(stack)")
+        text = text.replace("Ingredient.of(tag)", "IngredientCompat.of(tag)")
+        text = text.replace("Ingredient.of(Objects.requireNonNull(tag, \"tag\"))", "IngredientCompat.of(Objects.requireNonNull(tag, \"tag\"))")
     text = text.replace("public RecipeType<?> getType()", "public RecipeType<? extends Recipe<RecipeInput>> getType()")
     text = text.replace("RenderCompat.blit(guiGraphics, ", "RenderCompat.blit(guiGraphics, ")
 
@@ -1068,7 +1073,5 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     # target bridge and retain the Tag import where the constant itself is still referenced.
     text = _cleanup_empty_java_imports(text)
     return _repair_java_imports_before_package(text)
-
-
 
 

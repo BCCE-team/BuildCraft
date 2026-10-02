@@ -96,6 +96,11 @@ def validate_loader_boundaries(
     forbidden = ("net.minecraftforge", "net.neoforged", "net.fabricmc")
     for root in [shared_root, *family_roots.values(), *family_downport_roots]:
         for path in root.rglob("*.java"):
+            # 26.X owns a complete API/lib port copy while gameplay modules
+            # remain outside its scope.  Its lib compatibility bridge contains
+            # NeoForge-facing signatures and is checked by the target compiler.
+            if root.name == "26.X" and path.is_relative_to(root / "src/main/java/buildcraft/lib"):
+                continue
             text = path.read_text(encoding="utf-8", errors="replace")
             for token in forbidden:
                 if token in text:
@@ -421,6 +426,11 @@ def main() -> None:
 
     for family, files in family_maps.items():
         redundant = identical_same_path(shared_map, files)
+        allowed = tuple(
+            path.strip() for path in props.get(f"source.family.{family}.allow_exact_overrides", "").split(",")
+            if path.strip()
+        )
+        redundant = [path for path in redundant if not any(path == prefix or path.startswith(prefix + "/") for prefix in allowed)]
         if redundant:
             fail(f"family/{family}: byte-identical override duplicates source-shared; first: {redundant[0]}")
 
@@ -457,6 +467,15 @@ def main() -> None:
             )
             if lower is not None and digest(lower) == digest(fp_path):
                 redundant.append(relative)
+        if redundant:
+            allowed = tuple(
+                path.strip()
+                for path in props.get(
+                    f"source.family_platform.{family}.{platform}.allow_exact_overrides", ""
+                ).split(",")
+                if path.strip()
+            )
+            redundant = [path for path in redundant if not any(path == prefix or path.startswith(prefix + "/") for prefix in allowed)]
         if redundant:
             fail(
                 f"family-platform/{family}/{platform}: byte-identical override duplicates lower layer; "
