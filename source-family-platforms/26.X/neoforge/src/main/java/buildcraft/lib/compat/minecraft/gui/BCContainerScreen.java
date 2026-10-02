@@ -14,6 +14,10 @@ public abstract class BCContainerScreen<T extends AbstractContainerMenu> extends
         super(menu, inventory, title);
     }
 
+    protected BCContainerScreen(T menu, Inventory inventory, Component title, int imageWidth, int imageHeight) {
+        super(menu, inventory, title, imageWidth, imageHeight);
+    }
+
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
             return mouseClicked(event.x(), event.y(), event.button()) || false;
@@ -41,7 +45,7 @@ public abstract class BCContainerScreen<T extends AbstractContainerMenu> extends
 
     public boolean charTyped(CharacterEvent event) {
         return (event.codepoint() <= Character.MAX_VALUE
-            && charTyped((char) event.codepoint(), event.modifiers())) || super.charTyped(event);
+            && charTyped((char) event.codepoint(), 0)) || super.charTyped(event);
     }
 
     // Stable internal callbacks. Only this boundary constructs or consumes native event records.

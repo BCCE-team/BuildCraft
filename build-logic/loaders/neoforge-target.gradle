@@ -105,6 +105,27 @@ sourceSets {
         compileClasspath = sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
         runtimeClasspath = output + compileClasspath
     }
+    // The core module references gameplay implementations that will be ported
+    // in later module passes. These bridges are compilation-only and are never
+    // added to the runtime or release artifact.
+    corePortStubs {
+        java.setSrcDirs([new File(repositoryRoot, "version-src/${targetName}/core-port-stubs/src/main/java")])
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+    // Core is the first gameplay module ported after the API/lib surface. Keep
+    // it independently compilable while the remaining gameplay modules retain
+    // their own migration boundaries.
+    corePort {
+        java.setSrcDirs(effectiveDirs('src/main/java'))
+        java.include 'buildcraft/core/**'
+        java.include 'buildcraft/robotics/zone/ZonePlan.java'
+        java.include 'buildcraft/robotics/zone/ZoneChunk.java'
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.corePortStubs.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
 }
 
 if (!jeiCompatEnabled) {
@@ -514,10 +535,21 @@ tasks.named('compileApiLibPortJava') {
     dependsOn tasks.named('compileApiLibStubsJava')
     dependsOn(generateBuildCraftTarget)
 }
+tasks.named('compileCorePortJava') {
+    dependsOn prepareEffectiveSource
+    dependsOn tasks.named('compileApiLibPortJava')
+    dependsOn tasks.named('compileCorePortStubsJava')
+    dependsOn(generateBuildCraftTarget)
+}
 tasks.register('verifyApiLibPort') {
     group = 'verification'
     description = 'Compile the complete legacy API and library surface against NeoForge.'
     dependsOn tasks.named('compileApiLibPortJava')
+}
+tasks.register('verifyCorePort') {
+    group = 'verification'
+    description = 'Compile the complete BuildCraft core gameplay module against NeoForge.'
+    dependsOn tasks.named('compileCorePortJava')
 }
 tasks.named('check') {
     dependsOn validateApiV2Boundary

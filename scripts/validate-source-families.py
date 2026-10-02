@@ -96,9 +96,9 @@ def validate_loader_boundaries(
     forbidden = ("net.minecraftforge", "net.neoforged", "net.fabricmc")
     for root in [shared_root, *family_roots.values(), *family_downport_roots]:
         for path in root.rglob("*.java"):
-            # 26.X owns a complete API/lib port copy while gameplay modules
-            # remain outside its scope.  Its lib compatibility bridge contains
-            # NeoForge-facing signatures and is checked by the target compiler.
+            # 26.X owns complete API/lib copies plus loader-neutral core
+            # overrides. Its lib compatibility bridge contains NeoForge-facing
+            # signatures and is checked by the target compiler.
             if root.name == "26.X" and path.is_relative_to(root / "src/main/java/buildcraft/lib"):
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")

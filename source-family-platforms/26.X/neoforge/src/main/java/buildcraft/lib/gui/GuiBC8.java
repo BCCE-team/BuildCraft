@@ -51,7 +51,17 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
     }
 
     public GuiBC8(C container, Function<GuiBC8<?>, BuildCraftGui> constructor, Inventory inventory, Component title) {
-        super(container, inventory, title);
+        this(container, constructor, inventory, title, 176, 166);
+    }
+
+    protected GuiBC8(C container, Inventory inventory, Component title, int imageWidth, int imageHeight) {
+        this(container, gui -> new BuildCraftGui(gui, BuildCraftGui.createWindowedArea(gui)), inventory, title,
+            imageWidth, imageHeight);
+    }
+
+    protected GuiBC8(C container, Function<GuiBC8<?>, BuildCraftGui> constructor, Inventory inventory, Component title,
+        int imageWidth, int imageHeight) {
+        super(container, inventory, title, imageWidth, imageHeight);
         this.container = container;
         this.mainGui = constructor.apply(this);
         standardLedgerInit();
@@ -64,8 +74,6 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         jsonGui.properties.put("player.inventory", new InventorySlotHolder(container, container.playerInventory));
         this.mainGui = jsonGui;
         standardLedgerInit();
-        imageWidth = 10;
-        imageHeight = 10;
     }
 
     private void standardLedgerInit() {
@@ -89,13 +97,10 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         super.init();
     }
 
-    public void render(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTicks) {
+    public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTicks) {
         activeGraphics = guiGraphics;
         try {
-            super.render(guiGraphics, mouseX, mouseY, partialTicks);
-            if (mainGui.currentMenu == null || !mainGui.currentMenu.shouldFullyOverride()) {
-                renderTooltip(guiGraphics, mouseX, mouseY);
-            }
+            super.extractRenderState(guiGraphics, mouseX, mouseY, partialTicks);
             // GuiGraphicsExtractor is 2D in 1.21.11, so tooltips render after slots/items and advance the render stratum
             // instead of relying on a PoseStack Z translation.
             BCGraphics.nextLayer(guiGraphics);
@@ -103,6 +108,12 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         } finally {
             activeGraphics = null;
         }
+    }
+
+    public void extractContents(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTicks) {
+        activeGraphics = guiGraphics;
+        renderBg(guiGraphics, partialTicks, mouseX, mouseY);
+        super.extractContents(guiGraphics, mouseX, mouseY, partialTicks);
     }
 
     protected boolean shouldAddOwnerLedger() {
@@ -271,7 +282,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
     }
 
     public boolean charTyped(char codePoint, int modifiers) {
-        return super.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint, modifiers));
+        return super.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint));
     }
 
     /** Legacy drawing hook used by module GUIs through the lib compatibility path. */
