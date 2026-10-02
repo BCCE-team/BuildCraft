@@ -13,16 +13,20 @@ import net.minecraft.world.level.ItemLike;
 /** Loader-neutral counted ingredient for Minecraft 26.1.2. */
 public final class CountedIngredient {
     private final Ingredient ingredient;
+    private final TagKey<Item> tag;
+    private final ItemStack exactStack;
     private final int count;
 
-    private CountedIngredient(Ingredient ingredient, int count) {
+    private CountedIngredient(Ingredient ingredient, TagKey<Item> tag, ItemStack exactStack, int count) {
         this.ingredient = Objects.requireNonNull(ingredient, "ingredient");
+        this.tag = tag;
+        this.exactStack = exactStack;
         if (count <= 0) throw new IllegalArgumentException("count must be > 0");
         this.count = count;
     }
 
     public static CountedIngredient of(Ingredient ingredient, int count) {
-        return new CountedIngredient(ingredient, count);
+        return new CountedIngredient(ingredient, null, null, count);
     }
 
     public static CountedIngredient of(ItemLike item, int count) {
@@ -32,24 +36,28 @@ public final class CountedIngredient {
     public static CountedIngredient of(ItemStack stack, int count) {
         Objects.requireNonNull(stack, "stack");
         if (stack.isEmpty()) throw new IllegalArgumentException("stack must not be empty");
-        // Ingredient no longer has an ItemStack factory. CountedIngredient does
-        // not expose a component predicate, so item identity is its stable API.
-        return of(Ingredient.of(stack.getItem()), count);
+        ItemStack exactStack = stack.copy();
+        return new CountedIngredient(Ingredient.of(stack.getItem()), null, exactStack, count);
     }
 
     @SuppressWarnings("unchecked")
     public static CountedIngredient of(TagKey<Item> tag, int count) {
         TagKey<Item> itemTag = Objects.requireNonNull(tag, "tag");
+        // Ingredient still needs a display/serialization-side backing set on 26.1.2,
+        // but matching remains tag-key based so datapack tag rebinding is observed.
         HolderSet<Item> values = BuiltInRegistries.ITEM.get(itemTag)
             .map(set -> (HolderSet<Item>) set)
             .orElseGet(() -> HolderSet.emptyNamed(BuiltInRegistries.ITEM, itemTag));
-        return of(Ingredient.of(values), count);
+        return new CountedIngredient(Ingredient.of(values), itemTag, null, count);
     }
 
     public Ingredient ingredient() { return ingredient; }
     public int count() { return count; }
 
     public boolean test(ItemStack stack) {
-        return stack != null && !stack.isEmpty() && stack.getCount() >= count && ingredient.test(stack);
+        if (stack == null || stack.isEmpty() || stack.getCount() < count) return false;
+        if (exactStack != null) return ItemStack.isSameItemSameComponents(stack, exactStack);
+        if (tag != null) return stack.is(tag);
+        return ingredient.test(stack);
     }
 }

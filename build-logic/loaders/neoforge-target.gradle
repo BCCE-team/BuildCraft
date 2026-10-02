@@ -147,7 +147,7 @@ sourceSets {
         compileClasspath = sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.energyPortStubs.output + sourceSets.main.compileClasspath
         runtimeClasspath = output + compileClasspath
     }
-    // Transport is the next complete gameplay slice. It consumes the real
+    // Transport is an independently compilable primary-port slice. It consumes the real
     // API/lib, core and energy outputs; any remaining later-module links are
     // declared explicitly in transportPortStubs rather than hidden in main.
     transportPortStubs {
@@ -168,7 +168,7 @@ sourceSets {
         compileClasspath = sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.transportPortStubs.output + sourceSets.main.compileClasspath
         runtimeClasspath = output + compileClasspath
     }
-    // Factory is verified as the next complete gameplay slice. Its machines
+    // Factory is an independently compilable primary-port slice. Its machines
     // consume the real transport pipe contracts rather than an API-level
     // substitute, so ordering remains explicit and independently testable.
     factoryPort {
@@ -630,27 +630,27 @@ tasks.named('compileFactoryPortJava') {
 }
 tasks.register('verifyApiLibPort') {
     group = 'verification'
-    description = 'Compile the complete legacy API and library surface against NeoForge.'
+    description = 'Compile the primary-ported legacy API and library surface against NeoForge.'
     dependsOn tasks.named('compileApiLibPortJava')
 }
 tasks.register('verifyCorePort') {
     group = 'verification'
-    description = 'Compile the complete BuildCraft core gameplay module against NeoForge.'
+    description = 'Compile the primary-ported BuildCraft core gameplay module against NeoForge.'
     dependsOn tasks.named('compileCorePortJava')
 }
 tasks.register('verifyEnergyPort') {
     group = 'verification'
-    description = 'Compile the complete BuildCraft energy gameplay module against NeoForge.'
+    description = 'Compile the primary-ported BuildCraft energy gameplay module against NeoForge.'
     dependsOn tasks.named('compileEnergyPortJava')
 }
 tasks.register('verifyTransportPort') {
     group = 'verification'
-    description = 'Compile the complete BuildCraft transport gameplay module against NeoForge.'
+    description = 'Compile the primary-ported BuildCraft transport gameplay module against NeoForge.'
     dependsOn tasks.named('compileTransportPortJava')
 }
 tasks.register('verifyFactoryPort') {
     group = 'verification'
-    description = 'Compile the complete BuildCraft factory gameplay module against NeoForge.'
+    description = 'Compile the primary-ported BuildCraft factory gameplay module against NeoForge.'
     dependsOn tasks.named('compileFactoryPortJava')
 }
 tasks.named('check') {

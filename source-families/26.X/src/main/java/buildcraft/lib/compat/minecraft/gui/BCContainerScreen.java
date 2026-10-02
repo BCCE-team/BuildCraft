@@ -16,20 +16,20 @@ public abstract class BCContainerScreen<T extends AbstractContainerMenu> extends
 
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
-            return mouseClicked(event.x(), event.y(), event.button()) || false;
+            return mouseClicked(event.x(), event.y(), event.button()) || super.mouseClicked(event, doubleClick);
         }
     }
 
     public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
             return mouseDragged(event.x(), event.y(), event.button(), dragX, dragY)
-                || false;
+                || super.mouseDragged(event, dragX, dragY);
         }
     }
 
     public boolean mouseReleased(MouseButtonEvent event) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
-            return mouseReleased(event.x(), event.y(), event.button()) || false;
+            return mouseReleased(event.x(), event.y(), event.button()) || super.mouseReleased(event);
         }
     }
 

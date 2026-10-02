@@ -57,7 +57,7 @@ def main() -> None:
         if fragment not in build:
             fail(f"Gradle energy verifier is missing {fragment}")
 
-    print("26.1.2 energy port OK: GUI, renderer, worldgen, fog and transport boundary")
+    print("26.1.2 energy primary-port structure OK: GUI, renderer, worldgen, fog and transport boundary")
 
 
 if __name__ == "__main__":

@@ -29,6 +29,9 @@ def main() -> None:
     require_source("buildcraft/core/marker/PathSavedData.java", "Identifier.withDefaultNamespace(NAME)")
     require_source("buildcraft/core/marker/VolumeSavedData.java", "Identifier.withDefaultNamespace(NAME)")
     require_source("buildcraft/core/marker/volume/WorldSavedDataVolumeBoxes.java", "Identifier.withDefaultNamespace(DATA_NAME)")
+    require_source("buildcraft/core/marker/PathSubCache.java", "SavedDataCompat.migrateLegacyFlatFile")
+    require_source("buildcraft/core/marker/VolumeSubCache.java", "SavedDataCompat.migrateLegacyFlatFile")
+    require_source("buildcraft/core/marker/volume/WorldSavedDataVolumeBoxes.java", "SavedDataCompat.migrateLegacyFlatFile")
     require_source("buildcraft/core/blockEntity/TileEngineCreative.java", "sendOverlayMessage")
     require_source("buildcraft/robotics/zone/ZonePlan.java", "chunkPos.x()")
 
@@ -48,7 +51,7 @@ def main() -> None:
         if fragment not in build:
             fail(f"Gradle core verifier is missing {fragment}")
 
-    print("26.1.2 core port OK: target overrides, zones and compile-only boundaries")
+    print("26.1.2 core primary-port structure OK: target overrides, zones and compile-only boundaries")
 
 
 if __name__ == "__main__":

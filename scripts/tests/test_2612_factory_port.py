@@ -50,7 +50,7 @@ def main() -> None:
         if fragment not in build:
             fail(f"Gradle factory verifier is missing {fragment}")
 
-    print("26.1.2 factory port OK: machines, GUI extraction, tank renderer and transport linkage")
+    print("26.1.2 factory primary-port structure OK: machines, GUI extraction, tank renderer and transport linkage")
 
 
 if __name__ == "__main__":

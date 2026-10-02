@@ -20,6 +20,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import com.mojang.serialization.Codec;
 
+import buildcraft.lib.compat.SavedDataCompat;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftRegistries;
@@ -230,7 +231,9 @@ public class WorldSavedDataWireSystems extends SavedData {
         if (world.isClientSide()) {
             throw new UnsupportedOperationException("Attempted to get LevelSavedDataWireSystems on the client!");
         }
-        WorldSavedDataWireSystems instance = ((ServerLevel) world).getDataStorage().computeIfAbsent(TYPE);
+        ServerLevel serverLevel = (ServerLevel) world;
+        SavedDataCompat.migrateLegacyFlatFile(serverLevel, TYPE, DATA_NAME);
+        WorldSavedDataWireSystems instance = serverLevel.getDataStorage().computeIfAbsent(TYPE);
         instance.world = world;
         return instance;
     }

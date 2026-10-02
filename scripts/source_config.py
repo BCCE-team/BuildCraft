@@ -180,6 +180,7 @@ class TargetLayout:
     family_excludes: tuple[Path, ...]
     family_downport_root: Path | None
     platform_root: Path
+    platform_excludes: tuple[Path, ...]
     family_platform_base_root: Path | None
     family_platform_base_excludes: tuple[Path, ...]
     family_platform_root: Path
@@ -227,6 +228,7 @@ class TargetLayout:
         return (
             (root == self.family_base_root and matches(self.family_base_excludes))
             or (root == self.family_root and matches(self.family_excludes))
+            or (root == self.platform_root and matches(self.platform_excludes))
             or (root == self.family_platform_base_root and matches(self.family_platform_base_excludes))
             or (root == self.family_platform_root and matches(self.family_platform_excludes))
         )
@@ -314,6 +316,11 @@ def target_layout(target: str, properties: dict[str, str] | None = None) -> Targ
     )
     family_downport_root = props.get(prefix + "source.family_downport_root", "").strip()
     platform_root = props.get(prefix + "source.platform_root", props.get(f"source.platform.{platform}.root", "")).strip()
+    platform_excludes = tuple(
+        Path(value.strip())
+        for value in props.get(prefix + "source.platform_excludes", "").split(",")
+        if value.strip()
+    )
     family_platform_root = props.get(
         prefix + "source.family_platform_root",
         props.get(f"source.family_platform.{family}.{platform}.root", ""),
@@ -348,6 +355,7 @@ def target_layout(target: str, properties: dict[str, str] | None = None) -> Targ
         family_excludes=family_excludes,
         family_downport_root=(ROOT / family_downport_root).resolve() if family_downport_root else None,
         platform_root=(ROOT / platform_root).resolve(),
+        platform_excludes=platform_excludes,
         family_platform_base_root=(ROOT / family_platform_base_root).resolve() if family_platform_base_root else None,
         family_platform_base_excludes=family_platform_base_excludes,
         family_platform_root=(ROOT / family_platform_root).resolve(),

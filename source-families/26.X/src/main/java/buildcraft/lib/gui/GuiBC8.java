@@ -271,7 +271,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
     }
 
     public boolean charTyped(char codePoint, int modifiers) {
-        return super.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint, modifiers));
+        return super.charTyped(codePoint, modifiers);
     }
 
     /** Legacy drawing hook used by module GUIs through the lib compatibility path. */

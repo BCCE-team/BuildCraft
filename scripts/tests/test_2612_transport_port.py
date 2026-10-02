@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Structural guard for the 26.1.2 BuildCraft transport gameplay port."""
 from pathlib import Path
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -8,6 +9,8 @@ FAMILY = ROOT / "source-families/26.X/src/main/java"
 PLATFORM = ROOT / "source-family-platforms/26.X/neoforge/src/main/java"
 BUILD = ROOT / "build-logic/loaders/neoforge-target.gradle"
 STUBS = ROOT / "version-src/26.1.2-neoforge/transport-port-stubs/src/main/java"
+sys.path.insert(0, str(ROOT / "scripts"))
+from source_config import load_properties, target_layout  # noqa: E402
 
 
 def fail(message: str) -> None:
@@ -27,6 +30,7 @@ def main() -> None:
     require(FAMILY, "buildcraft/transport/client/render/RenderPipeHolder.java", "state.level.CameraRenderState")
     require(FAMILY, "buildcraft/transport/recipe/PipeRecipe.java", "assemble(CraftingInput input)")
     require(FAMILY, "buildcraft/transport/wire/WorldSavedDataWireSystems.java", "Identifier.withDefaultNamespace(DATA_NAME)")
+    require(FAMILY, "buildcraft/transport/wire/WorldSavedDataWireSystems.java", "SavedDataCompat.migrateLegacyFlatFile")
     require(FAMILY, "buildcraft/transport/wire/WireSystem.java", "element.blockPos.getX() >> 4")
     require(FAMILY, "buildcraft/transport/pipe/behaviour/PipeBehaviourLimiter.java", "sendOverlayMessage")
 
@@ -34,6 +38,15 @@ def main() -> None:
     require(PLATFORM, "buildcraft/transport/tile/TilePipeHolderModelData.java", "ModelPipeNative2612.buildModelData")
     require(PLATFORM, "buildcraft/transport/client/model/ModelPipeNative2612.java", "BlockStateModelPart")
     require(PLATFORM, "buildcraft/transport/client/model/ModelPipeNative2612.java", "BakedQuad.MaterialInfo")
+
+    layout = target_layout("26.1.2-neoforge", load_properties())
+    effective = layout.effective_files("src/main/java")
+    for retired in (
+        "src/main/java/buildcraft/transport/client/model/ModelPipe.java",
+        "src/main/java/buildcraft/transport/client/model/ModelPipeNative121111.java",
+    ):
+        if retired in effective:
+            fail(f"retired pre-26 pipe model is still present in the normal effective target: {retired}")
 
     native_model = PLATFORM / "buildcraft/transport/client/model/ModelPipeNative2612.java"
     if "mc121111" in native_model.read_text(encoding="utf-8"):
@@ -61,7 +74,7 @@ def main() -> None:
         if fragment not in build:
             fail(f"Gradle transport verifier is missing {fragment}")
 
-    print("26.1.2 transport port OK: gameplay, terrain model, recipes, wires and later-module boundaries")
+    print("26.1.2 transport primary-port structure OK: gameplay slice, terrain model and later-module boundaries")
 
 
 if __name__ == "__main__":

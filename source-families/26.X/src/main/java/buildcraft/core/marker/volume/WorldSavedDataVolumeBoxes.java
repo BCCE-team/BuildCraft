@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 
 import com.mojang.serialization.Codec;
 
+import buildcraft.lib.compat.SavedDataCompat;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.lib.net.MessageManager;
 import net.minecraft.core.BlockPos;
@@ -159,6 +160,7 @@ public class WorldSavedDataVolumeBoxes extends SavedData {
         if (!(world instanceof ServerLevel serverLevel)) {
             throw new IllegalArgumentException("Tried to access volume-box saved data on the client");
         }
+        SavedDataCompat.migrateLegacyFlatFile(serverLevel, TYPE, DATA_NAME);
         WorldSavedDataVolumeBoxes data = serverLevel.getDataStorage().computeIfAbsent(TYPE);
         data.attachWorld(world);
         return data;

@@ -375,6 +375,13 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     if not relative.endswith(".java") or _version_tuple(minecraft) < _version_tuple("1.21.11"):
         return text
 
+    # Compatibility implementation classes already speak the target-native API.
+    # Detect them from their source declarations rather than repository paths so
+    # the transform remains ownership-layer agnostic.
+    is_render_compat_impl = "class RenderCompat" in text
+    is_gui_input_impl = "class BCGuiInput" in text
+    is_container_input_bridge = "class BCContainerScreen" in text and "extends AbstractContainerScreen<" in text
+
     # Normalize line endings before regex/header surgery. Maintained sources may
     # use CRLF on Windows, while package/import rewrites operate on LF boundaries.
     # Effective sources are generated artifacts, so LF output keeps materialization deterministic.
@@ -460,6 +467,8 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
         ("RenderTypes.translucent()", "RenderCompat.translucent()"),
     )
     for before, after in replacements:
+        if is_render_compat_impl and before.startswith("RenderTypes.") and after.startswith("RenderCompat."):
+            continue
         text = text.replace(before, after)
     shim_namespace = "2612" if _version_tuple(minecraft) >= _version_tuple("26.1.2") else "121111"
     if shim_namespace == "2612":
@@ -585,15 +594,21 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     # GuiBC8/ContainerScreenBase expose the old 1.21.1 input overloads on 1.21.11 and bridge the
     # native MouseButtonEvent/KeyEvent API back into them. Preserve super.oldStyle(...) calls in their
     # subclasses so machine-specific controls still reach the BuildCraft base handler before vanilla slots.
-    legacy_gui_input_bridge = "extends GuiBC8<" in text or "extends ContainerScreenBase<" in text
+    legacy_gui_input_bridge = (
+        "extends GuiBC8<" in text
+        or "extends ContainerScreenBase<" in text
+        or "extends BCContainerScreen<" in text
+        or is_container_input_bridge
+    )
     if not legacy_gui_input_bridge:
         text = re.sub(r"super\.mouseClicked\([^;]+?\)", "false", text)
         text = re.sub(r"super\.mouseDragged\([^;]+?\)", "false", text)
         text = re.sub(r"super\.mouseReleased\([^;]+?\)", "false", text)
         text = re.sub(r"super\.keyPressed\((?!event\))[^;]+?\)", "false", text)
-    # Adapt child widget calls, but never rewrite the Java 'super' receiver.
-    text = re.sub(r"\b(?!super\b)(?!RenderCompat\b)(\w+)\.mouseClicked\(([^;]+?)\)", r"RenderCompat.mouseClicked(\1, \2)", text)
-    text = re.sub(r"\b(?!super\b)(?!RenderCompat\b)(\w+)\.keyPressed\(([^;]+?)\)", r"RenderCompat.keyPressed(\1, \2)", text)
+    # Adapt child widget calls, but never rewrite the native compatibility implementations themselves.
+    if not (is_render_compat_impl or is_gui_input_impl):
+        text = re.sub(r"\b(?!super\b)(?!RenderCompat\b)(\w+)\.mouseClicked\(([^;]+?)\)", r"RenderCompat.mouseClicked(\1, \2)", text)
+        text = re.sub(r"\b(?!super\b)(?!RenderCompat\b)(\w+)\.keyPressed\(([^;]+?)\)", r"RenderCompat.keyPressed(\1, \2)", text)
     text = text.replace("Screen.hasShiftDown()", "false")
     text = re.sub(r"guiGraphics\.renderTooltip\(([^;]+?)\);", r"RenderCompat.renderTooltip(guiGraphics, \1);", text)
     text = re.sub(r"guiGraphics\.blit\(([^;]+?)\);", r"RenderCompat.blit(guiGraphics, \1);", text)
