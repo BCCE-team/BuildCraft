@@ -210,6 +210,9 @@ def _rewrite_121111_typed_nbt_contains(text: str) -> str:
 
     def replace(match: re.Match[str]) -> str:
         receiver, key, tag_type = match.groups()
+        # Static helpers with a type-like receiver are not CompoundTag instances.
+        if receiver[:1].isupper():
+            return match.group(0)
         # TAG_ANY_NUMERIC existed on older targets but was removed from Tag in
         # 1.21.11. NbtCompat uses the numeric-type sentinel value 99.
         type_expr = "99" if tag_type == "TAG_ANY_NUMERIC" else f"Tag.{tag_type}"
@@ -237,6 +240,7 @@ def _apply_121111_nbt_compat(text: str) -> str:
         "getString": "getString",
         "getLong": "getLong",
         "getDouble": "getDouble",
+        "getFloat": "getFloat",
         "getInt": "getInt",
         "getByte": "getByte",
         "getUUID": "getUUID",
@@ -258,7 +262,12 @@ def _apply_121111_nbt_compat(text: str) -> str:
                 return match.group(0)
             # The target overlay may already use the compatibility facade directly. The pass must be
             # idempotent; otherwise NbtCompat.getX(tag, key) becomes NbtCompat.getX(NbtCompat, tag, key).
-            if receiver == "NbtCompat":
+            if receiver == "NbtCompat" or receiver[:1].isupper():
+                return match.group(0)
+            # The native 1.21.11 getters return Optional values. A following
+            # Optional operation proves that this is already native code rather
+            # than a legacy CompoundTag convenience call.
+            if re.match(r"\s*\.orElse(?:Get)?\s*\(", text[match.end() :]):
                 return match.group(0)
             # ValueInput uses Optional-returning accessors natively in 1.21.11.
             # Do not mistake its getIntArray call for an old CompoundTag getter.
@@ -271,16 +280,39 @@ def _apply_121111_nbt_compat(text: str) -> str:
 
     before = text
     text = _rewrite_121111_typed_nbt_contains(text)
-    text = re.sub(r"(\w+)\.putUUID\(([^,\n()]+),\s*([^;\n()]+)\)", r"NbtCompat.putUUID(\1, \2, \3)", text)
+
+    def replace_put_uuid(match: re.Match[str]) -> str:
+        receiver, key, value = match.groups()
+        if receiver[:1].isupper():
+            return match.group(0)
+        return f"NbtCompat.putUUID({receiver}, {key}, {value})"
+
+    text = re.sub(r"(\w+)\.putUUID\(([^,\n()]+),\s*([^;\n()]+)\)", replace_put_uuid, text)
     text = text.replace("NbtUtils.writeBlockPos(", "NbtCompat.writeBlockPos(")
     text = text.replace("NbtUtils.readBlockPos(", "NbtCompat.readBlockPos(")
     text = text.replace("NbtUtils.loadUUID(", "NbtCompat.loadUUID(")
     text = text.replace("NbtUtils.createUUID(", "NbtCompat.createUUID(")
     text = text.replace("NbtUtils::writeBlockPos", "NbtCompat::writeBlockPos")
     text = text.replace("Direction::getNormal", "Direction::getUnitVec3i")
-    text = re.sub(r"(\w+)\.getList\(([^,\n()]+),\s*(?:(?:net\.minecraft\.nbt\.)?Tag\.TAG_[A-Z_]+|\d+)\)", r"NbtCompat.getList(\1, \2)", text)
+    def replace_get_list(match: re.Match[str]) -> str:
+        receiver, key = match.groups()
+        if receiver[:1].isupper():
+            return match.group(0)
+        return f"NbtCompat.getList({receiver}, {key})"
+
+    text = re.sub(
+        r"(\w+)\.getList\(([^,\n()]+),\s*(?:(?:net\.minecraft\.nbt\.)?Tag\.TAG_[A-Z_]+|\d+)\)",
+        replace_get_list,
+        text,
+    )
     text = re.sub(r"(NbtCompat\.getCompound\([^\n;]+?\))\.getList\(([^,\n()]+),\s*(?:(?:net\.minecraft\.nbt\.)?Tag\.TAG_[A-Z_]+|\d+)\)", r"NbtCompat.getList(\1, \2)", text)
-    text = re.sub(r"((?:\([^)]+\)|\w+))\.getAllKeys\(\)", r"NbtCompat.getAllKeys(\1)", text)
+    def replace_get_all_keys(match: re.Match[str]) -> str:
+        receiver = match.group(1)
+        if receiver[:1].isupper():
+            return match.group(0)
+        return f"NbtCompat.getAllKeys({receiver})"
+
+    text = re.sub(r"((?:\([^)]+\)|\w+))\.getAllKeys\(\)", replace_get_all_keys, text)
     text = text.replace("((CompoundTag) destination).getAllKeys()", "NbtCompat.getAllKeys((CompoundTag) destination)")
     text = text.replace("((CompoundTag) source).getAllKeys()", "NbtCompat.getAllKeys((CompoundTag) source)")
     text = re.sub(r"(\w+)\.getAsString\(\)", r"NbtCompat.getString(\1)", text)
@@ -481,12 +513,12 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     if "GameProfileCompat." in text:
         text = _ensure_java_import(text, "buildcraft.lib.compat.GameProfileCompat")
 
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\"))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))")
     text = re.sub(r"(?m)^(\s*)((?!NbtCompat\b)\w+)\.putUUID\(([^,]+),\s*([^;]+)\);", r"\1NbtCompat.putUUID(\2, \3, \4);", text)
     text = text.replace("NbtCompat.putUUID(NbtCompat, ", "NbtCompat.putUUID(")
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\").map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\"))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\").map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))")
     # NeoForge 1.21.11 added the breaking tool stack to onDestroyedByPlayer. Preserve BuildCraft's
     # selected-part removal and tile teardown paths instead of replacing the superclass result with a constant.
 
@@ -590,9 +622,6 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     # 1.21.11 runtime sources do not register datagen/provider events.
     text = text.replace("Capabilities.FluidHandler.ITEM", "Capabilities.Fluid.ITEM")
 
-    # Optional NBT float getter.
-    text = re.sub(r"(?<![A-Za-z0-9_$\.])(\w+)\.getFloat\(([^;\n()]+)\)", r"NbtCompat.getFloat(\1, \2)", text)
-
     # NeighborChanged gained Orientation; null keeps the notification as a compile bridge.
     text = re.sub(r"level\.neighborChanged\(([^;]+?),\s*worldPosition\);", r"level.neighborChanged(\1, null);", text)
 
@@ -667,8 +696,8 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = _apply_121111_nbt_compat(text)
     text = text.replace("NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(),", "NbtUtils.readBlockState(BuiltInRegistries.BLOCK,")
     text = re.sub(r'NbtUtils\.readBlockState\(BuiltInRegistries\.BLOCK\.asLookup\(\),\s*NbtCompat\.getCompound\(([^,]+),\s*"(blockState|state)"\)\)', r'NbtUtils.readBlockState(BuiltInRegistries.BLOCK, NbtCompat.getCompound(\1, "\2"))', text)
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\"))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))")
     text = re.sub(r"(?m)^(\s*)((?!NbtCompat\b)\w+)\.putUUID\(([^,]+),\s*([^;]+)\);", r"\1NbtCompat.putUUID(\2, \3, \4);", text)
     text = text.replace("NbtCompat.putUUID(NbtCompat, ", "NbtCompat.putUUID(")
     text = _apply_121111_item_use_result_renames(text)
@@ -766,6 +795,19 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = text.replace("RenderSystem.setShaderFogStart(", "RenderCompat.setShaderFogStart(")
     text = text.replace("RenderSystem.setShaderFogEnd(", "RenderCompat.setShaderFogEnd(")
     text = re.sub(r"RenderSystem\.setShader\([^;]+\);", "RenderCompat.setShader(null);", text)
+    # Registry lookups return Optional holder references on 26.1.2. Normalize
+    # any wrapper emitted by an earlier materialization before adding exactly
+    # one current wrapper below; this keeps the pass idempotent.
+    legacy_registry_lookup = re.compile(
+        r"(BuiltInRegistries\.(?:ITEM|BLOCK|FLUID)\.get\([^;\n]+?\))"
+        r"\.map\(net\.minecraft\.core\.Holder\.Reference::value\)"
+        r"\.orElse\([^;\n]*?\)"
+    )
+    while True:
+        normalized = legacy_registry_lookup.sub(r"\1", text)
+        if normalized == text:
+            break
+        text = normalized
     text = text.replace("BuiltInRegistries.ITEM.get(id)", "BuiltInRegistries.ITEM.get(id).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR)")
     text = text.replace("BuiltInRegistries.ITEM.get(itemId)", "BuiltInRegistries.ITEM.get(itemId).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR)")
     text = text.replace("BuiltInRegistries.ITEM.get(location)", "BuiltInRegistries.ITEM.get(location).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR)")
@@ -773,6 +815,9 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = text.replace("BuiltInRegistries.FLUID.get(Identifier.parse(name))", "BuiltInRegistries.FLUID.get(Identifier.parse(name)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.material.Fluids.EMPTY)")
     text = text.replace("BuiltInRegistries.FLUID.get(Identifier.parse(id))", "BuiltInRegistries.FLUID.get(Identifier.parse(id)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.material.Fluids.EMPTY)")
     text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(paint.getName() + type))", "BuiltInRegistries.BLOCK.get(Identifier.parse(paint.getName() + type)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\"))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(regName))", "BuiltInRegistries.BLOCK.get(Identifier.parse(regName)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
     text = text.replace("BuiltInRegistries.BLOCK.get(id)", "BuiltInRegistries.BLOCK.get(id).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
     text = text.replace("BuiltInRegistries.BLOCK.get(loc)", "BuiltInRegistries.BLOCK.get(loc).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
     text = text.replace("FakePlayerProvider.NULL_PROFILE.getId()", "GameProfileCompat.id(FakePlayerProvider.NULL_PROFILE)")
@@ -869,6 +914,7 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = text.replace(".getGameRules().getValue(GameRules.BLOCK_DROPS)", ".getGameRules().get(GameRules.BLOCK_DROPS)")
     text = text.replace(".getGameRules().getBoolean(GameRules.BLOCK_DROPS)", ".getGameRules().get(GameRules.BLOCK_DROPS)")
     text = text.replace(".getServer().getAdvancements()", ".level().getServer().getAdvancements()")
+    text = text.replace(".level().level().getServer().getAdvancements()", ".level().getServer().getAdvancements()")
     text = text.replace("requestedPlayer.getServer() == null", "requestedPlayer.level().getServer() == null")
     text = text.replace("requestedPlayer.getServer().getPlayerList()", "requestedPlayer.level().getServer().getPlayerList()")
     text = text.replace("playerMP.getServer().getAdvancements()", "playerMP.level().getServer().getAdvancements()")
@@ -890,7 +936,7 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = text.replace("NbtCompat.getCompound(states, 0).getBoolean(\"isHollow\")", "NbtCompat.getBoolean(NbtCompat.getCompound(states, 0), \"isHollow\")")
     text = text.replace("NbtCompat.getCompound(tagStates, 0).getBoolean(\"isHollow\")", "NbtCompat.getBoolean(NbtCompat.getCompound(tagStates, 0), \"isHollow\")")
     text = text.replace("NBTUtilBC.getItemData(stack).getCompound(\"gate\")", "NbtCompat.getCompound(NBTUtilBC.getItemData(stack), \"gate\")")
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(regName))", "BuiltInRegistries.BLOCK.get(Identifier.parse(regName)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(regName))", "BuiltInRegistries.BLOCK.get(Identifier.parse(regName))")
     text = text.replace("new BlockParticleOption(ParticleTypes.BLOCK, BlockState).setPos(blockPosition)", "new BlockParticleOption(ParticleTypes.BLOCK, BlockState)")
     text = text.replace("particle.pickSprite(spriteSet);", "// Sprite selection is owned by the 1.21.11 particle construction path.")
     text = text.replace("particle.setSprite(spriteSet.first());", "// Sprite selection is owned by the 1.21.11 particle construction path.")
@@ -1073,5 +1119,3 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     # target bridge and retain the Tag import where the constant itself is still referenced.
     text = _cleanup_empty_java_imports(text)
     return _repair_java_imports_before_package(text)
-
-

@@ -20,7 +20,9 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
+import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.item.crafting.ShapedRecipePattern;
@@ -106,6 +108,10 @@ public class NbtShapedRecipeBuilder implements RecipeBuilder {
         return result.getItem();
     }
 
+    public ResourceKey<Recipe<?>> defaultId() {
+        return RecipeBuilder.getDefaultRecipeId(result);
+    }
+
     public void save(RecipeOutput output, ResourceKey<Recipe<?>> key) {
         Identifier id = key.identifier();
         if (rows.isEmpty()) {
@@ -113,8 +119,12 @@ public class NbtShapedRecipeBuilder implements RecipeBuilder {
         }
 
         ShapedRecipePattern pattern = ShapedRecipePattern.of(this.key, rows);
-        CraftingBookCategory bookCategory = RecipeBuilder.determineBookCategory(RecipeCategory.MISC);
-        ShapedRecipe recipe = new ShapedRecipe(group, bookCategory, pattern, result.copy(), showNotification);
+        Recipe.CommonInfo commonInfo = RecipeBuilder.createCraftingCommonInfo(showNotification);
+        CraftingRecipe.CraftingBookInfo bookInfo =
+            RecipeBuilder.createCraftingBookInfo(RecipeCategory.MISC, group);
+        ShapedRecipe recipe = new ShapedRecipe(
+            commonInfo, bookInfo, pattern, ItemStackTemplate.fromNonEmptyStack(result.copy())
+        );
 
         advancement.parent(ROOT_RECIPE_ADVANCEMENT)
             .addCriterion("has_the_recipe", RecipeUnlockedTrigger.unlocked(key))

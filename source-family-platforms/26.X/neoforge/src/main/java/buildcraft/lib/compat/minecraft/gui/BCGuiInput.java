@@ -15,15 +15,16 @@ public final class BCGuiInput {
         return InputConstants.getKey(new KeyEvent(key, scanCode, 0));
     }
     public static boolean click(Object target, double x, double y, int button) {
-        if (target instanceof BCWidgetInput panel) return RenderCompat.mouseClicked(panel, x, y, button);
-        return target instanceof GuiEventListener widget && RenderCompat.mouseClicked(widget, new MouseButtonEvent(x, y, new MouseButtonInfo(button, 0)), false);
+        if (target instanceof BCWidgetInput panel) return panel.mouseClicked(x, y, button);
+        return target instanceof GuiEventListener widget
+            && widget.mouseClicked(new MouseButtonEvent(x, y, new MouseButtonInfo(button, 0)), false);
     }
     public static boolean key(Object target, int key, int scanCode, int modifiers) {
-        if (target instanceof BCWidgetInput panel) return RenderCompat.keyPressed(panel, key, scanCode, modifiers);
-        return target instanceof GuiEventListener widget && RenderCompat.keyPressed(widget, new KeyEvent(key, scanCode, modifiers));
+        if (target instanceof BCWidgetInput panel) return panel.keyPressed(key, scanCode, modifiers);
+        return target instanceof GuiEventListener widget && widget.keyPressed(new KeyEvent(key, scanCode, modifiers));
     }
     public static boolean character(Object target, int codePoint, int modifiers) {
         if (target instanceof BCWidgetInput panel) return codePoint <= Character.MAX_VALUE && panel.charTyped((char) codePoint, modifiers);
-        return target instanceof GuiEventListener widget && widget.charTyped(new CharacterEvent(codePoint, modifiers));
+        return target instanceof GuiEventListener widget && widget.charTyped(new CharacterEvent(codePoint));
     }
 }

@@ -24,6 +24,6 @@ public final class PlatformChunkTickets {
         });
     }
     public static boolean forceChunk(ServerLevel level, BlockPos owner, ChunkPos chunk, boolean add, boolean ticking) {
-        return CONTROLLER.forceChunk(level, owner, chunk.x, chunk.z, add, ticking);
+        return CONTROLLER.forceChunk(level, owner, chunk.x(), chunk.z(), add, ticking);
     }
 }

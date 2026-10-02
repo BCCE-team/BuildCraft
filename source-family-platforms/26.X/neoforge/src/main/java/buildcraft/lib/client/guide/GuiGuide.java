@@ -697,7 +697,7 @@ public final class GuiGuide extends Screen {
             renderSortButtons(guiGraphics, mouseX, mouseY);
         }
         if (searchBox != null) {
-            searchBox.render(guiGraphics, mouseX, mouseY, 0);
+            searchBox.extractRenderState(guiGraphics, mouseX, mouseY, 0);
             if (realSearchResultCount >= 0) {
                 String count = BCLibConfig.maxGuideSearchCount + "/" + realSearchResultCount;
                 int countX = pageX + 107;
@@ -783,7 +783,7 @@ public final class GuiGuide extends Screen {
 
     private void renderEntryIcon(GuiGraphicsExtractor guiGraphics, GuideContent.Entry entry, int x, int y, int mouseX, int mouseY) {
         if (!entry.stack.isEmpty()) {
-            guiGraphics.renderItem(entry.stack, x, y);
+            guiGraphics.item(entry.stack, x, y);
             if (isInside(mouseX, mouseY, x, y, 16, 16)) hoveredStack = entry.stack;
             return;
         }
@@ -907,7 +907,7 @@ public final class GuiGuide extends Screen {
     private static void drawGuideTintedPart(GuiGraphicsExtractor guiGraphics, int x, int y, int width, int height,
         int u, int v, int sourceWidth, int sourceHeight, int colour) {
         if (width <= 0 || height <= 0 || sourceWidth <= 0 || sourceHeight <= 0) return;
-        RenderCompat.blit(guiGraphics, RenderPipelines.GUI_TEXTURED, ICONS, x, y, (float) u, (float) v,
+        guiGraphics.blit(RenderPipelines.GUI_TEXTURED, ICONS, x, y, (float) u, (float) v,
             width, height, sourceWidth, sourceHeight, 256, 256, colour);
     }
 
@@ -1068,7 +1068,7 @@ public final class GuiGuide extends Screen {
         boolean hovered = isInside(mouseX, mouseY, x, y, PAGE_TEXT_WIDTH, 19);
         if (hovered) guiGraphics.fill(x, y, x + PAGE_TEXT_WIDTH, y + 19, HOVER_COLOUR);
         if (element.stack != null && !element.stack.isEmpty()) {
-            guiGraphics.renderItem(element.stack, x + 1, y + 1);
+            guiGraphics.item(element.stack, x + 1, y + 1);
             if (isInside(mouseX, mouseY, x + 1, y + 1, 16, 16)) hoveredStack = element.stack;
         }
         String title = element.component == null ? element.target : element.component.getString();
@@ -1086,7 +1086,7 @@ public final class GuiGuide extends Screen {
             float scale = Math.max(1.0F, Math.min(element.width, element.height) / 16.0F);
             RenderCompat.pose(guiGraphics).translate(x + (element.width - 16 * scale) / 2.0F, y);
             RenderCompat.pose(guiGraphics).scale(scale, scale);
-            guiGraphics.renderItem(element.stack, 0, 0);
+            guiGraphics.item(element.stack, 0, 0);
             RenderCompat.pose(guiGraphics).popMatrix();
             int itemX = x + Math.round((element.width - 16 * scale) / 2.0F);
             int itemWidth = Math.max(16, Math.round(16 * scale));
@@ -1601,7 +1601,7 @@ public final class GuiGuide extends Screen {
 
     private void renderRecipeStack(GuiGraphicsExtractor guiGraphics, ItemStack stack, int x, int y, int mouseX, int mouseY) {
         if (stack.isEmpty()) return;
-        guiGraphics.renderItem(stack, x, y);
+        guiGraphics.item(stack, x, y);
         guiGraphics.itemDecorations(font, stack, x, y);
         registerStackInteraction(stack, x, y, 16, 16, mouseX, mouseY);
     }
@@ -1806,7 +1806,7 @@ public final class GuiGuide extends Screen {
 
     public boolean charTyped(CharacterEvent event) {
         if (event.codepoint() <= Character.MAX_VALUE
-            && charTyped((char) event.codepoint(), event.modifiers())) {
+            && charTyped((char) event.codepoint(), 0)) {
             return true;
         }
         return super.charTyped(event);
@@ -1814,7 +1814,7 @@ public final class GuiGuide extends Screen {
 
     public boolean charTyped(char codePoint, int modifiers) {
         if (searchBox != null && searchBox.visible
-            && searchBox.charTyped(new CharacterEvent(codePoint, modifiers))) {
+            && searchBox.charTyped(new CharacterEvent(codePoint))) {
             return true;
         }
         return false;

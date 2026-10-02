@@ -234,7 +234,7 @@ public class StackUtil {
         }
 
         if (checkTag) {
-            return base.getTags().anyMatch(base::is);
+            return base.typeHolder().tags().anyMatch(comparison::is);
         }
 
         return false;

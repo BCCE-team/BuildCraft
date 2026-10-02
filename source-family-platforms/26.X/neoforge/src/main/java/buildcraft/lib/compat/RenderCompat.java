@@ -16,9 +16,11 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -129,6 +131,14 @@ public final class RenderCompat {
         return BCGuiInput.key(target, keyCode, scanCode, modifiers);
     }
 
+    public static boolean mouseClicked(Object target, MouseButtonEvent event, boolean doubleClick) {
+        return target instanceof GuiEventListener widget && widget.mouseClicked(event, doubleClick);
+    }
+
+    public static boolean keyPressed(Object target, KeyEvent event) {
+        return target instanceof GuiEventListener widget && widget.keyPressed(event);
+    }
+
     public static void renderTooltip(GuiGraphicsExtractor graphics, Font font, ItemStack stack, int mouseX, int mouseY) {
         BCGuiTooltip.item(graphics, font, stack, mouseX, mouseY);
     }
@@ -137,20 +147,16 @@ public final class RenderCompat {
         blit(graphics, texture, x, y, u, v, width, height, 256, 256);
     }
 
-    public static ItemRenderer itemRenderer() {
-        return Minecraft.getInstance().getItemRenderer();
-    }
-
     public static RenderType solid() {
-        return BCRenderCompat.solid();
+        return RenderTypes.solidMovingBlock();
     }
 
     public static RenderType cutout() {
-        return BCRenderCompat.cutout();
+        return RenderTypes.cutoutMovingBlock();
     }
 
     public static RenderType translucent() {
-        return BCRenderCompat.translucent();
+        return RenderTypes.translucentMovingBlock();
     }
 
     public static RenderType entityCutout(Identifier texture) {
@@ -206,6 +212,16 @@ public final class RenderCompat {
     public static void blit(GuiGraphicsExtractor graphics, Identifier texture, int x, int y, int u, int v, int width, int height,
         int sourceWidth, int sourceHeight, int texWidth, int texHeight) {
         BCGraphics.blit(graphics, texture, x, y, u, v, width, height, sourceWidth, sourceHeight, texWidth, texHeight);
+    }
+
+    /**
+     * Retains source tinting while routing directly to the 26.1.2 extraction-stage GUI command.
+     * This is intentionally a thin facade: {@link GuiGraphicsExtractor} owns the queued render state.
+     */
+    public static void blit(GuiGraphicsExtractor graphics, com.mojang.blaze3d.pipeline.RenderPipeline pipeline,
+        Identifier texture, int x, int y, float u, float v, int width, int height, int sourceWidth, int sourceHeight,
+        int texWidth, int texHeight, int colour) {
+        graphics.blit(pipeline, texture, x, y, u, v, width, height, sourceWidth, sourceHeight, texWidth, texHeight, colour);
     }
 
     public static void setShader(Object shader) {

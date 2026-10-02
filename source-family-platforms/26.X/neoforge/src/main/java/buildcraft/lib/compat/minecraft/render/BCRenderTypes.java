@@ -11,8 +11,8 @@ public final class BCRenderTypes {
     public static RenderType solid() { return RenderTypes.solidMovingBlock(); }
     public static RenderType cutout() { return RenderTypes.cutoutMovingBlock(); }
     public static RenderType cutoutMipped() { return RenderTypes.cutoutMovingBlock(); }
-    public static RenderType translucent() { return RenderCompat.translucent(); }
+    public static RenderType translucent() { return RenderTypes.translucentMovingBlock(); }
     public static RenderType entityCutout(Identifier texture) { return RenderTypes.entityCutout(texture); }
-    public static RenderType entityCutoutNoCull(Identifier texture) { return RenderTypes.entityCutoutNoCull(texture); }
+    public static RenderType entityCutoutNoCull(Identifier texture) { return RenderTypes.entityCutout(texture, false); }
     public static RenderType entityTranslucent(Identifier texture) { return RenderTypes.entityTranslucent(texture); }
 }

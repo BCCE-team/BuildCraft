@@ -158,7 +158,7 @@ public class LaserRenderer_BC8 {
         int max = 0;
         int count = 0;
         int sum = 0;
-		boolean ao = Minecraft.useAmbientOcclusion();
+		boolean ao = Minecraft.getInstance().options.ambientOcclusion().get();
 
         double xn = (x % 1 + 1) % 1;
         double yn = (y % 1 + 1) % 1;

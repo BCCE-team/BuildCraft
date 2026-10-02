@@ -32,7 +32,9 @@ public final class PlatformClientRegistration {
             }
         };
     }
-    public static ClientRegistration.BlockColours blockColours(RegisterColorHandlersEvent.Block event) { return event::register; }
+    public static ClientRegistration.BlockColours blockColours(RegisterColorHandlersEvent.BlockTintSources event) {
+        return (colour, blocks) -> event.register(java.util.List.of(colour), blocks);
+    }
     public static ClientRegistration.Screens screens(RegisterMenuScreensEvent event) {
         return new ClientRegistration.Screens() {
             public <M extends AbstractContainerMenu, S extends Screen & MenuAccess<M>> void register(MenuType<? extends M> type, ClientRegistration.ScreenFactory<M, S> factory) {

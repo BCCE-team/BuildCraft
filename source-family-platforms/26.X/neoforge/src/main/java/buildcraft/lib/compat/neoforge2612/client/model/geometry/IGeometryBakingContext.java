@@ -1,7 +1,7 @@
 package buildcraft.lib.compat.neoforge2612.client.model.geometry;
 
 import net.minecraft.client.resources.model.cuboid.ItemTransforms;
-import net.minecraft.client.resources.model.Material;
+import net.minecraft.client.resources.model.sprite.Material;
 
 public interface IGeometryBakingContext {
     default boolean hasMaterial(String name) { return false; }

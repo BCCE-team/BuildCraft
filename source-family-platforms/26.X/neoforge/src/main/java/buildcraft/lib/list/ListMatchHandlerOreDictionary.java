@@ -47,7 +47,7 @@ public class ListMatchHandlerOreDictionary extends ListMatchHandlerBackend {
     }
 
     private static List<TagKey<Item>> getTags(ItemStack stack) {
-        return stack.getTags().collect(Collectors.toList());
+        return stack.typeHolder().tags().collect(Collectors.toList());
     }
 
     private static TagParts getParts(TagKey<Item> tag) {

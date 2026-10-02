@@ -2,7 +2,7 @@ package buildcraft.lib.platform.client;
 import java.util.Objects;
 import java.util.function.Function;
 import net.minecraft.client.resources.model.ModelManager;
-import net.minecraft.client.resources.model.QuadCollection;
+import net.minecraft.client.resources.model.geometry.QuadCollection;
 import net.minecraft.resources.Identifier;
 
 /** Stable BCCE model descriptor. A reload binds a loader key; later bakes use only this lookup. */

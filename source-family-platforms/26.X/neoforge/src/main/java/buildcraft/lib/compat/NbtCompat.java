@@ -1,3 +1,4 @@
+//? source if >=1.21.11
 package buildcraft.lib.compat;
 
 import java.util.Optional;
@@ -16,14 +17,13 @@ import net.minecraft.nbt.NumericTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
-import buildcraft.lib.compat.NbtCompat;
 
 /** Compatibility facade for CompoundTag access across modern targets. */
 public final class NbtCompat {
     private NbtCompat() {}
 
     public static CompoundTag getCompound(CompoundTag tag, String key) {
-        return NbtCompat.getCompound(tag, key).orElseGet(CompoundTag::new);
+        return tag.getCompound(key).orElseGet(CompoundTag::new);
     }
 
     /** Equivalent to the pre-1.21.11 CompoundTag#contains(String, int) overload. */
@@ -40,39 +40,39 @@ public final class NbtCompat {
     }
 
     public static boolean getBoolean(CompoundTag tag, String key) {
-        return NbtCompat.getBoolean(tag, key).orElse(false);
+        return tag.getBoolean(key).orElse(false);
     }
 
     public static byte[] getByteArray(CompoundTag tag, String key) {
-        return NbtCompat.getByteArray(tag, key).orElse(new byte[0]);
+        return tag.getByteArray(key).orElse(new byte[0]);
     }
 
     public static int[] getIntArray(CompoundTag tag, String key) {
-        return NbtCompat.getIntArray(tag, key).orElse(new int[0]);
+        return tag.getIntArray(key).orElse(new int[0]);
     }
 
     public static String getString(CompoundTag tag, String key) {
-        return NbtCompat.getString(tag, key).orElse("");
+        return tag.getString(key).orElse("");
     }
 
     public static long getLong(CompoundTag tag, String key) {
-        return NbtCompat.getLong(tag, key).orElse(0L);
+        return tag.getLong(key).orElse(0L);
     }
 
     public static double getDouble(CompoundTag tag, String key) {
-        return NbtCompat.getDouble(tag, key).orElse(0.0D);
+        return tag.getDouble(key).orElse(0.0D);
     }
 
     public static int getInt(CompoundTag tag, String key) {
-        return NbtCompat.getInt(tag, key).orElse(0);
+        return tag.getInt(key).orElse(0);
     }
 
     public static byte getByte(CompoundTag tag, String key) {
-        return NbtCompat.getByte(tag, key).orElse((byte) 0);
+        return tag.getByte(key).orElse((byte) 0);
     }
 
     public static float getFloat(CompoundTag tag, String key) {
-        return NbtCompat.getFloat(NbtCompat, tag, key).orElse(0.0F);
+        return tag.getFloat(key).orElse(0.0F);
     }
 
 
@@ -81,7 +81,7 @@ public final class NbtCompat {
     }
 
     public static CompoundTag getCompound(ListTag tag, int index) {
-        return NbtCompat.getCompound(tag, index).orElseGet(CompoundTag::new);
+        return tag.getCompound(index).orElseGet(CompoundTag::new);
     }
 
     public static int getInt(ListTag tag, int index) {
@@ -104,7 +104,7 @@ public final class NbtCompat {
 
     public static String getString(ListTag tag, int index) {
         if (index < 0 || index >= tag.size()) return "";
-        return NbtCompat.getString(tag, index).orElse("");
+        return tag.getString(index).orElse("");
     }
 
     public static Set<String> getAllKeys(CompoundTag tag) {
@@ -136,7 +136,7 @@ public final class NbtCompat {
     }
 
     public static String getString(JsonElement element) {
-        return element == null || element.isJsonNull() ? "" : NbtCompat.getString(element);
+        return element == null || element.isJsonNull() ? "" : element.getAsString();
     }
 
     public static byte getByte(NumericTag tag) {

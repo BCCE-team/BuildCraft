@@ -21,8 +21,8 @@ import com.google.gson.JsonParser;
 
 import buildcraft.lib.internal.debug.BCLog;
 import net.minecraft.client.Minecraft;
-import buildcraft.lib.compat.mc2612.client.renderer.block.model.BakedQuad;
-import net.minecraft.client.resources.model.QuadCollection;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.resources.model.geometry.QuadCollection;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.resources.Identifier;
@@ -148,8 +148,10 @@ public class ModelHolderStatic extends ModelHolder {
 
     /** Converts Minecraft 1.21.11's native immutable quad into the legacy BuildCraft quad representation. */
     private static MutableQuad fromNativeQuad(BakedQuad source) {
-        MutableQuad quad = new MutableQuad(source.tintIndex(), source.direction(), source.shade());
-        quad.setSprite(source.sprite());
+        MutableQuad quad = new MutableQuad(
+            source.materialInfo().tintIndex(), source.direction(), source.materialInfo().shade()
+        );
+        quad.setSprite(source.materialInfo().sprite());
 
         Direction direction = source.direction();
         Vec3i normal = direction == null ? null : direction.getUnitVec3i();

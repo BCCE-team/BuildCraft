@@ -6,7 +6,7 @@ import java.util.function.Function;
 
 import buildcraft.lib.compat.mc2612.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.client.resources.model.ModelState;
+import net.minecraft.client.renderer.block.dispatch.ModelState;
 
 public final class UnbakedGeometryHelper {
     private UnbakedGeometryHelper() {}

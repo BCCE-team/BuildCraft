@@ -27,6 +27,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeInput;
@@ -177,7 +178,7 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
         }
         return List.of(new ShapelessCraftingRecipeDisplay(
             ingredients,
-            new SlotDisplay.ItemStackSlotDisplay(output.copy()),
+            new SlotDisplay.ItemStackSlotDisplay(ItemStackTemplate.fromNonEmptyStack(output.copy())),
             new SlotDisplay.ItemSlotDisplay(BCSiliconItems.ASSEMBLY_TABLE_ITEM.get())
         ));
     }
@@ -188,6 +189,14 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
 
     public String getGroup() {
         return group;
+    }
+
+    public String group() {
+        return group;
+    }
+
+    public boolean showNotification() {
+        return true;
     }
 
     public RecipeSerializer<? extends Recipe<RecipeInput>> getSerializer() {

@@ -2,7 +2,7 @@ package buildcraft.lib.platform.client;
 import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.model.standalone.SimpleUnbakedStandaloneModel;
 import net.neoforged.neoforge.client.model.standalone.StandaloneModelKey;
-import net.minecraft.client.resources.model.QuadCollection;
+import net.minecraft.client.resources.model.geometry.QuadCollection;
 
 /** Converts model events; no model implementation or registration catalogue belongs here. */
 public final class PlatformClientModels {

@@ -126,7 +126,7 @@ public class WidgetPhantomSlot extends Widget_Neptune<MenuBC_Neptune> {
             // BuildCraftGui cancels AbstractContainerScreen's leftPos/topPos translation
             // before drawing GUI elements, so subtracting rootElement again moves the
             // item towards the top-left corner of the screen.
-            guiGraphics.renderItem(getStack(), (int) getX(), (int) getY());
+            guiGraphics.item(getStack(), (int) getX(), (int) getY());
             if (contains(gui.mouse) && shouldDrawHighlight()) {
                 GuiUtil.drawRect(guiGraphics, this, 0x70_FF_FF_FF);
             }

@@ -13,7 +13,7 @@ final class WrenchServiceImpl implements WrenchService {
     public boolean isWrench(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
         if (stack.getItem() instanceof IToolWrench) return true;
-        return BCLibConfig.useWrenchTag && stack.getTags().anyMatch(tag ->
+        return BCLibConfig.useWrenchTag && stack.typeHolder().tags().anyMatch(tag ->
             WRENCH_TAG_NAMESPACE.equals(tag.location().getNamespace())
                 && WRENCH_TAG_PATH.equals(tag.location().getPath()));
     }

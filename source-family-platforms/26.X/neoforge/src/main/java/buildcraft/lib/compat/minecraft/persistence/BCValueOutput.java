@@ -36,5 +36,5 @@ public final class BCValueOutput {
     public void writeByteArray(String key, byte[] value) { tag.putByteArray(key, value); }
     public void writeIntArray(String key, int[] value) { tag.putIntArray(key, value); }
     public void writeLongArray(String key, long[] value) { tag.putLongArray(key, value); }
-    public void writeUUID(String key, UUID value) { NbtCompat.putUUID(TagAccess, tag, key, value); }
+    public void writeUUID(String key, UUID value) { TagAccess.putUUID(tag, key, value); }
 }

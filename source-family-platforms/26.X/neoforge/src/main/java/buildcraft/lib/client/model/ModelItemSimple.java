@@ -14,7 +14,7 @@ import org.joml.Vector3f;
 import net.minecraft.client.Minecraft;
 import buildcraft.lib.compat.mc2612.client.renderer.block.model.BakedQuad;
 import buildcraft.lib.compat.mc2612.client.renderer.block.model.ItemOverrides;
-import net.minecraft.client.renderer.block.model.ItemTransform;
+import net.minecraft.client.resources.model.cuboid.ItemTransform;
 import net.minecraft.client.resources.model.cuboid.ItemTransforms;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureAtlas;

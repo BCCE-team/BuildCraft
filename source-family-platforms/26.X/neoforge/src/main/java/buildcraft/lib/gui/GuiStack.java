@@ -22,7 +22,7 @@ public class GuiStack implements ISimpleDrawable {
 
     public void drawAt(GuiGraphicsExtractor guiGraphics, double x, double y) {
         RenderCompat.setShaderColor(1, 1, 1, 1);
-        guiGraphics.renderItem(stack, (int) x, (int) y);
+        guiGraphics.item(stack, (int) x, (int) y);
         guiGraphics.itemDecorations(Minecraft.getInstance().font, stack, (int) x, (int) y);
         RenderCompat.setShaderColor(1, 1, 1, 1);
     }

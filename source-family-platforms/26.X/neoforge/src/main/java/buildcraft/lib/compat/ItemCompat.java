@@ -97,7 +97,7 @@ public final class ItemCompat {
 
     public static ItemStack getCraftingRemainingItem(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
-        return stack.getCraftingRemainder();
+        return stack.getCraftingRemainder().create();
     }
 
     /** Serialize an ItemStack with the registry-aware 1.21.11 codec. Empty stacks encode as an empty compound. */

@@ -50,6 +50,10 @@ public abstract class AssemblyRecipeBasic implements Recipe<RecipeInput>, Compar
     }
 
     public ItemStack assemble(RecipeInput input, HolderLookup.Provider registries) {
+        return assemble(input);
+    }
+
+    public ItemStack assemble(RecipeInput input) {
         Set<ItemStack> outputs = getOutputs(new RecipeInputItemHandler(input));
         return outputs.isEmpty() ? ItemStack.EMPTY : outputs.iterator().next().copy();
     }
@@ -90,7 +94,7 @@ public abstract class AssemblyRecipeBasic implements Recipe<RecipeInput>, Compar
     }
 
     public RecipeType<? extends Recipe<RecipeInput>> getType() {
-        return BCSiliconRecipes.ASSEMBLY_TYPE.get();
+        return (RecipeType<? extends Recipe<RecipeInput>>) (RecipeType<?>) BCSiliconRecipes.ASSEMBLY_TYPE.get();
     }
 
 

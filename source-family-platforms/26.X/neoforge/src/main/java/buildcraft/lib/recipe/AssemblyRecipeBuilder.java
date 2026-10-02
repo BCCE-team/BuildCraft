@@ -44,6 +44,10 @@ public class AssemblyRecipeBuilder implements RecipeBuilder {
         return result.getItem();
     }
 
+    public ResourceKey<Recipe<?>> defaultId() {
+        return RecipeBuilder.getDefaultRecipeId(result);
+    }
+
     public void save(RecipeOutput output, ResourceKey<Recipe<?>> key) {
         Identifier id = key.identifier();
         advancement.parent(ROOT_RECIPE_ADVANCEMENT)

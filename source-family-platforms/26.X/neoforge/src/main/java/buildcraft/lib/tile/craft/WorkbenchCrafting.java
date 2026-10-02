@@ -264,7 +264,7 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         selectedRecipeId = matchingRecipeIds.get(index);
         CraftingInput input = blueprintInput();
         assumedResult = currentRecipe.matches(input, world)
-            ? currentRecipe.assemble(input, world.registryAccess())
+            ? currentRecipe.assemble(input)
             : ItemStack.EMPTY;
         invAssumedResult.setStackInSlot(0, assumedResult.copy());
         areMaterialsDirty = true;
@@ -367,7 +367,7 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
             return false;
         }
 
-        ItemStack result = currentRecipe.assemble(craftingInput, world.registryAccess());
+        ItemStack result = currentRecipe.assemble(craftingInput);
         if (result.isEmpty()) {
             clearInventory();
             return false;

@@ -19,7 +19,7 @@ public class ChunkUtil {
     }
 
     public static LevelChunk getChunk(Level Level, ChunkPos pos, boolean force) {
-        return getChunk(Level, pos.x, pos.z, force);
+        return getChunk(Level, pos.x(), pos.z(), force);
     }
 
     public static LevelChunk getChunk(Level Level, int x, int z, boolean force) {
@@ -27,7 +27,7 @@ public class ChunkUtil {
 
         if (chunk != null) {
             if (!chunk.isEmpty()) {
-                if (chunk.getLevel() == Level && chunk.getPos().x == x && chunk.getPos().z == z) {
+                if (chunk.getLevel() == Level && chunk.getPos().x() == x && chunk.getPos().z() == z) {
                     return chunk;
                 }
             } else {

@@ -32,6 +32,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.block.FluidModel;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.Direction;
@@ -41,7 +42,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.IFluidTank;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -78,7 +78,7 @@ public class FluidRenderer {
     private static Identifier getStillTextureSafe(Fluid fluid) {
         return getFluidTextureSafe(
             fluid, "still",
-            () -> IClientFluidTypeExtensions.of(fluid).getStillTexture(),
+            () -> fluidTexture(fluid, false),
             MissingTextureAtlasSprite::getLocation
         );
     }
@@ -86,7 +86,7 @@ public class FluidRenderer {
     private static Identifier getFlowingTextureSafe(Fluid fluid) {
         return getFluidTextureSafe(
             fluid, "flowing",
-            () -> IClientFluidTypeExtensions.of(fluid).getFlowingTexture(),
+            () -> fluidTexture(fluid, true),
             () -> getStillTextureSafe(fluid)
         );
     }
@@ -94,7 +94,7 @@ public class FluidRenderer {
     private static Identifier getStillTextureSafe(Fluid fluid, FluidStack stack) {
         return getFluidTextureSafe(
             fluid, "still",
-            () -> IClientFluidTypeExtensions.of(fluid).getStillTexture(stack),
+            () -> fluidTexture(fluid, false),
             MissingTextureAtlasSprite::getLocation
         );
     }
@@ -102,7 +102,7 @@ public class FluidRenderer {
     private static Identifier getFlowingTextureSafe(Fluid fluid, FluidStack stack) {
         return getFluidTextureSafe(
             fluid, "flowing",
-            () -> IClientFluidTypeExtensions.of(fluid).getFlowingTexture(stack),
+            () -> fluidTexture(fluid, true),
             () -> getStillTextureSafe(fluid, stack)
         );
     }
@@ -122,6 +122,29 @@ public class FluidRenderer {
             );
         }
         return fallback.get();
+    }
+
+    /**
+     * Fluid textures and tinting are now owned by the baked FluidModel rather
+     * than IClientFluidTypeExtensions. Resolve the exact model selected by the
+     * active resource reload so custom NeoForge fluid models remain visible.
+     */
+    private static FluidModel fluidModel(Fluid fluid) {
+        return Minecraft.getInstance().getModelManager()
+            .getFluidStateModelSet().get(fluid.defaultFluidState());
+    }
+
+    private static Identifier fluidTexture(Fluid fluid, boolean flowing) {
+        FluidModel model = fluidModel(fluid);
+        return (flowing ? model.flowingMaterial() : model.stillMaterial()).sprite().contents().name();
+    }
+
+    private static int fluidTint(Fluid fluid, FluidStack stack) {
+        var tint = fluidModel(fluid).fluidTintSource();
+        if (tint == null) {
+            return 0xFFFFFFFF;
+        }
+        return stack == null ? tint.color(fluid.defaultFluidState()) : tint.colorAsStack(stack);
     }
 
     /** Refreshes all fluid sprites after the 1.20 block atlas has been uploaded. */
@@ -303,7 +326,7 @@ public class FluidRenderer {
         }
 
 //        vertex.colouri(RenderUtil.swapARGBforABGR(fluid.getFluid()));
-        vertex.colouri(IClientFluidTypeExtensions.of(fluidType).getTintColor(texParam));
+        vertex.colouri(fluidTint(fluidType, texParam));
 
         setTexMap(TexMap.XZ, false, false);
         if (sideRender[Direction.UP.ordinal()]) {
@@ -417,13 +440,13 @@ public class FluidRenderer {
      * {@link GuiUtil}'s fluid drawing methods in preference to this. */
     public static void drawFluidForGui(FluidStack fluid, double startX, double startY, double endX, double endY, Pose matrix) {
     	sprite = getFluidSprite(FluidSpriteType.STILL, fluid.getFluid(), fluid);
-        color = IClientFluidTypeExtensions.of(fluid.getFluid()).getTintColor(fluid);
+        color = fluidTint(fluid.getFluid(), fluid);
         drawFluidForGuiInteral(startX, startY, endX, endY, matrix);
     }
 
     public static void drawFluidForGui(Fluid fluid, double startX, double startY, double endX, double endY, Pose matrix) {
     	sprite = getFluidSprite(FluidSpriteType.STILL, fluid, FluidStack.EMPTY);
-        color = IClientFluidTypeExtensions.of(fluid).getTintColor();
+        color = fluidTint(fluid, null);
         drawFluidForGuiInteral(startX, startY, endX, endY, matrix);
     }
 
@@ -432,14 +455,14 @@ public class FluidRenderer {
     public static void drawFluidForGui(FluidStack fluid, double startX, double startY, double endX, double endY, GuiGraphicsExtractor guiGraphics) {
         if (fluid == null || fluid.isEmpty()) return;
         TextureAtlasSprite fluidSprite = getFluidSprite(FluidSpriteType.STILL, fluid.getFluid(), fluid);
-        int tint = IClientFluidTypeExtensions.of(fluid.getFluid()).getTintColor(fluid);
+        int tint = fluidTint(fluid.getFluid(), fluid);
         drawFluidForGuiNative(fluidSprite, tint, startX, startY, endX, endY, guiGraphics);
     }
 
     public static void drawFluidForGui(Fluid fluid, double startX, double startY, double endX, double endY, GuiGraphicsExtractor guiGraphics) {
         if (fluid == null) return;
         TextureAtlasSprite fluidSprite = getFluidSprite(FluidSpriteType.STILL, fluid, FluidStack.EMPTY);
-        int tint = IClientFluidTypeExtensions.of(fluid).getTintColor();
+        int tint = fluidTint(fluid, null);
         drawFluidForGuiNative(fluidSprite, tint, startX, startY, endX, endY, guiGraphics);
     }
 

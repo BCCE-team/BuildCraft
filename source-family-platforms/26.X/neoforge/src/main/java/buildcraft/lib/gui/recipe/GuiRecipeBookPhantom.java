@@ -181,10 +181,10 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
         graphics.blit(RenderPipelines.GUI_TEXTURED, RECIPE_BOOK_LOCATION, panelX, panelY,
             1.0F, 1.0F, PANEL_WIDTH, PANEL_HEIGHT, 256, 256);
         if (searchBox != null) {
-            searchBox.render(graphics, mouseX, mouseY, partialTicks);
+            searchBox.extractRenderState(graphics, mouseX, mouseY, partialTicks);
         }
         if (filterButton != null) {
-            filterButton.render(graphics, mouseX, mouseY, partialTicks);
+            filterButton.extractRenderState(graphics, mouseX, mouseY, partialTicks);
         }
 
         for (CategoryTab tab : categoryTabs) {
