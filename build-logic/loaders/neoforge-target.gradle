@@ -147,6 +147,27 @@ sourceSets {
         compileClasspath = sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.energyPortStubs.output + sourceSets.main.compileClasspath
         runtimeClasspath = output + compileClasspath
     }
+    // Transport is the next complete gameplay slice. It consumes the real
+    // API/lib, core and energy outputs; any remaining later-module links are
+    // declared explicitly in transportPortStubs rather than hidden in main.
+    transportPortStubs {
+        java.setSrcDirs([new File(repositoryRoot, "version-src/${targetName}/transport-port-stubs/src/main/java")])
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+    transportPort {
+        java.setSrcDirs(effectiveDirs('src/main/java'))
+        java.include 'buildcraft/transport/**'
+        // 26.1.2 uses the BlockStateModel terrain pipeline. The old
+        // IDynamicBakedModel implementation and its 1.21.11 native adapter
+        // are superseded by ModelPipeNative2612.
+        java.exclude 'buildcraft/transport/client/model/ModelPipe.java'
+        java.exclude 'buildcraft/transport/client/model/ModelPipeNative121111.java'
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.transportPortStubs.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
 }
 
 if (!jeiCompatEnabled) {
@@ -192,6 +213,7 @@ if (!dataGenSourcesEnabled) {
     // Datagen is already disabled for this target, so keep its provider out of
     // the runtime energy compilation just as the production source set does.
     sourceSets.energyPort.java.exclude 'buildcraft/energy/BCEnergyProvider.java'
+    sourceSets.transportPort.java.exclude 'buildcraft/transport/BCTransportRecipesProvider.java'
 }
 
 configurations {
@@ -274,6 +296,7 @@ public final class BuildCraftTarget {
 sourceSets.main.java.srcDir(generatedTargetSources)
 sourceSets.apiLibPort.java.srcDir(generatedTargetSources)
 sourceSets.energyPort.java.srcDir(generatedTargetSources)
+sourceSets.transportPort.java.srcDir(generatedTargetSources)
 tasks.named('compileJava') { dependsOn(generateBuildCraftTarget) }
 
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
@@ -578,6 +601,16 @@ tasks.named('compileEnergyPortJava') {
     dependsOn tasks.named('compileEnergyPortStubsJava')
     dependsOn(generateBuildCraftTarget)
 }
+tasks.named('compileTransportPortStubsJava') {
+    dependsOn prepareEffectiveSource
+    dependsOn tasks.named('compileEnergyPortJava')
+}
+tasks.named('compileTransportPortJava') {
+    dependsOn prepareEffectiveSource
+    dependsOn tasks.named('compileEnergyPortJava')
+    dependsOn tasks.named('compileTransportPortStubsJava')
+    dependsOn(generateBuildCraftTarget)
+}
 tasks.register('verifyApiLibPort') {
     group = 'verification'
     description = 'Compile the complete legacy API and library surface against NeoForge.'
@@ -592,6 +625,11 @@ tasks.register('verifyEnergyPort') {
     group = 'verification'
     description = 'Compile the complete BuildCraft energy gameplay module against NeoForge.'
     dependsOn tasks.named('compileEnergyPortJava')
+}
+tasks.register('verifyTransportPort') {
+    group = 'verification'
+    description = 'Compile the complete BuildCraft transport gameplay module against NeoForge.'
+    dependsOn tasks.named('compileTransportPortJava')
 }
 tasks.named('check') {
     dependsOn validateApiV2Boundary
