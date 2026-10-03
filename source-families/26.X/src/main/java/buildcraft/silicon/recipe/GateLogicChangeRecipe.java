@@ -1,0 +1,95 @@
+package buildcraft.silicon.recipe;
+
+import buildcraft.lib.misc.ItemStackUtil;
+import buildcraft.lib.internal.debug.BCLog;
+import buildcraft.lib.BCLib;
+import buildcraft.silicon.BCSiliconRecipes;
+import buildcraft.silicon.gate.EnumGateLogic;
+import buildcraft.silicon.gate.GateVariant;
+import buildcraft.silicon.item.ItemPluggableGate;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import com.mojang.serialization.MapCodec;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.CraftingBookCategory;
+import net.minecraft.world.item.crafting.CraftingInput;
+import net.minecraft.world.item.crafting.CustomRecipe;
+import net.minecraft.world.item.crafting.RecipeSerializer;
+import net.minecraft.world.level.Level;
+import buildcraft.lib.compat.NbtCompat;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeInput;
+
+public class GateLogicChangeRecipe extends CustomRecipe {
+    private static final MapCodec<GateLogicChangeRecipe> CODEC = MapCodec.unit(new GateLogicChangeRecipe());
+    private static final StreamCodec<RegistryFriendlyByteBuf, GateLogicChangeRecipe> STREAM_CODEC =
+        StreamCodec.unit(new GateLogicChangeRecipe());
+    public static final RecipeSerializer<GateLogicChangeRecipe> SERIALIZER = new RecipeSerializer<>(CODEC, STREAM_CODEC);
+
+    public GateLogicChangeRecipe() {
+        super();
+    }
+
+    public boolean matches(CraftingInput container, Level level) {
+        ItemStack gateStack = ItemStack.EMPTY;
+        for (int slot = 0; slot < container.size(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (!stack.isEmpty() && stack.getItem() instanceof ItemPluggableGate) {
+                if (!gateStack.isEmpty()) {
+                    return false;
+                }
+                gateStack = stack;
+            }
+        }
+        return !gateStack.isEmpty();
+    }
+
+    public ItemStack assemble(CraftingInput container) {
+        ItemStack gateStack = ItemStack.EMPTY;
+        for (int slot = 0; slot < container.size(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (!stack.isEmpty() && stack.getItem() instanceof ItemPluggableGate) {
+                if (!gateStack.isEmpty()) {
+                    return ItemStack.EMPTY;
+                }
+                gateStack = stack;
+            }
+        }
+
+        if (gateStack.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+
+        try {
+            ItemPluggableGate gate = (ItemPluggableGate) gateStack.getItem();
+            CompoundTag tag = ItemStackUtil.getCustomData(gateStack);
+            if (!tag.contains("gate")) {
+                BCLog.logger.error("GateLogicChangeRecipe: encountered a gate with missing gate NBT");
+                return ItemStack.EMPTY;
+            }
+
+            CompoundTag gateTag = NbtCompat.getCompound(tag, "gate");
+            int newLogic = NbtCompat.getInt(gateTag, "logic") == EnumGateLogic.AND.ordinal()
+                ? EnumGateLogic.OR.ordinal()
+                : EnumGateLogic.AND.ordinal();
+            gateTag.putInt("logic", newLogic);
+            return gate.getStack(new GateVariant(gateTag));
+        } catch (Exception e) {
+            BCLog.logger.error("GateLogicChangeRecipe: encountered a gate with invalid gate NBT");
+            if (BCLib.DEV) {
+                BCLog.logger.warn("Failed to copy gate logic NBT", e);
+            }
+            return ItemStack.EMPTY;
+        }
+    }
+
+    public boolean canCraftInDimensions(int width, int height) {
+        return width >= 1 && height >= 1;
+    }
+
+    public RecipeSerializer<? extends CustomRecipe> getSerializer() {
+        return BCSiliconRecipes.GATE_CHANGE_SERIALIZER.get();
+    }
+}

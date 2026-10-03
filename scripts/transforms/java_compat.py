@@ -983,14 +983,14 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     # 1.21.11 CharacterEvent input calls. Child widgets need the native record, while GuiBC8 subclasses
     # must keep super.charTyped(char,int) so the native->legacy adapter does not recurse back into the subclass.
     text = re.sub(
-        r"\b(?!super\b)(\w+)\.charTyped\(codePoint, modifiers\)",
-        r"\1.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint, modifiers))",
+        r"\b(?!(?:super|recipeBook)\b)(\w+)\.charTyped\(codePoint, modifiers\)",
+        r"\1.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint))",
         text,
     )
     if not legacy_gui_input_bridge:
         text = text.replace(
             "super.charTyped(codePoint, modifiers)",
-            "super.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint, modifiers))",
+            "super.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint))",
         )
 
 
