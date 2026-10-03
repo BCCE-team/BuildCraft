@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""Run the GitHub CI acceptance gates locally, in workflow order.
+"""Run BuildCraft validation, AutoTests and GameTests locally.
 
-The default mode mirrors .github/workflows/ci.yml as closely as a single local
-machine can: validate first, then every build/test/server-smoke matrix entry in
-declared order, then compatibility profiles. The GitHub-only client smoke step is
-intentionally skipped locally so local CI never launches a Minecraft client.
-Every step transcript and runtime artifact is copied under logs/ci-local/<run-id>/.
-
-On Linux the runner invokes the exact CI server-smoke shell script. On Windows it
-runs a native equivalent of that launch/monitor wrapper with the same Gradle task,
-profile, readiness/fatal checks and artifacts.
+The local runner executes repository validators first, then builds/tests every
+maintained target and runs its GameTests. Client and dedicated-server smoke
+tests remain GitHub CI acceptance gates and are intentionally not launched by
+the local test runner. Step transcripts and build/GameTest artifacts are copied
+under logs/ci-local/<run-id>/.
 """
 from __future__ import annotations
 
@@ -23,11 +19,6 @@ import re
 import shutil
 import subprocess
 import sys
-import time
-import urllib.error
-import urllib.request
-import hashlib
-import signal
 from typing import Iterable, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,11 +30,6 @@ TARGETS = (
     ("1.21.1-neoforge", "1.21.X", 21),
     ("1.21.11-neoforge", "1.21.X", 21),
     ("26.1.2-neoforge", "26.X", 25),
-)
-COMPATIBILITY = (
-    ("1.19.2-forge", "forestry"),
-    ("1.19.2-forge", "ic2"),
-    ("1.20.1-forge", "forestry"),
 )
 VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Validate independent Stonecutter builds", (sys.executable, "scripts/validate-stonecutter.py")),
@@ -91,13 +77,6 @@ API2_MODULE_SCRIPTS = (
     "scripts/validate-transport-api2.py",
 )
 
-SERVER_READY_REGEX = r'Done \([0-9.,]+s\)! For help, type "help"|Done \([0-9.,]+s\)!'
-SERVER_FATAL_REGEX = (
-    r'Failed to start the minecraft server|Exception in server tick loop|Loading errors encountered|'
-    r'Mod loading has failed|A fatal error has been detected|ResolutionException|'
-    r'UnsupportedClassVersionError'
-)
-
 class LocalCIError(RuntimeError):
     pass
 
@@ -107,7 +86,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--validate-only",
         action="store_true",
-        help="Run only the validate job. Default is the complete CI sequence.",
+        help="Run only repository validators/AutoTests and skip target builds/GameTests.",
     )
     parser.add_argument(
         "--dry-run",
@@ -126,25 +105,15 @@ def slug(value: str) -> str:
     return value or "step"
 
 
-def read_properties(path: Path) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        values[key.strip()] = value.strip()
-    return values
-
-
 def workflow_alignment_check() -> None:
-    """Fail closed when the workflow order changes so this runner cannot silently become stale."""
+    """Fail closed when CI changes the validation or target test contract used locally."""
     text = WORKFLOW.read_text(encoding="utf-8")
     validate_start = text.find("  validate:")
     build_start = text.find("  build-test-server:")
     compat_start = text.find("  Compatibility:")
-    if min(validate_start, build_start, compat_start) < 0 or not (validate_start < build_start < compat_start):
-        raise LocalCIError("Unable to identify validate/build/Compatibility jobs in .github/workflows/ci.yml")
+    if validate_start < 0 or build_start < 0 or validate_start >= build_start:
+        raise LocalCIError("Unable to identify validate/build jobs in .github/workflows/ci.yml")
+    build_end = compat_start if compat_start > build_start else len(text)
 
     validate_text = text[validate_start:build_start]
     position = 0
@@ -152,10 +121,9 @@ def workflow_alignment_check() -> None:
         token = f"- name: {name}"
         found = validate_text.find(token, position)
         if found < 0:
-            raise LocalCIError(f"Local CI runner is stale: workflow step missing/out of order: {name}")
+            raise LocalCIError(f"Local test runner is stale: workflow step missing/out of order: {name}")
         position = found + len(token)
 
-    # Guard command-level drift for the compound steps that are easiest to accidentally desynchronise.
     required_validate_fragments = (
         "python scripts/validate-architecture-hardening.py",
         *[f"python {script}" for script in API2_MODULE_SCRIPTS],
@@ -163,58 +131,30 @@ def workflow_alignment_check() -> None:
     )
     for fragment in required_validate_fragments:
         if fragment not in validate_text:
-            raise LocalCIError(f"Local CI runner is stale: workflow no longer contains {fragment!r}")
+            raise LocalCIError(f"Local test runner is stale: workflow no longer contains {fragment!r}")
 
-    build_text = text[build_start:compat_start]
+    build_text = text[build_start:build_end]
     build_step_names = (
         "Validate Forge 1.20.1 target invariants",
         "Build and test target",
         "Run GameTests",
-        "Smoke-test production jar",
-        "Client smoke-test production target",
-        "Upload build products and diagnostics",
     )
     position = 0
     for name in build_step_names:
         found = build_text.find(f"- name: {name}", position)
         if found < 0:
-            raise LocalCIError(f"Local CI runner is stale: build step missing/out of order: {name}")
+            raise LocalCIError(f"Local test runner is stale: build step missing/out of order: {name}")
         position = found + len(name)
     for target, generation, java in TARGETS:
         block = f"- target: {target}\n            generation: {generation}\n            java: '{java}'"
         if block not in build_text:
-            raise LocalCIError(f"Local CI runner is stale: build matrix entry changed for {target}")
+            raise LocalCIError(f"Local test runner is stale: build matrix entry changed for {target}")
     for fragment in (
         '":${STONECUTTER_TARGET}:buildAndCollect"',
         '":${STONECUTTER_TARGET}:runGameTestServer"',
-        "bash scripts/ci-server-smoke.sh",
     ):
         if fragment not in build_text:
-            raise LocalCIError(f"Local CI runner is stale: build command changed: {fragment}")
-
-    compat_text = text[compat_start:]
-    position = 0
-    for target, profile in COMPATIBILITY:
-        block = f"- target: {target}\n            profile: {profile}"
-        found = compat_text.find(block, position)
-        if found < 0:
-            raise LocalCIError(f"Local CI runner is stale: compatibility matrix changed at {target}/{profile}")
-        position = found + len(block)
-
-    # Windows uses a native server launch/process wrapper instead of setsid. Keep its
-    # readiness and failure semantics locked to the shell script GitHub actually runs.
-    smoke_contracts = (
-        (ROOT / "scripts" / "ci-server-smoke.sh", "success_regex", SERVER_READY_REGEX),
-        (ROOT / "scripts" / "ci-server-smoke.sh", "fatal_regex", SERVER_FATAL_REGEX),
-    )
-    for script, variable, expected in smoke_contracts:
-        script_text = script.read_text(encoding="utf-8")
-        match = re.search(rf"^{re.escape(variable)}='(.*)'$", script_text, re.MULTILINE)
-        if match is None or match.group(1) != expected:
-            raise LocalCIError(
-                f"Local CI runner is stale: {script.relative_to(ROOT)} {variable} no longer matches the native runner"
-            )
-
+            raise LocalCIError(f"Local test runner is stale: target test command changed: {fragment}")
 
 def java_major(java_exe: Path) -> int | None:
     try:
@@ -498,25 +438,18 @@ def environment_with_java(base: dict[str, str], java_home: Path) -> dict[str, st
     return env
 
 
-def require_full_ci_tools(jdks: dict[int, Path], installations: dict[int, list[Path]]) -> None:
-    if os.name != "nt":
-        missing = [name for name in ("bash", "curl", "setsid", "xvfb-run") if shutil.which(name) is None]
-        if missing:
-            raise LocalCIError(
-                "Missing tools required by the same smoke tests used in GitHub CI: " + ", ".join(missing)
-                + ". On Debian/Ubuntu install xvfb, libgl1-mesa-dri and libglx-mesa0 as CI does."
-            )
-    for major in (17, 21):
-        if major not in jdks:
-            raise LocalCIError(
-                f"Java {major} is required by the GitHub CI target matrix, but the local runner could not locate "
-                f"a Java {major} runtime. This does not mean Java is absent from the machine.\n"
-                f"{format_java_diagnostics(installations)}\n"
-                f"Checked environment variables, PATH/where.exe, Windows Java registry entries, common JDK vendors, "
-                f"%USERPROFILE%\\.gradle\\jdks, %USERPROFILE%\\.jdks, and Minecraft/launcher runtime directories. "
-                f"If the runtime lives elsewhere, set JAVA_HOME_{major}_X64 to its home directory."
-            )
-
+def require_local_test_jdks(jdks: dict[int, Path], installations: dict[int, list[Path]]) -> None:
+    missing = [major for major in (17, 21, 25) if major not in jdks]
+    if not missing:
+        return
+    majors = ", ".join(str(major) for major in missing)
+    raise LocalCIError(
+        f"Java {majors} is required by the maintained local target matrix, but the local runner could not locate it/them.\n"
+        f"{format_java_diagnostics(installations)}\n"
+        "Checked environment variables, PATH/where.exe, Windows Java registry entries, common JDK vendors, "
+        "%USERPROFILE%\\.gradle\\jdks, %USERPROFILE%\\.jdks, and Minecraft/launcher runtime directories. "
+        "Set JAVA_HOME_<major>_X64 for any runtime stored elsewhere."
+    )
 
 def gradle_wrapper(build_root: Path) -> Path:
     return build_root / ("gradlew.bat" if os.name == "nt" else "gradlew")
@@ -577,428 +510,6 @@ def run_command(
     return status, log_file
 
 
-def _step_log_path(run_dir: Path, step_number: int, name: str) -> Path:
-    path = run_dir / "steps" / f"{step_number:03d}-{slug(name)}.log"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def _emit(log, message: str = "") -> None:
-    print(message, flush=True)
-    log.write(message + "\n")
-    log.flush()
-
-
-def _tail_text(path: Path, max_bytes: int = 2_000_000) -> str:
-    if not path.is_file():
-        return ""
-    try:
-        with path.open("rb") as fh:
-            fh.seek(0, os.SEEK_END)
-            size = fh.tell()
-            fh.seek(max(0, size - max_bytes), os.SEEK_SET)
-            return fh.read().decode("utf-8", errors="replace")
-    except OSError:
-        return ""
-
-
-def _combined_logs(*paths: Path) -> str:
-    return "\n".join(_tail_text(path) for path in paths if path.is_file())
-
-
-def _show_log_tail(log, path: Path, lines: int = 200) -> None:
-    text = _tail_text(path)
-    if not text:
-        return
-    _emit(log, f"--- {path} (last {lines} lines) ---")
-    for line in text.splitlines()[-lines:]:
-        _emit(log, line)
-
-
-def _start_background(command: Sequence[str], *, cwd: Path, env: dict[str, str], output_path: Path):
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output = output_path.open("w", encoding="utf-8", newline="\n")
-    kwargs: dict[str, object] = {}
-    if os.name == "nt":
-        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    else:
-        kwargs["start_new_session"] = True
-    try:
-        process = subprocess.Popen(
-            [str(part) for part in command],
-            cwd=cwd,
-            env=env,
-            stdout=output,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            **kwargs,
-        )
-    except Exception:
-        output.close()
-        raise
-    return process, output
-
-
-def _stop_process_tree(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
-        return
-    if os.name == "nt":
-        subprocess.run(
-            ("taskkill", "/PID", str(process.pid), "/T", "/F"),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-        try:
-            process.wait(timeout=15)
-        except subprocess.TimeoutExpired:
-            process.kill()
-        return
-    try:
-        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-    except (ProcessLookupError, PermissionError):
-        process.terminate()
-    try:
-        process.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
-            process.kill()
-
-
-def _target_property(target_props: dict[str, str], common_props: dict[str, str], target: str, suffix: str) -> str:
-    return target_props.get(f"target.{target}.{suffix}", common_props.get(f"common.{suffix}", ""))
-
-
-def _download_file(url: str, destination: Path, log, attempts: int = 3) -> None:
-    """Download a loader installer with CI-equivalent curl semantics.
-
-    GitHub Actions uses curl directly in ci-server-smoke.sh.  Prefer the same
-    executable on Windows instead of Python urllib, because some Maven/CDN
-    frontends reject urllib's default request fingerprint with HTTP 403.
-    Successful downloads are cached below logs/ci-local/cache so repeated local
-    CI runs do not needlessly fetch the same immutable installer.
-    """
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    cache_dir = LOG_ROOT / "cache" / "loader-installers"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    suffix = Path(url.split("?", 1)[0]).name or "loader-installer.jar"
-    cache_key = hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
-    cached = cache_dir / f"{cache_key}-{suffix}"
-    if cached.is_file() and cached.stat().st_size > 0:
-        _emit(log, f"Using cached loader installer: {cached.relative_to(ROOT)}")
-        shutil.copy2(cached, destination)
-        return
-
-    errors: list[str] = []
-
-    # Match scripts/ci-server-smoke.sh first: curl --fail --location --silent
-    # --show-error --retry 3 --retry-delay 2. Windows 10/11 ships curl.exe.
-    curl = shutil.which("curl.exe") if os.name == "nt" else shutil.which("curl")
-    if curl:
-        destination.unlink(missing_ok=True)
-        _emit(log, f"Downloading loader installer with curl (CI-equivalent): {url}")
-        completed = subprocess.run(
-            (
-                curl,
-                "--fail",
-                "--location",
-                "--silent",
-                "--show-error",
-                "--retry",
-                str(attempts),
-                "--retry-delay",
-                "2",
-                "--output",
-                str(destination),
-                url,
-            ),
-            cwd=ROOT,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-        if completed.returncode == 0 and destination.is_file() and destination.stat().st_size > 0:
-            shutil.copy2(destination, cached)
-            return
-        errors.append(f"curl exit {completed.returncode}: {(completed.stdout or '').strip()}")
-        destination.unlink(missing_ok=True)
-
-    # Native PowerShell is a useful fallback on machines where curl.exe was
-    # removed or shadowed. Give the request a normal CLI user agent.
-    if os.name == "nt":
-        powershell = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
-        if powershell:
-            for attempt in range(1, attempts + 1):
-                destination.unlink(missing_ok=True)
-                _emit(log, f"Downloading loader installer with PowerShell ({attempt}/{attempts}): {url}")
-                ps_url = "'" + url.replace("'", "''") + "'"
-                ps_destination = "'" + str(destination).replace("'", "''") + "'"
-                command = (
-                    powershell,
-                    "-NoLogo",
-                    "-NoProfile",
-                    "-NonInteractive",
-                    "-Command",
-                    (
-                        "$ProgressPreference='SilentlyContinue'; "
-                        "Invoke-WebRequest -UseBasicParsing "
-                        "-UserAgent 'Mozilla/5.0 BuildCraft-Local-CI' "
-                        f"-Uri {ps_url} -OutFile {ps_destination}"
-                    ),
-                )
-                completed = subprocess.run(
-                    command,
-                    cwd=ROOT,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    check=False,
-                )
-                if completed.returncode == 0 and destination.is_file() and destination.stat().st_size > 0:
-                    shutil.copy2(destination, cached)
-                    return
-                errors.append(
-                    f"PowerShell attempt {attempt} exit {completed.returncode}: {(completed.stdout or '').strip()}"
-                )
-                if attempt < attempts:
-                    time.sleep(2)
-
-    # Last resort for unusual environments. Explicit headers avoid urllib's
-    # default Python-urllib user agent, which is rejected by some Maven CDNs.
-    last_error: Exception | None = None
-    for attempt in range(1, attempts + 1):
-        try:
-            destination.unlink(missing_ok=True)
-            _emit(log, f"Downloading loader installer with urllib fallback ({attempt}/{attempts}): {url}")
-            request = urllib.request.Request(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 BuildCraft-Local-CI",
-                    "Accept": "*/*",
-                },
-            )
-            with urllib.request.urlopen(request, timeout=90) as response, destination.open("wb") as output:
-                shutil.copyfileobj(response, output)
-            if destination.stat().st_size <= 0:
-                raise OSError("downloaded file is empty")
-            shutil.copy2(destination, cached)
-            return
-        except (OSError, urllib.error.URLError) as exc:
-            last_error = exc
-            errors.append(f"urllib attempt {attempt}: {exc}")
-            destination.unlink(missing_ok=True)
-            if attempt < attempts:
-                time.sleep(2)
-
-    detail = "; ".join(error for error in errors if error)
-    raise LocalCIError(
-        f"Unable to download loader installer after curl/PowerShell/urllib attempts: {detail or last_error}"
-    )
-
-
-def _monitor_server(
-    process: subprocess.Popen,
-    *,
-    log,
-    server_log: Path,
-    latest_log: Path,
-    timeout: int,
-    expected_version: str,
-) -> int:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        combined = _combined_logs(server_log, latest_log)
-        if re.search(SERVER_READY_REGEX, combined, re.IGNORECASE):
-            if re.search(r"Starting BuildCraft\s+(\$version|\$\{|.*\$\{)", combined):
-                _emit(log, "Dedicated server started with unresolved BuildCraft Java build metadata.")
-                _show_log_tail(log, server_log)
-                _show_log_tail(log, latest_log)
-                return 1
-            if f"Starting BuildCraft {expected_version}" not in combined:
-                _emit(log, f"Dedicated server did not report expected BuildCraft version {expected_version}.")
-                _show_log_tail(log, server_log)
-                _show_log_tail(log, latest_log)
-                return 1
-            _emit(log, f"Dedicated server reached the ready state successfully with BuildCraft {expected_version}.")
-            return 0
-        if re.search(SERVER_FATAL_REGEX, combined, re.IGNORECASE):
-            _emit(log, "Dedicated server reported a fatal startup error.")
-            _show_log_tail(log, server_log)
-            _show_log_tail(log, latest_log)
-            return 1
-        status = process.poll()
-        if status is not None:
-            _emit(log, f"Dedicated server process exited before becoming ready (status {status}).")
-            _show_log_tail(log, server_log)
-            _show_log_tail(log, latest_log)
-            return 1
-        time.sleep(5)
-    _emit(log, f"Dedicated server did not reach the ready state within {timeout}s.")
-    _show_log_tail(log, server_log)
-    _show_log_tail(log, latest_log)
-    return 1
-
-
-def run_native_server_smoke(
-    name: str,
-    *,
-    target: str,
-    generation: str,
-    profile: str,
-    java_home: Path,
-    env: dict[str, str],
-    run_dir: Path,
-    step_number: int,
-) -> tuple[int, Path]:
-    step_log = _step_log_path(run_dir, step_number, name)
-    target_props = read_properties(ROOT / "build-config" / "targets.properties")
-    common_props = read_properties(ROOT / "build-config" / "common.properties")
-    mod_version = common_props.get("common.mod.version", "")
-    expected_version = f"{mod_version}+{target.replace('-', '+')}"
-    timeout = int(env.get("SERVER_STARTUP_TIMEOUT", "360"))
-    build_root = ROOT / "builds" / generation
-    runtime_log_dir = run_dir / "runtime"
-    runtime_log_dir.mkdir(parents=True, exist_ok=True)
-    server_log = runtime_log_dir / f"ci-server-{generation}-{target}-{profile}.log"
-
-    with step_log.open("w", encoding="utf-8", newline="\n") as log:
-        _emit(log, f"==> {name}")
-        _emit(log, "Native Windows wrapper for scripts/ci-server-smoke.sh; readiness/fatal checks and runtime profile match CI.")
-        if not mod_version:
-            _emit(log, "Missing BuildCraft mod version metadata.")
-            return 2, step_log
-
-        if profile == "base":
-            minecraft = _target_property(target_props, common_props, target, "deps.minecraft")
-            loader = target.rsplit("-", 1)[-1]
-            if loader == "forge":
-                loader_version = _target_property(target_props, common_props, target, "deps.forge")
-                installer_url = (
-                    f"https://maven.minecraftforge.net/net/minecraftforge/forge/{minecraft}-{loader_version}/"
-                    f"forge-{minecraft}-{loader_version}-installer.jar"
-                )
-            elif loader == "neoforge":
-                loader_version = _target_property(target_props, common_props, target, "deps.neoforge")
-                installer_url = (
-                    f"https://maven.neoforged.net/releases/net/neoforged/neoforge/{loader_version}/"
-                    f"neoforge-{loader_version}-installer.jar"
-                )
-            else:
-                _emit(log, f"Installed-server smoke is not implemented for loader {loader!r}.")
-                return 2, step_log
-
-            jar_dir = build_root / "versions" / target / "build" / "libs"
-            jars = sorted(
-                p for p in jar_dir.glob("*.jar")
-                if not p.name.endswith("-sources.jar") and not p.name.endswith("-javadoc.jar")
-            ) if jar_dir.is_dir() else []
-            if len(jars) != 1:
-                _emit(log, f"Expected exactly one production jar in {jar_dir}, found {len(jars)}.")
-                for jar in jars:
-                    _emit(log, f"  {jar}")
-                return 2, step_log
-
-            server_dir = ROOT / "run-server" / generation / target
-            install_log = runtime_log_dir / f"ci-server-install-{generation}-{target}.log"
-            latest_log = server_dir / "logs" / "latest.log"
-            shutil.rmtree(server_dir, ignore_errors=True)
-            server_dir.mkdir(parents=True, exist_ok=True)
-            installer = server_dir / "loader-installer.jar"
-            try:
-                _download_file(installer_url, installer, log)
-            except LocalCIError as exc:
-                _emit(log, f"Dedicated server installation download failed: {exc}")
-                return 1, step_log
-
-            java_bin = java_executable(java_home)
-            with install_log.open("w", encoding="utf-8", newline="\n") as install_out:
-                install = subprocess.run(
-                    (str(java_bin), "-jar", str(installer), "--installServer"),
-                    cwd=server_dir,
-                    env=env,
-                    stdout=install_out,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    check=False,
-                )
-            installer.unlink(missing_ok=True)
-            if install.returncode != 0:
-                _emit(log, f"Dedicated server installation failed (exit {install.returncode}).")
-                _show_log_tail(log, install_log)
-                return 1, step_log
-
-            run_file = server_dir / ("run.bat" if os.name == "nt" else "run.sh")
-            if not run_file.is_file():
-                fallback = server_dir / ("run.sh" if run_file.name == "run.bat" else "run.bat")
-                run_file = fallback if fallback.is_file() else run_file
-            if not run_file.is_file():
-                _emit(log, f"Loader installer completed without creating a launch script in {server_dir}.")
-                _show_log_tail(log, install_log)
-                return 1, step_log
-
-            mods = server_dir / "mods"
-            mods.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(jars[0], mods / jars[0].name)
-            (server_dir / "eula.txt").write_text("eula=true\n", encoding="utf-8")
-            (server_dir / "server.properties").write_text(
-                "online-mode=false\nserver-ip=127.0.0.1\nserver-port=25565\nlevel-name=ci-world\n"
-                "motd=BuildCraft production jar CI smoke test\nenable-command-block=false\nspawn-protection=0\nmax-tick-time=-1\n",
-                encoding="utf-8",
-            )
-            (server_dir / "user_jvm_args.txt").write_text(
-                "-Xms256M\n-Xmx2G\n-Dfile.encoding=UTF-8\n", encoding="utf-8"
-            )
-            command = script_command(run_file, "nogui")
-            cwd = server_dir
-            _emit(log, f"Starting installed {loader} server for {minecraft} ({target}, timeout {timeout}s).")
-        else:
-            server_dir = ROOT / "run" / generation / target
-            latest_log = server_dir / "logs" / "latest.log"
-            server_dir.mkdir(parents=True, exist_ok=True)
-            latest_log.unlink(missing_ok=True)
-            (server_dir / "eula.txt").write_text("eula=true\n", encoding="utf-8")
-            (server_dir / "server.properties").write_text(
-                "online-mode=false\nserver-ip=127.0.0.1\nserver-port=25565\nlevel-name=ci-world\n"
-                "motd=BuildCraft compatibility CI server smoke test\nenable-command-block=false\nspawn-protection=0\nmax-tick-time=-1\n",
-                encoding="utf-8",
-            )
-            command = gradle_command(
-                build_root,
-                "--no-daemon", "--console=plain", "--stacktrace",
-                f"-Pci_runtime_profile={profile}", f":{target}:runServer",
-            )
-            cwd = build_root
-            _emit(log, f"Starting compatibility userdev server ({target}/{profile}, timeout {timeout}s).")
-
-        server_log.unlink(missing_ok=True)
-        process, output = _start_background(command, cwd=cwd, env=env, output_path=server_log)
-        try:
-            status = _monitor_server(
-                process,
-                log=log,
-                server_log=server_log,
-                latest_log=latest_log,
-                timeout=timeout,
-                expected_version=expected_version,
-            )
-        finally:
-            _stop_process_tree(process)
-            output.close()
-        _emit(log, f"[exit {status}]")
-        return status, step_log
-
-
 def copy_artifact_patterns(patterns: Iterable[str], destination: Path) -> int:
     copied = 0
     for pattern in patterns:
@@ -1025,34 +536,7 @@ def build_artifact_patterns(target: str, generation: str) -> tuple[str, ...]:
         f"builds/{generation}/versions/{target}/build/test-results/**",
         f"run/{generation}/{target}/logs/**",
         f"run/{generation}/{target}/crash-reports/**",
-        f"run-server/{generation}/{target}/logs/**",
-        f"run-server/{generation}/{target}/crash-reports/**",
     )
-
-
-def compatibility_artifact_patterns(target: str, profile: str) -> tuple[str, ...]:
-    return (
-        f"run/old/{target}/logs/**",
-        f"run/old/{target}/crash-reports/**",
-    )
-
-
-def copy_runtime_logs(run_dir: Path, destination: Path, patterns: Iterable[str]) -> int:
-    source_root = run_dir / "runtime"
-    if not source_root.is_dir():
-        return 0
-    target_root = destination / "ci-logs"
-    copied = 0
-    seen: set[Path] = set()
-    for pattern in patterns:
-        for source in source_root.glob(pattern):
-            if not source.is_file() or source in seen:
-                continue
-            seen.add(source)
-            target_root.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target_root / source.name)
-            copied += 1
-    return copied
 
 
 def validate_artifact_patterns() -> tuple[str, ...]:
@@ -1077,18 +561,14 @@ def clear_forgegradle_dependency_caches() -> None:
 
 
 def write_plan(run_dir: Path, validate_only: bool) -> None:
-    lines = ["BuildCraft local CI plan", "", "validate:"]
+    lines = ["BuildCraft local test plan", "", "AutoTests / validators:"]
     lines.extend(f"  - {name}" for name, _ in VALIDATE_STEPS)
     if not validate_only:
-        lines.append("build-test-server (sequential local form of CI matrix):")
+        lines.append("Target tests:")
         for target, generation, java in TARGETS:
-            lines.append(f"  - {target} ({generation}, Java {java}): build -> GameTests -> server smoke -> artifacts")
-        lines.append("Compatibility:")
-        for target, profile in COMPATIBILITY:
-            lines.append(f"  - {target} / {profile}: server smoke -> artifacts")
+            lines.append(f"  - {target} ({generation}, Java {java}): build + AutoTests -> GameTests -> artifacts")
     (run_dir / "plan.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
-
 
 def main() -> int:
     args = parse_args()
@@ -1110,14 +590,14 @@ def main() -> int:
 
     installations = discover_java_installations()
     jdks: dict[int, Path] = {}
-    for major in (17, 21):
+    for major in (17, 21, 25):
         found = discover_jdk(major, installations)
         if found is not None:
             jdks[major] = found
 
     print("\nJava runtime discovery:")
     print(format_java_diagnostics(installations))
-    for major in (17, 21):
+    for major in (17, 21, 25):
         if major in jdks:
             print(f"Selected Java {major}: {jdks[major]}")
 
@@ -1129,7 +609,7 @@ def main() -> int:
             + "\nIf Java 21 lives in a custom location, set JAVA_HOME_21_X64 to that runtime home."
         )
     if not args.validate_only:
-        require_full_ci_tools(jdks, installations)
+        require_local_test_jdks(jdks, installations)
 
     base_env = dict(os.environ)
     # GitHub Actions runs on Linux, where Python's default text encoding is UTF-8.
@@ -1228,8 +708,7 @@ def main() -> int:
         print(f"\nValidate job passed. Logs: {run_dir.relative_to(ROOT)}")
         return 0
 
-    # Build/test/server-smoke matrix. GitHub executes these entries in parallel; locally we use the declaration
-    # order above so results are deterministic and readable.
+    # Target matrix. Local runs stop at AutoTests/build + GameTests; runtime client/server smoke stays in GitHub CI.
     for target, generation, java in TARGETS:
         target_env = environment_with_java(base_env, jdks[java])
         target_env["BUILD_GENERATION"] = generation
@@ -1240,11 +719,10 @@ def main() -> int:
             gradlew.chmod(gradlew.stat().st_mode | 0o111)
         except OSError:
             pass
-        for script in (ROOT / "build-all.sh", ROOT / "scripts/ci-server-smoke.sh", ROOT / "scripts/source_layout.py"):
-            try:
-                script.chmod(script.stat().st_mode | 0o111)
-            except OSError:
-                pass
+        try:
+            (ROOT / "scripts/source_layout.py").chmod((ROOT / "scripts/source_layout.py").stat().st_mode | 0o111)
+        except OSError:
+            pass
 
         if target == "1.20.1-forge":
             step_number += 1
@@ -1261,7 +739,7 @@ def main() -> int:
                 return status
 
         step_number += 1
-        name = f"Build and test target [{target}]"
+        name = f"Run AutoTests and build target [{target}]"
         build_command = gradle_command(
             build_root, "--no-daemon", "--console=plain", "--stacktrace", f":{target}:buildAndCollect"
         )
@@ -1296,85 +774,17 @@ def main() -> int:
             cwd=build_root,
         )
         record(name, status, log)
-        if status == 0:
-            step_number += 1
-            name = f"Smoke-test production jar [{target}]"
-            server_env = dict(target_env)
-            server_env["SERVER_STARTUP_TIMEOUT"] = "360"
-            server_env["SERVER_RUNTIME_PROFILE"] = "base"
-            runtime_log_dir = run_dir / "runtime"
-            runtime_log_dir.mkdir(parents=True, exist_ok=True)
-            server_env["SERVER_LOG_FILE"] = str(runtime_log_dir / f"ci-server-{generation}-{target}-base.log")
-            server_env["SERVER_INSTALL_LOG_FILE"] = str(runtime_log_dir / f"ci-server-install-{generation}-{target}.log")
-            if os.name == "nt":
-                status, log = run_native_server_smoke(
-                    name, target=target, generation=generation, profile="base", java_home=jdks[java],
-                    env=server_env, run_dir=run_dir, step_number=step_number,
-                )
-            else:
-                status, log = run_command(
-                    name, ("bash", "scripts/ci-server-smoke.sh"), env=server_env,
-                    run_dir=run_dir, step_number=step_number,
-                )
-            record(name, status, log)
 
         destination = run_dir / "artifacts" / f"buildcraft-{target}"
         copied = copy_artifact_patterns(build_artifact_patterns(target, generation), destination)
-        copied += copy_runtime_logs(
-            run_dir,
-            destination,
-            (
-                f"ci-server-{generation}-{target}-*.log",
-                f"ci-server-install-{generation}-{target}.log",
-            ),
-        )
         print(f"Collected {copied} artifact file(s) for {target} -> {destination.relative_to(ROOT)}")
-        if status != 0:
-            return status
-
-    # Compatibility matrix, after validate + every build/test/smoke target, matching workflow dependencies.
-    props = read_properties(ROOT / "build-config" / "targets.properties")
-    compat_env_base = environment_with_java(base_env, jdks[17])
-    compat_env_base["BUILD_GENERATION"] = "old"
-    for target, profile in COMPATIBILITY:
-        dependency = props.get(f"target.{target}.deps.{profile}", "")
-        name = f"Smoke-test compatibility server [{target}/{profile}]"
-        if not dependency:
-            record(name, 0, None, skipped=True)
-            print(f"==> {name}: skipped (profile dependency not configured)")
-            continue
-        step_number += 1
-        env = dict(compat_env_base)
-        env["STONECUTTER_TARGET"] = target
-        env["SERVER_STARTUP_TIMEOUT"] = "360"
-        env["SERVER_RUNTIME_PROFILE"] = profile
-        runtime_log_dir = run_dir / "runtime"
-        runtime_log_dir.mkdir(parents=True, exist_ok=True)
-        env["SERVER_LOG_FILE"] = str(runtime_log_dir / f"ci-server-old-{target}-{profile}.log")
-        if os.name == "nt":
-            status, log = run_native_server_smoke(
-                name, target=target, generation="old", profile=profile, java_home=jdks[17],
-                env=env, run_dir=run_dir, step_number=step_number,
-            )
-        else:
-            status, log = run_command(
-                name, ("bash", "scripts/ci-server-smoke.sh"), env=env,
-                run_dir=run_dir, step_number=step_number,
-            )
-        record(name, status, log)
-        destination = run_dir / "artifacts" / f"buildcraft-compat-{target}-{profile}"
-        copied = copy_artifact_patterns(compatibility_artifact_patterns(target, profile), destination)
-        copied += copy_runtime_logs(
-            run_dir, destination, (f"ci-server-old-{target}-{profile}.log",)
-        )
-        print(f"Collected {copied} compatibility artifact file(s) -> {destination.relative_to(ROOT)}")
         if status != 0:
             return status
 
     summary["finished"] = dt.datetime.now().astimezone().isoformat()
     summary["result"] = "success"
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-    print(f"\nFull local CI passed. Logs and artifacts: {run_dir.relative_to(ROOT)}")
+    print(f"\nLocal AutoTests and GameTests passed. Logs and artifacts: {run_dir.relative_to(ROOT)}")
     return 0
 
 

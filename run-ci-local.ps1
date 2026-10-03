@@ -12,8 +12,8 @@ if ($ValidateOnly) { $runnerArgs += "--validate-only" }
 if ($DryRun) { $runnerArgs += "--dry-run" }
 if ($RunId) { $runnerArgs += @("--run-id", $RunId) }
 
-# Full local CI runs natively on Windows. The Python runner uses gradlew.bat and
-# native server launch monitoring; client smoke is intentionally GitHub-only.
+# Local validation, AutoTests and GameTests run natively on Windows via gradlew.bat.
+# Client and dedicated-server smoke tests are GitHub CI-only.
 $python = Get-Command python.exe -ErrorAction SilentlyContinue
 if ($python) {
     & $python.Source "$repo/scripts/run-ci-local.py" @runnerArgs
