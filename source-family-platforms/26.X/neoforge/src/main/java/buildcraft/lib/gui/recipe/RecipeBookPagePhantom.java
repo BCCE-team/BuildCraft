@@ -4,7 +4,7 @@ import java.util.List;
 
 import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
 
-/** Pagination state for the 1.21.11 phantom crafting recipe panel. */
+/** Pagination state for the phantom crafting recipe panel. */
 public final class RecipeBookPagePhantom {
     public static final int ENTRIES_PER_PAGE = 20;
 

@@ -141,7 +141,7 @@ public abstract class BlockBCTile_Neptune extends BlockBCBase_Neptune implements
 
 
     /**
-     * 1.21.11 moved ordinary neighbour shape updates to the extended updateShape signature while BuildCraft's
+     * The native neighbour update path uses the extended updateShape signature while BuildCraft's
      * legacy neighborChanged bridge no longer overrides the vanilla callback. Route that real callback back into
      * the two tile hooks so topology, redstone state and endpoint orientation are refreshed for non-pipe blocks too.
      */
@@ -157,7 +157,7 @@ public abstract class BlockBCTile_Neptune extends BlockBCBase_Neptune implements
         return super.updateShape(state, world, scheduledTickAccess, pos, direction, neighbourPos, neighbourState, random);
     }
 
-    /** 1.21.11 vanilla neighbour callback. Keep the legacy overload below for subclasses that still call it. */
+    /** Native vanilla neighbour callback. Keep the legacy overload below for subclasses that still call it. */
     protected void neighborChanged(BlockState state, Level level, BlockPos pos, Block neighbor,
             Orientation orientation, boolean harvest) {
         BlockPos fromPos = orientation == null ? pos : pos.relative(orientation.getFront());

@@ -29,10 +29,10 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Native 1.21.11 renderer for every BC8 engine family except the MJ Dynamo's
+ * Native renderer for every BC8 engine family except the MJ Dynamo's
  * type-specific wrapper (which delegates to this renderer).
  *
- * <p>On 1.21.11 the block model is only a particle/model placeholder; this BER owns the complete world geometry,
+ * <p>The block model is only a particle/model placeholder; this renderer owns the complete world geometry,
  * including the base, trunk, moving head, chamber and stage lights.</p>
  */
 public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8, RenderEngine_BC8.EngineRenderState> {
@@ -77,7 +77,7 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
     private static final Identifier TEX_DYNAMO_SIDE = texture("buildcraftenergy", "blocks/mj_dynamo/side");
 
     /*
-     * Public sprite fields are part of the shared client compatibility surface. The native 1.21.11 world renderer
+     * Public sprite fields are part of the shared client compatibility surface. The native world renderer
      * binds engine PNGs directly and does not depend on this cache.
      */
     public static TextureAtlasSprite REDSTONE_BACK;
@@ -109,7 +109,7 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
         extractEngineState(tile, state, partialTick, crumblingOverlay);
     }
 
-    /** Shared with the 1.21.11 MJ Dynamo wrapper. */
+    /** Shared with the MJ Dynamo renderer. */
     public static void extractEngineState(TileEngineBase_BC8 tile, EngineRenderState state, float partialTick,
         @Nullable ModelFeatureRenderer.CrumblingOverlay crumblingOverlay) {
         BlockEntityRenderState.extractBase(tile, state, crumblingOverlay);
@@ -124,7 +124,7 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
         submitEngine(state, poseStack, collector);
     }
 
-    /** Shared with the 1.21.11 MJ Dynamo wrapper. */
+    /** Shared with the MJ Dynamo renderer. */
     public static void submitEngine(EngineRenderState state, PoseStack poseStack, SubmitNodeCollector collector) {
         EngineTextures textures = resolveTextures(state.visualType);
 
@@ -136,7 +136,7 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
         int overlay = OverlayTexture.NO_OVERLAY;
 
         /*
-         * Do not sample the block atlas here. On 1.21.11, textures referenced only by a BER are not guaranteed to
+         * Do not sample the block atlas here. Textures referenced only by a block-entity renderer are not guaranteed to
          * be stitched into minecraft:blocks, so entity render types bind the engine PNGs directly. Keep face culling
          * enabled: rendering the back side of a base face that is flush with the ground can otherwise overwrite the
          * neighbouring block's top face and make it look transparent.
@@ -173,7 +173,7 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
     private static void renderBaseCaps(PoseStack.Pose pose, VertexConsumer out, int light, int overlay) {
         float x0 = -8 * PX, x1 = 8 * PX;
         // Keep the back cap slightly inside the engine block. At the exact block boundary it is
-        // coplanar with the neighbouring block face and 1.21.11 can depth-fight it away.
+        // coplanar with the neighbouring block face and can depth-fight it away.
         float y0 = -8 * PX + EPS, y1 = -4 * PX;
         float z0 = -8 * PX, z1 = 8 * PX;
 

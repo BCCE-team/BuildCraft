@@ -39,7 +39,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
-/** Native 1.21.11 renderer for the Zone Planner's 10x8 front-screen terrain preview. */
+/** Native renderer for the Zone Planner's 10x8 front-screen terrain preview. */
 public class RenderZonePlanner implements BlockEntityRenderer<TileZonePlanner, RenderZonePlanner.ZonePlannerRenderState> {
     private static final int TEXTURE_WIDTH = 10;
     private static final int TEXTURE_HEIGHT = 8;
@@ -277,7 +277,7 @@ public class RenderZonePlanner implements BlockEntityRenderer<TileZonePlanner, R
 
             for (int y = 0; y < TEXTURE_HEIGHT; y++) {
                 for (int x = 0; x < TEXTURE_WIDTH; x++) {
-                    // NativeImage#setPixel expects ARGB in 1.21.11 and performs the native conversion itself.
+                    // NativeImage#setPixel expects ARGB and performs the native conversion itself.
                     pixels.setPixel(x, y, colours[y * TEXTURE_WIDTH + x]);
                 }
             }

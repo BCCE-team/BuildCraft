@@ -6,7 +6,7 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
  * GUI texture), in which case {@link #bindTexture()} should be called before using the results from
  * {@link #getInterpU(double)} or {@link #getInterpV(double)}
  * <p>
- * <b>IMPORTANT:</b> Coordinates are normalized to the 0..1 range, matching Minecraft 1.21.1's
+ * <b>IMPORTANT:</b> Coordinates are normalized to the 0..1 range used by the native sprite API,
  * {@link TextureAtlasSprite#getU(float)} and {@link TextureAtlasSprite#getV(float)} methods. */
 public interface ISprite {
     /** Binds this sprites backing texture so that this sprite will be referenced when you use the results of

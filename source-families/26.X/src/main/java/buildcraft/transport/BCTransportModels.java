@@ -125,7 +125,7 @@ public class BCTransportModels {
                 var baseModel = event.itemStackModels().get(id);
                 if (baseModel != null) {
                     // Keep Minecraft's already-baked JSON item model as the pipe body. The old
-                    // 1.21.11 bridge rebuilt the whole item from atlas sprites and could cache an
+                    // Rebuilding the whole item from atlas sprites can cache an
                     // empty/missing result depending on reload ordering. Only add BCCE's dye layer.
                     event.itemStackModels().put(id, new ModelPipeItem(pipeItem.getDefinition(), baseModel));
                 }

@@ -308,7 +308,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
     }
     
 	public void neighbourBlockChanged(BlockState state, BlockPos neighbor, boolean harvest) {
-        // 1.21.11 can report ordinary block changes through either neighbour callback. Always invalidate the
+        // Ordinary block changes can arrive through either neighbour callback. Always invalidate the
         // inherited neighbour tile cache and drive the same pipe-topology update path for both callbacks.
         super.onNeighbourBlockChanged(state, neighbor);
         markPipeTopologyDirty();
@@ -625,7 +625,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
             BlockPos neighbourPos = worldPosition.relative(side);
             BlockEntity neighbour = level.getBlockEntity(neighbourPos);
 
-            // NeoForge 1.21.11 standard transfer capabilities are position based and may exist without a
+            // NeoForge standard transfer capabilities are position based and may exist without a
             // BlockEntity. Adapt them before falling back to BuildCraft/legacy capability lookups.
             if (capability == CapUtil.CAP_ITEMS) {
                 @SuppressWarnings("unchecked")

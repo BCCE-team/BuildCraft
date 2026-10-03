@@ -129,14 +129,18 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
     gradle = wrapper_version(build_root)
     if generation == "old" and not gradle.startswith("8."):
         fail(f"old build must stay on Gradle 8 while ForgeGradle 6 is used, got {gradle}")
+    if generation == "26.X":
+        parts = tuple(int(part) for part in gradle.split(".")[:2])
+        if parts < (9, 1):
+            fail(f"26.X build must use Gradle 9.1+ for Java 25, got {gradle}")
 
     common_adapter = ROOT / "build-logic/common-target.gradle"
     if not common_adapter.is_file():
         fail("missing build-logic/common-target.gradle")
     common_text = common_adapter.read_text(encoding="utf-8")
     for token in (
-        "build-config/targets.properties", "familyPlatformSourceRoot",
-        "sourceLayers = [sharedSourceRoot, familySourceRoot, platformSourceRoot, familyPlatformSourceRoot, targetOverlayRoot]",
+        "build-config/targets.properties", "familyBaseSourceRoot", "familyPlatformSourceRoot",
+        "familyPlatformBaseSourceRoot", "def sourceLayers = [sharedSourceRoot",
         "scripts/source_preprocessor.py", "scripts/transforms", "prepareEffectiveSource",
     ):
         if token not in common_text:

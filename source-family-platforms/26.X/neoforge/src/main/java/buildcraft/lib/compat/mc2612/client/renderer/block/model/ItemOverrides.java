@@ -7,7 +7,7 @@ import buildcraft.lib.compat.mc2612.client.resources.model.BakedModel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 
-/** Legacy item-override API shim required by shared model code on 1.21.11. */
+/** Legacy item-override API shim required by shared model code. */
 public class ItemOverrides {
     public static final ItemOverrides EMPTY = new ItemOverrides();
 

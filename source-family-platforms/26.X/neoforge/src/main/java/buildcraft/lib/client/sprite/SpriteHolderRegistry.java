@@ -91,7 +91,7 @@ public final class SpriteHolderRegistry {
             return;
         }
         java.util.function.Function<Identifier, TextureAtlasSprite> map = RenderCompat.blockSprites();
-        // 1.21.11 texture binding is handled by render passes
+        // Texture binding is handled by render passes
 
         for (int level = 0; level < 32; level++) {
             int width = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, level, GL11.GL_TEXTURE_WIDTH);

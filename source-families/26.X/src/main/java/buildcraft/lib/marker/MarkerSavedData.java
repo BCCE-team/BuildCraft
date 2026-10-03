@@ -78,7 +78,7 @@ public abstract class MarkerSavedData<S extends MarkerSubCache<C>, C extends Mar
         }
     }
 
-    /** Encodes the live marker cache for the 1.21.11 SavedDataType codec. */
+    /** Encodes the live marker cache for the SavedDataType codec. */
     public CompoundTag saveToTag() {
         return saveToTag(new CompoundTag());
     }

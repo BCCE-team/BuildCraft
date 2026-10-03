@@ -1,6 +1,6 @@
 # BuildCraft build generations and hybrid source layout
 
-BuildCraft Community Edition uses two independent Gradle/Stonecutter builds and one shared source repository.
+BuildCraft Community Edition uses three independent Gradle/Stonecutter builds and one shared source repository.
 
 The project has one gameplay goal across every supported target:
 
@@ -36,6 +36,16 @@ The 1.21.X wrapper is independent from the old wrapper. It may move to a newer G
 
 If a source family requires an incompatible toolchain, give it an independent build generation instead of forcing every version through one wrapper or filling gameplay code with large condition blocks.
 
+### `26.X`
+
+Current targets:
+
+- `26.1.2-neoforge`
+
+Build root: `builds/26.X`
+
+The 26.X build uses Java 25 and its own NeoForge/ModDevGradle toolchain. It shares the same repository-level source architecture and parity rules as the older generations while keeping toolchain requirements isolated.
+
 ## Repository layout
 
 ```text
@@ -50,7 +60,8 @@ build-logic/
 
 builds/
 ├─ old/                           1.19.2/1.20.1 settings, controller and wrapper
-└─ 1.21.X/                        1.21.x settings, controller and wrapper
+├─ 1.21.X/                        1.21.x settings, controller and wrapper
+└─ 26.X/                          26.x settings, controller and wrapper
 
 source-shared/
 └─ src/                           files valid for every target
@@ -88,7 +99,8 @@ version-src/
 ├─ 1.19.2-forge/
 ├─ 1.20.1-forge/
 ├─ 1.21.1-neoforge/
-└─ 1.21.11-neoforge/               irreducible target-only files/resources
+├─ 1.21.11-neoforge/
+└─ 26.1.2-neoforge/                 irreducible target-only files/resources
 ```
 
 A target is materialized from the same five ownership layers. Older targets may additionally insert a downport view immediately after the family or family-platform owner:
@@ -143,7 +155,9 @@ Loader imports must not escape into `source-shared` or `source-families`. A Java
 
 ### `source-family-platforms/<family>/<loader>`
 
-Use when code is genuinely loader-specific **and** tied to one source family. This is the normal home for a NeoForge/Fabric implementation whose API shape changes between `old` and `1.21.X`. It overrides the generic platform layer without forcing a complete target copy.
+Use when code is genuinely loader-specific **and** tied to one source family. This is the normal home for a NeoForge/Fabric implementation whose API shape changes between source families such as `old`, `1.21.X` and `26.X`. It overrides the generic platform layer without forcing a complete target copy.
+
+A family-platform layer may explicitly own a loader-neutral prefix when that subtree must be selected atomically with loader-specific siblings. Such exceptions are declared with `source.family_platform.<family>.<loader>.allow_loader_neutral` in `build-config/common.properties` and remain visible to the architecture budget validator. Unlisted loader-neutral files are still rejected.
 
 ### Loader-neutral network boundary
 
@@ -357,7 +371,7 @@ Do not create another full source-tree copy for a new port.
 
 `buildcraft.lib.compat.minecraft` is internal implementation code, not an addon API.
 The public `buildcraft.api` tree is outside these internal compatibility-boundary rules.
-The boundaries serve the 1.21.X target family; the old family keeps its established
+The boundaries serve modern target families; the old family keeps its established
 effective-source layout.
 
 | Boundary | Responsibilities and current consumers |
@@ -414,7 +428,7 @@ python scripts/validate-regressions.py
 
 The executable Java probes compile maintained classes against offline API doubles.
 They do not replace a full Gradle build, real world save/reload, client rendering,
-or dedicated-server testing. CI explicitly installs Java 21 for these probes.
+or dedicated-server testing. CI installs the Java toolchain required by each target; offline compatibility probes use Java 21 unless a target-specific probe requires otherwise.
 
 Modern canonical Java targets 1.21.11; the 1.21.1 implementation is selected
 through explicit downport views. Materialization uses mechanical transforms and
@@ -464,7 +478,7 @@ model and screen registration remains separate. Permission actors, fake players,
 and chunk-ticket management use their dedicated platform services.
 
 Run `python -m unittest discover -s scripts/tests -p test_platform_boundaries.py -v`.
-The test suite materializes all four supported targets, compiles the real boundary
+The test suite materializes all supported targets, compiles the real boundary
 classes against small native API doubles, and checks the supplied baseline's
 config fingerprints and literal content-registration order. It is not a full
 Forge/NeoForge build or dedicated-server/client integration test.

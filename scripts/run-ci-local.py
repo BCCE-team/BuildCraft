@@ -34,10 +34,11 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 LOG_ROOT = ROOT / "logs" / "ci-local"
 TARGETS = (
-    ("1.19.2-forge", "legacy", 17),
-    ("1.20.1-forge", "legacy", 17),
-    ("1.21.1-neoforge", "modern", 21),
-    ("1.21.11-neoforge", "modern", 21),
+    ("1.19.2-forge", "old", 17),
+    ("1.20.1-forge", "old", 17),
+    ("1.21.1-neoforge", "1.21.X", 21),
+    ("1.21.11-neoforge", "1.21.X", 21),
+    ("26.1.2-neoforge", "26.X", 25),
 )
 COMPATIBILITY = (
     ("1.19.2-forge", "forestry"),
@@ -56,6 +57,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Validate repository cleanliness", (sys.executable, "scripts/validate-repository-cleanliness.py")),
     ("Validate cross-version gameplay parity", (sys.executable, "scripts/validate-behavior-parity.py")),
     ("Validate 1.21.11 parity", (sys.executable, "scripts/validate-12111-parity.py")),
+    ("Test 26.1.2 target structure", (sys.executable, "scripts/tests/test_2612_target.py")),
     ("Validate Zone Planner block preview parity", (sys.executable, "scripts/validate-zone-planner-preview.py")),
     ("Validate FE compatibility", (sys.executable, "scripts/validate-fe-compat.py")),
     ("Validate FE Engine and MJ Dynamo parity", (sys.executable, "scripts/validate-fe-mj-engine-parity.py")),
@@ -165,7 +167,7 @@ def workflow_alignment_check() -> None:
 
     build_text = text[build_start:compat_start]
     build_step_names = (
-        "Validate Forge 1.20.1 port invariants",
+        "Validate Forge 1.20.1 target invariants",
         "Build and test target",
         "Run GameTests",
         "Smoke-test production jar",
@@ -1067,7 +1069,7 @@ def clear_forgegradle_dependency_caches() -> None:
         home / ".gradle/caches/modules-2/files-2.1/net.minecraftforge",
     ):
         shutil.rmtree(path, ignore_errors=True)
-    versions = ROOT / "builds" / "legacy" / "versions"
+    versions = ROOT / "builds" / "old" / "versions"
     if versions.is_dir():
         for path in versions.rglob("fg_cache"):
             if path.is_dir():
@@ -1246,7 +1248,7 @@ def main() -> int:
 
         if target == "1.20.1-forge":
             step_number += 1
-            name = f"Validate Forge 1.20.1 port invariants [{target}]"
+            name = f"Validate Forge 1.20.1 target invariants [{target}]"
             status, log = run_command(
                 name,
                 (sys.executable, "scripts/validate-1.20.1-target.py", "--source-root", "version-src/1.20.1-forge"),
@@ -1333,7 +1335,7 @@ def main() -> int:
     # Compatibility matrix, after validate + every build/test/smoke target, matching workflow dependencies.
     props = read_properties(ROOT / "build-config" / "targets.properties")
     compat_env_base = environment_with_java(base_env, jdks[17])
-    compat_env_base["BUILD_GENERATION"] = "legacy"
+    compat_env_base["BUILD_GENERATION"] = "old"
     for target, profile in COMPATIBILITY:
         dependency = props.get(f"target.{target}.deps.{profile}", "")
         name = f"Smoke-test compatibility server [{target}/{profile}]"
@@ -1351,7 +1353,7 @@ def main() -> int:
         env["SERVER_LOG_FILE"] = str(runtime_log_dir / f"ci-server-old-{target}-{profile}.log")
         if os.name == "nt":
             status, log = run_native_server_smoke(
-                name, target=target, generation="legacy", profile=profile, java_home=jdks[17],
+                name, target=target, generation="old", profile=profile, java_home=jdks[17],
                 env=env, run_dir=run_dir, step_number=step_number,
             )
         else:

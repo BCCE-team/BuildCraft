@@ -6,7 +6,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
-/** Native deferred-GUI renderer for BuildCraft ledger/tab textures on Minecraft 1.21.11. */
+/** Native deferred-GUI renderer for BuildCraft ledger/tab textures. */
 final class NativeLedgerRender121111 {
     private static final Identifier LEDGER_LEFT = texture("ledger_left");
     private static final Identifier LEDGER_RIGHT = texture("ledger_right");

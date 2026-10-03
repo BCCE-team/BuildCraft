@@ -26,7 +26,7 @@ import buildcraft.lib.compat.NbtCompat;
 import net.minecraft.core.Holder;
 
 /**
- * NeoForge 1.21.1 equivalent of Forge's legacy {@code forge:nbt} ingredient.
+ * NeoForge equivalent of Forge's legacy {@code forge:nbt} ingredient.
  *
  * <p>The 1.19.2 reference recipes use {@code StrictNBTIngredient}: item, damage and
  * the complete legacy share tag must match exactly, while stack count is ignored.

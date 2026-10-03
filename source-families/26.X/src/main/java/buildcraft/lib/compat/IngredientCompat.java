@@ -15,9 +15,9 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.ItemLike;
 import net.neoforged.neoforge.common.crafting.DataComponentIngredient;
 
-/** 1.21.11 facade for Ingredient factories whose signatures changed after 1.21.1. */
+/** Compatibility facade for Ingredient factories used by shared BuildCraft recipe code. */
 public final class IngredientCompat {
-    // Vanilla 1.21.11 no longer permits a direct empty Ingredient. Keep a private sentinel
+    // Vanilla does not expose a direct empty Ingredient. Keep a private sentinel
     // only for BuildCraft compatibility call sites that expect the empty ingredient constant.
     private static final Ingredient EMPTY_SENTINEL = Ingredient.of(Items.BARRIER);
 
@@ -27,7 +27,7 @@ public final class IngredientCompat {
         return item == null || item.asItem() == Items.AIR ? empty() : Ingredient.of((ItemLike) item);
     }
 
-    /** Preserve the component-sensitive semantics of NeoForge 1.21.1 Ingredient.of(ItemStack). */
+    /** Preserve BuildCraft's component-sensitive ItemStack ingredient semantics. */
     public static Ingredient of(ItemStack stack) {
         return stack == null || stack.isEmpty() ? empty() : DataComponentIngredient.of(true, stack.copy());
     }

@@ -19,11 +19,11 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 1.21.11 bridge for BCCE's pre-submit-model block entity renderers.
+ * Adapter for BCCE's direct block-entity renderers on the submit-model pipeline.
  *
  * <p>The compatibility render entry point preserves source compatibility. Laser-capable renderers additionally expose a
  * laser-only pass via {@link LegacyLaserBlockEntityRenderer}; that pass is submitted as custom geometry so dynamic
- * BuildCraft lasers continue to use Minecraft's 1.21.11 render queue instead of the removed immediate renderer.</p>
+ * BuildCraft lasers use the render queue instead of the removed immediate renderer.</p>
  */
 public interface LegacyBlockEntityRenderer<T extends BlockEntity>
     extends BlockEntityRenderer<T, LegacyBlockEntityRenderer.LegacyRenderState<T>> {

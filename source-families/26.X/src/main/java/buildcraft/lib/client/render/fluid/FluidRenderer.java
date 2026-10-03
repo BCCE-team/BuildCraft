@@ -427,7 +427,7 @@ public class FluidRenderer {
         drawFluidForGuiInteral(startX, startY, endX, endY, matrix);
     }
 
-    /** Native 1.21.11 GUI path. The GUI renderer is deferred and no longer consumes PoseStack vertices,
+    /** Native deferred GUI path. The GUI renderer no longer consumes PoseStack vertices,
      * so tile the atlas sprite through GuiGraphicsExtractor instead of immediate BufferBuilder rendering. */
     public static void drawFluidForGui(FluidStack fluid, double startX, double startY, double endX, double endY, GuiGraphicsExtractor guiGraphics) {
         if (fluid == null || fluid.isEmpty()) return;

@@ -353,7 +353,7 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
             BlockEntity oTile = level.getBlockEntity(nPos);
 
             // Pipe topology is a block-capability lookup in NeoForge. Do not require a neighbouring
-            // BlockEntity before asking for CAP_PIPE/CAP_PLUG: 1.21.11 capabilities are position based.
+            // BlockEntity before asking for CAP_PIPE/CAP_PLUG because capabilities are position based.
             IPipe oPipe = getHolder().getNeighbourPipe(facing);
             if (oPipe != Pipe.EMPTY) {
                 PipeBehaviour oBehaviour = oPipe.getBehaviour();

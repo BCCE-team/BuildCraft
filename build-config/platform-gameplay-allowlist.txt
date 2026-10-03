@@ -118,3 +118,9 @@ source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowI
 source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java
 source-platforms/neoforge/src/main/java/buildcraft/transport/stripes/PipeExtensionManager.java
 source-platforms/neoforge/src/main/java/buildcraft/transport/tile/TilePipeHolderModelData.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/builders/tile/TileQuarry.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/factory/tile/TileMiner.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/Pipe.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/stripes/PipeExtensionManager.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/tile/TilePipeHolder.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/tile/TilePipeHolderModelData.java

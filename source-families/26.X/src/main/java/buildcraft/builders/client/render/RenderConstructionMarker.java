@@ -40,7 +40,7 @@ public class RenderConstructionMarker implements LegacyBlockEntityRenderer<TileC
 
     public void render(@Nonnull TileConstructionMarker tile, float partialTicks, PoseStack matrix,
         MultiBufferSource buffer, int light, int overlay) {
-        // 1.21.11 invokes submit(), not this immediate-mode compatibility method. Lasers remain here so the
+        // Deferred rendering invokes submit(), not this immediate-mode compatibility method. Lasers remain here so the
         // shared LegacyLaserBlockEntityRenderer bridge can submit them as custom geometry.
         renderLasers(tile, partialTicks, matrix, buffer, light, overlay);
     }

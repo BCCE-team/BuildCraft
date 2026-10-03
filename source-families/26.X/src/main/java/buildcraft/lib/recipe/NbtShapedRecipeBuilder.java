@@ -31,7 +31,7 @@ import buildcraft.lib.compat.IngredientCompat;
 
 /**
  * Shaped recipe builder that keeps the complete output stack, including data
- * components. Vanilla's 1.21.1 {@code ShapedRecipeBuilder} accepts only an
+ * components. Vanilla's {@code ShapedRecipeBuilder} accepts only an
  * {@link ItemLike}, so it cannot represent BuildCraft gate variants stored on
  * the result stack.
  */

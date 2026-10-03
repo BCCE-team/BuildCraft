@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gate-specific 1.21.1 -> 1.21.11 parity guard.
 
-This intentionally validates the runtime paths that broke during the 1.21.11 port:
+This intentionally validates the version-sensitive runtime paths for 1.21.11:
 client->server message delivery, statement modifier input, server persistence/echo,
 container connection sync, and the core resolver's behavioural parity.
 """

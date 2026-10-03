@@ -22,7 +22,7 @@ import net.minecraft.world.level.block.entity.FuelValues;
 import net.neoforged.neoforge.common.ItemAbility;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
-/** 1.21.11 compatibility helpers for ItemStack APIs changed since 1.21.1. */
+/** Compatibility helpers for the current ItemStack APIs used by shared BuildCraft code. */
 public final class ItemCompat {
     private static final ItemAbility AXE_DIG = ItemAbility.get("axe_dig");
     private static final ItemAbility PICKAXE_DIG = ItemAbility.get("pickaxe_dig");
@@ -81,8 +81,8 @@ public final class ItemCompat {
     }
 
     /**
-     * 1.21.11 exposes furnace fuel data through the level fuel-values table rather than a one-argument stack helper.
-     * Prefer the live server FuelValues so datapack/NeoForge fuel overrides behave like 1.21.1.
+     * The current API exposes furnace fuel data through the level fuel-values table rather than a one-argument stack helper.
+     * Prefer the live server FuelValues so datapack and NeoForge fuel overrides are respected.
      * During early/client-only calls fall back to vanilla values built from the active registry lookup.
      */
     public static int getBurnTime(ItemStack stack) {
@@ -100,12 +100,12 @@ public final class ItemCompat {
         return stack.getCraftingRemainder().create();
     }
 
-    /** Serialize an ItemStack with the registry-aware 1.21.11 codec. Empty stacks encode as an empty compound. */
+    /** Serialize an ItemStack with the registry-aware ItemStack codec. Empty stacks encode as an empty compound. */
     public static CompoundTag saveOptional(ItemStack stack, HolderLookup.Provider registries) {
         return BCItemData.save(stack, registries);
     }
 
-    /** Decode the current 1.21.11 ItemStack codec representation. Legacy normalization is handled by ItemStackUtil. */
+    /** Decode the current ItemStack codec representation. Legacy normalization is handled by ItemStackUtil. */
     public static ItemStack parseOptional(HolderLookup.Provider registries, CompoundTag tag) {
         return parseOptional(registries, (Tag) tag);
     }

@@ -8,7 +8,7 @@ else
   gradle_args=("$@")
 fi
 
-for generation in old 1.21.X; do
+for generation in old 1.21.X 26.X; do
   echo "==> Running ${generation} BuildCraft build: ${gradle_args[*]}"
   (
     cd "${repo_root}/builds/${generation}"

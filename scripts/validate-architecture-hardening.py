@@ -203,6 +203,7 @@ def platform_metrics() -> dict[str, object]:
         "neoforge": "net.neoforged",
         "fabric": "net.fabricmc",
     }
+    props = load_properties()
     by_root: dict[str, int] = {}
     neutral: list[str] = []
     gameplay: list[str] = []
@@ -210,11 +211,25 @@ def platform_metrics() -> dict[str, object]:
         paths = java_files(root)
         by_root[label] = len(paths)
         token = own_token.get(platform)
+        ownership_exemptions: tuple[str, ...] = ()
+        parts = label.split("/")
+        if len(parts) == 3 and parts[0] == "source-family-platforms":
+            key = f"source.family_platform.{parts[1]}.{parts[2]}.allow_loader_neutral"
+            ownership_exemptions = tuple(
+                value.strip().rstrip("/")
+                for value in props.get(key, "").split(",")
+                if value.strip()
+            )
         for path in paths:
+            relative_in_root = path.relative_to(root).as_posix()
+            explicitly_owned = any(
+                relative_in_root == prefix or relative_in_root.startswith(prefix + "/")
+                for prefix in ownership_exemptions
+            )
             text = path.read_text(encoding="utf-8", errors="replace")
-            if token and token not in text:
+            if not explicitly_owned and token and token not in text:
                 neutral.append(path.relative_to(ROOT).as_posix())
-            if "/src/main/java/" in path.as_posix() and GAMEPLAY_NAME_RE.match(path.name):
+            if not explicitly_owned and "/src/main/java/" in path.as_posix() and GAMEPLAY_NAME_RE.match(path.name):
                 gameplay.append(path.relative_to(ROOT).as_posix())
     return {
         "by_root": dict(sorted(by_root.items())),

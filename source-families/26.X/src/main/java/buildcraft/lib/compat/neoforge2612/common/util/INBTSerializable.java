@@ -3,7 +3,7 @@ package buildcraft.lib.compat.neoforge2612.common.util;
 import net.minecraft.core.HolderLookup;
 
 /**
- * Compatibility bridge for legacy BuildCraft serializers on NeoForge 1.21.11.
+ * Compatibility bridge for legacy BuildCraft serializers on NeoForge.
  *
  * NeoForge moved new code toward registry-aware ValueIO serializers, but most
  * BCCE containers expose the serializeNBT/deserializeNBT compatibility shape.

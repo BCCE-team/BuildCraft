@@ -39,8 +39,8 @@ import net.minecraft.world.item.ItemStack;
 
 /** Native 26.1.2 item models for the dynamic BuildCraft plugs.
  *
- * <p>The 1.21.11 BakedModel overrides are intentionally not routed through the
- * target model map: that map now stores {@link ItemModel}s. These models retain
+ * <p>Legacy BakedModel overrides are not routed through the
+ * target model map because it stores {@link ItemModel}s. These models retain
  * the mutable BuildCraft geometry, cached by gameplay variant, and turn it into
  * the normal vanilla item render layers.</p>
  */

@@ -36,9 +36,9 @@ import net.neoforged.neoforge.items.IItemHandler;
 import buildcraft.lib.compat.NbtCompat;
 
 /**
- * 1.21.11 implementation of BuildCraft's phantom-blueprint workbench.
+ * BuildCraft phantom-blueprint workbench backed by recipe displays.
  *
- * <p>Uses the BuildCraft workbench gameplay model with the 1.21.11 recipe APIs, including
+ * <p>Uses the BuildCraft workbench gameplay model with the current recipe-display APIs, including
  * recipe discovery and crafting for Auto Workbenches and the Advanced Crafting Table.</p>
  */
 public class WorkbenchCrafting extends TransientCraftingContainer {

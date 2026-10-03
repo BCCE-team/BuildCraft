@@ -678,8 +678,6 @@ def validate_build_metadata_and_source_hygiene(props: dict[str, str]) -> None:
             ):
                 if token not in bclib:
                     fail(f"{target}: BCLib DEV mode lost {token!r}")
-            if "1.21.1 provides FMLLoader but not getCurrent" not in bclib:
-                fail(f"{target}: BCLib must fall back when the current-environment accessor is unavailable")
         elif "!FMLEnvironment.production || Boolean.getBoolean(\"buildcraft.dev\")" not in bclib:
             fail(f"{target}: BCLib DEV mode lost Forge production detection")
         if "!false" in bclib:

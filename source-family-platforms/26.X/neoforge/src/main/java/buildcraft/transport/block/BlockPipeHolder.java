@@ -1028,7 +1028,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 
 	/**
 	 * NeoForge pick-block overload. Keeping this in addition to the vanilla three-argument method preserves
-	 * compatibility with 1.21.1 patch levels that route pick-block through the extension hook.
+	 * compatibility with NeoForge paths that route pick-block through the extension hook.
 	 */
 	public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state, boolean includeData, Player player) {
 		TilePipeHolder tile = getPipe(level, pos, false);
@@ -1148,7 +1148,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
     	
     }
 
-	// NeoForge 1.21.1 no longer declares this legacy render-properties hook.
+	// NeoForge no longer declares this legacy render-properties hook.
 	public Object getRenderPropertiesInternal() {
 		return this;
 	}

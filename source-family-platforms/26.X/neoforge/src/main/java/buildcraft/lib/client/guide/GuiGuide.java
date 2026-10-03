@@ -1450,7 +1450,7 @@ public final class GuiGuide extends Screen {
     }
 
     /**
-     * 1.21.11 no longer exposes server RecipeHolder data on the client. The Guide cache carries the authoritative
+     * Client recipe displays do not expose server RecipeHolder data. The Guide cache carries the authoritative
      * datapack recipe id next to each RecipeDisplayEntry, preserving recipe-id addon pages as well as normal
      * crafting recipe/usages previews on integrated and remote servers.
      */

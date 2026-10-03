@@ -46,7 +46,7 @@ public class ItemTransactorHelper {
     }
 
     /**
-     * Position-based item lookup for 1.21.11 block capabilities. The provider is optional because a
+     * Position-based item lookup for NeoForge block capabilities. The provider is optional because a
      * NeoForge block capability may exist at a position that has no BlockEntity at all.
      */
     @Nonnull

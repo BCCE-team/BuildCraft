@@ -16,7 +16,7 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.Identifier;
 
-/** Native Minecraft 1.21.11 renderer for BuildCraft robots. */
+/** Native renderer for BuildCraft robots. */
 public class RenderRobot extends EntityRenderer<EntityRobot, RenderRobot.RobotRenderState> {
     private static final Identifier OVERLAY_RED = Identifier.fromNamespaceAndPath(
         "buildcraftrobotics", "textures/entities/overlay_side.png"
@@ -38,7 +38,7 @@ public class RenderRobot extends EntityRenderer<EntityRobot, RenderRobot.RobotRe
     }
 
     public void extractRenderState(EntityRobot robot, RobotRenderState state, float partialTick) {
-        // This call is mandatory in 1.21.11. Among other things it fills entityType, world position,
+        // The base extraction step fills entity type, world position,
         // light, fire/name-tag state and shadow data. Leaving it out makes EntityRenderDispatcher
         // fail to resolve this renderer as soon as the freshly placed robot reaches the client.
         super.extractRenderState(robot, state, partialTick);
@@ -93,7 +93,7 @@ public class RenderRobot extends EntityRenderer<EntityRobot, RenderRobot.RobotRe
     private static void renderRobotCube(VertexConsumer builder, PoseStack.Pose pose, int light,
         float alpha, float brightness) {
         // BuildCraft 7.1.x used ModelRenderer(model, 0, 0).addBox(-4, -4, -4, 8, 8, 8) with 32x32 robot
-        // textures. Keep the same UV layout as the 1.21.1 renderer.
+        // Keep the established BuildCraft robot UV layout.
         quad(builder, pose, light,
             MIN, MAX, MIN, MAX, MAX, MIN, MAX, MAX, MAX, MIN, MAX, MAX,
             16, 0, 24, 8, 0, 1, 0, alpha, brightness);
@@ -121,7 +121,7 @@ public class RenderRobot extends EntityRenderer<EntityRobot, RenderRobot.RobotRe
         float x4, float y4, float z4,
         float u1, float v1, float u2, float v2,
         float nx, float ny, float nz, float alpha, float brightness) {
-        // 1.21.11 entityCutoutNoCull/entityTranslucent use PER_FACE_LIGHTING. The shader chooses front/back lighting
+        // entityCutoutNoCull/entityTranslucent use per-face lighting. The shader chooses front/back lighting
         // from gl_FrontFacing, so quad winding must agree with the supplied outward normal. Submit the vertices in the
         // matching winding while preserving each corner's UV orientation.
         vertex(builder, pose, light, x1, y1, z1, u1 / TEX_SIZE, v2 / TEX_SIZE, nx, ny, nz, alpha, brightness);

@@ -33,16 +33,16 @@ import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
-/** 1.21.11 facade baker backed by the native BlockStateModel API.
+/** Facade baker backed by the native BlockStateModel API.
  *
- * <p>On 1.21.11 facades sample native BlockModelPart quads from the selected block state, convert them to BuildCraft
+ * <p>Facades sample native BlockModelPart quads from the selected block state, convert them to BuildCraft
  * MutableQuads and remap that geometry onto the thin facade shell.</p>
  */
 public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
     INSTANCE;
 
     /**
-     * 1.21.11-only extra alpha multiplier for glass facade vertex colours.
+     * Extra alpha multiplier for glass facade vertex colours.
      * The glass texture already supplies the original vanilla transparency. Do not multiply it by an extra facade opacity: doing so makes glass facades far more transparent than the source block.
      * 1.0 preserves the source texture alpha exactly.
      */
@@ -105,7 +105,7 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
                     source.add(fromNative(state, quad));
                 }
             } else {
-                // Some 1.21.11 models keep their geometry in the unculled bucket. A facade still needs the
+                // Some models keep their geometry in the unculled bucket. A facade still needs the
                 // geometrical face matching the requested side; otherwise e.g. translucent/glass states bake to air.
                 for (net.minecraft.client.resources.model.geometry.BakedQuad quad : part.getQuads(null)) {
                     if (quad.direction() == side) {
@@ -186,7 +186,7 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
                 Float.intBitsToFloat((int) (packedUv >>> 32)),
                 Float.intBitsToFloat((int) packedUv)
             );
-            // NeoForge 1.21.11 carries static vertex colour/alpha separately from BlockColor tinting.
+            // NeoForge carries static vertex colour/alpha separately from BlockColor tinting.
             vertex.colouri(quad.bakedColors().color(i));
             Direction face = quad.direction();
             if (face != null) {
@@ -344,7 +344,7 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
     static final class TransportCompat {
         static List<BakedQuad> bakeBlocker(Direction side) {
             // The blocker starts exactly at the facade inner plane. Its outward face is therefore coplanar with
-            // the facade's inner face and produces camera-dependent stripe/z-fighting artifacts in 1.21.11.
+            // the facade's inner face and produces camera-dependent stripe/z-fighting artifacts.
             // The facade already covers that face, so discard only the coplanar outward blocker quad.
             List<BakedQuad> result = new ArrayList<>();
             for (BakedQuad quad : BCTransportModels.BAKER_PLUG_BLOCKER.bake(new KeyPlugBlocker(side))) {

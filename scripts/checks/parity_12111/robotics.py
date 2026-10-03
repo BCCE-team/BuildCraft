@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """BuildCraft Robotics 1.21.1 -> 1.21.11 gameplay parity guard.
 
-This validates the complete robot-local surface that has regressed during the port:
+This validates the complete version-sensitive robot-local surface:
 registry/bootstrap/persistence, placement, entity state/damage/bounds, docking, stations,
 board/profession registration, AI/board source coverage, tool compatibility, Stripes fake-player
 semantics, held-item ticking, legacy robot NBT positions, Zone Planner modifier input, and the

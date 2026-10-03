@@ -576,7 +576,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
 
 
     // Minecraft 1.21.5 receives block-entity update tags through ValueInput. Keeping the compatibility overload here
-    // silently stops overriding BlockEntity on 1.21.11, which leaves client-side pipes as Pipe.EMPTY forever.
+    // silently stops overriding BlockEntity, which leaves client-side pipes as Pipe.EMPTY forever.
     public void onDataPacket(Connection net, ValueInput input) {
         handleUpdateTag(input);
     }

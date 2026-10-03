@@ -101,7 +101,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         activeGraphics = guiGraphics;
         try {
             super.extractRenderState(guiGraphics, mouseX, mouseY, partialTicks);
-            // GuiGraphicsExtractor is 2D in 1.21.11, so tooltips render after slots/items and advance the render stratum
+            // GuiGraphicsExtractor is 2D, so tooltips render after slots/items and advance the render stratum
             // instead of relying on a PoseStack Z translation.
             BCGraphics.nextLayer(guiGraphics);
             mainGui.drawTooltips(guiGraphics);
@@ -213,7 +213,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
     protected void renderLabels(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
         activeGraphics = guiGraphics;
 
-        // 1.21.11 renders container foregrounds with GuiGraphicsExtractor already translated by leftPos/topPos. BuildCraft
+        // Container foregrounds receive a GuiGraphicsExtractor already translated by leftPos/topPos. BuildCraft
         // elements use absolute screen coordinates through mainGui.rootElement, so cancel that translation on the
         // real GuiGraphicsExtractor matrix before drawing them.
         BCGraphics.push(guiGraphics);
@@ -249,7 +249,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         drawProgress(requireGraphics(), rect, icon, widthPercent, heightPercent);
     }
 
-    /** Legacy 1.21.1-style input hooks retained for the machine screens shared with 1.21.1. */
+    /** Legacy-shaped input hooks used by BuildCraft machine screens; native event entry points delegate here. */
     public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
         List<IGuiElement> elements = mainGui.getElementsAt(mouseX, mouseY);
         boolean hitsStatementParameter = elements.stream().anyMatch(GuiElementStatementParam.class::isInstance);

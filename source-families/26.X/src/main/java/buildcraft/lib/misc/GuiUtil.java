@@ -107,7 +107,7 @@ public final class GuiUtil {
     }
 
     public static void drawItemStackAt(ItemStack stack, GuiGraphicsExtractor guiGraphics, int x, int y) {
-        // GuiGraphicsExtractor owns the 1.21.11 item render state and lighting/depth setup.
+        // GuiGraphicsExtractor owns item render state and lighting/depth setup.
         guiGraphics.fakeItem(stack, x, y);
         guiGraphics.itemDecorations(MC.font, stack, x, y);
     }

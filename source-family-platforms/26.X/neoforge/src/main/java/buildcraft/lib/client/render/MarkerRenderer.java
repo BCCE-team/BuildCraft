@@ -16,6 +16,6 @@ public enum MarkerRenderer implements IDetachedRenderer {
     INSTANCE;
 
     public void render(PoseStack pose, Matrix4f matrix, Player player, float partialTicks) {
-        // 1.21.11 world marker geometry is submitted through SubmitCustomGeometryEvent by Core.
+        // World marker geometry is submitted through SubmitCustomGeometryEvent by Core.
     }
 }

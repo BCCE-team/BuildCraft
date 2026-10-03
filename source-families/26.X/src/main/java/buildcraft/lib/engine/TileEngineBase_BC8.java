@@ -765,7 +765,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         TileEngineBase_BC8 engine = this;
         BlockPos targetPos = engine.worldPosition.relative(side);
         for (int len = 0; len <= getMaxChainLength(); len++) {
-            // Endpoint availability is capability-driven on 1.21.11, so resolve the block entity directly instead
+            // Endpoint availability is capability-driven, so resolve the block entity directly instead
             // of using a neighbour cache that may be stale.
             BlockEntity next = level.getBlockEntity(targetPos);
             if (!(next instanceof TileEngineBase_BC8 nextEngine)) {
@@ -782,7 +782,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
             targetPos = engine.worldPosition.relative(side);
         }
 
-        // The final endpoint does not have to own a BlockEntity. NeoForge 1.21.11 block capabilities are positional,
+        // The final endpoint does not have to own a BlockEntity. NeoForge block capabilities are positional,
         // and BuildCraft's API2 EnergyService already knows how to bridge MJ and the modern FE handler.
         var energy = BuildCraftApi.service(BuildCraftServices.ENERGY);
         MjPort remotePort = energy.port(level, targetPos, side.getOpposite()).orElse(null);

@@ -25,7 +25,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.display.RecipeDisplay;
 
-/** 1.21.11 autobench screen with a native RecipeDisplay-backed phantom recipe panel. */
+/** Autobench screen with a native RecipeDisplay-backed phantom recipe panel. */
 public class GuiAutoCraftItems extends GuiBC8<ContainerAutoCraftItems> {
     private static final Identifier TEXTURE_BASE = Identifier.parse("buildcraftfactory:textures/gui/autobench_item.png");
     private static final Identifier TEXTURE_MISC = Identifier.parse("buildcraftlib:textures/gui/misc_slots.png");

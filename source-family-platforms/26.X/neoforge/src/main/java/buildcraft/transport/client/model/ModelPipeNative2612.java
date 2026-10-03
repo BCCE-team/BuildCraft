@@ -47,7 +47,7 @@ import net.neoforged.neoforge.client.model.quad.BakedNormals;
  *
  * <p>The pipe body must be terrain geometry, not BER/custom geometry. Rendering it through a block-entity renderer
  * bypasses chunk depth/terrain passes and makes pipes show through nearby blocks and disappear from shader terrain
- * reflection passes. This model converts the legacy BuildCraft pipe quads to the 1.21.11 baked-quad format and feeds
+ * reflection passes. This model converts the legacy BuildCraft pipe quads to the native baked-quad format and feeds
  * them to the normal chunk mesher.</p>
  */
 public final class ModelPipeNative2612 implements DynamicBlockStateModel {
@@ -100,7 +100,7 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
 
         // PipeBaseModelGenStandard temporarily stretches shared template quads while it bakes long connections. Keep
         // both the pipe body and the static pluggable bakers behind the same lock. The immutable native quads produced
-        // below are then safe for the 1.21.11 chunk-meshing workers.
+        // below are then safe for asynchronous chunk-meshing workers.
         synchronized (PipeModelCacheBase.class) {
             legacyBaseCutout = PipeModelCacheBase.cacheCutout.bake(new PipeBaseCutoutKey(key));
             legacyBaseTranslucent = PipeModelCacheBase.cacheTranslucent.bake(new PipeBaseTranslucentKey(key));
@@ -272,7 +272,7 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
     }
 
     /**
-     * Legacy pipe quads bake material colour and directional shading into vertex colour. Native 1.21.11 block quads
+     * Legacy pipe quads bake material colour and directional shading into vertex colour. Native block quads
      * no longer carry per-vertex colour, so recover the material RGB through BlockColor and let terrain lighting/AO
      * provide the single lighting pass.
      */
@@ -391,7 +391,7 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
     }
 
     /**
-     * The dynamic model cache key must include pluggables as well as the pipe body. Otherwise 1.21.11 is allowed to
+     * The dynamic model cache key must include pluggables as well as the pipe body. Otherwise the model cache can
      * reuse terrain geometry from an identical pipe that has a completely different set of plugs installed.
      */
     public record PipeGeometryKey(PipeModelKey pipe, PipeModelCachePluggable.PluggableKey cutoutPluggables,

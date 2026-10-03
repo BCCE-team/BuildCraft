@@ -86,7 +86,7 @@ public final class ItemStackUtil {
         return getActiveRegistryProvider();
     }
 
-    /** Registry access required by RegistryFriendlyByteBuf in Minecraft 1.21.1. */
+    /** Registry access required by RegistryFriendlyByteBuf. */
     @Nonnull
     public static RegistryAccess getActiveRegistryAccess() {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
@@ -163,7 +163,7 @@ public final class ItemStackUtil {
 
     /**
      * Converts the pre-1.20.5 ItemStack representation ({@code Count}/{@code tag})
-     * into the representation accepted by Minecraft 1.21.1.
+     * into the native component-based representation.
      */
     @Nonnull
     public static CompoundTag normalizeLegacyNbt(@Nonnull CompoundTag source) {

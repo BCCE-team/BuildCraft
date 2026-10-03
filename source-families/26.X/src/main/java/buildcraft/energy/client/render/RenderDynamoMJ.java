@@ -20,7 +20,7 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 1.21.11 native MJ Dynamo renderer.
+ * Native MJ Dynamo renderer for the render-state pipeline.
  *
  * <p>The Dynamo is a TileEngineBase_BC8 but needs the 12x12 moving head used by
  * its original BC8 model. The shared engine renderer already handles that from

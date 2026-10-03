@@ -23,7 +23,7 @@ import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
 /**
  * Synchronises the crafting and assembly recipe displays used by the client Guide Book.
  *
- * Minecraft 1.21.11 no longer exposes the server RecipeManager on the client. The vanilla ClientRecipeBook only
+ * The client recipe book exposes recipe displays rather than the server RecipeManager. It only
  * contains recipes the player has unlocked, which is intentionally insufficient for BuildCraft's reference guide.
  * The datapack recipe id is sent alongside each display so API/addon GuidePage.Recipe entries can resolve reliably.
  */

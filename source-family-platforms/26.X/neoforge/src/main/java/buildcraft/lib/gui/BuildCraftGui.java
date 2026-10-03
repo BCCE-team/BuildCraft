@@ -238,7 +238,7 @@ public class BuildCraftGui {
             menu.drawForeground(guiGraphics, lastPartialTicks);
         }
 
-        // 1.21.11: tooltips are drawn after container slots by GuiBC8.
+        // Tooltips are drawn after container slots by GuiBC8.
 
         if (isDebuggingEnabled.evaluate()) {
             int x = 6;
@@ -288,7 +288,7 @@ public class BuildCraftGui {
         }
     }
 
-    /** Draws BuildCraft tooltips after vanilla container slots on 1.21.11. */
+    /** Draws BuildCraft tooltips after vanilla container slots. */
     public void drawTooltips(GuiGraphicsExtractor guiGraphics) {
         GuiUtil.drawVerticallyAppending(mouse, getAllTooltips(), this::drawTooltip, guiGraphics);
     }

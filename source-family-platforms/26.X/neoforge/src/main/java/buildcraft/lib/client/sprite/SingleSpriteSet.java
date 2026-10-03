@@ -4,7 +4,7 @@ import net.minecraft.client.particle.SpriteSet;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.util.RandomSource;
 
-/** 1.21.11 SpriteSet bridge with the new first() method. */
+/** SpriteSet adapter exposing the first sprite expected by shared rendering code. */
 public class SingleSpriteSet implements SpriteSet {
     public TextureAtlasSprite texture;
 

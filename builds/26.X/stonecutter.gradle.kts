@@ -18,7 +18,7 @@ val targets = targetRegistry.getProperty("targets")
     ?.filter { target -> targetRegistry.getProperty("target.$target.build.generation")?.trim() == generation }
     ?: error("Missing non-empty targets in build-config/targets.properties")
 
-stonecutter active "1.21.11-neoforge" /* [SC] DO NOT EDIT */
+stonecutter active "26.1.2-neoforge" /* [SC] DO NOT EDIT */
 
 stonecutter {
     parameters {
@@ -31,6 +31,7 @@ stonecutter {
             "fabric" to (loader == "fabric"),
             "old" to (generation == "old"),
             "mc_1_21_x" to (generation == "1.21.X"),
+            "mc_26_x" to (generation == "26.X"),
         )
     }
 }

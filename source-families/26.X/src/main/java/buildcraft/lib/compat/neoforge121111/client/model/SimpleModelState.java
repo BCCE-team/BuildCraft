@@ -5,7 +5,7 @@ import com.mojang.math.Transformation;
 
 import net.minecraft.client.resources.model.ModelState;
 
-/** Minimal SimpleModelState compatibility facade for NeoForge 1.21.11. */
+/** Minimal SimpleModelState facade used by shared BuildCraft model code. */
 public class SimpleModelState implements ModelState {
     private final Transformation rotation;
     private final boolean uvLocked;

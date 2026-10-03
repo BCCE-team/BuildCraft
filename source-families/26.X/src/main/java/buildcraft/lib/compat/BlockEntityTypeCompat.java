@@ -6,7 +6,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 
-/** Constructor compatibility bridge for Minecraft 1.21.11 block entity type registration. */
+/** Constructor facade for block entity type registration used by shared BuildCraft code. */
 public final class BlockEntityTypeCompat {
     private BlockEntityTypeCompat() {
     }

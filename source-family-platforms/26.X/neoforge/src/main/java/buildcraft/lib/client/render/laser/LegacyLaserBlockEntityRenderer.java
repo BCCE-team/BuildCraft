@@ -13,7 +13,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 /**
  * Marks a legacy-style block-entity renderer that has BuildCraft laser geometry which can be submitted independently.
  *
- * <p>Minecraft 1.21.11 no longer invokes the legacy immediate {@code render(...)} method. Keeping the laser pass
+ * <p>The renderer no longer invokes the legacy immediate {@code render(...)} method. Keeping the laser pass
  * separate lets the compatibility bridge submit only BuildCraft's laser geometry through the new render queue, without
  * accidentally replaying unrelated item/model rendering from the same block entity.</p>
  */

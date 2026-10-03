@@ -37,7 +37,7 @@ import net.minecraft.world.level.Level;
 import buildcraft.lib.compat.minecraft.gui.BCGuiInput;
 
 /**
- * Recipe-book panel for BuildCraft phantom crafting grids on 1.21.11.
+ * Recipe-book panel for BuildCraft phantom crafting grids backed by client recipe displays.
  *
  * <p>Minecraft no longer exposes the old client recipe-manager path used by the previous
  * {@code RecipeBookComponent} integration. This panel keeps the same player-facing contract on top of the public
@@ -177,7 +177,7 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
 
         graphics.nextStratum();
         // Use the actual vanilla Recipe Book texture and sprite set. This is intentionally not a BCCE
-        // recreation: geometry, spacing and controls mirror RecipeBookComponent/RecipeBookPage 1.21.11.
+        // recreation: geometry, spacing and controls mirror the vanilla RecipeBookComponent/RecipeBookPage.
         graphics.blit(RenderPipelines.GUI_TEXTURED, RECIPE_BOOK_LOCATION, panelX, panelY,
             1.0F, 1.0F, PANEL_WIDTH, PANEL_HEIGHT, 256, 256);
         if (searchBox != null) {
@@ -311,7 +311,7 @@ public final class GuiRecipeBookPhantom implements buildcraft.lib.compat.minecra
         rebuildRecipes(false);
     }
 
-    /** Resolves a 1.21.11 crafting display into the nine phantom stacks used by BuildCraft machines. */
+    /** Resolves a crafting display into the nine phantom stacks used by BuildCraft machines. */
     public static Optional<List<ItemStack>> resolveCraftingGrid(RecipeDisplay display, Level level) {
         if (level == null) return Optional.empty();
         List<ItemStack> stacks = new ArrayList<>(9);

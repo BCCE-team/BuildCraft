@@ -82,7 +82,7 @@ public abstract class AssemblyRecipeBasic implements Recipe<RecipeInput>, Compar
     }
 
     /**
-     * Recipe ids live on RecipeHolder in 1.21.1. BuildCraft still stores the id on the recipe for its
+     * Recipe ids live on RecipeHolder. BuildCraft still stores the id on the recipe for its
      * assembly-table sync format, so this compatibility accessor remains part of the BuildCraft API.
      */
     public Identifier getId() {

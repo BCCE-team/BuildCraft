@@ -6,7 +6,7 @@ import net.minecraft.client.Camera;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.phys.Vec3;
 
-/** 1.21.11 bridge for world-height and camera APIs renamed since 1.21.1. */
+/** Compatibility facade for world-height and camera APIs used by shared BuildCraft code. */
 public final class LevelCompat {
     private LevelCompat() {
     }

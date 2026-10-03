@@ -13,7 +13,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.model.data.ModelData;
 import net.minecraft.client.renderer.rendertype.RenderType;
 
-/** Legacy model API shim required by shared model code on 1.21.11. */
+/** Legacy model API shim required by shared model code. */
 public interface BakedModel {
     default List<BakedQuad> getQuads(BlockState state, Direction side, RandomSource rand) { return Collections.emptyList(); }
     default List<BakedQuad> getQuads(BlockState state, Direction side, RandomSource rand, ModelData data, RenderType type) { return getQuads(state, side, rand); }

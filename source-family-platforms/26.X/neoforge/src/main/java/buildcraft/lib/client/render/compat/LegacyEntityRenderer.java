@@ -13,7 +13,7 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 
-/** 1.21.11 compatibility bridge for BuildCraft direct entity renderers. */
+/** Adapter from BuildCraft direct entity renderers to the render-state pipeline. */
 public abstract class LegacyEntityRenderer<T extends Entity> extends EntityRenderer<T, EntityRenderState> {
     protected LegacyEntityRenderer(EntityRendererProvider.Context context) {
         super(context);
@@ -30,7 +30,7 @@ public abstract class LegacyEntityRenderer<T extends Entity> extends EntityRende
     }
 
     public void extractRenderState(T entity, EntityRenderState state, float partialTick) {
-        // The base extraction is mandatory in 1.21.11: EntityRenderDispatcher resolves the renderer
+        // The base extraction is mandatory: EntityRenderDispatcher resolves the renderer
         // for the submit phase through state.entityType. Leaving this empty turns any legacy-bridged
         // entity into a client crash as soon as it enters render distance.
         super.extractRenderState(entity, state, partialTick);

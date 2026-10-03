@@ -35,7 +35,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import buildcraft.lib.compat.RenderCompat;
 
-/** Runtime bridge for legacy BuildCraft client rendering on Minecraft/NeoForge 1.21.11. */
+/** Runtime bridge between legacy BuildCraft rendering abstractions and the current client renderer. */
 public final class RenderCompat {
     private static Identifier currentShaderTexture;
     private static final float[] currentShaderColor = { 1.0F, 1.0F, 1.0F, 1.0F };
@@ -47,7 +47,7 @@ public final class RenderCompat {
         if (slot == 0) {
             currentShaderTexture = texture;
         }
-        // Some 1.21.11 GUI paths use GuiGraphicsExtractor.blit instead of global texture binding. Preserve the compatibility
+        // Deferred GUI paths use GuiGraphicsExtractor.blit instead of global texture binding. Preserve the compatibility
         // RenderSystem call when available and always store the texture for BuildCraft GUI helpers.
         invokeRenderSystem("setShaderTexture", new Class<?>[] { int.class, Identifier.class }, slot, texture);
     }
@@ -81,7 +81,7 @@ public final class RenderCompat {
     }
 
     public static Function<Identifier, TextureAtlasSprite> blockSprites() {
-        // 1.21.11 exposes loaded atlases through AtlasManager. Use the atlas definition id (AtlasIds.BLOCKS), not
+        // Loaded atlases are resolved through AtlasManager. Use the atlas definition id (AtlasIds.BLOCKS), not
         // the backing texture location (TextureAtlas.LOCATION_BLOCKS), and provide missingno as the final fallback
         // instead of propagating null into MutableQuad.
         TextureAtlas atlas = Minecraft.getInstance().getAtlasManager().getAtlasOrThrow(AtlasIds.BLOCKS);
@@ -97,9 +97,9 @@ public final class RenderCompat {
     }
 
     /**
-     * Native 1.21.11 mouse events carry modifier state, while the shared BC8 statement widgets still expose the
-     * 1.21.1 callback shape. GuiBC8 scopes this value around the legacy callback so those widgets preserve the exact
-     * Shift-click behaviour of 1.21.1 without polling removed Screen static helpers.
+     * Native mouse events carry modifier state, while the shared BC8 statement widgets still expose the
+     * legacy callback shape. GuiBC8 scopes this value around that callback so those widgets preserve the exact
+     * Shift-click behaviour without polling removed Screen static helpers.
      */
     public static void setInputShiftDown(boolean shiftDown) {
         BCInputState.setShiftDown(shiftDown);

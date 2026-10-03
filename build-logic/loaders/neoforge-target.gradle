@@ -85,183 +85,28 @@ sourceSets {
         compileClasspath = sourceSets.apiV2.output + sourceSets.apiV2.compileClasspath
         runtimeClasspath = output + compileClasspath
     }
-    // Gameplay signatures consumed by the legacy surface. This source set is
-    // verification-only and is intentionally absent from main/the release JAR.
-    apiLibStubs {
-        java.setSrcDirs([new File(repositoryRoot, "version-src/${targetName}/api-lib-stubs/src/main/java")])
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    // Legacy buildcraft.api and buildcraft.lib deliberately retain their
-    // implementation-facing contracts.  Compile them as a separate target so
-    // the 26.X port can be verified without silently depending on a successful
-    // gameplay-module migration.
-    apiLibPort {
-        java.setSrcDirs(effectiveDirs('src/main/java'))
-        java.include 'buildcraft/api/**'
-        java.include 'buildcraft/lib/**'
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    // The core module references gameplay implementations that will be ported
-    // in later module passes. These bridges are compilation-only and are never
-    // added to the runtime or release artifact.
-    corePortStubs {
-        java.setSrcDirs([new File(repositoryRoot, "version-src/${targetName}/core-port-stubs/src/main/java")])
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    // Core is the first gameplay module ported after the API/lib surface. Keep
-    // it independently compilable while the remaining gameplay modules retain
-    // their own migration boundaries.
-    corePort {
-        java.setSrcDirs(effectiveDirs('src/main/java'))
-        java.include 'buildcraft/core/**'
-        java.include 'buildcraft/robotics/zone/ZonePlan.java'
-        java.include 'buildcraft/robotics/zone/ZoneChunk.java'
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.corePortStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    // Energy follows core as an independently verifiable gameplay module. The
-    // only remaining gameplay reference is the item-pipe marker used to avoid
-    // opening engine menus while holding a pipe. Keep that future transport
-    // boundary in a compile-only bridge rather than dragging transport into the
-    // energy migration.
-    energyPortStubs {
-        java.setSrcDirs([new File(repositoryRoot, "version-src/${targetName}/energy-port-stubs/src/main/java")])
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.corePort.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    energyPort {
-        java.setSrcDirs(effectiveDirs('src/main/java'))
-        java.include 'buildcraft/energy/**'
-        resources.setSrcDirs([])
-        // Core supersedes the legacy API bridge here: energy consumes its real
-        // item registry (gears and engine variants), not the deliberately
-        // narrow BCCoreItems fixture used before core was migrated.
-        compileClasspath = sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.energyPortStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    // Transport is an independently compilable primary-port slice. It consumes the real
-    // API/lib, core and energy outputs; any remaining later-module links are
-    // declared explicitly in transportPortStubs rather than hidden in main.
-    transportPortStubs {
-        java.setSrcDirs([new File(repositoryRoot, "version-src/${targetName}/transport-port-stubs/src/main/java")])
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    transportPort {
-        java.setSrcDirs(effectiveDirs('src/main/java'))
-        java.include 'buildcraft/transport/**'
-        // 26.1.2 uses the BlockStateModel terrain pipeline. The old
-        // IDynamicBakedModel implementation and its 1.21.11 native adapter
-        // are superseded by ModelPipeNative2612.
-        java.exclude 'buildcraft/transport/client/model/ModelPipe.java'
-        java.exclude 'buildcraft/transport/client/model/ModelPipeNative121111.java'
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.transportPortStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    // Factory is an independently compilable primary-port slice. Its machines
-    // consume the real transport pipe contracts rather than an API-level
-    // substitute, so ordering remains explicit and independently testable.
-    factoryPort {
-        java.setSrcDirs(effectiveDirs('src/main/java'))
-        java.include 'buildcraft/factory/**'
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    // Builders is the next independently compilable primary-port slice. The builder robot links to
-    // robotics, which remains a later module, through a deliberately narrow
-    // compile-only bridge. All migrated gameplay dependencies use their real
-    // outputs so the bridge cannot mask an accidental dependency regression.
-    buildersPortStubs {
-        java.setSrcDirs([new File(repositoryRoot, "version-src/${targetName}/builders-port-stubs/src/main/java")])
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    buildersPort {
-        java.setSrcDirs(effectiveDirs('src/main/java'))
-        java.include 'buildcraft/builders/**'
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.buildersPortStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    // Silicon follows the fully migrated table/pipes stack. Programming Table
-    // board definitions still belong to the later robotics port, so that one
-    // link stays explicit and compile-only instead of leaking into main.
-    siliconPortStubs {
-        java.setSrcDirs([new File(repositoryRoot, "version-src/${targetName}/silicon-port-stubs/src/main/java")])
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.buildersPort.output + sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    siliconPort {
-        java.setSrcDirs(effectiveDirs('src/main/java'))
-        java.include 'buildcraft/silicon/**'
-        // The old 1.21.11 adapter feeds the removed custom BakedModel path;
-        // NativePluggableItemModels2612 supplies real 26.1.2 item models.
-        java.exclude 'buildcraft/silicon/client/model/NativePluggableItemModels121111.java'
-        java.exclude 'buildcraft/silicon/BCSiliconRecipesProvider.java'
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.buildersPort.output + sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.siliconPortStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    // Robotics is compiled only after the real silicon output: the temporary
-    // Programming Table bridge deliberately remains outside this runtime graph.
-    roboticsPort {
-        java.setSrcDirs(effectiveDirs('src/main/java'))
-        java.include 'buildcraft/robotics/**'
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.siliconPort.output + sourceSets.buildersPort.output + sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
-    // Compat is the final primary-port slice. It compiles against the real outputs of every
-    // gameplay module and the target's optional JEI/Jade API dependencies. Runtime/gameplay
-    // validation remains a separate pass after the source port is structurally complete.
-    compatPort {
-        java.setSrcDirs(effectiveDirs('src/main/java'))
-        java.include 'buildcraft/compat/**'
-        resources.setSrcDirs([])
-        compileClasspath = sourceSets.roboticsPort.output + sourceSets.siliconPort.output + sourceSets.buildersPort.output + sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
-        runtimeClasspath = output + compileClasspath
-    }
+
 }
 
 if (!jeiCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/jei/**'
-    sourceSets.compatPort.java.exclude 'buildcraft/compat/jei/**'
 }
 if (!jadeCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/jade/**'
-    sourceSets.compatPort.java.exclude 'buildcraft/compat/jade/**'
 }
 if (!createCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/create/**'
-    sourceSets.compatPort.java.exclude 'buildcraft/compat/create/**'
 }
 if (!ic2CompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/ic2/**'
-    sourceSets.compatPort.java.exclude 'buildcraft/compat/ic2/**'
 }
 if (!forestryCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/forestry/**'
-    sourceSets.compatPort.java.exclude 'buildcraft/compat/forestry/**'
 }
 if (!dataGenSourcesEnabled) {
-    // NeoForge 1.21.11 does not expose the datagen helper APIs used by these
-    // source-time generators. Keep the exclusion list deliberately narrow: many
-    // BuildCraft runtime/API contracts also end in *Provider and must remain part
-    // of the main compile, e.g. AreaProvider, IBCCapabilityProvider,
-    // FakePlayerProvider, ItemProvider and the statement provider interfaces.
+    // Some Minecraft/NeoForge targets do not expose the generator APIs used by
+    // these source-time providers. Keep the exclusion list narrow: runtime/API
+    // contracts that also end in *Provider remain part of the main compile.
     sourceSets.main.java.exclude 'buildcraft/energy/BCEnergyProvider.java'
     sourceSets.main.java.exclude 'buildcraft/lib/BCTagsProvider.java'
     // SimpleRobotRegistryProvider is runtime SavedData/robot docking infrastructure, not a datagen provider.
@@ -275,17 +120,6 @@ if (!dataGenSourcesEnabled) {
     sourceSets.main.java.exclude 'buildcraft/core/client/model/FragileFluidContainerModel.java'
     sourceSets.main.java.exclude 'buildcraft/core/client/model/ModelEngine.java'
 
-    // The API/lib verifier observes the same datagen opt-out. These generators
-    // depend on gameplay registries and are not part of the runtime library
-    // surface being ported here.
-    sourceSets.apiLibPort.java.exclude 'buildcraft/lib/BCTagsProvider.java'
-
-    // 26.1.2 no longer ships the pre-1.21.11 NeoForge model-generator API.
-    // Datagen is already disabled for this target, so keep its provider out of
-    // the runtime energy compilation just as the production source set does.
-    sourceSets.energyPort.java.exclude 'buildcraft/energy/BCEnergyProvider.java'
-    sourceSets.transportPort.java.exclude 'buildcraft/transport/BCTransportRecipesProvider.java'
-    sourceSets.factoryPort.java.exclude 'buildcraft/factory/BCFactoryRecipesProvider.java'
 }
 
 configurations {
@@ -366,13 +200,6 @@ public final class BuildCraftTarget {
 }
 
 sourceSets.main.java.srcDir(generatedTargetSources)
-sourceSets.apiLibPort.java.srcDir(generatedTargetSources)
-sourceSets.energyPort.java.srcDir(generatedTargetSources)
-sourceSets.transportPort.java.srcDir(generatedTargetSources)
-sourceSets.factoryPort.java.srcDir(generatedTargetSources)
-sourceSets.buildersPort.java.srcDir(generatedTargetSources)
-sourceSets.siliconPort.java.srcDir(generatedTargetSources)
-sourceSets.roboticsPort.java.srcDir(generatedTargetSources)
 tasks.named('compileJava') { dependsOn(generateBuildCraftTarget) }
 
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
@@ -655,118 +482,12 @@ def validateApiV2Only = tasks.register('validateApiV2Only', Exec) {
 
 tasks.named('compileApiV2Java') { dependsOn prepareEffectiveSource }
 tasks.named('compileAddonFixtureJava') { dependsOn tasks.named('compileApiV2Java') }
-tasks.named('compileApiLibStubsJava') { dependsOn prepareEffectiveSource }
-tasks.named('compileApiLibPortJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileApiLibStubsJava')
-    dependsOn(generateBuildCraftTarget)
-}
-tasks.named('compileCorePortJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileApiLibPortJava')
-    dependsOn tasks.named('compileCorePortStubsJava')
-    dependsOn(generateBuildCraftTarget)
-}
-tasks.named('compileEnergyPortStubsJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileCorePortJava')
-}
-tasks.named('compileEnergyPortJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileCorePortJava')
-    dependsOn tasks.named('compileEnergyPortStubsJava')
-    dependsOn(generateBuildCraftTarget)
-}
-tasks.named('compileTransportPortStubsJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileEnergyPortJava')
-}
-tasks.named('compileTransportPortJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileEnergyPortJava')
-    dependsOn tasks.named('compileTransportPortStubsJava')
-    dependsOn(generateBuildCraftTarget)
-}
-tasks.named('compileFactoryPortJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileTransportPortJava')
-    dependsOn(generateBuildCraftTarget)
-}
-tasks.named('compileBuildersPortStubsJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileFactoryPortJava')
-}
-tasks.named('compileBuildersPortJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileFactoryPortJava')
-    dependsOn tasks.named('compileBuildersPortStubsJava')
-    dependsOn(generateBuildCraftTarget)
-}
-tasks.named('compileSiliconPortStubsJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileBuildersPortJava')
-}
-tasks.named('compileSiliconPortJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileBuildersPortJava')
-    dependsOn tasks.named('compileSiliconPortStubsJava')
-    dependsOn(generateBuildCraftTarget)
-}
-tasks.named('compileCompatPortJava') {
-    dependsOn prepareEffectiveSource
-    dependsOn tasks.named('compileRoboticsPortJava')
-}
-tasks.register('verifyApiLibPort') {
-    group = 'verification'
-    description = 'Compile the primary-ported legacy API and library surface against NeoForge.'
-    dependsOn tasks.named('compileApiLibPortJava')
-}
-tasks.register('verifyCorePort') {
-    group = 'verification'
-    description = 'Compile the primary-ported BuildCraft core gameplay module against NeoForge.'
-    dependsOn tasks.named('compileCorePortJava')
-}
-tasks.register('verifyEnergyPort') {
-    group = 'verification'
-    description = 'Compile the primary-ported BuildCraft energy gameplay module against NeoForge.'
-    dependsOn tasks.named('compileEnergyPortJava')
-}
-tasks.register('verifyTransportPort') {
-    group = 'verification'
-    description = 'Compile the primary-ported BuildCraft transport gameplay module against NeoForge.'
-    dependsOn tasks.named('compileTransportPortJava')
-}
-tasks.register('verifyFactoryPort') {
-    group = 'verification'
-    description = 'Compile the primary-ported BuildCraft factory gameplay module against NeoForge.'
-    dependsOn tasks.named('compileFactoryPortJava')
-}
-tasks.register('verifyBuildersPort') {
-    group = 'verification'
-    description = 'Compile the primary-ported BuildCraft builders gameplay module against NeoForge.'
-    dependsOn tasks.named('compileBuildersPortJava')
-}
-tasks.register('verifySiliconPort') {
-    group = 'verification'
-    description = 'Compile the primary-ported (not release-complete) BuildCraft silicon gameplay module against NeoForge.'
-    dependsOn tasks.named('compileSiliconPortJava')
-}
-tasks.register('verifyRoboticsPort') {
-    group = 'verification'
-    description = 'Compile the primary-ported BuildCraft robotics gameplay module against NeoForge.'
-    dependsOn tasks.named('compileRoboticsPortJava')
-}
-tasks.register('verifyCompatPort') {
-    group = 'verification'
-    description = 'Compile the primary-ported BuildCraft JEI/Jade compatibility layer against NeoForge.'
-    dependsOn tasks.named('compileCompatPortJava')
-}
+
 tasks.named('check') {
     dependsOn validateApiV2Boundary
     dependsOn validateApiV2Only
     dependsOn tasks.named('compileApiV2Java')
     dependsOn tasks.named('compileAddonFixtureJava')
-    dependsOn tasks.named('verifyApiLibPort')
 }
 
 tasks.withType(ProcessResources).configureEach {

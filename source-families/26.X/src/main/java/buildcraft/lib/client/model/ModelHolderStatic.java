@@ -45,7 +45,7 @@ public class ModelHolderStatic extends ModelHolder {
     public ModelHolderStatic(String modelLocation, ImmutableMap<String, String> textureLookup, boolean allowTextureFallthrough) {
         super(modelLocation);
         // Kept in the signature for source/API compatibility. No current BCCE caller supplies custom static-model
-        // texture substitutions, and the 1.21.11 standalone baker resolves the JSON's own texture slots natively.
+        // texture substitutions, and the standalone baker resolves the JSON's own texture slots natively.
         this.standaloneKey = new ClientStandaloneModel(this.modelLocation);
     }
 
@@ -146,7 +146,7 @@ public class ModelHolderStatic extends ModelHolder {
         return false;
     }
 
-    /** Converts Minecraft 1.21.11's native immutable quad into the legacy BuildCraft quad representation. */
+    /** Converts a native immutable quad into the legacy BuildCraft quad representation. */
     private static MutableQuad fromNativeQuad(BakedQuad source) {
         MutableQuad quad = new MutableQuad(source.tintIndex(), source.direction(), source.shade());
         quad.setSprite(source.sprite());

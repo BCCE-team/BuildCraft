@@ -2,7 +2,7 @@ package buildcraft.lib.compat.mc2612.blaze3d.vertex;
 
 import com.mojang.blaze3d.vertex.MeshData;
 
-/** No-op compatibility facade for the direct VBO API removed in 1.21.11. */
+/** No-op compatibility facade for the direct VBO API unavailable on the current renderer. */
 public class VertexBuffer implements AutoCloseable {
     public enum Usage { STATIC, DYNAMIC }
 

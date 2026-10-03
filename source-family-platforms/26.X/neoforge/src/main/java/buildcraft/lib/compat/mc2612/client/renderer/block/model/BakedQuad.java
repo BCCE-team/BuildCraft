@@ -3,7 +3,7 @@ package buildcraft.lib.compat.mc2612.client.renderer.block.model;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.Direction;
 
-/** BakedQuad compatibility facade preserving BuildCraft's packed vertex layout on 1.21.11. */
+/** BakedQuad compatibility facade preserving BuildCraft's packed vertex layout. */
 public class BakedQuad {
     private final int[] vertices;
     private final int tintIndex;

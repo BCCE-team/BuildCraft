@@ -4,7 +4,7 @@ import java.util.Objects;
 
 import net.minecraft.resources.Identifier;
 
-/** Minimal ModelResourceLocation compatibility facade for 1.21.11. */
+/** Minimal ModelResourceLocation facade used by shared BuildCraft model code. */
 public final class ModelResourceLocation {
     private final Identifier id;
     private final String variant;

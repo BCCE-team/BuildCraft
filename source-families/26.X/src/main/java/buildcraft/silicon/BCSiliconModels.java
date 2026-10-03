@@ -121,7 +121,7 @@ public final class BCSiliconModels {
         registry.registerBaker(KeyPlugLens.class, PlugBakerLens.INSTANCE);
         registry.registerBaker(KeyPlugFacade.class, PlugBakerFacade.INSTANCE);
         registry.registerRenderer(PluggableGate.class, PlugGateRenderer.INSTANCE);
-        // Glass facades cannot stay in the static chunk model on 1.21.11: the native terrain path discards
+        // Glass facades cannot stay in the static chunk model: the native terrain path discards
         // their vertex alpha. This renderer also reads the live selected facade phase after a paint operation.
         registry.registerRenderer(PluggableFacade.class, PlugFacadeRenderer.INSTANCE);
         registry.registerRenderer(PluggablePulsar.class, PlugPulsarRenderer.INSTANCE);

@@ -7,7 +7,7 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.fluids.FluidStack;
 
-/** 1.21.11 compatibility helpers for FluidStack APIs changed since 1.21.1. */
+/** Compatibility helpers for the current FluidStack APIs used by shared BuildCraft code. */
 public final class FluidCompat {
     private FluidCompat() {
     }
@@ -20,7 +20,7 @@ public final class FluidCompat {
         return stack == null || stack.isEmpty() ? "" : stack.getDescriptionId();
     }
 
-    /** Serialize a FluidStack with NeoForge's registry-aware 1.21.11 codec. */
+    /** Serialize a FluidStack with NeoForge's registry-aware ItemStack codec. */
     public static CompoundTag saveOptional(FluidStack stack, HolderLookup.Provider registries) {
         if (stack == null || stack.isEmpty() || registries == null) {
             return new CompoundTag();
@@ -32,7 +32,7 @@ public final class FluidCompat {
         return encoded instanceof CompoundTag compound ? compound : new CompoundTag();
     }
 
-    /** Decode the current 1.21.11 FluidStack codec representation. Legacy normalization is handled by FluidStackUtil. */
+    /** Decode the current FluidStack codec representation. Legacy normalization is handled by FluidStackUtil. */
     public static FluidStack parseOptional(HolderLookup.Provider registries, CompoundTag tag) {
         if (registries == null || tag == null) return FluidStack.EMPTY;
         return FluidStack.OPTIONAL_CODEC

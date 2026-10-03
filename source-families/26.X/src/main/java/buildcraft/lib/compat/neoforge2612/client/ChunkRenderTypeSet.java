@@ -5,7 +5,7 @@ import java.util.List;
 
 import net.minecraft.client.renderer.rendertype.RenderType;
 
-/** Compatibility facade for NeoForge ChunkRenderTypeSet semantics on 1.21.11. */
+/** Compatibility facade for the current NeoForge ChunkRenderTypeSet semantics. */
 public final class ChunkRenderTypeSet {
     private final Collection<RenderType> types;
 

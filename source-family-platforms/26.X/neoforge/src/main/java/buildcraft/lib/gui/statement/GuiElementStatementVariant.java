@@ -76,7 +76,7 @@ public class GuiElementStatementVariant extends GuiElementSimple implements IMen
     // IGuiElement
 
     public void drawBackground(GuiGraphicsExtractor guiGraphics, float partialTicks) {
-        // Deferred GUI rendering has no Z-bearing PoseStack in 1.21.11. Submit this popup in a later stratum so it
+        // Deferred GUI rendering has no Z-bearing PoseStack. Submit this popup in a later stratum so it
         // renders above inventory items.
         guiGraphics.nextStratum();
         RenderCompat.setShaderColor(1, 1, 1, 1);

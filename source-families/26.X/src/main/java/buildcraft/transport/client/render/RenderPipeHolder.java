@@ -40,17 +40,17 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Native 1.21.11 pipe block-entity renderer.
+ * Native pipe block-entity renderer for the submit/render-state pipeline.
  *
- * <p>1.21.11 no longer invokes the pre-submit BER {@code render(...)} method. Only genuinely dynamic pipe geometry
+ * <p>The current renderer no longer invokes the pre-submit BER {@code render(...)} method. Only genuinely dynamic pipe geometry
  * is submitted here. The pipe body and connection arms are rendered by {@code ModelPipeNative121111} through the
  * normal chunk/terrain model pipeline so they participate in depth, terrain lighting and shader reflection passes.</p>
  */
 public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder, RenderPipeHolder.PipeRenderState> {
     /**
-     * Sink used by the 1.21.11 legacy-render bridge when a renderer asks for a layer other than the
+     * Sink used by the legacy-render adapter when a renderer asks for a layer other than the
      * layer currently being submitted. VertexMultiConsumer.create() is not a valid empty consumer in
-     * 1.21.11: the zero-argument overload deliberately throws IllegalArgumentException.
+     * current render pipeline: the zero-argument overload deliberately throws IllegalArgumentException.
      */
     private static final VertexConsumer DISCARDING_VERTEX_CONSUMER = new VertexConsumer() {
         public VertexConsumer addVertex(float x, float y, float z) {
@@ -145,12 +145,12 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder, Ren
         );
 
         if (pipe.flow instanceof PipeFlowItems itemFlow) {
-            // ItemStack rendering itself moved to ItemStackRenderState in 1.21.11 and cannot be tunneled through a
+            // ItemStack rendering is handled by ItemStackRenderState and cannot be tunneled through a
             // VertexConsumer-only custom-geometry callback. Use the native submission path for travelling items.
             PipeFlowRendererItems.INSTANCE.submit(itemFlow, state.partialTick, poseStack, collector, light, overlay);
         } else if (pipe.flow instanceof PipeFlowFluids fluidFlow) {
             // Fluids need their own transparent submit. Sending them through a cutout-only compatibility bridge can
-            // discard the atlas geometry in 1.21.11, which made filled pipes look completely empty.
+            // discard the atlas geometry, which makes filled pipes look completely empty.
             PipeFlowRendererFluids.INSTANCE.submit(fluidFlow, state.partialTick, poseStack, collector, light, overlay);
         } else if (pipe.flow != null) {
             submitLegacyGeometry(collector, poseStack, RenderCompat.cutout(), (matrix, buffers) ->
@@ -166,7 +166,7 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder, Ren
     }
 
     /**
-     * Bridges the remaining BuildCraft direct-VertexConsumer renderers into 1.21.11's submit phase.
+     * Bridges the remaining BuildCraft direct-VertexConsumer renderers into the submit phase.
      *
      * <p>The collector owns the actual buffer. A tiny layer-filtering MultiBufferSource lets legacy renderers keep
      * requesting their declared render type without allowing another layer to write into this submission.</p>

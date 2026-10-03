@@ -167,7 +167,7 @@ def _ensure_java_import(text: str, qualified_name: str) -> str:
 def _repair_java_imports_before_package(text: str) -> str:
     """Move accidental imports that appear before the package declaration.
 
-    During fast 1.21.11 port iterations, a stale generated tree can contain an
+    A stale generated tree can contain an
     import inserted before the source header/package. Keeping this repair local
     to the materializer makes the output valid Java without touching maintained
     sources or older targets.

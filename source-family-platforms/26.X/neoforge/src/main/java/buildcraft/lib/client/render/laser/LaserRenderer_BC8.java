@@ -195,7 +195,7 @@ public class LaserRenderer_BC8 {
     }
 
     public static void renderLaserStatic(PoseStack pose, Matrix4f matrix, LaserData_BC8 data) {
-        // Minecraft 1.21.11 does not expose the direct VertexBuffer/shader drawing path. Keep static/world lasers on the
+        // The current renderer does not expose the old direct VertexBuffer/shader drawing path. Keep static/world lasers on the
         // same CPU vertex format as dynamic lasers and append them to the live level BufferSource instead. The caller
         // flushes this layer once after its world-last batch, avoiding one GPU submission per marker edge.
         LaserCompiledBuffer compiled = COMPILED_STATIC_CPU_LASERS.getUnchecked(data);

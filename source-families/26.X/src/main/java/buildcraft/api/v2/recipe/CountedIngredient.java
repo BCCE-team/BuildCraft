@@ -10,7 +10,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.level.ItemLike;
 
-/** Loader-neutral counted ingredient for Minecraft 26.1.2. */
+/** Loader-neutral counted ingredient used by BuildCraft recipe APIs. */
 public final class CountedIngredient {
     private final Ingredient ingredient;
     private final TagKey<Item> tag;
@@ -43,7 +43,7 @@ public final class CountedIngredient {
     @SuppressWarnings("unchecked")
     public static CountedIngredient of(TagKey<Item> tag, int count) {
         TagKey<Item> itemTag = Objects.requireNonNull(tag, "tag");
-        // Ingredient still needs a display/serialization-side backing set on 26.1.2,
+        // Ingredient needs a display/serialization-side backing set,
         // but matching remains tag-key based so datapack tag rebinding is observed.
         HolderSet<Item> values = BuiltInRegistries.ITEM.get(itemTag)
             .map(set -> (HolderSet<Item>) set)

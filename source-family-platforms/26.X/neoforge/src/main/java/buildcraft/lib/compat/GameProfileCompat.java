@@ -4,7 +4,7 @@ import com.mojang.authlib.GameProfile;
 import java.lang.reflect.Method;
 import java.util.UUID;
 
-/** Compatibility accessors for Mojang's record-style GameProfile fields in 1.21.11. */
+/** Compatibility accessors for Mojang's record-style GameProfile fields. */
 public final class GameProfileCompat {
     private GameProfileCompat() {
     }

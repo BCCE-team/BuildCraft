@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet("1.19.2", "1.20.1", "1.21.1", "1.21.11")]
+    [ValidateSet("1.19.2", "1.20.1", "1.21.1", "1.21.11", "26.1.2")]
     [string] $Version,
 
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -15,6 +15,7 @@ $Targets = @{
     "1.20.1"  = @{ Generation = "old"; Target = "1.20.1-forge" }
     "1.21.1"  = @{ Generation = "1.21.X"; Target = "1.21.1-neoforge" }
     "1.21.11" = @{ Generation = "1.21.X"; Target = "1.21.11-neoforge" }
+    "26.1.2"  = @{ Generation = "26.X"; Target = "26.1.2-neoforge" }
 }
 
 $Config = $Targets[$Version]

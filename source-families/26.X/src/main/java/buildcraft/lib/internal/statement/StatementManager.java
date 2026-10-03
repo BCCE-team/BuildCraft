@@ -64,7 +64,7 @@ public final class StatementManager {
         return provider == null ? BUILTIN_REGISTRIES : provider;
     }
 
-    /** Registry access required by RegistryFriendlyByteBuf in Minecraft 1.21.1. */
+    /** Registry access required by RegistryFriendlyByteBuf. */
     public static RegistryAccess getRegistryAccess() {
         HolderLookup.Provider provider = getRegistryProvider();
         return provider instanceof RegistryAccess access ? access : BUILTIN_REGISTRIES;

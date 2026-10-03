@@ -10,7 +10,7 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import buildcraft.lib.compat.mc2612.client.resources.model.BakedModel;
 import buildcraft.lib.compat.neoforge2612.client.model.geometry.IGeometryBakingContext;
 
-/** CompositeModel compatibility facade for NeoForge 1.21.11. */
+/** CompositeModel facade used by shared BuildCraft model code. */
 public final class CompositeModel {
     private CompositeModel() {}
 

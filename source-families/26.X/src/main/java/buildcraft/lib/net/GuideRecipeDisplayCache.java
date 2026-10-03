@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
 
-/** Complete server-synchronised recipe-display index used by the 1.21.11 Guide Book. */
+/** Complete server-synchronised recipe-display index used by the Guide Book. */
 public final class GuideRecipeDisplayCache {
     private static final AtomicLong REVISION = new AtomicLong();
     private static volatile boolean synchronised;

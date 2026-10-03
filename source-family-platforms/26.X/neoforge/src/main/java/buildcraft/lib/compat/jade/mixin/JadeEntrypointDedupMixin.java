@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * every ModContainer for one physical jar scans the same @WailaPlugin classes.
  *
  * <p>BuildCraft intentionally ships several module mod ids in one jar. Jade
- * 1.21.11 scans that jar once per module and otherwise reports the same plugin
+ * Jade scans that jar once per module and otherwise reports the same plugin
  * class as a fatal duplicate. Deduplicate only the returned entrypoint list;
  * provider registration and Jade's own plugin lifecycle remain untouched.</p>
  */

@@ -27,9 +27,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.fluids.FluidStack;
 
-/** Native 1.21.11 tank-fluid renderer.
+/** Native extracted-state tank-fluid renderer.
  *
- * <p>Minecraft 1.21.11 submits block-entity geometry through extracted render state. This renderer preserves the
+ * <p>Block-entity geometry is submitted through extracted render state. This renderer preserves the
  * tank fill/interpolation/stacking rules while submitting the fluid cuboid through the native render queue.</p> */
 public class RenderTank implements BlockEntityRenderer<TileTank, RenderTank.TankRenderState> {
     private static final Vec3 MIN = new Vec3(0.13, 0.01, 0.13);

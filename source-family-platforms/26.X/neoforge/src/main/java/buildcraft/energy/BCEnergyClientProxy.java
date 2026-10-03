@@ -61,7 +61,7 @@ public abstract class BCEnergyClientProxy {
 
                 @Override
                 public ResourceLocation getOverlayTexture() {
-                    // Keep block-side rendering identical to 1.21.1: BuildCraft fluids use their own
+                    // Preserve BuildCraft fluid block rendering: these fluids use their own
                     // still/flow textures instead of borrowing the vanilla water overlay.
                     return null;
                 }
@@ -79,7 +79,7 @@ public abstract class BCEnergyClientProxy {
                 @Override
                 public void modifyFogColor(Camera camera, float partialTick, ClientLevel level,
                         int renderDistance, float darkenWorldAmount, Vector4f fluidFogColor) {
-                    // 1.21.1 deliberately uses a neutral grey immersion fog for every BuildCraft
+                    // BuildCraft deliberately uses a neutral grey immersion fog for every
                     // oil/fuel variant. Preserve the incoming alpha used by the modern fog pipeline.
                     fluidFogColor.set(0.5f, 0.5f, 0.5f, fluidFogColor.w);
                 }

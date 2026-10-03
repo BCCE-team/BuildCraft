@@ -50,7 +50,7 @@ public class BCLib {
             Object current = loader.getMethod("getCurrent").invoke(null);
             return (Boolean) current.getClass().getMethod("isProduction").invoke(current);
         } catch (ReflectiveOperationException exception) {
-            // 1.21.1 provides FMLLoader but not getCurrent(); its public environment field is authoritative.
+            // The public FMLLoader environment field is authoritative for this loader API.
         }
         try {
             Class<?> environment = Class.forName("net.neoforged.fml.loading.FMLEnvironment");
