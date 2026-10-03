@@ -215,6 +215,15 @@ sourceSets {
         compileClasspath = sourceSets.buildersPort.output + sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.siliconPortStubs.output + sourceSets.main.compileClasspath
         runtimeClasspath = output + compileClasspath
     }
+    // Robotics is compiled only after the real silicon output: the temporary
+    // Programming Table bridge deliberately remains outside this runtime graph.
+    roboticsPort {
+        java.setSrcDirs(effectiveDirs('src/main/java'))
+        java.include 'buildcraft/robotics/**'
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.siliconPort.output + sourceSets.buildersPort.output + sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
 }
 
 if (!jeiCompatEnabled) {
@@ -348,6 +357,7 @@ sourceSets.transportPort.java.srcDir(generatedTargetSources)
 sourceSets.factoryPort.java.srcDir(generatedTargetSources)
 sourceSets.buildersPort.java.srcDir(generatedTargetSources)
 sourceSets.siliconPort.java.srcDir(generatedTargetSources)
+sourceSets.roboticsPort.java.srcDir(generatedTargetSources)
 tasks.named('compileJava') { dependsOn(generateBuildCraftTarget) }
 
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
@@ -721,6 +731,11 @@ tasks.register('verifySiliconPort') {
     group = 'verification'
     description = 'Compile the primary-ported (not release-complete) BuildCraft silicon gameplay module against NeoForge.'
     dependsOn tasks.named('compileSiliconPortJava')
+}
+tasks.register('verifyRoboticsPort') {
+    group = 'verification'
+    description = 'Compile the primary-ported BuildCraft robotics gameplay module against NeoForge.'
+    dependsOn tasks.named('compileRoboticsPortJava')
 }
 tasks.named('check') {
     dependsOn validateApiV2Boundary
