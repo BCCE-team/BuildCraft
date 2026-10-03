@@ -178,6 +178,23 @@ sourceSets {
         compileClasspath = sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
         runtimeClasspath = output + compileClasspath
     }
+    // Builders is the next independently compilable primary-port slice. The builder robot links to
+    // robotics, which remains a later module, through a deliberately narrow
+    // compile-only bridge. All migrated gameplay dependencies use their real
+    // outputs so the bridge cannot mask an accidental dependency regression.
+    buildersPortStubs {
+        java.setSrcDirs([new File(repositoryRoot, "version-src/${targetName}/builders-port-stubs/src/main/java")])
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+    buildersPort {
+        java.setSrcDirs(effectiveDirs('src/main/java'))
+        java.include 'buildcraft/builders/**'
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.buildersPortStubs.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
 }
 
 if (!jeiCompatEnabled) {
@@ -309,6 +326,7 @@ sourceSets.apiLibPort.java.srcDir(generatedTargetSources)
 sourceSets.energyPort.java.srcDir(generatedTargetSources)
 sourceSets.transportPort.java.srcDir(generatedTargetSources)
 sourceSets.factoryPort.java.srcDir(generatedTargetSources)
+sourceSets.buildersPort.java.srcDir(generatedTargetSources)
 tasks.named('compileJava') { dependsOn(generateBuildCraftTarget) }
 
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
@@ -628,6 +646,16 @@ tasks.named('compileFactoryPortJava') {
     dependsOn tasks.named('compileTransportPortJava')
     dependsOn(generateBuildCraftTarget)
 }
+tasks.named('compileBuildersPortStubsJava') {
+    dependsOn prepareEffectiveSource
+    dependsOn tasks.named('compileFactoryPortJava')
+}
+tasks.named('compileBuildersPortJava') {
+    dependsOn prepareEffectiveSource
+    dependsOn tasks.named('compileFactoryPortJava')
+    dependsOn tasks.named('compileBuildersPortStubsJava')
+    dependsOn(generateBuildCraftTarget)
+}
 tasks.register('verifyApiLibPort') {
     group = 'verification'
     description = 'Compile the primary-ported legacy API and library surface against NeoForge.'
@@ -652,6 +680,11 @@ tasks.register('verifyFactoryPort') {
     group = 'verification'
     description = 'Compile the primary-ported BuildCraft factory gameplay module against NeoForge.'
     dependsOn tasks.named('compileFactoryPortJava')
+}
+tasks.register('verifyBuildersPort') {
+    group = 'verification'
+    description = 'Compile the primary-ported BuildCraft builders gameplay module against NeoForge.'
+    dependsOn tasks.named('compileBuildersPortJava')
 }
 tasks.named('check') {
     dependsOn validateApiV2Boundary

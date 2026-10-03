@@ -1,0 +1,190 @@
+/* Copyright (c) 2016 SpaceToad and the BuildCraft team
+ * 
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+package buildcraft.builders.gui;
+
+import java.util.List;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Tooltip;
+
+import buildcraft.builders.menu.ContainerArchitectTable;
+import buildcraft.lib.gui.GuiBC8;
+import buildcraft.lib.gui.GuiIcon;
+import buildcraft.lib.gui.pos.GuiRectangle;
+import net.minecraft.client.gui.components.CycleButton;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Inventory;
+import buildcraft.lib.gui.help.GuiHelpUtil;
+
+public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
+	private static final ResourceLocation TEXTURE_BASE = ResourceLocation.parse(
+			"buildcraftbuilders:textures/gui/architect.png");
+	private static final int SIZE_X = ContainerArchitectTable.GUI_WIDTH, SIZE_Y = ContainerArchitectTable.GUI_HEIGHT;
+	private static final GuiIcon ICON_GUI = new GuiIcon(TEXTURE_BASE, 0, 0, SIZE_X, SIZE_Y);
+	private static final GuiIcon ICON_PROGRESS = new GuiIcon(TEXTURE_BASE, 0, 166, 24, 17);
+	private static final GuiRectangle RECT_PROGRESS = new GuiRectangle(159, 34, 24, 17);
+
+    private static final int BUTTON_X = 6;
+    private static final int BUTTON_W = 77;
+    private static final int BUTTON_H = 20;
+    private static final int MODE_BUTTON_Y = 28;
+    private static final int ROTATE_BUTTON_Y = 53;
+    private static final int EXCAVATE_BUTTON_Y = 78;
+    private static final int NAME_X = 90;
+    private static final int NAME_Y = 62;
+    private static final int NAME_W = 156;
+    private static final int NAME_H = 12;
+
+	private EditBox nameField;
+
+	private CycleButton<Boolean> isCreativeButton;
+	private CycleButton<Boolean> enableRotateButton;
+    private CycleButton<Boolean> canExcavateButton;
+    
+    private boolean isCreative = true;
+    private boolean canRotate = true;
+    private boolean canExcavate = true;
+
+	public GuiArchitectTable(ContainerArchitectTable container, Inventory inv, Component title) {
+		super(container, inv, title, SIZE_X, SIZE_Y);
+		GuiHelpUtil.addMenuSlot(mainGui, container.slots, 36, "buildcraft.help.architect.input.title", 0xFF_66_AA_FF, "buildcraft.help.architect.input.desc");
+		GuiHelpUtil.addMenuSlot(mainGui, container.slots, 37, "buildcraft.help.architect.output.title", 0xFF_88_CC_88, "buildcraft.help.architect.output.desc");
+		GuiHelpUtil.addRoot(mainGui, 159, 34, 24, 17, "buildcraft.help.architect.progress.title", 0xFF_DD_CC_55, "buildcraft.help.architect.progress.desc");
+		GuiHelpUtil.addRoot(mainGui, NAME_X, NAME_Y, NAME_W, NAME_H, "buildcraft.help.architect.name.title", 0xFF_CC_AA_FF, "buildcraft.help.architect.name.desc");
+		GuiHelpUtil.addRoot(mainGui, BUTTON_X, MODE_BUTTON_Y, BUTTON_W, BUTTON_H, "buildcraft.help.architect.mode.title", 0xFF_99_CC_FF, "buildcraft.help.architect.mode.desc");
+		GuiHelpUtil.addRoot(mainGui, BUTTON_X, ROTATE_BUTTON_Y, BUTTON_W, BUTTON_H, "buildcraft.help.architect.rotate.title", 0xFF_99_CC_FF, "buildcraft.help.architect.rotate.desc");
+		GuiHelpUtil.addRoot(mainGui, BUTTON_X, EXCAVATE_BUTTON_Y, BUTTON_W, BUTTON_H, "buildcraft.help.architect.excavate.title", 0xFF_99_CC_FF, "buildcraft.help.architect.excavate.desc");
+	}
+
+	@Override
+	public void init() {
+		// Screen.resize() rebuilds the widget tree after a window-size or GUI-scale change.
+		// Preserve the live edit draft and focus instead of snapping back to the last tile update.
+		String currentName = nameField == null ? container.tile.name : nameField.getValue();
+		boolean focusName = nameField == null || nameField.isFocused();
+
+		super.init();
+		nameField = new EditBox(font, leftPos + NAME_X, topPos + NAME_Y, NAME_W, NAME_H, Component.empty());
+		nameField.setMaxLength(ContainerArchitectTable.MAX_BLUEPRINT_NAME_LENGTH);
+		nameField.setValue(currentName);
+		nameField.setResponder((s) -> container.sendNameToServer(s.trim()));
+		
+		int p = container.setting.get();
+		isCreative = (p&0b1) == 0b1;
+		canRotate = (p&0b10) == 0b10;
+		canExcavate = (p&0b100) == 0b100;
+		
+        if (!canUseCreativeSetting()) {
+            isCreative = false;
+        }
+
+		this.isCreativeButton = this.addRenderableWidget(
+				CycleButton.booleanBuilder(Component.translatable("block.architect.allowCreative"), Component.translatable("block.architect.noallowCreative"))
+                    .withInitialValue(isCreative)
+					.displayOnlyValue().withTooltip(b -> Tooltip.create(Component.translatable(b ? "block.architect.tooltip.allowCreative.1" : "block.architect.tooltip.allowCreative.2")))
+					.create(leftPos + BUTTON_X, topPos + MODE_BUTTON_Y, BUTTON_W, BUTTON_H,
+						Component.empty(), (p_169727_, p_169728_) -> {
+                            if (!canUseCreativeSetting()) {
+                                this.isCreative = false;
+                                p_169727_.setValue(false);
+                                return;
+                            }
+							this.isCreative = p_169728_;
+                            sendSettingsToServer();
+						}));
+        this.isCreativeButton.active = canUseCreativeSetting();
+		
+		this.enableRotateButton = this.addRenderableWidget(
+				CycleButton.onOffBuilder(canRotate).create(leftPos + BUTTON_X, topPos + ROTATE_BUTTON_Y, BUTTON_W, BUTTON_H,
+						Component.translatable("block.architect.rotate"), (p_169727_, p_169728_) -> {
+							this.canRotate = p_169728_;
+                            sendSettingsToServer();
+						}));
+
+		this.canExcavateButton = this.addRenderableWidget(
+				CycleButton.onOffBuilder(canExcavate).create(leftPos + BUTTON_X, topPos + EXCAVATE_BUTTON_Y, BUTTON_W, BUTTON_H,
+						Component.translatable("block.architect.excavate"), (p_169727_, p_169728_) -> {
+							this.canExcavate = p_169728_;
+                            sendSettingsToServer();
+						}));
+		this.addWidget(nameField);
+		if (focusName) {
+			setInitialFocus(nameField);
+		}
+	}
+
+    private boolean canUseCreativeSetting() {
+        return container.creativePermission.get() != 0;
+    }
+
+    private void sendSettingsToServer() {
+        if (!canUseCreativeSetting()) {
+            isCreative = false;
+        }
+        container.sendSettingsToServer((isCreative ? 1 : 0) | (canRotate ? 0b10 : 0) | (canExcavate ? 0b100 : 0));
+    }
+
+	@Override
+	protected void drawBackgroundLayer(PoseStack pose, int mouseX, int mouseY, float partialTicks) {
+		GuiGraphicsExtractor guiGraphics = getActiveGraphics();
+		ICON_GUI.drawAt(guiGraphics, mainGui.rootElement);
+		drawProgress(guiGraphics, RECT_PROGRESS, ICON_PROGRESS,
+				// DeltaInt.getDynamic(container.deltaProgress, partialTicks),
+				container.tile.deltaProgress.getDynamic(partialTicks), 1);
+	}
+
+	@Override
+	protected void drawForegroundLayer(PoseStack pose, int mouseX, int mouseY) {
+		nameField.extractWidgetRenderState(getActiveGraphics(), mouseX, mouseY, 0);
+	}
+
+	@Override
+	public void containerTick() {
+        super.containerTick();
+        if (isCreativeButton != null) {
+            int settings = container.setting.get();
+            boolean allowed = canUseCreativeSetting();
+            boolean syncedCreative = allowed && (settings & 0b1) == 0b1;
+            boolean syncedRotate = (settings & 0b10) == 0b10;
+            boolean syncedExcavate = (settings & 0b100) == 0b100;
+
+            isCreativeButton.active = allowed;
+            if (syncedCreative != isCreative) {
+                isCreative = syncedCreative;
+                isCreativeButton.setValue(isCreative);
+            }
+            if (enableRotateButton != null && syncedRotate != canRotate) {
+                canRotate = syncedRotate;
+                enableRotateButton.setValue(canRotate);
+            }
+            if (canExcavateButton != null && syncedExcavate != canExcavate) {
+                canExcavate = syncedExcavate;
+                canExcavateButton.setValue(canExcavate);
+            }
+        }
+	}
+
+	@Override
+	public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
+		boolean handled = super.mouseClicked(mouseX, mouseY, mouseButton);
+		if (nameField != null) {
+			handled |= nameField.mouseClicked(mouseX, mouseY, mouseButton);
+		}
+		return handled;
+	}
+
+	@Override
+	public boolean keyPressed(int a, int b, int c) {
+		if (a == 256) {
+			this.minecraft.player.closeContainer();
+		}
+		return !this.nameField.keyPressed(a, b, c) && !this.nameField.canConsumeInput() ? super.keyPressed(a, b, c)
+				: true;
+	}
+}
