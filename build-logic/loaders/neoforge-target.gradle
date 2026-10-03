@@ -224,22 +224,37 @@ sourceSets {
         compileClasspath = sourceSets.siliconPort.output + sourceSets.buildersPort.output + sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
         runtimeClasspath = output + compileClasspath
     }
+    // Compat is the final primary-port slice. It compiles against the real outputs of every
+    // gameplay module and the target's optional JEI/Jade API dependencies. Runtime/gameplay
+    // validation remains a separate pass after the source port is structurally complete.
+    compatPort {
+        java.setSrcDirs(effectiveDirs('src/main/java'))
+        java.include 'buildcraft/compat/**'
+        resources.setSrcDirs([])
+        compileClasspath = sourceSets.roboticsPort.output + sourceSets.siliconPort.output + sourceSets.buildersPort.output + sourceSets.factoryPort.output + sourceSets.transportPort.output + sourceSets.energyPort.output + sourceSets.corePort.output + sourceSets.apiLibPort.output + sourceSets.apiLibStubs.output + sourceSets.main.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
 }
 
 if (!jeiCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/jei/**'
+    sourceSets.compatPort.java.exclude 'buildcraft/compat/jei/**'
 }
 if (!jadeCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/jade/**'
+    sourceSets.compatPort.java.exclude 'buildcraft/compat/jade/**'
 }
 if (!createCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/create/**'
+    sourceSets.compatPort.java.exclude 'buildcraft/compat/create/**'
 }
 if (!ic2CompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/ic2/**'
+    sourceSets.compatPort.java.exclude 'buildcraft/compat/ic2/**'
 }
 if (!forestryCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/forestry/**'
+    sourceSets.compatPort.java.exclude 'buildcraft/compat/forestry/**'
 }
 if (!dataGenSourcesEnabled) {
     // NeoForge 1.21.11 does not expose the datagen helper APIs used by these
@@ -697,6 +712,10 @@ tasks.named('compileSiliconPortJava') {
     dependsOn tasks.named('compileSiliconPortStubsJava')
     dependsOn(generateBuildCraftTarget)
 }
+tasks.named('compileCompatPortJava') {
+    dependsOn prepareEffectiveSource
+    dependsOn tasks.named('compileRoboticsPortJava')
+}
 tasks.register('verifyApiLibPort') {
     group = 'verification'
     description = 'Compile the primary-ported legacy API and library surface against NeoForge.'
@@ -736,6 +755,11 @@ tasks.register('verifyRoboticsPort') {
     group = 'verification'
     description = 'Compile the primary-ported BuildCraft robotics gameplay module against NeoForge.'
     dependsOn tasks.named('compileRoboticsPortJava')
+}
+tasks.register('verifyCompatPort') {
+    group = 'verification'
+    description = 'Compile the primary-ported BuildCraft JEI/Jade compatibility layer against NeoForge.'
+    dependsOn tasks.named('compileCompatPortJava')
 }
 tasks.named('check') {
     dependsOn validateApiV2Boundary

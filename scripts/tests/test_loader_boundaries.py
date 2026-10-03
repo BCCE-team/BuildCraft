@@ -19,6 +19,8 @@ class LoaderBoundaries(unittest.TestCase):
             "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/net/MessageManager.java",
             "source-downports/1.21.X/1.21.1/neoforge/src/main/java/buildcraft/lib/net/MessageManager.java",
             "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/net/NeoForgePacketContext.java",
+            "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/net/MessageManager.java",
+            "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/net/NeoForgePacketContext.java",
             "source-family-platforms/old/forge/src/main/java/buildcraft/lib/net/ForgePacketContext.java",
             "version-src/1.19.2-forge/src/main/java/buildcraft/lib/net/MessageManager.java",
             "version-src/1.20.1-forge/src/main/java/buildcraft/lib/net/MessageManager.java",

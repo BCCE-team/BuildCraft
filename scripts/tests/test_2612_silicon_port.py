@@ -62,6 +62,13 @@ def main() -> int:
                        "buildersPort.output", "NativePluggableItemModels121111.java"]:
             if needle not in gradle:
                 raise AssertionError(f"target build graph is missing: {needle}")
+
+        targets = read(ROOT / "build-config" / "targets.properties")
+        exclude = "src/main/java/buildcraft/silicon/client/model/NativePluggableItemModels121111.java"
+        line = next((line for line in targets.splitlines()
+                     if line.startswith("target.26.1.2-neoforge.source.family_platform_base_excludes=")), "")
+        if exclude not in line:
+            raise AssertionError("real 26.1.2 main source graph still inherits NativePluggableItemModels121111")
     except AssertionError as exc:
         print(f"26.1.2 silicon port guard failed: {exc}", file=sys.stderr)
         return 1

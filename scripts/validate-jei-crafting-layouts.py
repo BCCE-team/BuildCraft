@@ -42,20 +42,20 @@ def validate_target(target: str, props: dict[str, str], errors: list[str]) -> tu
     extension = ext_path.read_text(encoding="utf-8")
     recipe = recipe_path.read_text(encoding="utf-8")
 
+    native_displays = version_tuple(props[f"target.{target}.deps.minecraft"]) >= version_tuple("1.21.11")
     if "registerVanillaCategoryExtensions" not in plugin:
         fail(errors, f"{target}: JEI plugin does not register vanilla crafting extensions")
     if "PipeRecipe.class" not in plugin:
         fail(errors, f"{target}: PipeRecipe is not registered with JEI's crafting category")
-    if layout.family == "1.21.X":
+    if layout.family in {"1.21.X", "26.X"}:
         if "addExtension(PipeRecipe.class, PipeCraftingCategoryExtension.INSTANCE)" not in plugin:
-            fail(errors, f"{target}: 1.21.X JEI PipeRecipe extension registration is missing")
+            fail(errors, f"{target}: modern JEI PipeRecipe extension registration is missing")
         if "ICraftingCategoryExtension<PipeRecipe>" not in extension:
-            fail(errors, f"{target}: 1.21.X PipeRecipe extension lost its generic recipe binding")
+            fail(errors, f"{target}: modern PipeRecipe extension lost its generic recipe binding")
     else:
         if "addCategoryExtension(PipeRecipe.class, PipeCraftingCategoryExtension::new)" not in plugin:
             fail(errors, f"{target}: old JEI PipeRecipe extension registration is missing")
 
-    native_displays = version_tuple(props[f"target.{target}.deps.minecraft"]) >= version_tuple("1.21.11")
     # JEI 27's extension consumes vanilla SlotDisplays; its default setRecipe
     # builds the slots from Recipe.display(). Older targets still fill the layout
     # explicitly. Guard both contracts rather than demanding a removed API.
