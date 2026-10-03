@@ -9,6 +9,7 @@ package buildcraft.lib.net.cache;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Supplier;
 
@@ -46,12 +47,13 @@ public abstract class NetworkedObjectCache<T> {
     static final boolean DEBUG_LOG = BCDebugging.shouldDebugLog("lib.net.cache");
     static final boolean DEBUG_CPLX = BCDebugging.shouldDebugComplex("lib.net.cache");
 
-    /* Implementation notes -- this currently is a simple, never expiring object<->id cache. Because it doesn't ever
-     * clear objects out of the cache we can guarantee that the index of an object is unique, just by incrementing a
-     * single variable. */
+    /* IDs increase monotonically and are never reused. Entries may be evicted from the bounded retention maps, but an
+     * evicted ID cannot later refer to a different object. */
 
-    /** The default object -- used at the client in case the object hasn't been sent to the client yet. */
-    protected final T defaultObject;
+    /** Creates the fallback object used while a client-side cache entry is still unresolved. */
+    private final Supplier<? extends T> defaultObjectFactory;
+    private T defaultObject;
+    private boolean defaultObjectResolved;
 
     private final Int2ObjectMap<T> serverIdToObject = new Int2ObjectOpenHashMap<>();
     /** Server side map of the object to its integer ID. Inverse of {@link #serverIdToObject} */
@@ -73,8 +75,20 @@ public abstract class NetworkedObjectCache<T> {
     private final ClientView clientView = new ClientView();
 
     public NetworkedObjectCache(T defaultObject) {
-        this.defaultObject = defaultObject;
+        this(() -> defaultObject);
+    }
+
+    public NetworkedObjectCache(Supplier<? extends T> defaultObjectFactory) {
+        this.defaultObjectFactory = Objects.requireNonNull(defaultObjectFactory, "defaultObjectFactory");
         serverObjectToId.defaultReturnValue(-1);
+    }
+
+    private T getDefaultObject() {
+        if (!defaultObjectResolved) {
+            defaultObject = defaultObjectFactory.get();
+            defaultObjectResolved = true;
+        }
+        return defaultObject;
     }
 
     protected abstract Object2IntMap<T> createObject2IntMap();
@@ -153,7 +167,7 @@ public abstract class NetworkedObjectCache<T> {
         }
 
         public T get() {
-            return actual == null ? defaultObject : actual;
+            return actual == null ? getDefaultObject() : actual;
         }
 
         public boolean hasBeenReceived() {
@@ -294,7 +308,7 @@ public abstract class NetworkedObjectCache<T> {
         if (obj == null) {
             // The ID fell outside the bounded retention window. Sending the default keeps the protocol valid; active
             // objects are announced again with a fresh ID when they are next synchronized.
-            obj = defaultObject;
+            obj = getDefaultObject();
         }
         writeObject(obj, buffer);
     }

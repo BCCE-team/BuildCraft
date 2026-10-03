@@ -1,4 +1,3 @@
-//? source if >=1.21.1
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -29,10 +28,10 @@ import buildcraft.api.v2.recipe.RecipeDefinition;
 import buildcraft.api.v2.reload.DefinitionProvenance;
 import buildcraft.core.BCCoreItems;
 import buildcraft.lib.fluid.BCFluid;
-import buildcraft.lib.fluid.FuelApiBridge;
 import buildcraft.lib.misc.MathUtil;
 import net.minecraft.advancements.criterion.InventoryChangeTrigger.TriggerInstance;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.data.PackOutput;
 import net.minecraft.data.recipes.RecipeCategory;
 import net.minecraft.data.recipes.RecipeOutput;
@@ -44,7 +43,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import net.neoforged.neoforge.fluids.FluidStack;
 
 public final class BCEnergyRecipes {
 
@@ -84,16 +82,16 @@ public final class BCEnergyRecipes {
         addDirtyFuel(BCEnergyFluids.crudeOil, oil, 3, 4);
 
         if (BCModules.FACTORY.isLoaded()) {
-            FluidStack[] gasLightDenseResidue = createFluidStack(BCEnergyFluids.crudeOil, oil);
-            FluidStack[] gasLightDenseStacks = createFluidStack(BCEnergyFluids.oilDistilled, gasLightDense);
-            FluidStack[] gasLightStacks = createFluidStack(BCEnergyFluids.fuelMixedLight, gasLight);
-            FluidStack[] gasStacks = createFluidStack(BCEnergyFluids.fuelGaseous, gas);
-            FluidStack[] lightDenseResidueStacks = createFluidStack(BCEnergyFluids.oilHeavy, lightDenseResidue);
-            FluidStack[] lightDenseStacks = createFluidStack(BCEnergyFluids.fuelMixedHeavy, lightDense);
-            FluidStack[] lightStacks = createFluidStack(BCEnergyFluids.fuelLight, light);
-            FluidStack[] denseResidueStacks = createFluidStack(BCEnergyFluids.oilDense, denseResidue);
-            FluidStack[] denseStacks = createFluidStack(BCEnergyFluids.fuelDense, dense);
-            FluidStack[] residueStacks = createFluidStack(BCEnergyFluids.oilResidue, residue);
+            FluidRecipeValue[] gasLightDenseResidue = createFluidValues(BCEnergyFluids.crudeOil, oil);
+            FluidRecipeValue[] gasLightDenseStacks = createFluidValues(BCEnergyFluids.oilDistilled, gasLightDense);
+            FluidRecipeValue[] gasLightStacks = createFluidValues(BCEnergyFluids.fuelMixedLight, gasLight);
+            FluidRecipeValue[] gasStacks = createFluidValues(BCEnergyFluids.fuelGaseous, gas);
+            FluidRecipeValue[] lightDenseResidueStacks = createFluidValues(BCEnergyFluids.oilHeavy, lightDenseResidue);
+            FluidRecipeValue[] lightDenseStacks = createFluidValues(BCEnergyFluids.fuelMixedHeavy, lightDense);
+            FluidRecipeValue[] lightStacks = createFluidValues(BCEnergyFluids.fuelLight, light);
+            FluidRecipeValue[] denseResidueStacks = createFluidValues(BCEnergyFluids.oilDense, denseResidue);
+            FluidRecipeValue[] denseStacks = createFluidValues(BCEnergyFluids.fuelDense, dense);
+            FluidRecipeValue[] residueStacks = createFluidValues(BCEnergyFluids.oilResidue, residue);
 
             addDistillation(gasLightDenseResidue, gasStacks, lightDenseResidueStacks, 0, 32 * MjAmount.MICRO_MJ_PER_MJ);
             addDistillation(gasLightDenseResidue, gasLightStacks, denseResidueStacks, 1, 16 * MjAmount.MICRO_MJ_PER_MJ);
@@ -118,9 +116,9 @@ public final class BCEnergyRecipes {
             addHeatExchange(BCEnergyFluids.oilResidue);
 
             registerHeatRecipe("heating/minecraft/water_consumed", RecipeDefinition.Kind.HEATING,
-                new FluidStack(Fluids.WATER, 10), FluidStack.EMPTY, 0, 1);
+                fluidValue(Fluids.WATER, 10), null, 0, 1);
             registerHeatRecipe("cooling/minecraft/lava_consumed", RecipeDefinition.Kind.COOLING,
-                new FluidStack(Fluids.LAVA, 5), FluidStack.EMPTY, 4, 2);
+                fluidValue(Fluids.LAVA, 5), null, 4, 2);
         }
 
         initialized = true;
@@ -140,13 +138,30 @@ public final class BCEnergyRecipes {
         return id;
     }
 
+    private static Identifier fluidId(Fluid fluid) {
+        Identifier id = BuiltInRegistries.FLUID.getKey(fluid);
+        if (id == null || fluid == Fluids.EMPTY) {
+            throw new IllegalArgumentException("Unregistered or empty built-in fluid: " + fluid);
+        }
+        return id;
+    }
+
+    private static FluidVariant variantOf(Fluid fluid) {
+        return FluidVariant.of(fluidId(fluid));
+    }
+
+    private static FluidRecipeValue fluidValue(Fluid fluid, int amount) {
+        return new FluidRecipeValue(variantOf(fluid), amount);
+    }
+
     private static void registerCoolant(String path, Fluid fluid, double degreesPerMb) {
-        FluidVariant variant = FuelApiBridge.variantOf(new FluidStack(fluid, 1));
-        energyFluids().register(id(path), CoolantProfile.constant(FluidSelector.fluid(variant.fluidId()), degreesPerMb), BUILTIN);
+        energyFluids().register(
+            id(path), CoolantProfile.constant(FluidSelector.fluid(fluidId(fluid)), degreesPerMb), BUILTIN
+        );
     }
 
     private static void registerSolidCoolant(String path, net.minecraft.world.item.Item item, double multiplier) {
-        FluidVariant water = FuelApiBridge.variantOf(new FluidStack(Fluids.WATER, 1));
+        FluidVariant water = variantOf(Fluids.WATER);
         SolidCoolantProfile profile = new SolidCoolantProfile(
             stack -> stack != null && !stack.isEmpty() && stack.getItem() == item,
             stack -> {
@@ -157,9 +172,9 @@ public final class BCEnergyRecipes {
         energyFluids().register(id(path), profile, BUILTIN);
     }
 
-    private static FluidStack[] createFluidStack(Fluid[] fluids, int amount) {
-        FluidStack[] result = new FluidStack[fluids.length];
-        for (int i = 0; i < result.length; i++) result[i] = new FluidStack(fluids[i], amount);
+    private static FluidRecipeValue[] createFluidValues(Fluid[] fluids, int amount) {
+        FluidRecipeValue[] result = new FluidRecipeValue[fluids.length];
+        for (int i = 0; i < result.length; i++) result[i] = fluidValue(fluids[i], amount);
         return result;
     }
 
@@ -182,14 +197,14 @@ public final class BCEnergyRecipes {
         if (fuel == null) return;
         long powerPerTick = multiplier * MjAmount.MICRO_MJ_PER_MJ;
         int totalTime = TIME_BASE * boostOverFour / 4 / multiplier / amountDifference;
-        FluidVariant fuelVariant = FuelApiBridge.variantOf(new FluidStack(fuel, 1));
+        FluidVariant fuelVariant = variantOf(fuel);
         FuelProfile profile;
         Fluid residue = dirty ? getFirstOrNull(BCEnergyFluids.oilResidue) : null;
         if (residue == null) {
             profile = FuelProfile.clean(FluidSelector.fluid(fuelVariant.fluidId()), powerPerTick, totalTime);
         } else {
             FluidVolume residuePerBucket = FluidVolume.of(
-                FuelApiBridge.variantOf(new FluidStack(residue, 1)), FluidAmount.of(1000L / amountDifference)
+                variantOf(residue), FluidAmount.of(1000L / amountDifference)
             );
             profile = FuelProfile.dirty(
                 FluidSelector.fluid(fuelVariant.fluidId()), powerPerTick, totalTime, residuePerBucket
@@ -199,32 +214,28 @@ public final class BCEnergyRecipes {
     }
 
     private static void addDistillation(
-        FluidStack[] input, FluidStack[] outputGas, FluidStack[] outputLiquid, int heat, long mjCost
+        FluidRecipeValue[] input, FluidRecipeValue[] outputGas, FluidRecipeValue[] outputLiquid, int heat, long mjCost
     ) {
-        FluidStack inputStack = input[heat];
-        FluidStack gasStack = outputGas[heat];
-        FluidStack liquidStack = outputLiquid[heat];
-        FluidVariant inputVariant = FuelApiBridge.variantOf(inputStack);
-        if (machineRecipes().findDistillation(inputVariant, FuelApiBridge.MATCH_CONTEXT).isPresent()) {
+        FluidRecipeValue inputValue = input[heat];
+        FluidRecipeValue gasValue = outputGas[heat];
+        FluidRecipeValue liquidValue = outputLiquid[heat];
+        FluidVariant inputVariant = inputValue.variant();
+        if (machineRecipes().findDistillation(inputVariant, buildcraft.lib.fluid.FuelApiBridge.MATCH_CONTEXT).isPresent()) {
             throw new IllegalStateException("Already added distillation recipe for " + inputVariant.fluidId());
         }
-        int hcf = MathUtil.findHighestCommonFactor(inputStack.getAmount(), gasStack.getAmount());
-        hcf = MathUtil.findHighestCommonFactor(hcf, liquidStack.getAmount());
+        int hcf = MathUtil.findHighestCommonFactor(inputValue.amount(), gasValue.amount());
+        hcf = MathUtil.findHighestCommonFactor(hcf, liquidValue.amount());
         if (hcf > 1) {
-            inputStack = inputStack.copy();
-            gasStack = gasStack.copy();
-            liquidStack = liquidStack.copy();
-            inputStack.setAmount(inputStack.getAmount() / hcf);
-            gasStack.setAmount(gasStack.getAmount() / hcf);
-            liquidStack.setAmount(liquidStack.getAmount() / hcf);
+            inputValue = inputValue.divide(hcf);
+            gasValue = gasValue.divide(hcf);
+            liquidValue = liquidValue.divide(hcf);
             mjCost /= hcf;
-            inputVariant = FuelApiBridge.variantOf(inputStack);
         }
         DistillationRecipeDefinition definition = new DistillationRecipeDefinition(
-            FluidIngredient.exact(inputVariant, inputStack.getAmount()),
-            FuelApiBridge.volumeOf(gasStack), FuelApiBridge.volumeOf(liquidStack), mjCost
+            FluidIngredient.exact(inputValue.variant(), inputValue.amount()),
+            gasValue.volume(), liquidValue.volume(), mjCost
         );
-        Identifier fluidId = inputVariant.fluidId();
+        Identifier fluidId = inputValue.variant().fluidId();
         machineRecipes().register(id("distillation/" + fluidId.getNamespace() + "/" + fluidId.getPath()), definition, BUILTIN);
     }
 
@@ -232,27 +243,42 @@ public final class BCEnergyRecipes {
         for (int i = 0; i < fluids.length - 1; i++) {
             BCFluid cool = fluids[i];
             BCFluid hot = fluids[i + 1];
-            FluidStack coolStack = new FluidStack(cool, 10);
-            FluidStack hotStack = new FluidStack(hot, 10);
+            FluidRecipeValue coolValue = fluidValue(cool, 10);
+            FluidRecipeValue hotValue = fluidValue(hot, 10);
             int coolHeat = cool.getHeatValue();
             int hotHeat = hot.getHeatValue();
-            Identifier coolId = FuelApiBridge.variantOf(coolStack).fluidId();
-            Identifier hotId = FuelApiBridge.variantOf(hotStack).fluidId();
+            Identifier coolId = coolValue.variant().fluidId();
+            Identifier hotId = hotValue.variant().fluidId();
             registerHeatRecipe("heating/" + coolId.getNamespace() + "/" + coolId.getPath() + "_to_" + hotId.getPath(),
-                RecipeDefinition.Kind.HEATING, coolStack, hotStack, coolHeat, hotHeat);
+                RecipeDefinition.Kind.HEATING, coolValue, hotValue, coolHeat, hotHeat);
             registerHeatRecipe("cooling/" + hotId.getNamespace() + "/" + hotId.getPath() + "_to_" + coolId.getPath(),
-                RecipeDefinition.Kind.COOLING, hotStack, coolStack, hotHeat, coolHeat);
+                RecipeDefinition.Kind.COOLING, hotValue, coolValue, hotHeat, coolHeat);
         }
     }
 
     private static void registerHeatRecipe(
-        String path, RecipeDefinition.Kind kind, FluidStack input, FluidStack output, int heatFrom, int heatTo
+        String path, RecipeDefinition.Kind kind, FluidRecipeValue input, FluidRecipeValue output, int heatFrom, int heatTo
     ) {
-        FluidVariant inputVariant = FuelApiBridge.variantOf(input);
-        FluidVolume outputVolume = output == null || output.isEmpty() ? FluidVolume.empty() : FuelApiBridge.volumeOf(output);
+        FluidVolume outputVolume = output == null ? FluidVolume.empty() : output.volume();
         HeatExchangeRecipeDefinition definition = new HeatExchangeRecipeDefinition(
-            kind, FluidIngredient.exact(inputVariant, input.getAmount()), outputVolume, heatFrom, heatTo
+            kind, FluidIngredient.exact(input.variant(), input.amount()), outputVolume, heatFrom, heatTo
         );
         machineRecipes().register(id(path), definition, BUILTIN);
     }
+
+    private record FluidRecipeValue(FluidVariant variant, int amount) {
+        private FluidRecipeValue {
+            if (variant == null) throw new NullPointerException("variant");
+            if (amount <= 0) throw new IllegalArgumentException("Fluid recipe amount must be > 0");
+        }
+
+        private FluidRecipeValue divide(int divisor) {
+            return new FluidRecipeValue(variant, amount / divisor);
+        }
+
+        private FluidVolume volume() {
+            return FluidVolume.of(variant, FluidAmount.of(amount));
+        }
+    }
+
 }

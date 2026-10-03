@@ -20,8 +20,7 @@ public class NetworkedFluidStackCache extends NetworkedObjectCache<FluidStack> {
     private static final int FLUID_AMOUNT = 1;
 
     public NetworkedFluidStackCache() {
-        // Use water for our base stack as it might not be too bad of an assumption
-        super(new FluidStack(Fluids.WATER, FLUID_AMOUNT));
+        super(() -> new FluidStack(Fluids.WATER, FLUID_AMOUNT));
     }
 
     protected Object2IntMap<FluidStack> createObject2IntMap() {

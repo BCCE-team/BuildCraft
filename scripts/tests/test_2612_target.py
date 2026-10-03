@@ -18,6 +18,7 @@ LOADER_BUILD = ROOT / "build-logic/loaders/neoforge-target.gradle"
 STONECUTTER = ROOT / "builds/26.X/stonecutter.gradle.kts"
 FAMILY = ROOT / "source-families/26.X/src/main/java"
 PLATFORM = ROOT / "source-family-platforms/26.X/neoforge/src/main/java"
+MODERN_PLATFORM = ROOT / "source-family-platforms/1.21.X/neoforge/src/main/java"
 
 
 def fail(message: str) -> None:
@@ -132,6 +133,50 @@ def main() -> int:
         "ItemStack.isSameItemSameComponents",
         "stack.is(tag)",
     )
+    require(
+        PLATFORM / "buildcraft/lib/net/cache/NetworkedObjectCache.java",
+        "Supplier<? extends T> defaultObjectFactory",
+        "private T getDefaultObject()",
+    )
+    fluid_cache = PLATFORM / "buildcraft/lib/net/cache/NetworkedFluidStackCache.java"
+    require(fluid_cache, "super(() -> new FluidStack(Fluids.WATER, FLUID_AMOUNT))")
+    if "super(new FluidStack(" in fluid_cache.read_text(encoding="utf-8"):
+        fail("fluid cache eagerly creates a FluidStack during mod construction")
+    energy_recipes = ROOT / "source-families/1.21.X/src/main/java/buildcraft/energy/BCEnergyRecipes.java"
+    require(
+        energy_recipes,
+        "BuiltInRegistries.FLUID.getKey(fluid)",
+        "private record FluidRecipeValue",
+    )
+    if "new FluidStack(" in energy_recipes.read_text(encoding="utf-8"):
+        fail("energy built-in recipes create FluidStacks before default components are bound")
+    silicon = MODERN_PLATFORM / "buildcraft/silicon/BCSilicon.java"
+    silicon_text = silicon.read_text(encoding="utf-8")
+    common_start = silicon_text.index("public static void commonSetup")
+    post_start = silicon_text.index("public static void postInit")
+    common_body = silicon_text[common_start:post_start]
+    post_body = silicon_text[post_start:]
+    if "FacadeStateManager.init();" in common_body:
+        fail("facade discovery creates ItemStacks during common setup")
+    if "FacadeStateManager.init();" not in post_body:
+        fail("facade discovery is not deferred until load complete")
+    for creative_tabs in (
+        FAMILY / "buildcraft/lib/CreativeTabManager.java",
+        PLATFORM / "buildcraft/lib/CreativeTabManager.java",
+    ):
+        require(
+            creative_tabs,
+            "private Supplier<? extends ItemStack> iconFactory",
+            "iconFactory = item::getDefaultInstance;",
+            "ItemStack stack = iconFactory.get();",
+        )
+        creative_tab_text = creative_tabs.read_text(encoding="utf-8")
+        if "private ItemStack icon = new ItemStack(" in creative_tab_text:
+            fail("creative-tab descriptor eagerly creates an ItemStack during mod construction")
+        if "setItem(item.getDefaultInstance())" in creative_tab_text:
+            fail("creative-tab item selection eagerly creates an ItemStack during common setup")
+        if "setItemStack(name, item.getDefaultInstance())" in creative_tab_text:
+            fail("named creative-tab item selection eagerly creates an ItemStack during common setup")
     require(PLATFORM / "buildcraft/transport/client/model/ModelPipeNative2612.java", "BlockStateModelPart")
     require(PLATFORM / "buildcraft/silicon/client/model/NativePluggableItemModels2612.java", "NativeItemModelBuilder")
     require(FAMILY / "buildcraft/core/marker/VolumeSubCache.java", "SavedDataCompat.migrateLegacyFlatFile")

@@ -55,8 +55,9 @@ public final class CreativeTabManager {
     }
 
     public static void setItem(String name, Item item) {
-        if (item != null) {
-            setItemStack(name, item.getDefaultInstance());
+        CreativeTabBC tab = TAB_MAP.get(name);
+        if (tab != null) {
+            tab.setItem(item);
         }
     }
 
@@ -266,7 +267,8 @@ public final class CreativeTabManager {
     public static final class CreativeTabBC {
         private final String name;
         private final List<Supplier<? extends Collection<ItemStack>>> itemProviders = new CopyOnWriteArrayList<>();
-        private ItemStack icon = new ItemStack(Items.COMPARATOR);
+        // Keep icon creation lazy because item components may not be bound during mod setup.
+        private Supplier<? extends ItemStack> iconFactory = () -> new ItemStack(Items.COMPARATOR);
         private String recipeFolderName;
 
         private CreativeTabBC(String name) {
@@ -289,18 +291,26 @@ public final class CreativeTabManager {
         }
 
         public ItemStack makeIcon() {
-            return icon.copy();
+            ItemStack stack = iconFactory.get();
+            return stack == null || stack.isEmpty() ? new ItemStack(Items.COMPARATOR) : stack.copy();
         }
 
         public void setItem(Item item) {
             if (item != null) {
-                setItem(item.getDefaultInstance());
+                iconFactory = item::getDefaultInstance;
             }
         }
 
         public void setItem(ItemStack stack) {
             if (stack != null && !stack.isEmpty()) {
-                icon = stack.copy();
+                ItemStack icon = stack.copy();
+                iconFactory = icon::copy;
+            }
+        }
+
+        public void setItem(Supplier<? extends ItemStack> supplier) {
+            if (supplier != null) {
+                iconFactory = supplier;
             }
         }
 

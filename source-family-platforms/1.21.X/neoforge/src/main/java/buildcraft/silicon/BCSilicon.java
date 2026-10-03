@@ -145,12 +145,12 @@ public class BCSilicon {
     public static void commonSetup(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
             BCSiliconConfig.reloadConfig(MODID);
-            FacadeStateManager.init();
         });
     }
 
     public static void postInit(FMLLoadCompleteEvent event) {
         event.enqueueWork(() -> {
+            FacadeStateManager.init();
             if (BCSiliconConfig.enableFacades && BCSiliconItems.PLUG_FACADE_ITEM.isBound()) {
                 FacadeBlockStateInfo state = FacadeStateManager.previewState;
                 if (state != null) {
