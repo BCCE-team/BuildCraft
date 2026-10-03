@@ -39,6 +39,8 @@ def main() -> int:
         fail("target registry has the wrong Minecraft version")
     if props.get(f"target.{TARGET}.java.version") != "25":
         fail("target registry has the wrong Java version")
+    if props.get(f"target.{TARGET}.loader.version_range") != "[11,)":
+        fail("target registry has the wrong javafml loader range")
     if props.get(f"target.{TARGET}.build.generation") != "26.X":
         fail("target registry has the wrong build generation")
     if props.get(f"target.{TARGET}.compat.jei.enabled") != "true":
