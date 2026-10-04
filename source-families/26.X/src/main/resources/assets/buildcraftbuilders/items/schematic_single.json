@@ -1,0 +1,26 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "buildcraftbuilders:used",
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "buildcraftbuilders:item/schematic_single/clean"
+    },
+    "entries": [
+      {
+        "threshold": 0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftbuilders:item/schematic_single/clean"
+        }
+      },
+      {
+        "threshold": 1,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftbuilders:item/schematic_single/used"
+        }
+      }
+    ]
+  }
+}

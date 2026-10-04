@@ -67,10 +67,10 @@ public final class PipeRecipe implements CraftingRecipe {
     }
 
     /** Matches the compact legacy result object used by the 8.0.12 data files. */
-    private static final Codec<ItemStack> RESULT_CODEC = RecordCodecBuilder.create(instance -> instance.group(
-        BuiltInRegistries.ITEM.byNameCodec().fieldOf("item").forGetter(ItemStack::getItem),
-        Codec.INT.optionalFieldOf("count", 1).forGetter(ItemStack::getCount)
-    ).apply(instance, PipeRecipe::resultStack));
+    private static final Codec<Result> RESULT_CODEC = RecordCodecBuilder.create(instance -> instance.group(
+        BuiltInRegistries.ITEM.byNameCodec().fieldOf("item").forGetter(Result::item),
+        Codec.INT.optionalFieldOf("count", 1).forGetter(Result::count)
+    ).apply(instance, Result::new));
 
     private static final MapCodec<PipeRecipe> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
         Codec.STRING.optionalFieldOf("group", "").forGetter((PipeRecipe recipe) -> recipe.group),
@@ -93,13 +93,13 @@ public final class PipeRecipe implements CraftingRecipe {
     private final Ingredient right;
     private final Ingredient from;
     private final Ingredient additional;
-    private final ItemStack result;
+    private final Result result;
     private final NonNullList<Ingredient> ingredients;
     @Nullable
     private PlacementInfo placementInfo;
 
     private PipeRecipe(String group, Mode mode, Ingredient left, Ingredient middle,
-        Ingredient right, Ingredient from, Ingredient additional, ItemStack result) {
+        Ingredient right, Ingredient from, Ingredient additional, Result result) {
         this.group = group == null ? "" : group;
         this.mode = mode;
         this.left = left;
@@ -107,7 +107,7 @@ public final class PipeRecipe implements CraftingRecipe {
         this.right = right;
         this.from = from;
         this.additional = additional;
-        this.result = result.copy();
+        this.result = result;
         this.ingredients = NonNullList.create();
         if (mode == Mode.BASE) {
             ingredients.add(left);
@@ -121,12 +121,6 @@ public final class PipeRecipe implements CraftingRecipe {
         }
     }
 
-    private static ItemStack resultStack(Item item, int count) {
-        if (count <= 0) {
-            throw new IllegalArgumentException("Pipe recipe result count must be positive");
-        }
-        return new ItemStack(item, count);
-    }
 
     public boolean matches(CraftingInput input, Level level) {
         return findMatch(input) != null;
@@ -150,7 +144,7 @@ public final class PipeRecipe implements CraftingRecipe {
         if (match == null) {
             return ItemStack.EMPTY;
         }
-        ItemStack output = result.copy();
+        ItemStack output = result.create();
         if (mode == Mode.BASE) {
             ItemPipeHolder.setPipeColor(output, colorFromGlass(match.colorSource));
         } else {
@@ -257,11 +251,11 @@ public final class PipeRecipe implements CraftingRecipe {
 
     /** Static result used by recipe viewers. Runtime crafting may additionally copy pipe colour. */
     public ItemStack getDisplayResult() {
-        return result.copy();
+        return result.create();
     }
 
     public ItemStack getResultItem(HolderLookup.Provider registries) {
-        return result.copy();
+        return result.create();
     }
 
     public NonNullList<Ingredient> getIngredients() {
@@ -288,7 +282,7 @@ public final class PipeRecipe implements CraftingRecipe {
     @Override
     public List<RecipeDisplay> display() {
         List<SlotDisplay> slots = ingredients.stream().map(Ingredient::display).toList();
-        SlotDisplay output = new SlotDisplay.ItemStackSlotDisplay(ItemStackTemplate.fromNonEmptyStack(result));
+        SlotDisplay output = new SlotDisplay.ItemStackSlotDisplay(result.template());
         SlotDisplay station = new SlotDisplay.ItemSlotDisplay(Items.CRAFTING_TABLE);
         return mode == Mode.BASE
             ? List.of(new ShapedCraftingRecipeDisplay(3, 1, slots, output, station))
@@ -309,6 +303,22 @@ public final class PipeRecipe implements CraftingRecipe {
         return CraftingBookCategory.MISC;
     }
 
+    private record Result(Item item, int count) {
+        private Result {
+            if (count <= 0) {
+                throw new IllegalArgumentException("Pipe recipe result count must be positive");
+            }
+        }
+
+        private ItemStack create() {
+            return new ItemStack(item, count);
+        }
+
+        private ItemStackTemplate template() {
+            return new ItemStackTemplate(item, count);
+        }
+    }
+
     private record Match(ItemStack colorSource) {
     }
 
@@ -320,7 +330,10 @@ public final class PipeRecipe implements CraftingRecipe {
         Ingredient right = Ingredient.CONTENTS_STREAM_CODEC.decode(buffer);
         Ingredient from = Ingredient.CONTENTS_STREAM_CODEC.decode(buffer);
         Ingredient additional = Ingredient.CONTENTS_STREAM_CODEC.decode(buffer);
-        ItemStack result = ItemStack.STREAM_CODEC.decode(buffer);
+        Item item = BuiltInRegistries.ITEM.get(buffer.readIdentifier())
+            .map(net.minecraft.core.Holder.Reference::value)
+            .orElseThrow(() -> new IllegalArgumentException("Unknown pipe recipe result item"));
+        Result result = new Result(item, buffer.readVarInt());
         return new PipeRecipe(group, mode, left, middle, right, from, additional, result);
     }
 
@@ -332,7 +345,8 @@ public final class PipeRecipe implements CraftingRecipe {
         Ingredient.CONTENTS_STREAM_CODEC.encode(buffer, right);
         Ingredient.CONTENTS_STREAM_CODEC.encode(buffer, from);
         Ingredient.CONTENTS_STREAM_CODEC.encode(buffer, additional);
-        ItemStack.STREAM_CODEC.encode(buffer, result);
+        buffer.writeIdentifier(BuiltInRegistries.ITEM.getKey(result.item()));
+        buffer.writeVarInt(result.count());
     }
 
     public static RecipeSerializer<PipeRecipe> serializer() {

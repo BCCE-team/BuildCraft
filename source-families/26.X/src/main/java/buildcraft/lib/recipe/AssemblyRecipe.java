@@ -17,16 +17,17 @@ import buildcraft.lib.internal.core.BuildCraftAPI;
 import buildcraft.lib.internal.recipes.IngredientStack;
 import buildcraft.silicon.BCSiliconRecipes;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.TagParser;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeInput;
@@ -44,11 +45,11 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
     private static final Identifier UNNAMED_ID =
         Identifier.fromNamespaceAndPath("buildcraftlib", "unnamed_assembly_recipe");
 
-    private static final Codec<ItemStack> LEGACY_RESULT_CODEC = RecordCodecBuilder.create(instance -> instance.group(
-        BuiltInRegistries.ITEM.byNameCodec().fieldOf("item").forGetter(ItemStack::getItem),
-        Codec.INT.optionalFieldOf("count", 1).forGetter(ItemStack::getCount),
-        Codec.STRING.optionalFieldOf("nbt", "").forGetter(AssemblyRecipe::legacyCustomData)
-    ).apply(instance, AssemblyRecipe::legacyStack));
+    private static final Codec<LegacyResult> LEGACY_RESULT_CODEC = RecordCodecBuilder.create(instance -> instance.group(
+        BuiltInRegistries.ITEM.byNameCodec().fieldOf("item").forGetter(LegacyResult::item),
+        Codec.INT.optionalFieldOf("count", 1).forGetter(LegacyResult::count),
+        Codec.STRING.optionalFieldOf("nbt", "").forGetter(LegacyResult::nbt)
+    ).apply(instance, LegacyResult::new));
 
     private static final MapCodec<AssemblyRecipe> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
         Identifier.CODEC.optionalFieldOf("id", UNNAMED_ID).forGetter(AssemblyRecipe::getId),
@@ -64,14 +65,19 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
 
     final long requiredMicroJoules;
     final ImmutableSet<IngredientStack> requiredStacks;
-    final ItemStack output;
+    final LegacyResult output;
     final String group;
 
     public AssemblyRecipe(Identifier name, long requiredMicroJoules,
         ImmutableSet<IngredientStack> requiredStacks, @Nonnull ItemStack output, String group) {
+        this(name, requiredMicroJoules, requiredStacks, LegacyResult.fromStack(output), group);
+    }
+
+    private AssemblyRecipe(Identifier name, long requiredMicroJoules,
+        ImmutableSet<IngredientStack> requiredStacks, LegacyResult output, String group) {
         this.requiredMicroJoules = requiredMicroJoules;
         this.requiredStacks = ImmutableSet.copyOf(requiredStacks);
-        this.output = output.copy();
+        this.output = output;
         this.name = name;
         this.group = group == null ? "" : group;
     }
@@ -92,7 +98,7 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
 
     public Set<ItemStack> getOutputs(IItemHandlerModifiable inputs) {
         return hasRequiredInputs(inputs)
-            ? ImmutableSet.of(output.copy())
+            ? ImmutableSet.of(output.create())
             : ImmutableSet.of();
     }
 
@@ -139,7 +145,7 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
     }
 
     public ItemStack assemble(RecipeInput input, HolderLookup.Provider registries) {
-        return hasRequiredInputs(input) ? output.copy() : ItemStack.EMPTY;
+        return hasRequiredInputs(input) ? output.create() : ItemStack.EMPTY;
     }
 
     public boolean canCraftInDimensions(int width, int height) {
@@ -147,7 +153,7 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
     }
 
     public ItemStack getResultItem(HolderLookup.Provider registries) {
-        return output.copy();
+        return output.create();
     }
 
     public NonNullList<Ingredient> getIngredients() {
@@ -177,7 +183,7 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
         }
         return List.of(new ShapelessCraftingRecipeDisplay(
             ingredients,
-            new SlotDisplay.ItemStackSlotDisplay(output.copy()),
+            new SlotDisplay.ItemStackSlotDisplay(output.template()),
             new SlotDisplay.ItemSlotDisplay(BCSiliconItems.ASSEMBLY_TABLE_ITEM.get())
         ));
     }
@@ -211,25 +217,6 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
     }
 
 
-    private static ItemStack legacyStack(Item item, int count, String nbt) {
-        ItemStack stack = new ItemStack(item, count);
-        if (!nbt.isBlank()) {
-            try {
-                CompoundTag tag = NbtCompat.parseTag(nbt);
-                if (tag.contains("Damage") && stack.isDamageableItem()) {
-                    stack.set(DataComponents.DAMAGE, Math.max(0, NbtCompat.getInt(tag, "Damage")));
-                    tag.remove("Damage");
-                }
-                if (!tag.isEmpty()) {
-                    stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
-                }
-            } catch (CommandSyntaxException exception) {
-                throw new IllegalArgumentException("Invalid legacy assembly-recipe item NBT", exception);
-            }
-        }
-        return stack;
-    }
-
     private static String legacyCustomData(ItemStack stack) {
         CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
         CompoundTag tag = customData == null ? new CompoundTag() : customData.copyTag();
@@ -239,8 +226,62 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
         return tag.isEmpty() ? "" : tag.toString();
     }
 
+    private record LegacyResult(Item item, int count, String nbt) {
+        private LegacyResult {
+            if (count <= 0) {
+                throw new IllegalArgumentException("Assembly recipe result count must be positive");
+            }
+            nbt = nbt == null ? "" : nbt;
+        }
+
+        private static LegacyResult fromStack(ItemStack stack) {
+            return new LegacyResult(stack.getItem(), stack.getCount(), legacyCustomData(stack));
+        }
+
+        private ItemStack create() {
+            ItemStack stack = new ItemStack(item, count);
+            applyLegacyData(stack);
+            return stack;
+        }
+
+        private ItemStackTemplate template() {
+            CompoundTag tag = parseLegacyTag();
+            DataComponentPatch.Builder patch = DataComponentPatch.builder();
+            if (NbtCompat.contains(tag, "Damage", 99)) {
+                patch.set(DataComponents.DAMAGE, Math.max(0, NbtCompat.getInt(tag, "Damage")));
+                tag.remove("Damage");
+            }
+            if (!tag.isEmpty()) {
+                patch.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+            }
+            return new ItemStackTemplate(item, count, patch.build());
+        }
+
+        private void applyLegacyData(ItemStack stack) {
+            CompoundTag tag = parseLegacyTag();
+            if (NbtCompat.contains(tag, "Damage", 99) && stack.isDamageableItem()) {
+                stack.set(DataComponents.DAMAGE, Math.max(0, NbtCompat.getInt(tag, "Damage")));
+                tag.remove("Damage");
+            }
+            if (!tag.isEmpty()) {
+                stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+            }
+        }
+
+        private CompoundTag parseLegacyTag() {
+            if (nbt.isBlank()) {
+                return new CompoundTag();
+            }
+            try {
+                return NbtCompat.parseTag(nbt);
+            } catch (CommandSyntaxException exception) {
+                throw new IllegalArgumentException("Invalid legacy assembly-recipe item NBT", exception);
+            }
+        }
+    }
+
     private static AssemblyRecipe fromCodec(Identifier id, String group, List<Ingredient> ingredients,
-        List<Integer> counts, ItemStack result, long requiredMicroJoules) {
+        List<Integer> counts, LegacyResult result, long requiredMicroJoules) {
         if (ingredients.size() != counts.size()) {
             throw new IllegalArgumentException("Assembly recipe ingredients and ingredient_counts have different sizes");
         }
@@ -265,7 +306,10 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
             int count = buffer.readVarInt();
             stacks.add(new IngredientStack(ingredient, count));
         }
-        ItemStack result = ItemStack.STREAM_CODEC.decode(buffer);
+        Item item = BuiltInRegistries.ITEM.get(buffer.readIdentifier())
+            .map(net.minecraft.core.Holder.Reference::value)
+            .orElseThrow(() -> new IllegalArgumentException("Unknown assembly recipe result item"));
+        LegacyResult result = new LegacyResult(item, buffer.readVarInt(), buffer.readUtf());
         long power = buffer.readLong();
         return new AssemblyRecipe(id, power, ImmutableSet.copyOf(stacks), result, group);
     }
@@ -278,7 +322,9 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
             Ingredient.CONTENTS_STREAM_CODEC.encode(buffer, stack.ingredient);
             buffer.writeVarInt(stack.count);
         }
-        ItemStack.STREAM_CODEC.encode(buffer, output);
+        buffer.writeIdentifier(BuiltInRegistries.ITEM.getKey(output.item()));
+        buffer.writeVarInt(output.count());
+        buffer.writeUtf(output.nbt());
         buffer.writeLong(requiredMicroJoules);
     }
 

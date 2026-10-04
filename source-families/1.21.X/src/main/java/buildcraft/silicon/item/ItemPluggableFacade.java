@@ -107,7 +107,7 @@ public class ItemPluggableFacade extends Item implements IItemPluggable, ICreati
             return;
         }
         // Add a single phased facade as a default
-        // check if the data is present as we only process in post-init
+        // The facade index is populated once a world is available.
         FacadeBlockStateInfo stone = FacadeStateManager.getInfoForBlock(Blocks.STONE);
         FacadeBlockStateInfo planks = FacadeStateManager.getInfoForBlock(Blocks.OAK_PLANKS);
         FacadeBlockStateInfo log = FacadeStateManager.getInfoForBlock(Blocks.OAK_LOG);

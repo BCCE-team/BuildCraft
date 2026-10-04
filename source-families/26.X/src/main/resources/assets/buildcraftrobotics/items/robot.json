@@ -1,0 +1,131 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "buildcraftrobotics:robot",
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "buildcraftrobotics:item/robot/empty"
+    },
+    "entries": [
+      {
+        "threshold": 0.01,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/picker"
+        }
+      },
+      {
+        "threshold": 0.02,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/carrier"
+        }
+      },
+      {
+        "threshold": 0.03,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/fluid_carrier"
+        }
+      },
+      {
+        "threshold": 0.04,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/lumberjack"
+        }
+      },
+      {
+        "threshold": 0.05,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/harvester"
+        }
+      },
+      {
+        "threshold": 0.06,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/miner"
+        }
+      },
+      {
+        "threshold": 0.07,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/planter"
+        }
+      },
+      {
+        "threshold": 0.08,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/farmer"
+        }
+      },
+      {
+        "threshold": 0.09,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/leave_cutter"
+        }
+      },
+      {
+        "threshold": 0.1,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/butcher"
+        }
+      },
+      {
+        "threshold": 0.11,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/shovelman"
+        }
+      },
+      {
+        "threshold": 0.12,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/pump"
+        }
+      },
+      {
+        "threshold": 0.13,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/delivery"
+        }
+      },
+      {
+        "threshold": 0.14,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/knight"
+        }
+      },
+      {
+        "threshold": 0.15,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/bomber"
+        }
+      },
+      {
+        "threshold": 0.16,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/stripes"
+        }
+      },
+      {
+        "threshold": 0.17,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/builder"
+        }
+      }
+    ]
+  }
+}

@@ -13,8 +13,10 @@ import buildcraft.energy.client.gui.GuiEngineIron_BC8;
 import buildcraft.energy.client.gui.GuiEngineStone_BC8;
 import buildcraft.energy.client.render.RenderDynamoMJ;
 import buildcraft.energy.fluid.BCFluidType;
+import buildcraft.lib.fluid.BCFluid;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterFluidModelsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
@@ -26,8 +28,11 @@ import org.joml.Vector4f;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.block.FluidModel;
+import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
+import net.neoforged.neoforge.client.fluid.FluidTintSources;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 //?}
 
@@ -41,6 +46,34 @@ public abstract class BCEnergyClientProxy {
 
 
     //? if >=1.21.9 {
+    @SubscribeEvent
+    public static void registerFluidModels(RegisterFluidModelsEvent event) {
+        int count = Math.min(BCEnergyFluids.OIL_TYPE.size(), BCEnergyFluids.OIL_SOURCE.size());
+        for (int i = 0; i < count; i++) {
+            BCFluidType type = BCEnergyFluids.OIL_TYPE.get(i).get();
+            BCFluid source = BCEnergyFluids.OIL_SOURCE.get(i).get();
+            FluidModel.Unbaked model = new FluidModel.Unbaked(
+                new Material(type.getStillTextureLocation()),
+                new Material(type.getFlowTextureLocation()),
+                null,
+                FluidTintSources.constant(type.getFluidTintColor())
+            );
+            event.register(model, source, source.getFlowing());
+        }
+
+        if (BCEnergyFluids.SPOUT_OIL_SOURCE != null && BCEnergyFluids.SPOUT_OIL_FLOWING != null
+            && !BCEnergyFluids.OIL_TYPE.isEmpty()) {
+            BCFluidType type = BCEnergyFluids.OIL_TYPE.get(0).get();
+            FluidModel.Unbaked model = new FluidModel.Unbaked(
+                new Material(type.getStillTextureLocation()),
+                new Material(type.getFlowTextureLocation()),
+                null,
+                FluidTintSources.constant(type.getFluidTintColor())
+            );
+            event.register(model, BCEnergyFluids.SPOUT_OIL_SOURCE.get(), BCEnergyFluids.SPOUT_OIL_FLOWING.get());
+        }
+    }
+
     @SubscribeEvent
     public static void registerFluidClientExtensions(RegisterClientExtensionsEvent event) {
         for (var holder : BCEnergyFluids.OIL_TYPE) {

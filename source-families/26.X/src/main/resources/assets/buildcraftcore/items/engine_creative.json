@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "buildcraftcore:item/engine_creative"
+  }
+}

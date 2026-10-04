@@ -16,8 +16,6 @@ import buildcraft.lib.misc.ItemStackUtil;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.nbt.TagParser;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.common.crafting.ICustomIngredient;
@@ -44,7 +42,7 @@ public final class LegacyStrictNbtIngredient implements ICustomIngredient {
     private final Item item;
     private final int count;
     private final String legacyNbt;
-    private final ItemStack displayStack;
+    private volatile ItemStack displayStack;
 
     private LegacyStrictNbtIngredient(Item item, int count, String legacyNbt) {
         if (count <= 0) {
@@ -53,18 +51,27 @@ public final class LegacyStrictNbtIngredient implements ICustomIngredient {
         this.item = Objects.requireNonNull(item, "item");
         this.count = count;
         this.legacyNbt = legacyNbt == null ? "" : legacyNbt;
+    }
 
-        CompoundTag parsed = parseTag(this.legacyNbt);
-        ItemStack stack = new ItemStack(item, count);
-
-        int damage = 0;
-        if (NbtCompat.contains(parsed, "Damage", 99) && stack.isDamageableItem()) {
-            damage = Math.max(0, NbtCompat.getInt(parsed, "Damage"));
-            parsed.remove("Damage");
-            stack.set(DataComponents.DAMAGE, damage);
+    private ItemStack displayStack() {
+        ItemStack stack = displayStack;
+        if (stack != null) {
+            return stack;
         }
-        ItemStackUtil.setCustomData(stack, parsed);
-        this.displayStack = stack;
+        synchronized (this) {
+            stack = displayStack;
+            if (stack == null) {
+                CompoundTag parsed = parseTag(legacyNbt);
+                stack = new ItemStack(item, count);
+                if (NbtCompat.contains(parsed, "Damage", 99) && stack.isDamageableItem()) {
+                    stack.set(DataComponents.DAMAGE, Math.max(0, NbtCompat.getInt(parsed, "Damage")));
+                    parsed.remove("Damage");
+                }
+                ItemStackUtil.setCustomData(stack, parsed);
+                displayStack = stack;
+            }
+        }
+        return stack;
     }
 
     private static CompoundTag parseTag(String snbt) {
@@ -97,7 +104,7 @@ public final class LegacyStrictNbtIngredient implements ICustomIngredient {
         // ItemStack count is deliberately ignored, matching Forge 1.19.2 StrictNBTIngredient.
         // Comparing the complete component set rejects extra names/enchants/custom data just as
         // an extra legacy stack tag would violate strict NBT comparison.
-        return ItemStack.isSameItemSameComponents(input, displayStack);
+        return ItemStack.isSameItemSameComponents(input, displayStack());
     }
 
     public Stream<Holder<Item>> items() {

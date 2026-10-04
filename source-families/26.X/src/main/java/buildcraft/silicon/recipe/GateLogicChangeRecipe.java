@@ -23,9 +23,10 @@ import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeInput;
 
 public class GateLogicChangeRecipe extends CustomRecipe {
-    private static final MapCodec<GateLogicChangeRecipe> CODEC = MapCodec.unit(new GateLogicChangeRecipe());
+    private static final GateLogicChangeRecipe INSTANCE = new GateLogicChangeRecipe();
+    private static final MapCodec<GateLogicChangeRecipe> CODEC = MapCodec.unit(INSTANCE);
     private static final StreamCodec<RegistryFriendlyByteBuf, GateLogicChangeRecipe> STREAM_CODEC =
-        StreamCodec.unit(new GateLogicChangeRecipe());
+        StreamCodec.unit(INSTANCE);
     public static final RecipeSerializer<GateLogicChangeRecipe> SERIALIZER = new RecipeSerializer<>(CODEC, STREAM_CODEC);
 
     public GateLogicChangeRecipe() {

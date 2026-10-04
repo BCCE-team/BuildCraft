@@ -142,6 +142,18 @@ def main() -> int:
     require(fluid_cache, "super(() -> new FluidStack(Fluids.WATER, FLUID_AMOUNT))")
     if "super(new FluidStack(" in fluid_cache.read_text(encoding="utf-8"):
         fail("fluid cache eagerly creates a FluidStack during mod construction")
+    energy_client = PLATFORM / "buildcraft/energy/BCEnergyClientProxy.java"
+    require(
+        energy_client,
+        "public static void registerFluidModels(RegisterFluidModelsEvent event)",
+        "new FluidModel.Unbaked(",
+        "FluidTintSources.constant(type.getFluidTintColor())",
+        "event.register(model, source, source.getFlowing())",
+    )
+    energy_client_text = energy_client.read_text(encoding="utf-8")
+    if "RegisterFluidModelsEvent" not in energy_client_text:
+        fail("BuildCraft fluids are not registered in the 26.1 FluidStateModelSet")
+
     energy_recipes = ROOT / "source-families/1.21.X/src/main/java/buildcraft/energy/BCEnergyRecipes.java"
     require(
         energy_recipes,
@@ -154,12 +166,28 @@ def main() -> int:
     silicon_text = silicon.read_text(encoding="utf-8")
     common_start = silicon_text.index("public static void commonSetup")
     post_start = silicon_text.index("public static void postInit")
+    level_start = silicon_text.index("private static void onLevelLoad")
     common_body = silicon_text[common_start:post_start]
-    post_body = silicon_text[post_start:]
-    if "FacadeStateManager.init();" in common_body:
-        fail("facade discovery creates ItemStacks during common setup")
-    if "FacadeStateManager.init();" not in post_body:
-        fail("facade discovery is not deferred until load complete")
+    post_body = silicon_text[post_start:level_start]
+    level_body = silicon_text[level_start:]
+    if "FacadeStateManager.init();" in common_body or "FacadeStateManager.init();" in post_body:
+        fail("facade discovery creates ItemStacks before a world is loaded")
+    for fragment in (
+        "NeoForge.EVENT_BUS.addListener(BCSilicon::onLevelLoad)",
+        "private static void onLevelLoad(LevelEvent.Load event)",
+        "FacadeStateManager.init();",
+    ):
+        if fragment not in silicon_text:
+            fail(f"26.1 facade world-load initialization is missing: {fragment}")
+    if "FacadeStateManager.init();" not in level_body:
+        fail("facade discovery is not tied to world load")
+    facade_manager = PLATFORM / "buildcraft/silicon/plug/FacadeStateManager.java"
+    require(
+        facade_manager,
+        "private static volatile boolean initialized;",
+        "synchronized (FacadeStateManager.class)",
+        "public static boolean isInitialized()",
+    )
     for creative_tabs in (
         FAMILY / "buildcraft/lib/CreativeTabManager.java",
         PLATFORM / "buildcraft/lib/CreativeTabManager.java",
@@ -177,6 +205,46 @@ def main() -> int:
             fail("creative-tab item selection eagerly creates an ItemStack during common setup")
         if "setItemStack(name, item.getDefaultInstance())" in creative_tab_text:
             fail("named creative-tab item selection eagerly creates an ItemStack during common setup")
+    pipe_recipe = FAMILY / "buildcraft/transport/recipe/PipeRecipe.java"
+    pipe_recipe_text = pipe_recipe.read_text(encoding="utf-8")
+    require(
+        pipe_recipe,
+        "private static final Codec<Result> RESULT_CODEC",
+        "private record Result(Item item, int count)",
+        "new ItemStackTemplate(item, count)",
+    )
+    if "Codec<ItemStack> RESULT_CODEC" in pipe_recipe_text or "PipeRecipe::resultStack" in pipe_recipe_text:
+        fail("pipe recipe codec creates ItemStacks while recipes are decoded")
+
+    for assembly_recipe in (
+        FAMILY / "buildcraft/lib/recipe/AssemblyRecipe.java",
+        PLATFORM / "buildcraft/lib/recipe/AssemblyRecipe.java",
+    ):
+        assembly_text = assembly_recipe.read_text(encoding="utf-8")
+        require(assembly_recipe, "Codec<LegacyResult> LEGACY_RESULT_CODEC", "private record LegacyResult")
+        if "Codec<ItemStack> LEGACY_RESULT_CODEC" in assembly_text or "AssemblyRecipe::legacyStack" in assembly_text:
+            fail(f"assembly recipe codec creates ItemStacks while recipes are decoded: {assembly_recipe.relative_to(ROOT)}")
+
+    for strict_nbt in (
+        FAMILY / "buildcraft/lib/recipe/LegacyStrictNbtIngredient.java",
+        PLATFORM / "buildcraft/lib/recipe/LegacyStrictNbtIngredient.java",
+    ):
+        require(strict_nbt, "private volatile ItemStack displayStack;", "private ItemStack displayStack()")
+        constructor = strict_nbt.read_text(encoding="utf-8").split("private LegacyStrictNbtIngredient", 1)[1].split("private ItemStack displayStack()", 1)[0]
+        if "new ItemStack(" in constructor:
+            fail(f"strict-NBT ingredient eagerly creates an ItemStack during recipe decode: {strict_nbt.relative_to(ROOT)}")
+
+    gate_recipe = FAMILY / "buildcraft/silicon/recipe/GateLogicChangeRecipe.java"
+    require(
+        gate_recipe,
+        "private static final GateLogicChangeRecipe INSTANCE = new GateLogicChangeRecipe();",
+        "MapCodec.unit(INSTANCE)",
+        "StreamCodec.unit(INSTANCE)",
+    )
+    gate_recipe_text = gate_recipe.read_text(encoding="utf-8")
+    if "MapCodec.unit(new GateLogicChangeRecipe())" in gate_recipe_text or "StreamCodec.unit(new GateLogicChangeRecipe())" in gate_recipe_text:
+        fail("gate logic recipe JSON and network codecs use different unit instances")
+
     require(PLATFORM / "buildcraft/transport/client/model/ModelPipeNative2612.java", "BlockStateModelPart")
     require(PLATFORM / "buildcraft/silicon/client/model/NativePluggableItemModels2612.java", "NativeItemModelBuilder")
     require(FAMILY / "buildcraft/core/marker/VolumeSubCache.java", "SavedDataCompat.migrateLegacyFlatFile")

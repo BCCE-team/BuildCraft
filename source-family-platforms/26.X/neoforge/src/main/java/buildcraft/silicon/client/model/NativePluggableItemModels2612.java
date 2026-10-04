@@ -73,8 +73,10 @@ public final class NativePluggableItemModels2612 {
     }
 
     private static ItemModel itemLayer(List<MutableQuad> quads, ItemTransforms transforms, boolean translucent) {
+        // Plug items use gui_light = front in their vanilla json models; keep the native 26.1.2 path
+        // consistent so they do not render noticeably darker than the legacy baked-model version.
         return NativeItemModelBuilder.layer(quads, transforms,
-            translucent ? Sheets.translucentBlockItemSheet() : Sheets.cutoutBlockItemSheet(), true);
+            translucent ? Sheets.translucentBlockItemSheet() : Sheets.cutoutBlockItemSheet(), false);
     }
 
     private static ItemModel composite(List<MutableQuad> cutout, List<MutableQuad> translucent, ItemTransforms transforms) {

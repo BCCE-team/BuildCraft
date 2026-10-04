@@ -47,6 +47,8 @@ import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.config.ModConfig.Type;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.level.LevelEvent;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import buildcraft.lib.internal.capabilities.BCCapabilityRegistration;
@@ -74,6 +76,7 @@ public class BCSilicon {
     public BCSilicon(IEventBus modEventBus, ModContainer modContainer) {
         modEventBus.addListener(BCSilicon::commonSetup);
         modEventBus.addListener(BCSilicon::postInit);
+        NeoForge.EVENT_BUS.addListener(BCSilicon::onLevelLoad);
         modEventBus.addListener(BCSilicon::registerCapabilities);
         ConfigBinding.listen(modEventBus, BCSiliconConfig::onLoadConfig, BCSiliconConfig::onReloadConfig);
 
@@ -150,18 +153,22 @@ public class BCSilicon {
 
     public static void postInit(FMLLoadCompleteEvent event) {
         event.enqueueWork(() -> {
-            FacadeStateManager.init();
-            if (BCSiliconConfig.enableFacades && BCSiliconItems.PLUG_FACADE_ITEM.isBound()) {
-                FacadeBlockStateInfo state = FacadeStateManager.previewState;
-                if (state != null) {
-                    FacadeInstance instance = FacadeInstance.createSingle(state, false);
-                    tabFacades.setItem(BCSiliconItems.PLUG_FACADE_ITEM.get().createItemStack(instance));
-                }
-            }
             if (!BCModules.TRANSPORT.isLoaded() && BCSiliconItems.PLUG_GATE_ITEM.isBound()) {
                 tabPlugs.setItem(BCSiliconItems.PLUG_GATE_ITEM.get());
             }
         });
+    }
+
+    private static void onLevelLoad(LevelEvent.Load event) {
+        if (!BCSiliconConfig.enableFacades || !BCSiliconItems.PLUG_FACADE_ITEM.isBound()) {
+            return;
+        }
+        FacadeStateManager.init();
+        FacadeBlockStateInfo state = FacadeStateManager.previewState;
+        if (state != null && state != FacadeStateManager.defaultState) {
+            FacadeInstance instance = FacadeInstance.createSingle(state, false);
+            tabFacades.setItem(BCSiliconItems.PLUG_FACADE_ITEM.get().createItemStack(instance));
+        }
     }
 
 

@@ -81,6 +81,7 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
     public static final SortedMap<BlockState, FacadeBlockStateInfo> validFacadeStates;
     public static final Map<ItemStackKey, List<FacadeBlockStateInfo>> stackFacades;
     public static FacadeBlockStateInfo defaultState, previewState;
+    private static volatile boolean initialized;
 
     private static final AtomicLong NEXT_RULE_ID = new AtomicLong();
 
@@ -92,6 +93,8 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
     static {
         validFacadeStates = new TreeMap<>(BlockUtil.blockStateComparator());
         stackFacades = new HashMap<>();
+        defaultState = new FacadeBlockStateInfo(Blocks.AIR.defaultBlockState(), StackUtil.EMPTY, ImmutableSet.of());
+        previewState = defaultState;
     }
 
     public static FacadeBlockStateInfo getInfoForBlock(Block block) {
@@ -284,13 +287,28 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
     }
 
     public static void init() {
-        defaultState = new FacadeBlockStateInfo(Blocks.AIR.defaultBlockState(), StackUtil.EMPTY, ImmutableSet.of());
-
-        for (Block block : BuiltInRegistries.BLOCK) {
-            scanBlock(block);
+        if (initialized) {
+            return;
         }
+        synchronized (FacadeStateManager.class) {
+            if (initialized) {
+                return;
+            }
+            validFacadeStates.clear();
+            stackFacades.clear();
+            previewState = defaultState;
 
-        previewState = validFacadeStates.getOrDefault(Blocks.BRICKS.defaultBlockState(), defaultState);
+            for (Block block : BuiltInRegistries.BLOCK) {
+                scanBlock(block);
+            }
+
+            previewState = validFacadeStates.getOrDefault(Blocks.BRICKS.defaultBlockState(), defaultState);
+            initialized = true;
+        }
+    }
+
+    public static boolean isInitialized() {
+        return initialized;
     }
 
     private static void scanBlock(Block block) {
