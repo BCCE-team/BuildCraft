@@ -139,6 +139,27 @@ def main() -> int:
         if fragment not in generated:
             fail(f"vanilla container fallback is missing: {fragment}")
 
+    wrench = ROOT / "source-families/1.21.X/src/main/java/buildcraft/core/item/ItemWrench.java"
+    require(
+        wrench,
+        "//? if mc_26_x {",
+        "return false;",
+        "level.isClientSide() && level.getBlockEntity(pos) instanceof TileEngineBase_BC8",
+    )
+
+    engine_item = FAMILY / "buildcraft/lib/item/MultiBlockItem.java"
+    require(
+        engine_item,
+        "Direction preferredDirection = context.getClickedFace().getOpposite();",
+        "engine.preferDirectionOnPlacement(preferredDirection);",
+    )
+    engine_tile = FAMILY / "buildcraft/lib/engine/TileEngineBase_BC8.java"
+    require(
+        engine_tile,
+        "public void preferDirectionOnPlacement(Direction preferredDirection)",
+        "!isFacingReceiver(preferredDirection)",
+    )
+
     require(
         FAMILY / "buildcraft/api/v2/recipe/CountedIngredient.java",
         "ItemStack.isSameItemSameComponents",
@@ -257,7 +278,41 @@ def main() -> int:
         fail("gate logic recipe JSON and network codecs use different unit instances")
 
     require(PLATFORM / "buildcraft/transport/client/model/ModelPipeNative2612.java", "BlockStateModelPart")
+    pipe_native = PLATFORM / "buildcraft/transport/client/model/ModelPipeNative2612.java"
+    require(pipe_native, "material(sprite, translucentLayer, quad.getTint(), quad.isShade(), lightEmission(quad))")
+    pipe_colours = FAMILY / "buildcraft/transport/BCTransportModels.java"
+    if "event.register(PipeBlockColours.INSTANCE" in pipe_colours.read_text(encoding="utf-8"):
+        fail("26.1 pipe block still registers a fixed tint-source list instead of dynamic facade tints")
+    require(
+        PLATFORM / "buildcraft/transport/block/BlockPipeHolderClientExtensions2612.java",
+        "collectDynamicTintValues",
+        "blockColors.getTintSources(sourceState)",
+        "source.colorInWorld(sourceState, level, pos)",
+        "blockTintIndex * Direction.values().length + side.ordinal()",
+    )
+    require(
+        PLATFORM / "buildcraft/silicon/plug/PluggableFacade.java",
+        "tintSource.colorInWorld(state.stateInfo.state, holder.getPipeWorld(), holder.getPipePos())",
+    )
     require(PLATFORM / "buildcraft/silicon/client/model/NativePluggableItemModels2612.java", "NativeItemModelBuilder")
+    native_plugs = (PLATFORM / "buildcraft/silicon/client/model/NativePluggableItemModels2612.java").read_text(encoding="utf-8")
+    for forbidden in ("PLUG_LIGHT_SENSOR_ITEM", "PLUG_TIMER_ITEM"):
+        if forbidden in native_plugs:
+            fail(f"26.1 native plug model still eagerly overrides {forbidden}")
+    for required in (
+        "new PulsarItemModel()",
+        "PluggablePulsar.setModelVariablesForItem();",
+        "ModelItemSimple.TRANSFORM_PLUG_AS_ITEM",
+    ):
+        if required not in native_plugs:
+            fail(f"26.1 pulsar item lazy model is missing {required!r}")
+    require(
+        ROOT / "source-families/1.21.X/src/main/java/buildcraft/factory/block/BlockTube.java",
+        "protected BlockState updateShape",
+        "direction == Direction.DOWN",
+        "notifyPumpOfShaftChange",
+        "pump.neighbourBlockChanged",
+    )
     require(FAMILY / "buildcraft/core/marker/VolumeSubCache.java", "SavedDataCompat.migrateLegacyFlatFile")
     require(FAMILY / "buildcraft/core/marker/volume/WorldSavedDataVolumeBoxes.java", "SavedDataCompat.migrateLegacyFlatFile")
     require(FAMILY / "buildcraft/transport/wire/WorldSavedDataWireSystems.java", "SavedDataCompat.migrateLegacyFlatFile")

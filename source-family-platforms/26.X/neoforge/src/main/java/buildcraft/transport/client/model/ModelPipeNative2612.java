@@ -215,7 +215,7 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
                     UVPair.pack(quad.vertex_2.tex_u, quad.vertex_2.tex_v),
                     UVPair.pack(quad.vertex_3.tex_u, quad.vertex_3.tex_v),
                     face,
-                    material(sprite, translucentLayer, -1, quad.isShade(), lightEmission(quad)),
+                    material(sprite, translucentLayer, quad.getTint(), quad.isShade(), lightEmission(quad)),
                     BakedNormals.of(
                         BakedNormals.pack(quad.vertex_0.normal_x, quad.vertex_0.normal_y, quad.vertex_0.normal_z),
                         BakedNormals.pack(quad.vertex_1.normal_x, quad.vertex_1.normal_y, quad.vertex_1.normal_z),

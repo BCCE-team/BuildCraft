@@ -20,7 +20,6 @@ import buildcraft.lib.expression.DefaultContexts;
 import buildcraft.lib.expression.FunctionContext;
 import buildcraft.lib.expression.node.value.NodeVariableObject;
 import buildcraft.lib.misc.ExpressionCompat;
-import buildcraft.transport.client.PipeBlockColours;
 import buildcraft.transport.client.model.ModelPipeItem;
 import buildcraft.transport.internal.pipe.IItemPipe;
 import buildcraft.transport.client.model.PipeModelCachePluggable;
@@ -109,7 +108,9 @@ public class BCTransportModels {
     }
     
     public static void onBlockColor(ClientRegistration.BlockColours event) {
-    	event.register(PipeBlockColours.INSTANCE, BCTransportBlocks.pipeHolder.get());
+        // 26.1 block tint sources are positional list entries. Pipe facades need a variable number of entries
+        // because their source block model owns the tint layers. BlockPipeHolderClientExtensions2612 supplies
+        // those values dynamically from the facade block at the real pipe position.
     }
     
 	public static void onModelBakePre(ClientModelBaking.Additional event) {

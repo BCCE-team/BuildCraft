@@ -5,12 +5,18 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import buildcraft.lib.compat.RegistryCompat;
+import buildcraft.lib.engine.TileEngineBase_BC8;
 
 public class MultiBlockItem<E extends Enum<E> & StringRepresentable> extends BlockItem implements ICreativeTabItemProvider {
 
@@ -25,6 +31,24 @@ public class MultiBlockItem<E extends Enum<E> & StringRepresentable> extends Blo
 
 	public void addCreativeTabItems(Consumer<ItemStack> output) {
 		output.accept(getDefaultInstance());
+	}
+
+	@Override
+	public InteractionResult place(BlockPlaceContext context) {
+		BlockPos placementPos = context.getClickedPos();
+		Direction preferredDirection = context.getClickedFace().getOpposite();
+		InteractionResult result = super.place(context);
+
+		// The clicked face identifies the receiver the player intentionally placed the engine against.
+		// Apply it after vanilla placement, on the authoritative server, and fall back to the normal scan
+		// when that side is not a valid receiver.
+		if (result.consumesAction() && !context.getLevel().isClientSide()) {
+			BlockEntity blockEntity = context.getLevel().getBlockEntity(placementPos);
+			if (blockEntity instanceof TileEngineBase_BC8 engine) {
+				engine.preferDirectionOnPlacement(preferredDirection);
+			}
+		}
+		return result;
 	}
 
 

@@ -24,6 +24,7 @@ import buildcraft.silicon.item.ItemPluggableLens.LensData;
 import buildcraft.silicon.plug.FacadeInstance;
 import buildcraft.silicon.plug.FacadePhasedState;
 import buildcraft.silicon.plug.PluggableFacade;
+import buildcraft.silicon.plug.PluggablePulsar;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.item.CompositeModel;
@@ -59,13 +60,11 @@ public final class NativePluggableItemModels2612 {
         put(event, BCSiliconItems.PLUG_GATE_ITEM.get(), new GateItemModel());
         put(event, BCSiliconItems.PLUG_LENS_ITEM.get(), new LensItemModel());
         put(event, BCSiliconItems.PLUG_FACADE_ITEM.get(), new FacadeItemModel());
-        put(event, BCSiliconItems.PLUG_PULSAR_ITEM.get(), new StaticPlugItemModel(
-            BCSiliconModels.PULSAR_STATIC.getCutoutQuads(), BCSiliconModels.PULSAR_DYNAMIC.getCutoutQuads(),
-            ModelItemSimple.TRANSFORM_PLUG_AS_ITEM_BIGGER));
-        put(event, BCSiliconItems.PLUG_LIGHT_SENSOR_ITEM.get(), new StaticPlugItemModel(
-            BCSiliconModels.LIGHT_SENSOR.getCutoutQuads(), new MutableQuad[0], ModelItemSimple.TRANSFORM_PLUG_AS_ITEM));
-        put(event, BCSiliconItems.PLUG_TIMER_ITEM.get(), new StaticPlugItemModel(
-            BCSiliconModels.TIMER.getCutoutQuads(), new MutableQuad[0], ModelItemSimple.TRANSFORM_PLUG_AS_ITEM));
+        // Pulsar geometry is jsonbc-backed and becomes available only after the model holders finish baking.
+        // Bake lazily on first item render so the inventory model cannot freeze as an empty quad set during reload.
+        put(event, BCSiliconItems.PLUG_PULSAR_ITEM.get(), new PulsarItemModel());
+        // Timer and Light Sensor are ordinary static JSON item models. Do not replace them with eagerly captured
+        // jsonbc quads: on 26.1 that happens before the holders are populated and produces an invisible item.
     }
 
     private static void put(ClientModelBaking.Models event, net.minecraft.world.item.Item item, ItemModel model) {
@@ -134,6 +133,30 @@ public final class NativePluggableItemModels2612 {
             ? BCSiliconModels.getFilterTranslucentQuads(side, data.colour)
             : BCSiliconModels.getLensTranslucentQuads(side, data.colour);
         return composite(copy(cutout), copy(translucent), ModelItemSimple.TRANSFORM_PLUG_AS_ITEM);
+    }
+
+    private static final class PulsarItemModel extends DynamicItemModel {
+        private volatile ItemModel cached;
+
+        @Override
+        ItemModel model(ItemStack stack) {
+            ItemModel model = cached;
+            if (model == null) {
+                synchronized (this) {
+                    model = cached;
+                    if (model == null) {
+                        PluggablePulsar.setModelVariablesForItem();
+                        model = composite(
+                            copy(BCSiliconModels.PULSAR_STATIC.getCutoutQuads()),
+                            copy(BCSiliconModels.PULSAR_DYNAMIC.getCutoutQuads()),
+                            ModelItemSimple.TRANSFORM_PLUG_AS_ITEM
+                        );
+                        cached = model;
+                    }
+                }
+            }
+            return model;
+        }
     }
 
     private static final class FacadeItemModel extends DynamicItemModel {

@@ -12,10 +12,13 @@ import buildcraft.factory.tile.TilePump;
 import buildcraft.lib.block.BlockBCBase_Neptune;
 import buildcraft.lib.misc.BlockUtil;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -59,6 +62,33 @@ public class BlockTube extends BlockBCBase_Neptune {
 			CollisionContext context) {
 		return BOUNDING_BOX;
 	}
+
+    @Override
+    protected BlockState updateShape(BlockState state, LevelReader world, ScheduledTickAccess scheduledTickAccess,
+            BlockPos pos, Direction direction, BlockPos neighbourPos, BlockState neighbourState, RandomSource random) {
+        // 1.21.11+ no longer routes the old BlockPos-based neighborChanged callback for this block.
+        // A change directly below the pump shaft must invalidate the pump scan queue immediately, including
+        // fluid removal/replacement, otherwise the pump can continue working from stale queue state until fallback.
+        if (direction == Direction.DOWN && world instanceof Level level && !level.isClientSide()) {
+            notifyPumpOfShaftChange(level, pos, neighbourPos);
+        }
+        return super.updateShape(state, world, scheduledTickAccess, pos, direction, neighbourPos, neighbourState, random);
+    }
+
+    private void notifyPumpOfShaftChange(Level level, BlockPos pos, BlockPos fromPos) {
+        BlockPos currentPos = pos.above();
+        while (currentPos.getY() < LevelCompat.getMaxBuildHeight(level)) {
+            BlockEntity blockEntity = level.getBlockEntity(currentPos);
+            if (blockEntity instanceof TilePump pump) {
+                pump.neighbourBlockChanged(level.getBlockState(currentPos), fromPos, true);
+                return;
+            }
+            if (blockEntity instanceof TileMiner || level.getBlockState(currentPos).getBlock() != this) {
+                return;
+            }
+            currentPos = currentPos.above();
+        }
+    }
 
     public void neighborChanged(BlockState state, Level level, BlockPos pos, Block block,
             BlockPos fromPos, boolean moving) {

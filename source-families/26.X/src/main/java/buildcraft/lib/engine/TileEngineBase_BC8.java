@@ -162,10 +162,6 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         syncRenderProgressFromProgress();
         if (level != null && level.isClientSide()) {
             refreshEngineModelData();
-        } else if (level != null) {
-            // Revalidate the output after chunk load. The target capability can be restored after the engine NBT,
-            // and relying solely on a later neighbour event leaves an engine permanently aimed at an absent endpoint.
-            rotateIfInvalid();
         }
     }
 
@@ -304,6 +300,28 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return InteractionResult.FAIL;
     }
 
+    /**
+     * Prefer the receiver on the face the engine was placed against. If that face cannot receive power then the
+     * direction already selected by the normal placement scan is preserved.
+     */
+    public void preferDirectionOnPlacement(Direction preferredDirection) {
+        if (preferredDirection == null || preferredDirection == currentDirection || !isFacingReceiver(preferredDirection)) {
+            return;
+        }
+        Direction previousDirection = currentDirection;
+        currentDirection = preferredDirection;
+        level.invalidateCapabilities(worldPosition);
+        sendNetworkUpdate(NET_RENDER_DATA);
+        redrawBlock();
+        markChunkDirty();
+        capturePersistedState();
+        Block sourceBlock = getBlockState().getBlock();
+        if (previousDirection != null && previousDirection != preferredDirection) {
+            level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, null);
+        }
+        level.neighborChanged(worldPosition.relative(preferredDirection), sourceBlock, null);
+    }
+
     protected boolean isFacingReceiver(Direction dir) {
         return getPortToPower(dir) != null;
     }
@@ -420,11 +438,6 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     public void neighbourBlockChanged(BlockState state, BlockPos nehighbour, boolean a) {
     	super.onNeighbourBlockChanged(state, nehighbour);
         isRedstonePowered = level.hasNeighborSignal(worldPosition);
-        if (!level.isClientSide()) {
-            // Target blocks may be placed/removed after the engine. Re-evaluate immediately instead of keeping the
-            // direction chosen when the engine itself was first placed.
-            rotateIfInvalid();
-        }
     }
 
     public void update() {

@@ -123,33 +123,6 @@ public class ScreenReplacer extends GuiBC8<MenuReplacer> {
         }
     }
 
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (mainGui.onMouseClicked(mouseX, mouseY, button)) {
-            return true;
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        mainGui.onMouseReleased(mouseX, mouseY, button);
-        return super.mouseReleased(mouseX, mouseY, button);
-    }
-
-    @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        mainGui.onMouseDragged(mouseX, mouseY, button, dragX, dragY);
-        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
-    }
-
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (mainGui.onKeyTyped(modifiers, RenderCompat.inputKey(keyCode, scanCode))) {
-            return true;
-        }
-        return super.keyPressed(keyCode, scanCode, modifiers);
-    }
 
     private void renderBlueprintPreview(GuiGraphicsExtractor guiGraphics) {
         Snapshot snapshot = getInsertedSnapshot();

@@ -94,7 +94,11 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
     }
 
     protected BlockState updateShape(BlockState state, LevelReader world, ScheduledTickAccess scheduledTickAccess, BlockPos pos, Direction direction, BlockPos neighbourPos, BlockState neighbourState, RandomSource random) {
-        return withActualState(state, world, pos);
+        // Preserve the BlockBCTile_Neptune neighbour bridge before recalculating the visual state. In modern
+        // Minecraft this updateShape path is the reliable callback used to invalidate TileHeatExchange topology.
+        // Skipping super left START/END tiles linked through a block that had already been removed.
+        BlockState updated = super.updateShape(state, world, scheduledTickAccess, pos, direction, neighbourPos, neighbourState, random);
+        return withActualState(updated, world, pos);
     }
 
     @Override

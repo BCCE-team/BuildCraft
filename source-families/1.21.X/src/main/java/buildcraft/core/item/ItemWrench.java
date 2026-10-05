@@ -32,9 +32,15 @@ public class ItemWrench extends Item implements IToolWrench {
     @Override
     public boolean doesSneakBypassUse(ItemStack stack, net.minecraft.world.level.LevelReader world,
             BlockPos pos, Player player) {
-        // Let the targeted block handle shift-right-click first. This is required for
-        // pipe pluggables such as robot stations to receive the interaction.
+        //? if mc_26_x {
+        // NeoForge 26.x only runs the block interaction phase when this returns false.
+        // Keep that phase enabled so shift-right-click reaches pipe pluggables, then lets
+        // Item#useOn handle the wrench when the block returns PASS (for example engines).
+        return false;
+        //?} else {
+        // Older targets use the historical Forge/NeoForge sneak-bypass contract.
         return true;
+        //?}
     }
 
     @Override
@@ -51,6 +57,15 @@ public class ItemWrench extends Item implements IToolWrench {
             && engine.getPowerStage() == EnumPowerStage.OVERHEAT) {
             AdvancementUtil.unlockAdvancement(player, ADVANCEMENT_TOO_MUCH_POWER);
         }
+
+        //? if mc_26_x {
+        // Engine receiver discovery is capability-backed on 26.x. Do not run that lookup on the
+        // prediction client: a client-only FAIL can swallow the shift-wrench interaction before
+        // the authoritative server gets a chance to rotate the engine.
+        if (level.isClientSide() && level.getBlockEntity(pos) instanceof TileEngineBase_BC8) {
+            return InteractionResult.SUCCESS;
+        }
+        //?}
 
         InteractionResult result = BlockInteractionRuntime.rotate(level, pos, state, side, player);
         if (result == InteractionResult.SUCCESS && player != null) {

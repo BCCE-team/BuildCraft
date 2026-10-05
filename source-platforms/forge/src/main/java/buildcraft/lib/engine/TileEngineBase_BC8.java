@@ -311,6 +311,27 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return InteractionResult.FAIL;
     }
 
+    /**
+     * Prefer the receiver on the face the engine was placed against. If that face cannot receive power then the
+     * direction already selected by the normal placement scan is preserved.
+     */
+    public void preferDirectionOnPlacement(Direction preferredDirection) {
+        if (preferredDirection == null || preferredDirection == currentDirection || !isFacingReceiver(preferredDirection)) {
+            return;
+        }
+        Direction previousDirection = currentDirection;
+        currentDirection = preferredDirection;
+        sendNetworkUpdate(NET_RENDER_DATA);
+        redrawBlock();
+        markChunkDirty();
+        capturePersistedState();
+        Block sourceBlock = getBlockState().getBlock();
+        if (previousDirection != null && previousDirection != preferredDirection) {
+            level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, worldPosition);
+        }
+        level.neighborChanged(worldPosition.relative(preferredDirection), sourceBlock, worldPosition);
+    }
+
     protected boolean isFacingReceiver(Direction dir) {
         return getPortToPower(dir) != null;
     }

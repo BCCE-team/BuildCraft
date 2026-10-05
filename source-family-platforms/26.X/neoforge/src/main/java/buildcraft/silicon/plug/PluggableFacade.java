@@ -255,7 +255,10 @@ public class PluggableFacade extends PipePluggable {
         FacadePhasedState state = states.phasedStates[activeState];
         BlockColors colours = Minecraft.getInstance().getBlockColors();
         BlockTintSource tintSource = colours.getTintSource(state.stateInfo.state, tintIndex);
-        return tintSource.color(state.stateInfo.state);
+        if (tintSource == null) {
+            return -1;
+        }
+        return tintSource.colorInWorld(state.stateInfo.state, holder.getPipeWorld(), holder.getPipePos());
     }
 
     public FacadeType getType() {

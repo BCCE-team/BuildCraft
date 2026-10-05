@@ -56,17 +56,15 @@ public class BCBuildersSchematics {
             @Nonnull
             @Override
             public List<ItemStack> computeRequiredItems(Level level) {
-            	ItemStack itemstack = BuiltInRegistries.ITEM.get(Identifier.withDefaultNamespace(
-                    DyeColor.byId(tileNbt.getInt("Base")).getName() + "_banner"))
-                    .map(ItemStack::new)
-                    .orElseGet(() -> new ItemStack(Items.WHITE_BANNER));
-            	ListTag pattern = tileNbt.getList("Patterns", 10);
-            	if (pattern != null && !pattern.isEmpty()) {
-                    CompoundTag compoundtag = new CompoundTag();
-                    compoundtag.put("Patterns", pattern);
-                    BlockItem.setBlockEntityData(itemstack, BlockEntityType.BANNER, compoundtag);
-            	}
-                return Collections.singletonList(itemstack);
+                net.minecraft.world.level.block.entity.BlockEntity loaded =
+                    net.minecraft.world.level.block.entity.BlockEntity.loadStatic(
+                        BlockPos.ZERO, blockState, tileNbt, level.registryAccess()
+                    );
+                if (loaded instanceof net.minecraft.world.level.block.entity.BannerBlockEntity banner) {
+                    // 26.1 stores banner patterns as data components; use the canonical component-aware item.
+                    return Collections.singletonList(banner.getItem());
+                }
+                return Collections.singletonList(new ItemStack(blockState.getBlock().asItem()));
             }
         };
     }

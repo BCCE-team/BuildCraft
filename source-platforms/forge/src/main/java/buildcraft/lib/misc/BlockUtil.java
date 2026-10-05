@@ -511,8 +511,9 @@ public final class BlockUtil {
             return null;
         }
 
-        ChestType type = chest.getBlockState().getValue(BlockStateProperties.CHEST_TYPE);
-        return type == ChestType.RIGHT ? new CompoundContainer(other, chest) : new CompoundContainer(chest, other);
+        // Automation is spatial, not GUI-ordered: visit the physically contacted half first.
+        // The partner remains available as overflow, preserving the full 54-slot double-chest inventory.
+        return new CompoundContainer(chest, other);
     }
 
     public static <T extends Comparable<T>> BlockState copyProperty(Property<T> property, BlockState dst,

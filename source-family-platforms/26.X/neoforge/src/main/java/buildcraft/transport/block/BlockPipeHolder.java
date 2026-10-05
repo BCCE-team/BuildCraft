@@ -157,7 +157,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
     }
 
     public void initializeClient(Consumer<IClientBlockExtensions> consumer) {
-        consumer.accept(BlockPipeHolderClientExtensions.INSTANCE);
+        consumer.accept(BlockPipeHolderClientExtensions2612.INSTANCE);
     }
 
 	// ticks
