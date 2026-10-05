@@ -89,28 +89,35 @@ def _minecraft_model_client_item(model: str) -> str:
     }, indent=2, ensure_ascii=False) + "\n"
 
 
-def _dynamic_fluid_bucket_client_item_121111(fluid: str) -> str:
+def _dynamic_fluid_bucket_client_item_121111(fluid: str, *, minecraft: str) -> str:
     # Minecraft 1.21.11 moved dynamic item-model selection into assets/<ns>/items.
     # NeoForge 21.11.x requires an explicit fallback `fluid` in the
     # DynamicFluidContainerModel codec (fieldOf("fluid")); omitting it makes
     # the entire client item fail to decode and render as missingno. BucketItem
     # still exposes its contained fluid at runtime, but the static fluid id is
     # mandatory and is also the correct fallback for an empty capability view.
-    return json.dumps({
-        "model": {
-            "type": "neoforge:fluid_container",
-            "textures": {
-                "particle": "minecraft:item/bucket",
-                "base": "minecraft:item/bucket",
-                "fluid": "neoforge:item/mask/bucket_fluid",
-                "cover": "neoforge:item/mask/bucket_fluid_cover",
-            },
-            "fluid": fluid,
-            "flip_gas": True,
-            "cover_is_mask": True,
-            "apply_fluid_luminosity": False,
-        },
-    }, indent=2, ensure_ascii=False) + "\n"
+    #
+    # NeoForge 26.1.2's cover-mask pass extrudes the inverse bucket mask and can
+    # leave grey side-face fragments around the bucket in GUI item rendering.
+    # The fluid mask already limits the liquid to the bucket opening, so the
+    # extra cover pass is unnecessary there. Keep the 1.21.11 definition
+    # unchanged and omit only the cover layer on 26.1.2.
+    textures = {
+        "particle": "minecraft:item/bucket",
+        "base": "minecraft:item/bucket",
+        "fluid": "neoforge:item/mask/bucket_fluid",
+    }
+    model = {
+        "type": "neoforge:fluid_container",
+        "textures": textures,
+        "fluid": fluid,
+        "flip_gas": True,
+        "apply_fluid_luminosity": False,
+    }
+    if _version_tuple(minecraft) != _version_tuple("26.1.2"):
+        textures["cover"] = "neoforge:item/mask/bucket_fluid_cover"
+        model["cover_is_mask"] = True
+    return json.dumps({"model": model}, indent=2, ensure_ascii=False) + "\n"
 
 
 def _buildcraftenergy_bucket_fluid_id_121111(item_path: str) -> str | None:
@@ -212,14 +219,14 @@ def _is_121111_buildcraftenergy_bucket_item_model(normalized: str) -> bool:
     return _buildcraftenergy_bucket_item_path_121111(normalized, "/assets/buildcraftenergy/models/item/") is not None
 
 
-def _buildcraftenergy_bucket_client_item_121111(normalized: str) -> str:
+def _buildcraftenergy_bucket_client_item_121111(normalized: str, *, minecraft: str) -> str:
     item_path = _buildcraftenergy_bucket_item_path_121111(normalized, "/assets/buildcraftenergy/items/")
     if item_path is None:
         return normalized
     fluid = _buildcraftenergy_bucket_fluid_id_121111(item_path)
     if fluid is None:
         return normalized
-    return _dynamic_fluid_bucket_client_item_121111(fluid)
+    return _dynamic_fluid_bucket_client_item_121111(fluid, minecraft=minecraft)
 
 
 def _buildcraftenergy_bucket_generated_model_121111(normalized: str) -> str:
@@ -291,7 +298,7 @@ def _apply_121111_resource_compat(text: str, *, minecraft: str, relative: str) -
         text = _rewrite_121111_recipe_json(text, normalized)
 
     if _is_121111_buildcraftenergy_bucket_client_item(normalized):
-        return _buildcraftenergy_bucket_client_item_121111(normalized)
+        return _buildcraftenergy_bucket_client_item_121111(normalized, minecraft=minecraft)
 
     if _is_121111_buildcraftenergy_bucket_item_model(normalized):
         return _buildcraftenergy_bucket_generated_model_121111(normalized)
@@ -365,7 +372,7 @@ def generate_modern_item_definitions(destination_root: Path, *, minecraft: str) 
                 else None
             )
             if fluid is not None:
-                content = _dynamic_fluid_bucket_client_item_121111(fluid)
+                content = _dynamic_fluid_bucket_client_item_121111(fluid, minecraft=minecraft)
             else:
                 content = _minecraft_model_client_item(f"{namespace}:item/{item_path}")
 

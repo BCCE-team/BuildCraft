@@ -210,6 +210,14 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         mainGui.drawElementBackgrounds(guiGraphics);
     }
 
+    @Override
+    protected void extractLabels(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
+        // 1.21.1 GuiBC8 intentionally replaced AbstractContainerScreen#renderLabels without calling super,
+        // so machine GUIs did not get the vanilla menu title / "Inventory" labels. In 26.1 that hook was
+        // renamed to extractLabels; keep the legacy BuildCraft hook reachable and preserve the same label set.
+        renderLabels(guiGraphics, mouseX, mouseY);
+    }
+
     protected void renderLabels(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
         activeGraphics = guiGraphics;
 

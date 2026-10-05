@@ -24,6 +24,7 @@ class ResourcePipeline(unittest.TestCase):
             "1.20.1-forge",
             "1.21.1-neoforge",
             "1.21.11-neoforge",
+            "26.1.2-neoforge",
         ):
             root = Path(cls.temp.name) / target
             materialize_target(target, root, cls.props)
@@ -95,6 +96,31 @@ class ResourcePipeline(unittest.TestCase):
             values = self.read_json(target, "data/c/tags/fluid/oil.json")["values"]
             self.assertIn("buildcraftenergy:spout_oil", values, target)
             self.assertIn("buildcraftenergy:spout_oil_flowing", values, target)
+
+
+    def test_2612_energy_buckets_skip_the_artifact_prone_cover_mask(self):
+        rel = "assets/buildcraftenergy/items/oil/cool_bucket.json"
+
+        old = self.read_json("1.21.11-neoforge", rel)["model"]
+        self.assertEqual("neoforge:item/mask/bucket_fluid_cover", old["textures"]["cover"])
+        self.assertTrue(old["cover_is_mask"])
+
+        new = self.read_json("26.1.2-neoforge", rel)["model"]
+        self.assertEqual("neoforge:fluid_container", new["type"])
+        self.assertEqual("minecraft:item/bucket", new["textures"]["base"])
+        self.assertEqual("neoforge:item/mask/bucket_fluid", new["textures"]["fluid"])
+        self.assertNotIn("cover", new["textures"])
+        self.assertNotIn("cover_is_mask", new)
+
+        bucket_root = self.roots["26.1.2-neoforge"] / "assets/buildcraftenergy/items"
+        dynamic_buckets = []
+        for path in sorted(bucket_root.rglob("*_bucket.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("model", {}).get("type") == "neoforge:fluid_container":
+                dynamic_buckets.append(path)
+                self.assertNotIn("cover", data["model"]["textures"], path.as_posix())
+                self.assertNotIn("cover_is_mask", data["model"], path.as_posix())
+        self.assertEqual(30, len(dynamic_buckets))
 
     def test_ic2_cell_models_are_generated_only_for_119(self):
         rel = Path("assets/buildcraftenergy/models/item/ic2_cell")

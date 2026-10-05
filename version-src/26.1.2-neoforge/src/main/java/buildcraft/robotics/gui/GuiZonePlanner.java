@@ -510,6 +510,13 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         drawForegroundLayer(guiGraphics, mouseX, mouseY);
     }
 
+    @Override
+    protected void extractLabels(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
+        // The Zone Planner artwork does not reserve space for the vanilla menu title or player-inventory label.
+        // Keep BuildCraft's foreground elements, but deliberately skip AbstractContainerScreen's labels.
+        renderLabels(guiGraphics, mouseX, mouseY);
+    }
+
     protected void drawBackgroundLayer(PoseStack pose, int mouseX, int mouseY, float partialTicks) {
         drawBackgroundLayer(getActiveGraphics(), mouseX, mouseY, partialTicks);
     }

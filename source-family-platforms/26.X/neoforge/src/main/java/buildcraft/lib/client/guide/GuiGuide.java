@@ -553,7 +553,8 @@ public final class GuiGuide extends Screen {
         }
     }
 
-    public void render(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
         hoveredStack = null;
         hoveredText = null;
         clickRegions.clear();

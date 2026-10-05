@@ -38,6 +38,9 @@ public class GuiFiller extends GuiBC8<ContainerFiller> {
     protected void preLoad(BuildCraftJsonGui json) {
         TypedKeyMap<String, Object> properties = json.properties;
         FunctionContext context = json.context;
+        // The 26.x Filler uses the sized BuildCraftJsonGui constructor instead of GuiBC8's
+        // JSON-specific constructor, so register the player inventory explicitly before load().
+        properties.put("player.inventory", new InventorySlotHolder(container, container.playerInventory));
         properties.put("filler.inventory", new InventorySlotHolder(container, container.getResources()));
         properties.put("statement.container", container.tile);
         properties.put("controllable", container.tile);
