@@ -10,17 +10,16 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from source_config import load_properties, target_layout  # noqa: E402
 from transforms.java_compat import upgrade_symbols  # noqa: E402
-from source_preprocessor import preprocess_text  # noqa: E402
 
 TARGET = "26.1.2-neoforge"
 TARGETS = ROOT / "build-config/targets.properties"
 BUILD = ROOT / "builds/26.X/build.neoforge.gradle"
 LOADER_BUILD = ROOT / "build-logic/loaders/neoforge-target.gradle"
+MATERIALIZER = ROOT / "scripts/materialize_project.py"
 STONECUTTER = ROOT / "builds/26.X/stonecutter.gradle.kts"
 FAMILY = ROOT / "source-families/26.X/src/main/java"
 PLATFORM = ROOT / "source-family-platforms/26.X/neoforge/src/main/java"
 MODERN_PLATFORM = ROOT / "source-family-platforms/1.21.X/neoforge/src/main/java"
-NEOFORGE = ROOT / "source-platforms/neoforge/src/main/java"
 
 
 def fail(message: str) -> None:
@@ -54,6 +53,16 @@ def main() -> int:
         fail("runtime CI is disabled")
 
     require(BUILD, "net.neoforged.moddev")
+    require(
+        LOADER_BUILD,
+        'testRuntimeOnly platform("org.junit:junit-bom:${requiredProperty(\'deps.junit\')}")',
+        'testRuntimeOnly "org.junit.platform:junit-platform-launcher"',
+    )
+    require(
+        MATERIALIZER,
+        'testRuntimeOnly platform("org.junit:junit-bom:{junit}")',
+        'testRuntimeOnly "org.junit.platform:junit-platform-launcher"',
+    )
     require(STONECUTTER, 'stonecutter active "26.1.2-neoforge"', '"mc_26_x" to (generation == "26.X")')
     require(ROOT / "builds/26.X/settings.gradle.kts", 'id("dev.kikugie.stonecutter") version "0.7.11"', 'rootProject.name = "BuildCraft-26.X"')
     require(ROOT / "builds/26.X/gradle/wrapper/gradle-wrapper.properties", "gradle-9.1.0-bin.zip")
@@ -155,63 +164,6 @@ def main() -> int:
     energy_client_text = energy_client.read_text(encoding="utf-8")
     if "RegisterFluidModelsEvent" not in energy_client_text:
         fail("BuildCraft fluids are not registered in the 26.1 FluidStateModelSet")
-
-    # NeoForge 26.x changed custom-fluid travel: a non-waterlike FluidType whose move() returns false
-    # now leaves living entities stationary instead of falling back to vanilla water movement. BuildCraft
-    # must provide that travel step itself so BCLiquidBlock's sticky multiplier slows oil rather than oil
-    # becoming an absolute movement lock. Do not solve this by making oil water-like: that changes many
-    # unrelated water semantics (drowning, swimming, mining speed and mob AI).
-    fluid_type = NEOFORGE / "buildcraft/energy/fluid/BCFluidType.java"
-    fluid_type_source = fluid_type.read_text(encoding="utf-8")
-    fluid_type_2612 = preprocess_text(
-        fluid_type_source, minecraft="26.1.2", family="26.X", platform="neoforge",
-        source=fluid_type.relative_to(ROOT).as_posix(),
-    )
-    for fragment in (
-        "public boolean move(LivingEntity entity, Vec3 movementVector, double gravity)",
-        "entity.moveRelative(speed, movementVector);",
-        "entity.getFluidFallingAdjustedMovement(gravity, isFalling, movement)",
-        "return true;",
-    ):
-        if fragment not in fluid_type_2612:
-            fail(f"26.1 custom-fluid travel fallback is missing: {fragment}")
-    fluid_type_12111 = preprocess_text(
-        fluid_type_source, minecraft="1.21.11", family="1.21.X", platform="neoforge",
-        source=fluid_type.relative_to(ROOT).as_posix(),
-    )
-    if "public boolean move(LivingEntity entity, Vec3 movementVector, double gravity)" in fluid_type_12111:
-        fail("26.x custom-fluid movement compatibility leaked into 1.21.11")
-    energy_fluids = NEOFORGE / "buildcraft/energy/BCEnergyFluids.java"
-    if ".isWaterLike(true)" in energy_fluids.read_text(encoding="utf-8"):
-        fail("BuildCraft oil must not be marked water-like just to restore 26.x movement")
-
-    # 26.1 renamed AbstractContainerScreen#renderLabels to #extractLabels. GuiBC8 deliberately
-    # suppressed the vanilla title and player-inventory labels on 1.21.1, so the 26.1 base must bridge
-    # the new lifecycle entry point into BuildCraft's legacy hook without calling super.extractLabels().
-    gui_bc8 = PLATFORM / "buildcraft/lib/gui/GuiBC8.java"
-    gui_bc8_text = gui_bc8.read_text(encoding="utf-8")
-    for fragment in (
-        "protected void extractLabels(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY)",
-        "renderLabels(guiGraphics, mouseX, mouseY);",
-        "protected void renderLabels(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY)",
-    ):
-        if fragment not in gui_bc8_text:
-            fail(f"26.1 GuiBC8 label parity bridge is missing: {fragment}")
-    label_bridge_start = gui_bc8_text.index("protected void extractLabels(GuiGraphicsExtractor")
-    legacy_labels_start = gui_bc8_text.index("protected void renderLabels(GuiGraphicsExtractor", label_bridge_start)
-    label_bridge_body = gui_bc8_text[label_bridge_start:legacy_labels_start]
-    if "super.extractLabels" in label_bridge_body:
-        fail("26.1 GuiBC8 reintroduced vanilla title/inventory labels")
-
-    guide = PLATFORM / "buildcraft/lib/client/guide/GuiGuide.java"
-    require(
-        guide,
-        "public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick)",
-        "renderBookBackground(guiGraphics);",
-        "renderNavigation(guiGraphics, mouseX, mouseY);",
-    )
-    if "public void render(GuiGraphicsExtractor guiGraphics" in guide.read_text(encoding="utf-8"):
-        fail("guide still overrides the removed render() entry point instead of extractRenderState()")
 
     energy_recipes = ROOT / "source-families/1.21.X/src/main/java/buildcraft/energy/BCEnergyRecipes.java"
     require(

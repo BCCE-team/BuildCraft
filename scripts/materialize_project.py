@@ -418,6 +418,8 @@ def _neoforge_build_gradle(properties: dict[str, str], target: str) -> str:
             f'    testImplementation "org.junit.jupiter:junit-jupiter-api:{junit}"',
             f'    testImplementation "org.junit.jupiter:junit-jupiter-params:{junit}"',
             f'    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:{junit}"',
+            f'    testRuntimeOnly platform("org.junit:junit-bom:{junit}")',
+            '    testRuntimeOnly "org.junit.platform:junit-platform-launcher"',
         ]
     )
 

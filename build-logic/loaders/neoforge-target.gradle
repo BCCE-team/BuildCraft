@@ -364,6 +364,10 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter-api:${requiredProperty('deps.junit')}"
     testImplementation "org.junit.jupiter:junit-jupiter-params:${requiredProperty('deps.junit')}"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${requiredProperty('deps.junit')}"
+    // Gradle 9 no longer injects the JUnit Platform launcher into the test runtime.
+    // Import the JUnit BOM so the launcher version stays aligned with Jupiter.
+    testRuntimeOnly platform("org.junit:junit-bom:${requiredProperty('deps.junit')}")
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 }
 
 tasks.named('test', Test) {
