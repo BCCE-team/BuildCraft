@@ -744,27 +744,23 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     private boolean isPulsedPowerReceiver(Direction side) {
         if (level == null || side == null) return false;
         TileEngineBase_BC8 engine = this;
-        BlockEntity next = null;
-
+        BlockPos targetPos = engine.worldPosition.relative(side);
         for (int len = 0; len <= getMaxChainLength(); len++) {
-            next = engine.getTileBuffer(side).getTile();
-            if (next == null) return false;
-
-            if (next.getClass() == getClass()) {
-                if (side != ((TileEngineBase_BC8) next).currentDirection) return false;
-            }
-
-            if (next instanceof TileEngineBase_BC8) {
-                if (next.getClass() != getClass()) return false;
-                engine = (TileEngineBase_BC8) next;
-            } else {
+            BlockEntity next = level.getBlockEntity(targetPos);
+            if (!(next instanceof TileEngineBase_BC8 nextEngine)) {
                 break;
             }
+            if (len >= getMaxChainLength()) return false;
+            if (nextEngine.getClass() != getClass() || side != nextEngine.currentDirection) return false;
+            engine = nextEngine;
+            targetPos = engine.worldPosition.relative(side);
         }
 
-        if (next == null || next instanceof TileEngineBase_BC8) return false;
+        // Modern NeoForge capabilities are positional: the final receiver may intentionally have no BlockEntity.
+        // Resolve the role at the same final position used by getPortToPower() so a positional REDSTONE_RECEIVER
+        // still receives one piston-midpoint pulse instead of continuous per-tick MJ.
         return BuildCraftApi.service(BuildCraftServices.ENERGY)
-            .descriptor(level, next.getBlockPos(), side.getOpposite())
+            .descriptor(level, targetPos, side.getOpposite())
             .map(descriptor -> descriptor.has(MjPortRole.REDSTONE_RECEIVER))
             .orElse(false);
     }

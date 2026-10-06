@@ -56,7 +56,7 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
         Codec.STRING.optionalFieldOf("group", "").forGetter(AssemblyRecipe::getGroup),
         Ingredient.CODEC.listOf().fieldOf("ingredients").forGetter(AssemblyRecipe::ingredientList),
         Codec.INT.listOf().fieldOf("ingredient_counts").forGetter(AssemblyRecipe::ingredientCountList),
-        LEGACY_RESULT_CODEC.fieldOf("result").forGetter(recipe -> recipe.output),
+        LEGACY_RESULT_CODEC.fieldOf("result").forGetter(recipe -> LegacyResult.fromStack(recipe.output.create())),
         Codec.LONG.fieldOf("MJ").forGetter(recipe -> recipe.requiredMicroJoules)
     ).apply(instance, AssemblyRecipe::fromCodec));
 
@@ -65,16 +65,16 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
 
     final long requiredMicroJoules;
     final ImmutableSet<IngredientStack> requiredStacks;
-    final LegacyResult output;
+    final ItemStackTemplate output;
     final String group;
 
     public AssemblyRecipe(Identifier name, long requiredMicroJoules,
         ImmutableSet<IngredientStack> requiredStacks, @Nonnull ItemStack output, String group) {
-        this(name, requiredMicroJoules, requiredStacks, LegacyResult.fromStack(output), group);
+        this(name, requiredMicroJoules, requiredStacks, ItemStackTemplate.fromNonEmptyStack(output.copy()), group);
     }
 
     private AssemblyRecipe(Identifier name, long requiredMicroJoules,
-        ImmutableSet<IngredientStack> requiredStacks, LegacyResult output, String group) {
+        ImmutableSet<IngredientStack> requiredStacks, ItemStackTemplate output, String group) {
         this.requiredMicroJoules = requiredMicroJoules;
         this.requiredStacks = ImmutableSet.copyOf(requiredStacks);
         this.output = output;
@@ -183,7 +183,7 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
         }
         return List.of(new ShapelessCraftingRecipeDisplay(
             ingredients,
-            new SlotDisplay.ItemStackSlotDisplay(output.template()),
+            new SlotDisplay.ItemStackSlotDisplay(output),
             new SlotDisplay.ItemSlotDisplay(BCSiliconItems.ASSEMBLY_TABLE_ITEM.get())
         ));
     }
@@ -293,7 +293,7 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
             }
             stacks.add(new IngredientStack(ingredients.get(index), count));
         }
-        return new AssemblyRecipe(id, requiredMicroJoules, ImmutableSet.copyOf(stacks), result, group);
+        return new AssemblyRecipe(id, requiredMicroJoules, ImmutableSet.copyOf(stacks), result.template(), group);
     }
 
     private static AssemblyRecipe readFromNetwork(RegistryFriendlyByteBuf buffer) {
@@ -306,10 +306,7 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
             int count = buffer.readVarInt();
             stacks.add(new IngredientStack(ingredient, count));
         }
-        Item item = BuiltInRegistries.ITEM.get(buffer.readIdentifier())
-            .map(net.minecraft.core.Holder.Reference::value)
-            .orElseThrow(() -> new IllegalArgumentException("Unknown assembly recipe result item"));
-        LegacyResult result = new LegacyResult(item, buffer.readVarInt(), buffer.readUtf());
+        ItemStack result = ItemStack.STREAM_CODEC.decode(buffer);
         long power = buffer.readLong();
         return new AssemblyRecipe(id, power, ImmutableSet.copyOf(stacks), result, group);
     }
@@ -322,9 +319,7 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
             Ingredient.CONTENTS_STREAM_CODEC.encode(buffer, stack.ingredient);
             buffer.writeVarInt(stack.count);
         }
-        buffer.writeIdentifier(BuiltInRegistries.ITEM.getKey(output.item()));
-        buffer.writeVarInt(output.count());
-        buffer.writeUtf(output.nbt());
+        ItemStack.STREAM_CODEC.encode(buffer, output.create());
         buffer.writeLong(requiredMicroJoules);
     }
 

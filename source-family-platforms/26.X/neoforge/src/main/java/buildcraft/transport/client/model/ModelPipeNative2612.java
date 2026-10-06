@@ -22,7 +22,6 @@ import buildcraft.transport.client.model.PipeModelCacheBase.PipeBaseTranslucentK
 import buildcraft.transport.client.model.key.PipeModelKey;
 import buildcraft.transport.pipe.Pipe;
 import buildcraft.transport.tile.TilePipeHolder;
-import buildcraft.silicon.plug.PluggableFacade;
 
 import net.minecraft.client.model.geom.builders.UVPair;
 import net.minecraft.client.renderer.Sheets;
@@ -142,14 +141,9 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
     }
 
     private static boolean isNativeStaticPluggable(buildcraft.transport.internal.pluggable.PipePluggable pluggable) {
-        // The native terrain quad path drops the glass alpha. Render only glass facades in RenderPipeHolder's
-        // translucent dynamic pass; all other pluggables stay in the terrain model.
-        if (!(pluggable instanceof PluggableFacade facade)) {
-            return true;
-        }
-        int phase = facade.activeState;
-        return phase < 0 || phase >= facade.states.phasedStates.length
-            || !PluggableFacade.isGlass(facade.states.phasedStates[phase].stateInfo.state);
+        // Native BakedQuad keeps per-vertex BakedColors, including alpha. Keep glass facades in the
+        // terrain translucent layer so they share ordering with water, ice and vanilla glass.
+        return true;
     }
 
     private static List<BakedQuad> convertPluggables(
@@ -272,9 +266,9 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
     }
 
     /**
-     * Legacy pipe quads bake material colour and directional shading into vertex colour. Native block quads
-     * no longer carry per-vertex colour, so recover the material RGB through BlockColor and let terrain lighting/AO
-     * provide the single lighting pass.
+     * Legacy pipe quads bake material colour and directional shading into vertex colour. Pipe-body RGB is recovered
+     * through BlockColor so terrain lighting/AO can provide the single lighting pass. Pluggables keep their original
+     * BakedColors separately, including translucent alpha.
      */
     private static int encodedTint(MutableQuad quad, boolean translucentLayer) {
         MutableVertex v = quad.vertex_0;

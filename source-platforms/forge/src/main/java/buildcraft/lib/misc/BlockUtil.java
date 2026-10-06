@@ -511,9 +511,11 @@ public final class BlockUtil {
             return null;
         }
 
-        // Automation is spatial, not GUI-ordered: visit the physically contacted half first.
-        // The partner remains available as overflow, preserving the full 54-slot double-chest inventory.
-        return new CompoundContainer(chest, other);
+        // Keep the same stable slot order as the vanilla double-chest menu, independent of which half
+        // automation is touching. This makes insertion always begin at global slot 0 instead of slot 27
+        // when a pipe happens to contact the second half of the chest.
+        ChestType type = chest.getBlockState().getValue(BlockStateProperties.CHEST_TYPE);
+        return type == ChestType.RIGHT ? new CompoundContainer(other, chest) : new CompoundContainer(chest, other);
     }
 
     public static <T extends Comparable<T>> BlockState copyProperty(Property<T> property, BlockState dst,

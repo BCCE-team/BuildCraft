@@ -18,7 +18,8 @@ public final class CountedIngredient {
     private final int count;
 
     private CountedIngredient(Ingredient ingredient, TagKey<Item> tag, ItemStack exactStack, int count) {
-        this.ingredient = Objects.requireNonNull(ingredient, "ingredient");
+        if (ingredient == null && tag == null) throw new NullPointerException("ingredient/tag");
+        this.ingredient = ingredient;
         this.tag = tag;
         this.exactStack = exactStack;
         if (count <= 0) throw new IllegalArgumentException("count must be > 0");
@@ -40,18 +41,20 @@ public final class CountedIngredient {
         return new CountedIngredient(Ingredient.of(stack.getItem()), null, exactStack, count);
     }
 
-    @SuppressWarnings("unchecked")
     public static CountedIngredient of(TagKey<Item> tag, int count) {
-        TagKey<Item> itemTag = Objects.requireNonNull(tag, "tag");
-        // Ingredient needs a display/serialization-side backing set,
-        // but matching remains tag-key based so datapack tag rebinding is observed.
-        HolderSet<Item> values = BuiltInRegistries.ITEM.get(itemTag)
-            .map(set -> (HolderSet<Item>) set)
-            .orElseGet(() -> HolderSet.emptyNamed(BuiltInRegistries.ITEM, itemTag));
-        return new CountedIngredient(Ingredient.of(values), itemTag, null, count);
+        // Keep the key itself rather than the currently-bound HolderSet. Addons may register definitions before
+        // datapack tags are bound, and tags may be rebound on reload. ingredient() resolves the live set on demand.
+        return new CountedIngredient(null, Objects.requireNonNull(tag, "tag"), null, count);
     }
 
-    public Ingredient ingredient() { return ingredient; }
+    @SuppressWarnings("unchecked")
+    public Ingredient ingredient() {
+        if (tag == null) return ingredient;
+        HolderSet<Item> values = BuiltInRegistries.ITEM.get(tag)
+            .map(set -> (HolderSet<Item>) set)
+            .orElseGet(() -> HolderSet.emptyNamed(BuiltInRegistries.ITEM, tag));
+        return Ingredient.of(values);
+    }
     public int count() { return count; }
 
     public boolean test(ItemStack stack) {

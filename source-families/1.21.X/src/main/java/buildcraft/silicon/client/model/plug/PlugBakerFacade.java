@@ -28,7 +28,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.model.BlockModelPart;
 import net.minecraft.client.renderer.block.model.BlockStateModel;
 import net.minecraft.core.Direction;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
@@ -41,13 +40,6 @@ import net.minecraft.world.phys.Vec3;
  */
 public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
     INSTANCE;
-
-    /**
-     * 1.21.11-only extra alpha multiplier for glass facade vertex colours.
-     * The glass texture already supplies the original vanilla transparency. Do not multiply it by an extra facade opacity: doing so makes glass facades far more transparent than the source block.
-     * 1.0 preserves the source texture alpha exactly.
-     */
-    private static final double GLASS_FACADE_ALPHA = 1.0D;
 
     private final RandomSource random = RandomSource.create();
 
@@ -308,22 +300,9 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
                 quad.setTint(tint * Direction.values().length + key.side.ordinal());
             }
         }
-        if (applyGlassAlpha && isGlass(key.state)) {
-            for (MutableQuad quad : quads) {
-                quad.multColourd(1.0, 1.0, 1.0, GLASS_FACADE_ALPHA);
-            }
-        }
+        // Preserve source vertex/texture alpha verbatim. Extra facade alpha multiplication causes
+        // both colour/opacity drift and bad composition against other translucent terrain.
         return quads;
-    }
-
-    private static boolean isGlass(BlockState state) {
-        var key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-        if (key == null) {
-            return false;
-        }
-        String path = key.getPath();
-        return path.equals("glass") || path.equals("glass_pane")
-            || path.endsWith("_stained_glass") || path.endsWith("_stained_glass_pane");
     }
 
     @Override

@@ -68,7 +68,17 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
     }
 
     public GuiBC8(C container, Identifier jsonGuiDef, Inventory inventory, Component title) {
-        super(container, inventory, title);
+        this(container, jsonGuiDef, inventory, title, 10, 10);
+    }
+
+    /**
+     * Sized form of the legacy JSON GUI constructor. Minecraft 26.1 resolves container geometry from the dimensions
+     * passed to the superclass constructor, so addons with non-standard JSON GUIs need a constructor-time size just
+     * like the native Filler/Gate screens. The four-argument overload keeps the historical 10x10 sentinel semantics.
+     */
+    protected GuiBC8(C container, Identifier jsonGuiDef, Inventory inventory, Component title,
+        int imageWidth, int imageHeight) {
+        super(container, inventory, title, imageWidth, imageHeight);
         this.container = container;
         BuildCraftJsonGui jsonGui = new BuildCraftJsonGui(this, BuildCraftGui.createWindowedArea(this), jsonGuiDef);
         jsonGui.properties.put("player.inventory", new InventorySlotHolder(container, container.playerInventory));
@@ -107,6 +117,15 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
             mainGui.drawTooltips(guiGraphics);
         } finally {
             activeGraphics = null;
+        }
+    }
+
+    @Override
+    protected void extractTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
+        // AbstractContainerScreen now extracts its slot tooltip inside super.extractRenderState(). A statement popup
+        // that fully overrides the GUI must suppress that vanilla tooltip before BuildCraft submits its own popup tip.
+        if (mainGui.currentMenu == null || !mainGui.currentMenu.shouldFullyOverride()) {
+            super.extractTooltip(guiGraphics, mouseX, mouseY);
         }
     }
 

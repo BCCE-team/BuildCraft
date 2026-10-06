@@ -120,6 +120,11 @@ public class FluidStack {public static final FluidStack EMPTY=new FluidStack("",
  public int getAmount(){return isEmpty()?0:amount;}public FluidStack copy(){return copyWithAmount(amount);}
  public FluidStack copyWithAmount(int n){return n<=0?EMPTY:new FluidStack(fluid,n);}public void shrink(int n){amount-=n;}
 }''')
+stub('buildcraft/lib/fluid/FluidCompatRegistry', '''package buildcraft.lib.fluid;
+import net.neoforged.neoforge.fluids.FluidStack;
+public final class FluidCompatRegistry {private FluidCompatRegistry() {}
+ public static boolean areEquivalent(FluidStack a,FluidStack b){return a!=null&&b!=null&&!a.isEmpty()&&!b.isEmpty()&&a.fluid.equals(b.fluid);}
+}''')
 stub('net/neoforged/neoforge/transfer/fluid/FluidResource', '''package net.neoforged.neoforge.transfer.fluid;
 import net.neoforged.neoforge.fluids.FluidStack;
 public record FluidResource(String fluid){public static final FluidResource EMPTY=new FluidResource("");

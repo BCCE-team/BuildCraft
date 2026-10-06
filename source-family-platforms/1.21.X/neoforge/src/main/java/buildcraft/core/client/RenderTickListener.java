@@ -1,6 +1,7 @@
 //? source if >=1.21.11
 package buildcraft.core.client;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,8 @@ import buildcraft.lib.client.render.laser.LaserBoxRenderer;
 import buildcraft.lib.client.render.laser.LaserData_BC8;
 import buildcraft.lib.client.render.laser.LaserData_BC8.LaserType;
 import buildcraft.lib.client.render.laser.LaserRenderer_BC8;
+import buildcraft.lib.debug.ClientDebuggables;
+import buildcraft.lib.internal.tiles.IDebuggable;
 import buildcraft.lib.marker.MarkerCache;
 import buildcraft.lib.marker.MarkerSubCache;
 import buildcraft.lib.misc.MatrixUtil;
@@ -28,7 +31,9 @@ import buildcraft.lib.misc.VecUtil;
 import buildcraft.lib.misc.data.Box;
 import buildcraft.robotics.zone.ZoneChunk;
 import buildcraft.robotics.zone.ZonePlan;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.debug.DebugScreenDisplayer;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -48,6 +53,8 @@ import net.minecraft.util.profiling.Profiler;
 /** Native 1.21.11 world-laser event bridge. */
 public final class RenderTickListener {
     private static final Vec3[][][] MAP_LOCATION_POINT = new Vec3[6][][];
+    private static final String DIFF_START = ChatFormatting.RED + "" + ChatFormatting.BOLD + "!" + ChatFormatting.RESET;
+    private static final String DIFF_HEADER_FORMATTING = ChatFormatting.AQUA + "" + ChatFormatting.BOLD;
     private static final Box LAST_RENDERED_MAP_LOC = new Box();
     private static final double MAP_LOCATION_RENDER_DISTANCE_SQ = 128.0 * 128.0;
     private static final int MAX_ZONE_RENDER_EDGES = 4096;
@@ -77,6 +84,70 @@ public final class RenderTickListener {
     }
 
     private RenderTickListener() {
+    }
+
+    /** 1.21.11+ replaced the mutable DebugText overlay event with registered debug-screen entries. */
+    public static void renderDebugInfo(DebugScreenDisplayer displayer) {
+        Minecraft mc = Minecraft.getInstance();
+        IDebuggable debuggable = ClientDebuggables.getDebuggableObject(mc.hitResult);
+        if (debuggable == null) {
+            return;
+        }
+
+        List<String> clientLeft = new ArrayList<>();
+        List<String> clientRight = new ArrayList<>();
+        var cameraEntity = mc.getCameraEntity();
+        Direction face = cameraEntity == null ? Direction.NORTH : cameraEntity.getDirection().getOpposite();
+        debuggable.getDebugInfo(clientLeft, clientRight, face);
+
+        List<String> lines = new ArrayList<>();
+        String headerServer = DIFF_HEADER_FORMATTING + "SERVER:";
+        String headerClient = DIFF_HEADER_FORMATTING + "CLIENT:";
+        appendDiff(lines, ClientDebuggables.SERVER_LEFT, clientLeft, headerServer, headerClient);
+
+        if (!ClientDebuggables.SERVER_RIGHT.isEmpty() || !clientRight.isEmpty()) {
+            lines.add("");
+            lines.add(DIFF_HEADER_FORMATTING + "RIGHT COLUMN:");
+            appendDiff(lines, ClientDebuggables.SERVER_RIGHT, clientRight, headerServer, headerClient);
+        }
+
+        List<String> extraLeft = new ArrayList<>();
+        List<String> extraRight = new ArrayList<>();
+        debuggable.getClientDebugInfo(extraLeft, extraRight, face);
+        lines.addAll(extraLeft);
+        if (!extraRight.isEmpty()) {
+            lines.add("");
+            lines.add(DIFF_HEADER_FORMATTING + "CLIENT RIGHT:");
+            lines.addAll(extraRight);
+        }
+
+        for (String line : lines) {
+            displayer.addLine(line);
+        }
+    }
+
+    private static void appendDiff(List<String> dest, List<String> first, List<String> second, String headerFirst,
+        String headerSecond) {
+        dest.add("");
+        dest.add(headerFirst);
+        dest.addAll(first);
+        dest.add("");
+        dest.add(headerSecond);
+        if (first.size() != second.size()) {
+            dest.addAll(second);
+            return;
+        }
+        for (int i = 0; i < first.size(); i++) {
+            String shownLine = first.get(i);
+            String diffLine = second.get(i);
+            if (shownLine.equals(diffLine)) {
+                dest.add(diffLine);
+            } else if (diffLine.startsWith(" ")) {
+                dest.add(DIFF_START + diffLine.substring(1));
+            } else {
+                dest.add(DIFF_START + diffLine);
+            }
+        }
     }
 
     public static void renderLast(RenderLevelStageEvent.AfterTranslucentBlocks event) {

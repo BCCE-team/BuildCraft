@@ -231,10 +231,6 @@ public class PluggableFacade extends PipePluggable {
         if (states.type == FacadeType.Basic) {
             FacadePhasedState facadeState = states.phasedStates[activeState];
             BlockState blockState = facadeState.stateInfo.state;
-            // Glass facades require a dynamic renderer in 1.21: the vanilla baked-block path discards per-quad alpha.
-            if (isGlass(blockState)) {
-                return null;
-            }
             ChunkRenderTypeSet targetLayer = Minecraft.getInstance().getBlockRenderer().getBlockModel(blockState)
                     .getRenderTypes(blockState, RandomSource.create(42), ModelData.EMPTY);
             if (targetLayer.contains(RenderType.translucent())) {

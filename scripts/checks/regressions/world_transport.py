@@ -224,6 +224,27 @@ require(
     '"block.buildcraftenergy.spout_oil": "Oil (§bCool§r)"',
 )
 
+# Double chests must expose one canonical 0..53 slot order to automation, regardless of which
+# physical half a pipe/robot is touching. Contacted-half-first ordering makes the right/second
+# half appear as global slot 0 and therefore starts insertion at GUI slot 27.
+for rel in (
+    "source-platforms/forge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
+    "source-downports/1.21.X/1.21.1/neoforge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
+    "source-families/26.X/src/main/java/buildcraft/lib/misc/BlockUtil.java",
+    "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
+):
+    require(
+        rel,
+        "ChestType type = chest.getBlockState().getValue(BlockStateProperties.CHEST_TYPE);",
+        "type == ChestType.RIGHT ? new CompoundContainer(other, chest) : new CompoundContainer(chest, other)",
+    )
+    forbid(
+        rel,
+        "Automation is spatial, not GUI-ordered",
+        "return new CompoundContainer(chest, other);\n    }",
+    )
+
 if errors:
     print("ERROR: world/transport regression validation failed")
     for error in errors:

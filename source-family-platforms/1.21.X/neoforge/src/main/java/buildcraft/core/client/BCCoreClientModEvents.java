@@ -17,7 +17,11 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraft.client.gui.components.debug.DebugScreenEntryStatus;
+import net.minecraft.client.gui.components.debug.DebugScreenProfile;
+import net.minecraft.resources.Identifier;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterDebugEntriesEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterRangeSelectItemModelPropertyEvent;
 import net.neoforged.neoforge.common.NeoForge;
@@ -25,6 +29,8 @@ import net.neoforged.neoforge.common.NeoForge;
 /** Client-only Core bootstrap for the 1.21.11 renderer transition layer. */
 @EventBusSubscriber(modid = BCCore.MODID, value = Dist.CLIENT)
 public final class BCCoreClientModEvents {
+    private static final Identifier BUILDCRAFT_TARGET_DEBUG = Identifier.fromNamespaceAndPath(BCCore.MODID, "target_debug");
+
     private BCCoreClientModEvents() {}
 
     @SubscribeEvent
@@ -38,6 +44,13 @@ public final class BCCoreClientModEvents {
         DetachedRenderer.INSTANCE.addRenderer(RenderMatrixType.FROM_WORLD_ORIGIN, RenderVolumeBoxes.INSTANCE);
         NeoForge.EVENT_BUS.addListener(RenderTickListener::renderLast);
         NeoForge.EVENT_BUS.addListener(MarkerSubmitRenderer121111::submit);
+    }
+
+    @SubscribeEvent
+    public static void registerDebugEntries(RegisterDebugEntriesEvent event) {
+        event.register(BUILDCRAFT_TARGET_DEBUG,
+            (displayer, level, clientChunk, serverChunk) -> RenderTickListener.renderDebugInfo(displayer));
+        event.includeInProfile(BUILDCRAFT_TARGET_DEBUG, DebugScreenProfile.DEFAULT, DebugScreenEntryStatus.IN_OVERLAY);
     }
 
     @SubscribeEvent

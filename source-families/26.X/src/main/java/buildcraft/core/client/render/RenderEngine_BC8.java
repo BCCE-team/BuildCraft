@@ -232,7 +232,7 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
         quad(out, pose, x0,y0,z0, x1,y0,z0, x1,y0,z1, x0,y0,z1,
             uv(0),uv(0), uv(16),uv(16), light,overlay, 0,-1,0, 0.80F);
         quad(out, pose, x0,y1,z0, x0,y1,z1, x1,y1,z1, x1,y1,z0,
-            uv(0),uv(0), uv(16),uv(16), light,overlay, 0,1,0, 0.90F);
+            uv(0),uv(0), uv(16),uv(16), light,overlay, 0,1,0, 0.80F);
     }
 
     /** Normal BC engine moving-head sides, using the four-pixel side strip. */
@@ -247,9 +247,9 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
         quad(out, pose, x0,y0,z1, x1,y0,z1, x1,y1,z1, x0,y1,z1,
             u0,v1, u1,v0, light,overlay, 0,0,1, 0.80F);
         quad(out, pose, x0,y0,z0, x0,y0,z1, x0,y1,z1, x0,y1,z0,
-            u0,v1, u1,v0, light,overlay, -1,0,0, 0.70F);
+            u0,v1, u1,v0, light,overlay, -1,0,0, 0.80F);
         quad(out, pose, x1,y0,z1, x1,y0,z0, x1,y1,z0, x1,y1,z1,
-            u0,v1, u1,v0, light,overlay, 1,0,0, 0.70F);
+            u0,v1, u1,v0, light,overlay, 1,0,0, 0.80F);
     }
 
     /** MJ Dynamo moving head is 12x4x12 and keeps all UVs on its front texture. */
@@ -271,15 +271,15 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
         quad(out, pose, x0,y0,z0, x1,y0,z0, x1,y0,z1, x0,y0,z1,
             cu0,cv0, cu1,cv1, light,overlay, 0,-1,0, 0.80F);
         quad(out, pose, x0,y1,z0, x0,y1,z1, x1,y1,z1, x1,y1,z0,
-            cu0,cv0, cu1,cv1, light,overlay, 0,1,0, 0.90F);
+            cu0,cv0, cu1,cv1, light,overlay, 0,1,0, 0.80F);
         quad(out, pose, x1,y0,z0, x0,y0,z0, x0,y1,z0, x1,y1,z0,
             su0,sv1, su1,sv0, light,overlay, 0,0,-1, 0.80F);
         quad(out, pose, x0,y0,z1, x1,y0,z1, x1,y1,z1, x0,y1,z1,
             su0,sv1, su1,sv0, light,overlay, 0,0,1, 0.80F);
         quad(out, pose, x0,y0,z0, x0,y0,z1, x0,y1,z1, x0,y1,z0,
-            su0,sv1, su1,sv0, light,overlay, -1,0,0, 0.70F);
+            su0,sv1, su1,sv0, light,overlay, -1,0,0, 0.80F);
         quad(out, pose, x1,y0,z1, x1,y0,z0, x1,y1,z0, x1,y1,z1,
-            su0,sv1, su1,sv0, light,overlay, 1,0,0, 0.70F);
+            su0,sv1, su1,sv0, light,overlay, 1,0,0, 0.80F);
     }
 
     /** Inner 10xN x10 chamber with side faces only. */
@@ -328,10 +328,10 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
         boolean north, float y0, float y1, float u0, float u1, float v0, float v1, int overlay) {
         if (north) {
             quad(out, pose, x1,y0,z, x0,y0,z, x0,y1,z, x1,y1,z,
-                u0,v1, u1,v0, FULL_BRIGHT,overlay, 0,0,-1, 1.00F);
+                u0,v1, u1,v0, FULL_BRIGHT,overlay, 0,0,-1, 0.80F);
         } else {
             quad(out, pose, x0,y0,z, x1,y0,z, x1,y1,z, x0,y1,z,
-                u0,v1, u1,v0, FULL_BRIGHT,overlay, 0,0,1, 1.00F);
+                u0,v1, u1,v0, FULL_BRIGHT,overlay, 0,0,1, 0.80F);
         }
     }
 
@@ -345,10 +345,10 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
         boolean west, float y0, float y1, float u0, float u1, float v0, float v1, int overlay) {
         if (west) {
             quad(out, pose, x,y0,z0, x,y0,z1, x,y1,z1, x,y1,z0,
-                u0,v1, u1,v0, FULL_BRIGHT,overlay, -1,0,0, 1.00F);
+                u0,v1, u1,v0, FULL_BRIGHT,overlay, -1,0,0, 0.80F);
         } else {
             quad(out, pose, x,y0,z1, x,y0,z0, x,y1,z0, x,y1,z1,
-                u0,v1, u1,v0, FULL_BRIGHT,overlay, 1,0,0, 1.00F);
+                u0,v1, u1,v0, FULL_BRIGHT,overlay, 1,0,0, 0.80F);
         }
     }
 

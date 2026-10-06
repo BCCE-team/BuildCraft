@@ -22,7 +22,6 @@ import buildcraft.transport.client.model.PipeModelCacheBase.PipeBaseTranslucentK
 import buildcraft.transport.client.model.key.PipeModelKey;
 import buildcraft.transport.pipe.Pipe;
 import buildcraft.transport.tile.TilePipeHolder;
-import buildcraft.silicon.plug.PluggableFacade;
 
 import net.minecraft.client.model.geom.builders.UVPair;
 import net.minecraft.client.renderer.block.model.BakedQuad;
@@ -140,14 +139,9 @@ public final class ModelPipeNative121111 implements DynamicBlockStateModel {
     }
 
     private static boolean isNativeStaticPluggable(buildcraft.transport.internal.pluggable.PipePluggable pluggable) {
-        // The native terrain quad path drops the glass alpha. Render only glass facades in RenderPipeHolder's
-        // translucent dynamic pass; all other pluggables stay in the terrain model.
-        if (!(pluggable instanceof PluggableFacade facade)) {
-            return true;
-        }
-        int phase = facade.activeState;
-        return phase < 0 || phase >= facade.states.phasedStates.length
-            || !PluggableFacade.isGlass(facade.states.phasedStates[phase].stateInfo.state);
+        // NeoForge's native BakedQuad carries BakedColors (including alpha). Keep every pluggable in terrain
+        // geometry so translucent facades share the chunk ordering pass with water, ice and vanilla glass.
+        return true;
     }
 
     private static List<BakedQuad> convertPluggables(

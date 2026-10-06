@@ -32,6 +32,34 @@ def forbid(rel: str, *tokens: str) -> None:
             errors.append(f"{rel}: stale render/Jade pattern {token!r}")
 
 
+# Quarry frames use a cutout texture with transparent gaps. A single outward-wound cuboid makes the far/internal
+# faces disappear through those gaps, so from above only the nearest/top surface is visible. Keep both the centre and
+# connection pieces explicitly double-sided, and never attach vanilla cullface hints to their inset geometry.
+for rel, reverse_from, reverse_to in (
+    (
+        "source-shared/src/main/resources/assets/buildcraftbuilders/models/block/frame/base.json",
+        '"from": [12, 12, 12]',
+        '"to": [4, 4, 4]',
+    ),
+    (
+        "source-shared/src/main/resources/assets/buildcraftbuilders/models/block/frame/connection.json",
+        '"from": [12, 12, 4]',
+        '"to": [4, 4, 0]',
+    ),
+    (
+        "resource-src/1.21.X/1.21.11/assets/buildcraftbuilders/models/block/frame/base.json",
+        '"from": [12, 12, 12]',
+        '"to": [4, 4, 4]',
+    ),
+    (
+        "resource-src/1.21.X/1.21.11/assets/buildcraftbuilders/models/block/frame/connection.json",
+        '"from": [12, 12, 4]',
+        '"to": [4, 4, 0]',
+    ),
+):
+    require(rel, reverse_from, reverse_to)
+    forbid(rel, '"cullface"')
+
 # Volume boxes are dimension-synchronized saved data, not chunk-owned marker cache entries. Keep the data cached,
 # but hide the entire laser box unless every chunk intersecting it is actually resident on the client.
 for family in ("old", "1.21.X"):

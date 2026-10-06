@@ -32,12 +32,10 @@ import buildcraft.silicon.client.model.plug.PlugBakerFacade;
 import buildcraft.silicon.client.model.plug.PlugBakerLens;
 import buildcraft.silicon.client.model.plug.PlugGateBaker;
 import buildcraft.silicon.client.render.PlugGateRenderer;
-import buildcraft.silicon.client.render.PlugFacadeRenderer;
 import buildcraft.silicon.client.render.PlugPulsarRenderer;
 import buildcraft.silicon.client.render.RenderLaser;
 import buildcraft.silicon.client.render.RenderProgrammingTable;
 import buildcraft.silicon.gate.GateVariant;
-import buildcraft.silicon.plug.PluggableFacade;
 import buildcraft.silicon.plug.PluggableGate;
 import buildcraft.silicon.plug.PluggablePulsar;
 import net.minecraft.client.resources.model.BakedModel;
@@ -122,7 +120,7 @@ public final class BCSiliconModels {
         registry.registerBaker(KeyPlugTimer.class, BAKER_PLUG_TIMER);
         registry.registerBaker(KeyPlugLens.class, PlugBakerLens.INSTANCE);
         registry.registerBaker(KeyPlugFacade.class, PlugBakerFacade.INSTANCE);
-        registry.registerRenderer(PluggableFacade.class, PlugFacadeRenderer.INSTANCE);
+        // Facades stay in the normal terrain pass so translucent ordering is shared with water/ice.
         registry.registerRenderer(PluggableGate.class, PlugGateRenderer.INSTANCE);
         registry.registerRenderer(PluggablePulsar.class, PlugPulsarRenderer.INSTANCE);
     }
@@ -153,7 +151,6 @@ public final class BCSiliconModels {
         ModelGateItem.onModelBake();
         ModelLensItem.onModelBake();
         ModelFacadeItem.onModelBake();
-        PlugFacadeRenderer.onModelBake();
         PlugPulsarRenderer.onModelBake();
         PlugGateRenderer.onModelBake();
     }

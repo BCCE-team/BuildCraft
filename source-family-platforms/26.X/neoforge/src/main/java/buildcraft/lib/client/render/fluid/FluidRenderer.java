@@ -134,9 +134,13 @@ public class FluidRenderer {
             .getFluidStateModelSet().get(fluid.defaultFluidState());
     }
 
-    private static Identifier fluidTexture(Fluid fluid, boolean flowing) {
+    private static TextureAtlasSprite fluidSprite(Fluid fluid, boolean flowing) {
         FluidModel model = fluidModel(fluid);
-        return (flowing ? model.flowingMaterial() : model.stillMaterial()).sprite().contents().name();
+        return (flowing ? model.flowingMaterial() : model.stillMaterial()).sprite();
+    }
+
+    private static Identifier fluidTexture(Fluid fluid, boolean flowing) {
+        return fluidSprite(fluid, flowing).contents().name();
     }
 
     private static int fluidTint(Fluid fluid, FluidStack stack) {
@@ -400,8 +404,21 @@ public class FluidRenderer {
         if (fluid == null) {
             return SpriteUtil.missingSprite();
         }
-        TextureAtlasSprite s = getSprite(type, fluid.getFluidType().getDescriptionId(), fluid, stack);
-        return s != null ? s : SpriteUtil.missingSprite();
+        // 26.1 FluidModel already owns the baked atlas sprite. Re-resolving sprite.contents().name() through the
+        // block atlas loses model-owned material identity for some fluids and leaves pipe fluid geometry untextured.
+        try {
+            return switch (type) {
+                case FLOWING -> fluidSprite(fluid, true);
+                case STILL, FROZEN -> fluidSprite(fluid, false);
+            };
+        } catch (RuntimeException exception) {
+            BCLog.logger.warn(
+                "[lib.fluid.render] Failed to resolve baked sprite for fluid {}; using atlas fallback",
+                BuiltInRegistries.FLUID.getKey(fluid), exception
+            );
+            TextureAtlasSprite s = getSprite(type, fluid.getFluidType().getDescriptionId(), fluid, stack);
+            return s != null ? s : SpriteUtil.missingSprite();
+        }
     }
 
     private static TextureAtlasSprite getSprite(FluidSpriteType type, String key, Fluid fluid, FluidStack stack) {

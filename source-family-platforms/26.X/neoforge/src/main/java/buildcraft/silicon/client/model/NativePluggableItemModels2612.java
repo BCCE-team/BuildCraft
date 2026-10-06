@@ -9,6 +9,7 @@ import buildcraft.lib.client.model.ModelItemSimple;
 import buildcraft.lib.client.model.MutableQuad;
 import buildcraft.lib.compat.RenderCompat;
 import buildcraft.lib.compat.minecraft.model.NativeItemModelBuilder;
+import buildcraft.lib.internal.module.BCModules;
 import buildcraft.lib.misc.StackUtil;
 import buildcraft.lib.platform.client.ClientModelBaking;
 import buildcraft.silicon.BCSiliconItems;
@@ -25,6 +26,7 @@ import buildcraft.silicon.plug.FacadeInstance;
 import buildcraft.silicon.plug.FacadePhasedState;
 import buildcraft.silicon.plug.PluggableFacade;
 import buildcraft.silicon.plug.PluggablePulsar;
+import buildcraft.transport.BCTransportModels;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.item.CompositeModel;
@@ -172,12 +174,25 @@ public final class NativePluggableItemModels2612 {
     }
 
     private static ItemModel bakeFacade(KeyPlugFacade key, ItemStack stack, boolean glass) {
-        List<MutableQuad> quads = PlugBakerFacade.INSTANCE.bakeForKey(key, false);
+        List<MutableQuad> quads = new ArrayList<>();
+        for (MutableQuad source : PlugBakerFacade.INSTANCE.bakeForKey(key, false)) {
+            quads.add(new MutableQuad(source));
+        }
         for (MutableQuad quad : quads) {
             int tint = quad.getTint();
             if (tint >= 0) {
-                quad.colouri(FacadeItemColours.INSTANCE.getColor(stack, tint));
+                // PlugBakerFacade packs the source tint index together with the facade side for world rendering.
+                // Item rendering has no pipe side lookup, so recover the original block tint before resolving colour.
+                int sourceTint = tint / Direction.values().length;
+                quad.colouri(FacadeItemColours.INSTANCE.getColor(stack, sourceTint));
                 quad.setTint(-1);
+            }
+        }
+        // Match the legacy facade item model: a solid non-hollow facade has a pipe blocker behind the thin facade
+        // shell. Without it the inventory/hand model exposes the otherwise invisible inside/back face.
+        if (BCModules.TRANSPORT.isLoaded() && key.state.isSolidRender() && !key.isHollow) {
+            for (MutableQuad blocker : BCTransportModels.BLOCKER.getCutoutQuads()) {
+                quads.add(new MutableQuad(blocker));
             }
         }
         return itemLayer(quads, ModelItemSimple.TRANSFORM_PLUG_AS_BLOCK, glass);

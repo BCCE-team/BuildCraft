@@ -164,6 +164,9 @@ def main() -> int:
         FAMILY / "buildcraft/api/v2/recipe/CountedIngredient.java",
         "ItemStack.isSameItemSameComponents",
         "stack.is(tag)",
+        "return new CountedIngredient(null, Objects.requireNonNull(tag, \"tag\"), null, count);",
+        "public Ingredient ingredient()",
+        "BuiltInRegistries.ITEM.get(tag)",
     )
     require(
         PLATFORM / "buildcraft/lib/net/cache/NetworkedObjectCache.java",
@@ -253,9 +256,20 @@ def main() -> int:
         PLATFORM / "buildcraft/lib/recipe/AssemblyRecipe.java",
     ):
         assembly_text = assembly_recipe.read_text(encoding="utf-8")
-        require(assembly_recipe, "Codec<LegacyResult> LEGACY_RESULT_CODEC", "private record LegacyResult")
+        require(
+            assembly_recipe,
+            "Codec<LegacyResult> LEGACY_RESULT_CODEC",
+            "private record LegacyResult",
+            "final ItemStackTemplate output;",
+            "ItemStackTemplate.fromNonEmptyStack(output.copy())",
+            "new SlotDisplay.ItemStackSlotDisplay(output)",
+            "ItemStack.STREAM_CODEC.decode(buffer)",
+            "ItemStack.STREAM_CODEC.encode(buffer, output.create())",
+        )
         if "Codec<ItemStack> LEGACY_RESULT_CODEC" in assembly_text or "AssemblyRecipe::legacyStack" in assembly_text:
             fail(f"assembly recipe codec creates ItemStacks while recipes are decoded: {assembly_recipe.relative_to(ROOT)}")
+        if "LegacyResult.fromStack(output)" in assembly_text:
+            fail(f"assembly recipe constructor still discards arbitrary data components: {assembly_recipe.relative_to(ROOT)}")
 
     for strict_nbt in (
         FAMILY / "buildcraft/lib/recipe/LegacyStrictNbtIngredient.java",
@@ -279,7 +293,19 @@ def main() -> int:
 
     require(PLATFORM / "buildcraft/transport/client/model/ModelPipeNative2612.java", "BlockStateModelPart")
     pipe_native = PLATFORM / "buildcraft/transport/client/model/ModelPipeNative2612.java"
-    require(pipe_native, "material(sprite, translucentLayer, quad.getTint(), quad.isShade(), lightEmission(quad))")
+    require(
+        pipe_native,
+        "material(sprite, translucentLayer, quad.getTint(), quad.isShade(), lightEmission(quad))",
+        "BakedColors.of(argb(quad.vertex_0), argb(quad.vertex_1), argb(quad.vertex_2), argb(quad.vertex_3))",
+        "convertPluggables(legacyPlugTranslucent, true)",
+    )
+    pipe_native_text = pipe_native.read_text(encoding="utf-8")
+    if "PluggableFacade.isGlass(" in pipe_native_text:
+        fail("26.1 native pipe model still excludes glass facades from terrain translucent rendering")
+    silicon_models_2612 = FAMILY / "buildcraft/silicon/BCSiliconModels.java"
+    silicon_models_2612_text = silicon_models_2612.read_text(encoding="utf-8")
+    if "registerRenderer(PluggableFacade.class, PlugFacadeRenderer.INSTANCE)" in silicon_models_2612_text:
+        fail("26.1 still renders glass facades through the dynamic pluggable pass")
     pipe_colours = FAMILY / "buildcraft/transport/BCTransportModels.java"
     if "event.register(PipeBlockColours.INSTANCE" in pipe_colours.read_text(encoding="utf-8"):
         fail("26.1 pipe block still registers a fixed tint-source list instead of dynamic facade tints")
@@ -292,7 +318,9 @@ def main() -> int:
     )
     require(
         PLATFORM / "buildcraft/silicon/plug/PluggableFacade.java",
-        "tintSource.colorInWorld(state.stateInfo.state, holder.getPipeWorld(), holder.getPipePos())",
+        "holder.getPipeWorld() instanceof ClientLevel clientLevel",
+        "tintSource.colorInWorld(state.stateInfo.state, clientLevel, holder.getPipePos())",
+        "return tintSource.color(state.stateInfo.state);",
     )
     require(PLATFORM / "buildcraft/silicon/client/model/NativePluggableItemModels2612.java", "NativeItemModelBuilder")
     native_plugs = (PLATFORM / "buildcraft/silicon/client/model/NativePluggableItemModels2612.java").read_text(encoding="utf-8")
@@ -303,9 +331,61 @@ def main() -> int:
         "new PulsarItemModel()",
         "PluggablePulsar.setModelVariablesForItem();",
         "ModelItemSimple.TRANSFORM_PLUG_AS_ITEM",
+        "int sourceTint = tint / Direction.values().length;",
+        "FacadeItemColours.INSTANCE.getColor(stack, sourceTint)",
     ):
         if required not in native_plugs:
             fail(f"26.1 pulsar item lazy model is missing {required!r}")
+    for required in (
+        "BCModules.TRANSPORT.isLoaded()",
+        "key.state.isSolidRender()",
+        "!key.isHollow",
+        "BCTransportModels.BLOCKER.getCutoutQuads()",
+    ):
+        if required not in native_plugs:
+            fail(f"26.1 solid facade item backing is missing {required!r}")
+
+    engine_tile_text = engine_tile.read_text(encoding="utf-8")
+    pulse_start = engine_tile_text.index("private boolean isPulsedPowerReceiver")
+    pulse_end = engine_tile_text.index("public MjPort getPortToPower", pulse_start)
+    pulse_body = engine_tile_text[pulse_start:pulse_end]
+    for required in (
+        "BlockPos targetPos = engine.worldPosition.relative(side);",
+        "level.getBlockEntity(targetPos)",
+        ".descriptor(level, targetPos, side.getOpposite())",
+    ):
+        if required not in pulse_body:
+            fail(f"26.1 positional MJ pulse-role lookup is missing {required!r}")
+    if "getTileBuffer(side).getTile()" in pulse_body:
+        fail("26.1 pulse-role lookup still requires a BlockEntity at the final positional MJ endpoint")
+
+    renderer = FAMILY / "buildcraft/core/client/render/RenderEngine_BC8.java"
+    renderer_text = renderer.read_text(encoding="utf-8")
+    moving_start = renderer_text.index("private static void renderMovingHeadCaps")
+    moving_end = renderer_text.index("private static void renderDynamoMovingHead", moving_start)
+    moving_body = renderer_text[moving_start:moving_end]
+    if "0.90F" in moving_body or "0.70F" in moving_body:
+        fail("26.1 engine moving head still uses non-legacy per-face shading")
+    head_box_start = renderer_text.index("private static void renderHeadBox")
+    head_box_end = renderer_text.index("private static void renderChamber", head_box_start)
+    head_box = renderer_text[head_box_start:head_box_end]
+    if "0.90F" in head_box or "0.70F" in head_box:
+        fail("26.1 MJ Dynamo moving head still uses non-legacy per-face shading")
+    lights_start = renderer_text.index("private static void renderStageLights")
+    lights_end = renderer_text.index("private static void quad", lights_start)
+    lights = renderer_text[lights_start:lights_end]
+    if "FULL_BRIGHT,overlay" not in lights or "1.00F" in lights:
+        fail("26.1 engine stage lights do not match legacy 0.8 full-bright shading")
+
+    gui = PLATFORM / "buildcraft/lib/gui/GuiBC8.java"
+    require(
+        gui,
+        "this(container, jsonGuiDef, inventory, title, 10, 10);",
+        "protected GuiBC8(C container, Identifier jsonGuiDef, Inventory inventory, Component title,",
+        "super(container, inventory, title, imageWidth, imageHeight);",
+        "protected void extractTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY)",
+        "mainGui.currentMenu == null || !mainGui.currentMenu.shouldFullyOverride()",
+    )
     require(
         ROOT / "source-families/1.21.X/src/main/java/buildcraft/factory/block/BlockTube.java",
         "protected BlockState updateShape",
@@ -313,6 +393,56 @@ def main() -> int:
         "notifyPumpOfShaftChange",
         "pump.neighbourBlockChanged",
     )
+    require(
+        MODERN_PLATFORM / "buildcraft/core/item/FragileFluidResourceHandler.java",
+        "FluidCompatRegistry.areEquivalent(fluid, resource.toStack(1))",
+    )
+    require(
+        PLATFORM / "buildcraft/lib/client/render/fluid/FluidRenderer.java",
+        "private static TextureAtlasSprite fluidSprite(Fluid fluid, boolean flowing)",
+        "case FLOWING -> fluidSprite(fluid, true)",
+        "case STILL, FROZEN -> fluidSprite(fluid, false)",
+    )
+    dynamo_model = ROOT / "resource-src/26.X/26.1.2/assets/buildcraftenergy/models/block/mj_dynamo.json"
+    require(dynamo_model, '"particle": "buildcraftenergy:blocks/mj_dynamo/back"')
+    dynamo_text = dynamo_model.read_text(encoding="utf-8")
+    if '"parent"' in dynamo_text or '"elements"' in dynamo_text:
+        fail("26.1 MJ Dynamo block model still contains geometry rendered again by the BER")
+    marker_connector = ROOT / "source-families/1.21.X/src/main/java/buildcraft/core/item/ItemMarkerConnector.java"
+    marker_text = marker_connector.read_text(encoding="utf-8")
+    use_start = marker_text.index("public InteractionResult use(Level world, Player player, InteractionHand hand)")
+    use_end = marker_text.index("private static <S extends MarkerSubCache", use_start)
+    use_body = marker_text[use_start:use_end]
+    for fragment in (
+        "if (!world.isClientSide())",
+        "return onItemRightClickVolumeBoxes(world, player);",
+    ):
+        if fragment not in use_body:
+            fail(f"26.1 Marker Connector lost legacy interaction-result parity: {fragment}")
+    if "return InteractionResult.SUCCESS;" in use_body or "markerConnected" in use_body:
+        fail("26.1 Marker Connector still upgrades client/marker-line use results to SUCCESS")
+
+    core_client_events = MODERN_PLATFORM / "buildcraft/core/client/BCCoreClientModEvents.java"
+    require(
+        core_client_events,
+        "RegisterDebugEntriesEvent",
+        "DebugScreenEntryStatus.IN_OVERLAY",
+        "RenderTickListener.renderDebugInfo(displayer)",
+    )
+    debug_listener = MODERN_PLATFORM / "buildcraft/core/client/RenderTickListener.java"
+    require(
+        debug_listener,
+        "public static void renderDebugInfo(DebugScreenDisplayer displayer)",
+        "ClientDebuggables.getDebuggableObject(mc.hitResult)",
+        "ClientDebuggables.SERVER_LEFT",
+        "ClientDebuggables.SERVER_RIGHT",
+        "mc.getCameraEntity()",
+        "debuggable.getClientDebugInfo(extraLeft, extraRight, face)",
+        "displayer.addLine(line)",
+    )
+    if "mc.cameraEntity" in debug_listener.read_text(encoding="utf-8"):
+        fail("26.1 debug overlay still accesses the removed Minecraft.cameraEntity field")
+
     require(FAMILY / "buildcraft/core/marker/VolumeSubCache.java", "SavedDataCompat.migrateLegacyFlatFile")
     require(FAMILY / "buildcraft/core/marker/volume/WorldSavedDataVolumeBoxes.java", "SavedDataCompat.migrateLegacyFlatFile")
     require(FAMILY / "buildcraft/transport/wire/WorldSavedDataWireSystems.java", "SavedDataCompat.migrateLegacyFlatFile")

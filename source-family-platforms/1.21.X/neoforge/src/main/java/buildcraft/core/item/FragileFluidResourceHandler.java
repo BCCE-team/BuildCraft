@@ -5,6 +5,7 @@
  */
 package buildcraft.core.item;
 
+import buildcraft.lib.fluid.FluidCompatRegistry;
 import java.util.Objects;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.fluids.FluidStack;
@@ -48,7 +49,8 @@ public final class FragileFluidResourceHandler implements ResourceHandler<FluidR
         TransferPreconditions.checkNonEmptyNonNegative(resource, amount);
         ItemStack original = container();
         FluidStack fluid = ItemFragileFluidContainer.getFluid(original);
-        if (original.isEmpty() || fluid.isEmpty() || amount == 0 || !resource.equals(FluidResource.of(fluid))) return 0;
+        if (original.isEmpty() || fluid.isEmpty() || amount == 0
+            || !FluidCompatRegistry.areEquivalent(fluid, resource.toStack(1))) return 0;
         int drained = Math.min(amount, fluid.getAmount());
         try (Transaction operation = Transaction.open(transaction)) {
             int changed;

@@ -30,13 +30,13 @@ import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.MushroomBlock;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.model.data.ModelData;
-import net.minecraft.core.registries.BuiltInRegistries;
 public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
     INSTANCE;
 
@@ -287,6 +287,9 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
                 quad.setTint(tint * Direction.values().length + key.side.ordinal());
             }
         }
+        // 1.21.1 still bakes legacy-style block quads whose vertex alpha is opaque. Restore the
+        // historical facade alpha while keeping the facade in the terrain translucent pass; the
+        // separate dynamic pass was the source of the water/ice ordering problem.
         if (applyGlassAlpha && isGlass(key.state)) {
             for (MutableQuad quad : quads) {
                 quad.multColourd(1.0, 1.0, 1.0, 0.2);

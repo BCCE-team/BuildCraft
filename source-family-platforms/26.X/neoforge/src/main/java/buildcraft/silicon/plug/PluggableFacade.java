@@ -23,6 +23,7 @@ import buildcraft.silicon.BCSiliconItems;
 import buildcraft.silicon.client.model.key.KeyPlugFacade;
 import buildcraft.transport.client.model.key.KeyPlugBlocker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.renderer.rendertype.RenderType;
@@ -258,7 +259,12 @@ public class PluggableFacade extends PipePluggable {
         if (tintSource == null) {
             return -1;
         }
-        return tintSource.colorInWorld(state.stateInfo.state, holder.getPipeWorld(), holder.getPipePos());
+        // Since 26.1 BlockAndTintGetter is client-only; IPipeHolder exposes the world as Level.
+        // At render time the pipe lives in ClientLevel, which is the actual positional tint getter.
+        if (holder.getPipeWorld() instanceof ClientLevel clientLevel) {
+            return tintSource.colorInWorld(state.stateInfo.state, clientLevel, holder.getPipePos());
+        }
+        return tintSource.color(state.stateInfo.state);
     }
 
     public FacadeType getType() {

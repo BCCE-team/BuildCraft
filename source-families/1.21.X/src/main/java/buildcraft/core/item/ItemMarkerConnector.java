@@ -50,22 +50,18 @@ public class ItemMarkerConnector extends Item {
     }
 
     public InteractionResult use(Level world, Player player, InteractionHand hand) {
-        // The client cannot authoritatively edit marker caches, but returning SUCCESS keeps the item-use interaction
-        // alive while the server performs the actual connection below.
-        if (world.isClientSide()) {
-            return InteractionResult.SUCCESS;
-        }
-
-        boolean markerConnected = false;
-        for (MarkerCache<?> cache : MarkerCache.CACHES) {
-            if (interactCache(cache.getSubCache(world), player)) {
-                player.swing(hand);
-                markerConnected = true;
-                break;
+        // Match the legacy connector contract: the client predicts PASS, while the server performs marker-cache
+        // edits and returns the volume-box interaction result. Connecting a marker line itself does not upgrade the
+        // item-use result to SUCCESS; the explicit player swing remains the visible confirmation, as on older targets.
+        if (!world.isClientSide()) {
+            for (MarkerCache<?> cache : MarkerCache.CACHES) {
+                if (interactCache(cache.getSubCache(world), player)) {
+                    player.swing(hand);
+                    break;
+                }
             }
         }
-        InteractionResult volumeResult = onItemRightClickVolumeBoxes(world, player);
-        return markerConnected && volumeResult == InteractionResult.FAIL ? InteractionResult.SUCCESS : volumeResult;
+        return onItemRightClickVolumeBoxes(world, player);
     }
 
 

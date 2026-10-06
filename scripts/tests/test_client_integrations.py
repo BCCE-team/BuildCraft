@@ -148,8 +148,15 @@ class ClientIntegrations(unittest.TestCase):
         old_pipe = (ROOT / 'version-src/1.19.2-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text()
         mid_pipe = (ROOT / 'version-src/1.20.1-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text()
 
-        # Preserve vanilla glass texture alpha exactly; multiplying it again makes facades almost invisible.
-        self.assertIn('GLASS_FACADE_ALPHA = 1.0D', current_baker)
+        # Alpha handling is generation-specific. Forge 1.19.2/1.20.1 and NeoForge 1.21.1 still use the legacy
+        # baked-quad path whose facade vertex alpha is opaque, so they need the historical 0.2 multiplier.
+        # 1.21.11+ carries per-vertex BakedColors/alpha natively and must not receive that extra multiplier.
+        old_baker = self.java('buildcraft/silicon/client/model/plug/PlugBakerFacade.java', old=True)
+        forge_baker = (ROOT / 'source-platforms/forge/src/main/java/buildcraft/silicon/client/model/plug/PlugBakerFacade.java').read_text()
+        self.assertIn('multColourd(1.0, 1.0, 1.0, 0.2)', forge_baker)
+        self.assertIn('multColourd(1.0, 1.0, 1.0, 0.2)', old_baker)
+        self.assertNotIn('multColourd(1.0, 1.0, 1.0, 0.2)', current_baker)
+        self.assertNotIn('GLASS_FACADE_ALPHA', current_baker)
         # Blocks without a normal item form remain valid facade materials when vanilla supplies a clone stack.
         # The public extension signature differs between 1.21.1 and 1.21.11, so the bridge resolves both without
         # falling back to asItem() and losing state-dependent variants.
@@ -291,12 +298,14 @@ class ClientIntegrations(unittest.TestCase):
         self.assertIn('persistentElementCount', gui)
         self.assertIn('shownElements.subList(persistentElementCount', gui)
 
-        # The modern facade dynamic renderer must keep the baker path, while the baker preserves source glass alpha.
-        facade = (current_root / 'buildcraft/silicon/client/render/PlugFacadeRenderer.java').read_text()
-        self.assertIn('bakeForKey(modelKey, true)', facade)
-        self.assertNotIn('bakeForKey(modelKey, false)', facade)
-        silicon_models = (current_root / 'buildcraft/silicon/BCSiliconModels.java').read_text()
-        self.assertIn('registry.registerRenderer(PluggableFacade.class, PlugFacadeRenderer.INSTANCE)', silicon_models)
+        # Glass facades must stay in the terrain translucent pass. A block-entity/dynamic translucent pass is
+        # sorted independently from water/ice and causes the facade to see through other translucent terrain.
+        for root in (old_root, current_root):
+            silicon_models = (root / 'buildcraft/silicon/BCSiliconModels.java').read_text()
+            self.assertNotIn('registry.registerRenderer(PluggableFacade.class, PlugFacadeRenderer.INSTANCE)', silicon_models)
+        old_facade = (old_root / 'buildcraft/silicon/plug/PluggableFacade.java').read_text()
+        self.assertNotIn('if (isGlass(blockState)) {\n                return null;', old_facade)
+        self.assertIn('targetLayer.contains(RenderType.translucent())', old_facade)
 
         # The holder's collision shape can report its pipe rather than the visible facade. Paint therefore resolves
         # the facade from its actual shape at the hit position and must not fall through to the pipe.
@@ -363,12 +372,13 @@ class ClientIntegrations(unittest.TestCase):
         native_pipe = (current_root / 'buildcraft/transport/client/model/ModelPipeNative121111.java').read_text()
         self.assertIn('BakedColors.of(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF)', native_pipe)
 
-        # The native 1.21.11 terrain model must not bake glass facades: that pass loses their alpha. Glass is
-        # deliberately left for RenderPipeHolder's dynamic translucent renderer.
+        # 1.21.11 native quads preserve BakedColors/alpha, so glass facades belong in the same terrain
+        # translucent pass as water, ice and vanilla glass instead of being filtered to a dynamic renderer.
         native_model = (current_root / 'buildcraft/transport/client/model/ModelPipeNative121111.java').read_text()
         cache = (current_root / 'buildcraft/transport/client/model/PipeModelCachePluggable.java').read_text()
         self.assertIn('ModelPipeNative121111::isNativeStaticPluggable', native_model)
-        self.assertIn('PluggableFacade.isGlass(', native_model)
+        self.assertIn('BakedColors.of(argb(quad.vertex_0)', native_model)
+        self.assertNotIn('PluggableFacade.isGlass(', native_model)
         self.assertIn('Predicate<PipePluggable> include', cache)
 
         # Decorative gears are regular GUI elements, rendered after the texture overlay by GuiBC8's guaranteed

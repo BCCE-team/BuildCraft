@@ -80,6 +80,22 @@ def check(effective: Path) -> None:
     require("TransferJournal.active() ? null" in caps,
             "Foreign non-transactional fallback must not mutate during a native transaction")
 
+    marker_connector = src("core/item/ItemMarkerConnector.java")
+    use_start = marker_connector.index("public InteractionResult use(Level world, Player player, InteractionHand hand)")
+    use_end = marker_connector.index("private static <S extends MarkerSubCache", use_start)
+    use_body = marker_connector[use_start:use_end]
+    require("if (!world.isClientSide())" in use_body and "return onItemRightClickVolumeBoxes(world, player);" in use_body,
+            "Marker Connector no longer matches legacy client/server interaction-result semantics")
+    require("return InteractionResult.SUCCESS;" not in use_body and "markerConnected" not in use_body,
+            "Marker Connector still upgrades client or marker-line use results to SUCCESS")
+
+    core_client_events = src("core/client/BCCoreClientModEvents.java")
+    for token in ("RegisterDebugEntriesEvent", "DebugScreenEntryStatus.IN_OVERLAY", "RenderTickListener.renderDebugInfo(displayer)"):
+        require(token in core_client_events, f"Modern F3 debug-entry registration lost {token}")
+    debug_listener = src("core/client/RenderTickListener.java")
+    for token in ("renderDebugInfo(DebugScreenDisplayer displayer)", "ClientDebuggables.SERVER_LEFT", "ClientDebuggables.SERVER_RIGHT", "displayer.addLine(line)"):
+        require(token in debug_listener, f"Modern F3 debug entry lost {token}")
+
     core = src("core/BCCore.java")
     require("Capabilities.Fluid.ITEM" in core and "new buildcraft.core.item.FragileFluidResourceHandler(context)" in core,
             "Shard native ItemAccess capability is not registered")
