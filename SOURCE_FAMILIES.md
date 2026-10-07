@@ -41,6 +41,8 @@ If a source family requires an incompatible toolchain, give it an independent bu
 Current targets:
 
 - `26.1.2-neoforge`
+- `26.2-neoforge`
+- `26.3-neoforge`
 
 Build root: `builds/26.X`
 
@@ -100,7 +102,9 @@ version-src/
 ├─ 1.20.1-forge/
 ├─ 1.21.1-neoforge/
 ├─ 1.21.11-neoforge/
-└─ 26.1.2-neoforge/                 irreducible target-only files/resources
+├─ 26.1.2-neoforge/
+├─ 26.2-neoforge/
+└─ 26.3-neoforge/                     irreducible target-only files/resources
 ```
 
 A target is materialized from the same five ownership layers. Older targets may additionally insert a downport view immediately after the family or family-platform owner:

@@ -30,6 +30,8 @@ TARGETS = (
     ("1.21.1-neoforge", "1.21.X", 21),
     ("1.21.11-neoforge", "1.21.X", 21),
     ("26.1.2-neoforge", "26.X", 25),
+    ("26.2-neoforge", "26.X", 25),
+    ("26.3-neoforge", "26.X", 25),
 )
 VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Validate independent Stonecutter builds", (sys.executable, "scripts/validate-stonecutter.py")),

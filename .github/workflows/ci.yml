@@ -170,6 +170,12 @@ jobs:
           - target: 26.1.2-neoforge
             generation: 26.X
             java: '25'
+          - target: 26.2-neoforge
+            generation: 26.X
+            java: '25'
+          - target: 26.3-neoforge
+            generation: 26.X
+            java: '25'
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dfile.encoding=UTF-8
       BUILD_GENERATION: ${{ matrix.generation }}

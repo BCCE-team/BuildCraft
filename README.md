@@ -15,6 +15,8 @@ The goal of the project is to preserve and continue the classic BuildCraft exper
 | 1.21.1 | NeoForge |
 | 1.21.11 | NeoForge |
 | 26.1.2 | NeoForge |
+| 26.2 | NeoForge |
+| 26.3 | NeoForge |
 
 ## Roadmap 2.0
 
@@ -43,7 +45,7 @@ BCCE has three active Stonecutter/Gradle build generations:
 
 - **old** — Minecraft 1.19.2 and 1.20.1;
 - **1.21.X** — Minecraft 1.21.1 and 1.21.11;
-- **26.X** — Minecraft 26.1.2.
+- **26.X** — Minecraft 26.1.2, 26.2 and 26.3.
 
 Each generation has its own Gradle Wrapper and Stonecutter controller under `builds/<generation>`.
 

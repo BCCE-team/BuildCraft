@@ -25,6 +25,8 @@ class ResourcePipeline(unittest.TestCase):
             "1.21.1-neoforge",
             "1.21.11-neoforge",
             "26.1.2-neoforge",
+            "26.2-neoforge",
+            "26.3-neoforge",
         ):
             root = Path(cls.temp.name) / target
             materialize_target(target, root, cls.props)
@@ -47,6 +49,8 @@ class ResourcePipeline(unittest.TestCase):
             "1.20.1-forge": set(),
             "1.21.1-neoforge": set(),
             "1.21.11-neoforge": set(),
+            "26.2-neoforge": set(),
+            "26.3-neoforge": set(),
         }
         for target, expected_paths in expected.items():
             root = ROOT / "version-src" / target / "src/main/resources"

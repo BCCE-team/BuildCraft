@@ -65,6 +65,8 @@ TARGETS = (
     "1.21.1-neoforge",
     "1.21.11-neoforge",
     "26.1.2-neoforge",
+    "26.2-neoforge",
+    "26.3-neoforge",
 )
 
 

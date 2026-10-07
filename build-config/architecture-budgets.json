@@ -26,6 +26,10 @@
     "/targets/1.21.11-neoforge/java": 1,
     "/targets/1.21.11-neoforge/resources": 0,
     "/targets/26.1.2-neoforge/java": 12,
-    "/targets/26.1.2-neoforge/resources": 0
+    "/targets/26.1.2-neoforge/resources": 0,
+    "/targets/26.2-neoforge/java": 0,
+    "/targets/26.2-neoforge/resources": 0,
+    "/targets/26.3-neoforge/java": 0,
+    "/targets/26.3-neoforge/resources": 0
   }
 }

@@ -15,8 +15,10 @@ TARGETS = (
     "1.21.1-neoforge",
     "1.21.11-neoforge",
     "26.1.2-neoforge",
+    "26.2-neoforge",
+    "26.3-neoforge",
 )
-MODERN_CAPTURE_TARGETS = {"1.21.11-neoforge", "26.1.2-neoforge"}
+MODERN_CAPTURE_TARGETS = {"1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"}
 
 
 def read(target: str, relative: str) -> str:
@@ -68,7 +70,7 @@ def validate_target(target: str) -> None:
     else:
         require(target, renderer, "RenderType.entityCutoutNoCull(preview.location)")
 
-    if target == "1.21.11-neoforge":
+    if target in {"1.21.11-neoforge", "26.2-neoforge", "26.3-neoforge"}:
         require(target, renderer, "level.dimension().identifier().toString()")
     else:
         require(target, renderer, "level.dimension().location().hashCode()")
