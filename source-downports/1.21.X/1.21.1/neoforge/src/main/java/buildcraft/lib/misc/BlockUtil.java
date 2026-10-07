@@ -121,11 +121,7 @@ public final class BlockUtil {
     /** Places as the supplied actor and rolls back when NeoForge's place hook is cancelled. */
     public static boolean placeBlock(Level level, BlockPos pos, BlockState state, @Nullable Player actor,
                                      Direction placedAgainst, int flags) {
-        boolean placed = PlatformWorldActions.placeBlock(level, pos, state, actor, placedAgainst, flags);
-        if (placed && level instanceof ServerLevel) {
-            SoundUtil.playBlockPlace(level, pos, state);
-        }
-        return placed;
+        return PlatformWorldActions.placeBlock(level, pos, state, actor, placedAgainst, flags);
     }
 
     public static boolean harvestBlock(ServerLevel world, BlockPos pos, @Nonnull ItemStack tool, GameProfile owner) {
@@ -149,7 +145,6 @@ public final class BlockUtil {
                 tool.mineBlock(world, state, pos, fakePlayer);
             }
             state.getBlock().playerDestroy(world, fakePlayer, pos, state, blockEntity, tool);
-            SoundUtil.playBlockBreak(world, pos, state);
             return true;
         });
     }
@@ -160,11 +155,7 @@ public final class BlockUtil {
                 return false;
             }
 
-            BlockState state = world.getBlockState(pos);
-            if (!world.destroyBlock(pos, true)) {
-                return false;
-            }
-            SoundUtil.playBlockBreak(world, pos, state);
+            world.destroyBlock(pos, true);
             return true;
         });
     }
@@ -197,12 +188,10 @@ public final class BlockUtil {
             return false;
         }
 
-        BlockState state = world.getBlockState(pos);
-        if (!state.isAir() && !world.isClientSide && world.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS)) {
+        if (!world.getBlockState(pos).isAir() && !world.isClientSide && world.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS)) {
             drops.addAll(getItemStackFromBlock(world, pos, owner));
         }
         world.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
-        SoundUtil.playBlockBreak(world, pos, state);
         return true;
     }
 
@@ -492,11 +481,12 @@ public final class BlockUtil {
             return null;
         }
 
-        // Keep the same stable slot order as the vanilla double-chest menu, independent of which half
-        // automation is touching. This makes insertion always begin at global slot 0 instead of slot 27
-        // when a pipe happens to contact the second half of the chest.
-        ChestType type = chest.getBlockState().getValue(BlockStateProperties.CHEST_TYPE);
-        return type == ChestType.RIGHT ? new CompoundContainer(other, chest) : new CompoundContainer(chest, other);
+        // Match Forge 1.12's VanillaDoubleChestItemHandler, which is what original BC8 saw through
+        // the item capability. The first 27 slots are always the west/north half of the pair, regardless
+        // of which half automation touched or which way the chest faces.
+        Direction connected = ChestBlock.getConnectedDirection(chest.getBlockState());
+        boolean chestIsFirst = connected != Direction.WEST && connected != Direction.NORTH;
+        return chestIsFirst ? new CompoundContainer(chest, other) : new CompoundContainer(other, chest);
     }
 
     public static <T extends Comparable<T>> BlockState copyProperty(Property<T> property, BlockState dst,

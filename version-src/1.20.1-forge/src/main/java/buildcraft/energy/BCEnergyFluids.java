@@ -12,6 +12,7 @@ import buildcraft.lib.fluid.BCFluid;
 import buildcraft.lib.fluid.FluidCompatRegistry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.Item;
@@ -24,6 +25,7 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.material.PushReaction;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.common.SoundActions;
 import net.minecraftforge.fluids.FluidType;
 import net.minecraftforge.fluids.ForgeFlowingFluid;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -166,6 +168,8 @@ public final class BCEnergyFluids {
         BCRegistryEntry<BCFluidType> type = FLUID_TYPES.register(fullName, () -> new BCFluidType(
             FluidType.Properties.create()
                 .canSwim(false)
+                .sound(SoundActions.BUCKET_FILL, SoundEvents.BUCKET_FILL)
+                .sound(SoundActions.BUCKET_EMPTY, SoundEvents.BUCKET_EMPTY)
                 .density(boilAdjustedDensity)
                 .viscosity(tempAdjustedViscosity)
                 .temperature(300 + 50 * heat)

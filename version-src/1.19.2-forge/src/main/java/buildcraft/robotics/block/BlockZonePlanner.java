@@ -17,7 +17,7 @@ public class BlockZonePlanner extends BlockBCTile_Neptune implements IBlockWithF
     public BlockZonePlanner() {
         super(BlockBehaviour.Properties.of(Material.METAL)
                 .strength(5.0F, 10.0F)
-                .sound(SoundType.METAL)
+                .sound(SoundType.STONE)
                 .requiresCorrectToolForDrops());
     }
 

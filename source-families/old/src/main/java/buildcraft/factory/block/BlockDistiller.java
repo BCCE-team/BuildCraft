@@ -32,10 +32,10 @@ public class BlockDistiller extends BlockBCTile_Neptune implements EntityBlock, 
 
 	public BlockDistiller() {
 		//? if <1.20 {
-		super(BlockBehaviour.Properties.of(Material.GLASS).sound(SoundType.GLASS).strength(5.0f).explosionResistance(10.0f).requiresCorrectToolForDrops());
+		super(BlockBehaviour.Properties.of(Material.GLASS).sound(SoundType.METAL).strength(5.0f).explosionResistance(10.0f).requiresCorrectToolForDrops());
 		//?} else {
 		/*?
-		super(BlockBehaviour.Properties.of().mapColor(MapColor.NONE).sound(SoundType.GLASS).strength(5.0f).explosionResistance(10.0f).requiresCorrectToolForDrops());
+		super(BlockBehaviour.Properties.of().mapColor(MapColor.NONE).sound(SoundType.METAL).strength(5.0f).explosionResistance(10.0f).requiresCorrectToolForDrops());
 		?*/
 		//?}
 	}

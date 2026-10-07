@@ -49,7 +49,7 @@ public class SoundUtil {
 
     public static void playLeverSwitch(Level world, BlockPos pos, boolean isNowOn) {
         float pitch = isNowOn ? 0.6f : 0.5f;
-        SoundEvent soundEvent = SoundEvents.LAVA_POP;
+        SoundEvent soundEvent = SoundEvents.LEVER_CLICK;
         world.playSound(null, pos, soundEvent, SoundSource.BLOCKS, 0.2f, pitch);
     }
 
@@ -113,6 +113,44 @@ public class SoundUtil {
             () -> moved.getFluid().getFluidType().getSound(moved, SoundActions.BUCKET_FILL),
             "bucket-fill"
         );
+    }
+
+    /**
+     * NeoForge's generic container helper only plays a sound when a FluidType explicitly registers one.
+     * Forge 1.12 Fluid supplied generic bucket sounds by default, so preserve that BC8 fallback without
+     * duplicating a native sound when the modern fluid already provides one.
+     */
+    public static void playBucketEmptyFallbackIfMissing(Level level, BlockPos pos, FluidStack resource) {
+        playFluidActionFallbackIfMissing(
+            level, pos, SoundEvents.BUCKET_EMPTY,
+            () -> resource.getFluid().getFluidType().getSound(resource, SoundActions.BUCKET_EMPTY),
+            "bucket-empty"
+        );
+    }
+
+    public static void playBucketFillFallbackIfMissing(Level level, BlockPos pos, FluidStack resource) {
+        playFluidActionFallbackIfMissing(
+            level, pos, SoundEvents.BUCKET_FILL,
+            () -> resource.getFluid().getFluidType().getSound(resource, SoundActions.BUCKET_FILL),
+            "bucket-fill"
+        );
+    }
+
+    private static void playFluidActionFallbackIfMissing(Level level, BlockPos pos, SoundEvent fallback,
+        Supplier<SoundEvent> soundProvider, String action) {
+        try {
+            if (soundProvider.get() != null) {
+                return;
+            }
+        } catch (RuntimeException exception) {
+            BCLog.logger.warn("Fluid {} sound provider failed while checking fallback", action, exception);
+        }
+
+        try {
+            level.playSound(null, pos, fallback, SoundSource.PLAYERS, 1, 1);
+        } catch (RuntimeException exception) {
+            BCLog.logger.warn("Failed to play cosmetic fluid {} fallback sound", action, exception);
+        }
     }
 
     /**

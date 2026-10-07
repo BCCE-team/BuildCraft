@@ -48,10 +48,10 @@ public class BlockFrame extends BlockBCBase_Neptune {
 
     public BlockFrame() {
         //? if <1.20 {
-        super(BlockBehaviour.Properties.of(Material.STONE).sound(SoundType.STONE).strength(0.25f)
+        super(BlockBehaviour.Properties.of(Material.STONE).sound(SoundType.METAL).strength(0.25f)
         //?} else {
         /*?
-        super(BlockBehaviour.Properties.of().mapColor(MapColor.STONE).sound(SoundType.STONE).strength(0.25f)
+        super(BlockBehaviour.Properties.of().mapColor(MapColor.STONE).sound(SoundType.METAL).strength(0.25f)
                 .forceSolidOn()
         ?*/
         //?}

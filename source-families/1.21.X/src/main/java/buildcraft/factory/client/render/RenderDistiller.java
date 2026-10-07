@@ -75,7 +75,10 @@ public class RenderDistiller implements BCGeometryRenderer<TileDistiller_BC8> {
 
         // buffer setup
         {
-            VertexConsumer bb = buffer.getBuffer(BCRenderTypes.solid());
+            // These quads come from the model's cutout layer. Using the solid moving-block
+            // pipeline makes fully transparent texels write depth on 1.21.11+, which both
+            // darkens the animated power paddles and punches holes into adjacent block faces.
+            VertexConsumer bb = buffer.getBuffer(BCRenderTypes.cutout());
             Pose last = matrix.last();
             Matrix4f pose = last.pose();
             Matrix3f normal = last.normal();

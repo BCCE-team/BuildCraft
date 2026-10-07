@@ -62,7 +62,7 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
         super(Properties.of().mapColor(MapColor.NONE)
             .destroyTime(5.0f)
             .explosionResistance(10.0f)
-            .sound(SoundType.GLASS)
+            .sound(SoundType.METAL)
             .requiresCorrectToolForDrops()
             .noOcclusion());
         this.registerDefaultState(this.stateDefinition.any()

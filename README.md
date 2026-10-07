@@ -22,10 +22,12 @@ The goal of the project is to preserve and continue the classic BuildCraft exper
 - [x] Introduce the new API v2 system
 - [x] Add Forge Energy (FE) compatibility
 - [x] Port to 1.21.11 NeoForge
+- [x] Port to 26.x NeoForge
+- [ ] Introduce API v2.1 extension
 - [ ] Port to 1.20.1 Fabric
+- [ ] Port to 1.21.1 Fabric
 - [ ] Port to 1.21.11 Fabric
-- [x] Add Minecraft 26.1.2 NeoForge support
-- [ ] Add Minecraft 26.x Fabric support
+- [ ] Port to 26.x Fabric
 
 ## API v2
 

@@ -119,7 +119,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 			"buildcrafttransport:logic_transportation");
 
 	public BlockPipeHolder() {
-		super(BlockBehaviour.Properties.of().mapColor(MapColor.STONE).sound(SoundType.STONE).strength(0.25f)
+		super(BlockBehaviour.Properties.of().mapColor(MapColor.STONE).sound(SoundType.METAL).strength(0.25f)
 				.explosionResistance(3.0f).noOcclusion());
 		registerDefaultState(stateDefinition.any().setValue(WATERLOGGED, false));
 	}

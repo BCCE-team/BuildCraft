@@ -1337,7 +1337,7 @@ def validate_id_allocator_contracts() -> None:
 
 
 def validate_transactional_side_effect_ordering() -> None:
-    """Cosmetic fluid sounds must not sit between fluid mutation and authoritative inventory/menu state."""
+    """Fluid sounds are best-effort and must be emitted for every committed BC8 transfer path."""
     for target in TARGETS:
         sound = compact(text(target, "src/main/java/buildcraft/lib/misc/SoundUtil.java"))
         for required in (
@@ -1358,29 +1358,29 @@ def validate_transactional_side_effect_ordering() -> None:
         if transfer_match is None:
             fail(f"{target}: could not locate Tank.transferStackToTank for transaction guard")
         else:
-            transfer = transfer_match.group(1)
-            if "SoundUtil.playBucketEmpty" in transfer or "SoundUtil.playBucketFill" in transfer:
-                fail(f"{target}: Tank.transferStackToTank still performs cosmetic sound inside the transaction")
+            transfer = compact(transfer_match.group(1))
+            fill_commit = transfer.find("int reallyAccepted = fill(result.fluidStack, FluidAction.EXECUTE);")
+            empty_sound = transfer.find("SoundUtil.playBucketEmpty")
+            drain_commit = transfer.find("FluidStack reallyDrained = drain(filled, FluidAction.EXECUTE);")
+            fill_sound = transfer.find("SoundUtil.playBucketFill")
+            if fill_commit < 0 or empty_sound < 0 or empty_sound <= fill_commit:
+                fail(f"{target}: committed item->tank transfer does not emit the BC8 bucket-empty sound")
+            if drain_commit < 0 or fill_sound < 0 or fill_sound <= drain_commit:
+                fail(f"{target}: committed tank->item transfer does not emit the BC8 bucket-fill sound")
 
         if "private static FluidStack copyFluidForSound" not in tank_raw:
-            fail(f"{target}: GUI fluid sound delta is not copied through the cross-loader helper")
-        if target == "1.19.2-forge" and "Level world = player.level;" not in tank_raw:
-            fail("1.19.2-forge: GUI fluid sound must use the pre-1.20 Player.level field")
-        if target == "1.20.1-forge" and "Level world = player.level();" not in tank_raw:
-            fail("1.20.1-forge: GUI fluid sound must use Player.level() on 1.20+")
+            fail(f"{target}: committed fluid sound delta is not copied through the cross-loader helper")
+        if "playCommittedGuiTransferSound" in tank_raw:
+            fail(f"{target}: fluid sound is still restricted to the GUI widget instead of transferStackToTank")
+        if target == "1.19.2-forge" and "SoundUtil.playBucketEmpty(player.level," not in tank_raw:
+            fail("1.19.2-forge: transfer sound must use the pre-1.20 Player.level field")
+        if target != "1.19.2-forge" and "player.level()" not in transfer_match.group(1):
+            fail(f"{target}: transfer sound must use Player.level()")
         for incompatible in ("new FluidStack(after,", "new FluidStack(before,"):
             if incompatible in tank_raw:
                 fail(
-                    f"{target}: GUI fluid sound uses loader-specific FluidStack copy constructor: {incompatible!r}"
+                    f"{target}: fluid sound uses loader-specific FluidStack copy constructor: {incompatible!r}"
                 )
-
-        tank = compact(tank_raw)
-        for needle in (
-            "menu.setCarried(stack); menu.broadcastFullState(); player.inventoryMenu.broadcastFullState(); playCommittedGuiTransferSound(player, before);",
-            "container.setCarried(stack); container.broadcastFullState(); player.inventoryMenu.broadcastFullState(); playCommittedGuiTransferSound(player, before);",
-        ):
-            if compact(needle) not in tank:
-                fail(f"{target}: GUI fluid sound is not post-commit: missing normalized fragment {needle!r}")
 
     forge = compact(text("1.19.2-forge", "src/main/java/buildcraft/lib/misc/FluidUtilBC.java"))
     direct_commit = compact(

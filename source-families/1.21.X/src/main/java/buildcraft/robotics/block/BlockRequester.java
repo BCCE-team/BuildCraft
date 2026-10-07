@@ -18,7 +18,7 @@ public class BlockRequester extends BlockBCTile_Neptune implements IBlockWithFac
     public BlockRequester() {
         super(BlockBehaviour.Properties.of().mapColor(MapColor.METAL)
                 .strength(5.0F, 10.0F)
-                .sound(SoundType.METAL)
+                .sound(SoundType.STONE)
                 .requiresCorrectToolForDrops());
     }
 

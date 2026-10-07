@@ -349,12 +349,10 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
         if (held.isEmpty()) {
             return;
         }
-        FluidStack before = getFluid().copy();
         ItemStack stack = transferStackToTank(player, held);
         menu.setCarried(stack);
         menu.broadcastFullState();
         player.inventoryMenu.broadcastFullState();
-        playCommittedGuiTransferSound(player, before);
     }
 
     public void onGuiClicked(MenuBC_Neptune container) {
@@ -363,27 +361,10 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
         if (held.isEmpty()) {
             return;
         }
-        FluidStack before = getFluid().copy();
         ItemStack stack = transferStackToTank(player, held);
         container.setCarried(stack);
         container.broadcastFullState();
         player.inventoryMenu.broadcastFullState();
-        playCommittedGuiTransferSound(player, before);
-    }
-
-    private void playCommittedGuiTransferSound(Player player, FluidStack before) {
-        FluidStack after = getFluid();
-        int beforeAmount = before.isEmpty() ? 0 : before.getAmount();
-        int afterAmount = after.isEmpty() ? 0 : after.getAmount();
-        if (afterAmount > beforeAmount && !after.isEmpty()) {
-            SoundUtil.playBucketEmpty(
-                player.level(), player.blockPosition(), copyFluidForSound(after, afterAmount - beforeAmount)
-            );
-        } else if (beforeAmount > afterAmount && !before.isEmpty()) {
-            SoundUtil.playBucketFill(
-                player.level(), player.blockPosition(), copyFluidForSound(before, beforeAmount - afterAmount)
-            );
-        }
     }
 
     private static FluidStack copyFluidForSound(FluidStack source, int amount) {
@@ -424,6 +405,9 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
                         "We seem to be buggy! (accepted = " + accepted + ", reallyAccepted = " + reallyAccepted + ")");
                 }
                 stack.shrink(1);
+                SoundUtil.playBucketEmpty(
+                    player.level(), player.blockPosition(), copyFluidForSound(result.fluidStack, reallyAccepted)
+                );
                 if (isSurvival) {
                     if (stack.isEmpty()) {
                         return result.itemStack.copy();
@@ -451,6 +435,7 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
                 throw new IllegalStateException("Somehow drained differently than expected! ( drained = "
                     + drained + ", filled = " + filled + ", reallyDrained = " + reallyDrained + " )");
             }
+            SoundUtil.playBucketFill(player.level(), player.blockPosition(), reallyDrained);
             if (original.getCount() == 1) {
                 return fluidHandler.getContainer();
             } else {

@@ -224,9 +224,9 @@ require(
     '"block.buildcraftenergy.spout_oil": "Oil (§bCool§r)"',
 )
 
-# Double chests must expose one canonical 0..53 slot order to automation, regardless of which
-# physical half a pipe/robot is touching. Contacted-half-first ordering makes the right/second
-# half appear as global slot 0 and therefore starts insertion at GUI slot 27.
+# Double chests must expose the same canonical 0..53 order that original BC8 received from
+# Forge 1.12 VanillaDoubleChestItemHandler. That handler always put the west/north half in slots
+# 0..26, independent of which half automation contacted and independent of ChestType LEFT/RIGHT.
 for rel in (
     "source-platforms/forge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
     "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
@@ -236,11 +236,14 @@ for rel in (
 ):
     require(
         rel,
-        "ChestType type = chest.getBlockState().getValue(BlockStateProperties.CHEST_TYPE);",
-        "type == ChestType.RIGHT ? new CompoundContainer(other, chest) : new CompoundContainer(chest, other)",
+        "Direction connected = ChestBlock.getConnectedDirection(chest.getBlockState());",
+        "boolean chestIsFirst = connected != Direction.WEST && connected != Direction.NORTH;",
+        "chestIsFirst ? new CompoundContainer(chest, other) : new CompoundContainer(other, chest)",
     )
     forbid(
         rel,
+        "ChestType type = chest.getBlockState().getValue(BlockStateProperties.CHEST_TYPE);",
+        "type == ChestType.RIGHT ? new CompoundContainer(other, chest) : new CompoundContainer(chest, other)",
         "Automation is spatial, not GUI-ordered",
         "return new CompoundContainer(chest, other);\n    }",
     )

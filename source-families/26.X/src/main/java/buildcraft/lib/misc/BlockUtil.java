@@ -456,11 +456,12 @@ public final class BlockUtil {
             return null;
         }
 
-        // Keep the same stable slot order as the vanilla double-chest menu, independent of which half
-        // automation is touching. This makes insertion always begin at global slot 0 instead of slot 27
-        // when a pipe happens to contact the second half of the chest.
-        ChestType type = chest.getBlockState().getValue(BlockStateProperties.CHEST_TYPE);
-        return type == ChestType.RIGHT ? new CompoundContainer(other, chest) : new CompoundContainer(chest, other);
+        // Match Forge 1.12's VanillaDoubleChestItemHandler, which is what original BC8 saw through
+        // the item capability. The first 27 slots are always the west/north half of the pair, regardless
+        // of which half automation touched or which way the chest faces.
+        Direction connected = ChestBlock.getConnectedDirection(chest.getBlockState());
+        boolean chestIsFirst = connected != Direction.WEST && connected != Direction.NORTH;
+        return chestIsFirst ? new CompoundContainer(chest, other) : new CompoundContainer(other, chest);
     }
 
     public static <T extends Comparable<T>> BlockState copyProperty(Property<T> property, BlockState dst,

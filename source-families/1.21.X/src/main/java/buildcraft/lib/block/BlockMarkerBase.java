@@ -55,7 +55,7 @@ public abstract class BlockMarkerBase extends BlockBCTile_Neptune implements ICu
     }
 
     public BlockMarkerBase(Properties material) {
-        super(material.strength(0.25f).sound(SoundType.WOOD));
+        super(material.strength(0.25f).sound(SoundType.METAL));
         this.registerDefaultState(this.stateDefinition.any()
 //                .setValue(FACING, Direction.NORTH)
                 .setValue(ACTIVE, false));
