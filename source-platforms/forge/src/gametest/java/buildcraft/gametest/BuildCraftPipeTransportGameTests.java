@@ -10,8 +10,10 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.phys.AABB;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
@@ -20,6 +22,8 @@ import buildcraft.transport.internal.pipe.IFlowItems;
 import buildcraft.transport.internal.pipe.PipeEventHandler;
 import buildcraft.transport.internal.pipe.PipeEventItem;
 import buildcraft.lib.BCLib;
+import buildcraft.lib.inventory.ItemTransactorHelper;
+import buildcraft.lib.internal.inventory.IItemTransactor;
 import buildcraft.transport.BCTransportPipes;
 import buildcraft.transport.pipe.behaviour.PipeBehaviourDiamond;
 import buildcraft.transport.pipe.behaviour.PipeBehaviourDiamondItem;
@@ -80,6 +84,43 @@ public final class BuildCraftPipeTransportGameTests {
                 "straight route dropped tagged cargo");
             helper.succeed();
         });
+    }
+
+    @GameTest(templateNamespace = BCLib.MODID, template = PipeGameTestSupport.LARGE_EMPTY_TEMPLATE,
+        timeoutTicks = 100)
+    public static void doubleChestInsertionStartsAtGlobalSlotZeroFromEitherHalf(GameTestHelper helper) {
+        BlockPos leftPos = new BlockPos(2, 1, 3);
+        BlockPos rightPos = leftPos.east();
+
+        helper.setBlock(leftPos, Blocks.CHEST.defaultBlockState()
+            .setValue(ChestBlock.FACING, Direction.NORTH)
+            .setValue(ChestBlock.TYPE, ChestType.LEFT));
+        helper.setBlock(rightPos, Blocks.CHEST.defaultBlockState()
+            .setValue(ChestBlock.FACING, Direction.NORTH)
+            .setValue(ChestBlock.TYPE, ChestType.RIGHT));
+
+        ChestBlockEntity left = (ChestBlockEntity) GameTestCompat.getBlockEntity(helper, leftPos);
+        ChestBlockEntity right = (ChestBlockEntity) GameTestCompat.getBlockEntity(helper, rightPos);
+        require(helper, left != null && right != null, "double chest block entities were not created");
+
+        Container combined = ChestBlock.getContainer(
+            (ChestBlock) right.getBlockState().getBlock(), right.getBlockState(), helper.getLevel(), right.getBlockPos(), true
+        );
+        require(helper, combined != null && combined.getContainerSize() == 54, "vanilla did not expose a 54-slot double chest");
+
+        IItemTransactor fromRight = ItemTransactorHelper.getTransactor(right, Direction.EAST);
+        ItemStack remainder = fromRight.insert(new ItemStack(Items.APPLE), false, false);
+        require(helper, remainder.isEmpty(), "right-half automation rejected insertion");
+        require(helper, combined.getItem(0).is(Items.APPLE),
+            "right-half automation did not begin at global double-chest slot 0");
+
+        combined.setItem(0, ItemStack.EMPTY);
+        IItemTransactor fromLeft = ItemTransactorHelper.getTransactor(left, Direction.WEST);
+        remainder = fromLeft.insert(new ItemStack(Items.CARROT), false, false);
+        require(helper, remainder.isEmpty(), "left-half automation rejected insertion");
+        require(helper, combined.getItem(0).is(Items.CARROT),
+            "left-half automation did not begin at the same global double-chest slot 0");
+        helper.succeed();
     }
 
     @GameTest(templateNamespace = BCLib.MODID, template = PipeGameTestSupport.LARGE_EMPTY_TEMPLATE,

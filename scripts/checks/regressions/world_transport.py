@@ -224,9 +224,9 @@ require(
     '"block.buildcraftenergy.spout_oil": "Oil (§bCool§r)"',
 )
 
-# Double chests must expose the same canonical 0..53 order that original BC8 received from
-# Forge 1.12 VanillaDoubleChestItemHandler. That handler always put the west/north half in slots
-# 0..26, independent of which half automation contacted and independent of ChestType LEFT/RIGHT.
+# Double-chest automation must use the exact same 54-slot ordering as the vanilla chest menu.
+# Do not rebuild a CompoundContainer from whichever half automation touched: ChestBlock's combiner owns
+# FIRST/SECOND ordering and is already what Forge/NeoForge use for their native chest item capability.
 for rel in (
     "source-platforms/forge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
     "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
@@ -236,16 +236,23 @@ for rel in (
 ):
     require(
         rel,
-        "Direction connected = ChestBlock.getConnectedDirection(chest.getBlockState());",
-        "boolean chestIsFirst = connected != Direction.WEST && connected != Direction.NORTH;",
-        "chestIsFirst ? new CompoundContainer(chest, other) : new CompoundContainer(other, chest)",
+        "return ChestBlock.getContainer(chestBlock, state, chest.getLevel(), chest.getBlockPos(), true);",
     )
     forbid(
         rel,
-        "ChestType type = chest.getBlockState().getValue(BlockStateProperties.CHEST_TYPE);",
-        "type == ChestType.RIGHT ? new CompoundContainer(other, chest) : new CompoundContainer(chest, other)",
-        "Automation is spatial, not GUI-ordered",
-        "return new CompoundContainer(chest, other);\n    }",
+        "chestIsFirst ? new CompoundContainer",
+        "type == ChestType.RIGHT ? new CompoundContainer",
+    )
+
+for rel in (
+    "source-platforms/forge/src/gametest/java/buildcraft/gametest/BuildCraftPipeTransportGameTests.java",
+    "source-platforms/neoforge/src/gametest/java/buildcraft/gametest/BuildCraftPipeTransportGameTests.java",
+):
+    require(
+        rel,
+        "doubleChestInsertionStartsAtGlobalSlotZeroFromEitherHalf",
+        "right-half automation did not begin at global double-chest slot 0",
+        "left-half automation did not begin at the same global double-chest slot 0",
     )
 
 if errors:

@@ -44,7 +44,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.CompoundContainer;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
@@ -452,17 +451,16 @@ public final class BlockUtil {
             return null;
         }
 
-        ChestBlockEntity other = getOtherDoubleChest(chest);
-        if (other == null || other.isRemoved()) {
+        BlockState state = chest.getBlockState();
+        if (!(state.getBlock() instanceof ChestBlock chestBlock)
+                || state.getValue(BlockStateProperties.CHEST_TYPE) == ChestType.SINGLE) {
             return null;
         }
 
-        // Match Forge 1.12's VanillaDoubleChestItemHandler, which is what original BC8 saw through
-        // the item capability. The first 27 slots are always the west/north half of the pair, regardless
-        // of which half automation touched or which way the chest faces.
-        Direction connected = ChestBlock.getConnectedDirection(chest.getBlockState());
-        boolean chestIsFirst = connected != Direction.WEST && connected != Direction.NORTH;
-        return chestIsFirst ? new CompoundContainer(chest, other) : new CompoundContainer(other, chest);
+        // Do not reconstruct a double chest from the contacted half. Vanilla/loader capability providers
+        // use ChestBlock's combiner, whose FIRST/SECOND order is also the order used by the 54-slot chest
+        // menu. Reusing it makes slot 0 stable no matter which physical half BuildCraft automation touches.
+        return ChestBlock.getContainer(chestBlock, state, chest.getLevel(), chest.getBlockPos(), true);
     }
 
     public static <T extends Comparable<T>> BlockState copyProperty(Property<T> property, BlockState dst,

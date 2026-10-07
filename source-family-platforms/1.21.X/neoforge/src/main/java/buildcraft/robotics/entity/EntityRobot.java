@@ -984,13 +984,22 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
         return sideId >= 0 && sideId < Direction.values().length ? Direction.values()[sideId] : null;
     }
 
+//? if >=26.1.2 {
+    @Override
+    public InteractionResult interact(Player player, InteractionHand hand, Vec3 location) {
+        return handleRobotInteract(player, hand);
+    }
+//? } else {
+    @Override
     public InteractionResult interact(Player player, InteractionHand hand) {
         return handleRobotInteract(player, hand);
     }
 
+    @Override
     public InteractionResult interactAt(Player player, Vec3 hitVec, InteractionHand hand) {
         return handleRobotInteract(player, hand);
     }
+//? }
 
     private InteractionResult handleRobotInteract(Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
@@ -1200,13 +1209,17 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
         // range while flying. Entity collision for players is handled by canBeCollidedWith/canCollideWith below.
     }
 
+    @Override
     public boolean canCollideWith(Entity entity) {
         return !(entity instanceof ItemEntity);
     }
 
-    public boolean canBeCollidedWith() {
-        // Players should be able to bump into and stand on robots like in BuildCraft 7.1.x. Dropped items are kept
-        // from being shoved by the empty pushEntities() override and the ItemEntity check in canCollideWith().
+    @Override
+    public boolean canBeCollidedWith(@Nullable Entity other) {
+        // 1.21.11 changed Entity#canBeCollidedWith from a no-arg hook to an entity-aware hook. If we keep the
+        // old signature then vanilla never sees the robot as a movement collision, so players walk straight through
+        // it and cannot stand on top. Keep the BC7/BC8 asymmetric collision model: the robot itself flies/no-clips,
+        // but other entities treat its 0.5x0.5x0.5 box as solid.
         return isAlive();
     }
 

@@ -66,7 +66,15 @@ def main() -> None:
             require("cutout()" not in target_tank, f"{target}: tank fluid still uses cutout")
             require("translucent()" in heat, f"{target}: heat exchanger fluid is not translucent")
             require("cutout()" not in heat, f"{target}: heat exchanger fluid still uses cutout")
-            require("solid()" in distiller, f"{target}: distiller model lost its opaque phase")
+            if target in ("1.21.11-neoforge", "26.1.2-neoforge"):
+                # The modern submitted-geometry pipeline must use cutout for the animated
+                # distiller paddles. Their power textures contain fully transparent texels;
+                # rendering them as solid writes depth for those texels, darkening the
+                # paddles and punching holes in adjacent block faces.
+                require("cutout()" in distiller, f"{target}: distiller animated model lost its cutout phase")
+                require("solid()" not in distiller, f"{target}: distiller animated model regressed to the solid depth-writing phase")
+            else:
+                require("solid()" in distiller, f"{target}: distiller model lost its opaque phase")
             require("translucent()" in distiller, f"{target}: distiller fluid lacks a translucent phase")
             require(
                 "Math.max((combinedLight >>> 4) & 15, blockLight)" in distiller,
