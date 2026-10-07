@@ -285,6 +285,8 @@ def generate_gametest_registry(
         )
     if namespaces:
         lines.append("")
+    # 26.1 appended `int padding` to TestData; 0 matches the vanilla codec default.
+    test_data_tail = "false, 0" if version_tuple(minecraft) >= version_tuple("26.1") else "false"
     for index, entry in enumerate(entries):
         ns = str(entry["test_namespace"])
         template_ns = str(entry["template_namespace"])
@@ -299,7 +301,7 @@ def generate_gametest_registry(
             "            new TestData<>(",
             f"                {env_vars[ns]},",
             f"                Identifier.fromNamespaceAndPath({template_ns}, {template}),",
-            f"                {timeout}, 0, true, Rotation.NONE, false, 1, 1, false",
+            f"                {timeout}, 0, true, Rotation.NONE, false, 1, 1, {test_data_tail}",
             "            )",
             "        ));",
         ])
