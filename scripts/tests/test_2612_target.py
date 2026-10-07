@@ -147,6 +147,18 @@ def main() -> int:
         "level.isClientSide() && level.getBlockEntity(pos) instanceof TileEngineBase_BC8",
     )
 
+    permission_tests = ROOT / "source-platforms/neoforge/src/gametest/java/buildcraft/gametest/PermissionOwnerGameTests.java"
+    require(
+        permission_tests,
+        "import net.neoforged.neoforge.event.level.block.BreakBlockEvent;",
+        "robot.interact(otherPlayer, InteractionHand.MAIN_HAND, robot.position())",
+        "private static void onBreak(BreakBlockEvent event)",
+    )
+    gametest_transform = ROOT / "scripts/transforms/gametest.py"
+    require(gametest_transform, 'f"                {timeout}, 0, true, Rotation.NONE"')
+    if "Rotation.NONE, false, 1, 1, false" in gametest_transform.read_text(encoding="utf-8"):
+        fail("generated TestData still uses the removed pre-26.1 ten-argument constructor")
+
     engine_item = FAMILY / "buildcraft/lib/item/MultiBlockItem.java"
     require(
         engine_item,

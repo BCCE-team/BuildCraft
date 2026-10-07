@@ -99,8 +99,8 @@ public final class BuildCraftPipeTransportGameTests {
             .setValue(ChestBlock.FACING, Direction.NORTH)
             .setValue(ChestBlock.TYPE, ChestType.RIGHT));
 
-        ChestBlockEntity left = (ChestBlockEntity) GameTestCompat.getBlockEntity(helper, leftPos);
-        ChestBlockEntity right = (ChestBlockEntity) GameTestCompat.getBlockEntity(helper, rightPos);
+        ChestBlockEntity left = (ChestBlockEntity) helper.getLevel().getBlockEntity(helper.absolutePos(leftPos));
+        ChestBlockEntity right = (ChestBlockEntity) helper.getLevel().getBlockEntity(helper.absolutePos(rightPos));
         require(helper, left != null && right != null, "double chest block entities were not created");
 
         Container combined = ChestBlock.getContainer(

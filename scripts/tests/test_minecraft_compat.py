@@ -163,6 +163,8 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertIn('BuiltInRegistries.TEST_FUNCTION.key()', registry_text)
         self.assertIn('new FunctionGameTestInstance(', registry_text)
         self.assertIn('RegisterGameTestsEvent', registry_text)
+        self.assertIn('20, 0, true, Rotation.NONE', registry_text)
+        self.assertNotIn('Rotation.NONE, false, 1, 1, false', registry_text)
 
         old_compat = (old_root / 'buildcraft/gametest/GameTestCompat.java').read_text(encoding='utf-8')
         current_compat = (current_root / 'buildcraft/gametest/GameTestCompat.java').read_text(encoding='utf-8')

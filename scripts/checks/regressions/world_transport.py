@@ -255,6 +255,16 @@ for rel in (
         "left-half automation did not begin at the same global double-chest slot 0",
     )
 
+require(
+    "source-platforms/forge/src/gametest/java/buildcraft/gametest/BuildCraftPipeTransportGameTests.java",
+    "helper.getLevel().getBlockEntity(helper.absolutePos(leftPos))",
+    "helper.getLevel().getBlockEntity(helper.absolutePos(rightPos))",
+)
+forbid(
+    "source-platforms/forge/src/gametest/java/buildcraft/gametest/BuildCraftPipeTransportGameTests.java",
+    "GameTestCompat.getBlockEntity",
+)
+
 if errors:
     print("ERROR: world/transport regression validation failed")
     for error in errors:

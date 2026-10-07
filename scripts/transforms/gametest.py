@@ -299,7 +299,7 @@ def generate_gametest_registry(
             "            new TestData<>(",
             f"                {env_vars[ns]},",
             f"                Identifier.fromNamespaceAndPath({template_ns}, {template}),",
-            f"                {timeout}, 0, true, Rotation.NONE, false, 1, 1, false",
+            f"                {timeout}, 0, true, Rotation.NONE",
             "            )",
             "        ));",
         ])
