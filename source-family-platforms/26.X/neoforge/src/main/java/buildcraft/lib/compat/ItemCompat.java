@@ -1,5 +1,8 @@
 package buildcraft.lib.compat;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import buildcraft.lib.compat.minecraft.components.BCItemData;
 import buildcraft.lib.misc.ItemStackUtil;
 import net.minecraft.core.HolderLookup;
@@ -14,6 +17,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.ShovelItem;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.equipment.Equippable;
@@ -95,9 +99,12 @@ public final class ItemCompat {
         return stack.getBurnTime(RecipeType.SMELTING, values);
     }
 
+    @Nonnull
     public static ItemStack getCraftingRemainingItem(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
-        return stack.getCraftingRemainder().create();
+        @Nullable ItemStackTemplate remainder = stack.getCraftingRemainder();
+        if (remainder == null) return ItemStack.EMPTY;
+        return remainder.create();
     }
 
     /** Serialize an ItemStack with the registry-aware ItemStack codec. Empty stacks encode as an empty compound. */
