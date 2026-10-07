@@ -235,6 +235,47 @@ for rel in (
     require(rel, "clientGroup.title = null;")
     forbid(rel, "clientGroup.title = Component.translatable")
 
+# Jade 26.1.2 also boxes any multi-group storage view even when no title is present. Flatten BuildCraft's
+# per-tank groups only in that target band so all bars stay on Jade's normal tooltip background.
+require(
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    "//? if >=26.1.2 {",
+    "inlineClientGroups(ClientViewGroup.map(groups, FluidView::readDefault, null))",
+    "private static <T> List<ClientViewGroup<T>> inlineClientGroups",
+    "Jade adds a themed BoxElement whenever it sees more than one group",
+)
+
+# BC8 pipe flow does not use the vanilla FLOWING sprite animation. It keeps a frozen frame and scrolls its UVs
+# using the client-side per-section flow offsets, so the texture visibly travels in the actual IN/OUT direction.
+for rel in (
+    "source-platforms/forge/src/main/java/buildcraft/transport/client/render/PipeFlowRendererFluids.java",
+    "source-platforms/neoforge/src/main/java/buildcraft/transport/client/render/PipeFlowRendererFluids.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/transport/client/render/PipeFlowRendererFluids.java",
+):
+    require(
+        rel,
+        "flow.getOffsetsForRender(partialTicks)",
+        "FluidSpriteType.FROZEN",
+        "renderScrollingFluid",
+        "renderTiledFace",
+    )
+    forbid(rel, "FluidSpriteType.FLOWING")
+
+# 26.1.2 uses the native fluid-container item model so a shard reads its Fluid capability at render time rather
+# than falling back to the static transparent base model. Its dynamic renderer already applies native face light,
+# so do not multiply legacy diffuse shading a second time on the animated distiller assembly.
+require(
+    "source-families/26.X/src/main/resources/assets/buildcraftcore/items/fragile_fluid_shard.json",
+    '"type": "neoforge:fluid_container"',
+    '"fluid": "minecraft:empty"',
+    '"fluid": "buildcraftcore:items/fragile_fluid_shard_fluid"',
+)
+require(
+    "source-families/1.21.X/src/main/java/buildcraft/factory/client/render/RenderDistiller.java",
+    "//? if <26.1.2 {",
+    "copy.multShade();",
+)
+
 if errors:
     for error in errors:
         print("ERROR:", error)

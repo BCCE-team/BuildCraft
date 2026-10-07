@@ -93,7 +93,9 @@ public class RenderDistiller implements BCGeometryRenderer<TileDistiller_BC8> {
             for (MutableQuad q : quads) {
                 copy.copyFrom(q);
                 copy.maxLighti(light_block, light_sky);
+//? if <26.1.2 {
                 copy.multShade();
+//? }
                 copy.render(pose, normal, bb);
             }
 

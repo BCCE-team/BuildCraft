@@ -125,7 +125,11 @@ public final class BlockUtil {
      */
     public static boolean placeBlock(Level level, BlockPos pos, BlockState state, @Nullable Player actor,
                                      Direction placedAgainst, int flags) {
-        return PlatformWorldActions.placeBlock(level, pos, state, actor, placedAgainst, flags);
+        boolean placed = PlatformWorldActions.placeBlock(level, pos, state, actor, placedAgainst, flags);
+        if (placed && level instanceof ServerLevel) {
+            SoundUtil.playBlockPlace(level, pos, state);
+        }
+        return placed;
     }
 
     public static boolean harvestBlock(ServerLevel world, BlockPos pos, @Nonnull ItemStack tool, GameProfile owner) {
@@ -149,6 +153,7 @@ public final class BlockUtil {
                 tool.mineBlock(world, state, pos, fakePlayer);
             }
             state.getBlock().playerDestroy(world, fakePlayer, pos, state, blockEntity, tool);
+            SoundUtil.playBlockBreak(world, pos, state);
             return true;
         });
     }
@@ -159,8 +164,11 @@ public final class BlockUtil {
                 return false;
             }
 
-            world.destroyBlock(pos, true);
-
+            BlockState state = world.getBlockState(pos);
+            if (!world.destroyBlock(pos, true)) {
+                return false;
+            }
+            SoundUtil.playBlockBreak(world, pos, state);
             return true;
         });
     }
@@ -193,10 +201,12 @@ public final class BlockUtil {
             return false;
         }
 
-        if (!world.getBlockState(pos).isAir() && !world.isClientSide && world.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS)) {
+        BlockState state = world.getBlockState(pos);
+        if (!state.isAir() && !world.isClientSide && world.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS)) {
             drops.addAll(getItemStackFromBlock(world, pos, owner));
         }
         world.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
+        SoundUtil.playBlockBreak(world, pos, state);
         return true;
     }
 

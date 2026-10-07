@@ -381,7 +381,11 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         }
 
         public List<ClientViewGroup<ItemView>> getClientGroups(Accessor<?> accessor, List<ViewGroup<ItemStack>> groups) {
+//? if >=26.1.2 {
+            return inlineClientGroups(ClientViewGroup.map(groups, ItemView::new, null));
+//? } else {
             return ClientViewGroup.map(groups, ItemView::new, BuildCraftJadePlugin::decorateGroupTitle);
+//? }
         }
     }
 
@@ -452,7 +456,11 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             if (BCLibConfig.hideFluidValues || groups == null || groups.isEmpty()) {
                 return Collections.emptyList();
             }
+//? if >=26.1.2 {
+            return inlineClientGroups(ClientViewGroup.map(groups, FluidView::readDefault, null));
+//? } else {
             return ClientViewGroup.map(groups, FluidView::readDefault, BuildCraftJadePlugin::decorateGroupTitle);
+//? }
         }
     }
 
@@ -528,6 +536,15 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             if (BCLibConfig.hidePowerValues) {
                 return Collections.emptyList();
             }
+//? if >=26.1.2 {
+            return inlineClientGroups(groups.stream().map(group -> {
+                String unit = group.getExtraData().getStringOr("Unit", "MJ");
+                return new ClientViewGroup<>(group.views.stream()
+                        .map(tag -> readEnergyView(tag, unit.isBlank() ? "MJ" : unit))
+                        .filter(view -> view != null)
+                        .toList());
+            }).toList());
+//? } else {
             return groups.stream().map(group -> {
                 String unit = group.getExtraData().getStringOr("Unit", "MJ");
                 ClientViewGroup<EnergyView> client = new ClientViewGroup<>(group.views.stream()
@@ -537,6 +554,7 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
                 decorateGroupTitle(group, client);
                 return client;
             }).toList();
+//? }
         }
     }
 
@@ -573,6 +591,21 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         }
 
         public List<ClientViewGroup<ProgressView>> getClientGroups(Accessor<?> accessor, List<ViewGroup<ProgressView.Data>> groups) {
+//? if >=26.1.2 {
+            return inlineClientGroups(ClientViewGroup.map(groups, ProgressView::read, (serverGroup, clientGroup) -> {
+                for (ProgressView view : clientGroup.views) {
+                    String flowType = serverGroup.getExtraData().getStringOr("FlowType", "");
+                    if (!flowType.isBlank()) {
+                        view.text = pipeThroughputText(
+                            flowType,
+                            serverGroup.getExtraData().getLongOr("FlowCurrent", 0L)
+                        );
+                    } else if (serverGroup.id != null) {
+                        view.text = Component.translatable("buildcraft.jade.progress." + safeTranslationPart(serverGroup.id));
+                    }
+                }
+            }));
+//? } else {
             return ClientViewGroup.map(groups, ProgressView::read, (serverGroup, clientGroup) -> {
                 decorateGroupTitle(serverGroup, clientGroup);
                 for (ProgressView view : clientGroup.views) {
@@ -587,6 +620,7 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
                     }
                 }
             });
+//? }
         }
     }
 
@@ -947,6 +981,17 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         ViewGroup<ProgressView.Data> group = new ViewGroup<>(List.of(new ProgressView.Data(clamp01(progress))));
         group.id = id;
         return List.of(group);
+    }
+
+    private static <T> List<ClientViewGroup<T>> inlineClientGroups(List<ClientViewGroup<T>> groups) {
+        List<T> views = groups.stream().flatMap(group -> group.views.stream()).toList();
+        if (views.isEmpty()) {
+            return Collections.emptyList();
+        }
+        // Jade adds a themed BoxElement whenever it sees more than one group, even without a title.
+        // The per-tank groups were therefore rendering as coloured backgrounds behind their own bars.
+        // BuildCraft puts the label on each view, so a single inline group retains all information.
+        return List.of(new ClientViewGroup<>(views));
     }
 
     private static void decorateGroupTitle(ViewGroup<?> serverGroup, ClientViewGroup<?> clientGroup) {

@@ -19,6 +19,7 @@ CHECKS = (
     ("performance/rendering", ROOT / "scripts/checks/regressions/performance.py"),
     ("content/UI", ROOT / "scripts/checks/regressions/content.py"),
     ("render/Jade", ROOT / "scripts/checks/regressions/render_jade.py"),
+    ("sound feedback", ROOT / "scripts/checks/regressions/sound_feedback.py"),
     ("polish", ROOT / "scripts/checks/regressions/polish.py"),
 )
 
