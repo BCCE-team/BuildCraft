@@ -14,8 +14,13 @@ from source_preprocessor import version_tuple
 # Compatibility alias for the mechanically extracted bootstrap code.
 _version_tuple = version_tuple
 
+# These suffixes are historical Java package names in maintained source, not version labels for scripts.
+# Keep the package ABI stable while using readable version names everywhere else.
+SHIM_NAMESPACE_1_21_11 = "121111"
+SHIM_NAMESPACE_26_1_2 = "2612"
+
 # 1.21.11 compatibility aliases live only in BuildCraft-owned packages.
-NEOFORGE_121111_SHIM_RELOCATIONS = (
+NEOFORGE_1_21_11_SHIM_RELOCATIONS = (
     ("net.neoforged.neoforge.common.util.INBTSerializable", "buildcraft.lib.compat.neoforge121111.common.util.INBTSerializable"),
     ("net.neoforged.neoforge.client.ChunkRenderTypeSet", "buildcraft.lib.compat.neoforge121111.client.ChunkRenderTypeSet"),
     ("net.neoforged.neoforge.client.model.QuadTransformers", "buildcraft.lib.compat.neoforge121111.client.model.QuadTransformers"),
@@ -31,7 +36,7 @@ NEOFORGE_121111_SHIM_RELOCATIONS = (
 
 
 # Minecraft/Blaze3D aliases are likewise relocated into BuildCraft-owned packages.
-MINECRAFT_121111_SHIM_RELOCATIONS = (
+MINECRAFT_1_21_11_SHIM_RELOCATIONS = (
     ("com.mojang.blaze3d.vertex.BufferUploader", "buildcraft.lib.compat.mc121111.blaze3d.vertex.BufferUploader"),
     ("com.mojang.blaze3d.vertex.VertexBuffer", "buildcraft.lib.compat.mc121111.blaze3d.vertex.VertexBuffer"),
     ("net.minecraft.client.color.item.ItemColor", "buildcraft.lib.compat.mc121111.client.color.item.ItemColor"),
@@ -101,7 +106,7 @@ def _rewrite_deferred_register_calls(text: str, registry_suffix: str, compat_met
     return "".join(pieces)
 
 
-def _apply_121111_item_use_result_renames(text: str) -> str:
+def _apply_1_21_11_item_use_result_renames(text: str) -> str:
     """Adapt old Item#use ItemStack holders to 1.21.11 InteractionResult returns.
 
     Internal BuildCraft transfer helpers still use an InteractionResult + payload
@@ -197,7 +202,7 @@ def _repair_java_imports_before_package(text: str) -> str:
     return body[:insert_at] + "".join(import_lines) + body[insert_at:]
 
 
-def _rewrite_121111_typed_nbt_contains(text: str) -> str:
+def _rewrite_1_21_11_typed_nbt_contains(text: str) -> str:
     """Preserve old CompoundTag#contains(key, type) semantics on 1.21.11.
 
     Minecraft 1.21.11 removed the typed overload and kept only contains(key).
@@ -221,7 +226,7 @@ def _rewrite_121111_typed_nbt_contains(text: str) -> str:
     return pattern.sub(replace, text)
 
 
-def _apply_121111_nbt_compat(text: str) -> str:
+def _apply_1_21_11_nbt_compat(text: str) -> str:
     """Route old CompoundTag convenience getters through a 1.21.11 shim.
 
     1.21.11 made many CompoundTag getters optional-returning and removed a few
@@ -279,7 +284,7 @@ def _apply_121111_nbt_compat(text: str) -> str:
         changed = changed or text != before
 
     before = text
-    text = _rewrite_121111_typed_nbt_contains(text)
+    text = _rewrite_1_21_11_typed_nbt_contains(text)
 
     def replace_put_uuid(match: re.Match[str]) -> str:
         receiver, key, value = match.groups()
@@ -332,7 +337,7 @@ def _apply_121111_nbt_compat(text: str) -> str:
     return text
 
 
-def _apply_121111_item_class_compat(text: str) -> str:
+def _apply_1_21_11_item_class_compat(text: str) -> str:
     """Replace removed concrete item subclasses with data-driven helpers."""
     if not any(name in text for name in ("ArmorItem", "SwordItem", "PickaxeItem", "Equipable")):
         return text
@@ -360,7 +365,7 @@ def _apply_121111_item_class_compat(text: str) -> str:
     return text
 
 
-def _apply_121111_eventbus_compat(text: str) -> str:
+def _apply_1_21_11_eventbus_compat(text: str) -> str:
     # NeoForge 21.11 removed the nested Bus selector from @EventBusSubscriber.
     return re.sub(r",\s*bus\s*=\s*EventBusSubscriber\.Bus\.MOD", "", text)
 
@@ -470,17 +475,17 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
         if is_render_compat_impl and before.startswith("RenderTypes.") and after.startswith("RenderCompat."):
             continue
         text = text.replace(before, after)
-    shim_namespace = "2612" if _version_tuple(minecraft) >= _version_tuple("26.1.2") else "121111"
-    if shim_namespace == "2612":
+    shim_namespace = SHIM_NAMESPACE_26_1_2 if _version_tuple(minecraft) >= _version_tuple("26.1.2") else SHIM_NAMESPACE_1_21_11
+    if shim_namespace == SHIM_NAMESPACE_26_1_2:
         text = text.replace("buildcraft.lib.compat.mc121111", "buildcraft.lib.compat.mc2612")
         text = text.replace("buildcraft.lib.compat.neoforge121111", "buildcraft.lib.compat.neoforge2612")
-    for before, after in NEOFORGE_121111_SHIM_RELOCATIONS:
-        text = text.replace(before, after.replace("121111", shim_namespace))
-    for before, after in MINECRAFT_121111_SHIM_RELOCATIONS:
-        text = text.replace(before, after.replace("121111", shim_namespace))
+    for before, after in NEOFORGE_1_21_11_SHIM_RELOCATIONS:
+        text = text.replace(before, after.replace(SHIM_NAMESPACE_1_21_11, shim_namespace))
+    for before, after in MINECRAFT_1_21_11_SHIM_RELOCATIONS:
+        text = text.replace(before, after.replace(SHIM_NAMESPACE_1_21_11, shim_namespace))
 
     # 1.21.11 removed/renamed several concrete item/entity packages and old event bus selectors.
-    text = _apply_121111_eventbus_compat(text)
+    text = _apply_1_21_11_eventbus_compat(text)
     text = re.sub(r"(?<![A-Za-z0-9_$])(\w+)\.isClientSide(?!\s*\()", r"\1.isClientSide()", text)
     text = re.sub(r"\.isClientSide(?![A-Za-z0-9_$\(])", ".isClientSide()", text)
     text = text.replace("InteractionResult.sidedSuccess(world.isClientSide())", "(world.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER)")
@@ -707,15 +712,15 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
 
     text = re.sub(r"return\s+switch\s*\(result\)\s*\{\s*case SUCCESS -> InteractionResult\.SUCCESS;\s*case CONSUME -> InteractionResult\.CONSUME;\s*case CONSUME_PARTIAL -> InteractionResult\.CONSUME;\s*case FAIL -> InteractionResult\.FAIL;\s*case PASS -> InteractionResult\.PASS;\s*case SUCCESS_NO_ITEM_USED -> InteractionResult\.TRY_WITH_EMPTY_HAND;\s*\};", "return result;", text, flags=re.DOTALL)
     text = re.sub(r"(?m)^[ \t]*@Override[ \t]*\n", "", text)
-    text = _apply_121111_item_class_compat(text)
-    text = _apply_121111_nbt_compat(text)
+    text = _apply_1_21_11_item_class_compat(text)
+    text = _apply_1_21_11_nbt_compat(text)
     text = text.replace("NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(),", "NbtUtils.readBlockState(BuiltInRegistries.BLOCK,")
     text = re.sub(r'NbtUtils\.readBlockState\(BuiltInRegistries\.BLOCK\.asLookup\(\),\s*NbtCompat\.getCompound\(([^,]+),\s*"(blockState|state)"\)\)', r'NbtUtils.readBlockState(BuiltInRegistries.BLOCK, NbtCompat.getCompound(\1, "\2"))', text)
     text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))")
     text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))")
     text = re.sub(r"(?m)^(\s*)((?!NbtCompat\b)\w+)\.putUUID\(([^,]+),\s*([^;]+)\);", r"\1NbtCompat.putUUID(\2, \3, \4);", text)
     text = text.replace("NbtCompat.putUUID(NbtCompat, ", "NbtCompat.putUUID(")
-    text = _apply_121111_item_use_result_renames(text)
+    text = _apply_1_21_11_item_use_result_renames(text)
 
     text = re.sub(
         r"return\s+NbtCompat\.readBlockPos\(parent, key\)\s*\.or\(\(\) -> tryReadBlockPos\(parent\.get\(key\)\)\)\s*\.orElse\(BlockPos\.ZERO\);",
@@ -779,7 +784,7 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
 
 
     # 1.21.11 API-shape compatibility for NBT, registries, rendering, recipes and GUI calls.
-    text = _rewrite_121111_typed_nbt_contains(text)
+    text = _rewrite_1_21_11_typed_nbt_contains(text)
     text = text.replace("level.neighborChanged(getBlockState(), currentPos.offset(side.getUnitVec3i()), BCFactoryBlocks.FLOOD_GATE_BLOCK.get(),\n                                    currentPos, false);", "level.neighborChanged(getBlockState(), currentPos.offset(side.getUnitVec3i()), BCFactoryBlocks.FLOOD_GATE_BLOCK.get(),\n                                    null, false);")
     text = text.replace("level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, worldPosition);", "level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, null);")
     text = text.replace("level.neighborChanged(worldPosition.relative(current), sourceBlock, worldPosition);", "level.neighborChanged(worldPosition.relative(current), sourceBlock, null);")

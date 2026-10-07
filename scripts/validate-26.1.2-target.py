@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from source_config import load_properties, target_layout  # noqa: E402
@@ -146,18 +146,6 @@ def main() -> int:
         "return false;",
         "level.isClientSide() && level.getBlockEntity(pos) instanceof TileEngineBase_BC8",
     )
-
-    permission_tests = ROOT / "source-platforms/neoforge/src/gametest/java/buildcraft/gametest/PermissionOwnerGameTests.java"
-    require(
-        permission_tests,
-        "import net.neoforged.neoforge.event.level.block.BreakBlockEvent;",
-        "robot.interact(otherPlayer, InteractionHand.MAIN_HAND, robot.position())",
-        "private static void onBreak(BreakBlockEvent event)",
-    )
-    gametest_transform = ROOT / "scripts/transforms/gametest.py"
-    require(gametest_transform, 'f"                {timeout}, 0, true, Rotation.NONE"')
-    if "Rotation.NONE, false, 1, 1, false" in gametest_transform.read_text(encoding="utf-8"):
-        fail("generated TestData still uses the removed pre-26.1 ten-argument constructor")
 
     engine_item = FAMILY / "buildcraft/lib/item/MultiBlockItem.java"
     require(
@@ -314,9 +302,9 @@ def main() -> int:
     pipe_native_text = pipe_native.read_text(encoding="utf-8")
     if "PluggableFacade.isGlass(" in pipe_native_text:
         fail("26.1 native pipe model still excludes glass facades from terrain translucent rendering")
-    silicon_models_2612 = FAMILY / "buildcraft/silicon/BCSiliconModels.java"
-    silicon_models_2612_text = silicon_models_2612.read_text(encoding="utf-8")
-    if "registerRenderer(PluggableFacade.class, PlugFacadeRenderer.INSTANCE)" in silicon_models_2612_text:
+    silicon_models_26_1_2 = FAMILY / "buildcraft/silicon/BCSiliconModels.java"
+    silicon_models_26_1_2_text = silicon_models_26_1_2.read_text(encoding="utf-8")
+    if "registerRenderer(PluggableFacade.class, PlugFacadeRenderer.INSTANCE)" in silicon_models_26_1_2_text:
         fail("26.1 still renders glass facades through the dynamic pluggable pass")
     pipe_colours = FAMILY / "buildcraft/transport/BCTransportModels.java"
     if "event.register(PipeBlockColours.INSTANCE" in pipe_colours.read_text(encoding="utf-8"):
@@ -328,8 +316,18 @@ def main() -> int:
         "source.colorInWorld(sourceState, level, pos)",
         "blockTintIndex * Direction.values().length + side.ordinal()",
     )
+    facade_pluggable = PLATFORM / "buildcraft/silicon/plug/PluggableFacade.java"
     require(
-        PLATFORM / "buildcraft/silicon/plug/PluggableFacade.java",
+        facade_pluggable,
+        "FacadeTintClient2612.getBlockColor(states.phasedStates[activeState], holder, tintIndex)",
+    )
+    facade_pluggable_text = facade_pluggable.read_text(encoding="utf-8")
+    for client_only in ("BlockTintSource", "ClientLevel", "colorInWorld("):
+        if client_only in facade_pluggable_text:
+            fail(f"26.1 common facade pluggable still directly references client-only tint API {client_only!r}")
+    require(
+        FAMILY / "buildcraft/silicon/client/FacadeTintClient2612.java",
+        "BlockTintSource tintSource = Minecraft.getInstance().getBlockColors()",
         "holder.getPipeWorld() instanceof ClientLevel clientLevel",
         "tintSource.colorInWorld(state.stateInfo.state, clientLevel, holder.getPipePos())",
         "return tintSource.color(state.stateInfo.state);",

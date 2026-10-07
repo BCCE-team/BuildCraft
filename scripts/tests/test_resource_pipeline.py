@@ -98,7 +98,7 @@ class ResourcePipeline(unittest.TestCase):
             self.assertIn("buildcraftenergy:spout_oil_flowing", values, target)
 
 
-    def test_2612_energy_buckets_skip_the_artifact_prone_cover_mask(self):
+    def test_26_1_2_energy_buckets_skip_the_artifact_prone_cover_mask(self):
         rel = "assets/buildcraftenergy/items/oil/cool_bucket.json"
 
         old = self.read_json("1.21.11-neoforge", rel)["model"]
@@ -208,9 +208,9 @@ class ResourcePipeline(unittest.TestCase):
 
     def test_mechanical_modern_item_definitions_remain_generated(self):
         items_121 = list((self.roots["1.21.1-neoforge"] / "assets").glob("buildcraft*/items/**/*.json"))
-        items_12111 = list((self.roots["1.21.11-neoforge"] / "assets").glob("buildcraft*/items/**/*.json"))
+        items_1_21_11 = list((self.roots["1.21.11-neoforge"] / "assets").glob("buildcraft*/items/**/*.json"))
         self.assertEqual(0, len(items_121))
-        self.assertGreater(len(items_12111), 200)
+        self.assertGreater(len(items_1_21_11), 200)
         example = self.read_json("1.21.11-neoforge", "assets/buildcraftcore/items/wrench.json")
         self.assertEqual("minecraft:model", example["model"]["type"])
         self.assertEqual("buildcraftcore:item/wrench", example["model"]["model"])

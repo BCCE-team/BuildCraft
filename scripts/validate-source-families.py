@@ -577,9 +577,12 @@ def main() -> None:
             if unexpected:
                 fail(f"1.21.11 target Java escaped canonical/downport ownership: {unexpected[0]}")
 
-    bootstrap = ROOT / "scripts/transforms/bootstrap_12111.py"
-    if bootstrap.exists():
-        fail("target-specific scripts/transforms/bootstrap_12111.py is forbidden; use path-independent transforms")
+    target_bootstraps = sorted((ROOT / "scripts/transforms").glob("bootstrap_*.py"))
+    if target_bootstraps:
+        fail(
+            "target-specific transform bootstrap is forbidden; use path-independent transforms: "
+            + ", ".join(path.name for path in target_bootstraps)
+        )
     java_compat = ROOT / "scripts/transforms/java_compat.py"
     if not java_compat.is_file():
         fail("missing path-independent Java compatibility transform")

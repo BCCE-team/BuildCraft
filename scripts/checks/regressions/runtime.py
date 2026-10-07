@@ -56,14 +56,14 @@ def validate_zone_planner() -> None:
         require(read(rel), "argbToAbgr(colour)", rel)
 
     modern_logical = "src/main/java/buildcraft/robotics/gui/GuiZonePlanner.java"
-    modern_1211_path = resolve_target_source("1.21.1-neoforge", modern_logical)
-    modern_1211 = modern_1211_path.read_text(encoding="utf-8")
-    require(modern_1211, "argbToAbgr(colour)", "1.21.1 effective GuiZonePlanner")
+    modern_1_21_1_path = resolve_target_source("1.21.1-neoforge", modern_logical)
+    modern_1_21_1 = modern_1_21_1_path.read_text(encoding="utf-8")
+    require(modern_1_21_1, "argbToAbgr(colour)", "1.21.1 effective GuiZonePlanner")
 
-    modern_12111_path = resolve_target_source("1.21.11-neoforge", modern_logical)
-    modern_12111 = modern_12111_path.read_text(encoding="utf-8")
-    require(modern_12111, "fillNativeImage(", "1.21.11 effective GuiZonePlanner")
-    reject(modern_12111, "argbToAbgr(colour)", "1.21.11 effective GuiZonePlanner")
+    modern_1_21_11_path = resolve_target_source("1.21.11-neoforge", modern_logical)
+    modern_1_21_11 = modern_1_21_11_path.read_text(encoding="utf-8")
+    require(modern_1_21_11, "fillNativeImage(", "1.21.11 effective GuiZonePlanner")
+    reject(modern_1_21_11, "argbToAbgr(colour)", "1.21.11 effective GuiZonePlanner")
 
 
 def validate_gui_gears() -> None:

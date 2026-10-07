@@ -105,7 +105,7 @@ class SiliconRecipeBookSweep(unittest.TestCase):
             self.assertIn("level != null && level.isClientSide", base, target)
             self.assertIn("? targetClient : getTarget()", base, target)
 
-    def test_12111_phantom_recipe_book_keeps_reference_features(self):
+    def test_1_21_11_phantom_recipe_book_keeps_reference_features(self):
         gui = self.java('1.21.11-neoforge', 'buildcraft/lib/gui/recipe/GuiRecipeBookPhantom.java')
         listing = self.java('1.21.11-neoforge', 'buildcraft/lib/gui/recipe/RecipeListPhantom.java')
         auto = self.java('1.21.11-neoforge', 'buildcraft/factory/gui/GuiAutoCraftItems.java')
@@ -148,7 +148,7 @@ class SiliconRecipeBookSweep(unittest.TestCase):
             state_block = tile[state_start:state_end]
             self.assertIn('sendNetworkGuiUpdate(NET_GUI_DATA);', state_block, target)
 
-    def test_12111_recipe_sync_still_covers_assembly_definitions(self):
+    def test_1_21_11_recipe_sync_still_covers_assembly_definitions(self):
         sync = self.java("1.21.11-neoforge", "buildcraft/silicon/BCSiliconRecipeSync.java")
         self.assertIn("event.sendRecipes(BCSiliconRecipes.ASSEMBLY_TYPE.get())", sync)
         self.assertIn("event.getRecipeMap().byType(BCSiliconRecipes.ASSEMBLY_TYPE.get())", sync)

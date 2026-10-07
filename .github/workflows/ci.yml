@@ -68,17 +68,7 @@ jobs:
         run: python scripts/validate-api2-runtime-completeness.py
 
       - name: Validate API2 module contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          python scripts/validate-core-misc-api2.py
-          python scripts/validate-energy-api2.py
-          python scripts/validate-facades-lists-map-api2.py
-          python scripts/validate-robots-api2.py
-          python scripts/validate-schematics-api2.py
-          python scripts/validate-signals-automation-api2.py
-          python scripts/validate-statements-api2.py
-          python scripts/validate-transport-api2.py
+        run: python scripts/validate-api2-modules.py
 
       - name: Validate repository cleanliness
         run: python scripts/validate-repository-cleanliness.py
@@ -87,10 +77,10 @@ jobs:
         run: python scripts/validate-behavior-parity.py
 
       - name: Validate 1.21.11 parity
-        run: python scripts/validate-12111-parity.py
+        run: python scripts/validate-1.21.11-parity.py
 
-      - name: Test 26.1.2 target structure
-        run: python scripts/tests/test_2612_target.py
+      - name: Validate 26.1.2 target structure
+        run: python scripts/validate-26.1.2-target.py
 
       - name: Validate Zone Planner block preview parity
         run: python scripts/validate-zone-planner-preview.py

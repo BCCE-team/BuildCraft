@@ -155,7 +155,7 @@ def main() -> int:
         sys.modules[spec.name] = layout
         spec.loader.exec_module(layout)
         props = layout.load_properties(ROOT / "builds/1.21.X/targets.properties")
-        with tempfile.TemporaryDirectory(prefix="bc-12111-interop-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="bc-1.21.11-interop-") as tmp:
             root = Path(tmp) / "1.21.11-neoforge"
             layout.materialize_target("1.21.11-neoforge", root, props)
             check(root)

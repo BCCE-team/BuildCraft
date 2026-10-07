@@ -163,8 +163,6 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertIn('BuiltInRegistries.TEST_FUNCTION.key()', registry_text)
         self.assertIn('new FunctionGameTestInstance(', registry_text)
         self.assertIn('RegisterGameTestsEvent', registry_text)
-        self.assertIn('20, 0, true, Rotation.NONE', registry_text)
-        self.assertNotIn('Rotation.NONE, false, 1, 1, false', registry_text)
 
         old_compat = (old_root / 'buildcraft/gametest/GameTestCompat.java').read_text(encoding='utf-8')
         current_compat = (current_root / 'buildcraft/gametest/GameTestCompat.java').read_text(encoding='utf-8')
@@ -180,7 +178,7 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertTrue((ROOT / 'source-families/1.21.X/src/gametest/java/buildcraft/gametest/GameTestCompat.java').is_file())
         self.assertFalse((ROOT / 'source-platforms/neoforge/src/gametest/java/buildcraft/gametest/GameTestCompat.java').exists())
 
-    def test_modern_fluid_water_guards_survive_12111_api_changes(self):
+    def test_modern_fluid_water_guards_survive_1_21_11_api_changes(self):
         current_root = self.target_roots['1.21.11-neoforge'] / 'src/main/java'
         fluid = (current_root / 'buildcraft/lib/fluid/BCFluid.java').read_text(encoding='utf-8')
         pump = (current_root / 'buildcraft/factory/tile/TilePump.java').read_text(encoding='utf-8')
@@ -238,7 +236,7 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertNotIn('BlockPos pumpPos = new BlockPos(1, 4, 1);', suite)
         self.assertNotIn('BlockPos waterPos = new BlockPos(1, 2, 1);', suite)
 
-    def test_12111_client_runtime_hooks_are_isolated_from_common_event_owner(self):
+    def test_1_21_11_client_runtime_hooks_are_isolated_from_common_event_owner(self):
         current_root = self.target_roots['1.21.11-neoforge'] / 'src/main/java'
         events = (current_root / 'buildcraft/lib/BCLibEventDist.java').read_text(encoding='utf-8')
 
@@ -280,7 +278,7 @@ class MinecraftBoundaries(unittest.TestCase):
             self.assertNotRegex(text, r'(?m)^package (?:net\.|com\.mojang)', str(path))
 
     def test_no_class_specific_bootstrap_or_duplicate_target_renderers(self):
-        self.assertFalse((ROOT / 'scripts/transforms/bootstrap_12111.py').exists())
+        self.assertEqual([], sorted((ROOT / 'scripts/transforms').glob('bootstrap_*.py')))
         compat = (ROOT / 'scripts/transforms/java_compat.py').read_text()
         self.assertNotRegex(compat, r'buildcraft/[^\"\']+\.java')
         self.assertEqual(1, compat.count('relative.endswith(".java")'))

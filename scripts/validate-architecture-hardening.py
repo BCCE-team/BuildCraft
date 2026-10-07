@@ -469,12 +469,12 @@ def validate(metrics: dict[str, object], budget: dict[str, object]) -> list[str]
         errors.append(f"conditional block budget: max is {conditions['max_blocks_per_file']} > {max_blocks}; {paths}")
 
     targets = metrics["targets"]
-    frozen_api = set(invariants.get("frozen_12111_api_files", []))
-    t12111 = targets.get("1.21.11-neoforge", {})
-    if int(t12111.get("gameplay_lib_java", -1)) != 0:
-        errors.append(f"1.21.11 target gameplay/lib overrides must be 0, got {t12111.get('gameplay_lib_java')}")
-    if int(t12111.get("api_java", -1)) != len(frozen_api):
-        errors.append(f"1.21.11 frozen API override count must be {len(frozen_api)}, got {t12111.get('api_java')}")
+    frozen_api = set(invariants.get("frozen_1.21.11_api_files", []))
+    t1_21_11 = targets.get("1.21.11-neoforge", {})
+    if int(t1_21_11.get("gameplay_lib_java", -1)) != 0:
+        errors.append(f"1.21.11 target gameplay/lib overrides must be 0, got {t1_21_11.get('gameplay_lib_java')}")
+    if int(t1_21_11.get("api_java", -1)) != len(frozen_api):
+        errors.append(f"1.21.11 frozen API override count must be {len(frozen_api)}, got {t1_21_11.get('api_java')}")
     layout = target_layout("1.21.11-neoforge", load_properties())
     actual_target_java = {
         rel for rel, path in file_map(layout.overlay_root).items()

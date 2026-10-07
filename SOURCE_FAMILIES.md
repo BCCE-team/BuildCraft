@@ -422,7 +422,7 @@ body semantically. Other API differences belong to explicit Java boundaries.
 ```text
 python -m unittest discover -s scripts/tests -p test_minecraft_compat.py -v
 python -m unittest discover -s scripts/tests -p test_gui_regressions.py -v
-python scripts/validate-12111-parity.py
+python scripts/validate-1.21.11-parity.py
 python scripts/validate-regressions.py
 ```
 

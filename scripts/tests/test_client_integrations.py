@@ -54,7 +54,7 @@ class ClientIntegrations(unittest.TestCase):
         self.assertIn('new CompositeModel(List.of(baseModel,', model)
         self.assertIn('BakedModel', self.java('buildcraft/transport/client/model/ModelPipeItem.java', old=True))
 
-    def test_1211_pulsar_inventory_dynamic_layer_resets_item_pose(self):
+    def test_1_21_1_pulsar_inventory_dynamic_layer_resets_item_pose(self):
         old = self.java('buildcraft/silicon/BCSiliconModels.java', old=True)
         self.assertIn(
             'new ModelPluggableItem(PULSAR_STATIC::getCutoutQuads, BCSiliconModels::getPulsarItemDynamicQuads)',
@@ -197,7 +197,7 @@ class ClientIntegrations(unittest.TestCase):
         self.assertIn('registration.blockOperations().pick(', plugin)
         self.assertNotIn('.getCompound(DATA_ROOT)', plugin)
 
-    def test_oil_fuel_immersion_matches_1211(self):
+    def test_oil_fuel_immersion_matches_1_21_1(self):
         current_proxy = self.java('buildcraft/energy/BCEnergyClientProxy.java')
         current_type = self.java('buildcraft/energy/fluid/BCFluidType.java')
         old_type = self.java('buildcraft/energy/fluid/BCFluidType.java', old=True)
@@ -277,7 +277,7 @@ class ClientIntegrations(unittest.TestCase):
         self.assertIn('ledger.getX()', jei)
         self.assertIn('ledger.getY()', jei)
 
-    def test_runtime_gui_regressions_found_on_12111(self):
+    def test_runtime_gui_regressions_found_on_1_21_11(self):
         current_root = self.roots['1.21.11-neoforge'] / 'src/main/java'
         old_root = self.roots['1.21.1-neoforge'] / 'src/main/java'
 
@@ -423,7 +423,7 @@ class ClientIntegrations(unittest.TestCase):
         old = self.java('buildcraft/compat/jade/BuildCraftJadePlugin.java', old=True)
         self.assertIn('IServerExtensionProvider<CompoundTag>', old)
 
-    def test_12111_jade_server_and_client_providers_are_separate(self):
+    def test_1_21_11_jade_server_and_client_providers_are_separate(self):
         plugin = self.java('buildcraft/compat/jade/BuildCraftJadePlugin.java')
         self.assertIn('BlockServerDataProvider.INSTANCE', plugin)
         self.assertIn('RobotServerDataProvider.INSTANCE', plugin)
@@ -436,7 +436,7 @@ class ClientIntegrations(unittest.TestCase):
         self.assertNotIn('implements IBlockComponentProvider, IServerDataProvider', plugin)
         self.assertNotIn('implements IEntityComponentProvider, IServerDataProvider', plugin)
 
-    def test_12111_jade_multimod_plugin_scan_is_deduplicated(self):
+    def test_1_21_11_jade_multimod_plugin_scan_is_deduplicated(self):
         root = self.roots['1.21.11-neoforge']
         metadata = (root / 'src/main/resources/META-INF/neoforge.mods.toml').read_text()
         mixin_config = (root / 'src/main/resources/buildcraft.jade.mixins.json').read_text()

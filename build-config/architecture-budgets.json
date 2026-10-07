@@ -4,7 +4,7 @@
     "canonical_1_21_x_minecraft": "1.21.11",
     "max_conditional_blocks_per_java": 4,
     "max_conditional_branch_lines": 20,
-    "frozen_12111_api_files": [
+    "frozen_1.21.11_api_files": [
       "src/main/java/buildcraft/api/v2/recipe/CountedIngredient.java"
     ]
   },

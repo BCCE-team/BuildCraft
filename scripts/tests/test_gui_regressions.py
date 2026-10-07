@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Regression tests on the REAL materialized 1.21.11 source set.
+"""GUI regression tests on the real materialized modern source sets.
+
+The main GUI suite targets 1.21.11, while target-specific regressions that belong
+to the same UI failure domain (currently the 26.1.2 Filler binding check) live here
+instead of as unreferenced standalone test files.
+
 Run: python3 -m unittest discover -s scripts/tests -p test_gui_regressions.py -v
 Java probes use small API-contract fixtures to test our own logic without game dependencies.
 They do not claim binary API compatibility or a client/server Minecraft test. Gradle remains required.
@@ -131,7 +136,7 @@ class GuiRegressions(unittest.TestCase):
         self.assertIn('DefaultPlayerSkin.get(profile)', skin)
 
     def test_every_audited_key_exists_verbatim(self):
-        data = json.loads((ROOT/'scripts/tests/item_names_12111.json').read_text())
+        data = json.loads((ROOT/'scripts/tests/item_names_1.21.11.json').read_text())
         mapping = dict(re.findall(r'case "([^"]+)" -> "([^"]+)";',self.src('lib/compat/ItemNameKeys121111.java')))
         self.assertEqual(len(data),len(mapping))
         for item in data:
@@ -201,5 +206,36 @@ class GuiRegressions(unittest.TestCase):
         proc=subprocess.run(['java','-ea','-cp',str(probe_root/'classes'),'GuiPortProbe'],capture_output=True,text=True,timeout=15)
         self.assertEqual(0,proc.returncode,proc.stdout+proc.stderr)
         print(proc.stdout.strip())
+
+
+class FillerGui26_1_2Regressions(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory(prefix='bc-26.1.2-filler-gui-')
+        cls.work = Path(cls.temp.name)
+        layout = load_layout()
+        props = layout.load_properties(ROOT/'builds/26.X/targets.properties')
+        layout.materialize_target('26.1.2-neoforge', cls.work/'effective', props)
+        cls.java = cls.work/'effective/src/main/java'
+        cls.resources = cls.work/'effective/src/main/resources'
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp.cleanup()
+
+    def test_player_inventory_is_bound_before_json_deserialization(self):
+        gui = (self.java/'buildcraft/builders/gui/GuiFiller.java').read_text(encoding='utf-8')
+        resources = (
+            self.resources/'assets/buildcraftbuilders/gui/filler.json'
+        ).read_text(encoding='utf-8')
+
+        binding = 'properties.put("player.inventory", new InventorySlotHolder(container, container.playerInventory));'
+        self.assertIn('"slot": "player.inventory"', resources)
+        constructor = gui[gui.index('public GuiFiller('):gui.index('protected void preLoad(')]
+        pre_load_start = gui.index('protected void preLoad(')
+        pre_load = gui[pre_load_start:gui.index('public void containerTick()', pre_load_start)]
+
+        self.assertIn(binding, pre_load)
+        self.assertLess(constructor.index('preLoad(jsonGui);'), constructor.index('jsonGui.load();'))
 
 if __name__ == '__main__': unittest.main(verbosity=2)

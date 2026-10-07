@@ -39,11 +39,11 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Validate API v2 boundary", (sys.executable, "scripts/validate-api-v2.py")),
     ("Validate API v2-only public surface", (sys.executable, "scripts/validate-api-v2-only.py")),
     ("Validate API2 runtime completeness", (sys.executable, "scripts/validate-api2-runtime-completeness.py")),
-    ("Validate API2 module contracts", ("__API2_MODULE_CONTRACTS__",)),
+    ("Validate API2 module contracts", (sys.executable, "scripts/validate-api2-modules.py")),
     ("Validate repository cleanliness", (sys.executable, "scripts/validate-repository-cleanliness.py")),
     ("Validate cross-version gameplay parity", (sys.executable, "scripts/validate-behavior-parity.py")),
-    ("Validate 1.21.11 parity", (sys.executable, "scripts/validate-12111-parity.py")),
-    ("Test 26.1.2 target structure", (sys.executable, "scripts/tests/test_2612_target.py")),
+    ("Validate 1.21.11 parity", (sys.executable, "scripts/validate-1.21.11-parity.py")),
+    ("Validate 26.1.2 target structure", (sys.executable, "scripts/validate-26.1.2-target.py")),
     ("Validate Zone Planner block preview parity", (sys.executable, "scripts/validate-zone-planner-preview.py")),
     ("Validate FE compatibility", (sys.executable, "scripts/validate-fe-compat.py")),
     ("Validate FE Engine and MJ Dynamo parity", (sys.executable, "scripts/validate-fe-mj-engine-parity.py")),
@@ -65,16 +65,6 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test ownership persistence and ledgers", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_ownership_ledgers.py", "-v")),
     ("Test canonical resource pipeline", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_resource_pipeline.py", "-v")),
     ("Validate resources, metadata and build hygiene", (sys.executable, "scripts/validate-cross-target-integrity.py")),
-)
-API2_MODULE_SCRIPTS = (
-    "scripts/validate-core-misc-api2.py",
-    "scripts/validate-energy-api2.py",
-    "scripts/validate-facades-lists-map-api2.py",
-    "scripts/validate-robots-api2.py",
-    "scripts/validate-schematics-api2.py",
-    "scripts/validate-signals-automation-api2.py",
-    "scripts/validate-statements-api2.py",
-    "scripts/validate-transport-api2.py",
 )
 
 class LocalCIError(RuntimeError):
@@ -126,7 +116,9 @@ def workflow_alignment_check() -> None:
 
     required_validate_fragments = (
         "python scripts/validate-architecture-hardening.py",
-        *[f"python {script}" for script in API2_MODULE_SCRIPTS],
+        "python scripts/validate-api2-modules.py",
+        "python scripts/validate-1.21.11-parity.py",
+        "python scripts/validate-26.1.2-target.py",
         "python scripts/validate-cross-target-integrity.py",
     )
     for fragment in required_validate_fragments:
@@ -666,23 +658,6 @@ def main() -> int:
                         fh.write("\n--- architecture-hardening.md ---\n")
                         fh.write(report.read_text(encoding="utf-8"))
                         fh.write("\n")
-        elif command == ("__API2_MODULE_CONTRACTS__",):
-            log = None
-            status = 0
-            for index, script in enumerate(API2_MODULE_SCRIPTS):
-                sub_name = name if index == 0 else f"{name} ({Path(script).stem})"
-                current_status, current_log = run_command(
-                    sub_name,
-                    (sys.executable, script),
-                    env=validation_env,
-                    run_dir=run_dir,
-                    step_number=step_number,
-                    append=index > 0,
-                )
-                log = current_log
-                if current_status != 0:
-                    status = current_status
-                    break
         else:
             status, log = run_command(name, command, env=validation_env, run_dir=run_dir, step_number=step_number)
         record(name, status, log)

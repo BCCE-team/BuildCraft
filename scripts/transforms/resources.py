@@ -34,7 +34,7 @@ def _rewrite_legacy_ingredient_json(value):
     return value
 
 
-def _rewrite_121111_recipe_json(text: str, normalized: str) -> str:
+def _rewrite_1_21_11_recipe_json(text: str, normalized: str) -> str:
     if "/data/" not in normalized or "/recipe/" not in normalized or not normalized.endswith(".json"):
         return text
     try:
@@ -89,7 +89,7 @@ def _minecraft_model_client_item(model: str) -> str:
     }, indent=2, ensure_ascii=False) + "\n"
 
 
-def _dynamic_fluid_bucket_client_item_121111(fluid: str, *, minecraft: str) -> str:
+def _dynamic_fluid_bucket_client_item_1_21_11(fluid: str, *, minecraft: str) -> str:
     # Minecraft 1.21.11 moved dynamic item-model selection into assets/<ns>/items.
     # NeoForge 21.11.x requires an explicit fallback `fluid` in the
     # DynamicFluidContainerModel codec (fieldOf("fluid")); omitting it makes
@@ -120,7 +120,7 @@ def _dynamic_fluid_bucket_client_item_121111(fluid: str, *, minecraft: str) -> s
     return json.dumps({"model": model}, indent=2, ensure_ascii=False) + "\n"
 
 
-def _buildcraftenergy_bucket_fluid_id_121111(item_path: str) -> str | None:
+def _buildcraftenergy_bucket_fluid_id_1_21_11(item_path: str) -> str | None:
     parts = item_path.split("/")
     if len(parts) != 2:
         return None
@@ -140,14 +140,14 @@ def _buildcraftenergy_bucket_fluid_id_121111(item_path: str) -> str | None:
     return f"buildcraftenergy:{fluid_path}"
 
 
-def _buildcraftenergy_bucket_item_path_121111(normalized: str, marker: str) -> str | None:
+def _buildcraftenergy_bucket_item_path_1_21_11(normalized: str, marker: str) -> str | None:
     if marker not in normalized or not normalized.endswith(".json"):
         return None
     item_path = normalized.split(marker, 1)[1].removesuffix(".json")
     return item_path if "/" in item_path and item_path.endswith("_bucket") else None
 
 
-PIPE_ITEM_TEXTURE_ALIASES_121111 = {
+PIPE_ITEM_TEXTURE_ALIASES_1_21_11 = {
     # Match PipeDefinitionBuilder.itemTex(...) / the inherited texture suffixes
     # used by BCTransportPipes.  The old dynamic ModelPipeItem selected these
     # sprites at runtime; 1.21.11 no longer installs that legacy baked model.
@@ -173,11 +173,11 @@ PIPE_ITEM_TEXTURE_ALIASES_121111 = {
 }
 
 
-def _pipe_item_texture_121111(item: str) -> str:
-    return PIPE_ITEM_TEXTURE_ALIASES_121111.get(item, item)
+def _pipe_item_texture_1_21_11(item: str) -> str:
+    return PIPE_ITEM_TEXTURE_ALIASES_1_21_11.get(item, item)
 
 
-def _pipe_3d_item_model_121111(texture: str) -> str:
+def _pipe_3d_item_model_1_21_11(texture: str) -> str:
     """Recreate the legacy ModelPipeItem body with vanilla 1.21.11 model JSON.
 
     ModelPipeItem renders an 8x16x8 cuboid (x/z 4..12) using 4..12 cap UVs
@@ -211,36 +211,36 @@ def _pipe_3d_item_model_121111(texture: str) -> str:
     }, indent=2, ensure_ascii=False) + "\n"
 
 
-def _is_121111_buildcraftenergy_bucket_client_item(normalized: str) -> bool:
-    return _buildcraftenergy_bucket_item_path_121111(normalized, "/assets/buildcraftenergy/items/") is not None
+def _is_1_21_11_buildcraftenergy_bucket_client_item(normalized: str) -> bool:
+    return _buildcraftenergy_bucket_item_path_1_21_11(normalized, "/assets/buildcraftenergy/items/") is not None
 
 
-def _is_121111_buildcraftenergy_bucket_item_model(normalized: str) -> bool:
-    return _buildcraftenergy_bucket_item_path_121111(normalized, "/assets/buildcraftenergy/models/item/") is not None
+def _is_1_21_11_buildcraftenergy_bucket_item_model(normalized: str) -> bool:
+    return _buildcraftenergy_bucket_item_path_1_21_11(normalized, "/assets/buildcraftenergy/models/item/") is not None
 
 
-def _buildcraftenergy_bucket_client_item_121111(normalized: str, *, minecraft: str) -> str:
-    item_path = _buildcraftenergy_bucket_item_path_121111(normalized, "/assets/buildcraftenergy/items/")
+def _buildcraftenergy_bucket_client_item_1_21_11(normalized: str, *, minecraft: str) -> str:
+    item_path = _buildcraftenergy_bucket_item_path_1_21_11(normalized, "/assets/buildcraftenergy/items/")
     if item_path is None:
         return normalized
-    fluid = _buildcraftenergy_bucket_fluid_id_121111(item_path)
+    fluid = _buildcraftenergy_bucket_fluid_id_1_21_11(item_path)
     if fluid is None:
         return normalized
-    return _dynamic_fluid_bucket_client_item_121111(fluid, minecraft=minecraft)
+    return _dynamic_fluid_bucket_client_item_1_21_11(fluid, minecraft=minecraft)
 
 
-def _buildcraftenergy_bucket_generated_model_121111(normalized: str) -> str:
+def _buildcraftenergy_bucket_generated_model_1_21_11(normalized: str) -> str:
     # The actual 1.21.11 bucket renderer now lives in the client-item definition
     # above. Keep a harmless modern vanilla-bucket fallback for any legacy code
     # that still resolves the old baked-model location directly; critically, do
     # NOT point this back at BuildCraft's archived pre-1.21 bucket PNGs.
-    item_path = _buildcraftenergy_bucket_item_path_121111(normalized, "/assets/buildcraftenergy/models/item/")
+    item_path = _buildcraftenergy_bucket_item_path_1_21_11(normalized, "/assets/buildcraftenergy/models/item/")
     if item_path is None:
         return ""
     return _generated_item_model("minecraft:item/bucket")
 
 
-def _fallback_121111_item_model(normalized: str, text: str) -> str | None:
+def _fallback_1_21_11_item_model(normalized: str, text: str) -> str | None:
     """Return a simple generated item model for legacy dynamic item models.
 
     Keep only the compatibility fallback for legacy item-pipe models that still
@@ -260,13 +260,13 @@ def _fallback_121111_item_model(normalized: str, text: str) -> str | None:
             return None
         stripped = text.strip().replace(" ", "")
         if stripped == '{"parent":"block/block"}' or '"parent": "block/block"' in text:
-            texture = _pipe_item_texture_121111(item)
-            return _pipe_3d_item_model_121111(f"buildcrafttransport:pipes/{texture}")
+            texture = _pipe_item_texture_1_21_11(item)
+            return _pipe_3d_item_model_1_21_11(f"buildcrafttransport:pipes/{texture}")
 
     return None
 
 
-def _apply_121111_resource_compat(text: str, *, minecraft: str, relative: str) -> str:
+def _apply_1_21_11_resource_compat(text: str, *, minecraft: str, relative: str) -> str:
     """Apply 1.21.11 resource-pack/model compatibility rewrites.
 
     Minecraft 1.21.11 validates packs above format 64 with the newer
@@ -295,13 +295,13 @@ def _apply_121111_resource_compat(text: str, *, minecraft: str, relative: str) -
         return text
 
     if normalized.endswith(".json") and "/recipe/" in normalized and "/data/" in normalized:
-        text = _rewrite_121111_recipe_json(text, normalized)
+        text = _rewrite_1_21_11_recipe_json(text, normalized)
 
-    if _is_121111_buildcraftenergy_bucket_client_item(normalized):
-        return _buildcraftenergy_bucket_client_item_121111(normalized, minecraft=minecraft)
+    if _is_1_21_11_buildcraftenergy_bucket_client_item(normalized):
+        return _buildcraftenergy_bucket_client_item_1_21_11(normalized, minecraft=minecraft)
 
-    if _is_121111_buildcraftenergy_bucket_item_model(normalized):
-        return _buildcraftenergy_bucket_generated_model_121111(normalized)
+    if _is_1_21_11_buildcraftenergy_bucket_item_model(normalized):
+        return _buildcraftenergy_bucket_generated_model_1_21_11(normalized)
 
     if not normalized.endswith(".json") or "/models/item/" not in normalized:
         return text
@@ -309,7 +309,7 @@ def _apply_121111_resource_compat(text: str, *, minecraft: str, relative: str) -
     if '"loader": "buildcraftcore:fragile_fluid_container"' in text:
         return _generated_item_model("buildcraftcore:items/fragile_fluid_shard_base")
 
-    fallback = _fallback_121111_item_model(normalized, text)
+    fallback = _fallback_1_21_11_item_model(normalized, text)
     if fallback is not None:
         return fallback
 
@@ -319,7 +319,7 @@ def _apply_121111_resource_compat(text: str, *, minecraft: str, relative: str) -
 
 
 def apply_resource_transforms(text: str, *, minecraft: str, relative: str) -> str:
-    text = _apply_121111_resource_compat(text, minecraft=minecraft, relative=relative)
+    text = _apply_1_21_11_resource_compat(text, minecraft=minecraft, relative=relative)
     normalized = relative.replace("\\", "/")
     text = _downport_legacy_oil_placement(text, minecraft=minecraft, normalized=normalized)
     text = _augment_legacy_120_block_atlas(text, minecraft=minecraft, normalized=normalized)
@@ -367,12 +367,12 @@ def generate_modern_item_definitions(destination_root: Path, *, minecraft: str) 
 
             content: str
             fluid = (
-                _buildcraftenergy_bucket_fluid_id_121111(item_path)
+                _buildcraftenergy_bucket_fluid_id_1_21_11(item_path)
                 if namespace == "buildcraftenergy"
                 else None
             )
             if fluid is not None:
-                content = _dynamic_fluid_bucket_client_item_121111(fluid, minecraft=minecraft)
+                content = _dynamic_fluid_bucket_client_item_1_21_11(fluid, minecraft=minecraft)
             else:
                 content = _minecraft_model_client_item(f"{namespace}:item/{item_path}")
 
