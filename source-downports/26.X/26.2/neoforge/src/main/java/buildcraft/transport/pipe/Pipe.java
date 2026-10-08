@@ -1,4 +1,3 @@
-//? source if >=26.3
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -775,8 +774,8 @@ public final class Pipe implements IPipe, IDebuggable, PipeMutationContext {
         return result;
     }
 
-    private static buildcraft.transport.internal.pipe.FluidAction fluidAction(OperationMode mode) {
-        return mode == OperationMode.EXECUTE ? buildcraft.transport.internal.pipe.FluidAction.EXECUTE : buildcraft.transport.internal.pipe.FluidAction.SIMULATE;
+    private static net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction fluidAction(OperationMode mode) {
+        return mode == OperationMode.EXECUTE ? net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction.EXECUTE : net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction.SIMULATE;
     }
 
     public void addDrops(NonNullList<ItemStack> toDrop, int fortune) {

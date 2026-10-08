@@ -1,4 +1,3 @@
-//? source if >=26.3
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -17,7 +16,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
-import buildcraft.lib.platform.storage.ItemStorage;
+import net.neoforged.neoforge.items.IItemHandler;
 import buildcraft.lib.gui.help.GuiHelpUtil;
 
 public class GuiDiamondPipe extends GuiBC8<ContainerDiamondPipe> {
@@ -28,7 +27,7 @@ public class GuiDiamondPipe extends GuiBC8<ContainerDiamondPipe> {
     private static final GuiIcon ICON_GUI_CB = new GuiIcon(TEXTURE_CB, 0, 0, SIZE_X, SIZE_Y);
 
     Inventory playerInventory;
-    ItemStorage filterInventory;
+    IItemHandler filterInventory;
 
     public GuiDiamondPipe(ContainerDiamondPipe container, Inventory inv, Component title) {
         super(container, inv, title, SIZE_X, SIZE_Y);

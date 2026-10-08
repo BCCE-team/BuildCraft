@@ -1,4 +1,3 @@
-//? source if >=26.3
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -115,16 +114,7 @@ public class BCTransport {
             (be, side) -> be.getCapability(CapUtil.CAP_ITEM_TRANSACTOR, side) == null ? null :
                 buildcraft.lib.compat.transfer.TransferInterop.exportItemSink(
                     () -> be.isRemoved() ? null : be.getCapability(CapUtil.CAP_ITEM_TRANSACTOR, side), be::setChanged));
-        event.registerBlockEntity(Capabilities.Fluid.BLOCK, pipeHolderType, (be, side) -> {
-            if (be.isRemoved() || side != null && be.getPluggable(side).isBlocking()) return null;
-            return be.getPipe().getFlow() instanceof buildcraft.transport.pipe.flow.PipeFlowFluids fluid
-                ? fluid.resourceHandler(side) : null;
-        });
-        event.registerBlockEntity(Capabilities.Energy.BLOCK, pipeHolderType, (be, side) -> {
-            if (be.isRemoved() || side != null && be.getPluggable(side).isBlocking()) return null;
-            return be.getPipe().getFlow() instanceof buildcraft.transport.pipe.flow.PipeFlowForgeEnergy energy
-                ? energy.resourceHandler(side) : null;
-        });
+        BCCapabilityRegistration.registerBlockEntity(event, CapUtil.CAP_FLUIDS, pipeHolderType);
         BCCapabilityRegistration.registerBlockEntity(event, MjCapabilities.CAP_CONNECTOR, pipeHolderType);
         BCCapabilityRegistration.registerBlockEntity(event, MjCapabilities.CAP_RECEIVER, pipeHolderType);
         BCCapabilityRegistration.registerBlockEntity(event, MjCapabilities.CAP_REDSTONE_RECEIVER, pipeHolderType);

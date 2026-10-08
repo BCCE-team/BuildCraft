@@ -1,4 +1,3 @@
-//? source if >=26.3
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
@@ -228,9 +227,7 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
         return new BakedQuad.MaterialInfo(sprite,
             translucent ? ChunkSectionLayer.TRANSLUCENT : ChunkSectionLayer.CUTOUT,
             translucent ? Sheets.translucentBlockItemSheet() : Sheets.cutoutBlockItemSheet(),
-            translucent ? Sheets.translucentBlockItemGlintSheet() : Sheets.cutoutBlockItemGlintSheet(),
-            translucent ? Sheets.translucentBlockItemGlintSpecialSheet() : Sheets.cutoutBlockItemGlintSpecialSheet(),
-            tintIndex, shade ? null : Direction.UP, lightEmission, true);
+            tintIndex, shade, lightEmission, true);
     }
 
     private static Vector3f position(MutableVertex vertex) {

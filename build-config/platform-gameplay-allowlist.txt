@@ -126,3 +126,11 @@ source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/tile/Ti
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/tile/TilePipeHolderModelData.java
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/energy/tile/TileEngineIron_BC8.java
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/energy/tile/TileEngineStone_BC8.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/behaviour/PipeBehaviourObsidian.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/behaviour/PipeBehaviourStripes.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/behaviour/PipeBehaviourWood.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/behaviour/PipeBehaviourWoodDiamond.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowForgeEnergy.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java
