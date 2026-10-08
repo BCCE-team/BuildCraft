@@ -11,10 +11,10 @@
   "limits": {
     "conditions.files": 215,
     "conditions.blocks": 410,
-    "downports.java_total": 183,
-    "platform.java_total": 1393,
+    "downports.java_total": 187,
+    "platform.java_total": 1396,
     "platform.loader_neutral_count": 0,
-    "platform.gameplay_override_count": 123,
+    "platform.gameplay_override_count": 124,
     "transforms.class_specific_java_rewrites": 0,
     "foreign_packages.count": 0,
     "/targets/1.19.2-forge/java": 165,

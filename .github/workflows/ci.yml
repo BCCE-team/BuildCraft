@@ -91,6 +91,9 @@ jobs:
       - name: Test 26.X core native boundaries
         run: python -m unittest discover -s scripts/tests -p test_core_26.py -v
 
+      - name: Test 26.X energy native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_energy_26.py -v
+
       - name: Validate Zone Planner block preview parity
         run: python scripts/validate-zone-planner-preview.py
 

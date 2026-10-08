@@ -47,9 +47,9 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.neoforged.neoforge.items.IItemHandlerModifiable;
 import buildcraft.lib.compat.GameProfileCompat;
 import buildcraft.lib.compat.ItemCompat;
+import net.neoforged.neoforge.transfer.item.ItemResource;
 
 public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvider{
     private static final Identifier ADVANCEMENT_LAVA_POWER =
@@ -80,7 +80,7 @@ public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvi
      // Actually this should be called isVaildFuel, but if i change it, there will be a bug in Eclipse202306
     private boolean isValidFuel(int slot, ItemStack stack) {
         // Always allow inserting container items if they aren't fuel
-        return isForceInserting || ItemCompat.isFuel(stack);
+        return isForceInserting || (!ItemResource.of(stack).isEmpty() && ItemCompat.isFuel(stack));
     }
 
     // BlockEntity overrides
@@ -99,12 +99,9 @@ public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvi
         bcData.writeLong("esum", esum);
     }
 
-    protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before,
-        @Nonnull ItemStack after) {
-        if (handler == invFuel) {
-            if (isForceInserting && after.isEmpty()) {
-                isForceInserting = false;
-            }
+    private void refreshForcedFuelState() {
+        if (isForceInserting && invFuel.getStackInSlot(0).isEmpty()) {
+            isForceInserting = false;
         }
     }
 
@@ -134,6 +131,7 @@ public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvi
     }
 
     protected void engineUpdate() {
+        refreshForcedFuelState();
         super.engineUpdate();
         if (burnTime > 0) {
             burnTime--;
@@ -147,6 +145,7 @@ public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvi
     }
 
     public void burn() {
+        refreshForcedFuelState();
         if (burnTime == 0 && isRedstonePowered) {
             burnTime = totalBurnTime = getItemBurnTime(invFuel.getStackInSlot(0));
 
