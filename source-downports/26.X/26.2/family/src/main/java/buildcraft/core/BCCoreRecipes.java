@@ -7,11 +7,9 @@
 package buildcraft.core;
 
 import buildcraft.core.item.ItemPaintbrush_BC8;
-import net.minecraft.data.recipes.RecipeOutput;
-import net.minecraft.core.BootstrapContext;
-import net.minecraft.advancements.Advancement;
-import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.data.recipes.RecipeCategory;
+import net.minecraft.data.recipes.RecipeOutput;
 import net.minecraft.data.recipes.RecipeProvider;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.DyeColor;
@@ -22,9 +20,8 @@ public class BCCoreRecipes extends RecipeProvider {
     public static void init() {
     }
 
-    public BCCoreRecipes(BootstrapContext<Recipe<?>> recipes,
-        BootstrapContext<Advancement> advancements) {
-        super(recipes, advancements);
+    public BCCoreRecipes(HolderLookup.Provider registries, RecipeOutput output) {
+        super(registries, output);
     }
 
     protected void buildRecipes() {

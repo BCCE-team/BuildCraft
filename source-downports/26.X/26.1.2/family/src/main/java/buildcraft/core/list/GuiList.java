@@ -13,7 +13,6 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.platform.InputConstants;
 
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
@@ -198,7 +197,7 @@ public class GuiList extends GuiBC8<ContainerList> implements IButtonClickEventL
     }
 
     public boolean keyPressed(int a, int b, int c){
-		if (a == InputConstants.KEY_ESCAPE) {
+		if (a == 256) {
 			this.minecraft.player.closeContainer();
 		}
 		return !RenderCompat.keyPressed(textField, a, b, c) && !this.textField.canConsumeInput() ? super.keyPressed(a, b, c) : true;

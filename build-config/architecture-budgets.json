@@ -11,8 +11,8 @@
   "limits": {
     "conditions.files": 215,
     "conditions.blocks": 410,
-    "downports.java_total": 169,
-    "platform.java_total": 1386,
+    "downports.java_total": 183,
+    "platform.java_total": 1393,
     "platform.loader_neutral_count": 0,
     "platform.gameplay_override_count": 123,
     "transforms.class_specific_java_rewrites": 0,
