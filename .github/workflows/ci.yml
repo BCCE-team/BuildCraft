@@ -106,6 +106,9 @@ jobs:
       - name: Test 26.X silicon native boundaries
         run: python -m unittest discover -s scripts/tests -p test_silicon_26.py -v
 
+      - name: Test 26.X robotics native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_robotics_26.py -v
+
       - name: Validate Zone Planner block preview parity
         run: python scripts/validate-zone-planner-preview.py
 

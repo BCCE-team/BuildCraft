@@ -138,3 +138,5 @@ source-family-platforms/26.X/neoforge/src/main/java/buildcraft/factory/tile/Tile
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/factory/tile/TileFloodGate.java
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/factory/tile/TileHeatExchange.java
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/builders/compat/BuilderFluidContainers263.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/robotics/compat/RobotFluidResourceHandler263.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/robotics/plug/RobotStationPluggable.java
