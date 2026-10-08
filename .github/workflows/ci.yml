@@ -100,6 +100,9 @@ jobs:
       - name: Test 26.X factory native boundaries
         run: python -m unittest discover -s scripts/tests -p test_factory_26.py -v
 
+      - name: Test 26.X builders native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_builders_26.py -v
+
       - name: Validate Zone Planner block preview parity
         run: python scripts/validate-zone-planner-preview.py
 

@@ -1,4 +1,3 @@
-//? source if >=26.3
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
  * 
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -17,13 +16,12 @@ import buildcraft.lib.internal.core.InvalidInputDataException;
 import buildcraft.builders.internal.schematic.legacy.ISchematicBlock;
 import buildcraft.builders.internal.schematic.legacy.SchematicBlockContext;
 import buildcraft.builders.snapshot.SchematicBlockDefault;
-import buildcraft.builders.compat.BuilderFluidContainers263;
 import buildcraft.builders.snapshot.SchematicBlockManager;
 import buildcraft.lib.inventory.InventoryWrapper;
 import buildcraft.lib.misc.ItemStackUtil;
 import buildcraft.lib.misc.SoundUtil;
 import buildcraft.lib.misc.StackUtil;
-import buildcraft.lib.compat.minecraft.text.BCTextFormat;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
@@ -42,6 +40,8 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.FluidUtil;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import buildcraft.lib.compat.NbtCompat;
 
 public class ItemSchematicSingle extends Item {
@@ -122,7 +122,13 @@ public class ItemSchematicSingle extends Item {
                     // Only the block itself is mandatory. Saved inventory contents are restored after
                     // placement with as many matching items as the player currently has available.
                     List<ItemStack> placementItems = schematicBlock.computeRequiredItemsForPlacement(world);
-                    List<FluidStack> requiredFluids = BuilderFluidContainers263.drainContained(placementItems);
+                    List<FluidStack> requiredFluids = new ArrayList<>();
+                    placementItems.stream()
+                        .map(FluidUtil::getFluidHandler)
+                        .flatMap(java.util.Optional::stream)
+                        .map(fluidHandler -> fluidHandler.drain(Integer.MAX_VALUE, IFluidHandler.FluidAction.EXECUTE))
+                        .filter(fluidStack -> !fluidStack.isEmpty())
+                        .forEach(requiredFluids::add);
                     requiredFluids.addAll(schematicBlock.computeRequiredFluids(world));
 
                     if (requiredFluids.isEmpty()) {
@@ -261,16 +267,16 @@ public class ItemSchematicSingle extends Item {
 	public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display, Consumer<Component> tooltip, TooltipFlag flag) {
         Level world = context.level();
         if (!isUsed(stack)) {
-            tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.blank").withStyle(BCTextFormat.GRAY));
-            tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.blank_hint").withStyle(BCTextFormat.DARK_GRAY));
+            tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.blank").withStyle(ChatFormatting.GRAY));
+            tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.blank_hint").withStyle(ChatFormatting.DARK_GRAY));
             return;
         }
         ISchematicBlock schematic = getSchematicSafe(stack);
         if (schematic == null) {
-            tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.invalid").withStyle(BCTextFormat.RED));
+            tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.invalid").withStyle(ChatFormatting.RED));
             return;
         }
-        tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.used").withStyle(BCTextFormat.GRAY));
+        tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.used").withStyle(ChatFormatting.GRAY));
         if (world != null) {
             try {
                 List<ItemStack> items = StackUtil.mergeSameItems(schematic.computeRequiredItems(world));
@@ -278,13 +284,13 @@ public class ItemSchematicSingle extends Item {
                     tooltip.accept(Component.translatable(
                         "item.buildcraftbuilders.schematic_single.contains",
                         formatItemList(items)
-                    ).withStyle(BCTextFormat.DARK_GRAY));
+                    ).withStyle(ChatFormatting.DARK_GRAY));
                 }
             } catch (RuntimeException ignored) {
-                tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.invalid").withStyle(BCTextFormat.RED));
+                tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.invalid").withStyle(ChatFormatting.RED));
             }
         }
-        tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.clear_hint").withStyle(BCTextFormat.DARK_GRAY));
+        tooltip.accept(Component.translatable("item.buildcraftbuilders.schematic_single.clear_hint").withStyle(ChatFormatting.DARK_GRAY));
     }
 
     public static boolean isUsed(@Nonnull ItemStack stack) {

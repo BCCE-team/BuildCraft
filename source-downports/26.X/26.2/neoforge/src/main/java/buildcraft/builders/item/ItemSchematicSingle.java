@@ -1,4 +1,3 @@
-//? source if >=26.3
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
  * 
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -17,7 +16,6 @@ import buildcraft.lib.internal.core.InvalidInputDataException;
 import buildcraft.builders.internal.schematic.legacy.ISchematicBlock;
 import buildcraft.builders.internal.schematic.legacy.SchematicBlockContext;
 import buildcraft.builders.snapshot.SchematicBlockDefault;
-import buildcraft.builders.compat.BuilderFluidContainers263;
 import buildcraft.builders.snapshot.SchematicBlockManager;
 import buildcraft.lib.inventory.InventoryWrapper;
 import buildcraft.lib.misc.ItemStackUtil;
@@ -42,6 +40,8 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.FluidUtil;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import buildcraft.lib.compat.NbtCompat;
 
 public class ItemSchematicSingle extends Item {
@@ -122,7 +122,13 @@ public class ItemSchematicSingle extends Item {
                     // Only the block itself is mandatory. Saved inventory contents are restored after
                     // placement with as many matching items as the player currently has available.
                     List<ItemStack> placementItems = schematicBlock.computeRequiredItemsForPlacement(world);
-                    List<FluidStack> requiredFluids = BuilderFluidContainers263.drainContained(placementItems);
+                    List<FluidStack> requiredFluids = new ArrayList<>();
+                    placementItems.stream()
+                        .map(FluidUtil::getFluidHandler)
+                        .flatMap(java.util.Optional::stream)
+                        .map(fluidHandler -> fluidHandler.drain(Integer.MAX_VALUE, IFluidHandler.FluidAction.EXECUTE))
+                        .filter(fluidStack -> !fluidStack.isEmpty())
+                        .forEach(requiredFluids::add);
                     requiredFluids.addAll(schematicBlock.computeRequiredFluids(world));
 
                     if (requiredFluids.isEmpty()) {

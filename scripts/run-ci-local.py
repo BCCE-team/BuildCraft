@@ -52,6 +52,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test 26.X energy native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_energy_26.py", "-v")),
     ("Test 26.X transport native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_transport_26.py", "-v")),
     ("Test 26.X factory native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_factory_26.py", "-v")),
+    ("Test 26.X builders native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_builders_26.py", "-v")),
     ("Validate Zone Planner block preview parity", (sys.executable, "scripts/validate-zone-planner-preview.py")),
     ("Validate FE compatibility", (sys.executable, "scripts/validate-fe-compat.py")),
     ("Validate FE Engine and MJ Dynamo parity", (sys.executable, "scripts/validate-fe-mj-engine-parity.py")),

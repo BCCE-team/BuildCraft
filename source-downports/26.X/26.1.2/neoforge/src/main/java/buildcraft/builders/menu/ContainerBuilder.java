@@ -1,4 +1,3 @@
-//? source if >=26.3
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -14,10 +13,8 @@ import buildcraft.builders.BCBuildersGuis;
 import buildcraft.builders.item.ItemSnapshot;
 import buildcraft.builders.tile.TileBuilder;
 import buildcraft.lib.gui.ContainerBCTile;
-import buildcraft.lib.gui.ItemProvider;
-import net.minecraft.world.Container;
-import net.minecraft.world.inventory.Slot;
 import buildcraft.lib.gui.slot.SlotBase;
+import buildcraft.lib.gui.slot.SlotDisplay;
 import buildcraft.lib.gui.widget.WidgetFluidTank;
 import buildcraft.lib.tile.item.IItemHandlerAdv;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
@@ -27,6 +24,7 @@ import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.DataSlot;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.neoforge.items.IItemHandler;
 
 public class ContainerBuilder extends ContainerBCTile<TileBuilder> {
     public final List<WidgetFluidTank> widgetTanks;
@@ -40,7 +38,7 @@ public class ContainerBuilder extends ContainerBCTile<TileBuilder> {
 
 
     public ContainerBuilder(int containerId, Inventory playerInventory, IItemHandlerAdv invSnapshot, IItemHandlerAdv invResources, 
-    		ItemProvider invRequire, DataSlot setting, ContainerLevelAccess access) {
+    		IItemHandler invRequire, DataSlot setting, ContainerLevelAccess access) {
     	super(BCBuildersGuis.MENU_BUILDER.get(), playerInventory, containerId, access);
 
         addFullPlayerInventory(140);
@@ -60,15 +58,9 @@ public class ContainerBuilder extends ContainerBCTile<TileBuilder> {
         
 		addDataSlot(setting);
 
-        Container required = new buildcraft.builders.compat.BuildersDisplayContainer263(invRequire);
-        for (int y = 0; y < 6; y++) {
-            for (int x = 0; x < 4; x++) {
-                addSlot(new Slot(required, x + y * 4, 179 + x * 18, 18 + y * 18) {
-                    @Override
-                    public boolean mayPlace(ItemStack stack) { return false; }
-                    @Override
-                    public boolean mayPickup(net.minecraft.world.entity.player.Player player) { return false; }
-                });
+        for(int y = 0; y < 6; y++) {
+            for(int x = 0; x < 4; x++) {
+            	addSlot(new SlotDisplay(invRequire, x + y * 4, 179 + x * 18, 18 + y * 18));
             }
         }
     }

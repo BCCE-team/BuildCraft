@@ -137,3 +137,4 @@ source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/fl
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/factory/tile/TileAutoWorkbenchBase.java
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/factory/tile/TileFloodGate.java
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/factory/tile/TileHeatExchange.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/builders/compat/BuilderFluidContainers263.java
