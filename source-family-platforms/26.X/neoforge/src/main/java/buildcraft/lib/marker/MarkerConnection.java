@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -18,7 +19,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
 
 import buildcraft.lib.tile.TileMarker;
-import net.minecraft.ChatFormatting;
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
 import net.minecraft.core.BlockPos;
 
 public abstract class MarkerConnection<C extends MarkerConnection<C>> {
@@ -46,17 +47,17 @@ public abstract class MarkerConnection<C extends MarkerConnection<C>> {
             TileMarker<C> marker = subCache.getMarker(pos);
             String s = "  " + pos + " [";
             if (marker == null) {
-                s += ChatFormatting.RED + "U";
+                s += BCTextFormat.RED + "U";
             } else {
-                s += ChatFormatting.GREEN + "L";
+                s += BCTextFormat.GREEN + "L";
             }
             if (pos.equals(caller)) {
-                s += ChatFormatting.BLACK + "S";
+                s += BCTextFormat.BLACK + "S";
             } else {
-                s += ChatFormatting.AQUA + "C";
+                s += BCTextFormat.AQUA + "C";
             }
             s += getTypeInfo(pos, marker);
-            s += ChatFormatting.RESET + "]";
+            s += BCTextFormat.RESET + "]";
             left.add(s);
         }
     }

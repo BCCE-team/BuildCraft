@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -15,12 +16,9 @@ import java.util.function.Supplier;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import buildcraft.lib.compat.mc2612.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack.Pose;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.blaze3d.vertex.VertexFormat;
 
 import buildcraft.lib.client.model.MutableVertex;
 import buildcraft.lib.internal.debug.BCLog;
@@ -453,20 +451,6 @@ public class FluidRenderer {
         vertex.renderAsBlock(pose.pose(), pose.normal(), bb);
     }
 
-    /** Fills up the given region with the fluids texture, repeated. Ignores the value of {@link FluidStack#amount}. Use
-     * {@link GuiUtil}'s fluid drawing methods in preference to this. */
-    public static void drawFluidForGui(FluidStack fluid, double startX, double startY, double endX, double endY, Pose matrix) {
-    	sprite = getFluidSprite(FluidSpriteType.STILL, fluid.getFluid(), fluid);
-        color = fluidTint(fluid.getFluid(), fluid);
-        drawFluidForGuiInteral(startX, startY, endX, endY, matrix);
-    }
-
-    public static void drawFluidForGui(Fluid fluid, double startX, double startY, double endX, double endY, Pose matrix) {
-    	sprite = getFluidSprite(FluidSpriteType.STILL, fluid, FluidStack.EMPTY);
-        color = fluidTint(fluid, null);
-        drawFluidForGuiInteral(startX, startY, endX, endY, matrix);
-    }
-
     /** Native deferred GUI path. The GUI renderer no longer consumes PoseStack vertices,
      * so tile the atlas sprite through GuiGraphicsExtractor instead of immediate BufferBuilder rendering. */
     public static void drawFluidForGui(FluidStack fluid, double startX, double startY, double endX, double endY, GuiGraphicsExtractor guiGraphics) {
@@ -505,103 +489,6 @@ public class FluidRenderer {
             guiGraphics.disableScissor();
         }
     }
-
-    private static void drawFluidForGuiInteral(double startX, double startY, double endX, double endY, Pose matrix) {
-        if (sprite == null) {
-            sprite = RenderCompat.blockSprites().apply(MissingTextureAtlasSprite.getLocation());
-        }
-//        Minecraft.getInstance().getBlockRenderer().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
-//        RenderUtil.setGLColorFromInt(fluid.getFluid().getFluidType(fluid));
-
-//        Tessellator tess = Tessellator.getInstance();
-//        bb = tess.getBuffer();
-//        bb.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
-
-        // draw all the full sprites
-        RenderCompat.setShaderTexture(0, net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_BLOCKS);
-
-        RenderCompat.setShaderColor(((color>>16)&0xFF)/255f, ((color>>8)&0xFF)/255f, ((color)&0xFF)/255f, ((color>>24)&0xFF)/255f);//rgba
-        BufferBuilder bufferbuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        bb = bufferbuilder;
-        pose = matrix;
-
-        double diffX = endX - startX;
-        double diffY = endY - startY;
-
-        int stepX = diffX > 0 ? 16 : -16;
-        int stepY = diffY > 0 ? 16 : -16;
-
-        int loopCountX = (int) Math.abs(diffX / 16);
-        int loopCountY = (int) Math.abs(diffY / 16);
-
-        double x = startX;
-        for (int xc = 0; xc < loopCountX; xc++) {
-            double y = startY;
-            for (int yc = 0; yc < loopCountY; yc++) {
-                guiVertex(x, y, 0, 0);
-                guiVertex(x + stepX, y, 16, 0);
-                guiVertex(x + stepX, y + stepY, 16, 16);
-                guiVertex(x, y + stepY, 0, 16);
-                y += stepY;
-            }
-            x += stepX;
-        }
-
-        if (diffX % 16 != 0) {
-            double additionalWidth = diffX % 16;
-            x = endX - additionalWidth;
-            double xTex = Math.abs(additionalWidth);
-            double y = startY;
-            for (int yc = 0; yc < loopCountY; yc++) {
-                guiVertex(x, y, 0, 0);
-                guiVertex(endX, y, xTex, 0);
-                guiVertex(endX, y + stepY, xTex, 16);
-                guiVertex(x, y + stepY, 0, 16);
-                y += stepY;
-            }
-        }
-
-        if (diffY % 16 != 0) {
-            double additionalHeight = diffY % 16;
-            double y = endY - additionalHeight;
-            double yTex = Math.abs(additionalHeight);
-            x = startX;
-            for (int xc = 0; xc < loopCountX; xc++) {
-                guiVertex(x, y, 0, 0);
-                guiVertex(x + stepX, y, 16, 0);
-                guiVertex(x + stepX, endY, 16, yTex);
-                guiVertex(x, endY, 0, yTex);
-                x += stepX;
-            }
-        }
-
-        if (diffX % 16 != 0 && diffY % 16 != 0) {
-            double w = diffX % 16;
-            double h = diffY % 16;
-            x = endX - w;
-            double y = endY - h;
-            double tx = w < 0 ? -w : w;
-            double ty = h < 0 ? -h : h;
-            guiVertex(x, y, 0, 0);
-            guiVertex(endX, y, tx, 0);
-            guiVertex(endX, endY, tx, ty);
-            guiVertex(x, endY, 0, ty);
-
-        }
-        BufferUploader.drawWithShader(bufferbuilder.buildOrThrow());
-        RenderCompat.setShaderColor(1, 1, 1, 1);
-        sprite = null;
-        bb = null;
-        color = 0xFFFFFFFF;
-        pose = null;
-    }
-
-    private static void guiVertex(double x, double y, double u, double v) {
-        float ru = sprite.getU((float) (u / 16.0));
-        float rv = sprite.getV((float) (v / 16.0));
-        bb.addVertex(pose.pose(), (float) x, (float) y, 0).setUv(ru, rv);
-    }
-
 
     /** Used to keep track of what position maps to what texture co-ord.
      * <p>

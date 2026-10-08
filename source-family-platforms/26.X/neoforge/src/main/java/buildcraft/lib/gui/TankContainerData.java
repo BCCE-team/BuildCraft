@@ -1,10 +1,11 @@
+//? source if >=26.2
 package buildcraft.lib.gui;
 
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.fluid.Tank;
 import buildcraft.lib.gui.elem.ToolTip;
 import buildcraft.lib.misc.LocaleUtil;
-import net.minecraft.ChatFormatting;
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
@@ -96,10 +97,10 @@ public class TankContainerData implements ContainerData{
 	            if (fluidStack != FluidStack.EMPTY && amount > 0) {
 	                add(FluidCompat.getDisplayName(fluidStack));
 	            }
-	            add(LocaleUtil.localizeFluidStaticAmount(amount, data.get(point + 4)).setStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+	            add(LocaleUtil.localizeFluidStaticAmount(amount, data.get(point + 4)).setStyle(Style.EMPTY.withColor(BCTextFormat.GRAY.getColor())));
 	            FluidStack serverFluid = new FluidStack(BuiltInRegistries.FLUID.byId(data.get(point + 0)), data.get(point + 1));
 	            if (serverFluid != FluidStack.EMPTY && serverFluid.getAmount() > 0) {
-	                add(Component.translatable("tooltip.buildcraftlib.fluid.server_side_on_client").setStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
+	                add(Component.translatable("tooltip.buildcraftlib.fluid.server_side_on_client").setStyle(Style.EMPTY.withColor(BCTextFormat.RED.getColor())));
 	                add(FluidCompat.getDisplayName(serverFluid));
 	                add(LocaleUtil.localizeFluidStaticAmount(serverFluid.getAmount(), data.get(point + 4)));
 	            }

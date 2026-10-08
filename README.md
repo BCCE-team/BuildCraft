@@ -65,6 +65,8 @@ The 1.19.2 implementation is the gameplay reference, but source code is allowed 
 
 CI builds and tests each maintained target independently. Every target has its own build, GameTest, dedicated-server smoke and client smoke run, while cross-target architecture and parity checks remain global.
 
+The `26.X` uses 26.3-native implementations with explicit 26.2 and 26.1.2 downports. CI verifies the complete 26.1.2 effective tree against its checked-in byte-parity manifest.
+
 See [`SOURCE_FAMILIES.md`](SOURCE_FAMILIES.md) for layout rules, parity policy and build commands.
 
 ## Issue reports

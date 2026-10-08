@@ -1,10 +1,11 @@
+//? source if >=26.2
 package buildcraft.lib.client.render.compat;
 
 import javax.annotation.Nullable;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
-import net.minecraft.client.renderer.MultiBufferSource;
+import buildcraft.lib.compat.minecraft.render.BCVertexBuffers;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -22,7 +23,7 @@ public abstract class LegacyEntityRenderer<T extends Entity> extends EntityRende
     public abstract Identifier getTextureLocation(T entity);
 
     /** Direct-render compatibility hook used by BuildCraft renderers across modern targets. */
-    public void render(T entity, float yaw, float partialTicks, PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
+    public void render(T entity, float yaw, float partialTicks, PoseStack poseStack, BCVertexBuffers buffer, int packedLight) {
     }
 
     public EntityRenderState createRenderState() {

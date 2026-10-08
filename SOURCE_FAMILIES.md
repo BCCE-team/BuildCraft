@@ -92,10 +92,17 @@ source-family-platforms/
    └─ fabric/                     loader API tied to one source family
 
 source-downports/
-└─ 1.21.X/
+├─ 1.21.X/
    └─ 1.21.1/
       ├─ family/                  older Minecraft view of canonical 1.21.X Java
       └─ neoforge/                older NeoForge-specific view
+└─ 26.X/
+   ├─ 26.1.2/
+   │  ├─ family/               
+   │  └─ neoforge/             
+   └─ 26.2/
+      ├─ family/               
+      └─ neoforge/           
 
 version-src/
 ├─ 1.19.2-forge/

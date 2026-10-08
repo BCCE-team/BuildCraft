@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -146,7 +147,7 @@ public class WidgetPhantomSlot extends Widget_Neptune<MenuBC_Neptune> {
                 byte flags = 0;
                 if (button == 1) flags |= CLICK_FLAG_SINGLE;
                 if (false) flags |= CLICK_FLAG_SHIFT;
-                if (gui.mc.options.keyPickItem.isActiveAndMatches(InputConstants.Type.MOUSE.getOrCreate(button))) {
+                if (gui.mc.options.keyPickItem.isActiveAndMatches(InputConstants.Type.MOUSE.getOrCreate(buildcraft.lib.compat.minecraft.gui.BCGuiInput.nativeButton(button)))) {
                     flags |= CLICK_FLAG_CLONE;
                     BCLog.logger.info("clone");
                 }

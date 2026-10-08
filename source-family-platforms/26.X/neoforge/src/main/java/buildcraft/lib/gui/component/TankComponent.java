@@ -1,3 +1,4 @@
+//? source if >=26.2
 package buildcraft.lib.gui.component;
 
 import java.util.List;
@@ -9,7 +10,7 @@ import buildcraft.lib.client.render.fluid.FluidRenderer;
 import buildcraft.lib.gui.ContainerScreenBase;
 import buildcraft.lib.gui.TankContainerData;
 import buildcraft.lib.misc.LocaleUtil;
-import net.minecraft.ChatFormatting;
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.material.Fluid;
@@ -103,7 +104,7 @@ public class TankComponent extends AbstractComponent{
         if (amount > 0 && fluid != null) {
         	toolTip.add(fluid.getFluidType().getDescription());
         }
-        toolTip.add((LocaleUtil.localizeFluidStaticAmount(amount, capacity)).withStyle(ChatFormatting.GRAY));
+        toolTip.add((LocaleUtil.localizeFluidStaticAmount(amount, capacity)).withStyle(BCTextFormat.GRAY));
         return toolTip ;
     }
 

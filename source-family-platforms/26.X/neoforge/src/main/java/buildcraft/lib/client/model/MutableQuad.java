@@ -1,3 +1,4 @@
+//? source if >=26.3
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -34,6 +35,7 @@ public class MutableQuad {
     private int tintIndex = -1;
     private Direction face = null;
     private boolean shade = false;
+    private Direction shadeDirectionOverride = Direction.UP;
     private TextureAtlasSprite sprite = null;
 
     public MutableQuad() {}
@@ -46,6 +48,7 @@ public class MutableQuad {
         this.tintIndex = tintIndex;
         this.face = face;
         this.shade = shade;
+        this.shadeDirectionOverride = shade ? null : Direction.UP;
     }
     
     public MutableQuad(BakedQuad from) {
@@ -60,6 +63,7 @@ public class MutableQuad {
         tintIndex = from.tintIndex;
         face = from.face;
         shade = from.shade;
+        shadeDirectionOverride = from.shadeDirectionOverride;
         sprite = from.sprite;
         vertex_0.copyFrom(from.vertex_0);
         vertex_1.copyFrom(from.vertex_1);
@@ -88,6 +92,17 @@ public class MutableQuad {
 
     public void setShade(boolean shade) {
         this.shade = shade;
+        this.shadeDirectionOverride = shade ? null : Direction.UP;
+    }
+
+    /** Null shades from the geometric face; an explicit direction overrides that face. */
+    public Direction getShadeDirectionOverride() {
+        return shadeDirectionOverride;
+    }
+
+    public void setShadeDirectionOverride(Direction direction) {
+        shadeDirectionOverride = direction;
+        shade = direction != Direction.UP;
     }
 
     public boolean isShade() {
@@ -184,7 +199,7 @@ public class MutableQuad {
         tintIndex = quad.getTintIndex();
         face = quad.getDirection();
         sprite = quad.getSprite();
-        shade = quad.isShade();
+        setShade(quad.isShade());
 
         int[] data = quad.getVertices();
         int stride = data.length / 4;
@@ -201,7 +216,7 @@ public class MutableQuad {
         tintIndex = quad.getTintIndex();
         face = quad.getDirection();
         sprite = quad.getSprite();
-        shade = quad.isShade();
+        setShade(quad.isShade());
 
         int[] data = quad.getVertices();
         int stride = data.length / 4;
@@ -443,6 +458,14 @@ public class MutableQuad {
      * returns true. Also sets {@link #isShade()} to false. */
     public MutableQuad multShade() {
         if (isShade()) {
+            Direction override = shadeDirectionOverride;
+            if (override != null) {
+                Vec3i normal = override.getUnitVec3i();
+                float multiplier = diffuseLight(normal.getX(), normal.getY(), normal.getZ());
+                for (MutableVertex vertex : vertexs) vertex.multColourd(multiplier);
+                setShade(false);
+                return this;
+            }
             setShade(false);
             vertex_0.multShade();
             vertex_1.multShade();

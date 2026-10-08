@@ -1,3 +1,4 @@
+//? source if >=26.3
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
@@ -235,7 +236,7 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
             return;
         }
 
-        for (RecipeHolder<?> holder : recipeManager.getRecipes()) {
+        for (RecipeHolder<?> holder : recipeManager.recipeMap().values()) {
             Recipe<?> raw = holder.value();
             if (raw instanceof CraftingRecipe recipe && recipe.matches(input, world)) {
                 matchingRecipes.add(recipe);

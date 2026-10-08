@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -24,7 +25,7 @@ public enum StackFilter implements IStackFilter {
     },
     FUEL {
         public boolean matches(@Nonnull ItemStack stack) {
-            return ItemCompat.getBurnTime(stack) > 0;
+            return ItemCompat.isFuel(stack);
         }
     };
 

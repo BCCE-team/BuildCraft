@@ -46,6 +46,8 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Validate cross-version gameplay parity", (sys.executable, "scripts/validate-behavior-parity.py")),
     ("Validate 1.21.11 parity", (sys.executable, "scripts/validate-1.21.11-parity.py")),
     ("Validate 26.1.2 target structure", (sys.executable, "scripts/validate-26.1.2-target.py")),
+    ("Verify frozen 26.1.2 materialized bytes", (sys.executable, "scripts/validate-26.1.2-byte-parity.py")),
+    ("Test 26.X lib native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_lib_26.py", "-v")),
     ("Validate Zone Planner block preview parity", (sys.executable, "scripts/validate-zone-planner-preview.py")),
     ("Validate FE compatibility", (sys.executable, "scripts/validate-fe-compat.py")),
     ("Validate FE Engine and MJ Dynamo parity", (sys.executable, "scripts/validate-fe-mj-engine-parity.py")),
@@ -121,6 +123,7 @@ def workflow_alignment_check() -> None:
         "python scripts/validate-api2-modules.py",
         "python scripts/validate-1.21.11-parity.py",
         "python scripts/validate-26.1.2-target.py",
+        "python scripts/validate-26.1.2-byte-parity.py",
         "python scripts/validate-cross-target-integrity.py",
     )
     for fragment in required_validate_fragments:

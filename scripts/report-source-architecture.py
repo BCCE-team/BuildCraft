@@ -38,6 +38,7 @@ BASELINE_VALIDATIONS: tuple[tuple[str, ...], ...] = (
     ("python", "scripts/validate-repository-cleanliness.py"),
     ("python", "scripts/validate-1.20.1-target.py", "--source-root", "version-src/1.20.1-forge"),
     ("python", "scripts/validate-26.1.2-target.py"),
+    ("python", "scripts/validate-26.1.2-byte-parity.py"),
     ("python", "scripts/validate-behavior-parity.py"),
     ("python", "scripts/validate-1.21.11-parity.py"),
     ("python", "scripts/validate-fe-compat.py"),

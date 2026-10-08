@@ -1,7 +1,8 @@
+//? source if >=26.2
 package buildcraft.lib.compat.minecraft.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.renderer.MultiBufferSource;
+import buildcraft.lib.compat.minecraft.render.BCVertexBuffers;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import buildcraft.lib.client.render.compat.CapturedBlockEntityRenderer;
 
@@ -12,9 +13,9 @@ import buildcraft.lib.client.render.compat.CapturedBlockEntityRenderer;
  */
 public interface BCGeometryRenderer<T extends BlockEntity> extends CapturedBlockEntityRenderer<T> {
     default boolean shouldRenderOffScreen() { return renderOffScreen(); }
-    default void renderLegacy(T tile, float partialTick, PoseStack pose, MultiBufferSource buffers, int light, int overlay) {
+    default void renderLegacy(T tile, float partialTick, PoseStack pose, BCVertexBuffers buffers, int light, int overlay) {
         renderContents(tile, partialTick, pose, buffers, light, overlay);
     }
     default boolean renderOffScreen() { return false; }
-    void renderContents(T tile, float partialTick, PoseStack pose, MultiBufferSource buffers, int light, int overlay);
+    void renderContents(T tile, float partialTick, PoseStack pose, BCVertexBuffers buffers, int light, int overlay);
 }

@@ -1,3 +1,4 @@
+//? source if >=26.3
 package buildcraft.lib.recipe;
 
 import java.util.ArrayList;
@@ -28,6 +29,7 @@ import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.item.crafting.ShapedRecipePattern;
 import net.minecraft.world.level.ItemLike;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.crafting.Recipe;
 import buildcraft.lib.compat.IngredientCompat;
 
@@ -42,7 +44,7 @@ public class NbtShapedRecipeBuilder implements RecipeBuilder {
     private final CompoundTag nbt;
     private final List<String> rows = new ArrayList<>();
     private final Map<Character, Ingredient> key = new LinkedHashMap<>();
-    private final Advancement.Builder advancement = Advancement.Builder.recipeAdvancement();
+    private final java.util.Map<String, Criterion<?>> criteria = new java.util.LinkedHashMap<>();
     private String group = "";
     private boolean showNotification = true;
 
@@ -90,7 +92,7 @@ public class NbtShapedRecipeBuilder implements RecipeBuilder {
     }
 
     public NbtShapedRecipeBuilder unlockedBy(String name, Criterion<?> criterion) {
-        advancement.addCriterion(name, criterion);
+        criteria.put(name, criterion);
         return this;
     }
 
@@ -126,11 +128,12 @@ public class NbtShapedRecipeBuilder implements RecipeBuilder {
             commonInfo, bookInfo, pattern, ItemStackTemplate.fromNonEmptyStack(result.copy())
         );
 
-        advancement.parent(ROOT_RECIPE_ADVANCEMENT)
-            .addCriterion("has_the_recipe", RecipeUnlockedTrigger.unlocked(key))
+        Advancement.Builder advancement = output.advancement()
+            .addCriterion("has_the_recipe", RecipeUnlockedTrigger.unlocked(output.lookup(Registries.RECIPE).getOrThrow(key)))
             .rewards(AdvancementRewards.Builder.recipe(key))
             .requirements(AdvancementRequirements.Strategy.OR);
 
+        criteria.forEach(advancement::addCriterion);
         AdvancementHolder advancementHolder = advancement.build(
             Identifier.fromNamespaceAndPath(id.getNamespace(), "recipes/" + id.getPath())
         );

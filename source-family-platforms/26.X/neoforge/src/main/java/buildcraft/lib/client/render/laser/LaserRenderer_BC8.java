@@ -1,3 +1,4 @@
+//? source if >=26.3
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -17,21 +18,20 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.cache.RemovalNotification;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.renderpearl.api.vertex.VertexFormat;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
 import buildcraft.lib.compat.RenderCompat;
+import buildcraft.lib.client.render.compat.BCWorldGeometry;
 public class LaserRenderer_BC8 {
     private static final LoadingCache<LaserData_BC8, LaserCompiledList> COMPILED_STATIC_LASERS;
     private static final LoadingCache<LaserData_BC8, LaserCompiledBuffer> COMPILED_STATIC_CPU_LASERS;
@@ -75,8 +75,7 @@ public class LaserRenderer_BC8 {
     public static void clearModels() {
         COMPILED_LASER_TYPES.clear();
 
-        // Static lasers own GPU vertex buffers. invalidateAll() followed by cleanUp()
-        // invokes the removal listener immediately, which closes those VBOs.
+        // Both static caches contain atlas-dependent CPU geometry.
         COMPILED_STATIC_LASERS.invalidateAll();
         COMPILED_STATIC_LASERS.cleanUp();
         COMPILED_STATIC_CPU_LASERS.invalidateAll();
@@ -89,17 +88,8 @@ public class LaserRenderer_BC8 {
         COMPILED_DYNAMIC_BOXES.cleanUp();
     }
 
-    /**
-     * Marker/path lasers are rendered from RenderLevelStageEvent or custom block-entity buffers instead of the normal
-     * chunk model path. Optimized renderers such as Rubidium can leave a different GL state active for those hooks,
-     * so make the state explicit before drawing BuildCraft laser VBOs/immediate buffers.
-     */
+    /** Selects the block-atlas material; draw state is carried by the submitted RenderType. */
     public static void setupLaserRenderState() {
-        RenderCompat.enableDepthTest();
-        RenderCompat.depthMask(true);
-        RenderCompat.disableBlend();
-        RenderCompat.disableCull();
-        RenderCompat.setShader(null);
         RenderCompat.setShaderTexture(0, net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_BLOCKS);
         RenderCompat.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
@@ -195,21 +185,13 @@ public class LaserRenderer_BC8 {
     }
 
     public static void renderLaserStatic(PoseStack pose, Matrix4f matrix, LaserData_BC8 data) {
-        // The current renderer does not expose the old direct VertexBuffer/shader drawing path. Keep static/world lasers on the
-        // same CPU vertex format as dynamic lasers and append them to the live level BufferSource instead. The caller
-        // flushes this layer once after its world-last batch, avoiding one GPU submission per marker edge.
         LaserCompiledBuffer compiled = COMPILED_STATIC_CPU_LASERS.getUnchecked(data);
-        net.minecraft.client.renderer.MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
-        net.minecraft.client.renderer.rendertype.RenderType renderType = buildcraft.lib.compat.RenderCompat.cutout();
-        VertexConsumer buffer = buffers.getBuffer(renderType);
-        compiled.render(pose.last().pose(), pose.last().normal(), buffer);
+        compiled.render(pose.last().pose(), pose.last().normal(), BCWorldGeometry.buffer(RenderCompat.cutout()));
     }
 
-    /** Flushes the shared static laser layer after a detached/world-last render batch. */
+    /** Completes recorded vertices; the feature renderer uploads the resulting frame once. */
     public static void flushStaticLasers() {
-        net.minecraft.client.renderer.MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
-        buffers.endBatch(buildcraft.lib.compat.RenderCompat.cutout());
-        buffers.endBatch(buildcraft.lib.compat.RenderCompat.solid());
+        BCWorldGeometry.flush();
     }
 
     /** Assumes the buffer uses {@link DefaultVertexFormats#BLOCK} */

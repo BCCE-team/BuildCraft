@@ -1,3 +1,4 @@
+//? source if >=26.3
 package buildcraft.lib.compat.minecraft.model;
 
 import java.util.ArrayList;
@@ -80,9 +81,13 @@ public final class NativeItemModelBuilder {
         ChunkSectionLayer layer = renderType.hasBlending()
             ? ChunkSectionLayer.TRANSLUCENT
             : ChunkSectionLayer.CUTOUT;
+        Direction shadeOverride = itemQuad.getShadeDirectionOverride();
+        BakedQuad.MaterialInfo defaults = BakedQuad.MaterialInfo.of(
+            new Material.Baked(itemQuad.getSprite(), layer.translucent()), itemQuad.getSprite().transparency(),
+            itemQuad.getTint(), shadeOverride, lightEmission(itemQuad), true);
         BakedQuad.MaterialInfo material = new BakedQuad.MaterialInfo(
-            itemQuad.getSprite(), layer, renderType, itemQuad.getTint(), itemQuad.isShade(),
-            lightEmission(itemQuad), true
+            itemQuad.getSprite(), layer, renderType, defaults.itemGlintRenderType(), defaults.itemGlintSpecialRenderType(),
+            itemQuad.getTint(), shadeOverride, lightEmission(itemQuad), true
         );
 
         return new BakedQuad(

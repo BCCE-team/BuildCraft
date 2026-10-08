@@ -82,6 +82,12 @@ jobs:
       - name: Validate 26.1.2 target structure
         run: python scripts/validate-26.1.2-target.py
 
+      - name: Verify frozen 26.1.2 materialized bytes
+        run: python scripts/validate-26.1.2-byte-parity.py
+
+      - name: Test 26.X lib native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_lib_26.py -v
+
       - name: Validate Zone Planner block preview parity
         run: python scripts/validate-zone-planner-preview.py
 

@@ -1,3 +1,4 @@
+//? source if >=26.2
 /** Copyright (c) 2011-2015, SpaceToad and the BuildCraft Team http://www.mod-buildcraft.com
  *
  * The BuildCraft API is distributed under the terms of the MIT License. Please check the contents of the license, which
@@ -13,7 +14,7 @@ import buildcraft.lib.internal.core.render.ISprite;
 import buildcraft.lib.misc.ItemStackUtil;
 import com.google.common.collect.ImmutableList;
 
-import net.minecraft.ChatFormatting;
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
@@ -128,9 +129,9 @@ public class StatementParameterItemStack implements IStatementParameter {
         }
         List<Component> tooltip = stack.getTooltipLines(Item.TooltipContext.EMPTY, null, TooltipFlag.Default.NORMAL);
         if (!tooltip.isEmpty()) {
-            tooltip.set(0, MutableComponent.create(tooltip.get(0).getContents()).withStyle(stack.getRarity().color()));
+            tooltip.set(0, MutableComponent.create(tooltip.get(0).getContents()).withStyle(style -> style.withColor(stack.getRarity().color())));
             for (int i = 1; i < tooltip.size(); i++) {
-                tooltip.set(i, MutableComponent.create(tooltip.get(i).getContents()).withStyle(ChatFormatting.GRAY));
+                tooltip.set(i, MutableComponent.create(tooltip.get(i).getContents()).withStyle(BCTextFormat.GRAY));
             }
         }
         return tooltip;

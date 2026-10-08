@@ -1,3 +1,4 @@
+//? source if >=26.3
 package buildcraft.lib.recipe;
 
 import com.google.common.collect.ImmutableSet;
@@ -15,12 +16,13 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.crafting.Recipe;
 
 public class AssemblyRecipeBuilder implements RecipeBuilder {
     protected final ItemStack result;
     protected final ImmutableSet<IngredientStack> ingredients;
-    protected final Advancement.Builder advancement = Advancement.Builder.recipeAdvancement();
+    protected final java.util.Map<String, Criterion<?>> criteria = new java.util.LinkedHashMap<>();
     protected final long requiredMj;
     protected String group;
 
@@ -31,7 +33,7 @@ public class AssemblyRecipeBuilder implements RecipeBuilder {
     }
 
     public AssemblyRecipeBuilder unlockedBy(String name, Criterion<?> criterion) {
-        advancement.addCriterion(name, criterion);
+        criteria.put(name, criterion);
         return this;
     }
 
@@ -50,11 +52,12 @@ public class AssemblyRecipeBuilder implements RecipeBuilder {
 
     public void save(RecipeOutput output, ResourceKey<Recipe<?>> key) {
         Identifier id = key.identifier();
-        advancement.parent(ROOT_RECIPE_ADVANCEMENT)
-            .addCriterion("has_the_recipe", RecipeUnlockedTrigger.unlocked(key))
+        Advancement.Builder advancement = output.advancement()
+            .addCriterion("has_the_recipe", RecipeUnlockedTrigger.unlocked(output.lookup(Registries.RECIPE).getOrThrow(key)))
             .rewards(AdvancementRewards.Builder.recipe(key))
             .requirements(AdvancementRequirements.Strategy.OR);
 
+        criteria.forEach(advancement::addCriterion);
         AdvancementHolder advancementHolder = advancement.build(
             Identifier.fromNamespaceAndPath(id.getNamespace(), "recipes/" + id.getPath())
         );

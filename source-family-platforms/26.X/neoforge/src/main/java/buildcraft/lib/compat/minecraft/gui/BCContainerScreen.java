@@ -1,3 +1,4 @@
+//? source if >=26.3
 package buildcraft.lib.compat.minecraft.gui;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -20,26 +21,26 @@ public abstract class BCContainerScreen<T extends AbstractContainerMenu> extends
 
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
-            return mouseClicked(event.x(), event.y(), event.button()) || super.mouseClicked(event, doubleClick);
+            return mouseClicked(event.x(), event.y(), BCGuiInput.legacyButton(event.button())) || super.mouseClicked(event, doubleClick);
         }
     }
 
     public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
-            return mouseDragged(event.x(), event.y(), event.button(), dragX, dragY)
+            return mouseDragged(event.x(), event.y(), BCGuiInput.legacyButton(event.button()), dragX, dragY)
                 || super.mouseDragged(event, dragX, dragY);
         }
     }
 
     public boolean mouseReleased(MouseButtonEvent event) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
-            return mouseReleased(event.x(), event.y(), event.button()) || super.mouseReleased(event);
+            return mouseReleased(event.x(), event.y(), BCGuiInput.legacyButton(event.button())) || super.mouseReleased(event);
         }
     }
 
     public boolean keyPressed(KeyEvent event) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
-            return keyPressed(event.key(), event.scancode(), event.modifiers()) || super.keyPressed(event);
+            return keyPressed(event.key(), event.keycode(), event.modifiers()) || super.keyPressed(event);
         }
     }
 

@@ -1,3 +1,4 @@
+//? source if >=26.3
 package buildcraft.lib.compat;
 
 import buildcraft.lib.compat.minecraft.render.BCRenderTypes;
@@ -19,7 +20,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
@@ -218,7 +218,7 @@ public final class RenderCompat {
      * Retains source tinting while routing directly to the 26.1.2 extraction-stage GUI command.
      * This is intentionally a thin facade: {@link GuiGraphicsExtractor} owns the queued render state.
      */
-    public static void blit(GuiGraphicsExtractor graphics, com.mojang.blaze3d.pipeline.RenderPipeline pipeline,
+    public static void blit(GuiGraphicsExtractor graphics, com.mojang.renderpearl.api.pipeline.RenderPipeline pipeline,
         Identifier texture, int x, int y, float u, float v, int width, int height, int sourceWidth, int sourceHeight,
         int texWidth, int texHeight, int colour) {
         graphics.blit(pipeline, texture, x, y, u, v, width, height, sourceWidth, sourceHeight, texWidth, texHeight, colour);

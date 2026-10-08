@@ -124,3 +124,4 @@ source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/Pi
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/stripes/PipeExtensionManager.java
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/tile/TilePipeHolder.java
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/tile/TilePipeHolderModelData.java
+source-family-platforms/26.X/neoforge/src/main/java/buildcraft/energy/tile/TileEngineStone_BC8.java

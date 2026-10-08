@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -19,12 +20,7 @@ import buildcraft.lib.gui.pos.IGuiArea;
 import buildcraft.lib.gui.statement.GuiElementStatementParam;
 import buildcraft.lib.misc.GuiUtil;
 import buildcraft.lib.tile.TileBC_Neptune;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import buildcraft.lib.compat.mc2612.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Renderable;
@@ -33,7 +29,6 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
-import org.joml.Matrix4f;
 
 import java.util.List;
 import java.util.function.Function;
@@ -120,7 +115,6 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         }
     }
 
-    @Override
     protected void extractTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
         // AbstractContainerScreen now extracts its slot tooltip inside super.extractRenderState(). A statement popup
         // that fully overrides the GUI must suppress that vanilla tooltip before BuildCraft submits its own popup tip.
@@ -172,23 +166,12 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         int h = Mth.floor(height);
 
         Identifier texture = RenderCompat.getShaderTexture();
-        if (texture != null) {
-            BCGraphics.blit(requireGraphics(), texture, x, y, u, v, w, h);
+        if (texture == null) {
+            requireGraphics().blitSprite(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                buildcraft.lib.misc.SpriteUtil.missingSprite(), x, y, w, h, 0xFFFFFFFF);
             return;
         }
-
-        Matrix4f matrix = pose.last().pose();
-        float u0 = u / 256.0F;
-        float u1 = (u + w) / 256.0F;
-        float v0 = v / 256.0F;
-        float v1 = (v + h) / 256.0F;
-
-        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        builder.addVertex(matrix, x, y + h, 0).setUv(u0, v1);
-        builder.addVertex(matrix, x + w, y + h, 0).setUv(u1, v1);
-        builder.addVertex(matrix, x + w, y, 0).setUv(u1, v0);
-        builder.addVertex(matrix, x, y, 0).setUv(u0, v0);
-        BufferUploader.drawWithShader(builder.buildOrThrow());
+        BCGraphics.blit(requireGraphics(), texture, x, y, u, v, w, h);
     }
 
     public void drawString(GuiGraphicsExtractor guiGraphics, Font fontRenderer, String text, double x, double y, int colour) {
@@ -229,7 +212,6 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         mainGui.drawElementBackgrounds(guiGraphics);
     }
 
-    @Override
     protected void extractLabels(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
         // 1.21.1 GuiBC8 intentionally replaced AbstractContainerScreen#renderLabels without calling super,
         // so machine GUIs did not get the vanilla menu title / "Inventory" labels. In 26.1 that hook was

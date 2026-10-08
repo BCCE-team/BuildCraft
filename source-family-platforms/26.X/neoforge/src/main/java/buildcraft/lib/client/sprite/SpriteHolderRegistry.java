@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -10,22 +11,15 @@ import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.internal.core.render.ISprite;
 import buildcraft.lib.misc.SpriteUtil;
-import com.mojang.blaze3d.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
+import net.minecraft.data.AtlasIds;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.inventory.InventoryMenu;
-import org.lwjgl.BufferUtils;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL12;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
-import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -87,32 +81,13 @@ public final class SpriteHolderRegistry {
     }
 
     public static void exportTextureMap() {
-        if (!DEBUG) {
-            return;
-        }
-        java.util.function.Function<Identifier, TextureAtlasSprite> map = RenderCompat.blockSprites();
-        // Texture binding is handled by render passes
-
-        for (int level = 0; level < 32; level++) {
-            int width = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, level, GL11.GL_TEXTURE_WIDTH);
-            int height = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, level, GL11.GL_TEXTURE_HEIGHT);
-            if (width <= 0 || height <= 0) {
-                break;
-            }
-            GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 1);
-            GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
-            int totalSize = width * height;
-            IntBuffer buffer = BufferUtils.createIntBuffer(totalSize);
-            int[] pixels = new int[totalSize];
-            GL11.glGetTexImage(GL11.GL_TEXTURE_2D, level, GL12.GL_BGRA, GL12.GL_UNSIGNED_INT_8_8_8_8_REV, buffer);
-            buffer.get(pixels);
-            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-            image.setRGB(0, 0, width, height, pixels, 0, width);
-            try {
-                ImageIO.write(image, "png", new File("bc_spritemap_" + level + ".png"));
-            } catch (IOException io) {
-                BCLog.logger.warn("Unable to export BuildCraft texture atlas", io);
-            }
+        if (!DEBUG) return;
+        Minecraft client = Minecraft.getInstance();
+        TextureAtlas atlas = client.getAtlasManager().getAtlasOrThrow(AtlasIds.BLOCKS);
+        try {
+            atlas.dumpContents(atlas.location(), client.gameDirectory.toPath());
+        } catch (IOException error) {
+            BCLog.logger.warn("Unable to export BuildCraft texture atlas", error);
         }
     }
 

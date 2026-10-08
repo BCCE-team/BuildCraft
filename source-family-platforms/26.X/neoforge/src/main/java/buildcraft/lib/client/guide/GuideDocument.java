@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
@@ -18,7 +19,7 @@ import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 
-import net.minecraft.ChatFormatting;
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 
@@ -253,8 +254,8 @@ public final class GuideDocument {
 
     private static InlineResult parseInline(String line) {
         MutableComponent result = Component.empty();
-        Set<ChatFormatting> formats = EnumSet.noneOf(ChatFormatting.class);
-        Deque<ChatFormatting> colours = new ArrayDeque<>();
+        Set<BCTextFormat> formats = EnumSet.noneOf(BCTextFormat.class);
+        Deque<BCTextFormat> colours = new ArrayDeque<>();
         StringBuilder text = new StringBuilder();
         String linkTarget = null;
         int codeDepth = 0;
@@ -287,7 +288,7 @@ public final class GuideDocument {
                         index = end + 1;
                         continue;
                     }
-                    ChatFormatting formatting = formatting(name);
+                    BCTextFormat formatting = formatting(name);
                     if (formatting != null) {
                         flush(result, text, formats, colours, codeDepth > 0);
                         if (closing) {
@@ -308,7 +309,7 @@ public final class GuideDocument {
                 if (link.lookingAt()) {
                     flush(result, text, formats, colours, codeDepth > 0);
                     MutableComponent linked = Component.literal(link.group(1));
-                    linked.withStyle(ChatFormatting.BLUE, ChatFormatting.UNDERLINE);
+                    linked.withStyle(BCTextFormat.BLUE).withStyle(BCTextFormat.UNDERLINE);
                     result.append(linked);
                     linkTarget = link.group(2);
                     index += link.end();
@@ -321,40 +322,40 @@ public final class GuideDocument {
         return new InlineResult(result, linkTarget);
     }
 
-    private static void flush(MutableComponent result, StringBuilder text, Set<ChatFormatting> formats,
-        Deque<ChatFormatting> colours, boolean code) {
+    private static void flush(MutableComponent result, StringBuilder text, Set<BCTextFormat> formats,
+        Deque<BCTextFormat> colours, boolean code) {
         if (text.length() == 0) return;
         MutableComponent part = Component.literal(text.toString());
-        if (code) part.withStyle(ChatFormatting.DARK_AQUA);
+        if (code) part.withStyle(BCTextFormat.DARK_AQUA);
         if (!colours.isEmpty()) part.withStyle(colours.peek());
-        for (ChatFormatting formatting : formats) part.withStyle(formatting);
+        for (BCTextFormat formatting : formats) part.withStyle(formatting);
         result.append(part);
         text.setLength(0);
     }
 
     @Nullable
-    private static ChatFormatting formatting(String name) {
+    private static BCTextFormat formatting(String name) {
         switch (name.toLowerCase(Locale.ROOT)) {
-            case "bold": return ChatFormatting.BOLD;
-            case "italic": return ChatFormatting.ITALIC;
-            case "underline": return ChatFormatting.UNDERLINE;
-            case "strikethrough": return ChatFormatting.STRIKETHROUGH;
-            case "black": return ChatFormatting.BLACK;
-            case "dark_blue": return ChatFormatting.DARK_BLUE;
-            case "dark_green": return ChatFormatting.DARK_GREEN;
-            case "dark_aqua": return ChatFormatting.DARK_AQUA;
-            case "dark_red": return ChatFormatting.DARK_RED;
-            case "dark_purple": return ChatFormatting.DARK_PURPLE;
-            case "gold": return ChatFormatting.GOLD;
-            case "gray": return ChatFormatting.GRAY;
-            case "dark_gray": return ChatFormatting.DARK_GRAY;
-            case "blue": return ChatFormatting.BLUE;
-            case "green": return ChatFormatting.GREEN;
-            case "aqua": return ChatFormatting.AQUA;
-            case "red": return ChatFormatting.RED;
-            case "light_purple": return ChatFormatting.LIGHT_PURPLE;
-            case "yellow": return ChatFormatting.YELLOW;
-            case "white": return ChatFormatting.WHITE;
+            case "bold": return BCTextFormat.BOLD;
+            case "italic": return BCTextFormat.ITALIC;
+            case "underline": return BCTextFormat.UNDERLINE;
+            case "strikethrough": return BCTextFormat.STRIKETHROUGH;
+            case "black": return BCTextFormat.BLACK;
+            case "dark_blue": return BCTextFormat.DARK_BLUE;
+            case "dark_green": return BCTextFormat.DARK_GREEN;
+            case "dark_aqua": return BCTextFormat.DARK_AQUA;
+            case "dark_red": return BCTextFormat.DARK_RED;
+            case "dark_purple": return BCTextFormat.DARK_PURPLE;
+            case "gold": return BCTextFormat.GOLD;
+            case "gray": return BCTextFormat.GRAY;
+            case "dark_gray": return BCTextFormat.DARK_GRAY;
+            case "blue": return BCTextFormat.BLUE;
+            case "green": return BCTextFormat.GREEN;
+            case "aqua": return BCTextFormat.AQUA;
+            case "red": return BCTextFormat.RED;
+            case "light_purple": return BCTextFormat.LIGHT_PURPLE;
+            case "yellow": return BCTextFormat.YELLOW;
+            case "white": return BCTextFormat.WHITE;
             default: return null;
         }
     }

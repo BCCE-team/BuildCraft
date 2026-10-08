@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -19,7 +20,7 @@ import buildcraft.lib.gui.pos.IGuiArea;
 import buildcraft.lib.gui.pos.IGuiPosition;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.ChatFormatting;
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -56,11 +57,11 @@ public final class GuiUtil {
     }
 
     public static int getScreenWidth() {
-        return MC.screen == null ? MC.getWindow().getGuiScaledWidth() : MC.screen.width;
+        return MC.gui.screen() == null ? MC.getWindow().getGuiScaledWidth() : MC.gui.screen().width;
     }
 
     public static int getScreenHeight() {
-        return MC.screen == null ? MC.getWindow().getGuiScaledHeight() : MC.screen.height;
+        return MC.gui.screen() == null ? MC.getWindow().getGuiScaledHeight() : MC.gui.screen().height;
     }
 
     public static IGuiArea moveRectangleToCentre(GuiRectangle area) {
@@ -308,11 +309,11 @@ public final class GuiUtil {
         List<Component> list = getUnFormattedTooltip(stack);
         if (!list.isEmpty()) {
             Component first = list.get(0);
-            list.set(0, first.copy().withStyle(stack.getRarity().color()));
+            list.set(0, first.copy().withStyle(style -> style.withColor(stack.getRarity().color())));
         }
         for (int i = 1; i < list.size(); i++) {
             Component line = list.get(i);
-            list.set(i, line.copy().setStyle(line.getStyle().applyFormat(ChatFormatting.GRAY)));
+            list.set(i, line.copy().setStyle(BCTextFormat.GRAY.apply(line.getStyle())));
         }
         return list;
     }

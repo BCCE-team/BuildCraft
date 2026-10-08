@@ -1,3 +1,4 @@
+//? source if >=26.3
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
@@ -26,7 +27,7 @@ import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
-import net.minecraft.ChatFormatting;
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
 import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.CharacterEvent;
@@ -220,7 +221,7 @@ public final class GuiGuide extends Screen {
     }
 
     public static void open(ItemStack guideStack, InteractionHand hand) {
-        Minecraft.getInstance().setScreen(new GuiGuide(guideStack, hand));
+        Minecraft.getInstance().gui.setScreen(new GuiGuide(guideStack, hand));
     }
 
     protected void init() {
@@ -547,13 +548,11 @@ public final class GuiGuide extends Screen {
             boolean visible = view == View.CONTENTS && isContentsEntryPage(leftPage);
             searchBox.setVisible(visible);
             if (!visible && searchBox.isFocused()) {
-                // EditBox#setFocused(boolean) is protected in 1.19.2. Clicking outside the widget clears focus.
-                RenderCompat.mouseClicked(searchBox, new MouseButtonEvent(-1, -1, new MouseButtonInfo(0, 0)), false);
+                searchBox.setFocused(false);
             }
         }
     }
 
-    @Override
     public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
         hoveredStack = null;
         hoveredText = null;
@@ -666,7 +665,7 @@ public final class GuiGuide extends Screen {
         int visible = Math.max(0, to - from);
         int blockHeight = (visible + 1) * perLineHeight;
         int y = top + PAGE_TEXT_TOP + (PAGE_TEXT_HEIGHT - blockHeight) / 2;
-        Component heading = Component.translatable("buildcraft.guide.contents.loaded_modules").withStyle(ChatFormatting.BOLD);
+        Component heading = Component.translatable("buildcraft.guide.contents.loaded_modules").withStyle(BCTextFormat.BOLD);
         drawCentred(guiGraphics, heading, pageX, y, PAGE_TEXT_WIDTH, 0x17120E);
         y += perLineHeight;
         for (int index = from; index < to; index++) {
@@ -714,7 +713,7 @@ public final class GuiGuide extends Screen {
                     updateSearchVisibility();
                     persistGuideState();
                 }
-                RenderCompat.mouseClicked(searchBox, new MouseButtonEvent(searchX + 1, searchY + 1, new MouseButtonInfo(0, 0)), false);
+                RenderCompat.mouseClicked(searchBox, new MouseButtonEvent(searchX + 1, searchY + 1, new MouseButtonInfo(buildcraft.lib.compat.minecraft.gui.BCGuiInput.nativeButton(0), 0)), false);
             }));
         }
     }
@@ -745,14 +744,14 @@ public final class GuiGuide extends Screen {
         switch (line.kind) {
             case CHAPTER: {
                 drawTintedNineSlice(guiGraphics, CHAPTER_BAR, x + 7, y - 4, PAGE_TEXT_WIDTH - 24, 16, line.colour);
-                Component text = line.component.copy().withStyle(ChatFormatting.UNDERLINE);
+                Component text = line.component.copy().withStyle(BCTextFormat.UNDERLINE);
                 drawOverflowText(guiGraphics, text, x + 16, y, PAGE_TEXT_WIDTH - 34, TEXT_COLOUR,
                     HorizontalAlignment.LEFT, line.component.getString().hashCode());
                 break;
             }
             case SUBHEADING: {
                 int textX = x + 32;
-                Component text = line.component.copy().withStyle(ChatFormatting.UNDERLINE);
+                Component text = line.component.copy().withStyle(BCTextFormat.UNDERLINE);
                 drawOverflowText(guiGraphics, text, textX, y, PAGE_TEXT_WIDTH - 32, TEXT_COLOUR,
                     HorizontalAlignment.LEFT, line.component.getString().hashCode());
                 break;
@@ -843,7 +842,7 @@ public final class GuiGuide extends Screen {
             int x = left - textWidth - extension + 5;
             drawTintedNineSlice(guiGraphics, CHAPTER_TAB_LEFT, x - 6, y - 4,
                 textWidth + 12 + extension, 16, tab.colour);
-            drawOverflowText(guiGraphics, Component.literal(tab.label).withStyle(ChatFormatting.UNDERLINE),
+            drawOverflowText(guiGraphics, Component.literal(tab.label).withStyle(BCTextFormat.UNDERLINE),
                 x, y, textWidth, TEXT_COLOUR, HorizontalAlignment.LEFT, tab.key.hashCode());
             clickRegions.add(new ClickRegion(left - textWidth - 5 - extension, y - 4,
                 textWidth + 16 + extension, 16, () -> {
@@ -908,7 +907,7 @@ public final class GuiGuide extends Screen {
     private static void drawGuideTintedPart(GuiGraphicsExtractor guiGraphics, int x, int y, int width, int height,
         int u, int v, int sourceWidth, int sourceHeight, int colour) {
         if (width <= 0 || height <= 0 || sourceWidth <= 0 || sourceHeight <= 0) return;
-        guiGraphics.blit(RenderPipelines.GUI_TEXTURED, ICONS, x, y, (float) u, (float) v,
+        RenderCompat.blit(guiGraphics, RenderPipelines.GUI_TEXTURED, ICONS, x, y, (float) u, (float) v,
             width, height, sourceWidth, sourceHeight, 256, 256, colour);
     }
 
@@ -1011,7 +1010,7 @@ public final class GuiGuide extends Screen {
         int x = left - textWidth - extension + 5;
         drawTintedNineSlice(guiGraphics, CHAPTER_TAB_LEFT, x - 6, y - 4,
             textWidth + 12 + extension, 16, colour);
-        drawOverflowText(guiGraphics, Component.literal(rawLabel).withStyle(ChatFormatting.UNDERLINE),
+        drawOverflowText(guiGraphics, Component.literal(rawLabel).withStyle(BCTextFormat.UNDERLINE),
             x, y, textWidth, TEXT_COLOUR, HorizontalAlignment.LEFT, rawLabel.hashCode());
         clickRegions.add(new ClickRegion(left - textWidth - 5 - extension, y - 4,
             textWidth + 16 + extension, 16, action));
@@ -1231,7 +1230,7 @@ public final class GuiGuide extends Screen {
         void addChapter(Component component, int level) {
             int safeLevel = Math.max(0, level);
             int indent = Math.min(20, safeLevel * 7);
-            Component styled = component.copy().withStyle(ChatFormatting.UNDERLINE);
+            Component styled = component.copy().withStyle(BCTextFormat.UNDERLINE);
             List<FormattedCharSequence> lines = font.split(styled, PAGE_TEXT_WIDTH - 24 - indent);
             if (lines.isEmpty()) lines = List.of(Component.empty().getVisualOrderText());
             int blockHeight = Math.max(16, lines.size() * 11 + 6);
@@ -1737,7 +1736,7 @@ public final class GuiGuide extends Screen {
     }
 
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (mouseClicked(event.x(), event.y(), event.button())) {
+        if (mouseClicked(event.x(), event.y(), buildcraft.lib.compat.minecraft.gui.BCGuiInput.legacyButton(event.button()))) {
             return true;
         }
         return false;
@@ -1745,7 +1744,7 @@ public final class GuiGuide extends Screen {
 
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
-            if (searchBox != null && searchBox.visible && RenderCompat.mouseClicked(searchBox, new MouseButtonEvent(mouseX, mouseY, new MouseButtonInfo(button, 0)), false)) {
+            if (searchBox != null && searchBox.visible && RenderCompat.mouseClicked(searchBox, new MouseButtonEvent(mouseX, mouseY, new MouseButtonInfo(buildcraft.lib.compat.minecraft.gui.BCGuiInput.nativeButton(button), 0)), false)) {
                 return true;
             }
             for (int index = clickRegions.size() - 1; index >= 0; index--) {
@@ -1778,7 +1777,7 @@ public final class GuiGuide extends Screen {
             onClose();
             return true;
         }
-        if (keyPressed(event.key(), event.scancode(), event.modifiers())) {
+        if (keyPressed(event.key(), event.keycode(), event.modifiers())) {
             return true;
         }
         return super.keyPressed(event);
@@ -1790,15 +1789,15 @@ public final class GuiGuide extends Screen {
             onClose();
             return true;
         }
-        if (keyCode == 263) {
+        if (keyCode == InputConstants.KEY_LEFT) {
             changeSpread(-1);
             return true;
         }
-        if (keyCode == 262) {
+        if (keyCode == InputConstants.KEY_RIGHT) {
             changeSpread(1);
             return true;
         }
-        if (keyCode == 259 && view == View.DOCUMENT) {
+        if (keyCode == InputConstants.KEY_BACKSPACE && view == View.DOCUMENT) {
             goBack();
             return true;
         }
@@ -1822,6 +1821,7 @@ public final class GuiGuide extends Screen {
     }
 
     public void removed() {
+        if (searchBox != null) searchBox.setFocused(false);
         persistGuideState();
         super.removed();
     }

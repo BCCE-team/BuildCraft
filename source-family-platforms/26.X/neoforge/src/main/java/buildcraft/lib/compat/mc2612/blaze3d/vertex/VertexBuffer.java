@@ -1,3 +1,4 @@
+//? source if <26.2
 package buildcraft.lib.compat.mc2612.blaze3d.vertex;
 
 import com.mojang.blaze3d.vertex.MeshData;

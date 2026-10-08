@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -15,7 +16,7 @@ import java.util.function.Function;
 
 import com.google.common.base.Splitter;
 
-import net.minecraft.ChatFormatting;
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.world.phys.Vec3;
@@ -50,18 +51,18 @@ public final class StringUtilBC {
     }
 
     /** Formats a string to be displayed on a white background (for example a book background), replacing any
-     * close-to-white colours with darker variants. Replaces instances of {@link ChatFormatting} values. */
+     * close-to-white colours with darker variants. Replaces instances of {@link BCTextFormat} values. */
     public static String formatStringForWhite(String string) {
         return formatStringImpl(string, ColourUtil.getTextFormatForWhite);
     }
 
     /** Formats a string to be displayed on a black background (for example an item tooltip), replacing any
-     * close-to-white colours with darker variants. Replaces instances of {@link ChatFormatting} values. */
+     * close-to-white colours with darker variants. Replaces instances of {@link BCTextFormat} values. */
     public static String formatStringForBlack(String string) {
         return formatStringImpl(string, ColourUtil.getTextFormatForBlack);
     }
 
-    private static String formatStringImpl(String string, Function<ChatFormatting, ChatFormatting> fn) {
+    private static String formatStringImpl(String string, Function<BCTextFormat, BCTextFormat> fn) {
         String source;
         synchronized (FORMAT_SOURCES) {
             source = FORMAT_SOURCES.getOrDefault(string, string);
@@ -72,13 +73,13 @@ public final class StringUtilBC {
             if (c == '\u00a7' && source.length() > i + 1) {
                 i++;
                 char after = source.charAt(i);
-                ChatFormatting colour = null;
+                BCTextFormat colour = null;
                 if (after >= '0' && after <= '9') {
-                    colour = ChatFormatting.getById(after - '0');
+                    colour = BCTextFormat.getById(after - '0');
                 } else if (after >= 'a' && after <= 'f') {
-                    colour = ChatFormatting.getById(after - 'a' + 10);
+                    colour = BCTextFormat.getById(after - 'a' + 10);
                 } else if (after >= 'A' && after <= 'F') {
-                    colour = ChatFormatting.getById(after - 'A' + 10);
+                    colour = BCTextFormat.getById(after - 'A' + 10);
                 }
                 if (colour == null) {
                     out.append(c).append(after);

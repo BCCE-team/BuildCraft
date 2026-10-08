@@ -299,13 +299,13 @@ def validate_metadata(props: dict[str, str]) -> None:
     for target in target_ids(props):
         version = props[f"target.{target}.deps.minecraft"]
         parts = [int(x) for x in version.split(".")]
-        if len(parts) != 3:
-            fail(f"{target}: expected x.y.z Minecraft version, got {version}")
-        upper = f"{parts[0]}.{parts[1]}.{parts[2] + 1}"
+        if len(parts) not in (2, 3):
+            fail(f"{target}: expected x.y or x.y.z Minecraft version, got {version}")
+        upper = ".".join(map(str, (*parts[:-1], parts[-1] + 1)))
         expected = f"[{version},{upper})"
         actual = props.get(f"target.{target}.minecraft.version_range")
         if actual != expected:
-            fail(f"{target}: Minecraft range must be exact patch line {expected}, got {actual}")
+            fail(f"{target}: Minecraft range must be exact release line {expected}, got {actual}")
 
 
 def validate_datagen_isolation() -> None:

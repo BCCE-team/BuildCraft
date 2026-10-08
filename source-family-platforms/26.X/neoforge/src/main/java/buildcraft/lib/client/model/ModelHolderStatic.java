@@ -1,3 +1,4 @@
+//? source if >=26.3
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -149,9 +150,10 @@ public class ModelHolderStatic extends ModelHolder {
     /** Converts a native immutable quad into the legacy BuildCraft quad representation. */
     private static MutableQuad fromNativeQuad(BakedQuad source) {
         MutableQuad quad = new MutableQuad(
-            source.materialInfo().tintIndex(), source.direction(), source.materialInfo().shade()
+            source.materialInfo().tintIndex(), source.direction(), source.materialInfo().shadeDirectionOverride() == null
         );
         quad.setSprite(source.materialInfo().sprite());
+        quad.setShadeDirectionOverride(source.materialInfo().shadeDirectionOverride());
 
         Direction direction = source.direction();
         Vec3i normal = direction == null ? null : direction.getUnitVec3i();

@@ -1,3 +1,4 @@
+//? source if >=26.2
 /* Copyright (c) 2016 SpaceToad and the BuildCraft team
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -51,7 +52,6 @@ import net.minecraft.world.phys.HitResult;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.client.event.ModelEvent.BakingCompleted;
 import net.neoforged.neoforge.client.event.ModelEvent.RegisterStandalone;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.event.TextureAtlasStitchedEvent;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -119,19 +119,6 @@ public class BCLibEventDist {
 
     @EventBusSubscriber(modid = BCLib.MODID, value = Dist.CLIENT)
     public static class ClientGame {
-        @SubscribeEvent
-        public static void renderWorldLast(RenderLevelStageEvent.AfterTranslucentBlocks event) {
-            Minecraft mc = Minecraft.getInstance();
-            Player player = mc.player;
-            if (player == null) return;
-            PoseStack pose = event.getPoseStack();
-            Matrix4f matrix = new Matrix4f(event.getModelViewMatrix());
-            float partialTicks = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
-
-            LaserRenderer_BC8.setupLaserRenderState();
-            DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
-        }
-
         private static void onConnectToServer() {
             Minecraft mc = Minecraft.getInstance();
             ItemStackUtil.setClientRegistryProvider(mc.level == null ? null : mc.level.registryAccess());

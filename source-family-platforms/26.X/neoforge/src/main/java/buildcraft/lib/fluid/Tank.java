@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2016 SpaceToad and the BuildCraft team
  *
@@ -29,7 +30,7 @@ import buildcraft.lib.misc.StackUtil;
 import buildcraft.lib.net.cache.BuildCraftObjectCaches;
 import buildcraft.lib.net.cache.NetworkedFluidStackCache;
 import buildcraft.lib.tile.TileBC_Neptune;
-import net.minecraft.ChatFormatting;
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -171,10 +172,10 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
         if (fluidStack != FluidStack.EMPTY && amount > 0) {
             toolTip.add(FluidCompat.getDisplayName(fluidStack));
         }
-        toolTip.add(LocaleUtil.localizeFluidStaticAmount(amount, getCapacity()).setStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+        toolTip.add(LocaleUtil.localizeFluidStaticAmount(amount, getCapacity()).setStyle(Style.EMPTY.withColor(BCTextFormat.GRAY.getColor())));
         FluidStack serverFluid = getFluid();
         if (serverFluid != null && serverFluid.getAmount() > 0) {
-            toolTip.add(Component.translatable("tooltip.buildcraftlib.fluid.server_side_on_client").setStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
+            toolTip.add(Component.translatable("tooltip.buildcraftlib.fluid.server_side_on_client").setStyle(Style.EMPTY.withColor(BCTextFormat.RED.getColor())));
             toolTip.add(FluidCompat.getDisplayName(serverFluid));
             toolTip.add(LocaleUtil.localizeFluidStaticAmount(serverFluid.getAmount(), getCapacity()));
         }

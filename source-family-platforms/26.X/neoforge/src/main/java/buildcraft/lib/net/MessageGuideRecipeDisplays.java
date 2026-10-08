@@ -1,3 +1,4 @@
+//? source if >=26.3
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
@@ -64,7 +65,7 @@ public final class MessageGuideRecipeDisplays {
     public static MessageGuideRecipeDisplays create(ServerPlayer player) {
         RecipeManager manager = ((net.minecraft.server.level.ServerLevel) player.level()).getServer().getRecipeManager();
         List<GuideRecipeDisplayCache.Entry> displays = new ArrayList<>();
-        for (RecipeHolder<?> recipe : manager.getRecipes()) {
+        for (RecipeHolder<?> recipe : manager.recipeMap().values()) {
             if (recipe.value().getType() != RecipeType.CRAFTING
                 && recipe.value().getType() != BCSiliconRecipes.ASSEMBLY_TYPE.get()) {
                 continue;

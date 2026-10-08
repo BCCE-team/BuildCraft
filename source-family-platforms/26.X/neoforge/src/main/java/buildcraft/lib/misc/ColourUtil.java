@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -16,7 +17,7 @@ import javax.annotation.Nullable;
 import buildcraft.lib.BCLibConfig;
 import com.google.common.collect.ImmutableMap;
 
-import net.minecraft.ChatFormatting;
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.DyeColor;
 /**
@@ -26,9 +27,9 @@ public class ColourUtil {
     public static final char MINECRAFT_FORMAT_CHAR;
     public static final String COLOUR_SPECIAL_START;
 
-    public static final Function<ChatFormatting, ChatFormatting> getTextFormatForBlack =
+    public static final Function<BCTextFormat, BCTextFormat> getTextFormatForBlack =
         ColourUtil::getTextFormatForBlack;
-    public static final Function<ChatFormatting, ChatFormatting> getTextFormatForWhite =
+    public static final Function<BCTextFormat, BCTextFormat> getTextFormatForWhite =
         ColourUtil::getTextFormatForWhite;
 
     public static final DyeColor[] COLOURS = DyeColor.values();
@@ -55,14 +56,14 @@ public class ColourUtil {
     private static final Map<String, DyeColor> nameToColourMap;
     private static final int[] FACE_TO_COLOUR;
 
-    private static final ChatFormatting[] FORMATTING_VALUES = ChatFormatting.values();
+    private static final BCTextFormat[] FORMATTING_VALUES = BCTextFormat.values();
 
-    private static final ChatFormatting[] COLOUR_TO_FORMAT = new ChatFormatting[16];
-    private static final ChatFormatting[] REPLACE_FOR_WHITE = new ChatFormatting[16];
-    private static final ChatFormatting[] REPLACE_FOR_BLACK = new ChatFormatting[16];
-    private static final ChatFormatting[] REPLACE_FOR_WHITE_HIGH_CONTRAST = new ChatFormatting[16];
-    private static final ChatFormatting[] REPLACE_FOR_BLACK_HIGH_CONTRAST = new ChatFormatting[16];
-    private static final ChatFormatting[] FACE_TO_FORMAT = new ChatFormatting[6];
+    private static final BCTextFormat[] COLOUR_TO_FORMAT = new BCTextFormat[16];
+    private static final BCTextFormat[] REPLACE_FOR_WHITE = new BCTextFormat[16];
+    private static final BCTextFormat[] REPLACE_FOR_BLACK = new BCTextFormat[16];
+    private static final BCTextFormat[] REPLACE_FOR_WHITE_HIGH_CONTRAST = new BCTextFormat[16];
+    private static final BCTextFormat[] REPLACE_FOR_BLACK_HIGH_CONTRAST = new BCTextFormat[16];
+    private static final BCTextFormat[] FACE_TO_FORMAT = new BCTextFormat[6];
 
     private static final Pattern ALL_FORMAT_MATCHER = Pattern.compile("(?i)\u00a7[0-9A-Za-z]");
 
@@ -75,45 +76,45 @@ public class ColourUtil {
             REPLACE_FOR_BLACK[i] = REPLACE_FOR_BLACK_HIGH_CONTRAST[i] = FORMATTING_VALUES[i];
         }
 
-        replaceColourForWhite(ChatFormatting.WHITE, ChatFormatting.GRAY);
-        replaceColourForWhite(ChatFormatting.YELLOW, ChatFormatting.GOLD);
-        replaceColourForWhite(ChatFormatting.AQUA, ChatFormatting.BLUE);
-        replaceColourForWhite(ChatFormatting.GREEN, ChatFormatting.DARK_GREEN);
+        replaceColourForWhite(BCTextFormat.WHITE, BCTextFormat.GRAY);
+        replaceColourForWhite(BCTextFormat.YELLOW, BCTextFormat.GOLD);
+        replaceColourForWhite(BCTextFormat.AQUA, BCTextFormat.BLUE);
+        replaceColourForWhite(BCTextFormat.GREEN, BCTextFormat.DARK_GREEN);
 
-        replaceColourForBlack(ChatFormatting.BLACK, ChatFormatting.GRAY);
-        replaceColourForBlack(ChatFormatting.DARK_GRAY, ChatFormatting.GRAY);
-        replaceColourForBlack(ChatFormatting.DARK_BLUE, ChatFormatting.BLUE, ChatFormatting.AQUA);
-        replaceColourForBlack(ChatFormatting.BLUE, ChatFormatting.BLUE, ChatFormatting.AQUA);
-        replaceColourForBlack(ChatFormatting.DARK_PURPLE, ChatFormatting.LIGHT_PURPLE);
-        replaceColourForBlack(ChatFormatting.DARK_RED, ChatFormatting.RED);
-        replaceColourForBlack(ChatFormatting.DARK_GREEN, ChatFormatting.GREEN);
+        replaceColourForBlack(BCTextFormat.BLACK, BCTextFormat.GRAY);
+        replaceColourForBlack(BCTextFormat.DARK_GRAY, BCTextFormat.GRAY);
+        replaceColourForBlack(BCTextFormat.DARK_BLUE, BCTextFormat.BLUE, BCTextFormat.AQUA);
+        replaceColourForBlack(BCTextFormat.BLUE, BCTextFormat.BLUE, BCTextFormat.AQUA);
+        replaceColourForBlack(BCTextFormat.DARK_PURPLE, BCTextFormat.LIGHT_PURPLE);
+        replaceColourForBlack(BCTextFormat.DARK_RED, BCTextFormat.RED);
+        replaceColourForBlack(BCTextFormat.DARK_GREEN, BCTextFormat.GREEN);
 
-        COLOUR_TO_FORMAT[DyeColor.BLACK.ordinal()] = ChatFormatting.BLACK;
-        COLOUR_TO_FORMAT[DyeColor.GRAY.ordinal()] = ChatFormatting.DARK_GRAY;
-        COLOUR_TO_FORMAT[DyeColor.LIGHT_GRAY.ordinal()] = ChatFormatting.GRAY;
-        COLOUR_TO_FORMAT[DyeColor.WHITE.ordinal()] = ChatFormatting.WHITE;
+        COLOUR_TO_FORMAT[DyeColor.BLACK.ordinal()] = BCTextFormat.BLACK;
+        COLOUR_TO_FORMAT[DyeColor.GRAY.ordinal()] = BCTextFormat.DARK_GRAY;
+        COLOUR_TO_FORMAT[DyeColor.LIGHT_GRAY.ordinal()] = BCTextFormat.GRAY;
+        COLOUR_TO_FORMAT[DyeColor.WHITE.ordinal()] = BCTextFormat.WHITE;
 
-        COLOUR_TO_FORMAT[DyeColor.RED.ordinal()] = ChatFormatting.DARK_RED;
-        COLOUR_TO_FORMAT[DyeColor.BLUE.ordinal()] = ChatFormatting.BLUE;
-        COLOUR_TO_FORMAT[DyeColor.CYAN.ordinal()] = ChatFormatting.DARK_AQUA;
-        COLOUR_TO_FORMAT[DyeColor.LIGHT_BLUE.ordinal()] = ChatFormatting.AQUA;
+        COLOUR_TO_FORMAT[DyeColor.RED.ordinal()] = BCTextFormat.DARK_RED;
+        COLOUR_TO_FORMAT[DyeColor.BLUE.ordinal()] = BCTextFormat.BLUE;
+        COLOUR_TO_FORMAT[DyeColor.CYAN.ordinal()] = BCTextFormat.DARK_AQUA;
+        COLOUR_TO_FORMAT[DyeColor.LIGHT_BLUE.ordinal()] = BCTextFormat.AQUA;
 
-        COLOUR_TO_FORMAT[DyeColor.GREEN.ordinal()] = ChatFormatting.DARK_GREEN;
-        COLOUR_TO_FORMAT[DyeColor.LIME.ordinal()] = ChatFormatting.GREEN;
-        COLOUR_TO_FORMAT[DyeColor.BROWN.ordinal()] = ChatFormatting.GOLD;
-        COLOUR_TO_FORMAT[DyeColor.YELLOW.ordinal()] = ChatFormatting.YELLOW;
+        COLOUR_TO_FORMAT[DyeColor.GREEN.ordinal()] = BCTextFormat.DARK_GREEN;
+        COLOUR_TO_FORMAT[DyeColor.LIME.ordinal()] = BCTextFormat.GREEN;
+        COLOUR_TO_FORMAT[DyeColor.BROWN.ordinal()] = BCTextFormat.GOLD;
+        COLOUR_TO_FORMAT[DyeColor.YELLOW.ordinal()] = BCTextFormat.YELLOW;
 
-        COLOUR_TO_FORMAT[DyeColor.ORANGE.ordinal()] = ChatFormatting.GOLD;
-        COLOUR_TO_FORMAT[DyeColor.PURPLE.ordinal()] = ChatFormatting.DARK_PURPLE;
-        COLOUR_TO_FORMAT[DyeColor.MAGENTA.ordinal()] = ChatFormatting.LIGHT_PURPLE;
-        COLOUR_TO_FORMAT[DyeColor.PINK.ordinal()] = ChatFormatting.LIGHT_PURPLE;
+        COLOUR_TO_FORMAT[DyeColor.ORANGE.ordinal()] = BCTextFormat.GOLD;
+        COLOUR_TO_FORMAT[DyeColor.PURPLE.ordinal()] = BCTextFormat.DARK_PURPLE;
+        COLOUR_TO_FORMAT[DyeColor.MAGENTA.ordinal()] = BCTextFormat.LIGHT_PURPLE;
+        COLOUR_TO_FORMAT[DyeColor.PINK.ordinal()] = BCTextFormat.LIGHT_PURPLE;
 
-        FACE_TO_FORMAT[Direction.UP.ordinal()] = ChatFormatting.WHITE;
-        FACE_TO_FORMAT[Direction.DOWN.ordinal()] = ChatFormatting.BLACK;
-        FACE_TO_FORMAT[Direction.NORTH.ordinal()] = ChatFormatting.RED;
-        FACE_TO_FORMAT[Direction.SOUTH.ordinal()] = ChatFormatting.BLUE;
-        FACE_TO_FORMAT[Direction.EAST.ordinal()] = ChatFormatting.YELLOW;
-        FACE_TO_FORMAT[Direction.WEST.ordinal()] = ChatFormatting.GREEN;
+        FACE_TO_FORMAT[Direction.UP.ordinal()] = BCTextFormat.WHITE;
+        FACE_TO_FORMAT[Direction.DOWN.ordinal()] = BCTextFormat.BLACK;
+        FACE_TO_FORMAT[Direction.NORTH.ordinal()] = BCTextFormat.RED;
+        FACE_TO_FORMAT[Direction.SOUTH.ordinal()] = BCTextFormat.BLUE;
+        FACE_TO_FORMAT[Direction.EAST.ordinal()] = BCTextFormat.YELLOW;
+        FACE_TO_FORMAT[Direction.WEST.ordinal()] = BCTextFormat.GREEN;
 
         ImmutableMap.Builder<String, DyeColor> builder = ImmutableMap.builder();
         for (DyeColor c : COLOURS) {
@@ -126,22 +127,22 @@ public class ColourUtil {
         FACE_TO_COLOUR[Direction.UP.ordinal()] = 0xFF_CC_CC_CC;
     }
 
-    private static void replaceColourForBlack(ChatFormatting colour, ChatFormatting with) {
+    private static void replaceColourForBlack(BCTextFormat colour, BCTextFormat with) {
         replaceColourForBlack(colour, with, with);
     }
 
-    private static void replaceColourForBlack(ChatFormatting colour, ChatFormatting normal,
-        ChatFormatting highContrast) {
+    private static void replaceColourForBlack(BCTextFormat colour, BCTextFormat normal,
+        BCTextFormat highContrast) {
         REPLACE_FOR_BLACK[colour.ordinal()] = normal;
         REPLACE_FOR_BLACK_HIGH_CONTRAST[colour.ordinal()] = highContrast;
     }
 
-    private static void replaceColourForWhite(ChatFormatting colour, ChatFormatting with) {
+    private static void replaceColourForWhite(BCTextFormat colour, BCTextFormat with) {
         replaceColourForWhite(colour, with, with);
     }
 
-    private static void replaceColourForWhite(ChatFormatting colour, ChatFormatting normal,
-        ChatFormatting highContrast) {
+    private static void replaceColourForWhite(BCTextFormat colour, BCTextFormat normal,
+        BCTextFormat highContrast) {
         REPLACE_FOR_WHITE[colour.ordinal()] = normal;
         REPLACE_FOR_WHITE_HIGH_CONTRAST[colour.ordinal()] = highContrast;
     }
@@ -177,12 +178,12 @@ public class ColourUtil {
 
     /** Returns a string formatted for use in a tooltip (or anything else with a black background). If
      * {@link BCLibConfig#useColouredLabels} is true then this will make prefix the string with an appropriate
-     * {@link ChatFormatting} colour, and postfix with {@link ChatFormatting#RESET} */
+     * {@link BCTextFormat} colour, and postfix with {@link BCTextFormat#RESET} */
     public static String getTextFullTooltip(DyeColor colour) {
         if (BCLibConfig.useColouredLabels) {
-            ChatFormatting formatColour = convertColourToTextFormat(colour);
+            BCTextFormat formatColour = convertColourToTextFormat(colour);
             return formatColour.toString() + getTextFormatForBlack(formatColour) + LocaleUtil.localizeColour(colour)
-                + ChatFormatting.RESET;
+                + BCTextFormat.RESET;
         } else {
             return LocaleUtil.localizeColour(colour);
         }
@@ -195,29 +196,29 @@ public class ColourUtil {
             return getTextFullTooltip(colour);
         }
         if (BCLibConfig.useColouredLabels) {
-            ChatFormatting formatColour = convertColourToTextFormat(colour);
+            BCTextFormat formatColour = convertColourToTextFormat(colour);
             return COLOUR_SPECIAL_START + Integer.toHexString(colour.getId())//
-                + getTextFormatForBlack(formatColour) + LocaleUtil.localizeColour(colour) + ChatFormatting.RESET;
+                + getTextFormatForBlack(formatColour) + LocaleUtil.localizeColour(colour) + BCTextFormat.RESET;
         }
         return LocaleUtil.localizeColour(colour);
     }
 
     /** Returns a string formatted for use in a tooltip (or anything else with a black background). If
      * {@link BCLibConfig#useColouredLabels} is true then this will make prefix the string with an appropriate
-     * {@link ChatFormatting} colour, and postfixed with {@link ChatFormatting#RESET} */
+     * {@link BCTextFormat} colour, and postfixed with {@link BCTextFormat#RESET} */
     public static String getTextFullTooltip(Direction face) {
         if (BCLibConfig.useColouredLabels) {
-            ChatFormatting formatColour = convertFaceToTextFormat(face);
+            BCTextFormat formatColour = convertFaceToTextFormat(face);
             return formatColour.toString() + getTextFormatForBlack(formatColour) + LocaleUtil.localizeFacing(face)
-                + ChatFormatting.RESET;
+                + BCTextFormat.RESET;
         } else {
             return LocaleUtil.localizeFacing(face);
         }
     }
 
-    /** Returns a {@link ChatFormatting} colour that will display correctly on a black background, so it won't use any
+    /** Returns a {@link BCTextFormat} colour that will display correctly on a black background, so it won't use any
      * of the darker colours (as they will be difficult to see). */
-    public static ChatFormatting getTextFormatForBlack(ChatFormatting in) {
+    public static BCTextFormat getTextFormatForBlack(BCTextFormat in) {
         if (in.isColor()) {
             if (BCLibConfig.useHighContrastLabelColours) {
                 return REPLACE_FOR_BLACK_HIGH_CONTRAST[in.ordinal()];
@@ -229,9 +230,9 @@ public class ColourUtil {
         }
     }
 
-    /** Returns a {@link ChatFormatting} colour that will display correctly on a white background, so it won't use any
+    /** Returns a {@link BCTextFormat} colour that will display correctly on a white background, so it won't use any
      * of the lighter colours (as they will be difficult to see). */
-    public static ChatFormatting getTextFormatForWhite(ChatFormatting in) {
+    public static BCTextFormat getTextFormatForWhite(BCTextFormat in) {
         if (in.isColor()) {
             if (BCLibConfig.useHighContrastLabelColours) {
                 return REPLACE_FOR_WHITE_HIGH_CONTRAST[in.ordinal()];
@@ -243,13 +244,13 @@ public class ColourUtil {
         }
     }
 
-    /** Converts an {@link DyeColor} into an equivalent {@link ChatFormatting} for display. */
-    public static ChatFormatting convertColourToTextFormat(DyeColor colour) {
+    /** Converts an {@link DyeColor} into an equivalent {@link BCTextFormat} for display. */
+    public static BCTextFormat convertColourToTextFormat(DyeColor colour) {
         return COLOUR_TO_FORMAT[colour.ordinal()];
     }
 
-    /** Converts an {@link Direction} into an equivalent {@link ChatFormatting} for display. */
-    public static ChatFormatting convertFaceToTextFormat(Direction face) {
+    /** Converts an {@link Direction} into an equivalent {@link BCTextFormat} for display. */
+    public static BCTextFormat convertFaceToTextFormat(Direction face) {
         return FACE_TO_FORMAT[face.ordinal()];
     }
 
@@ -291,7 +292,7 @@ public class ColourUtil {
         }
     }
 
-    /** Similar to {@link ChatFormatting#getTextWithoutFormattingCodes(String)}, but also removes every special char
+    /** Similar to {@link BCTextFormat#getTextWithoutFormattingCodes(String)}, but also removes every special char
      * that {@link #getTextFullTooltipSpecial(DyeColor)} can add. */
     public static String stripAllFormatCodes(String string) {
         return ALL_FORMAT_MATCHER.matcher(string).replaceAll("");

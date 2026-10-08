@@ -1,3 +1,4 @@
+//? source if >=26.3
 /*
  * Copyright (c) 2026 the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
@@ -12,7 +13,7 @@ import javax.annotation.Nullable;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.renderer.MultiBufferSource;
+import buildcraft.lib.compat.minecraft.render.BCVertexBuffers;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
@@ -34,7 +35,7 @@ import net.minecraft.world.phys.Vec3;
 public interface CapturedBlockEntityRenderer<T extends BlockEntity>
     extends BlockEntityRenderer<T, CapturedBlockEntityRenderer.GeometryState> {
 
-    void renderLegacy(T tile, float partialTick, PoseStack pose, MultiBufferSource buffers, int light, int overlay);
+    void renderLegacy(T tile, float partialTick, PoseStack pose, BCVertexBuffers buffers, int light, int overlay);
 
     default GeometryState createRenderState() {
         return new GeometryState();
@@ -48,43 +49,48 @@ public interface CapturedBlockEntityRenderer<T extends BlockEntity>
             return;
         }
         RecordingBuffers buffers = new RecordingBuffers();
-        renderLegacy(tile, partialTick, new PoseStack(), buffers, state.lightCoords, OverlayTexture.NO_OVERLAY);
+        try (BCWorldGeometry.Scope ignored = BCWorldGeometry.bind(buffers)) {
+            renderLegacy(tile, partialTick, new PoseStack(), buffers, state.lightCoords, OverlayTexture.NO_OVERLAY);
+        }
         state.layers = buffers.finish();
     }
 
     default void submit(GeometryState state, PoseStack pose, SubmitNodeCollector collector, CameraRenderState camera) {
-        for (Layer layer : state.layers) {
-            collector.submitCustomGeometry(pose, layer.type(), (transform, target) -> {
-                for (Vertex vertex : layer.vertices()) {
-                    vertex.emit(transform, target);
-                }
-            });
-        }
+        BCWorldGeometry.submit(state.layers, pose, collector);
     }
 
     final class GeometryState extends BlockEntityRenderState {
         private List<Layer> layers = List.of();
     }
 
-    record Layer(RenderType type, List<Vertex> vertices) {}
-
-    record Vertex(float x, float y, float z, int r, int g, int b, int a, float u, float v,
-        int overlayU, int overlayV, int lightU, int lightV, float nx, float ny, float nz, float width) {
-        void emit(PoseStack.Pose pose, VertexConsumer target) {
-            target.addVertex(pose.pose(), x, y, z).setColor(r, g, b, a).setUv(u, v)
-                .setUv1(overlayU, overlayV).setUv2(lightU, lightV).setNormal(pose, nx, ny, nz)
-                .setLineWidth(width);
+    record Layer(RenderType type, List<Vertex> vertices) {
+        public Layer {
+            java.util.Objects.requireNonNull(type);
+            vertices = List.copyOf(vertices);
         }
     }
 
-    final class RecordingBuffers implements MultiBufferSource {
+    record Vertex(float x, float y, float z, int r, int g, int b, int a, float u, float v,
+        int overlayU, int overlayV, int lightU, int lightV, float nx, float ny, float nz, float width, float decalU, float decalV) {
+        public void emit(PoseStack.Pose pose, VertexConsumer target) {
+            target.addVertex(pose.pose(), x, y, z).setColor(r, g, b, a).setUv(u, v)
+                .setUv1(overlayU, overlayV).setUv2(lightU, lightV).setNormal(pose, nx, ny, nz)
+                .setLineWidth(width).setUv3(decalU, decalV);
+        }
+    }
+
+    final class RecordingBuffers implements BCVertexBuffers {
         private final Map<RenderType, RecordingConsumer> layers = new LinkedHashMap<>();
 
         public VertexConsumer getBuffer(RenderType type) {
             return layers.computeIfAbsent(type, ignored -> new RecordingConsumer());
         }
 
-        List<Layer> finish() {
+        public void endVertices() {
+            layers.values().forEach(RecordingConsumer::endVertex);
+        }
+
+        public List<Layer> finish() {
             List<Layer> result = new ArrayList<>();
             layers.forEach((type, consumer) -> {
                 consumer.endVertex();
@@ -99,13 +105,13 @@ public interface CapturedBlockEntityRenderer<T extends BlockEntity>
     final class RecordingConsumer implements VertexConsumer {
         private final List<Vertex> vertices = new ArrayList<>();
         private boolean active;
-        private float x, y, z, u, v, nx, ny, nz, width;
+        private float x, y, z, u, v, nx, ny, nz, width, decalU, decalV;
         private int r, g, b, a, overlayU, overlayV, lightU, lightV;
 
         private void endVertex() {
             if (active) {
                 vertices.add(new Vertex(x, y, z, r, g, b, a, u, v, overlayU, overlayV, lightU, lightV,
-                    nx, ny, nz, width));
+                    nx, ny, nz, width, decalU, decalV));
                 active = false;
             }
         }
@@ -114,7 +120,7 @@ public interface CapturedBlockEntityRenderer<T extends BlockEntity>
             endVertex();
             this.x = x; this.y = y; this.z = z;
             r = g = b = a = 255;
-            u = v = nx = nz = 0; ny = 1; width = 1;
+            u = v = nx = nz = decalU = decalV = 0; ny = 1; width = 1;
             overlayU = overlayV = lightU = lightV = 0;
             active = true;
             return this;
@@ -128,6 +134,7 @@ public interface CapturedBlockEntityRenderer<T extends BlockEntity>
         public VertexConsumer setUv(float u, float v) { this.u = u; this.v = v; return this; }
         public VertexConsumer setUv1(int u, int v) { overlayU = u; overlayV = v; return this; }
         public VertexConsumer setUv2(int u, int v) { lightU = u; lightV = v; return this; }
+        public VertexConsumer setUv3(float u, float v) { decalU = u; decalV = v; return this; }
         public VertexConsumer setNormal(float x, float y, float z) { nx = x; ny = y; nz = z; return this; }
         public VertexConsumer setLineWidth(float width) { this.width = width; return this; }
     }
