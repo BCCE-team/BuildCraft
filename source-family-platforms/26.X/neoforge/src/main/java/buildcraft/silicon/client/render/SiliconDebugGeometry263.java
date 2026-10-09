@@ -1,4 +1,4 @@
-//? source if >=26.3
+//? source if >=26.2
 /*
  * Copyright (c) 2026 the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
@@ -41,7 +41,7 @@ public final class SiliconDebugGeometry263 {
 
     @SubscribeEvent
     public static void onExtract(ExtractLevelRenderStateEvent event) {
-        IAdvDebugTarget target = BCAdvDebugging.INSTANCE.targetClient;
+        IAdvDebugTarget target = BCAdvDebugging.getClientDebugTarget();
         if (!(target instanceof TileLaser laser) || !target.doesExistInWorld()) {
             return;
         }

@@ -647,7 +647,7 @@ public final class GuideContent {
             return value == null ? "" : value;
         }
         try {
-            if (I18n.exists(value)) {
+            if (net.minecraft.locale.Language.getInstance().has(value)) {
                 return I18n.get(value);
             }
         } catch (RuntimeException translationError) {

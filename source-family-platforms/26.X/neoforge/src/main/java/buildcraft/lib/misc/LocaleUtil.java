@@ -1,3 +1,4 @@
+//? source if >=26.2
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -112,7 +113,7 @@ public class LocaleUtil {
      * @param key The key to check
      * @return True if the key could be localized, false if not. */
     public static boolean canLocalize(String key) {
-        return I18n.exists(key);
+        return net.minecraft.locale.Language.getInstance().has(key);
     }
 
     /** @param colour The {@link DyeColor} to localize.

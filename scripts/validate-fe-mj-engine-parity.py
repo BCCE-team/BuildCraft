@@ -53,15 +53,33 @@ for rel in (
     require(rel, "getRenderProgress(partialTicks)")
     forbid(rel, "tile.RenderProgress")
 
-# Original MJ Dynamo block actively revalidates its output direction and supports wrench rotation.
+# Original MJ Dynamo block actively revalidates its output direction, but a wrench turn
+# must be independent of whether an MJ receiver is adjacent to the output face.
 require(
     "source-shared/src/main/java/buildcraft/energy/block/BlockDynamoMJ.java",
     "implements EntityBlock, ICustomRotationHandler",
     "public void neighborChanged(",
     "dynamo.rotateIfInvalid();",
     "public InteractionResult attemptRotation(",
-    "dynamo.attemptRotation()",
+    "dynamo.attemptManualRotation()",
 )
+for engine_file in (
+    "source-platforms/forge/src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java",
+    "source-platforms/neoforge/src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java",
+    "source-families/26.X/src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java",
+    "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java",
+):
+    require(engine_file, "public InteractionResult attemptManualRotation()", "return attemptRotation(true);", "if (manual || isFacingReceiver(current))", "if (manual) manuallySelectedDirection = true;")
+
+# All BC8 engines (wood, stone, iron, creative, FE) share the same
+# receiver-independent wrench behavior as the separate MJ Dynamo.
+for block_file in (
+    "source-shared/src/main/java/buildcraft/lib/engine/BlockEngineBase_BC8.java",
+    "source-families/26.X/src/main/java/buildcraft/lib/engine/BlockEngineBase_BC8.java",
+    "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/engine/BlockEngineBase_BC8.java",
+):
+    require(block_file, "return engine.attemptManualRotation();", "if (world.isClientSide")
+    forbid(block_file, "return engine.attemptRotation();")
 
 # FE Engine parity: FE enters only through non-output faces, MJ exits through the engine head,
 # and the engine chain length remains four additional engines. The FE input capability must not
@@ -139,5 +157,5 @@ if errors:
 print("FE Engine / MJ Dynamo parity guards OK")
 print(" - MJ Dynamo Jade identity, MJ battery and FE output units are explicit")
 print(" - engine piston rendering interpolates previous/current raw progress")
-print(" - MJ Dynamo neighbour/wrench rotation matches the original block contract")
+print(" - MJ Dynamo and all BC8 engine types permit receiver-independent manual wrench rotation")
 print(" - FE Engine and MJ Dynamo sided energy/chain rules match BC8")

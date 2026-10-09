@@ -1,3 +1,4 @@
+//? source if >=26.3
 package buildcraft.compat.jei;
 
 import buildcraft.api.v2.energy.MjAmount;
@@ -111,7 +112,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
-import net.neoforged.neoforge.fluids.FluidUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeInput;
@@ -508,10 +508,8 @@ public class BuildCraftJeiPlugin implements IModPlugin {
 
         FluidStack bucketFluid = fluidStack.copy();
         bucketFluid.setAmount(FluidType.BUCKET_VOLUME);
-        ItemStack bucket = FluidUtil.getFilledBucket(bucketFluid);
-        if (bucket.isEmpty() && bucketFluid.getFluid().getBucket() != Items.AIR) {
-            bucket = new ItemStack(bucketFluid.getFluid().getBucket());
-        }
+        var item = bucketFluid.getFluid().getBucket();
+        ItemStack bucket = item == Items.AIR ? ItemStack.EMPTY : new ItemStack(item);
         if (!bucket.isEmpty()) {
             bucket.setCount(1);
         }

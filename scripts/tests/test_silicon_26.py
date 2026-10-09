@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -12,7 +13,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 sys.path[:0]=[str(ROOT/'scripts'),str(ROOT/'scripts/tests')]
 from source_config import load_properties,target_layout
-from source_layout import effective_source_files,_materialize_text_file
+from source_layout import effective_source_files,_materialize_text_file,resolve_effective_source
 from minecraft_compat_fixture import parse_sources
 from silicon_26_fixture import execute
 
@@ -57,7 +58,7 @@ class Silicon26Tests(unittest.TestCase):
     def test_full_silicon_262_byte_parity(self):
         manifest=json.loads((ROOT/'build-config/materialized-baselines/26.2-silicon.json').read_text())
         self.assertEqual('26.2-neoforge',manifest['target'])
-        self.assertEqual(91,manifest['file_count'])
+        self.assertEqual(92,manifest['file_count'])
         self.assertEqual(manifest['files'],self.hashes('26.2'))
 
     def test_native_263_file_selection(self):
@@ -67,7 +68,8 @@ class Silicon26Tests(unittest.TestCase):
         self.assertIn(SILICON+'/client/render/SiliconDebugGeometry263.java',actual)
         for version in ('26.1.2','26.2'):
             self.assertNotIn(SILICON+'/compat/SiliconDisplayContainer263.java',self.hashes(version))
-            self.assertNotIn(SILICON+'/client/render/SiliconDebugGeometry263.java',self.hashes(version))
+        self.assertNotIn(SILICON+'/client/render/SiliconDebugGeometry263.java',self.hashes('26.1.2'))
+        self.assertIn(SILICON+'/client/render/SiliconDebugGeometry263.java',self.hashes('26.2'))
 
     def test_263_recipes_reloadable_bootstrap(self):
         bootstrap=self.java('26.3','BCSilicon.java')
@@ -110,6 +112,64 @@ class Silicon26Tests(unittest.TestCase):
         self.assertIn('assertions PASS',result)
         print(result,flush=True)
 
+    def test_debug_target_public_access_by_target(self):
+        manifest=json.loads((ROOT/'build-config/materialized-baselines/26.1.2-neoforge.json').read_text())['files']
+        relative='src/main/java/buildcraft/lib/debug/BCAdvDebugging.java'
+        props=load_properties()
+        for version in ('26.1.2','26.2','26.3'):
+            with self.subTest(target=version):
+                layout=target_layout(version+'-neoforge',props)
+                source=resolve_effective_source(layout,props,relative)
+                self.assertIsNotNone(source)
+                downports=tuple(root for root in (layout.family_downport_root,layout.family_platform_downport_root) if root)
+                with tempfile.TemporaryDirectory(prefix='bc-debug-target-') as td:
+                    root=Path(td)
+                    dest=root/relative
+                    _materialize_text_file(source,dest,logical_relative=relative,
+                        minecraft=props[f'target.{version}-neoforge.deps.minecraft'],
+                        family=layout.family,platform=layout.platform,preprocess=True,
+                        native_source=any(source.is_relative_to(d) for d in downports))
+                    text=dest.read_text(encoding='utf-8')
+                    if version=='26.1.2':
+                        self.assertEqual(manifest[relative],hashlib.sha256(dest.read_bytes()).hexdigest())
+                        self.assertNotIn('getClientDebugTarget(',text)
+                        continue
+                    self.assertIn('public static IAdvDebugTarget getClientDebugTarget()',text)
+                    laser=self.java(version,'client/render/SiliconDebugGeometry263.java')
+                    self.assertIn('BCAdvDebugging.getClientDebugTarget()',laser)
+                    self.assertNotIn('BCAdvDebugging.INSTANCE.targetClient',laser)
+                    interface=root/'buildcraft/lib/debug/IAdvDebugTarget.java'
+                    interface.parent.mkdir(parents=True,exist_ok=True)
+                    interface.write_text('package buildcraft.lib.debug; public interface IAdvDebugTarget { void disableDebugging(); boolean doesExistInWorld(); void sendDebugState(); }')
+                    probe=root/'buildcraft/silicon/client/render/DebugAccessProbe.java'
+                    probe.parent.mkdir(parents=True,exist_ok=True)
+                    probe.write_text("""package buildcraft.silicon.client.render;
+import buildcraft.lib.debug.BCAdvDebugging;
+import buildcraft.lib.debug.IAdvDebugTarget;
+public final class DebugAccessProbe {
+    public static void main(String[] args) {
+        IAdvDebugTarget target = new IAdvDebugTarget() {
+            public void disableDebugging() {}
+            public boolean doesExistInWorld() {return true;}
+            public void sendDebugState() {}
+        };
+        BCAdvDebugging.setClientDebugTarget(target);
+        if (BCAdvDebugging.getClientDebugTarget() != target) throw new AssertionError();
+        BCAdvDebugging.setClientDebugTarget(null);
+        if (BCAdvDebugging.getClientDebugTarget() != null) throw new AssertionError();
+        System.out.println("debug target public accessor PASS");
+    }
+}
+""")
+                    classes=root/'classes'
+                    compiled=subprocess.run(['javac','--release','21','-encoding','UTF-8','-d',str(classes),
+                        str(dest),str(interface),str(probe)],capture_output=True,text=True,timeout=30)
+                    self.assertEqual(0,compiled.returncode,compiled.stderr)
+                    executed=subprocess.run(['java','-cp',str(classes),
+                        'buildcraft.silicon.client.render.DebugAccessProbe'],capture_output=True,text=True,timeout=30)
+                    self.assertEqual(0,executed.returncode,executed.stderr)
+                    self.assertIn('debug target public accessor PASS',executed.stdout)
+
     def test_debugger_geometry_extraction_and_submission(self):
         laser=self.java('26.3','client/render/AdvDebuggerLaser.java')
         event=self.java('26.3','client/render/SiliconDebugGeometry263.java')
@@ -121,14 +181,14 @@ class Silicon26Tests(unittest.TestCase):
         self.assertIn('event.getLevelRenderState().getRenderData(',event)
         self.assertIn('BCWorldGeometry.submit(',event)
         self.assertIn('pose.translate(-camera.x, -camera.y, -camera.z)',event)
-        self.assertNotIn('SiliconDebugGeometry263',self.java('26.2','client/render/AdvDebuggerLaser.java'))
+        self.assertEqual(laser,self.java('26.2','client/render/AdvDebuggerLaser.java'))
+        self.assertEqual(event,self.java('26.2','client/render/SiliconDebugGeometry263.java'))
 
     def test_rest_of_silicon_gameplay_is_unmodified_from_262(self):
         diffs={key.removeprefix(SILICON+'/') for key in self.hashes('26.3')
                if self.hashes('26.2').get(key)!=self.hashes('26.3').get(key)}
         self.assertEqual({
             'BCSilicon.java','BCSiliconRecipesProvider.java',
-            'client/render/AdvDebuggerLaser.java','client/render/SiliconDebugGeometry263.java',
             'compat/SiliconDisplayContainer263.java',
             'container/ContainerAdvancedCraftingTable.java',
             'container/ContainerAssemblyTable.java','container/ContainerIntegrationTable.java',

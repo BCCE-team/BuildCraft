@@ -1,0 +1,17 @@
+{
+  "target": "26.1.2-neoforge",
+  "intent": "Wrench rotates all BC8 engine types without receiver; per-engine manual direction persists",
+  "total_files_before": 4351,
+  "total_files_after": 4351,
+  "changed_files": [
+    "src/main/java/buildcraft/lib/engine/BlockEngineBase_BC8.java"
+  ],
+  "modified": {
+    "src/main/java/buildcraft/lib/engine/BlockEngineBase_BC8.java": {
+      "before": "8cd5e3ac1d6f72efbc7a47095da413e86545cf248f69d4429e5e3ff03069e34c",
+      "after": "3a2381e762d86ba4ba85b2c1f77ed6308895a2326a7b9aed496093621c46fb08"
+    }
+  },
+  "added": [],
+  "removed": []
+}

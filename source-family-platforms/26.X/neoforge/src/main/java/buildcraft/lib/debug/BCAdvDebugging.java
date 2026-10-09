@@ -28,6 +28,11 @@ public enum BCAdvDebugging {
         INSTANCE.targetClient = target;
     }
 
+//? if >=26.2 {
+    public static IAdvDebugTarget getClientDebugTarget() {
+        return INSTANCE.targetClient;
+    }
+//? }
     public void onServerPostTick() {
         if (target != null) {
             if (!target.doesExistInWorld()) {

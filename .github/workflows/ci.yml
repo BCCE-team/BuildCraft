@@ -106,8 +106,29 @@ jobs:
       - name: Test 26.X silicon native boundaries
         run: python -m unittest discover -s scripts/tests -p test_silicon_26.py -v
 
+      - name: Test 26.X compat and bucket presentation
+        run: python -m unittest discover -s scripts/tests -p test_compat_buckets_26.py -v
+
       - name: Test 26.X robotics native boundaries
         run: python -m unittest discover -s scripts/tests -p test_robotics_26.py -v
+
+      - name: Test MJ Dynamo wrench and Quarry lattice all targets
+        run: python -m unittest discover -s scripts/tests -p test_cross_target_dynamo_quarry.py -v
+
+      - name: Test uniform BC8 engine wrench rotation on all targets
+        run: python -m unittest discover -s scripts/tests -p test_all_engine_wrench.py -v
+
+      - name: Check Minecraft 26.2 compiler regressions
+        run: python -m unittest discover -s scripts/tests -p test_262_compile_errors.py -v
+
+      - name: Verify reviewed 26.2 Java source manifests
+        run: python scripts/validate-26.2-reviewed-java.py
+
+      - name: Test 26.2 compiler compatibility
+        run: python -m unittest discover -s scripts/tests -p test_262_compile_errors.py -v
+
+      - name: Verify reviewed 26.2 Java sources
+        run: python scripts/validate-26.2-reviewed-java.py
 
       - name: Validate Zone Planner block preview parity
         run: python scripts/validate-zone-planner-preview.py

@@ -1,0 +1,53 @@
+//? source if >=26.2
+package buildcraft.robotics.boards;
+
+import buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobotNBT;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.robotics.BCRoboticsBoards;
+import net.minecraft.core.BlockPos;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.common.Tags;
+import buildcraft.lib.compat.ItemCompat;
+
+/** Miner board that fetches a pickaxe and mines reachable ore blocks in the work zone. */
+public class BoardRobotMiner extends BoardRobotGenericBreakBlock {
+    public BoardRobotMiner(EntityRobotBase robot) {
+        super(robot);
+    }
+
+    public RedstoneBoardRobotNBT getNBTHandler() {
+        return BCRoboticsBoards.getByKey("miner").nbt();
+    }
+
+    public boolean isExpectedTool(ItemStack stack) {
+        return !stack.isEmpty()
+                && (ItemCompat.isPickaxe(stack));
+    }
+
+    public boolean isExpectedBlock(Level level, BlockPos pos) {
+        if (!level.isLoaded(pos)) {
+            return false;
+        }
+
+        BlockState state = level.getBlockState(pos);
+        if (state.isAir() || state.getDestroySpeed(level, pos) < 0.0F) {
+            return false;
+        }
+        if (!isOre(state)) {
+            return false;
+        }
+
+        ItemStack held = robot.getItemBySlot(EquipmentSlot.MAINHAND);
+        return isExpectedTool(held) && held.isCorrectToolForDrops(state);
+    }
+
+    private static boolean isOre(BlockState state) {
+        // Forge ore tags preserve OreDictionary-style "ore*" matching and keep modded ores compatible.
+        return state.is(Tags.Blocks.ORES) || state.is(BlockTags.IRON_ORES)
+            || state.is(BlockTags.COPPER_ORES) || state.is(BlockTags.GOLD_ORES);
+    }
+}

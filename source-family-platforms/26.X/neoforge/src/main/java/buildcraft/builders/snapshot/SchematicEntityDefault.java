@@ -36,6 +36,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntitySpawnRequest;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.entity.decoration.HangingEntity;
@@ -181,7 +182,7 @@ public class SchematicEntityDefault implements ISchematicEntity {
             BlueprintEntityData.prepareLoad(nbt);
             entity = EntityType.create(
                 TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), nbt),
-                level, EntitySpawnReason.LOAD
+                level, new EntitySpawnRequest(EntitySpawnReason.LOAD, false)
             ).orElse(null);
             if (entity != null) {
                 BlueprintEntityData.restoreEquipment(entity, nbt);

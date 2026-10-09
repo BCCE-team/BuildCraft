@@ -206,7 +206,7 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         ZonePlan requested = area == null ? new ZonePlan() : area;
         if (level instanceof ServerLevel serverLevel) {
             layers[index] = requested.copyChunksMatching(chunkPos ->
-                    serverLevel.getChunkSource().getChunkNow(chunkPos.x, chunkPos.z) != null);
+                    serverLevel.getChunkSource().getChunkNow(chunkPos.x(), chunkPos.z()) != null);
         } else {
             layers[index] = new ZonePlan(requested);
         }

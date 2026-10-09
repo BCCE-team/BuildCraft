@@ -90,18 +90,16 @@ def _minecraft_model_client_item(model: str) -> str:
 
 
 def _dynamic_fluid_bucket_client_item_1_21_11(fluid: str, *, minecraft: str) -> str:
-    # Minecraft 1.21.11 moved dynamic item-model selection into assets/<ns>/items.
-    # NeoForge 21.11.x requires an explicit fallback `fluid` in the
-    # DynamicFluidContainerModel codec (fieldOf("fluid")); omitting it makes
-    # the entire client item fail to decode and render as missingno. BucketItem
-    # still exposes its contained fluid at runtime, but the static fluid id is
-    # mandatory and is also the correct fallback for an empty capability view.
-    #
-    # NeoForge 26.1.2's cover-mask pass extrudes the inverse bucket mask and can
-    # leave grey side-face fragments around the bucket in GUI item rendering.
-    # The fluid mask already limits the liquid to the bucket opening, so the
-    # extra cover pass is unnecessary there. Keep the 1.21.11 definition
-    # unchanged and omit only the cover layer on 26.1.2.
+    # Fixed BuildCraft Energy bucket items each contain one registered fluid.
+    # Reuse the original *complete* 16x16 pixel-art bucket rather than drawing
+    # an incomplete colour mask over Minecraft's opaque empty metal bucket.
+    # Each variant's model is chosen from its item path by the generator.
+    if _version_tuple(minecraft) >= _version_tuple("26.2"):
+        item_path = _buildcraftenergy_bucket_item_path_from_fluid_id(fluid)
+        return _minecraft_model_client_item(f"buildcraftenergy:item/{item_path}")
+
+    # Preserve the exact 1.21.11 and 26.1.2 client-item definitions.
+    # The older dynamic model's `fluid` field remains mandatory in 26.1.2.
     textures = {
         "particle": "minecraft:item/bucket",
         "base": "minecraft:item/bucket",
@@ -114,10 +112,35 @@ def _dynamic_fluid_bucket_client_item_1_21_11(fluid: str, *, minecraft: str) -> 
         "flip_gas": True,
         "apply_fluid_luminosity": False,
     }
-    if _version_tuple(minecraft) != _version_tuple("26.1.2"):
+    if _version_tuple(minecraft) == _version_tuple("1.21.11"):
         textures["cover"] = "neoforge:item/mask/bucket_fluid_cover"
         model["cover_is_mask"] = True
     return json.dumps({"model": model}, indent=2, ensure_ascii=False) + "\n"
+
+
+def _buildcraftenergy_bucket_item_path_from_fluid_id(fluid: str) -> str:
+    """Return the registered bucket item path, including its temperature.
+
+    The same oil/fuel colors are used across temperature variants in the
+    maintained still-fluid sprites; the legacy bucket artwork is likewise
+    temperature-independent and reflects the fluid's correct fixed color.
+    """
+    namespace, colon, fluid_name = fluid.partition(":")
+    if (namespace != "buildcraftenergy" or not colon):
+        raise ValueError(f"Unrecognized BuildCraft Energy bucket fluid: {fluid}")
+    for suffix, name in (("_heat_2", "searing"), ("_heat_1", "hot")):
+        if fluid_name.endswith(suffix):
+            return f"{fluid_name.removesuffix(suffix)}/{name}_bucket"
+    return f"{fluid_name}/cool_bucket"
+
+
+def _buildcraftenergy_bucket_legacy_sprite(item_path: str) -> str:
+    """Map the ten bucket families to actual 16x16 BuildCraft sprite assets."""
+    family = item_path.split("/", 1)[0]
+    sprite = "fuel_gas_bucket" if family == "fuel_gaseous" else f"{family}_bucket"
+    if family not in LEGACY_ENERGY_FLUIDS:
+        raise ValueError(f"Unrecognized bucket family: {item_path}")
+    return f"buildcraftenergy:items/{sprite}"
 
 
 def _buildcraftenergy_bucket_fluid_id_1_21_11(item_path: str) -> str | None:
@@ -229,14 +252,15 @@ def _buildcraftenergy_bucket_client_item_1_21_11(normalized: str, *, minecraft: 
     return _dynamic_fluid_bucket_client_item_1_21_11(fluid, minecraft=minecraft)
 
 
-def _buildcraftenergy_bucket_generated_model_1_21_11(normalized: str) -> str:
-    # The actual 1.21.11 bucket renderer now lives in the client-item definition
-    # above. Keep a harmless modern vanilla-bucket fallback for any legacy code
-    # that still resolves the old baked-model location directly; critically, do
-    # NOT point this back at BuildCraft's archived pre-1.21 bucket PNGs.
+def _buildcraftenergy_bucket_generated_model_1_21_11(normalized: str, *, minecraft: str) -> str:
     item_path = _buildcraftenergy_bucket_item_path_1_21_11(normalized, "/assets/buildcraftenergy/models/item/")
     if item_path is None:
         return ""
+    if _version_tuple(minecraft) >= _version_tuple("26.2"):
+        # Use the actual filled BuildCraft pixel art for the model's full
+        # silhouette, including the bucket rim and the liquid inside it.
+        return _generated_item_model(_buildcraftenergy_bucket_legacy_sprite(item_path))
+    # Preserve earlier 1.21.11 / 26.1.2 byte-exact fallback resources.
     return _generated_item_model("minecraft:item/bucket")
 
 
@@ -301,7 +325,7 @@ def _apply_1_21_11_resource_compat(text: str, *, minecraft: str, relative: str) 
         return _buildcraftenergy_bucket_client_item_1_21_11(normalized, minecraft=minecraft)
 
     if _is_1_21_11_buildcraftenergy_bucket_item_model(normalized):
-        return _buildcraftenergy_bucket_generated_model_1_21_11(normalized)
+        return _buildcraftenergy_bucket_generated_model_1_21_11(normalized, minecraft=minecraft)
 
     if not normalized.endswith(".json") or "/models/item/" not in normalized:
         return text

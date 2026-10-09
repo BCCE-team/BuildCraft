@@ -2,7 +2,7 @@
   "target": "26.2-neoforge",
   "module": "silicon",
   "algorithm": "sha256",
-  "file_count": 91,
+  "file_count": 92,
   "files": {
     "src/main/java/buildcraft/silicon/BCSilicon.java": "bdb8691e2d9dbcf473bc2ee8db9bad985f38ee83c2d2fbd0d690f218bfa922c4",
     "src/main/java/buildcraft/silicon/BCSiliconBlocks.java": "57560d444d255bcc64c9fb76dd6302591e008d8591fd5a7ef6ff11d6753f2351",
@@ -38,7 +38,7 @@
     "src/main/java/buildcraft/silicon/client/model/plug/PlugBakerFacade.java": "1db1ad8c8bde114e4d9d659e71f40b24042496fcbefa2b719375aaf48f8b9799",
     "src/main/java/buildcraft/silicon/client/model/plug/PlugBakerLens.java": "df52b0de082400c2f5b9b445fabe7b73e490467679596e9a9490f16b1ba8caa9",
     "src/main/java/buildcraft/silicon/client/model/plug/PlugGateBaker.java": "0c6a220913f1124a4b0ef9ccbf4d9c5873b1b48d5da3d1391c868e2e969a45d3",
-    "src/main/java/buildcraft/silicon/client/render/AdvDebuggerLaser.java": "568c1e749082c3964d5c5c74e2d1562212716afc85258652034af951ddd4a2ea",
+    "src/main/java/buildcraft/silicon/client/render/AdvDebuggerLaser.java": "de7f3b938fddc915031dc49e49654d0e3f67ad40994e5edfdf9441bbe86d43a9",
     "src/main/java/buildcraft/silicon/client/render/PlugFacadeRenderer.java": "5b424104faa7c19513cf5b483a89d69d05801893d860af8f7d4d93ddf0d2450e",
     "src/main/java/buildcraft/silicon/client/render/PlugGateRenderer.java": "9cae6a3c018d079c121269251fb0880d5ab65e3b80da20ee95eae1cb64c3c4d8",
     "src/main/java/buildcraft/silicon/client/render/PlugPulsarRenderer.java": "1a0210407219d6bc2ff8035566929237d80ce5c01038f3d0106daf752277fc44",
@@ -94,6 +94,7 @@
     "src/main/java/buildcraft/silicon/tile/TileIntegrationTable.java": "dc398d68c694a614e79224fbd4c6b4cc0dca6cf24330f5304c6d5777a4ad828c",
     "src/main/java/buildcraft/silicon/tile/TileLaser.java": "24c9d6d8ec13ea14b293a80e07e78fc60d03ad5a3641e1c3188f8d53ac7e4937",
     "src/main/java/buildcraft/silicon/tile/TileLaserTableBase.java": "868f133e6cbd0b2d3d52ae88909dcf2fa4cb6d9619273b81d633024cf209dbbb",
-    "src/main/java/buildcraft/silicon/tile/TileProgrammingTable_Neptune.java": "c4fe6fff050ca7901cef4f52099595e98f5510c4b0d642254009b2a1a835c81e"
+    "src/main/java/buildcraft/silicon/tile/TileProgrammingTable_Neptune.java": "c4fe6fff050ca7901cef4f52099595e98f5510c4b0d642254009b2a1a835c81e",
+    "src/main/java/buildcraft/silicon/client/render/SiliconDebugGeometry263.java": "7879efab7ae0be42cdafeefaeeff5ebccc6e77cf5f005f2678ec5b20a87ef11f"
   }
 }

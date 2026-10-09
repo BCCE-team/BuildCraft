@@ -39,16 +39,16 @@ public class RenderQuarry implements BlockEntityRenderer<TileQuarry>{
     static {
         {
             var sprite = BCBuildersSprites.QUARRY_FRAME;
-            LaserData_BC8.LaserRow capStart = new LaserData_BC8.LaserRow(sprite, 0, 0, 0, 0);
+            LaserData_BC8.LaserRow capStart = new LaserData_BC8.LaserRow(sprite, 4, 4, 12, 12);
             LaserData_BC8.LaserRow start = null;
             LaserData_BC8.LaserRow[] middle = { new LaserData_BC8.LaserRow(sprite, 0, 4, 16, 12) };
             LaserData_BC8.LaserRow end = new LaserData_BC8.LaserRow(sprite, 0, 4, 16, 12);
-            LaserData_BC8.LaserRow capEnd = new LaserData_BC8.LaserRow(sprite, 0, 0, 0, 0);
+            LaserData_BC8.LaserRow capEnd = new LaserData_BC8.LaserRow(sprite, 4, 4, 12, 12);
             FRAME = new LaserData_BC8.LaserType(capStart, start, middle, end, capEnd);
         }
         {
             var sprite = BCBuildersSprites.QUARRY_FRAME;
-            LaserData_BC8.LaserRow capStart = new LaserData_BC8.LaserRow(sprite, 0, 0, 0, 0);
+            LaserData_BC8.LaserRow capStart = new LaserData_BC8.LaserRow(sprite, 4, 4, 12, 12);
             LaserData_BC8.LaserRow start = null;
             LaserData_BC8.LaserRow[] middle = { new LaserData_BC8.LaserRow(sprite, 0, 4, 16, 12) };
             LaserData_BC8.LaserRow end = new LaserData_BC8.LaserRow(sprite, 0, 4, 16, 12);
@@ -56,6 +56,12 @@ public class RenderQuarry implements BlockEntityRenderer<TileQuarry>{
             FRAME_BOTTOM = new LaserData_BC8.LaserType(capStart, start, middle, end, capEnd);
         }
         {
+            // The moving gantry and its support pole use QUARRY_FRAME, but the
+            // actual cutting head has its own texture atlas. The drill sprite
+            // contains a four-pixel-high strip for the four lateral faces and
+            // a separate four-by-four detail for both end caps. Do not replace
+            // either region with the frame's honeycomb texture: that makes
+            // the cutting head look like another piece of scaffolding.
             var sprite = BCBuildersSprites.QUARRY_DRILL;
             LaserData_BC8.LaserRow capStart = new LaserData_BC8.LaserRow(sprite, 6, 0, 10, 4);
             LaserData_BC8.LaserRow start = null;
@@ -130,30 +136,30 @@ public class RenderQuarry implements BlockEntityRenderer<TileQuarry>{
             if (tile.clientDrillPos != null && tile.prevClientDrillPos != null) {
                 Vec3 interpolatedPos = tile.prevClientDrillPos.add(tile.clientDrillPos.subtract(tile.prevClientDrillPos).scale(partialTicks));
                 matrix.translate(interpolatedPos.x - pos.getX()+0.5f, max.getY()- pos.getY()+0.5f, interpolatedPos.z - pos.getZ()+0.5f);
-                // These beams are closed prisms, so every exterior face already has the correct winding.
-                // Emitting a second coplanar winding makes the differently lit copies z-fight, producing
-                // the angle-dependent striped shimmer visible on the quarry drill assembly.
+                // The cutout lattice can also be seen from inside the moving gantry.
+                // Each face needs its reverse winding: cutoutMipped culls the backface,
+                // so the two windings do not fight at the same viewing angle.
                 LaserRenderer_BC8.renderLaserDynamic(pose, normal, LaserData_BC8.of(FRAME,//
                         new Vec3(interpolatedPos.x + 0.5, max.getY() + 0.5, interpolatedPos.z + 1),//
                         new Vec3(interpolatedPos.x + 0.5, max.getY() + 0.5, max.getZ() + 12 / 16D),//
-                        1 / 16D, true, false, 0, ID), bb);
+                        1 / 16D, true, true, 0, ID), bb);
                 LaserRenderer_BC8.renderLaserDynamic(pose, normal, LaserData_BC8.of(FRAME,//
                         new Vec3(interpolatedPos.x + 0.5, max.getY() + 0.5, interpolatedPos.z ),//
                         new Vec3(interpolatedPos.x + 0.5, max.getY() + 0.5, min.getZ() + 4 / 16D),//
-                        1 / 16D, true, false, 0, ID+1), bb);
+                        1 / 16D, true, true, 0, ID+1), bb);
                 LaserRenderer_BC8.renderLaserDynamic(pose, normal, LaserData_BC8.of(FRAME,//
                         new Vec3(interpolatedPos.x+1, max.getY() + 0.5, interpolatedPos.z + 0.5),//
                         new Vec3(max.getX() + 12 / 16D, max.getY() + 0.5, interpolatedPos.z + 0.5),//
-                        1 / 16D, true, false, 0, ID+2), bb);
+                        1 / 16D, true, true, 0, ID+2), bb);
                 LaserRenderer_BC8.renderLaserDynamic(pose, normal, LaserData_BC8.of(FRAME,//
                         new Vec3(interpolatedPos.x, max.getY() + 0.5, interpolatedPos.z + 0.5),//
                         new Vec3(min.getX() + 4 / 16D, max.getY() + 0.5, interpolatedPos.z + 0.5),//
-                        1 / 16D, true, false, 0, ID+3), bb);
+                        1 / 16D, true, true, 0, ID+3), bb);
                 matrix.translate(0, interpolatedPos.y + 1 - max.getY() - 4/16D, 0);
                 LaserRenderer_BC8.renderLaserDynamic(pose, normal, LaserData_BC8.of(FRAME_BOTTOM,//
                         new Vec3(interpolatedPos.x + 0.5, interpolatedPos.y + 1 + 4 / 16D, interpolatedPos.z + 0.5),//
                         new Vec3(interpolatedPos.x + 0.5, max.getY() + 0.5, interpolatedPos.z + 0.5),//
-                        1 / 16D, true, false, 0, ID+4), bb);
+                        1 / 16D, true, true, 0, ID+4), bb);
                 matrix.translate(0, - 4/16D + yOffset, 0);
                 LaserRenderer_BC8.renderLaserDynamic(pose, normal, LaserData_BC8.of(DRILL,//
                         new Vec3(interpolatedPos.x + 0.5, interpolatedPos.y + 1 + yOffset, interpolatedPos.z + 0.5),//
