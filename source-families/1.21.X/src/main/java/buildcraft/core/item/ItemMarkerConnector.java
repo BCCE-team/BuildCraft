@@ -22,6 +22,7 @@ import buildcraft.core.marker.volume.EnumAddonSlot;
 import buildcraft.core.marker.volume.Lock;
 import buildcraft.core.marker.volume.VolumeBox;
 import buildcraft.core.marker.volume.WorldSavedDataVolumeBoxes;
+import buildcraft.core.marker.volume.VolumeBoxToolActions;
 import buildcraft.lib.marker.MarkerCache;
 import buildcraft.lib.marker.MarkerSubCache;
 import buildcraft.lib.misc.AdvancementUtil;
@@ -102,117 +103,9 @@ public class ItemMarkerConnector extends Item {
         ).didInteract();
     }
 
+    /** Volume Box editing belongs to the Marker Connector, never the box item. */
     private InteractionResult onItemRightClickVolumeBoxes(Level world, Player player) {
-        if (world.isClientSide()) {
-            return InteractionResult.PASS;
-        }
-
-        WorldSavedDataVolumeBoxes volumeBoxes = WorldSavedDataVolumeBoxes.get(world);
-
-        VolumeBox currentEditing = volumeBoxes.getCurrentEditing(player);
-
-        Vec3 start = player.getEyePosition();
-        Vec3 end = start.add(player.getLookAngle().scale(4));
-
-        Pair<VolumeBox, EnumAddonSlot> selectingVolumeBoxAndSlot = EnumAddonSlot.getSelectingVolumeBoxAndSlot(
-            player,
-            volumeBoxes.volumeBoxes
-        );
-        VolumeBox addonVolumeBox = selectingVolumeBoxAndSlot.getLeft();
-        EnumAddonSlot addonSlot = selectingVolumeBoxAndSlot.getRight();
-        if (addonVolumeBox != null && addonSlot != null) {
-            if (addonVolumeBox.addons.containsKey(addonSlot) &&
-                addonVolumeBox.getLockTargetsStream().noneMatch(target ->
-                    target instanceof Lock.Target.TargetAddon && ((Lock.Target.TargetAddon) target).slot == addonSlot
-                )) {
-                if (player.isCrouching()) {
-                    addonVolumeBox.addons.get(addonSlot).onRemoved();
-                    addonVolumeBox.addons.remove(addonSlot);
-                    volumeBoxes.setDirty();
-                } else {
-                    addonVolumeBox.addons.get(addonSlot).onPlayerRightClick(player);
-                    volumeBoxes.setDirty();
-                }
-            }
-        } else if (player.isCrouching()) {
-            if (currentEditing == null) {
-                for (Iterator<VolumeBox> iterator = volumeBoxes.volumeBoxes.iterator(); iterator.hasNext();) {
-                    VolumeBox volumeBox = iterator.next();
-                    if (volumeBox.box.getBoundingBox().clip(start, end).isPresent()) {
-                        if (volumeBox.getLockTargetsStream().noneMatch(Lock.Target.TargetResize.class::isInstance)) {
-                            volumeBox.addons.values().forEach(Addon::onRemoved);
-                            iterator.remove();
-                            volumeBoxes.setDirty();
-                            return InteractionResult.SUCCESS;
-                        } else {
-                            return InteractionResult.FAIL;
-                        }
-                    }
-                }
-            } else {
-                currentEditing.cancelEditing();
-                volumeBoxes.setDirty();
-                return InteractionResult.SUCCESS;
-            }
-        } else {
-            if (currentEditing == null) {
-                VolumeBox bestVolumeBox = null;
-                double bestDist = Double.MAX_VALUE;
-                BlockPos editing = null;
-
-                for (VolumeBox volumeBox :
-                    volumeBoxes.volumeBoxes.stream()
-                        .filter(box ->
-                            box.getLockTargetsStream()
-                                .noneMatch(Lock.Target.TargetResize.class::isInstance)
-                        )
-                        .collect(Collectors.toList())
-                    ) {
-                    for (BlockPos p : PositionUtil.getCorners(volumeBox.box.min(), volumeBox.box.max())) {
-                        Optional<Vec3> ray = new AABB(p).clip(start, end);
-                        if (ray.isPresent()) {
-                            double dist = ray.get().distanceTo(start);
-                            if (bestDist > dist) {
-                                bestDist = dist;
-                                bestVolumeBox = volumeBox;
-                                editing = p;
-                            }
-                        }
-                    }
-                }
-
-                if (bestVolumeBox != null) {
-                    bestVolumeBox.setPlayer(player);
-
-                    BlockPos min = bestVolumeBox.box.min();
-                    BlockPos max = bestVolumeBox.box.max();
-
-                    BlockPos held = min;
-                    if (editing.getX() == min.getX()) {
-                        held = VecUtil.replaceValue(held, Direction.Axis.X, max.getX());
-                    }
-                    if (editing.getY() == min.getY()) {
-                        held = VecUtil.replaceValue(held, Direction.Axis.Y, max.getY());
-                    }
-                    if (editing.getZ() == min.getZ()) {
-                        held = VecUtil.replaceValue(held, Direction.Axis.Z, max.getZ());
-                    }
-                    bestVolumeBox.setHeldDistOldMinOldMax(
-                        held,
-                        Math.max(1.5, bestDist + 0.5),
-                        bestVolumeBox.box.min(),
-                        bestVolumeBox.box.max()
-                    );
-                    volumeBoxes.setDirty();
-                    return InteractionResult.SUCCESS;
-                }
-            } else {
-                currentEditing.confirmEditing();
-                volumeBoxes.setDirty();
-                return InteractionResult.SUCCESS;
-            }
-        }
-        return InteractionResult.FAIL;
+        return VolumeBoxToolActions.use(world, player);
     }
 
     private static class MarkerLineInteraction {

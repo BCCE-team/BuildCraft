@@ -27,36 +27,6 @@ public class AddonDefaultRenderer<T extends Addon> implements IFastAddonRenderer
 
     @Override
     public void renderAddonFast(T addon, Player player, float partialTicks, VertexConsumer builder) {
-        AABB bb = addon.getBoundingBox();
-
-        builder.addVertex((float) bb.minX, (float) bb.maxY, (float) bb.minZ).setColor(204, 204, 204, 255).setUv(s.getU0(), s.getV0()).setLight(240);
-        builder.addVertex((float) bb.maxX, (float) bb.maxY, (float) bb.minZ).setColor(204, 204, 204, 255).setUv(s.getU0(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.maxX, (float) bb.minY, (float) bb.minZ).setColor(204, 204, 204, 255).setUv(s.getU1(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.minX, (float) bb.minY, (float) bb.minZ).setColor(204, 204, 204, 255).setUv(s.getU1(), s.getV0()).setLight(240);
-
-        builder.addVertex((float) bb.minX, (float) bb.minY, (float) bb.maxZ).setColor(204, 204, 204, 255).setUv(s.getU0(), s.getV0()).setLight(240);
-        builder.addVertex((float) bb.maxX, (float) bb.minY, (float) bb.maxZ).setColor(204, 204, 204, 255).setUv(s.getU0(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.maxX, (float) bb.maxY, (float) bb.maxZ).setColor(204, 204, 204, 255).setUv(s.getU1(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.minX, (float) bb.maxY, (float) bb.maxZ).setColor(204, 204, 204, 255).setUv(s.getU1(), s.getV0()).setLight(240);
-
-        builder.addVertex((float) bb.minX, (float) bb.minY, (float) bb.minZ).setColor(127, 127, 127, 255).setUv(s.getU0(), s.getV0()).setLight(240);
-        builder.addVertex((float) bb.maxX, (float) bb.minY, (float) bb.minZ).setColor(127, 127, 127, 255).setUv(s.getU0(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.maxX, (float) bb.minY, (float) bb.maxZ).setColor(127, 127, 127, 255).setUv(s.getU1(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.minX, (float) bb.minY, (float) bb.maxZ).setColor(127, 127, 127, 255).setUv(s.getU1(), s.getV0()).setLight(240);
-
-        builder.addVertex((float) bb.minX, (float) bb.maxY, (float) bb.maxZ).setColor(255, 255, 255, 255).setUv(s.getU0(), s.getV0()).setLight(240);
-        builder.addVertex((float) bb.maxX, (float) bb.maxY, (float) bb.maxZ).setColor(255, 255, 255, 255).setUv(s.getU0(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.maxX, (float) bb.maxY, (float) bb.minZ).setColor(255, 255, 255, 255).setUv(s.getU1(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.minX, (float) bb.maxY, (float) bb.minZ).setColor(255, 255, 255, 255).setUv(s.getU1(), s.getV0()).setLight(240);
-
-        builder.addVertex((float) bb.minX, (float) bb.minY, (float) bb.maxZ).setColor(153, 153, 153, 255).setUv(s.getU0(), s.getV0()).setLight(240);
-        builder.addVertex((float) bb.minX, (float) bb.maxY, (float) bb.maxZ).setColor(153, 153, 153, 255).setUv(s.getU0(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.minX, (float) bb.maxY, (float) bb.minZ).setColor(153, 153, 153, 255).setUv(s.getU1(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.minX, (float) bb.minY, (float) bb.minZ).setColor(153, 153, 153, 255).setUv(s.getU1(), s.getV0()).setLight(240);
-
-        builder.addVertex((float) bb.maxX, (float) bb.minY, (float) bb.minZ).setColor(153, 153, 153, 255).setUv(s.getU0(), s.getV0()).setLight(240);
-        builder.addVertex((float) bb.maxX, (float) bb.maxY, (float) bb.minZ).setColor(153, 153, 153, 255).setUv(s.getU0(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.maxX, (float) bb.maxY, (float) bb.maxZ).setColor(153, 153, 153, 255).setUv(s.getU1(), s.getV1()).setLight(240);
-        builder.addVertex((float) bb.maxX, (float) bb.minY, (float) bb.maxZ).setColor(153, 153, 153, 255).setUv(s.getU1(), s.getV0()).setLight(240);
+        AddonQuadRenderer.box(builder, addon.getBoundingBox(), s, 255);
     }
 }

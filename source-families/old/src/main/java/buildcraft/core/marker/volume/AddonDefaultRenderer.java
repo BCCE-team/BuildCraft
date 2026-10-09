@@ -33,36 +33,6 @@ public class AddonDefaultRenderer<T extends Addon> implements IFastAddonRenderer
 
     @Override
     public void renderAddonFast(T addon, Player player, float partialTicks, VertexConsumer builder) {
-        AABB bb = addon.getBoundingBox();
-
-        builder.vertex(bb.minX, bb.maxY, bb.minZ).color(204, 204, 204, 255).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-        builder.vertex(bb.maxX, bb.maxY, bb.minZ).color(204, 204, 204, 255).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.maxX, bb.minY, bb.minZ).color(204, 204, 204, 255).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.minX, bb.minY, bb.minZ).color(204, 204, 204, 255).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
-
-        builder.vertex(bb.minX, bb.minY, bb.maxZ).color(204, 204, 204, 255).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-        builder.vertex(bb.maxX, bb.minY, bb.maxZ).color(204, 204, 204, 255).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.maxX, bb.maxY, bb.maxZ).color(204, 204, 204, 255).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.minX, bb.maxY, bb.maxZ).color(204, 204, 204, 255).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
-
-        builder.vertex(bb.minX, bb.minY, bb.minZ).color(127, 127, 127, 255).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-        builder.vertex(bb.maxX, bb.minY, bb.minZ).color(127, 127, 127, 255).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.maxX, bb.minY, bb.maxZ).color(127, 127, 127, 255).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.minX, bb.minY, bb.maxZ).color(127, 127, 127, 255).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
-
-        builder.vertex(bb.minX, bb.maxY, bb.maxZ).color(255, 255, 255, 255).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-        builder.vertex(bb.maxX, bb.maxY, bb.maxZ).color(255, 255, 255, 255).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.maxX, bb.maxY, bb.minZ).color(255, 255, 255, 255).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.minX, bb.maxY, bb.minZ).color(255, 255, 255, 255).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
-
-        builder.vertex(bb.minX, bb.minY, bb.maxZ).color(153, 153, 153, 255).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-        builder.vertex(bb.minX, bb.maxY, bb.maxZ).color(153, 153, 153, 255).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.minX, bb.maxY, bb.minZ).color(153, 153, 153, 255).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.minX, bb.minY, bb.minZ).color(153, 153, 153, 255).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
-
-        builder.vertex(bb.maxX, bb.minY, bb.minZ).color(153, 153, 153, 255).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-        builder.vertex(bb.maxX, bb.maxY, bb.minZ).color(153, 153, 153, 255).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.maxX, bb.maxY, bb.maxZ).color(153, 153, 153, 255).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-        builder.vertex(bb.maxX, bb.minY, bb.maxZ).color(153, 153, 153, 255).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
+        AddonQuadRenderer.box(builder, addon.getBoundingBox(), s, 255);
     }
 }

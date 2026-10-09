@@ -52,6 +52,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test 26.X energy native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_energy_26.py", "-v")),
     ("Test 26.X transport native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_transport_26.py", "-v")),
     ("Test 26.X factory native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_factory_26.py", "-v")),
+    ("Test Volume Box and Filler Planner gameplay", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_volume_filler_gameplay.py", "-v")),
     ("Test 26.X builders native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_builders_26.py", "-v")),
     ("Test 26.X silicon native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_silicon_26.py", "-v")),
     ("Test 26.X compat and bucket presentation", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_compat_buckets_26.py", "-v")),

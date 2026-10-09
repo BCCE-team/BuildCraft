@@ -9,12 +9,11 @@ package buildcraft.builders.addon;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import buildcraft.core.marker.volume.IFastAddonRenderer;
+import buildcraft.core.marker.volume.AddonQuadRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.BlockPos;
@@ -33,25 +32,30 @@ public class AddonRendererFillerPlanner implements IFastAddonRenderer<AddonFille
 //        Minecraft.getInstance().getProfiler().push("filler_planner");
 
 //        Minecraft.getInstance().getProfiler().push("iter");
-        List<BlockPos> list = StreamSupport.stream(
-            BlockPos.betweenClosed(addon.buildingInfo.box.min(), addon.buildingInfo.box.max()).spliterator(),
-            false
-        )
-            .filter(blockPos ->
-                addon.buildingInfo.getSnapshot().data.get(
-                    addon.buildingInfo.getSnapshot().posToIndex(
-                        addon.buildingInfo.fromWorld(blockPos)
-                    )
-                )
-            )
+        // Restrict the hologram to the nearby portion of the planned area. A 256x256x256 Volume Box
+        // must not allocate or sort millions of BlockPos objects every render frame.
+        BlockPos origin = player.blockPosition();
+        BlockPos min = addon.buildingInfo.box.min();
+        BlockPos max = addon.buildingInfo.box.max();
+        int minX = Math.max(min.getX(), origin.getX() - 32);
+        int minY = Math.max(min.getY(), origin.getY() - 24);
+        int minZ = Math.max(min.getZ(), origin.getZ() - 32);
+        int maxX = Math.min(max.getX(), origin.getX() + 32);
+        int maxY = Math.min(max.getY(), origin.getY() + 24);
+        int maxZ = Math.min(max.getZ(), origin.getZ() + 32);
+        if (minX > maxX || minY > maxY || minZ > maxZ) return;
+        List<BlockPos> list = new ArrayList<>();
+        int inspected = 0;
+        for (BlockPos p : BlockPos.betweenClosed(minX, minY, minZ, maxX, maxY, maxZ)) {
+            if (++inspected > 32_768 || list.size() >= 1_024) break;
             //? if <1.20 {
-            .filter(player.level::isEmptyBlock)
+            if (!player.level.isEmptyBlock(p)) continue;
             //?} else {
-            /*?
-            .filter(player.level()::isEmptyBlock)
-            ?*/
+            if (!player.level().isEmptyBlock(p)) continue;
             //?}
-            .collect(Collectors.toCollection(ArrayList::new));
+            int index = addon.buildingInfo.getSnapshot().posToIndex(addon.buildingInfo.fromWorld(p));
+            if (index >= 0 && addon.buildingInfo.getSnapshot().data.get(index)) list.add(p.immutable());
+        }
 //        Minecraft.getInstance().getProfiler().pop();
 
   //      Minecraft.getInstance().getProfiler().push("sort");
@@ -63,35 +67,7 @@ public class AddonRendererFillerPlanner implements IFastAddonRenderer<AddonFille
             AABB bb = new AABB(p, p.offset(1, 1, 1)).inflate(-0.1);
             TextureAtlasSprite s = Minecraft.getInstance().getModelManager().getAtlas(InventoryMenu.BLOCK_ATLAS).getSprite(new ResourceLocation("minecraft", "block/quartz_block_top"));//ModelLoader.White.INSTANCE;
 
-            vb.vertex(bb.minX, bb.maxY, bb.minZ).color(204, 204, 204, 127).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-            vb.vertex(bb.maxX, bb.maxY, bb.minZ).color(204, 204, 204, 127).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.maxX, bb.minY, bb.minZ).color(204, 204, 204, 127).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.minX, bb.minY, bb.minZ).color(204, 204, 204, 127).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
-
-            vb.vertex(bb.minX, bb.minY, bb.maxZ).color(204, 204, 204, 127).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-            vb.vertex(bb.maxX, bb.minY, bb.maxZ).color(204, 204, 204, 127).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.maxX, bb.maxY, bb.maxZ).color(204, 204, 204, 127).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.minX, bb.maxY, bb.maxZ).color(204, 204, 204, 127).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
-
-            vb.vertex(bb.minX, bb.minY, bb.minZ).color(127, 127, 127, 127).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-            vb.vertex(bb.maxX, bb.minY, bb.minZ).color(127, 127, 127, 127).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.maxX, bb.minY, bb.maxZ).color(127, 127, 127, 127).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.minX, bb.minY, bb.maxZ).color(127, 127, 127, 127).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
-
-            vb.vertex(bb.minX, bb.maxY, bb.maxZ).color(255, 255, 255, 127).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-            vb.vertex(bb.maxX, bb.maxY, bb.maxZ).color(255, 255, 255, 127).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.maxX, bb.maxY, bb.minZ).color(255, 255, 255, 127).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.minX, bb.maxY, bb.minZ).color(255, 255, 255, 127).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
-
-            vb.vertex(bb.minX, bb.minY, bb.maxZ).color(153, 153, 153, 127).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-            vb.vertex(bb.minX, bb.maxY, bb.maxZ).color(153, 153, 153, 127).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.minX, bb.maxY, bb.minZ).color(153, 153, 153, 127).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.minX, bb.minY, bb.minZ).color(153, 153, 153, 127).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
-
-            vb.vertex(bb.maxX, bb.minY, bb.minZ).color(153, 153, 153, 127).uv(s.getU0(), s.getV0()).uv2(240, 0).endVertex();
-            vb.vertex(bb.maxX, bb.maxY, bb.minZ).color(153, 153, 153, 127).uv(s.getU0(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.maxX, bb.maxY, bb.maxZ).color(153, 153, 153, 127).uv(s.getU1(), s.getV1()).uv2(240, 0).endVertex();
-            vb.vertex(bb.maxX, bb.minY, bb.maxZ).color(153, 153, 153, 127).uv(s.getU1(), s.getV0()).uv2(240, 0).endVertex();
+            AddonQuadRenderer.box(vb, bb, s, 127);
         }
 //        Minecraft.getInstance().getProfiler().pop();
 

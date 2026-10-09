@@ -53,17 +53,17 @@ class Builders26Tests(unittest.TestCase):
     def test_26_1_2_frozen_complete_module(self):
         baseline=json.loads((ROOT/'build-config/materialized-baselines/26.1.2-neoforge.json').read_text())['files']
         expected={k:v for k,v in baseline.items() if k.startswith(BUILDERS+'/') and k.endswith('.java')}
-        self.assertEqual(154,len(expected))
+        self.assertEqual(157,len(expected))
         self.assertEqual(expected,self.hashes('26.1.2'))
 
     def test_26_2_frozen_complete_module(self):
         baseline=json.loads((ROOT/'build-config/materialized-baselines/26.2-builders.json').read_text())
-        self.assertEqual(154,baseline['file_count'])
+        self.assertEqual(157,baseline['file_count'])
         self.assertEqual(baseline['files'],self.hashes('26.2'))
 
     def test_26_3_port_selects_native_implementations(self):
         files=set(self.hashes('26.3'))
-        self.assertEqual(157,len(files))
+        self.assertEqual(160,len(files))
         for name in (
             'compat/BuildersItemContainer263.java',
             'compat/BuildersDisplayContainer263.java',
@@ -137,8 +137,8 @@ class Builders26Tests(unittest.TestCase):
     def test_java_syntax_all_versions(self):
         result=parse_sources([self.outputs[version] for version in ('26.2','26.3')])
         print(result,flush=True)
-        self.assertIn('154 units, 0 errors',result)
         self.assertIn('157 units, 0 errors',result)
+        self.assertIn('160 units, 0 errors',result)
 
 
 if __name__ == '__main__':

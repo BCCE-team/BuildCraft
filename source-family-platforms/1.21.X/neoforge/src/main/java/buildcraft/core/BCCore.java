@@ -22,6 +22,7 @@ import buildcraft.core.list.ContainerList;
 import buildcraft.core.marker.PathCache;
 import buildcraft.core.marker.VolumeCache;
 import buildcraft.core.marker.volume.MessageVolumeBoxes;
+import buildcraft.core.marker.volume.BCCoreVolumeBoxEvents;
 import buildcraft.energy.BCEnergyFluids;
 import buildcraft.energy.tile.TileSpringOil;
 import buildcraft.lib.CreativeTabManager;
@@ -86,6 +87,7 @@ public class BCCore {
         modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCCoreConfig.config));
         ConfigScreenRegistration.register(modContainer);
         MessageManager.registerClientboundMessageClass(BCModules.CORE, MessageVolumeBoxes.class, MessageVolumeBoxes.HANDLER, MessageVolumeBoxes::toBytes, MessageVolumeBoxes::new);
+        BCCoreVolumeBoxEvents.register();
         BCCoreStatements.preInit();
     }
 

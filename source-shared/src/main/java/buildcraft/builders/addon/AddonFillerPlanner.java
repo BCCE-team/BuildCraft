@@ -16,6 +16,12 @@ import buildcraft.builders.internal.filler.legacy.IFillerPattern;
 import buildcraft.lib.internal.statement.IStatementParameter;
 import buildcraft.lib.internal.statement.containers.IFillerStatementContainer;
 import buildcraft.builders.BCBuildersSprites;
+import buildcraft.builders.BCBuildersItems;
+import buildcraft.builders.platform.PlannerMenuOpening;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.phys.Vec3;
 import buildcraft.builders.filler.FillerType;
 import buildcraft.builders.filler.FillerUtil;
 import buildcraft.builders.snapshot.Template;
@@ -42,6 +48,14 @@ public class AddonFillerPlanner extends Addon implements ISingleAddon, IFillerSt
     public Template.BuildingInfo buildingInfo;
 
     public void updateBuildingInfo() {
+        buildingInfo = null;
+        if (volumeBox == null || volumeBox.box == null ||
+            volumeBox.box.min() == null || volumeBox.box.max() == null) return;
+        // The pattern factory allocates and fills a complete template, independently of the
+        // renderer's near-camera cap. Bound it before allocating, using long to avoid overflow.
+        var size = volumeBox.box.size();
+        long voxels = (long) size.getX() * size.getY() * size.getZ();
+        if (size.getX() <= 0 || size.getY() <= 0 || size.getZ() <= 0 || voxels > 2_000_000L) return;
         buildingInfo = FillerUtil.createBuildingInfo(
             this,
             patternStatement,
@@ -77,8 +91,19 @@ public class AddonFillerPlanner extends Addon implements ISingleAddon, IFillerSt
 
     @Override
     public void onPlayerRightClick(Player player) {
-        super.onPlayerRightClick(player);
-//        BCBuildersGuis.FILLER_PLANNER.openGUI(player);
+        if (!(player instanceof ServerPlayer serverPlayer)) return;
+        if (volumeBox == null || !volumeBox.addons.containsValue(this)) return;
+        PlannerMenuOpening.open(serverPlayer, volumeBox.id, getSlot());
+    }
+
+    /** Return the attached item on dismantling or deleting an unlocked Volume Box. */
+    @Override
+    public void onRemoved() {
+        if (volumeBox == null || volumeBox.world.isClientSide) return;
+        Vec3 center = getBoundingBox().getCenter();
+        ItemEntity dropped = new ItemEntity(volumeBox.world, center.x, center.y, center.z,
+            new ItemStack(BCBuildersItems.FILLER_PLANNER.get()));
+        volumeBox.world.addFreshEntity(dropped);
     }
 
     @Override

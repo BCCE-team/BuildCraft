@@ -61,7 +61,7 @@ class Core26EffectiveContracts(unittest.TestCase):
         actual = {path.relative_to(self.materialized["26.1.2"]).as_posix():
                   hashlib.sha256(path.read_bytes()).hexdigest()
                   for path in (self.materialized["26.1.2"] / CORE).rglob("*.java")}
-        self.assertEqual(74, len(expected))
+        self.assertEqual(77, len(expected))
         self.assertEqual(expected, actual, "26.1.2 effective core must be byte-for-byte unchanged")
 
     def test_new_render_bridge_never_leaks_into_26_1_2(self):
@@ -69,7 +69,7 @@ class Core26EffectiveContracts(unittest.TestCase):
         for version in ("26.2", "26.3"):
             with self.subTest(version=version):
                 root = self.materialized[version] / CORE
-                self.assertEqual(75, len(list(root.rglob("*.java"))))
+                self.assertEqual(78, len(list(root.rglob("*.java"))))
                 bridge = self.text(version, "client/CoreWorldGeometry.java")
                 self.assertIn("ExtractLevelRenderStateEvent", bridge)
                 self.assertIn("SubmitCustomGeometryEvent", bridge)
@@ -135,7 +135,7 @@ class Core26EffectiveContracts(unittest.TestCase):
     def test_native_core_java_syntax(self):
         roots = [self.materialized[version] / CORE for version in ("26.2", "26.3")]
         result = parse_sources(roots)
-        self.assertEqual(2, result.count("75 units, 0 errors"), result)
+        self.assertEqual(2, result.count("78 units, 0 errors"), result)
         print(result, flush=True)
 
 

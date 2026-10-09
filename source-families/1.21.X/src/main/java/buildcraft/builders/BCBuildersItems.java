@@ -59,6 +59,7 @@ public class BCBuildersItems {
         add(items, BLUEPRINT);
         add(items, TEMPLATE);
         add(items, SCHEMATIC_SINGLE);
+        add(items, FILLER_PLANNER);
         add(items, FILLER_BLOCK_ITEM);
         add(items, BUILDER_BLOCK_ITEM);
         add(items, ARCHITECT_BLOCK_ITEM);

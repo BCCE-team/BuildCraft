@@ -55,8 +55,10 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
             }
             LaserBoxRenderer.renderLaserBoxDynamic(volumeBox.box, type, pose.last().pose(), pose.last().normal(), bb, false);
 
+            // Ghost blocks use alpha. Drawing them into SOLID discards transparency on 26.2/26.3.
+            VertexConsumer ghosts = BCWorldGeometry.buffer(RenderCompat.translucent());
             volumeBox.addons.values().forEach(addon ->
-                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(addon, player, partialTicks, bb)
+                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(addon, player, partialTicks, ghosts)
             );
         });
 		

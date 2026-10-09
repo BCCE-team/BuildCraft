@@ -62,8 +62,10 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
             }
             LaserBoxRenderer.renderLaserBoxDynamic(volumeBox.box, type, pose.last().pose(), pose.last().normal(), bb, false);
 
+            VertexConsumer ghostLayer = Minecraft.getInstance().renderBuffers().bufferSource()
+                .getBuffer(buildcraft.lib.compat.RenderCompat.translucent());
             volumeBox.addons.values().forEach(addon ->
-                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(addon, player, partialTicks, bb)
+                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(addon, player, partialTicks, ghostLayer)
             );
         });
 		

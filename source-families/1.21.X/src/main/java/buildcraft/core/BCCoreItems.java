@@ -78,6 +78,7 @@ public class BCCoreItems {
         add(items, BCLibItems.GUIDE);
         add(items, MARKER_VOLUME);
         add(items, MARKER_PATH);
+        add(items, VOLUME_BOX);
         add(items, ENGINE_RESTONE_ITEM_BC8);
         add(items, ENGINE_CREATIVE_ITEM_BC8);
         add(items, WRENCH);
