@@ -337,14 +337,32 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
         static List<BakedQuad> bakeBlocker(Direction side) {
             // The blocker starts exactly at the facade inner plane. Its outward face is therefore coplanar with
             // the facade's inner face and produces camera-dependent stripe/z-fighting artifacts.
-            // The facade already covers that face, so discard only the coplanar outward blocker quad.
+            // The facade already covers that face, so discard only the coplanar outward blocker quad. The quad is
+            // found by its geometry: the face label of a baked blocker quad is not a reliable way to find it.
+            boolean positive = side.getAxisDirection() == Direction.AxisDirection.POSITIVE;
+            double innerPlane = positive ? 1 - PluggableFacade.SIZE / 16D : PluggableFacade.SIZE / 16D;
             List<BakedQuad> result = new ArrayList<>();
             for (BakedQuad quad : BCTransportModels.BAKER_PLUG_BLOCKER.bake(new KeyPlugBlocker(side))) {
-                if (quad.getDirection() != side) {
+                if (!isOnPlane(quad, side.getAxis(), innerPlane)) {
                     result.add(quad);
                 }
             }
             return result;
+        }
+
+        private static boolean isOnPlane(BakedQuad quad, Direction.Axis axis, double plane) {
+            MutableQuad mutable = new MutableQuad().fromBakedBlock(quad);
+            for (MutableVertex vertex : mutable.vertexs) {
+                double value = switch (axis) {
+                    case X -> vertex.position_x;
+                    case Y -> vertex.position_y;
+                    case Z -> vertex.position_z;
+                };
+                if (Math.abs(value - plane) > 1e-3) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }
