@@ -16,10 +16,12 @@ class LoaderBoundaries(unittest.TestCase):
 
     def test_raw_packet_contexts_stop_at_network_boundary(self):
         allowed = {
-            "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/net/MessageManager.java",
-            "source-downports/modern/1.21.1/neoforge/src/main/java/buildcraft/lib/net/MessageManager.java",
-            "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/net/NeoForgePacketContext.java",
-            "source-family-platforms/legacy/forge/src/main/java/buildcraft/lib/net/ForgePacketContext.java",
+            "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/net/MessageManager.java",
+            "source-downports/1.21.X/1.21.1/neoforge/src/main/java/buildcraft/lib/net/MessageManager.java",
+            "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/net/NeoForgePacketContext.java",
+            "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/net/MessageManager.java",
+            "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/net/NeoForgePacketContext.java",
+            "source-family-platforms/old/forge/src/main/java/buildcraft/lib/net/ForgePacketContext.java",
             "version-src/1.19.2-forge/src/main/java/buildcraft/lib/net/MessageManager.java",
             "version-src/1.20.1-forge/src/main/java/buildcraft/lib/net/MessageManager.java",
         }

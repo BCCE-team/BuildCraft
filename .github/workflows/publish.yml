@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected='1.19.2-forge,1.20.1-forge,1.21.1-neoforge,1.21.11-neoforge'
+          expected='1.19.2-forge,1.20.1-forge,1.21.1-neoforge,1.21.11-neoforge,26.1.2-neoforge,26.2-neoforge,26.3-neoforge'
           actual="$(sed -n 's/^targets=//p' build-config/targets.properties)"
           if [ "$actual" != "$expected" ]; then
             echo "::error::Publication workflow target list is stale. Expected '$expected', repository has '$actual'."
@@ -80,12 +80,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - generation: legacy
+          - generation: old
             java: '17'
             targets: '1.19.2-forge,1.20.1-forge'
-          - generation: modern
+          - generation: 1.21.X
             java: '21'
             targets: '1.21.1-neoforge,1.21.11-neoforge'
+          - generation: 26.X
+            java: '25'
+            targets: '26.1.2-neoforge,26.2-neoforge,26.3-neoforge'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -141,16 +144,22 @@ jobs:
     needs: [metadata, build]
     runs-on: ubuntu-24.04
     steps:
-      - name: Download legacy artifacts
+      - name: Download old artifacts
         uses: actions/download-artifact@v4
         with:
-          name: bcce-release-legacy
+          name: bcce-release-old
           path: release
 
-      - name: Download modern artifacts
+      - name: Download 1.21.X artifacts
         uses: actions/download-artifact@v4
         with:
-          name: bcce-release-modern
+          name: bcce-release-1.21.X
+          path: release
+
+      - name: Download 26.X artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bcce-release-26.X
           path: release
 
       - name: Publish 1.19.2 Forge
@@ -265,3 +274,91 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-tag: ${{ github.event.release.tag_name }}
           github-changelog: ''
+
+      - name: Wait 1 minute before 26.1.2
+        run: sleep "$PUBLISH_DELAY_SECONDS"
+
+      - name: Publish 26.1.2 NeoForge
+        uses: Kira-NT/mc-publish@v3
+        with:
+          files: release/BuildCraft-Community-Edition-${{ github.event.release.tag_name }}+26.1.2+neoforge.jar
+          name: ${{ github.event.release.tag_name }}+26.1.2+neoforge
+          version: ${{ github.event.release.tag_name }}+26.1.2+neoforge
+          version-type: release
+          loaders: neoforge
+          game-versions: 26.1.2
+          game-version-filter: none
+          environment: client | server
+
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-changelog: ${{ github.event.release.body }}
+          modrinth-dependencies: ${{ env.MODRINTH_DEPENDENCIES }}
+
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-changelog: ${{ github.event.release.body }}
+          curseforge-dependencies: ${{ env.CURSEFORGE_DEPENDENCIES }}
+
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ github.event.release.tag_name }}
+          github-changelog: ''
+
+      - name: Wait 1 minute before 26.2
+        run: sleep "$PUBLISH_DELAY_SECONDS"
+
+      - name: Publish 26.2 NeoForge
+        uses: Kira-NT/mc-publish@v3
+        with:
+          files: release/BuildCraft-Community-Edition-${{ github.event.release.tag_name }}+26.2+neoforge.jar
+          name: ${{ github.event.release.tag_name }}+26.2+neoforge
+          version: ${{ github.event.release.tag_name }}+26.2+neoforge
+          version-type: release
+          loaders: neoforge
+          game-versions: 26.2
+          game-version-filter: none
+          environment: client | server
+
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-changelog: ${{ github.event.release.body }}
+          modrinth-dependencies: ${{ env.MODRINTH_DEPENDENCIES }}
+
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-changelog: ${{ github.event.release.body }}
+          curseforge-dependencies: ${{ env.CURSEFORGE_DEPENDENCIES }}
+
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ github.event.release.tag_name }}
+          github-changelog: ''
+
+      - name: Wait 1 minute before 26.3
+        run: sleep "$PUBLISH_DELAY_SECONDS"
+
+      - name: Publish 26.3 NeoForge
+        uses: Kira-NT/mc-publish@v3
+        with:
+          files: release/BuildCraft-Community-Edition-${{ github.event.release.tag_name }}+26.3+neoforge.jar
+          name: ${{ github.event.release.tag_name }}+26.3+neoforge
+          version: ${{ github.event.release.tag_name }}+26.3+neoforge
+          version-type: release
+          loaders: neoforge
+          game-versions: 26.3
+          game-version-filter: none
+          environment: client | server
+
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-changelog: ${{ github.event.release.body }}
+          modrinth-dependencies: ${{ env.MODRINTH_DEPENDENCIES }}
+
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-changelog: ${{ github.event.release.body }}
+          curseforge-dependencies: ${{ env.CURSEFORGE_DEPENDENCIES }}
+
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ github.event.release.tag_name }}
+          github-changelog: ''
+

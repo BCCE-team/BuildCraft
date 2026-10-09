@@ -1,0 +1,20 @@
+{
+  "target": "26.1.2-neoforge",
+  "total_files_before": 4351,
+  "total_files_after": 4351,
+  "modified": {
+    "src/main/java/buildcraft/energy/block/BlockDynamoMJ.java": {
+      "before": "92f75def5b83a337b49022d1fc2b270b962d318ae3baa3178a65fde24093c4de",
+      "after": "05bcfc39ff568869453f00a855a6c252e6d5a69bd03f556d3e8ef9f409ab9849"
+    },
+    "src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java": {
+      "before": "d84541fe4193cbc02cc9cad9c6f7735b6b52438d722097049f3565a0ee0da8ad",
+      "after": "0de390dd637275ac400c5491f37d9b86bdc1482b8acb61dd1b6592486da6b00a"
+    },
+    "src/main/java/buildcraft/builders/client/render/RenderQuarry.java": {
+      "before": "9f53e104c88e3207deb217843de7bbf09b66cdcc962e2a5ea6c9c49a86b5bce1",
+      "after": "9f21b5f51adad60d96367e96e674a2d4258741bb29bebc7aab216d16390d6f0b",
+      "intermediate_broken_fix": "4cfe5c0d961bc872a97ce1d547319c0d269368be34e615d27d99897958bd9277"
+    }
+  }
+}

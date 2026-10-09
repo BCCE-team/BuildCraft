@@ -24,6 +24,9 @@ class ResourcePipeline(unittest.TestCase):
             "1.20.1-forge",
             "1.21.1-neoforge",
             "1.21.11-neoforge",
+            "26.1.2-neoforge",
+            "26.2-neoforge",
+            "26.3-neoforge",
         ):
             root = Path(cls.temp.name) / target
             materialize_target(target, root, cls.props)
@@ -41,11 +44,13 @@ class ResourcePipeline(unittest.TestCase):
             "1.19.2-forge": {
                 "assets/buildcraftenergy/textures/items/ic2_cell_fluid.png",
             },
-            # 1.20.1-only resources belong in resource-src/legacy/1.20.1, not
+            # 1.20.1-only resources belong in resource-src/old/1.20.1, not
             # the target overlay. The materialized target is checked below.
             "1.20.1-forge": set(),
             "1.21.1-neoforge": set(),
             "1.21.11-neoforge": set(),
+            "26.2-neoforge": set(),
+            "26.3-neoforge": set(),
         }
         for target, expected_paths in expected.items():
             root = ROOT / "version-src" / target / "src/main/resources"
@@ -96,6 +101,31 @@ class ResourcePipeline(unittest.TestCase):
             self.assertIn("buildcraftenergy:spout_oil", values, target)
             self.assertIn("buildcraftenergy:spout_oil_flowing", values, target)
 
+
+    def test_26_1_2_energy_buckets_skip_the_artifact_prone_cover_mask(self):
+        rel = "assets/buildcraftenergy/items/oil/cool_bucket.json"
+
+        old = self.read_json("1.21.11-neoforge", rel)["model"]
+        self.assertEqual("neoforge:item/mask/bucket_fluid_cover", old["textures"]["cover"])
+        self.assertTrue(old["cover_is_mask"])
+
+        new = self.read_json("26.1.2-neoforge", rel)["model"]
+        self.assertEqual("neoforge:fluid_container", new["type"])
+        self.assertEqual("minecraft:item/bucket", new["textures"]["base"])
+        self.assertEqual("neoforge:item/mask/bucket_fluid", new["textures"]["fluid"])
+        self.assertNotIn("cover", new["textures"])
+        self.assertNotIn("cover_is_mask", new)
+
+        bucket_root = self.roots["26.1.2-neoforge"] / "assets/buildcraftenergy/items"
+        dynamic_buckets = []
+        for path in sorted(bucket_root.rglob("*_bucket.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("model", {}).get("type") == "neoforge:fluid_container":
+                dynamic_buckets.append(path)
+                self.assertNotIn("cover", data["model"]["textures"], path.as_posix())
+                self.assertNotIn("cover_is_mask", data["model"], path.as_posix())
+        self.assertEqual(30, len(dynamic_buckets))
+
     def test_ic2_cell_models_are_generated_only_for_119(self):
         rel = Path("assets/buildcraftenergy/models/item/ic2_cell")
         old = self.roots["1.19.2-forge"] / rel
@@ -108,7 +138,7 @@ class ResourcePipeline(unittest.TestCase):
         self.assertEqual("buildcraftenergy:items/ic2_cell_fluid", sample["textures"]["fluid"])
 
     def test_canonical_atlas_is_modern_and_120_gets_only_legacy_compat_additions(self):
-        canonical = ROOT / "source-families/modern/src/main/resources/assets/minecraft/atlases/blocks.json"
+        canonical = ROOT / "source-families/1.21.X/src/main/resources/assets/minecraft/atlases/blocks.json"
         self.assertTrue(canonical.is_file())
         def resources(target: str) -> set[str]:
             data = self.read_json(target, "assets/minecraft/atlases/blocks.json")
@@ -131,7 +161,7 @@ class ResourcePipeline(unittest.TestCase):
             self.assertIn(value, modern)
 
     def test_oil_worldgen_is_newest_source_with_a_deterministic_119_downport(self):
-        canonical = ROOT / "source-families/modern/src/main/resources/data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json"
+        canonical = ROOT / "source-families/1.21.X/src/main/resources/data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json"
         self.assertTrue(canonical.is_file())
         old = self.read_json("1.19.2-forge", "data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json")
         new = self.read_json("1.20.1-forge", "data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json")
@@ -156,7 +186,7 @@ class ResourcePipeline(unittest.TestCase):
             "assets/buildcraftrobotics/items/robot.json",
             "assets/buildcraftsilicon/items/gate_copier.json",
         )
-        root = ROOT / "resource-src/modern/1.21.11"
+        root = ROOT / "resource-src/1.21.X/1.21.11"
         for rel in special:
             maintained = root / rel
             self.assertTrue(maintained.is_file(), rel)
@@ -177,20 +207,20 @@ class ResourcePipeline(unittest.TestCase):
 
     def test_versioned_binary_resource_leaves_modern_target_overlay(self):
         modern_rel = "assets/buildcrafttransport/textures/pipes/overlay_stained.png"
-        modern_source = ROOT / "resource-src/modern/1.21.11" / modern_rel
+        modern_source = ROOT / "resource-src/1.21.X/1.21.11" / modern_rel
         self.assertEqual(modern_source.read_bytes(), (self.roots["1.21.11-neoforge"] / modern_rel).read_bytes())
 
     def test_mechanical_modern_item_definitions_remain_generated(self):
         items_121 = list((self.roots["1.21.1-neoforge"] / "assets").glob("buildcraft*/items/**/*.json"))
-        items_12111 = list((self.roots["1.21.11-neoforge"] / "assets").glob("buildcraft*/items/**/*.json"))
+        items_1_21_11 = list((self.roots["1.21.11-neoforge"] / "assets").glob("buildcraft*/items/**/*.json"))
         self.assertEqual(0, len(items_121))
-        self.assertGreater(len(items_12111), 200)
+        self.assertGreater(len(items_1_21_11), 200)
         example = self.read_json("1.21.11-neoforge", "assets/buildcraftcore/items/wrench.json")
         self.assertEqual("minecraft:model", example["model"]["type"])
         self.assertEqual("buildcraftcore:item/wrench", example["model"]["model"])
 
     def test_forge_metadata_has_one_maintained_owner(self):
-        canonical = ROOT / "source-family-platforms/legacy/forge/src/main/resources/META-INF/mods.toml"
+        canonical = ROOT / "source-family-platforms/old/forge/src/main/resources/META-INF/mods.toml"
         self.assertTrue(canonical.is_file())
         self.assertFalse((ROOT / "version-src/1.19.2-forge/src/main/resources/META-INF/mods.toml").exists())
         self.assertFalse((ROOT / "version-src/1.20.1-forge/src/main/resources/META-INF/mods.toml").exists())

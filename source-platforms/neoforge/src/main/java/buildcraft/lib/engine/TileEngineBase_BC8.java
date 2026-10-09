@@ -128,6 +128,9 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
 
     protected EnumPowerStage powerStage = EnumPowerStage.BLUE;
     protected Direction currentDirection = Direction.UP;
+    // A dynamo deliberately aimed with a wrench must not be reoriented by receiver discovery.
+    // Other engine types never set this flag and retain their automatic orientation behavior.
+    private boolean manuallySelectedDirection;
 
     public long currentOutput;
     public boolean isRedstonePowered = false;
@@ -162,10 +165,6 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         syncRenderProgressFromProgress();
         if (level != null && level.isClientSide) {
             refreshEngineModelData();
-        } else if (level != null) {
-            // Revalidate the output after chunk load. The target capability can be restored after the engine NBT,
-            // and relying solely on a later neighbour event leaves an engine permanently aimed at an absent endpoint.
-            rotateIfInvalid();
         }
     }
 
@@ -196,6 +195,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         if (currentDirection == null) {
             currentDirection = Direction.UP;
         }
+        manuallySelectedDirection = bcData.has("manualDirection") && bcData.readBoolean("manualDirection");
         isRedstonePowered = bcData.readBoolean("isRedstonePowered");
         heat = bcData.readDouble("heat");
         power = bcData.readLong("power");
@@ -211,6 +211,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         CompoundTag nbt = bcData.tag();
         super.writeData(bcData);
         nbt.put("currentDirection", NBTUtilBC.writeEnum(currentDirection));
+        if (manuallySelectedDirection) bcData.writeBoolean("manualDirection", true);
         bcData.writeBoolean("isRedstonePowered", isRedstonePowered);
         bcData.writeDouble("heat", heat);
         bcData.writeLong("power", power);
@@ -277,15 +278,27 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         }
     }
 
+    /** Automatic rotation continues to prefer an actual connected receiver. */
     public InteractionResult attemptRotation() {
+        return attemptRotation(false);
+    }
+
+    /** A wrench turn is an explicit player choice, even with no energy receiver adjacent. */
+    public InteractionResult attemptManualRotation() {
+        return attemptRotation(true);
+    }
+
+    private InteractionResult attemptRotation(boolean manual) {
+        if (manual && (level == null || level.isClientSide)) return InteractionResult.FAIL;
         OrderedEnumMap<Direction> possible = VanillaRotationHandlers.ROTATE_FACING;
         Direction current = currentDirection;
         for (int i = 0; i < 6; i++) {
             current = possible.next(current);
-            if (isFacingReceiver(current)) {
+            if (manual || isFacingReceiver(current)) {
                 if (currentDirection != current) {
                     Direction previousDirection = currentDirection;
                     currentDirection = current;
+                    if (manual) manuallySelectedDirection = true;
                     // The MJ/FE output capability is sided by currentDirection. Invalidate NeoForge capability
                     // caches whenever that side changes so queries see the current output face.
                     level.invalidateCapabilities(worldPosition);
@@ -308,6 +321,28 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return InteractionResult.FAIL;
     }
 
+    /**
+     * Prefer the receiver on the face the engine was placed against. If that face cannot receive power then the
+     * direction already selected by the normal placement scan is preserved.
+     */
+    public void preferDirectionOnPlacement(Direction preferredDirection) {
+        if (preferredDirection == null || preferredDirection == currentDirection || !isFacingReceiver(preferredDirection)) {
+            return;
+        }
+        Direction previousDirection = currentDirection;
+        currentDirection = preferredDirection;
+        level.invalidateCapabilities(worldPosition);
+        sendNetworkUpdate(NET_RENDER_DATA);
+        redrawBlock();
+        markChunkDirty();
+        capturePersistedState();
+        Block sourceBlock = getBlockState().getBlock();
+        if (previousDirection != null && previousDirection != preferredDirection) {
+            level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, worldPosition);
+        }
+        level.neighborChanged(worldPosition.relative(preferredDirection), sourceBlock, worldPosition);
+    }
+
     protected boolean isFacingReceiver(Direction dir) {
         return getPortToPower(dir) != null;
     }
@@ -322,7 +357,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     public void rotateIfInvalid() {
-        if (currentDirection != null && isFacingReceiver(currentDirection)) {
+        if (manuallySelectedDirection || (currentDirection != null && isFacingReceiver(currentDirection))) {
             return;
         }
         attemptRotation();
@@ -334,6 +369,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     @Override
     public void onPlacedBy(LivingEntity placer, ItemStack stack) {
         super.onPlacedBy(placer, stack);
+        manuallySelectedDirection = false;
         currentDirection = null;// Force rotateIfInvalid to always attempt to rotate
         rotateIfInvalid();
     }
@@ -426,11 +462,6 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     public void neighbourBlockChanged(BlockState state, BlockPos nehighbour, boolean a) {
     	super.onNeighbourBlockChanged(state, nehighbour);
         isRedstonePowered = level.hasNeighborSignal(worldPosition);
-        if (!level.isClientSide) {
-            // Target blocks may be placed/removed after the engine. Re-evaluate immediately instead of keeping the
-            // direction chosen when the engine itself was first placed.
-            rotateIfInvalid();
-        }
     }
 
     public void update() {
@@ -739,27 +770,23 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     private boolean isPulsedPowerReceiver(Direction side) {
         if (level == null || side == null) return false;
         TileEngineBase_BC8 engine = this;
-        BlockEntity next = null;
-
+        BlockPos targetPos = engine.worldPosition.relative(side);
         for (int len = 0; len <= getMaxChainLength(); len++) {
-            next = engine.getTileBuffer(side).getTile();
-            if (next == null) return false;
-
-            if (next.getClass() == getClass()) {
-                if (side != ((TileEngineBase_BC8) next).currentDirection) return false;
-            }
-
-            if (next instanceof TileEngineBase_BC8) {
-                if (next.getClass() != getClass()) return false;
-                engine = (TileEngineBase_BC8) next;
-            } else {
+            BlockEntity next = level.getBlockEntity(targetPos);
+            if (!(next instanceof TileEngineBase_BC8 nextEngine)) {
                 break;
             }
+            if (len >= getMaxChainLength()) return false;
+            if (nextEngine.getClass() != getClass() || side != nextEngine.currentDirection) return false;
+            engine = nextEngine;
+            targetPos = engine.worldPosition.relative(side);
         }
 
-        if (next == null || next instanceof TileEngineBase_BC8) return false;
+        // Modern NeoForge capabilities are positional: the final receiver may intentionally have no BlockEntity.
+        // Resolve the role at the same final position used by getPortToPower() so a positional REDSTONE_RECEIVER
+        // still receives one piston-midpoint pulse instead of continuous per-tick MJ.
         return BuildCraftApi.service(BuildCraftServices.ENERGY)
-            .descriptor(level, next.getBlockPos(), side.getOpposite())
+            .descriptor(level, targetPos, side.getOpposite())
             .map(descriptor -> descriptor.has(MjPortRole.REDSTONE_RECEIVER))
             .orElse(false);
     }

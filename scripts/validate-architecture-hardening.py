@@ -203,6 +203,7 @@ def platform_metrics() -> dict[str, object]:
         "neoforge": "net.neoforged",
         "fabric": "net.fabricmc",
     }
+    props = load_properties()
     by_root: dict[str, int] = {}
     neutral: list[str] = []
     gameplay: list[str] = []
@@ -210,11 +211,25 @@ def platform_metrics() -> dict[str, object]:
         paths = java_files(root)
         by_root[label] = len(paths)
         token = own_token.get(platform)
+        ownership_exemptions: tuple[str, ...] = ()
+        parts = label.split("/")
+        if len(parts) == 3 and parts[0] == "source-family-platforms":
+            key = f"source.family_platform.{parts[1]}.{parts[2]}.allow_loader_neutral"
+            ownership_exemptions = tuple(
+                value.strip().rstrip("/")
+                for value in props.get(key, "").split(",")
+                if value.strip()
+            )
         for path in paths:
+            relative_in_root = path.relative_to(root).as_posix()
+            explicitly_owned = any(
+                relative_in_root == prefix or relative_in_root.startswith(prefix + "/")
+                for prefix in ownership_exemptions
+            )
             text = path.read_text(encoding="utf-8", errors="replace")
-            if token and token not in text:
+            if not explicitly_owned and token and token not in text:
                 neutral.append(path.relative_to(ROOT).as_posix())
-            if "/src/main/java/" in path.as_posix() and GAMEPLAY_NAME_RE.match(path.name):
+            if not explicitly_owned and "/src/main/java/" in path.as_posix() and GAMEPLAY_NAME_RE.match(path.name):
                 gameplay.append(path.relative_to(ROOT).as_posix())
     return {
         "by_root": dict(sorted(by_root.items())),
@@ -340,18 +355,18 @@ def foreign_package_metrics() -> dict[str, object]:
 
 
 def canonical_metrics(props: dict[str, str]) -> dict[str, object]:
-    canonical = props.get("source.family.modern.canonical_minecraft", "").strip()
-    modern_targets = [target for target in target_ids(props) if target_layout(target, props).family == "modern"]
-    modern_versions = {target: props.get(f"target.{target}.deps.minecraft", "").strip() for target in modern_targets}
-    newest = max(modern_versions.values(), key=version_tuple) if modern_versions else ""
-    canonical_target = next((target for target, version in modern_versions.items() if version == canonical), None)
+    canonical = props.get("source.family.1.21.X.canonical_minecraft", "").strip()
+    family_121x_targets = [target for target in target_ids(props) if target_layout(target, props).family == "1.21.X"]
+    family_121x_versions = {target: props.get(f"target.{target}.deps.minecraft", "").strip() for target in family_121x_targets}
+    newest = max(family_121x_versions.values(), key=version_tuple) if family_121x_versions else ""
+    canonical_target = next((target for target, version in family_121x_versions.items() if version == canonical), None)
     has_downport = False
     if canonical_target:
         layout = target_layout(canonical_target, props)
         has_downport = layout.family_downport_root is not None or layout.family_platform_downport_root is not None
     return {
         "configured": canonical,
-        "newest_modern": newest,
+        "newest_1_21_x": newest,
         "target": canonical_target,
         "canonical_target_uses_downport": has_downport,
     }
@@ -454,12 +469,12 @@ def validate(metrics: dict[str, object], budget: dict[str, object]) -> list[str]
         errors.append(f"conditional block budget: max is {conditions['max_blocks_per_file']} > {max_blocks}; {paths}")
 
     targets = metrics["targets"]
-    frozen_api = set(invariants.get("frozen_12111_api_files", []))
-    t12111 = targets.get("1.21.11-neoforge", {})
-    if int(t12111.get("gameplay_lib_java", -1)) != 0:
-        errors.append(f"1.21.11 target gameplay/lib overrides must be 0, got {t12111.get('gameplay_lib_java')}")
-    if int(t12111.get("api_java", -1)) != len(frozen_api):
-        errors.append(f"1.21.11 frozen API override count must be {len(frozen_api)}, got {t12111.get('api_java')}")
+    frozen_api = set(invariants.get("frozen_1.21.11_api_files", []))
+    t1_21_11 = targets.get("1.21.11-neoforge", {})
+    if int(t1_21_11.get("gameplay_lib_java", -1)) != 0:
+        errors.append(f"1.21.11 target gameplay/lib overrides must be 0, got {t1_21_11.get('gameplay_lib_java')}")
+    if int(t1_21_11.get("api_java", -1)) != len(frozen_api):
+        errors.append(f"1.21.11 frozen API override count must be {len(frozen_api)}, got {t1_21_11.get('api_java')}")
     layout = target_layout("1.21.11-neoforge", load_properties())
     actual_target_java = {
         rel for rel, path in file_map(layout.overlay_root).items()
@@ -494,13 +509,13 @@ def validate(metrics: dict[str, object], budget: dict[str, object]) -> list[str]
         errors.append(f"foreign package declaration in maintained source: {foreign['violations'][0]}")
 
     canonical = metrics["canonical"]
-    expected_canonical = invariants.get("canonical_modern_minecraft", "1.21.11")
+    expected_canonical = invariants.get("canonical_1_21_x_minecraft", "1.21.11")
     if canonical["configured"] != expected_canonical:
-        errors.append(f"modern canonical Minecraft changed unexpectedly: {canonical['configured']} != {expected_canonical}")
-    if canonical["configured"] != canonical["newest_modern"]:
-        errors.append(f"modern canonical source is not newest-first: canonical={canonical['configured']} newest={canonical['newest_modern']}")
+        errors.append(f"1.21.X canonical Minecraft changed unexpectedly: {canonical['configured']} != {expected_canonical}")
+    if canonical["configured"] != canonical["newest_1_21_x"]:
+        errors.append(f"1.21.X canonical source is not newest-first: canonical={canonical['configured']} newest={canonical['newest_1_21_x']}")
     if canonical["canonical_target_uses_downport"]:
-        errors.append("canonical modern target must not resolve through an older-version downport")
+        errors.append("canonical 1.21.X target must not resolve through an older-version downport")
 
     return errors
 

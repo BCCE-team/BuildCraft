@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
   "invariants": {
-    "canonical_modern_minecraft": "1.21.11",
+    "canonical_1_21_x_minecraft": "1.21.11",
     "max_conditional_blocks_per_java": 4,
     "max_conditional_branch_lines": 20,
-    "frozen_12111_api_files": [
+    "frozen_1.21.11_api_files": [
       "src/main/java/buildcraft/api/v2/recipe/CountedIngredient.java"
     ]
   },
   "limits": {
-    "conditions.files": 206,
-    "conditions.blocks": 391,
-    "downports.java_total": 115,
-    "platform.java_total": 560,
-    "platform.loader_neutral_count": 0,
-    "platform.gameplay_override_count": 116,
+    "conditions.files": 217,
+    "conditions.blocks": 417,
+    "downports.java_total": 253,
+    "platform.java_total": 1447,
+    "platform.loader_neutral_count": 3,
+    "platform.gameplay_override_count": 142,
     "transforms.class_specific_java_rewrites": 0,
     "foreign_packages.count": 0,
     "/targets/1.19.2-forge/java": 165,
@@ -24,6 +24,12 @@
     "/targets/1.21.1-neoforge/java": 0,
     "/targets/1.21.1-neoforge/resources": 0,
     "/targets/1.21.11-neoforge/java": 1,
-    "/targets/1.21.11-neoforge/resources": 0
+    "/targets/1.21.11-neoforge/resources": 0,
+    "/targets/26.1.2-neoforge/java": 12,
+    "/targets/26.1.2-neoforge/resources": 0,
+    "/targets/26.2-neoforge/java": 0,
+    "/targets/26.2-neoforge/resources": 0,
+    "/targets/26.3-neoforge/java": 0,
+    "/targets/26.3-neoforge/resources": 0
   }
 }

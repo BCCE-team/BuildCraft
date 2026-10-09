@@ -14,6 +14,9 @@ The goal of the project is to preserve and continue the classic BuildCraft exper
 | 1.20.1 | Forge |
 | 1.21.1 | NeoForge |
 | 1.21.11 | NeoForge |
+| 26.1.2 | NeoForge |
+| 26.2 | NeoForge |
+| 26.3 | NeoForge |
 
 ## Roadmap 2.0
 
@@ -21,9 +24,12 @@ The goal of the project is to preserve and continue the classic BuildCraft exper
 - [x] Introduce the new API v2 system
 - [x] Add Forge Energy (FE) compatibility
 - [x] Port to 1.21.11 NeoForge
+- [x] Port to 26.x NeoForge
+- [ ] Introduce API v2.1 extension
 - [ ] Port to 1.20.1 Fabric
+- [ ] Port to 1.21.1 Fabric
 - [ ] Port to 1.21.11 Fabric
-- [ ] Port to Minecraft 26.x Fabric / NeoForge
+- [ ] Port to 26.x Fabric
 
 ## API v2
 
@@ -35,12 +41,13 @@ The long-term goal is to make addons easier to maintain across BCCE's supported 
 
 ## Multi-version build and source architecture
 
-BCCE is split into two independent Stonecutter/Gradle build generations:
+BCCE has three active Stonecutter/Gradle build generations:
 
-- **legacy** — Minecraft 1.19.2 and 1.20.1;
-- **modern** — Minecraft 1.21.1+ targets.
+- **old** — Minecraft 1.19.2 and 1.20.1;
+- **1.21.X** — Minecraft 1.21.1 and 1.21.11;
+- **26.X** — Minecraft 26.1.2, 26.2 and 26.3.
 
-Each generation has its own Gradle Wrapper and Stonecutter controller under `builds/legacy` or `builds/modern`. This allows the modern build to move to newer Gradle, Java and loader toolchains without breaking the older Forge targets.
+Each generation has its own Gradle Wrapper and Stonecutter controller under `builds/<generation>`.
 
 Every target is assembled from five source layers, with each later layer able to override an earlier one:
 
@@ -57,6 +64,8 @@ Small Minecraft-version differences may use localized Stonecutter conditions ins
 The 1.19.2 implementation is the gameplay reference, but source code is allowed to differ when newer Minecraft APIs require another implementation. The compatibility target is player-visible behaviour: **different implementation, indistinguishable BuildCraft**.
 
 CI builds and tests each maintained target independently. Every target has its own build, GameTest, dedicated-server smoke and client smoke run, while cross-target architecture and parity checks remain global.
+
+The `26.X` uses 26.3-native implementations with explicit 26.2 and 26.1.2 downports. CI verifies the complete 26.1.2 effective tree against its checked-in byte-parity manifest.
 
 See [`SOURCE_FAMILIES.md`](SOURCE_FAMILIES.md) for layout rules, parity policy and build commands.
 

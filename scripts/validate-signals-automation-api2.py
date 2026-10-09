@@ -82,7 +82,7 @@ for platform in ("forge", "neoforge"):
     if "implements StripesOutput" not in stripes or "StripesRegistry.INSTANCE.handleItem" not in stripes:
         errors.append(f"{platform} PipeBehaviourStripes is not using API2 StripesOutput/dispatcher")
 
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     wire_system = text(f"source-families/{family}/src/main/java/buildcraft/transport/wire/WireSystem.java")
     if "isSignalOutputActive" in wire_system:
         errors.append(f"{family} WireSystem should query signal state through WorldSavedDataWireSystems, not manager directly")

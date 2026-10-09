@@ -105,7 +105,7 @@ class GuideBookFeatures(unittest.TestCase):
             self.assertIn("window.getHeight()", gui, target)
             self.assertIn("if (x1 <= x0 || y1 <= y0) return;", gui, target)
 
-    def test_12111_recipe_cache_preserves_datapack_ids_and_has_revision(self):
+    def test_1_21_11_recipe_cache_preserves_datapack_ids_and_has_revision(self):
         cache = self.java("1.21.11-neoforge", "buildcraft/lib/net/GuideRecipeDisplayCache.java")
         message = self.java("1.21.11-neoforge", "buildcraft/lib/net/MessageGuideRecipeDisplays.java")
         gui = self.java("1.21.11-neoforge", "buildcraft/lib/client/guide/GuiGuide.java")
@@ -129,7 +129,7 @@ class GuideBookFeatures(unittest.TestCase):
         self.assertNotIn("clientRecipeKey(RecipeDisplayEntry", gui)
 
 
-    def test_12111_keeps_multiple_displays_from_one_recipe_distinct(self):
+    def test_1_21_11_keeps_multiple_displays_from_one_recipe_distinct(self):
         gui = self.java("1.21.11-neoforge", "buildcraft/lib/client/guide/GuiGuide.java")
         cache = self.java("1.21.11-neoforge", "buildcraft/lib/net/GuideRecipeDisplayCache.java")
         self.assertIn("Set<GuideRecipeDisplayKey> renderedRecipeDisplays", gui)
@@ -140,7 +140,7 @@ class GuideBookFeatures(unittest.TestCase):
         self.assertNotIn(".findFirst()\n                    .ifPresent(recipe -> addRecipe(recipe, ItemStack.EMPTY));", gui)
         self.assertIn("Integer.toUnsignedString(display.id().index(), 16)", cache)
 
-    def test_12111_datapack_reload_resends_live_recipe_previews(self):
+    def test_1_21_11_datapack_reload_resends_live_recipe_previews(self):
         event = self.java("1.21.11-neoforge", "buildcraft/lib/BCLibEventDist.java")
         self.assertIn("OnDatapackSyncEvent", event)
         self.assertIn("public static void onDatapackSync(OnDatapackSyncEvent event)", event)

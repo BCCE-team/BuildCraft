@@ -70,8 +70,8 @@ def validate_canonical_target_registry() -> None:
 
     # Build-root files are selectors only. Per-target values must have one owner.
     props = load_properties()
-    if props.get("source.family.modern.canonical_minecraft", "").strip() != "1.21.11":
-        fail("modern canonical Java API must remain 1.21.11 until a newer modern target is intentionally promoted")
+    if props.get("source.family.1.21.X.canonical_minecraft", "").strip() != "1.21.11":
+        fail("1.21.X canonical Java API must remain 1.21.11 until a newer 1.21.X target is intentionally promoted")
 
     for generation, path in generation_config_paths().items():
         local = read_properties(path)
@@ -96,6 +96,11 @@ def validate_loader_boundaries(
     forbidden = ("net.minecraftforge", "net.neoforged", "net.fabricmc")
     for root in [shared_root, *family_roots.values(), *family_downport_roots]:
         for path in root.rglob("*.java"):
+            # 26.X owns complete API/lib copies plus loader-neutral core
+            # overrides. Its lib compatibility bridge contains NeoForge-facing
+            # signatures and is checked by the target compiler.
+            if root.name == "26.X" and path.is_relative_to(root / "src/main/java/buildcraft/lib"):
+                continue
             text = path.read_text(encoding="utf-8", errors="replace")
             for token in forbidden:
                 if token in text:
@@ -285,9 +290,9 @@ def validate_resource_pipeline_policy(configured_families: list[str], layouts: l
 
 
 def validate_preprocessor_contract() -> None:
-    if not evaluate_condition(">=26 && fabric && modern", minecraft="26.2", family="modern", platform="fabric"):
-        fail("version/loader condition engine rejected a valid future modern Fabric target")
-    if evaluate_condition("<1.20", minecraft="1.20.1", family="legacy", platform="forge"):
+    if not evaluate_condition(">=26 && fabric && mc_26_x", minecraft="26.2", family="26.X", platform="fabric"):
+        fail("version/loader condition engine rejected a valid 26.X Fabric target")
+    if evaluate_condition("<1.20", minecraft="1.20.1", family="old", platform="forge"):
         fail("version condition engine treats Minecraft 1.20.1 as <1.20")
 
     sample = """//? if <1.20 {
@@ -298,15 +303,15 @@ modernMethod()
 ?*/
 //?}
 """
-    legacy = preprocess_text(sample, minecraft="1.19.2", family="legacy", platform="forge")
-    modern = preprocess_text(sample, minecraft="1.20.1", family="legacy", platform="forge")
+    legacy = preprocess_text(sample, minecraft="1.19.2", family="old", platform="forge")
+    modern = preprocess_text(sample, minecraft="1.20.1", family="old", platform="forge")
     if legacy.strip() != "legacyField" or modern.strip() != "modernMethod()":
         fail("Stonecutter-style branch activation contract is broken")
 
     selected = "//? source if >=1.21.11\nclass NativeVariant {}\n"
-    if source_is_enabled(selected, minecraft="1.21.1", family="modern", platform="neoforge"):
+    if source_is_enabled(selected, minecraft="1.21.1", family="1.21.X", platform="neoforge"):
         fail("whole-file source selector activated before its Minecraft boundary")
-    if not source_is_enabled(selected, minecraft="1.21.11", family="modern", platform="neoforge"):
+    if not source_is_enabled(selected, minecraft="1.21.11", family="1.21.X", platform="neoforge"):
         fail("whole-file source selector did not activate at its Minecraft boundary")
     stripped, condition = strip_source_condition(selected)
     if condition != ">=1.21.11" or stripped != "class NativeVariant {}\n":
@@ -348,15 +353,22 @@ def main() -> None:
     validate_canonical_target_registry()
     props = load_properties()
     configured_families = [x.strip() for x in props.get("sourceFamilies", "").split(",") if x.strip()]
-    if configured_families != ["legacy", "modern"]:
-        fail(f"sourceFamilies must be legacy,modern; got {configured_families}")
+    if configured_families != ["old", "1.21.X", "26.X"]:
+        fail(f"sourceFamilies must be old,1.21.X,26.X; got {configured_families}")
+    for family in configured_families:
+        root_key = f"source.family.{family}.root"
+        raw_root = props.get(root_key, "").strip()
+        if not raw_root:
+            fail(f"missing {root_key}")
+        if not (ROOT / raw_root).is_dir():
+            fail(f"{family}: missing source family root {raw_root}")
 
     generations = generation_targets(props)
-    required_legacy = {"1.19.2-forge", "1.20.1-forge"}
-    if not required_legacy.issubset(generations.get("legacy", [])):
-        fail(f"legacy build generation is missing reference targets: {generations.get('legacy')}")
-    if "1.21.1-neoforge" not in generations.get("modern", []):
-        fail(f"modern build generation must contain 1.21.1-neoforge: {generations.get('modern')}")
+    required_old = {"1.19.2-forge", "1.20.1-forge"}
+    if not required_old.issubset(generations.get("old", [])):
+        fail(f"old build generation is missing reference targets: {generations.get('old')}")
+    if "1.21.1-neoforge" not in generations.get("1.21.X", []):
+        fail(f"1.21.X build generation must contain 1.21.1-neoforge: {generations.get('1.21.X')}")
     if "1.21.1-forge" in {target for values in generations.values() for target in values}:
         fail("1.21.1 Forge must not return to production source generations")
     if props.get("behaviorReference") != "1.19.2-forge":
@@ -414,6 +426,11 @@ def main() -> None:
 
     for family, files in family_maps.items():
         redundant = identical_same_path(shared_map, files)
+        allowed = tuple(
+            path.strip() for path in props.get(f"source.family.{family}.allow_exact_overrides", "").split(",")
+            if path.strip()
+        )
+        redundant = [path for path in redundant if not any(path == prefix or path.startswith(prefix + "/") for prefix in allowed)]
         if redundant:
             fail(f"family/{family}: byte-identical override duplicates source-shared; first: {redundant[0]}")
 
@@ -451,6 +468,15 @@ def main() -> None:
             if lower is not None and digest(lower) == digest(fp_path):
                 redundant.append(relative)
         if redundant:
+            allowed = tuple(
+                path.strip()
+                for path in props.get(
+                    f"source.family_platform.{family}.{platform}.allow_exact_overrides", ""
+                ).split(",")
+                if path.strip()
+            )
+            redundant = [path for path in redundant if not any(path == prefix or path.startswith(prefix + "/") for prefix in allowed)]
+        if redundant:
             fail(
                 f"family-platform/{family}/{platform}: byte-identical override duplicates lower layer; "
                 f"first: {sorted(redundant)[0]}"
@@ -476,7 +502,7 @@ def main() -> None:
                 f"first: {sorted(redundant)[0]}"
             )
 
-    escaped_global = identical_same_path(family_maps["legacy"], family_maps["modern"])
+    escaped_global = identical_same_path(family_maps["old"], family_maps["1.21.X"])
     if escaped_global:
         fail(
             f"{len(escaped_global)} identical cross-family files escaped source-shared; "
@@ -536,24 +562,27 @@ def main() -> None:
         [layout.overlay_root for layout in layouts],
     )
 
-    # Modern target overlays are emergency escape hatches only. The current
+    # 1.21.X target overlays are emergency escape hatches only. The current
     # 1.21.11 target is allowed one frozen API file because API work is explicitly
     # outside the source-family architecture rules enforced by this validator.
     for layout in layouts:
         java_paths = sorted(rel for rel in overlay_maps[layout.target] if rel.endswith(".java"))
-        if layout.family != "modern":
+        if layout.family != "1.21.X":
             continue
         if len(java_paths) > 10:
-            fail(f"{layout.target}: modern target overlay owns {len(java_paths)} Java files; budget is <=10")
+            fail(f"{layout.target}: 1.21.X target overlay owns {len(java_paths)} Java files; budget is <=10")
         if layout.target == "1.21.11-neoforge":
             allowed = {"src/main/java/buildcraft/api/v2/recipe/CountedIngredient.java"}
             unexpected = [rel for rel in java_paths if rel not in allowed]
             if unexpected:
                 fail(f"1.21.11 target Java escaped canonical/downport ownership: {unexpected[0]}")
 
-    bootstrap = ROOT / "scripts/transforms/bootstrap_12111.py"
-    if bootstrap.exists():
-        fail("target-specific scripts/transforms/bootstrap_12111.py is forbidden; use path-independent transforms")
+    target_bootstraps = sorted((ROOT / "scripts/transforms").glob("bootstrap_*.py"))
+    if target_bootstraps:
+        fail(
+            "target-specific transform bootstrap is forbidden; use path-independent transforms: "
+            + ", ".join(path.name for path in target_bootstraps)
+        )
     java_compat = ROOT / "scripts/transforms/java_compat.py"
     if not java_compat.is_file():
         fail("missing path-independent Java compatibility transform")

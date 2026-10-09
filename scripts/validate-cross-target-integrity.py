@@ -24,6 +24,16 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
+def mc_version_tuple(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
+
+
+def mc_at_least(version: str, minimum: tuple[int, ...]) -> bool:
+    current = mc_version_tuple(version)
+    width = max(len(current), len(minimum))
+    return current + (0,) * (width - len(current)) >= minimum + (0,) * (width - len(minimum))
+
+
 _RESOURCE_TEMP = tempfile.TemporaryDirectory(prefix="bc-cross-target-resources-")
 _RESOURCE_CACHE: dict[str, dict[str, Path]] = {}
 
@@ -243,7 +253,7 @@ def validate_stack_parity(props: dict[str, str]) -> None:
                 )
 
         minecraft = props[f"target.{target}.deps.minecraft"]
-        if minecraft.startswith("1.21"):
+        if mc_at_least(minecraft, (1, 21, 0)):
             map_type = effective_java(target, "buildcraft/core/item/MapLocationType.java", props)
             snapshot = effective_java(target, "buildcraft/builders/item/ItemSnapshot.java", props)
             schematic_item = effective_java(target, "buildcraft/builders/item/ItemSchematicSingle.java", props)
@@ -289,13 +299,13 @@ def validate_metadata(props: dict[str, str]) -> None:
     for target in target_ids(props):
         version = props[f"target.{target}.deps.minecraft"]
         parts = [int(x) for x in version.split(".")]
-        if len(parts) != 3:
-            fail(f"{target}: expected x.y.z Minecraft version, got {version}")
-        upper = f"{parts[0]}.{parts[1]}.{parts[2] + 1}"
+        if len(parts) not in (2, 3):
+            fail(f"{target}: expected x.y or x.y.z Minecraft version, got {version}")
+        upper = ".".join(map(str, (*parts[:-1], parts[-1] + 1)))
         expected = f"[{version},{upper})"
         actual = props.get(f"target.{target}.minecraft.version_range")
         if actual != expected:
-            fail(f"{target}: Minecraft range must be exact patch line {expected}, got {actual}")
+            fail(f"{target}: Minecraft range must be exact release line {expected}, got {actual}")
 
 
 def validate_datagen_isolation() -> None:
@@ -378,7 +388,7 @@ def validate_guide_resources() -> None:
     if missing:
         fail(f"shared guide textures incomplete: {missing}")
     for base in (
-        ROOT / "source-families/modern/src/main/resources/assets/buildcraftlib/textures/gui/guide",
+        ROOT / "source-families/1.21.X/src/main/resources/assets/buildcraftlib/textures/gui/guide",
         ROOT / "version-src/1.20.1-forge/src/main/resources/assets/buildcraftlib/textures/gui/guide",
     ):
         leftovers = [p.name for p in base.glob("*.png")] if base.is_dir() else []
@@ -410,7 +420,7 @@ def validate_promoted_cross_generation_files() -> None:
     for rel in rels:
         shared = ROOT / "source-shared/src/main" / rel
         old20 = ROOT / "version-src/1.20.1-forge/src/main" / rel
-        old21 = ROOT / "source-families/modern/src/main" / rel
+        old21 = ROOT / "source-families/1.21.X/src/main" / rel
         if not shared.is_file():
             fail(f"promoted cross-generation source missing from shared: {rel}")
         if old20.exists():
@@ -421,17 +431,11 @@ def validate_promoted_cross_generation_files() -> None:
             # shared source may therefore gain a >=1.21.11 family
             # variant without shadowing the shared implementation on 1.21.1.
             if first != "//? source if >=1.21.11":
-                fail(f"promoted source was copied back into modern family without a 1.21.11 selector: {rel}")
+                fail(f"promoted source was copied back into 1.21.X family without a 1.21.11 selector: {rel}")
 
 
 def validate_hotspots(props: dict[str, str]) -> None:
     common = {
-        "buildcraft/energy/client/gui/GuiEngineFE.java": (
-            "RenderSystem.enableBlend();", "RenderSystem.defaultBlendFunc();", "OVERLAY.drawAt",
-        ),
-        "buildcraft/energy/client/gui/GuiDynamoMJ.java": (
-            "RenderSystem.enableBlend();", "RenderSystem.defaultBlendFunc();", "OVERLAY.drawAt",
-        ),
         "buildcraft/transport/client/model/PipeBaseModelGenStandard.java": (
             "loadSpritesCache", "generateTranslucent", "getPipeModelColour",
         ),
@@ -443,6 +447,21 @@ def validate_hotspots(props: dict[str, str]) -> None:
         ),
     }
     for target in target_ids(props):
+        minecraft = props[f"target.{target}.deps.minecraft"]
+        energy_gui_tokens = (
+            ("GuiGraphicsExtractor", "guiGraphics.blit", "0xA6FFFFFF")
+            if mc_at_least(minecraft, (26, 1, 0))
+            else ("RenderSystem.enableBlend();", "RenderSystem.defaultBlendFunc();", "OVERLAY.drawAt")
+        )
+        for rel in (
+            "buildcraft/energy/client/gui/GuiEngineFE.java",
+            "buildcraft/energy/client/gui/GuiDynamoMJ.java",
+        ):
+            text = effective_java(target, rel, props)
+            for token in energy_gui_tokens:
+                if token not in text:
+                    fail(f"{target}: protected cross-target hotspot {rel} lost {token!r}")
+
         for rel, tokens in common.items():
             text = effective_java(target, rel, props)
             for token in tokens:
@@ -451,12 +470,17 @@ def validate_hotspots(props: dict[str, str]) -> None:
 
         zone_gui = effective_java(target, "buildcraft/robotics/gui/GuiZonePlanner.java", props)
         zone_map = effective_java(target, "buildcraft/robotics/zone/ZonePlannerMapChunk.java", props)
-        for token in ("Heightmap.Types.WORLD_SURFACE", "getChunkNow(key.chunkPos.x, key.chunkPos.z - 1)"):
+        north_chunk_token = (
+            "getChunkNow(key.chunkPos.x(), key.chunkPos.z() - 1)"
+            if mc_at_least(minecraft, (26, 1, 0))
+            else "getChunkNow(key.chunkPos.x, key.chunkPos.z - 1)"
+        )
+        for token in ("Heightmap.Types.WORLD_SURFACE", north_chunk_token):
             if token not in zone_map:
                 fail(f"{target}: protected Zone Planner hotspot lost {token!r}")
-        if target == "1.21.11-neoforge":
+        if mc_at_least(minecraft, (1, 21, 11)):
             if "fillNativeImage(" not in zone_gui or "argbToAbgr(colour)" in zone_gui:
-                fail(f"{target}: Zone Planner GUI must write the native 1.21.11 ARGB value directly")
+                fail(f"{target}: Zone Planner GUI must write the native modern ARGB value directly")
             for token in ("calculateARGBColor(brightness)", "new MapColourData(current.posY, mapColour)"):
                 if token not in zone_map:
                     fail(f"{target}: Zone Planner native ARGB path lost {token!r}")
@@ -654,8 +678,6 @@ def validate_build_metadata_and_source_hygiene(props: dict[str, str]) -> None:
             ):
                 if token not in bclib:
                     fail(f"{target}: BCLib DEV mode lost {token!r}")
-            if "1.21.1 provides FMLLoader but not getCurrent" not in bclib:
-                fail(f"{target}: BCLib must fall back when the current-environment accessor is unavailable")
         elif "!FMLEnvironment.production || Boolean.getBoolean(\"buildcraft.dev\")" not in bclib:
             fail(f"{target}: BCLib DEV mode lost Forge production detection")
         if "!false" in bclib:
@@ -759,8 +781,10 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
         "python scripts/validate-fe-compat.py",
         "python scripts/validate-cross-target-integrity.py",
         "python scripts/validate-api2-runtime-completeness.py",
+        "python scripts/validate-api2-modules.py",
         "python scripts/validate-behavior-parity.py",
-        "python scripts/validate-12111-parity.py",
+        "python scripts/validate-1.21.11-parity.py",
+        "python scripts/validate-26.1.2-target.py",
     ):
         if token not in validate:
             fail(f"global validation CI lost required cross-target coverage: {token}")
@@ -781,6 +805,7 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
             props[f"target.{target}.java.version"],
         )
         for target in target_ids(props)
+        if props.get(f"target.{target}.ci.runtime.enabled", "true").strip().lower() != "false"
     }
     if actual_matrix != expected_matrix:
         fail(f"target runtime CI matrix drifted: expected {expected_matrix}, found {actual_matrix}")

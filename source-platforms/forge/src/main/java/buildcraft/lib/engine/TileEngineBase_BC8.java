@@ -140,6 +140,9 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
 
     protected EnumPowerStage powerStage = EnumPowerStage.BLUE;
     protected Direction currentDirection = Direction.UP;
+    // A dynamo deliberately aimed with a wrench must not be reoriented by receiver discovery.
+    // Other engine types never set this flag and retain their automatic orientation behavior.
+    private boolean manuallySelectedDirection;
 
     public long currentOutput;
     public boolean isRedstonePowered = false;
@@ -203,6 +206,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         if (currentDirection == null) {
             currentDirection = Direction.UP;
         }
+        manuallySelectedDirection = nbt.getBoolean("manualDirection");
         isRedstonePowered = nbt.getBoolean("isRedstonePowered");
         heat = nbt.getDouble("heat");
         power = nbt.getLong("power");
@@ -217,6 +221,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     public void saveAdditional(CompoundTag nbt) {
         super.saveAdditional(nbt);
         nbt.put("currentDirection", NBTUtilBC.writeEnum(currentDirection));
+        if (manuallySelectedDirection) nbt.putBoolean("manualDirection", true);
         nbt.putBoolean("isRedstonePowered", isRedstonePowered);
         nbt.putDouble("heat", heat);
         nbt.putLong("power", power);
@@ -283,15 +288,27 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         }
     }
 
+    /** Automatic rotation continues to prefer an actual connected receiver. */
     public InteractionResult attemptRotation() {
+        return attemptRotation(false);
+    }
+
+    /** A wrench turn is an explicit player choice, even with no energy receiver adjacent. */
+    public InteractionResult attemptManualRotation() {
+        return attemptRotation(true);
+    }
+
+    private InteractionResult attemptRotation(boolean manual) {
+        if (manual && (level == null || level.isClientSide)) return InteractionResult.FAIL;
         OrderedEnumMap<Direction> possible = VanillaRotationHandlers.ROTATE_FACING;
         Direction current = currentDirection;
         for (int i = 0; i < 6; i++) {
             current = possible.next(current);
-            if (isFacingReceiver(current)) {
+            if (manual || isFacingReceiver(current)) {
                 if (currentDirection != current) {
                     Direction previousDirection = currentDirection;
                     currentDirection = current;
+                    if (manual) manuallySelectedDirection = true;
                     sendNetworkUpdate(NET_RENDER_DATA);
                     redrawBlock();
                     markChunkDirty();
@@ -311,6 +328,27 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return InteractionResult.FAIL;
     }
 
+    /**
+     * Prefer the receiver on the face the engine was placed against. If that face cannot receive power then the
+     * direction already selected by the normal placement scan is preserved.
+     */
+    public void preferDirectionOnPlacement(Direction preferredDirection) {
+        if (preferredDirection == null || preferredDirection == currentDirection || !isFacingReceiver(preferredDirection)) {
+            return;
+        }
+        Direction previousDirection = currentDirection;
+        currentDirection = preferredDirection;
+        sendNetworkUpdate(NET_RENDER_DATA);
+        redrawBlock();
+        markChunkDirty();
+        capturePersistedState();
+        Block sourceBlock = getBlockState().getBlock();
+        if (previousDirection != null && previousDirection != preferredDirection) {
+            level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, worldPosition);
+        }
+        level.neighborChanged(worldPosition.relative(preferredDirection), sourceBlock, worldPosition);
+    }
+
     protected boolean isFacingReceiver(Direction dir) {
         return getPortToPower(dir) != null;
     }
@@ -325,7 +363,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     public void rotateIfInvalid() {
-        if (currentDirection != null && isFacingReceiver(currentDirection)) {
+        if (manuallySelectedDirection || (currentDirection != null && isFacingReceiver(currentDirection))) {
             return;
         }
         attemptRotation();
@@ -337,6 +375,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     @Override
     public void onPlacedBy(LivingEntity placer, ItemStack stack) {
         super.onPlacedBy(placer, stack);
+        manuallySelectedDirection = false;
         currentDirection = null;// Force rotateIfInvalid to always attempt to rotate
         rotateIfInvalid();
     }

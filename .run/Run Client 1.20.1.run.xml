@@ -2,7 +2,7 @@
   <configuration default="false" name="Run Client 1.20.1" type="GradleRunConfiguration" factoryName="Gradle">
     <ExternalSystemSettings>
       <option name="executionName" />
-      <option name="externalProjectPath" value="$PROJECT_DIR$/builds/legacy" />
+      <option name="externalProjectPath" value="$PROJECT_DIR$/builds/old" />
       <option name="externalSystemIdString" value="GRADLE" />
       <option name="scriptParameters" value="" />
       <option name="taskDescriptions">

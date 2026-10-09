@@ -58,14 +58,15 @@ public enum EnumAddonSlot {
     public static Pair<VolumeBox, EnumAddonSlot> getSelectingVolumeBoxAndSlot(Player player,
                                                                               List<VolumeBox> volumeBoxes) {
         Vec3 start = player.getEyePosition();
-        Vec3 end = start.add(player.getLookAngle().scale(4));
+        Vec3 end = start.add(player.getLookAngle().scale(5));
         VolumeBox bestVolumeBox = null;
         EnumAddonSlot bestSlot = null;
         double bestDist = Double.MAX_VALUE;
 
         for (VolumeBox volumeBox : volumeBoxes) {
             for (EnumAddonSlot slot : values()) {
-                Optional<Vec3> ray = slot.getBoundingBox(volumeBox).clip(start, end);
+                // Keep the visible handle small, but give the player a forgiving target for installing/removing add-ons.
+                Optional<Vec3> ray = slot.getBoundingBox(volumeBox).inflate(2 / 16D).clip(start, end);
                 if (ray.isPresent()) {
                     double dist = ray.get().distanceTo(start);
                     if (bestDist > dist) {

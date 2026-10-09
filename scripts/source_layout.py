@@ -72,9 +72,9 @@ def _materialize_text_file(
     family: str,
     platform: str,
     preprocess: bool,
+    native_source: bool = False,
 ) -> None:
     raw = source_path.read_bytes()
-    native_source = False
 
     if is_conditional_text_path(source_path):
         try:
@@ -83,7 +83,7 @@ def _materialize_text_file(
             decoded = None
         if decoded is not None:
             decoded, selector = strip_source_condition(decoded)
-            native_source = selector is not None
+            native_source = native_source or selector is not None
             raw = decoded.encode("utf-8")
 
     has_directive = b"//?" in raw or b"/*?" in raw
@@ -259,6 +259,11 @@ def materialize_target(
         relative_prefix="addon-fixture/src/main/java",
     )
 
+    # A declared downport is a complete implementation of its selected API,
+    # not legacy input to upgrade again. Its root already selects the target.
+    downport_roots = tuple(root for root in (
+        layout.family_downport_root, layout.family_platform_downport_root
+    ) if root is not None)
     for relative, source_path in sorted(effective_source_files(layout, props).items()):
         _materialize_text_file(
             source_path,
@@ -268,6 +273,7 @@ def materialize_target(
             family=layout.family,
             platform=layout.platform,
             preprocess=preprocess,
+            native_source=any(source_path.is_relative_to(root) for root in downport_roots),
         )
     generate_target_files(
         dest, minecraft=minecraft, family=layout.family, platform=layout.platform

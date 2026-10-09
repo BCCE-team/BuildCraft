@@ -21,7 +21,7 @@ public class BCBuildersItems {
     public static final BCRegistryEntry<ItemSnapshot> BLUEPRINT = ITEMS.register("blueprint", () -> new ItemSnapshot(new Item.Properties().tab(BCCore.BUILDCRAFT_TAB).stacksTo(16), EnumSnapshotType.BLUEPRINT));
     public static final BCRegistryEntry<ItemSnapshot> TEMPLATE = ITEMS.register("template", () -> new ItemSnapshot(new Item.Properties().tab(BCCore.BUILDCRAFT_TAB).stacksTo(16), EnumSnapshotType.TEMPLATE));
     public static final BCRegistryEntry<ItemSchematicSingle> SCHEMATIC_SINGLE = ITEMS.register("schematic_single", () -> new ItemSchematicSingle(new Item.Properties().tab(BCCore.BUILDCRAFT_TAB).stacksTo(16)));
-    public static final BCRegistryEntry<ItemFillerPlanner> FILLER_PLANNER = ITEMS.register("filler_planner", () -> new ItemFillerPlanner(new Item.Properties()));
+    public static final BCRegistryEntry<ItemFillerPlanner> FILLER_PLANNER = ITEMS.register("filler_planner", () -> new ItemFillerPlanner(new Item.Properties().tab(BCCore.BUILDCRAFT_TAB)));
 
 
     public static final BCRegistryEntry<BlockItem> FILLER_BLOCK_ITEM = ITEMS.register("filler", () -> new BlockItem(BCBuildersBlocks.FILLER.get(),new Item.Properties().tab(BCCore.BUILDCRAFT_TAB)));

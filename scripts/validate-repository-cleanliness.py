@@ -20,6 +20,21 @@ SOURCE_ROOTS = [
 
 errors: list[str] = []
 
+# Script paths are user-facing maintenance surface. Keep Minecraft versions readable
+# instead of reintroducing compressed aliases such as 12111 or 2612. Python identifiers
+# use 1_21_11 / 26_1_2 where dots are not legal.
+COMPACT_SCRIPT_VERSION_TOKENS = {"1192", "1201", "1211", "12111", "121111", "2612"}
+for script_path in (ROOT / "scripts").rglob("*"):
+    relative = script_path.relative_to(ROOT / "scripts")
+    for part in relative.parts:
+        stem_parts = part.replace(".", "-").replace("_", "-").split("-")
+        compact = COMPACT_SCRIPT_VERSION_TOKENS.intersection(stem_parts)
+        if compact:
+            errors.append(
+                f"compressed Minecraft version token in scripts path {relative}: {sorted(compact)[0]}"
+            )
+            break
+
 
 def tracked_repository_files() -> list[Path] | None:
     """Return Git-tracked files, or None when Git metadata is unavailable.
@@ -63,6 +78,15 @@ if tracked_files is not None:
             or path.name.endswith("~")
         ):
             errors.append(f"generated/backup file is tracked: {rel}")
+
+# Every unittest module must be part of the declared CI plan. A test file that is never
+# invoked is worse than no test because it creates false confidence.
+ci_file = ROOT / ".github/workflows/ci.yml"
+if ci_file.is_file():
+    ci_text = ci_file.read_text(encoding="utf-8", errors="replace")
+    for test_path in sorted((ROOT / "scripts/tests").glob("test_*.py")):
+        if test_path.name not in ci_text:
+            errors.append(f"unreferenced unittest module is not executed by CI: {test_path.relative_to(ROOT)}")
 
 # Scratch-class '$' prefixes are forbidden in maintained sources.
 for source_root in SOURCE_ROOTS:
@@ -132,23 +156,23 @@ def check_resource_generation(target: str, family: str) -> None:
             continue
         top = data_parts[0]
         source_label = source_path.relative_to(ROOT)
-        if family == "legacy" and top in modern_only:
+        if family == "old" and top in modern_only:
             errors.append(
-                f"{target}: modern resource directory {top!r} remains in legacy source: {source_label}"
+                f"{target}: modern resource directory {top!r} remains in old source: {source_label}"
             )
-        if family == "modern" and top in legacy_only:
+        if family == "1.21.X" and top in legacy_only:
             errors.append(
-                f"{target}: legacy resource directory {top!r} remains in modern source: {source_label}"
+                f"{target}: legacy resource directory {top!r} remains in 1.21.X source: {source_label}"
             )
         if len(data_parts) >= 2 and top == "tags":
             kind = data_parts[1]
-            if family == "legacy" and kind in modern_tag_kinds:
+            if family == "old" and kind in modern_tag_kinds:
                 errors.append(
-                    f"{target}: modern tag directory {kind!r} remains in legacy source: {source_label}"
+                    f"{target}: modern tag directory {kind!r} remains in old source: {source_label}"
                 )
-            if family == "modern" and kind in legacy_tag_kinds:
+            if family == "1.21.X" and kind in legacy_tag_kinds:
                 errors.append(
-                    f"{target}: legacy tag directory {kind!r} remains in modern source: {source_label}"
+                    f"{target}: legacy tag directory {kind!r} remains in 1.21.X source: {source_label}"
                 )
 
 
@@ -202,4 +226,4 @@ if errors:
         print(f" - {error}")
     sys.exit(1)
 
-print("Repository cleanliness OK: no tracked generated junk, known scratch classes, obsolete lifecycle/UI shims, wrong-generation resource paths, stale module-local mining tags, or stale 1.12 tooltips detected")
+print("Repository cleanliness OK: no tracked generated junk, dead CI test modules, compressed script-version paths, known scratch classes, obsolete lifecycle/UI shims, wrong-generation resource paths, stale module-local mining tags, or stale 1.12 tooltips detected")

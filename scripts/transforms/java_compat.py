@@ -14,8 +14,13 @@ from source_preprocessor import version_tuple
 # Compatibility alias for the mechanically extracted bootstrap code.
 _version_tuple = version_tuple
 
+# These suffixes are historical Java package names in maintained source, not version labels for scripts.
+# Keep the package ABI stable while using readable version names everywhere else.
+SHIM_NAMESPACE_1_21_11 = "121111"
+SHIM_NAMESPACE_26_1_2 = "2612"
+
 # 1.21.11 compatibility aliases live only in BuildCraft-owned packages.
-NEOFORGE_121111_SHIM_RELOCATIONS = (
+NEOFORGE_1_21_11_SHIM_RELOCATIONS = (
     ("net.neoforged.neoforge.common.util.INBTSerializable", "buildcraft.lib.compat.neoforge121111.common.util.INBTSerializable"),
     ("net.neoforged.neoforge.client.ChunkRenderTypeSet", "buildcraft.lib.compat.neoforge121111.client.ChunkRenderTypeSet"),
     ("net.neoforged.neoforge.client.model.QuadTransformers", "buildcraft.lib.compat.neoforge121111.client.model.QuadTransformers"),
@@ -31,7 +36,7 @@ NEOFORGE_121111_SHIM_RELOCATIONS = (
 
 
 # Minecraft/Blaze3D aliases are likewise relocated into BuildCraft-owned packages.
-MINECRAFT_121111_SHIM_RELOCATIONS = (
+MINECRAFT_1_21_11_SHIM_RELOCATIONS = (
     ("com.mojang.blaze3d.vertex.BufferUploader", "buildcraft.lib.compat.mc121111.blaze3d.vertex.BufferUploader"),
     ("com.mojang.blaze3d.vertex.VertexBuffer", "buildcraft.lib.compat.mc121111.blaze3d.vertex.VertexBuffer"),
     ("net.minecraft.client.color.item.ItemColor", "buildcraft.lib.compat.mc121111.client.color.item.ItemColor"),
@@ -101,7 +106,7 @@ def _rewrite_deferred_register_calls(text: str, registry_suffix: str, compat_met
     return "".join(pieces)
 
 
-def _apply_121111_item_use_result_renames(text: str) -> str:
+def _apply_1_21_11_item_use_result_renames(text: str) -> str:
     """Adapt old Item#use ItemStack holders to 1.21.11 InteractionResult returns.
 
     Internal BuildCraft transfer helpers still use an InteractionResult + payload
@@ -167,7 +172,7 @@ def _ensure_java_import(text: str, qualified_name: str) -> str:
 def _repair_java_imports_before_package(text: str) -> str:
     """Move accidental imports that appear before the package declaration.
 
-    During fast 1.21.11 port iterations, a stale generated tree can contain an
+    A stale generated tree can contain an
     import inserted before the source header/package. Keeping this repair local
     to the materializer makes the output valid Java without touching maintained
     sources or older targets.
@@ -197,7 +202,7 @@ def _repair_java_imports_before_package(text: str) -> str:
     return body[:insert_at] + "".join(import_lines) + body[insert_at:]
 
 
-def _rewrite_121111_typed_nbt_contains(text: str) -> str:
+def _rewrite_1_21_11_typed_nbt_contains(text: str) -> str:
     """Preserve old CompoundTag#contains(key, type) semantics on 1.21.11.
 
     Minecraft 1.21.11 removed the typed overload and kept only contains(key).
@@ -210,6 +215,9 @@ def _rewrite_121111_typed_nbt_contains(text: str) -> str:
 
     def replace(match: re.Match[str]) -> str:
         receiver, key, tag_type = match.groups()
+        # Static helpers with a type-like receiver are not CompoundTag instances.
+        if receiver[:1].isupper():
+            return match.group(0)
         # TAG_ANY_NUMERIC existed on older targets but was removed from Tag in
         # 1.21.11. NbtCompat uses the numeric-type sentinel value 99.
         type_expr = "99" if tag_type == "TAG_ANY_NUMERIC" else f"Tag.{tag_type}"
@@ -218,7 +226,7 @@ def _rewrite_121111_typed_nbt_contains(text: str) -> str:
     return pattern.sub(replace, text)
 
 
-def _apply_121111_nbt_compat(text: str) -> str:
+def _apply_1_21_11_nbt_compat(text: str) -> str:
     """Route old CompoundTag convenience getters through a 1.21.11 shim.
 
     1.21.11 made many CompoundTag getters optional-returning and removed a few
@@ -237,6 +245,7 @@ def _apply_121111_nbt_compat(text: str) -> str:
         "getString": "getString",
         "getLong": "getLong",
         "getDouble": "getDouble",
+        "getFloat": "getFloat",
         "getInt": "getInt",
         "getByte": "getByte",
         "getUUID": "getUUID",
@@ -258,7 +267,12 @@ def _apply_121111_nbt_compat(text: str) -> str:
                 return match.group(0)
             # The target overlay may already use the compatibility facade directly. The pass must be
             # idempotent; otherwise NbtCompat.getX(tag, key) becomes NbtCompat.getX(NbtCompat, tag, key).
-            if receiver == "NbtCompat":
+            if receiver == "NbtCompat" or receiver[:1].isupper():
+                return match.group(0)
+            # The native 1.21.11 getters return Optional values. A following
+            # Optional operation proves that this is already native code rather
+            # than a legacy CompoundTag convenience call.
+            if re.match(r"\s*\.orElse(?:Get)?\s*\(", text[match.end() :]):
                 return match.group(0)
             # ValueInput uses Optional-returning accessors natively in 1.21.11.
             # Do not mistake its getIntArray call for an old CompoundTag getter.
@@ -270,17 +284,40 @@ def _apply_121111_nbt_compat(text: str) -> str:
         changed = changed or text != before
 
     before = text
-    text = _rewrite_121111_typed_nbt_contains(text)
-    text = re.sub(r"(\w+)\.putUUID\(([^,\n()]+),\s*([^;\n()]+)\)", r"NbtCompat.putUUID(\1, \2, \3)", text)
+    text = _rewrite_1_21_11_typed_nbt_contains(text)
+
+    def replace_put_uuid(match: re.Match[str]) -> str:
+        receiver, key, value = match.groups()
+        if receiver[:1].isupper():
+            return match.group(0)
+        return f"NbtCompat.putUUID({receiver}, {key}, {value})"
+
+    text = re.sub(r"(\w+)\.putUUID\(([^,\n()]+),\s*([^;\n()]+)\)", replace_put_uuid, text)
     text = text.replace("NbtUtils.writeBlockPos(", "NbtCompat.writeBlockPos(")
     text = text.replace("NbtUtils.readBlockPos(", "NbtCompat.readBlockPos(")
     text = text.replace("NbtUtils.loadUUID(", "NbtCompat.loadUUID(")
     text = text.replace("NbtUtils.createUUID(", "NbtCompat.createUUID(")
     text = text.replace("NbtUtils::writeBlockPos", "NbtCompat::writeBlockPos")
     text = text.replace("Direction::getNormal", "Direction::getUnitVec3i")
-    text = re.sub(r"(\w+)\.getList\(([^,\n()]+),\s*(?:(?:net\.minecraft\.nbt\.)?Tag\.TAG_[A-Z_]+|\d+)\)", r"NbtCompat.getList(\1, \2)", text)
+    def replace_get_list(match: re.Match[str]) -> str:
+        receiver, key = match.groups()
+        if receiver[:1].isupper():
+            return match.group(0)
+        return f"NbtCompat.getList({receiver}, {key})"
+
+    text = re.sub(
+        r"(\w+)\.getList\(([^,\n()]+),\s*(?:(?:net\.minecraft\.nbt\.)?Tag\.TAG_[A-Z_]+|\d+)\)",
+        replace_get_list,
+        text,
+    )
     text = re.sub(r"(NbtCompat\.getCompound\([^\n;]+?\))\.getList\(([^,\n()]+),\s*(?:(?:net\.minecraft\.nbt\.)?Tag\.TAG_[A-Z_]+|\d+)\)", r"NbtCompat.getList(\1, \2)", text)
-    text = re.sub(r"((?:\([^)]+\)|\w+))\.getAllKeys\(\)", r"NbtCompat.getAllKeys(\1)", text)
+    def replace_get_all_keys(match: re.Match[str]) -> str:
+        receiver = match.group(1)
+        if receiver[:1].isupper():
+            return match.group(0)
+        return f"NbtCompat.getAllKeys({receiver})"
+
+    text = re.sub(r"((?:\([^)]+\)|\w+))\.getAllKeys\(\)", replace_get_all_keys, text)
     text = text.replace("((CompoundTag) destination).getAllKeys()", "NbtCompat.getAllKeys((CompoundTag) destination)")
     text = text.replace("((CompoundTag) source).getAllKeys()", "NbtCompat.getAllKeys((CompoundTag) source)")
     text = re.sub(r"(\w+)\.getAsString\(\)", r"NbtCompat.getString(\1)", text)
@@ -300,7 +337,7 @@ def _apply_121111_nbt_compat(text: str) -> str:
     return text
 
 
-def _apply_121111_item_class_compat(text: str) -> str:
+def _apply_1_21_11_item_class_compat(text: str) -> str:
     """Replace removed concrete item subclasses with data-driven helpers."""
     if not any(name in text for name in ("ArmorItem", "SwordItem", "PickaxeItem", "Equipable")):
         return text
@@ -328,7 +365,7 @@ def _apply_121111_item_class_compat(text: str) -> str:
     return text
 
 
-def _apply_121111_eventbus_compat(text: str) -> str:
+def _apply_1_21_11_eventbus_compat(text: str) -> str:
     # NeoForge 21.11 removed the nested Bus selector from @EventBusSubscriber.
     return re.sub(r",\s*bus\s*=\s*EventBusSubscriber\.Bus\.MOD", "", text)
 
@@ -342,6 +379,13 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     """
     if not relative.endswith(".java") or _version_tuple(minecraft) < _version_tuple("1.21.11"):
         return text
+
+    # Compatibility implementation classes already speak the target-native API.
+    # Detect them from their source declarations rather than repository paths so
+    # the transform remains ownership-layer agnostic.
+    is_render_compat_impl = "class RenderCompat" in text
+    is_gui_input_impl = "class BCGuiInput" in text
+    is_container_input_bridge = "class BCContainerScreen" in text and "extends AbstractContainerScreen<" in text
 
     # Normalize line endings before regex/header surgery. Maintained sources may
     # use CRLF on Windows, while package/import rewrites operate on LF boundaries.
@@ -428,14 +472,20 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
         ("RenderTypes.translucent()", "RenderCompat.translucent()"),
     )
     for before, after in replacements:
+        if is_render_compat_impl and before.startswith("RenderTypes.") and after.startswith("RenderCompat."):
+            continue
         text = text.replace(before, after)
-    for before, after in NEOFORGE_121111_SHIM_RELOCATIONS:
-        text = text.replace(before, after)
-    for before, after in MINECRAFT_121111_SHIM_RELOCATIONS:
-        text = text.replace(before, after)
+    shim_namespace = SHIM_NAMESPACE_26_1_2 if _version_tuple(minecraft) >= _version_tuple("26.1.2") else SHIM_NAMESPACE_1_21_11
+    if shim_namespace == SHIM_NAMESPACE_26_1_2:
+        text = text.replace("buildcraft.lib.compat.mc121111", "buildcraft.lib.compat.mc2612")
+        text = text.replace("buildcraft.lib.compat.neoforge121111", "buildcraft.lib.compat.neoforge2612")
+    for before, after in NEOFORGE_1_21_11_SHIM_RELOCATIONS:
+        text = text.replace(before, after.replace(SHIM_NAMESPACE_1_21_11, shim_namespace))
+    for before, after in MINECRAFT_1_21_11_SHIM_RELOCATIONS:
+        text = text.replace(before, after.replace(SHIM_NAMESPACE_1_21_11, shim_namespace))
 
     # 1.21.11 removed/renamed several concrete item/entity packages and old event bus selectors.
-    text = _apply_121111_eventbus_compat(text)
+    text = _apply_1_21_11_eventbus_compat(text)
     text = re.sub(r"(?<![A-Za-z0-9_$])(\w+)\.isClientSide(?!\s*\()", r"\1.isClientSide()", text)
     text = re.sub(r"\.isClientSide(?![A-Za-z0-9_$\(])", ".isClientSide()", text)
     text = text.replace("InteractionResult.sidedSuccess(world.isClientSide())", "(world.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.SUCCESS_SERVER)")
@@ -477,12 +527,12 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     if "GameProfileCompat." in text:
         text = _ensure_java_import(text, "buildcraft.lib.compat.GameProfileCompat")
 
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\"))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))")
     text = re.sub(r"(?m)^(\s*)((?!NbtCompat\b)\w+)\.putUUID\(([^,]+),\s*([^;]+)\);", r"\1NbtCompat.putUUID(\2, \3, \4);", text)
     text = text.replace("NbtCompat.putUUID(NbtCompat, ", "NbtCompat.putUUID(")
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\").map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\"))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\").map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))")
     # NeoForge 1.21.11 added the breaking tool stack to onDestroyedByPlayer. Preserve BuildCraft's
     # selected-part removal and tile teardown paths instead of replacing the superclass result with a constant.
 
@@ -549,15 +599,21 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     # GuiBC8/ContainerScreenBase expose the old 1.21.1 input overloads on 1.21.11 and bridge the
     # native MouseButtonEvent/KeyEvent API back into them. Preserve super.oldStyle(...) calls in their
     # subclasses so machine-specific controls still reach the BuildCraft base handler before vanilla slots.
-    legacy_gui_input_bridge = "extends GuiBC8<" in text or "extends ContainerScreenBase<" in text
+    legacy_gui_input_bridge = (
+        "extends GuiBC8<" in text
+        or "extends ContainerScreenBase<" in text
+        or "extends BCContainerScreen<" in text
+        or is_container_input_bridge
+    )
     if not legacy_gui_input_bridge:
         text = re.sub(r"super\.mouseClicked\([^;]+?\)", "false", text)
         text = re.sub(r"super\.mouseDragged\([^;]+?\)", "false", text)
         text = re.sub(r"super\.mouseReleased\([^;]+?\)", "false", text)
         text = re.sub(r"super\.keyPressed\((?!event\))[^;]+?\)", "false", text)
-    # Adapt child widget calls, but never rewrite the Java 'super' receiver.
-    text = re.sub(r"\b(?!super\b)(?!RenderCompat\b)(\w+)\.mouseClicked\(([^;]+?)\)", r"RenderCompat.mouseClicked(\1, \2)", text)
-    text = re.sub(r"\b(?!super\b)(?!RenderCompat\b)(\w+)\.keyPressed\(([^;]+?)\)", r"RenderCompat.keyPressed(\1, \2)", text)
+    # Adapt child widget calls, but never rewrite the native compatibility implementations themselves.
+    if not (is_render_compat_impl or is_gui_input_impl):
+        text = re.sub(r"\b(?!super\b)(?!RenderCompat\b)(\w+)\.mouseClicked\(([^;]+?)\)", r"RenderCompat.mouseClicked(\1, \2)", text)
+        text = re.sub(r"\b(?!super\b)(?!RenderCompat\b)(\w+)\.keyPressed\(([^;]+?)\)", r"RenderCompat.keyPressed(\1, \2)", text)
     text = text.replace("Screen.hasShiftDown()", "false")
     text = re.sub(r"guiGraphics\.renderTooltip\(([^;]+?)\);", r"RenderCompat.renderTooltip(guiGraphics, \1);", text)
     text = re.sub(r"guiGraphics\.blit\(([^;]+?)\);", r"RenderCompat.blit(guiGraphics, \1);", text)
@@ -585,9 +641,6 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
 
     # 1.21.11 runtime sources do not register datagen/provider events.
     text = text.replace("Capabilities.FluidHandler.ITEM", "Capabilities.Fluid.ITEM")
-
-    # Optional NBT float getter.
-    text = re.sub(r"(?<![A-Za-z0-9_$\.])(\w+)\.getFloat\(([^;\n()]+)\)", r"NbtCompat.getFloat(\1, \2)", text)
 
     # NeighborChanged gained Orientation; null keeps the notification as a compile bridge.
     text = re.sub(r"level\.neighborChanged\(([^;]+?),\s*worldPosition\);", r"level.neighborChanged(\1, null);", text)
@@ -659,15 +712,15 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
 
     text = re.sub(r"return\s+switch\s*\(result\)\s*\{\s*case SUCCESS -> InteractionResult\.SUCCESS;\s*case CONSUME -> InteractionResult\.CONSUME;\s*case CONSUME_PARTIAL -> InteractionResult\.CONSUME;\s*case FAIL -> InteractionResult\.FAIL;\s*case PASS -> InteractionResult\.PASS;\s*case SUCCESS_NO_ITEM_USED -> InteractionResult\.TRY_WITH_EMPTY_HAND;\s*\};", "return result;", text, flags=re.DOTALL)
     text = re.sub(r"(?m)^[ \t]*@Override[ \t]*\n", "", text)
-    text = _apply_121111_item_class_compat(text)
-    text = _apply_121111_nbt_compat(text)
+    text = _apply_1_21_11_item_class_compat(text)
+    text = _apply_1_21_11_nbt_compat(text)
     text = text.replace("NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(),", "NbtUtils.readBlockState(BuiltInRegistries.BLOCK,")
     text = re.sub(r'NbtUtils\.readBlockState\(BuiltInRegistries\.BLOCK\.asLookup\(\),\s*NbtCompat\.getCompound\(([^,]+),\s*"(blockState|state)"\)\)', r'NbtUtils.readBlockState(BuiltInRegistries.BLOCK, NbtCompat.getCompound(\1, "\2"))', text)
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\"))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))")
     text = re.sub(r"(?m)^(\s*)((?!NbtCompat\b)\w+)\.putUUID\(([^,]+),\s*([^;]+)\);", r"\1NbtCompat.putUUID(\2, \3, \4);", text)
     text = text.replace("NbtCompat.putUUID(NbtCompat, ", "NbtCompat.putUUID(")
-    text = _apply_121111_item_use_result_renames(text)
+    text = _apply_1_21_11_item_use_result_renames(text)
 
     text = re.sub(
         r"return\s+NbtCompat\.readBlockPos\(parent, key\)\s*\.or\(\(\) -> tryReadBlockPos\(parent\.get\(key\)\)\)\s*\.orElse\(BlockPos\.ZERO\);",
@@ -731,7 +784,7 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
 
 
     # 1.21.11 API-shape compatibility for NBT, registries, rendering, recipes and GUI calls.
-    text = _rewrite_121111_typed_nbt_contains(text)
+    text = _rewrite_1_21_11_typed_nbt_contains(text)
     text = text.replace("level.neighborChanged(getBlockState(), currentPos.offset(side.getUnitVec3i()), BCFactoryBlocks.FLOOD_GATE_BLOCK.get(),\n                                    currentPos, false);", "level.neighborChanged(getBlockState(), currentPos.offset(side.getUnitVec3i()), BCFactoryBlocks.FLOOD_GATE_BLOCK.get(),\n                                    null, false);")
     text = text.replace("level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, worldPosition);", "level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, null);")
     text = text.replace("level.neighborChanged(worldPosition.relative(current), sourceBlock, worldPosition);", "level.neighborChanged(worldPosition.relative(current), sourceBlock, null);")
@@ -762,6 +815,19 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = text.replace("RenderSystem.setShaderFogStart(", "RenderCompat.setShaderFogStart(")
     text = text.replace("RenderSystem.setShaderFogEnd(", "RenderCompat.setShaderFogEnd(")
     text = re.sub(r"RenderSystem\.setShader\([^;]+\);", "RenderCompat.setShader(null);", text)
+    # Registry lookups return Optional holder references on 26.1.2. Normalize
+    # any wrapper emitted by an earlier materialization before adding exactly
+    # one current wrapper below; this keeps the pass idempotent.
+    legacy_registry_lookup = re.compile(
+        r"(BuiltInRegistries\.(?:ITEM|BLOCK|FLUID)\.get\([^;\n]+?\))"
+        r"\.map\(net\.minecraft\.core\.Holder\.Reference::value\)"
+        r"\.orElse\([^;\n]*?\)"
+    )
+    while True:
+        normalized = legacy_registry_lookup.sub(r"\1", text)
+        if normalized == text:
+            break
+        text = normalized
     text = text.replace("BuiltInRegistries.ITEM.get(id)", "BuiltInRegistries.ITEM.get(id).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR)")
     text = text.replace("BuiltInRegistries.ITEM.get(itemId)", "BuiltInRegistries.ITEM.get(itemId).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR)")
     text = text.replace("BuiltInRegistries.ITEM.get(location)", "BuiltInRegistries.ITEM.get(location).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR)")
@@ -769,13 +835,17 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = text.replace("BuiltInRegistries.FLUID.get(Identifier.parse(name))", "BuiltInRegistries.FLUID.get(Identifier.parse(name)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.material.Fluids.EMPTY)")
     text = text.replace("BuiltInRegistries.FLUID.get(Identifier.parse(id))", "BuiltInRegistries.FLUID.get(Identifier.parse(id)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.material.Fluids.EMPTY)")
     text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(paint.getName() + type))", "BuiltInRegistries.BLOCK.get(Identifier.parse(paint.getName() + type)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\"))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024)))", "BuiltInRegistries.BLOCK.get(Identifier.parse(buf.readUtf(1024))).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(regName))", "BuiltInRegistries.BLOCK.get(Identifier.parse(regName)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
     text = text.replace("BuiltInRegistries.BLOCK.get(id)", "BuiltInRegistries.BLOCK.get(id).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
     text = text.replace("BuiltInRegistries.BLOCK.get(loc)", "BuiltInRegistries.BLOCK.get(loc).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
     text = text.replace("FakePlayerProvider.NULL_PROFILE.getId()", "GameProfileCompat.id(FakePlayerProvider.NULL_PROFILE)")
-    text = text.replace("Ingredient.of(item)", "IngredientCompat.of(item)")
-    text = text.replace("Ingredient.of(stack)", "IngredientCompat.of(stack)")
-    text = text.replace("Ingredient.of(tag)", "IngredientCompat.of(tag)")
-    text = text.replace("Ingredient.of(Objects.requireNonNull(tag, \"tag\"))", "IngredientCompat.of(Objects.requireNonNull(tag, \"tag\"))")
+    if "package buildcraft.api.v2" not in text:
+        text = text.replace("Ingredient.of(item)", "IngredientCompat.of(item)")
+        text = text.replace("Ingredient.of(stack)", "IngredientCompat.of(stack)")
+        text = text.replace("Ingredient.of(tag)", "IngredientCompat.of(tag)")
+        text = text.replace("Ingredient.of(Objects.requireNonNull(tag, \"tag\"))", "IngredientCompat.of(Objects.requireNonNull(tag, \"tag\"))")
     text = text.replace("public RecipeType<?> getType()", "public RecipeType<? extends Recipe<RecipeInput>> getType()")
     text = text.replace("RenderCompat.blit(guiGraphics, ", "RenderCompat.blit(guiGraphics, ")
 
@@ -864,6 +934,7 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = text.replace(".getGameRules().getValue(GameRules.BLOCK_DROPS)", ".getGameRules().get(GameRules.BLOCK_DROPS)")
     text = text.replace(".getGameRules().getBoolean(GameRules.BLOCK_DROPS)", ".getGameRules().get(GameRules.BLOCK_DROPS)")
     text = text.replace(".getServer().getAdvancements()", ".level().getServer().getAdvancements()")
+    text = text.replace(".level().level().getServer().getAdvancements()", ".level().getServer().getAdvancements()")
     text = text.replace("requestedPlayer.getServer() == null", "requestedPlayer.level().getServer() == null")
     text = text.replace("requestedPlayer.getServer().getPlayerList()", "requestedPlayer.level().getServer().getPlayerList()")
     text = text.replace("playerMP.getServer().getAdvancements()", "playerMP.level().getServer().getAdvancements()")
@@ -885,7 +956,7 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = text.replace("NbtCompat.getCompound(states, 0).getBoolean(\"isHollow\")", "NbtCompat.getBoolean(NbtCompat.getCompound(states, 0), \"isHollow\")")
     text = text.replace("NbtCompat.getCompound(tagStates, 0).getBoolean(\"isHollow\")", "NbtCompat.getBoolean(NbtCompat.getCompound(tagStates, 0), \"isHollow\")")
     text = text.replace("NBTUtilBC.getItemData(stack).getCompound(\"gate\")", "NbtCompat.getCompound(NBTUtilBC.getItemData(stack), \"gate\")")
-    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(regName))", "BuiltInRegistries.BLOCK.get(Identifier.parse(regName)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR)")
+    text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(regName))", "BuiltInRegistries.BLOCK.get(Identifier.parse(regName))")
     text = text.replace("new BlockParticleOption(ParticleTypes.BLOCK, BlockState).setPos(blockPosition)", "new BlockParticleOption(ParticleTypes.BLOCK, BlockState)")
     text = text.replace("particle.pickSprite(spriteSet);", "// Sprite selection is owned by the 1.21.11 particle construction path.")
     text = text.replace("particle.setSprite(spriteSet.first());", "// Sprite selection is owned by the 1.21.11 particle construction path.")
@@ -917,14 +988,14 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     # 1.21.11 CharacterEvent input calls. Child widgets need the native record, while GuiBC8 subclasses
     # must keep super.charTyped(char,int) so the native->legacy adapter does not recurse back into the subclass.
     text = re.sub(
-        r"\b(?!super\b)(\w+)\.charTyped\(codePoint, modifiers\)",
-        r"\1.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint, modifiers))",
+        r"\b(?!(?:super|recipeBook)\b)(\w+)\.charTyped\(codePoint, modifiers\)",
+        r"\1.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint))",
         text,
     )
     if not legacy_gui_input_bridge:
         text = text.replace(
             "super.charTyped(codePoint, modifiers)",
-            "super.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint, modifiers))",
+            "super.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint))",
         )
 
 
@@ -1068,7 +1139,3 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     # target bridge and retain the Tag import where the constant itself is still referenced.
     text = _cleanup_empty_java_imports(text)
     return _repair_java_imports_before_package(text)
-
-
-
-

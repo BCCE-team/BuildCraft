@@ -1,0 +1,188 @@
+//? source if >=26.3
+package buildcraft.robotics.statements;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+
+import buildcraft.lib.internal.core.IFluidFilter;
+import buildcraft.lib.internal.core.IStackFilter;
+import buildcraft.robotics.internal.legacy.robots.DockingStation;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.lib.internal.statement.IActionInternal;
+import buildcraft.lib.internal.statement.IStatement;
+import buildcraft.lib.internal.statement.IStatementContainer;
+import buildcraft.lib.internal.statement.IStatementParameter;
+import buildcraft.lib.internal.statement.StatementParameterItemStack;
+import buildcraft.lib.internal.statement.StatementSlot;
+import buildcraft.core.statements.BCStatement;
+import buildcraft.lib.inventory.filter.ArrayFluidFilter;
+import buildcraft.lib.inventory.filter.ArrayStackOrListFilter;
+import buildcraft.lib.inventory.filter.PassThroughFluidFilter;
+import buildcraft.lib.inventory.filter.PassThroughStackFilter;
+import buildcraft.lib.internal.core.render.ISprite;
+import buildcraft.robotics.BCRoboticsSprites;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
+import net.neoforged.neoforge.fluids.FluidStack;
+import net.neoforged.neoforge.transfer.fluid.FluidUtil;
+
+public class ActionRobotFilter extends BCStatement implements IActionInternal {
+
+    public ActionRobotFilter() {
+        super("buildcraft:robot.work_filter");
+    }
+
+    public int maxParameters() { return 3; }
+    public int minParameters() { return 1; }
+
+    public IStatementParameter createParameter(int index) {
+        return StatementParameterItemStack.EMPTY;
+    }
+
+    public Component getDescription() {
+        return Component.translatable("gate.action.robot.filter");
+    }
+
+    public void actionActivate(IStatementContainer container, IStatementParameter[] parameters) {
+        // Filter is used passively by the robot AI, not actively
+    }
+
+    /** Check if any parameter slot matches the given stack. */
+    public static boolean matches(IStatementParameter[] parameters, ItemStack stack) {
+        if (parameters == null) return true;
+        boolean hasFilter = false;
+        for (IStatementParameter p : parameters) {
+            if (p == null) continue;
+            ItemStack filterStack = p.getItemStack();
+            if (!filterStack.isEmpty()) {
+                hasFilter = true;
+                if (ItemStack.isSameItemSameComponents(filterStack, stack)) return true;
+            }
+        }
+        return !hasFilter;
+    }
+
+    public static Collection<ItemStack> getGateFilterStacks(DockingStation station) {
+        Collection<ItemStack> result = new ArrayList<>();
+        if (station == null) {
+            return result;
+        }
+
+        for (StatementSlot slot : station.getActiveActions()) {
+            if (slot.statement instanceof ActionRobotFilter && slot.parameters != null) {
+                for (IStatementParameter parameter : slot.parameters) {
+                    if (parameter == null) continue;
+                    ItemStack stack = parameter.getItemStack();
+                    if (!stack.isEmpty()) {
+                        result.add(stack.copy());
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    public static IStackFilter getGateFilter(DockingStation station) {
+        Collection<ItemStack> stacks = getGateFilterStacks(station);
+        return stacks.isEmpty()
+                ? new PassThroughStackFilter()
+                : new ArrayStackOrListFilter(stacks.toArray(new ItemStack[0]));
+    }
+
+    public static Collection<FluidStack> getGateFilterFluids(DockingStation station) {
+        List<FluidStack> result = new ArrayList<>();
+        if (station == null) {
+            return result;
+        }
+
+        for (StatementSlot slot : station.getActiveActions()) {
+            if (slot.statement instanceof ActionRobotFilter && slot.parameters != null) {
+                for (IStatementParameter parameter : slot.parameters) {
+                    if (parameter == null) continue;
+                    FluidStack contained = FluidUtil.getFirstStackContained(parameter.getItemStack());
+                    if (!contained.isEmpty()) result.add(contained.copy());
+                }
+            }
+        }
+        return result;
+    }
+
+    public static IFluidFilter getGateFluidFilter(DockingStation station) {
+        Collection<FluidStack> fluids = getGateFilterFluids(station);
+        return fluids.isEmpty()
+                ? new PassThroughFluidFilter()
+                : new ArrayFluidFilter(fluids.toArray(new FluidStack[0]));
+    }
+
+    public static boolean canInteractWithFluid(DockingStation station, IFluidFilter filter, Class<?> actionClass) {
+        if (station == null) {
+            return false;
+        }
+
+        for (StatementSlot slot : station.getActiveActions()) {
+            IStatement statement = slot.statement;
+            if (statement != null && actionClass.isAssignableFrom(statement.getClass()) && parametersAllowFluid(slot.parameters, filter)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean canInteractWithItem(DockingStation station, IStackFilter filter, Class<?> actionClass) {
+        if (station == null) {
+            return false;
+        }
+
+        for (StatementSlot slot : station.getActiveActions()) {
+            IStatement statement = slot.statement;
+            if (statement != null && actionClass.isAssignableFrom(statement.getClass()) && parametersAllow(slot.parameters, filter)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean parametersAllow(IStatementParameter[] parameters, IStackFilter filter) {
+        if (parameters == null || parameters.length == 0) {
+            return true;
+        }
+
+        boolean hasFilter = false;
+        for (IStatementParameter parameter : parameters) {
+            if (parameter == null) continue;
+            ItemStack stack = parameter.getItemStack();
+            if (!stack.isEmpty()) {
+                hasFilter = true;
+                if (filter == null || filter.matches(stack)) {
+                    return true;
+                }
+            }
+        }
+        return !hasFilter;
+    }
+
+    private static boolean parametersAllowFluid(IStatementParameter[] parameters, IFluidFilter filter) {
+        if (parameters == null || parameters.length == 0) {
+            return true;
+        }
+
+        boolean hasFilter = false;
+        for (IStatementParameter parameter : parameters) {
+            if (parameter == null) continue;
+            FluidStack contained = FluidUtil.getFirstStackContained(parameter.getItemStack());
+            if (!contained.isEmpty()) {
+                hasFilter = true;
+                if (filter == null || filter.matches(contained)) {
+                    return true;
+                }
+            }
+        }
+        return !hasFilter;
+    }
+
+    public ISprite getSprite() {
+        return BCRoboticsSprites.ACTION_ROBOT_FILTER;
+    }
+}

@@ -1,0 +1,14 @@
+{
+  "model": {
+    "type": "neoforge:fluid_container",
+    "textures": {
+      "particle": "buildcraftcore:items/fragile_fluid_shard_base",
+      "base": "buildcraftcore:items/fragile_fluid_shard_base",
+      "fluid": "buildcraftcore:items/fragile_fluid_shard_fluid"
+    },
+    "fluid": "minecraft:empty",
+    "flip_gas": true,
+    "cover_is_mask": false,
+    "apply_fluid_luminosity": true
+  }
+}

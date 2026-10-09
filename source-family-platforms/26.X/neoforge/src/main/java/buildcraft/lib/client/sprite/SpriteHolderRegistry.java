@@ -1,0 +1,179 @@
+//? source if >=26.2
+/*
+ * Copyright (c) 2017 SpaceToad and the BuildCraft team
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/
+ */
+package buildcraft.lib.client.sprite;
+
+import buildcraft.lib.platform.client.ClientAtlas;
+import buildcraft.lib.internal.debug.BCDebugging;
+import buildcraft.lib.internal.debug.BCLog;
+import buildcraft.lib.internal.core.render.ISprite;
+import buildcraft.lib.misc.SpriteUtil;
+import net.minecraft.client.Minecraft;
+import net.minecraft.data.AtlasIds;
+import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
+import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.inventory.InventoryMenu;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import buildcraft.lib.compat.RenderCompat;
+
+/**
+ * Keeps stable references to sprites in the block atlas.
+ *
+ * <p>Since 1.20 the legacy pre-stitch event is no longer exposed. Sprite inclusion is therefore declared through
+ * {@code assets/minecraft/atlases/blocks.json}; this registry only refreshes the resolved atlas entries after a reload.</p>
+ */
+public final class SpriteHolderRegistry {
+    public static final boolean DEBUG = BCDebugging.shouldDebugLog("lib.sprite.holder");
+
+    private static final Map<Identifier, SpriteHolder> HOLDER_MAP = new ConcurrentHashMap<>();
+    private static volatile boolean atlasHasBeenStitched;
+
+    /** Classes which declare BuildCraft sprite holders. Strings keep optional modules optional. */
+    private static final String[] BUILTIN_HOLDER_CLASSES = {
+        "buildcraft.lib.BCLibSprites",
+        "buildcraft.core.BCCoreSprites",
+        "buildcraft.builders.BCBuildersSprites",
+        "buildcraft.factory.BCFactorySprites",
+        "buildcraft.robotics.BCRoboticsSprites",
+        "buildcraft.silicon.BCSiliconSprites",
+        "buildcraft.transport.BCTransportSprites",
+        "buildcraft.transport.client.render.PipeWireRenderer"
+    };
+
+    private SpriteHolderRegistry() {
+    }
+
+    public static SpriteHolder getHolder(Identifier location) {
+        SpriteHolder holder = HOLDER_MAP.computeIfAbsent(location, SpriteHolder::new);
+        if (atlasHasBeenStitched && holder.sprite == null) {
+            holder.refresh(RenderCompat.blockSprites());
+        }
+        return holder;
+    }
+
+    public static SpriteHolder getHolder(String location) {
+        return getHolder(Identifier.parse(location));
+    }
+
+    /** Forces holder declarations to be initialised before the first model/atlas reload. */
+    public static void bootstrapBuiltinHolders() {
+        ClassLoader loader = SpriteHolderRegistry.class.getClassLoader();
+        for (String className : BUILTIN_HOLDER_CLASSES) {
+            try {
+                Class.forName(className, true, loader);
+            } catch (ClassNotFoundException ignored) {
+                // BuildCraft modules are optional.
+            } catch (LinkageError | RuntimeException error) {
+                BCLog.logger.error("[lib.sprite.holder] Failed to initialise sprite holder class " + className, error);
+            }
+        }
+    }
+
+    public static void exportTextureMap() {
+        if (!DEBUG) return;
+        Minecraft client = Minecraft.getInstance();
+        TextureAtlas atlas = client.getAtlasManager().getAtlasOrThrow(AtlasIds.BLOCKS);
+        try {
+            atlas.dumpContents(atlas.location(), client.gameDirectory.toPath());
+        } catch (IOException error) {
+            BCLog.logger.warn("Unable to export BuildCraft texture atlas", error);
+        }
+    }
+
+    public static void onTextureStitchPost(ClientAtlas.After event) {
+        TextureAtlas atlas = event.getAtlas();
+        if (!net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_BLOCKS.equals(atlas.location())) {
+            return;
+        }
+
+        bootstrapBuiltinHolders();
+        TextureAtlasSprite missing = atlas.getSprite(MissingTextureAtlasSprite.getLocation());
+        List<Identifier> locations = new ArrayList<>(HOLDER_MAP.keySet());
+        locations.sort(Comparator.comparing(Identifier::toString));
+        List<Identifier> missingLocations = new ArrayList<>();
+
+        for (Identifier location : locations) {
+            SpriteHolder holder = HOLDER_MAP.get(location);
+            holder.refresh(atlas::getSprite);
+            if (isMissingSprite(holder.sprite, missing)) {
+                missingLocations.add(location);
+            }
+        }
+        atlasHasBeenStitched = true;
+
+        if (!missingLocations.isEmpty()) {
+            BCLog.logger.error("[lib.sprite.holder] {} BuildCraft sprites resolved to missingno:", missingLocations.size());
+            for (Identifier location : missingLocations) {
+                BCLog.logger.error("[lib.sprite.holder]   {} (expected assets/{}/textures/{}.png)",
+                    location, location.getNamespace(), location.getPath());
+            }
+        } else if (DEBUG) {
+            BCLog.logger.info("[lib.sprite.holder] Refreshed {} stitched sprite holders", locations.size());
+        }
+    }
+
+    private static boolean isMissingSprite(TextureAtlasSprite sprite, TextureAtlasSprite missing) {
+        return sprite == null || sprite == missing
+            || sprite.getU0() == missing.getU0() && sprite.getV0() == missing.getV0();
+    }
+    public static final class SpriteHolder implements ISprite {
+        public final Identifier spriteLocation;
+        private volatile TextureAtlasSprite sprite;
+        private boolean warnedBeforeStitch;
+
+        private SpriteHolder(Identifier spriteLocation) {
+            this.spriteLocation = spriteLocation;
+            if (DEBUG) {
+                BCLog.logger.info("[lib.sprite.holder] Created holder for " + spriteLocation);
+            }
+        }
+
+        private void refresh(java.util.function.Function<Identifier, TextureAtlasSprite> atlas) {
+            sprite = atlas.apply(spriteLocation);
+            warnedBeforeStitch = false;
+        }
+
+        private TextureAtlasSprite getSpriteChecking() {
+            TextureAtlasSprite current = sprite;
+            if (current == null) {
+                java.util.function.Function<Identifier, TextureAtlasSprite> atlas = RenderCompat.blockSprites();
+                current = atlas.apply(spriteLocation);
+                sprite = current;
+                if (!atlasHasBeenStitched && !warnedBeforeStitch) {
+                    warnedBeforeStitch = true;
+                    BCLog.logger.warn("[lib.sprite.holder] Sprite {} was requested before the block atlas finished loading", spriteLocation);
+                }
+            }
+            return current;
+        }
+
+        public TextureAtlasSprite getSprite() {
+            return getSpriteChecking();
+        }
+
+        public float getInterpU(double u) {
+            TextureAtlasSprite current = getSpriteChecking();
+            return current == null ? (float) u : current.getU((float) u);
+        }
+
+        public float getInterpV(double v) {
+            TextureAtlasSprite current = getSpriteChecking();
+            return current == null ? (float) v : current.getV((float) v);
+        }
+
+        public void bindTexture() {
+            SpriteUtil.bindBlockTextureMap();
+        }
+    }
+}

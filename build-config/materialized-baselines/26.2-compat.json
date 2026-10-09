@@ -1,0 +1,18 @@
+{
+  "target": "26.2-neoforge",
+  "algorithm": "sha256",
+  "file_count": 11,
+  "files": {
+    "src/main/java/buildcraft/compat/BuildCraftCompat.java": "f3c58143b3a7dd128154891ea28b5bb4041106fd33dd9565e069ee05dff3c7fa",
+    "src/main/java/buildcraft/compat/CompatCapTransfromer.java": "bb62d5b1e8bb8e3a0987c8461ab626a9c94c4232cfb82b8aab5a1c4aa5193043",
+    "src/main/java/buildcraft/compat/create/CreateCompat.java": "824eff8ff122ba6b2f14afdcc6bbde6120e5295053aab62a3e7e325640c45dbb",
+    "src/main/java/buildcraft/compat/create/CreateFluidItemAdapter.java": "548470729eff6b8650fca823d2a303757407261b664a48d9789c7a7212081ca1",
+    "src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java": "71c7b18a009c9206fde4d5cbc8b34e2712cefc7019acfda2f2100fe40ef6422a",
+    "src/main/java/buildcraft/compat/jade/JadeViewData.java": "af094b95be85d2e83570e14bc55a63352d27606811698c687112712225cd2838",
+    "src/main/java/buildcraft/compat/jei/AdvancedCraftingRecipeTransferHandler.java": "596d2fbabfa0d08cc1ddfa4d560459558f3945205f39ba538d5d00893e8944dc",
+    "src/main/java/buildcraft/compat/jei/AutoWorkbenchRecipeTransferHandler.java": "217831ed35035a6de55f96530f76c23149fa3534b309fe96fafa15bb95d134a3",
+    "src/main/java/buildcraft/compat/jei/BuildCraftJeiPlugin.java": "da009629b30d98ce0fa77b696e43c90ddafb18c1a2d1c928e6b4c5768e949d75",
+    "src/main/java/buildcraft/compat/jei/CraftingPhantomTransfer.java": "5f8202dac8a42237c6a244c1350a96be7e8663704dad6618516d184fb36137c8",
+    "src/main/java/buildcraft/compat/jei/PipeCraftingCategoryExtension.java": "c454e64879d962daf2ba3a981c763625ee1dc2e3658d9a6c9dbaf25b41a648c4"
+  }
+}

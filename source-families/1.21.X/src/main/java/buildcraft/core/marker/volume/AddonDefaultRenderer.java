@@ -1,0 +1,32 @@
+/*
+ * Copyright (c) 2017 SpaceToad and the BuildCraft team
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/
+ */
+
+package buildcraft.core.marker.volume;
+
+import com.mojang.blaze3d.vertex.VertexConsumer;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.world.phys.AABB;
+public class AddonDefaultRenderer<T extends Addon> implements IFastAddonRenderer<T> {
+    private final TextureAtlasSprite s;
+
+    public AddonDefaultRenderer() {
+        s = Minecraft.getInstance().getModelManager().getAtlas(InventoryMenu.BLOCK_ATLAS).getSprite(ResourceLocation.fromNamespaceAndPath("minecraft", "block/quartz_block_top")); // Quartz top is the neutral white fallback sprite for debug geometry.
+    }
+
+    public AddonDefaultRenderer(TextureAtlasSprite s) {
+        this.s = s;
+    }
+
+    @Override
+    public void renderAddonFast(T addon, Player player, float partialTicks, VertexConsumer builder) {
+        AddonQuadRenderer.box(builder, addon.getBoundingBox(), s, 255);
+    }
+}

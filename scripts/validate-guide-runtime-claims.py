@@ -39,7 +39,7 @@ lang = json.loads(LANG.read_text(encoding="utf-8"))
 guide_gui_paths = (
     ROOT / "version-src/1.19.2-forge/src/main/java/buildcraft/lib/client/guide/GuiGuide.java",
     ROOT / "version-src/1.20.1-forge/src/main/java/buildcraft/lib/client/guide/GuiGuide.java",
-    ROOT / "source-families/modern/src/main/java/buildcraft/lib/client/guide/GuiGuide.java",
+    ROOT / "source-families/1.21.X/src/main/java/buildcraft/lib/client/guide/GuiGuide.java",
 )
 key_pattern = re.compile(r'"(buildcraft\.guide\.contents\.[a-zA-Z0-9_.-]+)"')
 for gui_path in guide_gui_paths:
@@ -180,8 +180,13 @@ forbid(library, "Use one Library as the project archive and another near the wor
 require(blueprint, "save a master copy to your local blueprint library", "blueprint")
 
 filler_planner = page(pages, "buildcraftbuilders/item/filler_planner")
-require(filler_planner, "Open the Filler interface to configure the planner's pattern", "filler planner")
+volume_box = page(pages, "buildcraftcore/item/box_volume")
+require(volume_box, "Right-click a block with the Volume Box item", "volume box")
+require(volume_box, "right-click again to confirm", "volume box")
+require(volume_box, "Sneak-right-click while editing to cancel", "volume box")
+require(filler_planner, "Right-click the attached planner", "filler planner")
 require(filler_planner, "settings are stored in the Volume Box add-on", "filler planner")
-forbid(filler_planner, "resize and inspect the planned operation", "filler planner")
+require(filler_planner, "Open the Filler interface to configure the planner's pattern", "filler planner")
+require(filler_planner, "recover the item", "filler planner")
 
 print("Guide/runtime claims OK: transport, factory, builders, robotics, silicon, engines, facades and utility-item stacks guarded")

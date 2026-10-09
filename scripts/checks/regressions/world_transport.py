@@ -28,7 +28,7 @@ def forbid(rel, *tokens):
         if token in text:
             errors.append(f"{rel}: forbidden world/transport regression token {token!r}")
 
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     stale_bulk = ROOT / f"source-families/{family}/src/main/java/buildcraft/lib/inventory/AbstractInvItemTransactor.java"
     if stale_bulk.exists():
         errors.append(
@@ -148,7 +148,7 @@ for platform in ("forge", "neoforge"):
     )
 
 require(
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
     "if (!pipe.isConnected(item.side)) {",
     "dropItem(excess, item.side, item.side, item.speed);",
     "boolean hasConnectedOutput = hasConnectedOutputOtherThan(reachCenter.from);",
@@ -162,8 +162,8 @@ require(
 for rel in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
-    "source-downports/modern/1.21.1/neoforge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
+    "source-downports/1.21.X/1.21.1/neoforge/src/main/java/buildcraft/lib/fluid/BCFluid.java",
 ):
     require(
         rel,
@@ -190,7 +190,7 @@ for rel in (
 for rel in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/energy/generation/features/OilStructure.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/energy/generation/features/OilStructure.java",
-    "source-families/modern/src/main/java/buildcraft/energy/generation/features/OilStructure.java",
+    "source-families/1.21.X/src/main/java/buildcraft/energy/generation/features/OilStructure.java",
 ):
     require(
         rel,
@@ -222,6 +222,47 @@ require(
     "source-shared/src/main/resources/assets/buildcraft/lang/en_us.json",
     '"fluid_type.buildcraftenergy.spout_oil": "Oil (§bCool§r)"',
     '"block.buildcraftenergy.spout_oil": "Oil (§bCool§r)"',
+)
+
+# Double-chest automation must use the exact same 54-slot ordering as the vanilla chest menu.
+# Do not rebuild a CompoundContainer from whichever half automation touched: ChestBlock's combiner owns
+# FIRST/SECOND ordering and is already what Forge/NeoForge use for their native chest item capability.
+for rel in (
+    "source-platforms/forge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
+    "source-downports/1.21.X/1.21.1/neoforge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
+    "source-families/26.X/src/main/java/buildcraft/lib/misc/BlockUtil.java",
+    "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
+):
+    require(
+        rel,
+        "return ChestBlock.getContainer(chestBlock, state, chest.getLevel(), chest.getBlockPos(), true);",
+    )
+    forbid(
+        rel,
+        "chestIsFirst ? new CompoundContainer",
+        "type == ChestType.RIGHT ? new CompoundContainer",
+    )
+
+for rel in (
+    "source-platforms/forge/src/gametest/java/buildcraft/gametest/BuildCraftPipeTransportGameTests.java",
+    "source-platforms/neoforge/src/gametest/java/buildcraft/gametest/BuildCraftPipeTransportGameTests.java",
+):
+    require(
+        rel,
+        "doubleChestInsertionStartsAtGlobalSlotZeroFromEitherHalf",
+        "right-half automation did not begin at global double-chest slot 0",
+        "left-half automation did not begin at the same global double-chest slot 0",
+    )
+
+require(
+    "source-platforms/forge/src/gametest/java/buildcraft/gametest/BuildCraftPipeTransportGameTests.java",
+    "helper.getLevel().getBlockEntity(helper.absolutePos(leftPos))",
+    "helper.getLevel().getBlockEntity(helper.absolutePos(rightPos))",
+)
+forbid(
+    "source-platforms/forge/src/gametest/java/buildcraft/gametest/BuildCraftPipeTransportGameTests.java",
+    "GameTestCompat.getBlockEntity",
 )
 
 if errors:

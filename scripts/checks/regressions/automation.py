@@ -70,14 +70,14 @@ require(
     "item.getCommandSenderWorld().dimension()",
     "item.getUUID()",
 )
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     rel = f"source-families/{family}/src/main/java/buildcraft/robotics/ai/AIRobotFetchItem.java"
     require(rel, "BoardRobotPicker.TargetKey.of(item)", "targetReservation", "targettedItems.add(targetReservation)")
     forbid(rel, "targettedItems.contains(item.getId())", "targettedItems.add(targetId)")
 
 # Wire updates must be scoped to the actual player's tracked chunks, not global ticking-range state.
-# Legacy keeps the shared implementation while modern intentionally has a canonical 1.21.11
-# implementation plus a 1.21.1 downport.  Validate the effective modern views instead of
+# old keeps the shared implementation while 1.21.X intentionally has a canonical 1.21.11
+# implementation plus a 1.21.1 downport.  Validate the effective 1.21.X views instead of
 # rejecting that newest-first ownership model.
 rel = "source-shared/src/main/java/buildcraft/transport/wire/WireSystem.java"
 require(
@@ -108,7 +108,7 @@ for target, world_expr in (
             errors.append(f"{target} WireSystem: forbidden automation regression token {token!r}")
 
 # Bomber may not consume TNT or prime an explosion before zone/API2 checks for the affected area succeed.
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     rel = f"source-families/{family}/src/main/java/buildcraft/robotics/boards/BoardRobotBomber.java"
     require(
         rel,

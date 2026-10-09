@@ -2001,5 +2001,18 @@
   "item.buildcraftlib.guide_note": "BuildCraft Guide Book Note",
   "gui.ledger.help.hint": "Hover over a highlighted control to see its help.",
   "fluid_type.buildcraftenergy.spout_oil": "Oil (§bCool§r)",
-  "block.buildcraftenergy.spout_oil": "Oil (§bCool§r)"
+  "block.buildcraftenergy.spout_oil": "Oil (§bCool§r)",
+  "buildcraft.tooltip.volume_box.create": "Right-click a block to create a Volume Box",
+  "buildcraft.tooltip.volume_box.resize": "Use Marker Connector on a corner to resize; click again to confirm",
+  "buildcraft.tooltip.volume_box.remove": "Sneak + Marker Connector cancels editing or removes an unlocked box",
+  "buildcraft.tooltip.filler_planner.attach": "Right-click a Volume Box corner to attach the Filler Planner",
+  "buildcraft.tooltip.filler_planner.configure": "Right-click the attached Planner (or use the Marker Connector) to configure its pattern",
+  "buildcraft.tooltip.filler_planner.remove": "Sneak + Marker Connector removes the Planner and returns the item",
+  "buildcraft.tooltip.filler_planner.locked": "Disconnect a working Filler before changing the planned pattern",
+  "buildcraft.tooltip.volume_box.0": "Right-click block: create an area",
+  "buildcraft.tooltip.volume_box.1": "Use Marker Connector on a corner: resize",
+  "buildcraft.tooltip.volume_box.2": "Marker Connector: confirm; sneak: cancel / remove",
+  "buildcraft.tooltip.filler_planner.0": "Use on a Volume Box corner to attach",
+  "buildcraft.tooltip.filler_planner.1": "Right-click installed Planner to edit its pattern",
+  "buildcraft.tooltip.filler_planner.2": "Use the Marker Connector to retrieve it"
 }

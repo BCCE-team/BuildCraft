@@ -47,7 +47,7 @@ for platform in ("forge", "neoforge"):
     require(f"source-platforms/{platform}/src/gametest/java/buildcraft/gametest/PerformanceSmokeGameTests.java",
             "1_024", "idleBuilderAndQuarryMachineTicksRemainPowerNeutral", "manyIdleRobotsKeepChargingStateStable", "largeZoneAndChunkStyleRoundTripStaysBounded")
 
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     require(f"source-families/{family}/src/main/java/buildcraft/robotics/boards/BoardRobotBuilder.java",
             "RobotBuildResult", "result == RobotBuildResult.COMMITTED")
     require(f"source-families/{family}/src/main/java/buildcraft/lib/gui/BCMenuUtil.java", "player.isSpectator()")
@@ -63,7 +63,7 @@ for rel in (
 for rel in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/factory/tile/TileMiningWell.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/factory/tile/TileMiningWell.java",
-    "source-families/modern/src/main/java/buildcraft/factory/tile/TileMiningWell.java",
+    "source-families/1.21.X/src/main/java/buildcraft/factory/tile/TileMiningWell.java",
 ):
     require(rel, "var drops = BlockUtil.breakBlockAndGetDrops", "if (drops.isPresent())")
 

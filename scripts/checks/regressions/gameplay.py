@@ -70,7 +70,7 @@ require(
     "Math.floor(progress * 14.0F)",
 )
 
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/ai/AIRobotSearchBlock.java",
         "public boolean canLoadFromNBT()",
@@ -89,6 +89,45 @@ require(
     "source-shared/src/main/java/buildcraft/robotics/internal/legacy/robots/AIRobot.java",
     "delegateAI.shouldSaveToNBT()",
 )
+
+# 1.21.11 changed the collision hook to canBeCollidedWith(Entity), and 26.1.2 folded
+# interactAt into Entity#interact(Player, hand, location). Keep both modern signatures guarded so
+# robots remain solid to players and can still be dismantled with a wrench.
+require(
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/robotics/entity/EntityRobot.java",
+    "public boolean canBeCollidedWith(@Nullable Entity other)",
+    "public InteractionResult interact(Player player, InteractionHand hand, Vec3 location)",
+    "WrenchUtil.isWrench(stack)",
+    "onRobotHit(false)",
+)
+require(
+    "source-downports/1.21.X/1.21.1/neoforge/src/main/java/buildcraft/robotics/entity/EntityRobot.java",
+    "public boolean canBeCollidedWith()",
+    "public InteractionResult interact(Player player, InteractionHand hand)",
+)
+
+# Common gear tags are the public inter-mod contract. Keep every BuildCraft tier in both the
+# aggregate c:gears tag and its material-specific tag; c:gears/wooden is retained as a widespread
+# alias for packs/mods that use the adjective form.
+for family, item_dir in (("old", "items"), ("1.21.X", "item")):
+    tag_root = f"source-families/{family}/src/main/resources/data/c/tags/{item_dir}"
+    require(
+        f"{tag_root}/gears.json",
+        "#c:gears/wood",
+        "#c:gears/stone",
+        "#c:gears/iron",
+        "#c:gears/gold",
+        "#c:gears/diamond",
+    )
+    for material, gear in (
+        ("wood", "gear_wood"),
+        ("stone", "gear_stone"),
+        ("iron", "gear_iron"),
+        ("gold", "gear_gold"),
+        ("diamond", "gear_diamond"),
+    ):
+        require(f"{tag_root}/gears/{material}.json", f"buildcraftcore:gears/{gear}")
+    require(f"{tag_root}/gears/wooden.json", "#c:gears/wood")
 
 # Water Gel is intentionally random-tick driven; stale scheduled-tick calls must not return.
 for rel in (

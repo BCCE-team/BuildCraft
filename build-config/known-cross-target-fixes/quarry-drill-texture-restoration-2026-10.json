@@ -1,0 +1,13 @@
+{
+  "target": "26.1.2-neoforge",
+  "reason": "Restore original quarry drill head atlas and distinct side/end-cap UVs, keeping the frame lattice on gantry and pole",
+  "total_files_before": 4351,
+  "total_files_after": 4351,
+  "modified": {
+    "src/main/java/buildcraft/builders/client/render/RenderQuarry.java": {
+      "before": "9f21b5f51adad60d96367e96e674a2d4258741bb29bebc7aab216d16390d6f0b",
+      "after": "4c7c1f6c3531d9627606e545065c92bde5f4183dd736b5a67b0034a82b49de1b"
+    }
+  },
+  "note": "The previous mj-dynamo-quarry-2026-10.json is historical and retains its prior after hash; this audit chains that stage to the corrected final hash."
+}

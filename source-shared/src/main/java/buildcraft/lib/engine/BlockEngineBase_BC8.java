@@ -193,10 +193,13 @@ public abstract class BlockEngineBase_BC8<E extends Enum<E> & IEngineType & Stri
 
     @Override
     public InteractionResult attemptRotation(Level world, BlockPos pos, BlockState state, Direction sideWrenched) {
+        // The wrench is a player-controlled rotation, not receiver discovery. The server commits the new
+        // facing; the prediction client acknowledges the interaction just like MJ Dynamo.
+        if (world.isClientSide) return InteractionResult.SUCCESS;
         BlockEntity tile = world.getBlockEntity(pos);
         if (tile instanceof TileEngineBase_BC8) {
             TileEngineBase_BC8 engine = (TileEngineBase_BC8) tile;
-            return engine.attemptRotation();
+            return engine.attemptManualRotation();
         }
         return InteractionResult.FAIL;
     }

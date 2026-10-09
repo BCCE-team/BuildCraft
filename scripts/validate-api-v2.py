@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 from source_layout import load_properties, materialize_target, target_ids
 API_ROOTS = [
     ROOT / "source-shared/src/main/java/buildcraft/api/v2",
-    ROOT / "source-families/legacy/src/main/java/buildcraft/api/v2",
-    ROOT / "source-families/modern/src/main/java/buildcraft/api/v2",
+    ROOT / "source-families/old/src/main/java/buildcraft/api/v2",
+    ROOT / "source-families/1.21.X/src/main/java/buildcraft/api/v2",
 ]
 FIXTURE_ROOT = ROOT / "addon-fixture/src/main/java"
 REGISTRY_KEYS_FILE = ROOT / "source-shared/src/main/java/buildcraft/api/v2/BuildCraftRegistries.java"

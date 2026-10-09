@@ -32,9 +32,37 @@ def forbid(rel: str, *tokens: str) -> None:
             errors.append(f"{rel}: stale render/Jade pattern {token!r}")
 
 
+# Quarry frames use a cutout texture with transparent gaps. A single outward-wound cuboid makes the far/internal
+# faces disappear through those gaps, so from above only the nearest/top surface is visible. Keep both the centre and
+# connection pieces explicitly double-sided, and never attach vanilla cullface hints to their inset geometry.
+for rel, reverse_from, reverse_to in (
+    (
+        "source-shared/src/main/resources/assets/buildcraftbuilders/models/block/frame/base.json",
+        '"from": [12, 12, 12]',
+        '"to": [4, 4, 4]',
+    ),
+    (
+        "source-shared/src/main/resources/assets/buildcraftbuilders/models/block/frame/connection.json",
+        '"from": [12, 12, 4]',
+        '"to": [4, 4, 0]',
+    ),
+    (
+        "resource-src/1.21.X/1.21.11/assets/buildcraftbuilders/models/block/frame/base.json",
+        '"from": [12, 12, 12]',
+        '"to": [4, 4, 4]',
+    ),
+    (
+        "resource-src/1.21.X/1.21.11/assets/buildcraftbuilders/models/block/frame/connection.json",
+        '"from": [12, 12, 4]',
+        '"to": [4, 4, 0]',
+    ),
+):
+    require(rel, reverse_from, reverse_to)
+    forbid(rel, '"cullface"')
+
 # Volume boxes are dimension-synchronized saved data, not chunk-owned marker cache entries. Keep the data cached,
 # but hide the entire laser box unless every chunk intersecting it is actually resident on the client.
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     rel = f"source-families/{family}/src/main/java/buildcraft/core/client/render/RenderVolumeBoxes.java"
     require(
         rel,
@@ -78,19 +106,19 @@ for platform in ("forge", "neoforge"):
 # Jade 1.21.11 scans file-level @WailaPlugin annotations once per NeoForge ModContainer.
 # BuildCraft intentionally exposes several module ids from one jar, so deduplicate the scan
 # result before Jade rejects the repeated class as a fatal duplicate. Keep this shim scoped
-# to Jade and to the 1.21.11 modern NeoForge source band.
+# to Jade and to the 1.21.11 NeoForge source band.
 require(
     "source-platforms/neoforge/src/main/resources/META-INF/neoforge.mods.toml",
     'config="buildcraft.jade.mixins.json"',
     'requiredMods=["jade"]',
 )
 require(
-    "source-family-platforms/modern/neoforge/src/main/resources/buildcraft.jade.mixins.json",
+    "source-family-platforms/1.21.X/neoforge/src/main/resources/buildcraft.jade.mixins.json",
     '//? source if >=1.21.11',
     '"JadeEntrypointDedupMixin"',
 )
 require(
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/compat/jade/mixin/JadeEntrypointDedupMixin.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/compat/jade/mixin/JadeEntrypointDedupMixin.java",
     '//? source if >=1.21.11',
     '@Pseudo',
     'targets = "snownee.jade.util.CommonProxy"',
@@ -103,14 +131,14 @@ require(
 # Since Minecraft 1.21.6 Jade forbids one object from being both a server data
 # provider and a client component provider. Keep those roles split with distinct UIDs.
 require(
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
     'BlockServerDataProvider.INSTANCE',
     'RobotServerDataProvider.INSTANCE',
     'UID_BLOCK_DATA = id("block_data")',
     'UID_ENTITY_ROBOT_DATA = id("robot_data")',
 )
 forbid(
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
     'implements IBlockComponentProvider, IServerDataProvider',
     'implements IEntityComponentProvider, IServerDataProvider',
 )
@@ -202,10 +230,29 @@ for rel in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
     "source-platforms/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/compat/jade/BuildCraftJadePlugin.java",
 ):
     require(rel, "clientGroup.title = null;")
     forbid(rel, "clientGroup.title = Component.translatable")
+
+# 26.1.2 uses native face lighting for the animated distiller assembly, so legacy
+# diffuse shading must not be multiplied a second time or the moving power sprite
+# shifts to the wrong colour. Older maintained targets still need multShade().
+require(
+    "source-families/1.21.X/src/main/java/buildcraft/factory/client/render/RenderDistiller.java",
+    "//? if <26.1.2 {",
+    "copy.multShade();",
+    "buffer.getBuffer(BCRenderTypes.cutout())",
+)
+forbid(
+    "source-families/1.21.X/src/main/java/buildcraft/factory/client/render/RenderDistiller.java",
+    "buffer.getBuffer(BCRenderTypes.solid())",
+)
+require(
+    "source-families/1.21.X/src/main/java/buildcraft/factory/block/BlockDistiller.java",
+    "//? if >=1.21.11 {",
+    ".noOcclusion()",
+)
 
 if errors:
     for error in errors:

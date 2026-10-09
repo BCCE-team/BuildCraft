@@ -90,7 +90,7 @@ require(
     "targetsSameSetting(ActionWrapper other)",
     "ctx.getAllPossible()",
 )
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/lib/gui/statement/GuiElementStatement.java",
         "ctx.getAllPossible()",

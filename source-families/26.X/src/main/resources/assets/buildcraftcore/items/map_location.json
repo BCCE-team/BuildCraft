@@ -1,0 +1,54 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "buildcraftcore:map_type",
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "buildcraftcore:item/map_location/clean"
+    },
+    "entries": [
+      {
+        "threshold": 0.375,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftcore:item/map_location/path_repeating"
+        }
+      },
+      {
+        "threshold": 0.5,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftcore:item/map_location/zone"
+        }
+      },
+      {
+        "threshold": 0.625,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftcore:item/map_location/path"
+        }
+      },
+      {
+        "threshold": 0.75,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftcore:item/map_location/area"
+        }
+      },
+      {
+        "threshold": 0.875,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftcore:item/map_location/spot"
+        }
+      },
+      {
+        "threshold": 1,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftcore:item/map_location/clean"
+        }
+      }
+    ]
+  }
+}

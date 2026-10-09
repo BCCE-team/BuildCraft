@@ -288,6 +288,9 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
                 quad.setTint(tint * Direction.values().length + key.side.ordinal());
             }
         }
+        // Legacy block baking keeps facade vertex alpha opaque. Stained glass therefore needs the
+        // historical facade multiplier; without it the coloured pane is rendered almost solid.
+        // Keep this in the terrain translucent pass so water/ice ordering is still handled normally.
         if (applyGlassAlpha && isColouredGlass(key.state)) {
             for (MutableQuad quad : quads) {
                 quad.multColourd(1.0, 1.0, 1.0, 0.2);
@@ -302,7 +305,8 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
             return false;
         }
         String path = key.getPath();
-        return path.endsWith("_stained_glass") || path.endsWith("_stained_glass_pane") || path.equals("stained_glass") || path.equals("stained_glass_pane");
+        return path.endsWith("_stained_glass") || path.endsWith("_stained_glass_pane")
+            || path.equals("stained_glass") || path.equals("stained_glass_pane");
     }
 
     @Override
