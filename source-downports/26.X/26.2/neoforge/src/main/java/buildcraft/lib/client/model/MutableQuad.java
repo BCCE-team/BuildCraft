@@ -19,6 +19,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.world.phys.Vec3;
 
+import buildcraft.lib.misc.DirectionCompat;
+
 /** Holds all of the information necessary to make a {@link BakedQuad}. This provides a variety of methods to quickly
  * set or get different elements. This currently holds 4 {@link MutableVertex}. */
 public class MutableQuad {
@@ -684,7 +686,42 @@ public class MutableQuad {
         }
         // @formatter:on
         translatef(ox, oy, oz);
+        if (face != null) {
+            face = rotateFace(face, from, to);
+        }
         return this;
+    }
+
+    /** Keep the culling/shading face synchronized with the rotated vertex positions.
+     * The lookup table mirrors the existing geometry rotation (including its roll for
+     * same-axis flips), rather than guessing from the destination direction alone. */
+    private static Direction rotateFace(Direction face, Direction from, Direction to) {
+        return ROTATED_FACES[(from.ordinal() * 6 + to.ordinal()) * 6 + face.ordinal()];
+    }
+
+    private static final Direction[] ROTATED_FACES = new Direction[6 * 6 * 6];
+
+    static {
+        for (Direction from : Direction.values()) {
+            for (Direction to : Direction.values()) {
+                for (Direction face : Direction.values()) {
+                    ROTATED_FACES[(from.ordinal() * 6 + to.ordinal()) * 6 + face.ordinal()] =
+                        probeRotatedFace(face, from, to);
+                }
+            }
+        }
+    }
+
+    /** Probe the actual rotation path with an unlabeled unit vector.
+     * Keeping the probe unlabeled avoids recursive table initialization. */
+    private static Direction probeRotatedFace(Direction face, Direction from, Direction to) {
+        MutableQuad probe = new MutableQuad();
+        for (MutableVertex vertex : probe.vertexs) {
+            vertex.positionf(face.getStepX(), face.getStepY(), face.getStepZ());
+        }
+        probe.rotate(from, to, 0, 0, 0);
+        MutableVertex moved = probe.vertex_0;
+        return DirectionCompat.nearest(moved.position_x, moved.position_y, moved.position_z);
     }
 
     public MutableQuad rotateX_90(float scale) {

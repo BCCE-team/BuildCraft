@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
-import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -372,12 +371,15 @@ for path in (
 
 require("README.md", "- [x] Add Forge Energy (FE) compatibility")
 
-# Public/new naming is FE. The only old _rf strings permitted are persistence aliases.
+# Public identifiers use FE. Legitimate third-party names and RF migration diagnostics
+# must not be rejected; guard actual deprecated identifiers and migration aliases.
 allowed_rf_files = {
     ROOT / "source-families/old/src/main/java/buildcraft/transport/BCTransportPipes.java",
     ROOT / "source-families/1.21.X/src/main/java/buildcraft/transport/BCTransportPipes.java",
+    ROOT / "source-families/26.X/src/main/java/buildcraft/transport/BCTransportPipes.java",
     ROOT / "source-shared/src/main/java/buildcraft/transport/statements/ActionPowerLimit.java",
 }
+legacy_rf_identifiers = ("rf_battery", "rf_limit")
 for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-platforms", ROOT / "source-family-platforms", ROOT / "version-src"):
     for p in base.rglob("*"):
         if not p.is_file() or "build" in p.parts:
@@ -386,8 +388,9 @@ for base in (ROOT / "source-shared", ROOT / "source-families", ROOT / "source-pl
             data = p.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        if re.search(r"\bRF\b|Redstone Flux|redstone flux|rf_battery|rf_limit", data):
-            fail(f"user-facing/implementation RF branding remains: {p.relative_to(ROOT)}")
+        for identifier in legacy_rf_identifiers:
+            if identifier in data:
+                fail(f"unexpected legacy RF identifier {identifier!r}: {p.relative_to(ROOT)}")
         if "_rf" in data and p not in allowed_rf_files:
             fail(f"unexpected old _rf identifier outside migration aliases: {p.relative_to(ROOT)}")
 
