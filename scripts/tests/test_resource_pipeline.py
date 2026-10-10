@@ -265,6 +265,85 @@ class ResourcePipeline(unittest.TestCase):
             item = self.read_json("1.21.11-neoforge", rel)
             self.assertEqual("minecraft:range_dispatch", item["model"]["type"])
 
+    def test_263_advancement_trigger_renames_preserve_progression(self):
+        # In 26.3 the recipe_unlocked trigger uses `recipes` and enter_block
+        # uses `blocks`. Scan *every* materialized advancement rather than only
+        # examples so a single stale recipe can no longer prevent world load.
+        from source_layout import resolve_effective_source, target_layout
+
+        layout = target_layout("26.3-neoforge", self.props)
+        root = self.roots["26.3-neoforge"]
+        advancements = sorted((root / "data").glob("*/advancement/**/*.json"))
+        self.assertGreater(len(advancements), 175)
+        counts = {"minecraft:recipe_unlocked": 0, "minecraft:enter_block": 0}
+        renamed = {
+            "minecraft:recipe_unlocked": ("recipe", "recipes"),
+            "minecraft:enter_block": ("block", "blocks"),
+        }
+        for compiled in advancements:
+            rel = compiled.relative_to(root).as_posix()
+            original_path = resolve_effective_source(
+                layout, self.props, "src/main/resources/" + rel
+            )
+            self.assertIsNotNone(original_path, rel)
+            original = json.loads(original_path.read_text(encoding="utf-8"))
+            expected = json.loads(original_path.read_text(encoding="utf-8"))
+            actual = json.loads(compiled.read_text(encoding="utf-8"))
+
+            for key, criterion in expected.get("criteria", {}).items():
+                trigger = criterion.get("trigger")
+                if trigger not in renamed:
+                    continue
+                old_name, new_name = renamed[trigger]
+                conditions = criterion.get("conditions", {})
+                if old_name in conditions:
+                    counts[trigger] += 1
+                    self.assertNotIn(new_name, conditions, (rel, key))
+                    conditions[new_name] = conditions.pop(old_name)
+                self.assertNotIn(old_name, actual["criteria"][key].get("conditions", {}), (rel, key))
+                self.assertIn(new_name, actual["criteria"][key].get("conditions", {}), (rel, key))
+
+            # Check the entire output: criteria names, requirements, parent,
+            # rewards and optional display metadata must all remain intact.
+            self.assertEqual(expected, actual, rel)
+            self.assertEqual(original.get("requirements"), actual.get("requirements"), rel)
+            self.assertEqual(original.get("rewards"), actual.get("rewards"), rel)
+
+        self.assertEqual(145, counts["minecraft:recipe_unlocked"])
+        self.assertEqual(1, counts["minecraft:enter_block"])
+
+        # Older targets still use the old keys and must not change.
+        recipe_path = "data/buildcraftsilicon/advancement/recipe/assembly/diamond_chipset.json"
+        for target in ("1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge"):
+            self.assertEqual(
+                {"recipe": "buildcraftsilicon:assembly/diamond_chipset"},
+                self.read_json(target, recipe_path)["criteria"]["has_the_recipe"]["conditions"],
+                target,
+            )
+        old_oil = self.read_json("26.2-neoforge", "data/buildcraftenergy/advancement/sticky_dipping.json")
+        self.assertEqual("buildcraftenergy:oil", old_oil["criteria"]["oil"]["conditions"]["block"])
+
+    def test_263_advancement_transform_is_idempotent_and_scoped(self):
+        from transforms.resources import apply_resource_transforms
+
+        relative = "src/main/resources/data/buildcraftcore/advancement/recipe/example.json"
+        raw = json.dumps({
+            "criteria": {
+                "has_the_recipe": {
+                    "trigger": "minecraft:recipe_unlocked",
+                    "conditions": {"recipe": "buildcraftcore:example"},
+                }
+            },
+            "requirements": [["has_the_recipe"]],
+            "rewards": {"recipes": ["buildcraftcore:example"]},
+        })
+        new = apply_resource_transforms(raw, minecraft="26.3", relative=relative)
+        self.assertEqual(new, apply_resource_transforms(new, minecraft="26.3", relative=relative))
+        self.assertIn('"recipes": "buildcraftcore:example"', new)
+        self.assertEqual(raw, apply_resource_transforms(raw, minecraft="26.2", relative=relative))
+        self.assertEqual(raw, apply_resource_transforms(raw, minecraft="26.3",
+                            relative="src/main/resources/data/buildcraftcore/recipe/example.json"))
+
     def test_all_versioned_json_resources_are_valid_json(self):
         root = ROOT / "resource-src"
         resources = list(root.rglob("*.json"))

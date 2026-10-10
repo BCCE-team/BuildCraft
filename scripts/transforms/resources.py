@@ -315,9 +315,53 @@ def _apply_1_21_11_resource_compat(text: str, *, minecraft: str, relative: str) 
 
 
 
+
+def _upgrade_263_advancement_triggers(text: str, *, minecraft: str, normalized: str) -> str:
+    """Translate legacy advancement criteria into Minecraft 26.3's codecs.
+
+    Keep the maintained 1.21.X advancement JSON unchanged. In 26.3 the
+    minecraft:recipe_unlocked trigger renamed `recipe` to `recipes`, and
+    minecraft:enter_block renamed `block` to `blocks`. Both new fields still
+    accept a single namespaced ID. Do not change recipe rewards, the criteria
+    names, or the OR requirements: that would change player progression.
+    """
+    if (_version_tuple(minecraft) < _version_tuple("26.3")
+            or not normalized.endswith(".json")
+            or "/data/" not in normalized
+            or "/advancement/" not in normalized):
+        return text
+
+    data = json.loads(text)
+    if not isinstance(data, dict) or not isinstance(data.get("criteria"), dict):
+        return text
+
+    changed = False
+    renamed = {
+        "minecraft:recipe_unlocked": ("recipe", "recipes"),
+        "minecraft:enter_block": ("block", "blocks"),
+    }
+    for name, criterion in data["criteria"].items():
+        if not isinstance(criterion, dict):
+            continue
+        fields = renamed.get(criterion.get("trigger"))
+        conditions = criterion.get("conditions")
+        if fields is None or not isinstance(conditions, dict):
+            continue
+        old_key, new_key = fields
+        if old_key not in conditions:
+            continue
+        if new_key in conditions:
+            raise ValueError(f"{normalized}: conflicting {old_key}/{new_key} in criterion {name}")
+        conditions[new_key] = conditions.pop(old_key)
+        changed = True
+
+    return json.dumps(data, indent=2, ensure_ascii=False) + "\n" if changed else text
+
+
 def apply_resource_transforms(text: str, *, minecraft: str, relative: str) -> str:
     text = _apply_1_21_11_resource_compat(text, minecraft=minecraft, relative=relative)
     normalized = relative.replace("\\", "/")
+    text = _upgrade_263_advancement_triggers(text, minecraft=minecraft, normalized=normalized)
     text = _downport_legacy_oil_placement(text, minecraft=minecraft, normalized=normalized)
     text = _augment_legacy_120_block_atlas(text, minecraft=minecraft, normalized=normalized)
     if (_version_tuple(minecraft) >= _version_tuple("26.2")
@@ -641,6 +685,11 @@ def install_versioned_resource_sources(
             output.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, output)
             installed += 1
+    if family == "26.X" and _version_tuple(minecraft) >= _version_tuple("26.3"):
+        # ConfiguredFeature registry was removed. The entire Feature config is now inline
+        # inside the placed feature JSON; do not emit a stale configured_feature resource.
+        obsolete = output_root / "data/buildcraftenergy/worldgen/configured_feature/oil_configured_feature.json"
+        obsolete.unlink(missing_ok=True)
     return installed
 
 

@@ -77,6 +77,13 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder, Ren
             return this;
         }
 
+        //? if >=26.3 {
+        @Override
+        public VertexConsumer setUv3(float u, float v) {
+            return this;
+        }
+
+        //? }
         public VertexConsumer setNormal(float x, float y, float z) {
             return this;
         }

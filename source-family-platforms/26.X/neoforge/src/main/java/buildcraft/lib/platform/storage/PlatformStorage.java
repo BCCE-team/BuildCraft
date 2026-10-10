@@ -27,8 +27,13 @@ public final class PlatformStorage {
         if (stack == null || stack.isEmpty()) return null;
         var handler = net.neoforged.neoforge.transfer.access.ItemAccess.forStack(stack)
             .getCapability(net.neoforged.neoforge.capabilities.Capabilities.Energy.ITEM);
+        //? if >=26.3 {
+        return handler == null ? null : StorageAdapters.fromNativeEnergy(
+            buildcraft.lib.compat.transfer.TransferInterop.importEnergy(handler));
+        //?} else {
         return handler == null ? null : StorageAdapters.fromNativeEnergy(
             net.neoforged.neoforge.energy.IEnergyStorage.of(handler));
+        //?}
     }
     public static ItemStorage items(Entity entity, Direction face) {
         if (entity == null) return null;

@@ -124,6 +124,14 @@ jobs:
       - name: Test 26.2 compiler compatibility
         run: python -m unittest discover -s scripts/tests -p test_262_compile_errors.py -v
 
+      - name: Test 26.3 removed NeoForge APIs and worldgen migration
+        run: python -m unittest discover -s scripts/tests -p test_263_transfer_compile.py -v
+
+      - name: Test 26.3 inventory adapters in Java
+        run: python -m unittest discover -s scripts/tests -p test_263_item_storage_java.py -v
+      - name: Test 26.3 removed vanilla APIs and power bridge
+        run: python -m unittest discover -s scripts/tests -p test_263_followup_api.py -v
+
       - name: Validate Zone Planner block preview parity
         run: python scripts/validate-zone-planner-preview.py
 
