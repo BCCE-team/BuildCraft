@@ -10,22 +10,21 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import buildcraft.core.marker.volume.IFastAddonRenderer;
 import buildcraft.core.marker.volume.AddonQuadRenderer;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
+import buildcraft.builders.BCBuildersSprites;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public class AddonRendererFillerPlanner implements IFastAddonRenderer<AddonFillerPlanner> {
     @Override
-    public void renderAddonFast(AddonFillerPlanner addon, Player player, float partialTicks, VertexConsumer vb) {
+    public void renderAddonFast(AddonFillerPlanner addon, Player player, float partialTicks, PoseStack pose, VertexConsumer vb) {
         if (addon.buildingInfo == null) {
             return;
         }
@@ -63,11 +62,11 @@ public class AddonRendererFillerPlanner implements IFastAddonRenderer<AddonFille
   //      Minecraft.getInstance().getProfiler().pop();
 
     //    Minecraft.getInstance().getProfiler().push("render");
+        TextureAtlasSprite s = BCBuildersSprites.FILLER_PREVIEW_WHITE.getSprite();
+        if (s == null) return;
         for (BlockPos p : list) {
             AABB bb = new AABB(p, p.offset(1, 1, 1)).inflate(-0.1);
-            TextureAtlasSprite s = Minecraft.getInstance().getModelManager().getAtlas(InventoryMenu.BLOCK_ATLAS).getSprite(new ResourceLocation("minecraft", "block/quartz_block_top"));//ModelLoader.White.INSTANCE;
-
-            AddonQuadRenderer.box(vb, bb, s, 127);
+            AddonQuadRenderer.box(vb, pose, bb, s, 127);
         }
 //        Minecraft.getInstance().getProfiler().pop();
 

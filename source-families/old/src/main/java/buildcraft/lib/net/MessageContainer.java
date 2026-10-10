@@ -97,7 +97,8 @@ public class MessageContainer {
                     NetworkSecurity.requireFullyRead(payloadBuffer, container.getClass().getName() + "#"
                         + container.getIdAllocator().getNameFor(message.msgId));
                 } else if (side == BCNetworkSide.CLIENT
-                    && MessageContainerClientHandler.getClientContainerMenu() instanceof MenuBC_Neptune container) {
+                    && MessageContainerClientHandler.getClientContainerMenu() instanceof MenuBC_Neptune container
+                    && container.containerId == id) {
                     if (!container.getIdAllocator().isAllocated(message.msgId)) {
                         throw new DecoderException("Unknown client container message id " + message.msgId);
                     }

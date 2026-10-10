@@ -55,13 +55,16 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
             }
             LaserBoxRenderer.renderLaserBoxDynamic(volumeBox.box, type, pose.last().pose(), pose.last().normal(), bb, false);
 
-            // Ghost blocks use alpha. Drawing them into SOLID discards transparency on 26.2/26.3.
-            VertexConsumer ghosts = BCWorldGeometry.buffer(RenderCompat.translucent());
+        });
+        // This consumer belongs to the extraction scope; its translucent layer is submitted after capture.
+        VertexConsumer ghosts = BCWorldGeometry.buffer(RenderCompat.translucent());
+        ClientVolumeBoxes.INSTANCE.volumeBoxes.forEach(volumeBox -> {
+            if (!isBoxFullyLoaded(volumeBox)) return;
             volumeBox.addons.values().forEach(addon ->
-                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(addon, player, partialTicks, ghosts)
+                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(
+                    addon, player, partialTicks, pose, ghosts)
             );
         });
-		
 	}
 
     private static boolean isBoxFullyLoaded(buildcraft.core.marker.volume.VolumeBox volumeBox) {

@@ -6,6 +6,7 @@
 
 package buildcraft.core.client.render;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -66,15 +67,6 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
             }
             LaserBoxRenderer.renderLaserBoxDynamic(volumeBox.box, type, pose.last().pose(), pose.last().normal(), bb, false);
 
-            //? if >=1.21.9 {
-            VertexConsumer ghostLayer = Minecraft.getInstance().renderBuffers().bufferSource()
-                .getBuffer(buildcraft.lib.compat.RenderCompat.translucent());
-            //?} else {
-            VertexConsumer ghostLayer = bb;
-            //?}
-            volumeBox.addons.values().forEach(addon ->
-                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(addon, player, partialTicks, ghostLayer)
-            );
         });
         //? if <1.21.9 {
         LaserRenderer_BC8.setupLaserRenderState();
@@ -82,6 +74,38 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
         if (mesh != null) {
             BufferUploader.drawWithShader(mesh);
         }
+        // The regular laser shader disables blending: a second batch is required for transparent previews.
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.depthMask(false);
+        try {
+            BufferBuilder ghostLayer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
+            ClientVolumeBoxes.INSTANCE.volumeBoxes.forEach(volumeBox -> {
+                if (!isBoxFullyLoaded(volumeBox)) return;
+                volumeBox.addons.values().forEach(addon ->
+                    ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(
+                        addon, player, partialTicks, pose, ghostLayer)
+                );
+            });
+            var ghostMesh = ghostLayer.build();
+            if (ghostMesh != null) BufferUploader.drawWithShader(ghostMesh);
+        } finally {
+            RenderSystem.depthMask(true);
+            RenderSystem.disableBlend();
+        }
+        //?} else {
+        // Buffered NeoForge translucency must be flushed; the detached laser flush only handles solid/cutout.
+        VertexConsumer ghostLayer = Minecraft.getInstance().renderBuffers().bufferSource()
+            .getBuffer(buildcraft.lib.compat.RenderCompat.translucent());
+        ClientVolumeBoxes.INSTANCE.volumeBoxes.forEach(volumeBox -> {
+            if (!isBoxFullyLoaded(volumeBox)) return;
+            volumeBox.addons.values().forEach(addon ->
+                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(
+                    addon, player, partialTicks, pose, ghostLayer)
+            );
+        });
+        Minecraft.getInstance().renderBuffers().bufferSource().endBatch(
+            buildcraft.lib.compat.RenderCompat.translucent());
         //?}
 		
 	}

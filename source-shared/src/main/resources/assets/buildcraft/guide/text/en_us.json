@@ -945,7 +945,7 @@
       "Creating and editing",
       "Right-click a block with the Volume Box item to create a box next to that face. Use the Marker Connector while aiming at a corner to grab that corner. Move your view to resize; right-click again to confirm. Sneak-right-click while editing to cancel. Sneak-right-click while aiming at an unlocked box to remove it.",
       "Add-ons and machines",
-      "A Filler Planner item can be attached to a Volume Box corner. Right-click the placed planner to open the shape, parameter and invert editor. The selected plan is stored in the world, remains after leaving the area and is shared with a Filler installed alongside the box. A locked box cannot be resized or removed while a machine operates."
+      "A Filler Planner item can be attached to a Volume Box corner. After placing it, use the Marker Connector on the attached planner to open the shape, parameter and invert editor. The selected plan is stored in the world, remains after leaving the area and is shared with a Filler installed alongside the box. A locked box cannot be resized or removed while a machine operates."
     ],
     "buildcraftcore/item/marker_land": [
       "Large machines need an exact boundary, otherwise their appetite for blocks can become rather difficult to control.",
@@ -1024,8 +1024,8 @@
     "buildcraftbuilders/item/filler_planner": [
       "The Filler Planner stores a Filler pattern, parameters and inversion state in a Volume Box add-on. It lets you inspect the job before the Filler consumes materials and MJ.",
       "Place a Volume Box with its item, resize it using the Marker Connector, then right-click one of the box corners with a Filler Planner to attach it. One planner item is consumed in survival mode.",
-      "Right-click the attached planner at the box corner to open its pattern, parameter and invert GUI. The settings are stored in the Volume Box add-on. Preview the selected blocks around the box and attach a Filler beside the box to use the same plan. Open the Filler interface to configure the planner's pattern and monitor the live work when attached.",
-      "Use the Marker Connector on the attached corner to remove the planner and recover the item. Sneak-use the Marker Connector to remove an unlocked box and recover its installed planner. Boxes locked by an operating machine cannot be edited or removed."
+      "With the Marker Connector, right-click the installed planner at the box corner to open its pattern, parameter and invert GUI. The settings are stored in the Volume Box add-on. Preview the selected blocks around the box and attach a Filler beside the box to use the same plan. Open the Filler interface to configure the planner's pattern and monitor the live work when attached.",
+      "Sneak-use the Marker Connector on the attached corner to remove the planner and recover the item. Sneak-use the Marker Connector to remove an unlocked box and recover its installed planner. Boxes locked by an operating machine cannot be edited or removed."
     ],
     "buildcraftbuilders/block/architect": [
       "Before a machine can rebuild a structure, someone must first teach it what the structure is.",

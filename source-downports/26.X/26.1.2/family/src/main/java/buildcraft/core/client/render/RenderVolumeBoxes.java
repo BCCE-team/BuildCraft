@@ -62,13 +62,19 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
             }
             LaserBoxRenderer.renderLaserBoxDynamic(volumeBox.box, type, pose.last().pose(), pose.last().normal(), bb, false);
 
-            VertexConsumer ghostLayer = Minecraft.getInstance().renderBuffers().bufferSource()
-                .getBuffer(buildcraft.lib.compat.RenderCompat.translucent());
+        });
+        VertexConsumer ghostLayer = Minecraft.getInstance().renderBuffers().bufferSource()
+            .getBuffer(buildcraft.lib.compat.RenderCompat.translucent());
+        ClientVolumeBoxes.INSTANCE.volumeBoxes.forEach(volumeBox -> {
+            if (!isBoxFullyLoaded(volumeBox)) return;
             volumeBox.addons.values().forEach(addon ->
-                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(addon, player, partialTicks, ghostLayer)
+                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(
+                    addon, player, partialTicks, pose, ghostLayer)
             );
         });
-		
+        // The detached laser flush only handles solid/cutout; otherwise installed addons never appear.
+        Minecraft.getInstance().renderBuffers().bufferSource().endBatch(
+            buildcraft.lib.compat.RenderCompat.translucent());
 	}
 
     private static boolean isBoxFullyLoaded(buildcraft.core.marker.volume.VolumeBox volumeBox) {

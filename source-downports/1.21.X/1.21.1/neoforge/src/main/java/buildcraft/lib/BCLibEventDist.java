@@ -127,8 +127,13 @@ public class BCLibEventDist {
             Minecraft mc = Minecraft.getInstance();
             Player player = mc.player;
             if (player == null) return;
+            // RenderSystem already supplies the view rotation to the shader when BufferUploader
+            // submits BLOCK vertices. Folding event.getModelViewMatrix() into this PoseStack
+            // rotates all detached world geometry a second time: Volume Boxes, their Filler
+            // Planner holograms and marker lasers drift across the terrain as the camera turns.
+            // Keep the CPU pose in world space. FROM_WORLD_ORIGIN subtracts the camera position
+            // exactly once in DetachedRenderer.fromWorldOriginPre().
             PoseStack pose = new PoseStack();
-            pose.mulPose(new Matrix4f(event.getModelViewMatrix()));
             Matrix4f matrix = new Matrix4f(event.getProjectionMatrix());
             float partialTicks = event.getPartialTick().getGameTimeDeltaPartialTick(false);
 

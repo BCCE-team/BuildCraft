@@ -6,12 +6,12 @@ package buildcraft.builders.menu;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import buildcraft.builders.BCBuildersGuis;
 import buildcraft.builders.addon.AddonFillerPlanner;
 import buildcraft.builders.filler.FillerType;
 import buildcraft.builders.internal.filler.legacy.IFillerPattern;
-import buildcraft.core.marker.volume.ClientVolumeBoxes;
 import buildcraft.core.marker.volume.EnumAddonSlot;
 import buildcraft.core.marker.volume.Lock;
 import buildcraft.core.marker.volume.VolumeBox;
@@ -34,8 +34,13 @@ public final class ContainerFillerPlanner extends MenuBC_Neptune implements ICon
     private final FullStatement<IFillerPattern> clientEditable = new FullStatement<>(FillerType.INSTANCE, 4,
         (statement, parameter) -> onStatementChange());
     private boolean clientInverted;
+    /** Client must never use an eventually consistent Volume Box snapshot as its menu authority.
+     * The server sends the lock status along with the pattern and inversion state.
+     */
+    private boolean clientLocked = true;
     /** Applying server state must not echo GUI change callbacks back to the server. */
     private boolean applyingServerUpdate;
+    private int syncTicks;
 
     private Level playerLevel() {
         //? if <1.20 {
@@ -61,12 +66,10 @@ public final class ContainerFillerPlanner extends MenuBC_Neptune implements ICon
     }
 
     private VolumeBox findVolumeBox() {
-        Level level = playerLevel();
-        if (level.isClientSide) {
-            return ClientVolumeBoxes.INSTANCE.volumeBoxes.stream()
-                .filter(box -> box.id.equals(volumeId)).findFirst().orElse(null);
-        }
-        return WorldSavedDataVolumeBoxes.get(level).getVolumeBoxFromId(volumeId);
+        // Only server SavedData is authoritative. Client state arrives via NET_DATA
+        // and is independent of the VolumeBox render/synchronization packets.
+        return playerLevel().isClientSide ? null
+            : WorldSavedDataVolumeBoxes.get(playerLevel()).getVolumeBoxFromId(volumeId);
     }
 
     private AddonFillerPlanner getAddon() {
@@ -78,6 +81,9 @@ public final class ContainerFillerPlanner extends MenuBC_Neptune implements ICon
     @Override
     public boolean stillValid(Player player) {
         if (player != playerInventory.player) return false;
+        // A GUI can open before the periodic VolumeBox render packet arrives.
+        // Client validation against ClientVolumeBoxes produced a phantom menu.
+        if (playerLevel().isClientSide) return true;
         VolumeBox box = findVolumeBox();
         if (box == null || !(box.addons.get(addonSlot) instanceof AddonFillerPlanner)) return false;
         return box.world == playerLevel() &&
@@ -114,11 +120,12 @@ public final class ContainerFillerPlanner extends MenuBC_Neptune implements ICon
 
     @Override
     public boolean isLocked() {
+        if (playerLevel().isClientSide) return clientLocked;
         VolumeBox box = findVolumeBox();
-        if (box == null) return true;
+        if (box == null || box.isEditing()) return true;
         return box.getLockTargetsStream().anyMatch(target ->
             target instanceof Lock.Target.TargetResize ||
-                (target instanceof Lock.Target.TargetAddon slot && slot.slot == addonSlot));
+                (target instanceof Lock.Target.TargetAddon locked && locked.slot == addonSlot));
     }
 
     @Override
@@ -130,24 +137,72 @@ public final class ContainerFillerPlanner extends MenuBC_Neptune implements ICon
         WorldSavedDataVolumeBoxes.get(playerLevel()).setDirty();
     }
 
+    /** Redeliver the editor snapshot if the menu-opening packet raced the first
+     * NET_DATA on the client; also propagate lock changes while the GUI stays open.
+     */
+    @Override
+    public void broadcastChanges() {
+        super.broadcastChanges();
+        if (!playerLevel().isClientSide && ++syncTicks % 20 == 0 && stillValid(getPlayer())) {
+            sendData();
+        }
+    }
+
+    /** Menu-only protocol; never depend on async ClientVolumeBoxes for an editor.
+     * Client -> server: selected pattern + parameters + inversion.
+     * Server -> client: authoritative pattern + parameters + inversion + lock.
+     */
+    @Override
+    public void sendData() {
+        if (playerLevel().isClientSide) {
+            sendMessage(NET_DATA, buffer -> {
+                clientEditable.writeToBuffer(buffer);
+                buffer.writeBoolean(clientInverted);
+            });
+        } else {
+            AddonFillerPlanner addon = getAddon();
+            if (addon == null) return;
+            sendMessage(NET_DATA, buffer -> {
+                addon.patternStatement.writeToBuffer(buffer);
+                buffer.writeBoolean(addon.inverted);
+                buffer.writeBoolean(isLocked());
+            });
+        }
+    }
+
     @Override
     public void readMessage(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext context)
         throws IOException {
         super.readMessage(id, buffer, side, context);
-        if (side == BCNetworkSide.SERVER && id == NET_DATA && (!stillValid(getPlayer()) || isLocked())) {
-            // Consume untrusted input but do not apply ANY change while the addon is locked or out of range.
-            FullStatement<IFillerPattern> ignored = new FullStatement<>(FillerType.INSTANCE, 4, null);
-            ignored.readFromBuffer(buffer);
-            buffer.readBoolean();
+        if (id != NET_DATA) return;
+        if (side == BCNetworkSide.SERVER) {
+            // Always consume the complete client payload, even for locked or stale menus.
+            FullStatement<IFillerPattern> incoming = new FullStatement<>(FillerType.INSTANCE, 4, null);
+            incoming.readFromBuffer(buffer);
+            boolean inverted = buffer.readBoolean();
+            if (stillValid(getPlayer()) && !isLocked()) {
+                AddonFillerPlanner addon = getAddon();
+                if (addon != null) {
+                    addon.patternStatement.set(incoming.get());
+                    IntStream.range(0, 4).forEach(i -> addon.patternStatement.set(i, incoming.get(i)));
+                    addon.inverted = inverted;
+                    valuesChanged();
+                }
+            }
+            // Confirm the *real* world state, not the client's optimistic edit.
             sendData();
-            return;
-        }
-        boolean serverSnapshotUpdate = side == BCNetworkSide.CLIENT && id == NET_DATA;
-        if (serverSnapshotUpdate) applyingServerUpdate = true;
-        try {
-            IContainerFilling.super.readMessage(id, buffer, side, context);
-        } finally {
-            if (serverSnapshotUpdate) applyingServerUpdate = false;
+        } else if (side == BCNetworkSide.CLIENT) {
+            applyingServerUpdate = true;
+            try {
+                serverSnapshot.readFromBuffer(buffer);
+                clientInverted = buffer.readBoolean();
+                clientLocked = buffer.readBoolean();
+                clientEditable.set(serverSnapshot.get());
+                IntStream.range(0, 4).forEach(i ->
+                    clientEditable.set(i, serverSnapshot.get(i)));
+            } finally {
+                applyingServerUpdate = false;
+            }
         }
     }
 

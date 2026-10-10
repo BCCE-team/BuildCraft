@@ -10,6 +10,27 @@ import tempfile
 from pathlib import Path
 
 SOURCES = {
+    'com/mojang/blaze3d/vertex/PoseStack': '''package com.mojang.blaze3d.vertex;
+public class PoseStack {
+ public final Pose pose;
+ public PoseStack(float tx,float ty,float tz){pose=new Pose(tx,ty,tz);}
+ public Pose last(){return pose;}
+ public static class Matrix4f{public final float x,y,z; public Matrix4f(float x,float y,float z){this.x=x;this.y=y;this.z=z;}}
+ public static class Matrix3f {
+  public final boolean rotate;
+  public Matrix3f(boolean rotate){this.rotate=rotate;}
+  public float m00(){return rotate?0:1;}public float m01(){return 0;}public float m02(){return rotate?1:0;}
+  public float m10(){return 0;}public float m11(){return 1;}public float m12(){return 0;}
+  public float m20(){return rotate?-1:0;}public float m21(){return 0;}public float m22(){return rotate?0:1;}
+ }
+ public static class Pose {
+  public final Matrix4f matrix;
+  public final Matrix3f normals;
+  public Pose(float x,float y,float z){matrix=new Matrix4f(x,y,z);normals=new Matrix3f(false);}
+  public Matrix4f pose(){return matrix;}
+  public Matrix3f normal(){return normals;}
+ }
+}''',
     'net/minecraft/world/phys/AABB': '''package net.minecraft.world.phys;
 public class AABB {
  public final double minX,minY,minZ,maxX,maxY,maxZ;
@@ -25,16 +46,17 @@ public final class OverlayTexture {public static final int NO_OVERLAY = 10;}''',
     'com/mojang/blaze3d/vertex/VertexConsumer': '''package com.mojang.blaze3d.vertex;
 import java.util.*;
 public class VertexConsumer {
- public int count, alpha;public final List<float[]> normals=new ArrayList<>();
+ public int count, alpha;public final List<float[]> normals=new ArrayList<>(),positions=new ArrayList<>();
  private boolean active,position,color,uv,overlay,light,normal;
  private float nx,ny,nz;
  private void check() {if (!active)return; if (!position||!color||!uv||!overlay||!light||!normal)
  throw new IllegalStateException("Not filled all elements of the vertex: "+count+" "
  +position+color+uv+overlay+light+normal);
  normals.add(new float[]{nx,ny,nz});count++;active=false;}
- private VertexConsumer begin(){check();active=position=true;color=uv=overlay=light=normal=false;return this;}
- public VertexConsumer vertex(double x,double y,double z){return begin();}
- public VertexConsumer addVertex(float x,float y,float z){return begin();}
+ private VertexConsumer begin(float x,float y,float z){check();active=position=true;color=uv=overlay=light=normal=false;
+ positions.add(new float[]{x,y,z});return this;}
+ public VertexConsumer vertex(PoseStack.Matrix4f matrix,float x,float y,float z){return begin(x+matrix.x,y+matrix.y,z+matrix.z);}
+ public VertexConsumer addVertex(PoseStack.Matrix4f matrix,float x,float y,float z){return vertex(matrix,x,y,z);}
  public VertexConsumer color(int r,int g,int b,int a){color=true;alpha=a;return this;}
  public VertexConsumer setColor(int r,int g,int b,int a){return color(r,g,b,a);}
  public VertexConsumer uv(float u,float v){uv=true;return this;}
@@ -44,31 +66,51 @@ public class VertexConsumer {
  public VertexConsumer uv2(int l){light=true;return this;}
  public VertexConsumer setLight(int l){return uv2(l);}
  public VertexConsumer normal(float x,float y,float z){normal=true;nx=x;ny=y;nz=z;return this;}
+ public VertexConsumer normal(PoseStack.Matrix3f m,float x,float y,float z){return normal(
+ m.m00()*x+m.m10()*y+m.m20()*z,
+ m.m01()*x+m.m11()*y+m.m21()*z,
+ m.m02()*x+m.m12()*y+m.m22()*z);}
  public VertexConsumer setNormal(float x,float y,float z){return normal(x,y,z);}
  public void endVertex(){check();}
  public void finish(){check();}
 }''',
     'buildcraft/core/marker/volume/Harness': '''package buildcraft.core.marker.volume;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.world.phys.AABB;
 public final class Harness {
  static int assertions;
  static void ok(boolean v){assertions++;if(!v)throw new AssertionError("check "+assertions);}
+ static boolean near(float actual,float expected){return Math.abs(actual-expected)<.0001f;}
  public static void main(String[] argv){
  var consumer=new VertexConsumer();
- var bb=new AABB(1,2,3,4,5,6);
- AddonQuadRenderer.box(consumer,bb,new TextureAtlasSprite(),255);
+ var bb=new AABB(10,20,30,11,21,31);
+ var worldPose=new PoseStack(-5,-7,-11);
+ AddonQuadRenderer.box(consumer,worldPose,bb,new TextureAtlasSprite(),255);
  consumer.finish();ok(consumer.count==24);ok(consumer.alpha==255);
+ // The fixed-world cuboid MUST subtract the camera offset just as volume lasers do.
+ float[] rendered=consumer.positions.get(0);
+ ok(near(rendered[0],5));ok(near(rendered[1],14));ok(near(rendered[2],19));
  float[][] expected={{0,0,-1},{0,0,1},{0,-1,0},{0,1,0},{-1,0,0},{1,0,0}};
  for(int face=0;face<6;face++){
  for(int vert=0;vert<4;vert++){
  var normal=consumer.normals.get(face*4+vert);
  ok(normal[0]==expected[face][0]&&normal[1]==expected[face][1]&&normal[2]==expected[face][2]);}}
- var ghost=new VertexConsumer();AddonQuadRenderer.box(ghost,bb,new TextureAtlasSprite(),127);
+ var ghost=new VertexConsumer();
+ AddonQuadRenderer.box(ghost,worldPose,bb,new TextureAtlasSprite(),127);
  ghost.finish();ok(ghost.count==24);ok(ghost.alpha==127);
+ // A camera translated by +1 along X must move projected geometry by -1 in camera space,
+ // rather than pinning the same 3-D ghost block to the player's screen.
+ var moving=new VertexConsumer();
+ AddonQuadRenderer.box(moving,new PoseStack(-6,-7,-11),bb,new TextureAtlasSprite(),127);
+ moving.finish();float[] moved=moving.positions.get(0);
+ ok(near(moved[0],4));ok(near(moved[1],14));ok(near(moved[2],19));
+ ok(near(moved[0]-rendered[0],-1));
+ ok(near(rendered[0]+5,moved[0]+6));
  System.out.println(assertions+" assertions PASS");
  }}'''
+
 }
 
 

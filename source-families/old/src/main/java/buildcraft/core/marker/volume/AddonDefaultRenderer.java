@@ -6,6 +6,7 @@
 
 package buildcraft.core.marker.volume;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import net.minecraft.client.Minecraft;
@@ -32,7 +33,7 @@ public class AddonDefaultRenderer<T extends Addon> implements IFastAddonRenderer
     }
 
     @Override
-    public void renderAddonFast(T addon, Player player, float partialTicks, VertexConsumer builder) {
-        AddonQuadRenderer.box(builder, addon.getBoundingBox(), s, 255);
+    public void renderAddonFast(T addon, Player player, float partialTicks, PoseStack pose, VertexConsumer builder) {
+        AddonQuadRenderer.box(builder, pose, addon.getBoundingBox(), s, 255);
     }
 }

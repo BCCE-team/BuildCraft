@@ -26,34 +26,46 @@ public class AIRobotMain extends AIRobot {
 
     @Override
     public void preempt(AIRobot ai) {
-        // Returning to a lost home station is a safety operation. It must not be replaced by recharge/shutdown,
-        // otherwise a discharged robot can remain stranded forever at its last work target.
+        // Lost-home recovery is a separate emergency: a missing station must be resolved before work/recharge.
         if (ai instanceof AIRobotReturnToLostStation) {
             return;
         }
 
-        // Once a low-power return has started, never replace it with shutdown/recharge. AIRobotGotoSleep is allowed
-        // to finish even if the battery reaches zero, and AIRobotSleep then remains stable until the dock recharges it.
-        if (ai instanceof AIRobotGotoSleep || ai instanceof AIRobotSleep) {
-            return;
-        }
-
+        int energy = robot.getEnergy();
+        DockingStation docked = robot.getDockingStation();
+        boolean dockedAtCharger = docked != null && docked.providesPower();
         DockingStation home = robot.getLinkedStation();
-        if (home != null && robot.getEnergy() <= getReturnEnergyThreshold(home)) {
-            // Low-power return is an abort, not a pause: do not resume a stale player/board override after charging.
-            overridingAI = null;
-            startDelegateAI(new AIRobotGotoSleep(robot));
+
+        // A home station is not necessarily a charging station. The old low-energy return sent robots home
+        // unconditionally, even when the nearby powered station was somewhere else. Such robots reached AIRobotSleep
+        // and could never reach SAFETY_ENERGY or respond to Wake Up. Retain the early-return energy reserve, but let
+        // AIRobotRecharge locate the nearest *powered* station, just as original BuildCraft did.
+        boolean needsRecharge = energy < EntityRobotBase.SAFETY_ENERGY
+                || (home != null && home.providesPower() && energy <= getReturnEnergyThreshold(home));
+
+        if (ai instanceof AIRobotGotoSleep || ai instanceof AIRobotSleep) {
+            // Older saves may already contain the non-charging sleep/return path. A robot sleeping at a powered dock
+            // should stay there until charged; a robot stranded at an unpowered dock must search for a charger.
+            // Keep a zero-energy emergency return to a powered home in progress, as in the previous safety fix.
+            if (!dockedAtCharger && needsRecharge
+                    && !(ai instanceof AIRobotGotoSleep && energy <= EntityRobotBase.SHUTDOWN_ENERGY
+                         && home != null && home.providesPower())) {
+                overridingAI = null;
+                startDelegateAI(energy <= EntityRobotBase.SHUTDOWN_ENERGY
+                        ? new AIRobotShutdown(robot) : new AIRobotRecharge(robot));
+            }
             return;
         }
 
-        if (robot.getEnergy() <= EntityRobotBase.SHUTDOWN_ENERGY
-                && (robot.getDockingStation() == null || !robot.getDockingStation().providesPower())) {
+        if (energy <= EntityRobotBase.SHUTDOWN_ENERGY && !dockedAtCharger) {
             if (!(ai instanceof AIRobotShutdown)) {
                 startDelegateAI(new AIRobotShutdown(robot));
             }
-        } else if (robot.getEnergy() < EntityRobotBase.SAFETY_ENERGY) {
+        } else if (needsRecharge) {
             if (!(ai instanceof AIRobotRecharge) && !(ai instanceof AIRobotShutdown)) {
                 if (rechargeCooldown-- <= 0) {
+                    // Recharge is an abort, not a pause: do not resume stale gate/board work before charging.
+                    overridingAI = null;
                     startDelegateAI(new AIRobotRecharge(robot));
                 }
             }

@@ -6,6 +6,7 @@
 
 package buildcraft.core.client.render;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -64,13 +65,29 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
             }
             LaserBoxRenderer.renderLaserBoxDynamic(volumeBox.box, type, pose.last().pose(), pose.last().normal(), bb, false);
 
-            volumeBox.addons.values().forEach(addon ->
-                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(addon, player, partialTicks, bb)
-            );
         });
         LaserRenderer_BC8.setupLaserRenderState();
         Tesselator.getInstance().end();
-		
+
+        // The original BuildCraft preview is translucent. The laser state explicitly disables blending,
+        // so draw addon handles and ghost blocks separately AFTER the opaque volume-box outlines.
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.depthMask(false);
+        try {
+            bb.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
+            ClientVolumeBoxes.INSTANCE.volumeBoxes.forEach(volumeBox -> {
+                if (!isBoxFullyLoaded(volumeBox)) return;
+                volumeBox.addons.values().forEach(addon ->
+                    ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(
+                        addon, player, partialTicks, pose, bb)
+                );
+            });
+            Tesselator.getInstance().end();
+        } finally {
+            RenderSystem.depthMask(true);
+            RenderSystem.disableBlend();
+        }
 	}
 
     private static boolean isBoxFullyLoaded(buildcraft.core.marker.volume.VolumeBox volumeBox) {
