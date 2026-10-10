@@ -157,19 +157,11 @@ public class FluidRenderer {
         clearSpriteCache();
         blockTexMap = event.getAtlas()::getSprite;
 
-        for (Fluid fluid : BuiltInRegistries.FLUID) {
-            Identifier still = getStillTextureSafe(fluid);
-            Identifier flowing = getFlowingTextureSafe(fluid);
-            String key = fluid.getFluidType().getDescriptionId();
-            TextureAtlasSprite stillSprite = blockTexMap.apply(still);
-            fluidSprites.get(FluidSpriteType.STILL).put(key, stillSprite);
-            fluidSprites.get(FluidSpriteType.FLOWING).put(key, blockTexMap.apply(flowing));
+        // Do not prewarm fluid models here: on 26.2+ the atlas uploads before the
+        // ModelManager installs FluidStateModelSet. Eager lookups throw for EVERY
+        // registered fluid and cache missing sprites for the entire session.
+        // getFluidSprite() resolves the baked model lazily after initialization.
 
-            // The legacy pre-stitch event was removed in 1.20, so dynamically injecting a generated frozen sprite into
-            // the block atlas is no longer supported. The frozen renderer still uses its repeated UV mapping, backed
-            // by the fluid's still sprite, which preserves the visual contract without private resource-manager hacks.
-            fluidSprites.get(FluidSpriteType.FROZEN).put(key, stillSprite);
-        }
     }
 
     private static void clearSpriteCache() {

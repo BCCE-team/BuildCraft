@@ -18,7 +18,6 @@ from compat_26_fixture import execute
 from transforms.resources import (
     _dynamic_fluid_bucket_client_item_1_21_11,
     _buildcraftenergy_bucket_generated_model_1_21_11,
-    _buildcraftenergy_bucket_legacy_sprite,
 )
 
 PREFIX = 'src/main/java/buildcraft/compat'
@@ -72,45 +71,65 @@ class CompatBuckets26Tests(unittest.TestCase):
         actual = json.loads(_dynamic_fluid_bucket_client_item_1_21_11("buildcraftenergy:oil", minecraft="26.1.2"))
         self.assertEqual(canonical, actual)
 
-    def test_26_2_and_26_3_use_original_full_bucket_sprites(self):
-        for ver in ('26.2','26.3'):
+    def test_26_2_and_26_3_bucket_models_are_dynamic_and_keep_metal_untinted(self):
+        # Compare against distinct fixed contracts instead of the models' own
+        # generated values. These model definitions must not regress to the
+        # pre-26.2 static BuildCraft bucket artwork.
+        for ver in ('26.2', '26.3'):
             for family in (
-                'oil','oil_dense','oil_distilled','oil_heavy','oil_residue',
-                'fuel_dense','fuel_gaseous','fuel_light','fuel_mixed_light','fuel_mixed_heavy',
+                'oil', 'oil_dense', 'oil_distilled', 'oil_heavy', 'oil_residue',
+                'fuel_dense', 'fuel_gaseous', 'fuel_light',
+                'fuel_mixed_light', 'fuel_mixed_heavy',
             ):
-                for heat, fluid_suffix in (('cool',''),('hot','_heat_1'),('searing','_heat_2')):
-                    item=f'{family}/{heat}_bucket'
-                    fluid='buildcraftenergy:'+family+fluid_suffix
-                    with self.subTest(version=ver,item=item):
-                        definition=json.loads(_dynamic_fluid_bucket_client_item_1_21_11(fluid,minecraft=ver))['model']
-                        model=json.loads(_buildcraftenergy_bucket_generated_model_1_21_11(
-                            '/src/main/resources/assets/buildcraftenergy/models/item/'+item+'.json',minecraft=ver))
-                        self.assertEqual({'type':'minecraft:model','model':'buildcraftenergy:item/'+item},definition)
-                        self.assertEqual('minecraft:item/generated',model['parent'])
-                        self.assertEqual(_buildcraftenergy_bucket_legacy_sprite(item),model['textures']['layer0'])
-                        self.assertEqual(model['textures']['layer0'],model['textures']['particle'])
+                for heat, fluid_suffix in (('cool', ''), ('hot', '_heat_1'), ('searing', '_heat_2')):
+                    item = f'{family}/{heat}_bucket'
+                    fluid = 'buildcraftenergy:' + family + fluid_suffix
+                    with self.subTest(version=ver, item=item):
+                        definition = json.loads(_dynamic_fluid_bucket_client_item_1_21_11(
+                            fluid, minecraft=ver))['model']
+                        model = json.loads(_buildcraftenergy_bucket_generated_model_1_21_11(
+                            '/src/main/resources/assets/buildcraftenergy/models/item/' + item + '.json',
+                            minecraft=ver))
+                        self.assertEqual('neoforge:fluid_container', definition['type'])
+                        self.assertEqual(fluid, definition['fluid'])
+                        self.assertEqual('minecraft:item/bucket', definition['textures']['base'])
+                        self.assertEqual('buildcraftenergy:block/mask/bucket_surface',
+                                         definition['textures']['fluid'])
+                        self.assertNotIn('cover', definition['textures'])
+                        self.assertNotIn('cover_is_mask', definition)
+                        self.assertEqual('minecraft:item/generated', model['parent'])
+                        self.assertEqual('minecraft:item/bucket', model['textures']['layer0'])
 
-    def test_pixel_art_buckets_have_original_complete_silhouette(self):
+    def test_modern_bucket_surface_mask_is_only_the_visible_liquid(self):
         from PIL import Image
-        assets=ROOT/'source-shared/src/main/resources/assets/buildcraftenergy/textures'
-        sprites={_buildcraftenergy_bucket_legacy_sprite(family+'/cool_bucket')
-                 for family in ('oil','oil_dense','oil_distilled','oil_heavy','oil_residue',
-                                'fuel_dense','fuel_gaseous','fuel_light','fuel_mixed_light','fuel_mixed_heavy')}
-        self.assertEqual(10,len(sprites))
-        for sprite in sprites:
-            with self.subTest(sprite=sprite):
-                relative=sprite.split(':',1)[1]+'.png'
-                with Image.open(assets/relative) as image:
-                    self.assertEqual((16,16),image.size)
-                    self.assertGreaterEqual(sum(v>0 for v in image.convert('RGBA').getchannel('A').getdata()),100)
-        # 26.1.2 retains the legacy fluid-container model contract.
-        original=json.loads(_dynamic_fluid_bucket_client_item_1_21_11('buildcraftenergy:oil',minecraft='26.1.2'))['model']
-        self.assertEqual('neoforge:fluid_container',original['type'])
-        self.assertEqual('neoforge:item/mask/bucket_fluid',original['textures']['fluid'])
-        self.assertEqual({'parent':'minecraft:item/generated',
-                          'textures':{'layer0':'minecraft:item/bucket','particle':'minecraft:item/bucket'}},
-            json.loads(_buildcraftenergy_bucket_generated_model_1_21_11(
-                '/src/main/resources/assets/buildcraftenergy/models/item/oil/cool_bucket.json',minecraft='26.1.2')))
+        mask = ROOT / ('source-families/26.X/src/main/resources/assets/buildcraftenergy/'
+                       'textures/block/mask/bucket_surface.png')
+        self.assertTrue(mask.is_file())
+        # Exact visible liquid silhouette observed in vanilla Minecraft 26.2
+        # water_bucket (metal rim and body are excluded). No vanilla PNG is
+        # copied into the project.
+        expected = {(x, 3) for x in range(4, 12)}
+        expected |= {(x, 4) for x in range(3, 13)}
+        expected |= {(x, 5) for x in range(5, 11)}
+        self.assertEqual(24, len(expected))
+        with Image.open(mask) as source:
+            self.assertEqual((16, 16), source.size)
+            pixels = source.convert('RGBA')
+            for y in range(16):
+                for x in range(16):
+                    self.assertEqual((255, 255, 255, 255) if (x, y) in expected
+                                     else (0, 0, 0, 0), pixels.getpixel((x, y)), (x, y))
+        # Older target models do not reference the new sprite.
+        old = json.loads(_dynamic_fluid_bucket_client_item_1_21_11(
+            'buildcraftenergy:oil', minecraft='26.1.2'))['model']
+        self.assertEqual('neoforge:item/mask/bucket_fluid', old['textures']['fluid'])
+        self.assertNotIn('cover', old['textures'])
+        self.assertEqual({'parent': 'minecraft:item/generated',
+                          'textures': {'layer0': 'minecraft:item/bucket',
+                                       'particle': 'minecraft:item/bucket'}},
+                         json.loads(_buildcraftenergy_bucket_generated_model_1_21_11(
+                             '/src/main/resources/assets/buildcraftenergy/models/item/oil/cool_bucket.json',
+                             minecraft='26.1.2')))
 
     def test_26_3_jade_native_resource_and_energy_apis(self):
         jade=self.source('26.3','jade/BuildCraftJadePlugin.java')

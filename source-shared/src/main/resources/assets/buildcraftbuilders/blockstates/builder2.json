@@ -1,23 +1,23 @@
 {
   "multipart": [
 	{
-     "when": {"facing":"east","snapshot_type":"none|blueprint|template"},
+     "when": {"facing":"east"},
 	 "apply":{
       "model": "buildcraftbuilders:block/builder/main", "y": 90}
     },
 	{
-	"when": {"facing":"north","snapshot_type":"none|blueprint|template"},
+	"when": {"facing":"north"},
 	"apply":{
       "model": "buildcraftbuilders:block/builder/main"}
     },
 
 	{
-	"when": {"facing":"south","snapshot_type":"none|blueprint|template"},
+	"when": {"facing":"south"},
 	"apply":{
       "model": "buildcraftbuilders:block/builder/main", "y": 180}
     },
 	{
-	"when": {"facing":"west","snapshot_type":"none|blueprint|template"},
+	"when": {"facing":"west"},
 	"apply":{
       "model": "buildcraftbuilders:block/builder/main", "y": 270}
     }

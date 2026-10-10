@@ -1,6 +1,7 @@
  {
 	 "parent":"minecraft:block/block",
 	 "textures": {
+        "particle": "#side",
         "chamber":"buildcraftlib:blocks/engine/chamber_base",
         "back":"buildcraftcore:blocks/engine/wood/back",
         "side":"buildcraftcore:blocks/engine/wood/side",

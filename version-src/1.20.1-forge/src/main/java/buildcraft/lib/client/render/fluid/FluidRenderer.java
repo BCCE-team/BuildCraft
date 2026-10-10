@@ -132,19 +132,10 @@ public class FluidRenderer {
         clearSpriteCache();
         blockTexMap = event.getAtlas()::getSprite;
 
-        for (Fluid fluid : ForgeRegistries.FLUIDS.getValues()) {
-            ResourceLocation still = getStillTextureSafe(fluid);
-            ResourceLocation flowing = getFlowingTextureSafe(fluid);
-            String key = fluid.getFluidType().getDescriptionId();
-            TextureAtlasSprite stillSprite = blockTexMap.apply(still);
-            fluidSprites.get(FluidSpriteType.STILL).put(key, stillSprite);
-            fluidSprites.get(FluidSpriteType.FLOWING).put(key, blockTexMap.apply(flowing));
+        // Models and their texture extensions can complete after atlas upload.
+        // Resolve sprites lazily when rendering instead of prematurely caching
+        // fallback textures for every registered fluid.
 
-            // Forge removed ClientAtlas.Before in 1.20, so dynamically injecting a generated frozen sprite into
-            // the block atlas is no longer supported. The frozen renderer still uses its repeated UV mapping, backed
-            // by the fluid's still sprite, which preserves the visual contract without private resource-manager hacks.
-            fluidSprites.get(FluidSpriteType.FROZEN).put(key, stillSprite);
-        }
     }
 
     private static void clearSpriteCache() {

@@ -126,6 +126,74 @@ class ResourcePipeline(unittest.TestCase):
                 self.assertNotIn("cover_is_mask", data["model"], path.as_posix())
         self.assertEqual(30, len(dynamic_buckets))
 
+    def test_26_2_and_26_3_buckets_only_colour_the_open_top(self):
+        for ver in ('26.2-neoforge', '26.3-neoforge'):
+            with self.subTest(target=ver):
+                atlas = self.read_json(ver, 'assets/minecraft/atlases/blocks.json')
+                sprite = 'buildcraftenergy:block/mask/bucket_surface'
+                self.assertEqual(1, sum(
+                    source.get('resource') == sprite
+                    for source in atlas['sources'] if isinstance(source, dict)))
+                item_atlas = self.read_json(ver, 'assets/minecraft/atlases/items.json')
+                self.assertNotIn(sprite, {
+                    source.get('resource') for source in item_atlas['sources']
+                    if isinstance(source, dict)
+                })
+                self.assertFalse((self.roots[ver] /
+                    'assets/buildcraftenergy/textures/item/mask/bucket_surface.png').exists())
+                texture = self.roots[ver] / 'assets/buildcraftenergy/textures/block/mask/bucket_surface.png'
+                self.assertTrue(texture.is_file())
+                for family in (
+                    'oil', 'oil_dense', 'oil_distilled', 'oil_heavy', 'oil_residue',
+                    'fuel_dense', 'fuel_gaseous', 'fuel_light',
+                    'fuel_mixed_heavy', 'fuel_mixed_light',
+                ):
+                    for index, heat in enumerate(('cool', 'hot', 'searing')):
+                        path = f'assets/buildcraftenergy/items/{family}/{heat}_bucket.json'
+                        item = self.read_json(ver, path)['model']
+                        self.assertEqual('neoforge:fluid_container', item['type'], path)
+                        self.assertEqual('minecraft:item/bucket', item['textures']['base'], path)
+                        self.assertEqual(sprite, item['textures']['fluid'], path)
+                        self.assertNotIn('cover', item['textures'], path)
+                        self.assertEqual('buildcraftenergy:' + family + (f'_heat_{index}' if index else ''),
+                                         item['fluid'], path)
+                        # Fallback models must not refer to pre-26.2 bucket skins.
+                        fallback = self.read_json(ver,
+                            f'assets/buildcraftenergy/models/item/{family}/{heat}_bucket.json')
+                        self.assertEqual('minecraft:item/bucket', fallback['textures']['layer0'])
+
+        # This patch must not alter the working 1.21.11 / 26.1.2 contracts.
+        for ver in ('1.21.11-neoforge', '26.1.2-neoforge'):
+            with self.subTest(target=ver):
+                model = self.read_json(ver, 'assets/buildcraftenergy/items/oil/cool_bucket.json')['model']
+                self.assertEqual('neoforge:fluid_container', model['type'])
+                self.assertEqual('neoforge:item/mask/bucket_fluid', model['textures']['fluid'])
+                self.assertNotIn('buildcraftenergy:block/mask/bucket_surface',
+                                 {x.get('resource') for x in self.read_json(
+                                     ver, 'assets/minecraft/atlases/blocks.json')['sources']})
+
+    def test_tube_end_atlas_sprite_retains_pixel_art_at_16px(self):
+        from PIL import Image
+        common = ROOT / (
+            'source-shared/src/main/resources/assets/buildcraftfactory/'
+            'textures/blocks/tube/end.png'
+        )
+        with Image.open(common) as src:
+            current = src.convert('RGBA')
+            self.assertEqual((16, 16), current.size)
+            for y in range(0, 16, 2):
+                for x in range(0, 16, 2):
+                    self.assertEqual(current.getpixel((x, y)), current.getpixel((x+1, y)))
+                    self.assertEqual(current.getpixel((x, y)), current.getpixel((x, y+1)))
+                    self.assertEqual(current.getpixel((x, y)), current.getpixel((x+1, y+1)))
+        for target in ('26.2-neoforge', '26.3-neoforge'):
+            sprite = self.roots[target] / (
+                'assets/buildcraftfactory/textures/blocks/tube/end.png'
+            )
+            self.assertTrue(sprite.is_file(), target)
+            with Image.open(sprite) as image:
+                self.assertEqual((16, 16), image.size, target)
+
     def test_ic2_cell_models_are_generated_only_for_119(self):
         rel = Path("assets/buildcraftenergy/models/item/ic2_cell")
         old = self.roots["1.19.2-forge"] / rel

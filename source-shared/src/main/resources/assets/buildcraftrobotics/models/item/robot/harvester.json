@@ -1,6 +1,7 @@
 {
   "parent": "buildcraftrobotics:robot",
   "textures": {
+    "particle": "#all",
     "all": "buildcraftrobotics:entities/robot_harvester_active"
   }
 }

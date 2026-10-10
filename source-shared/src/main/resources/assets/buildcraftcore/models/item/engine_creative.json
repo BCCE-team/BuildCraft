@@ -1,5 +1,6 @@
 {
     "textures": {
+        "particle": "#side",
         "back":"buildcraftcore:blocks/engine/creative/back",
         "side":"buildcraftcore:blocks/engine/creative/side"
     },

@@ -80,6 +80,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test Guide Book filtering pagination and live previews", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_guide_book_features.py", "-v")),
     ("Test ownership persistence and ledgers", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_ownership_ledgers.py", "-v")),
     ("Test canonical resource pipeline", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_resource_pipeline.py", "-v")),
+    ("Test fluid sprite reload and model atlas references", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_fluid_resource_reload_262.py", "-v")),
     ("Validate resources, metadata and build hygiene", (sys.executable, "scripts/validate-cross-target-integrity.py")),
 )
 

@@ -184,6 +184,9 @@ jobs:
       - name: Test canonical resource pipeline
         run: python -m unittest discover -s scripts/tests -p test_resource_pipeline.py -v
 
+      - name: Test fluid sprite reload and model atlas references
+        run: python -m unittest discover -s scripts/tests -p test_fluid_resource_reload_262.py -v
+
       - name: Validate resources, metadata and build hygiene
         run: python scripts/validate-cross-target-integrity.py
 

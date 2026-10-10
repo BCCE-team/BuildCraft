@@ -4,12 +4,10 @@
     "textures": {
       "particle": "minecraft:item/bucket",
       "base": "minecraft:item/bucket",
-      "fluid": "neoforge:item/mask/bucket_fluid",
-      "cover": "neoforge:item/mask/bucket_fluid_cover"
+      "fluid": "buildcraftenergy:block/mask/bucket_surface"
     },
     "fluid": "buildcraftenergy:oil_residue_heat_2",
     "flip_gas": true,
-    "cover_is_mask": true,
     "apply_fluid_luminosity": false
   }
 }
