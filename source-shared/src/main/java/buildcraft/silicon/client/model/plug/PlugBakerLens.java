@@ -49,12 +49,24 @@ public enum PlugBakerLens implements IPluggableStaticBaker<KeyPlugLens> {
             MutableQuad c = new MutableQuad();
             List<BakedQuad> list = new ArrayList<>(quads.length);
             for (MutableQuad q : quads) {
+                //? if <1.21.11 {
+                // Retain the existing legacy renderer behaviour on 1.19.2-1.21.1.
                 q.vertex_0.colour_a = 64;
-            	q.vertex_1.colour_a = 64;
-            	q.vertex_2.colour_a = 64;
-            	q.vertex_3.colour_a = 64;
+                q.vertex_1.colour_a = 64;
+                q.vertex_2.colour_a = 64;
+                q.vertex_3.colour_a = 64;
+                //? }
                 c.copyFrom(q);
                 c.multShade();
+                //? if >=1.21.11 {
+                // The native cutout pass discards translucent frame pixels. Keep the model's
+                // original vertex alpha for BOTH layers; the glass texture already supplies
+                // its own translucency. multShade() must darken RGB, not alpha.
+                c.vertex_0.colour_a = q.vertex_0.colour_a;
+                c.vertex_1.colour_a = q.vertex_1.colour_a;
+                c.vertex_2.colour_a = q.vertex_2.colour_a;
+                c.vertex_3.colour_a = q.vertex_3.colour_a;
+                //? }
                 list.add(c.toBakedBlock());
             }
             cached.put(key, list);

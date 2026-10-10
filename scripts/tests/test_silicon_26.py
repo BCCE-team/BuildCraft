@@ -46,6 +46,41 @@ class Silicon26Tests(unittest.TestCase):
         root = self.roots[version]
         return {(Path(SILICON) / p.relative_to(root)).as_posix() for p in root.rglob("*.java")}
 
+    def test_lens_cutout_frames_and_translucent_glass_across_targets(self):
+        """Execute the real Stonecutter-selected lens baker against shading/alpha stubs."""
+        from lens_render_fixture import execute_target
+        all_targets = (
+            '1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge',
+            '1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge',
+        )
+        logical = SILICON + '/client/model/plug/PlugBakerLens.java'
+        props = load_properties()
+        for target in all_targets:
+            with self.subTest(target=target):
+                layout = target_layout(target, props)
+                source = resolve_effective_source(layout, props, logical)
+                self.assertIsNotNone(source)
+                with tempfile.TemporaryDirectory(prefix='bcce-lens-selected-') as tmp:
+                    dest = Path(tmp) / logical
+                    downports = tuple(
+                        root for root in (layout.family_downport_root, layout.family_platform_downport_root) if root
+                    )
+                    _materialize_text_file(
+                        source, dest, logical_relative=logical,
+                        minecraft=props[f'target.{target}.deps.minecraft'],
+                        family=layout.family, platform=layout.platform, preprocess=True,
+                        native_source=any(source.is_relative_to(root) for root in downports),
+                    )
+                    code = dest.read_text(encoding='utf-8')
+                    modern = target not in ('1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge')
+                    self.assertNotIn('//? if ', code)
+                    if modern:
+                        self.assertNotIn('colour_a = 64;', code)
+                        self.assertIn('c.vertex_0.colour_a = q.vertex_0.colour_a;', code)
+                    else:
+                        self.assertIn('colour_a = 64;', code)
+                    print(execute_target(target, dest, modern=modern), flush=True)
+
     def test_2612_silicon_sources_materialize(self):
         for relative in ("BCSilicon.java", "container/ContainerAssemblyTable.java"):
             with self.subTest(source=relative):
