@@ -257,9 +257,13 @@ public class MutableVertex {
     }
 
     public MutableVertex normali(int combined) {
-        normal_x = ((combined >> 0) & 0xFF) / 0x7f;
-        normal_y = ((combined >> 8) & 0xFF) / 0x7f;
-        normal_z = ((combined >> 16) & 0xFF) / 0x7f;
+        // The legacy baked-quad format stores each normal component as a SIGNED 8-bit integer.
+        // Masking with 0xFF turns -127 (NORTH/WEST/DOWN) into +129, and the native
+        // 26.3 model then samples lighting from the wrong side of the facade/pipe.
+        // Sign-extend the packed byte before converting back to a normalized float.
+        normal_x = (byte) combined / 127.0F;
+        normal_y = (byte) (combined >>> 8) / 127.0F;
+        normal_z = (byte) (combined >>> 16) / 127.0F;
         return this;
     }
 

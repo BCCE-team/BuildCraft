@@ -99,7 +99,9 @@ class Transport26EffectiveContracts(unittest.TestCase):
         self.assertIn('new BakedQuad.MaterialInfo(sprite',source)
         self.assertIn('Sheets.translucentBlockItemGlintSheet()',source)
         self.assertIn('Sheets.cutoutBlockItemGlintSpecialSheet()',source)
-        self.assertIn('tintIndex, shade ? null : Direction.UP, lightEmission, true',source)
+        self.assertIn('tintIndex, shade ? null : Direction.UP, lightEmission, ambientOcclusion',source)
+        self.assertIn('material(sprite, translucentLayer, -1, true, 0, true)',source)
+        self.assertIn('!translucentLayer || isOuterGlassFace(quad, face))',source)
         self.assertFalse((self.targets['26.1.2']/PREFIX/'internal/pipe/FluidAction.java').exists())
         self.assertTrue((self.targets['26.3']/PREFIX/'internal/pipe/FluidAction.java').exists())
 

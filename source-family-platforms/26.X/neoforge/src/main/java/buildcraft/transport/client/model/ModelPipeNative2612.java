@@ -7,11 +7,14 @@ package buildcraft.transport.client.model;
 
 import net.minecraft.client.Minecraft;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nullable;
 
 import org.joml.Vector3f;
+import org.joml.Vector3fc;
 
 import buildcraft.lib.client.model.MutableQuad;
 import buildcraft.lib.client.model.MutableVertex;
@@ -111,9 +114,15 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
         cutout.addAll(convertPipeBody(legacyBaseCutout, false));
         cutout.addAll(convertPluggables(legacyPlugCutout, false));
 
-        List<BakedQuad> translucent = new ArrayList<>(legacyBaseTranslucent.size() + legacyPlugTranslucent.size());
-        translucent.addAll(convertPipeBody(legacyBaseTranslucent, true));
-        translucent.addAll(convertPluggables(legacyPlugTranslucent, true));
+        // Glass is the only static pluggable with boundary faces on the translucent pass. Preserve
+        // its boundary/cull-face classification instead of putting every face in getQuads(null).
+        // The null bucket never consults the neighbouring block, so glass placed against opaque
+        // terrain continued drawing covered faces (unlike a vanilla stained-glass block).
+        List<BakedQuad> translucentBody = convertPipeBody(legacyBaseTranslucent, true);
+        List<BakedQuad> translucentPlugs = convertPluggables(legacyPlugTranslucent, true);
+        List<BakedQuad> translucent = new ArrayList<>(translucentBody.size() + translucentPlugs.size());
+        translucent.addAll(translucentBody);
+        translucent.addAll(translucentPlugs);
 
         TextureAtlasSprite particle = firstSprite(cutout);
         if (particle == null) {
@@ -125,12 +134,60 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
 
         BlockStateModelPart cutoutPart = cutout.isEmpty()
             ? null
-            : new PipeModelPart(List.copyOf(cutout), particle, ChunkSectionLayer.CUTOUT);
+            : new PipeModelPart(List.copyOf(cutout), List.copyOf(cutout), Map.of(),
+                particle, ChunkSectionLayer.CUTOUT);
         BlockStateModelPart translucentPart = translucent.isEmpty()
             ? null
-            : new PipeModelPart(List.copyOf(translucent), particle, ChunkSectionLayer.TRANSLUCENT);
+            : translucentPart(translucentBody, translucentPlugs, translucent, particle);
         PipeGeometryKey geometryKey = new PipeGeometryKey(key, plugCutoutKey, plugTranslucentKey);
         return new PipeRenderData(geometryKey, cutoutPart, translucentPart, particle);
+    }
+
+    /**
+     * Keep only the exterior boundary of a translucent facade in the directional quad buckets.
+     * Minecraft calls Block.shouldRenderFace for those buckets, and therefore drops a glass face
+     * when the adjacent terrain completely covers it. Pipe and inset facade geometry must stay
+     * unculled: a pipe arm is not a full block face and would disappear beside solid neighbours.
+     *
+     * <p>PluggableFacade puts glass (and stained glass) on the translucent layer. Non-glass basic
+     * facades belong to the cutout layer and never take this path.</p>
+     */
+    private static PipeModelPart translucentPart(List<BakedQuad> pipeQuads, List<BakedQuad> plugQuads,
+        List<BakedQuad> allQuads, TextureAtlasSprite particle) {
+        List<BakedQuad> unculled = new ArrayList<>(allQuads.size());
+        unculled.addAll(pipeQuads);
+        Map<Direction, List<BakedQuad>> culled = new EnumMap<>(Direction.class);
+        for (BakedQuad quad : plugQuads) {
+            Direction face = quad.direction();
+            if (isBoundaryFace(quad, face)) {
+                culled.computeIfAbsent(face, ignored -> new ArrayList<>()).add(quad);
+            } else {
+                unculled.add(quad);
+            }
+        }
+        Map<Direction, List<BakedQuad>> immutableCulled = new EnumMap<>(Direction.class);
+        culled.forEach((face, quads) -> immutableCulled.put(face, List.copyOf(quads)));
+        return new PipeModelPart(List.copyOf(unculled), List.copyOf(allQuads),
+            Map.copyOf(immutableCulled), particle, ChunkSectionLayer.TRANSLUCENT);
+    }
+
+    private static boolean isBoundaryFace(BakedQuad quad, Direction face) {
+        if (face == null) {
+            return false;
+        }
+        float boundary = face.getAxisDirection() == Direction.AxisDirection.POSITIVE ? 1.0F : 0.0F;
+        for (int i = 0; i < 4; i++) {
+            Vector3fc pos = quad.position(i);
+            float coordinate = switch (face.getAxis()) {
+                case X -> pos.x();
+                case Y -> pos.y();
+                case Z -> pos.z();
+            };
+            if (Math.abs(coordinate - boundary) > 1.0E-4F) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static List<BakedQuad> convertPipeBody(
@@ -187,7 +244,7 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
                     UVPair.pack(quad.vertex_2.tex_u, quad.vertex_2.tex_v),
                     UVPair.pack(quad.vertex_3.tex_u, quad.vertex_3.tex_v),
                     face,
-                    material(sprite, translucentLayer, -1, true, 0),
+                    material(sprite, translucentLayer, -1, true, 0, true),
                     BakedNormals.of(
                         BakedNormals.pack(quad.vertex_0.normal_x, quad.vertex_0.normal_y, quad.vertex_0.normal_z),
                         BakedNormals.pack(quad.vertex_1.normal_x, quad.vertex_1.normal_y, quad.vertex_1.normal_z),
@@ -209,7 +266,13 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
                     UVPair.pack(quad.vertex_2.tex_u, quad.vertex_2.tex_v),
                     UVPair.pack(quad.vertex_3.tex_u, quad.vertex_3.tex_v),
                     face,
-                    material(sprite, translucentLayer, quad.getTint(), quad.isShade(), lightEmission(quad)),
+                    // Vanilla glass receives world AO on its exposed, block-boundary faces. Disabling AO
+                    // for the whole facade makes those faces *brighter* than vanilla glass near dirt/stone.
+                    // Its inset/back faces are inside the pipe holder, however; applying boundary AO to
+                    // those would double-darken the thin facade when opaque neighbours are present.
+                    // Keep non-glass pluggables and the pipe body on their existing lighting path.
+                    material(sprite, translucentLayer, quad.getTint(), quad.isShade(), lightEmission(quad),
+                        !translucentLayer || isOuterGlassFace(quad, face)),
                     BakedNormals.of(
                         BakedNormals.pack(quad.vertex_0.normal_x, quad.vertex_0.normal_y, quad.vertex_0.normal_z),
                         BakedNormals.pack(quad.vertex_1.normal_x, quad.vertex_1.normal_y, quad.vertex_1.normal_z),
@@ -223,14 +286,37 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
         return result;
     }
 
+    /**
+     * Unlike a vanilla glass block, a thin facade also has inset back and edge faces. Only a face
+     * lying on the OUTER boundary of its block should share the adjacent-block AO/light sample
+     * of the corresponding vanilla glass face. Keep the test independent of facade orientation.
+     */
+    private static boolean isOuterGlassFace(MutableQuad quad, Direction face) {
+        if (face == null) {
+            return false;
+        }
+        float boundary = face.getAxisDirection() == Direction.AxisDirection.POSITIVE ? 1.0F : 0.0F;
+        for (MutableVertex vertex : quad.vertexs) {
+            float coordinate = switch (face.getAxis()) {
+                case X -> vertex.position_x;
+                case Y -> vertex.position_y;
+                case Z -> vertex.position_z;
+            };
+            if (Math.abs(coordinate - boundary) > 1.0E-4F) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static BakedQuad.MaterialInfo material(TextureAtlasSprite sprite, boolean translucent, int tintIndex,
-        boolean shade, int lightEmission) {
+        boolean shade, int lightEmission, boolean ambientOcclusion) {
         return new BakedQuad.MaterialInfo(sprite,
             translucent ? ChunkSectionLayer.TRANSLUCENT : ChunkSectionLayer.CUTOUT,
             translucent ? Sheets.translucentBlockItemSheet() : Sheets.cutoutBlockItemSheet(),
             translucent ? Sheets.translucentBlockItemGlintSheet() : Sheets.cutoutBlockItemGlintSheet(),
             translucent ? Sheets.translucentBlockItemGlintSpecialSheet() : Sheets.cutoutBlockItemGlintSpecialSheet(),
-            tintIndex, shade ? null : Direction.UP, lightEmission, true);
+            tintIndex, shade ? null : Direction.UP, lightEmission, ambientOcclusion);
     }
 
     private static Vector3f position(MutableVertex vertex) {
@@ -398,12 +484,14 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
         @Nullable BlockStateModelPart translucent, TextureAtlasSprite particle) {
     }
 
-    private record PipeModelPart(List<BakedQuad> quads, TextureAtlasSprite particle,
+    private record PipeModelPart(List<BakedQuad> quads, List<BakedQuad> allQuads,
+        Map<Direction, List<BakedQuad>> culledQuads, TextureAtlasSprite particle,
         ChunkSectionLayer layer) implements BlockStateModelPart {
         @Override
         public List<BakedQuad> getQuads(@Nullable Direction side) {
-            // Pipe faces never cover a complete voxel face and must not be culled by a neighbouring full block.
-            return side == null ? quads : List.of();
+            // Interior geometry and pipe arms remain in the unculled bucket; glass's external faces
+            // participate in vanilla neighbour occlusion like the equivalent full glass block.
+            return side == null ? quads : culledQuads.getOrDefault(side, List.of());
         }
 
         @Override
@@ -418,7 +506,8 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
 
         @Override
         public int materialFlags() {
-            return quads.stream().map(BakedQuad::materialInfo).mapToInt(BakedQuad.MaterialInfo::flags)
+            // Include directional glass faces too; NeoForge uses flags to allocate the render pass.
+            return allQuads.stream().map(BakedQuad::materialInfo).mapToInt(BakedQuad.MaterialInfo::flags)
                 .reduce(0, (left, right) -> left | right);
         }
     }

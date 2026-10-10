@@ -131,8 +131,10 @@ def upgrade_minecraft_263_apis(text: str, *, minecraft: str, relative: str) -> s
         text = text.replace("chunkPos.x, chunkPos.z", "chunkPos.x(), chunkPos.z()")
 
     if relative.endswith("/silicon/client/model/plug/PlugBakerFacade.java"):
-        # MaterialInfo carries a nullable shading direction, not the old shade() flag.
-        text = text.replace("material.shade()", "material.shadeDirectionOverride() != null || material.ambientOcclusion()")
+        # 26.3 no longer has the legacy shade() flag. A null override means face-direction
+        # shading (the old shade=true); any explicit direction, including UP, overrides it.
+        # AO is an independent lighting setting: it must NOT be used to guess shade().
+        text = text.replace("material.shade()", "material.shadeDirectionOverride() == null")
 
     if relative.endswith("/transport/client/render/RenderPipeHolder.java"):
         # Kept as a fallback for older source variants. The selected 26.X
