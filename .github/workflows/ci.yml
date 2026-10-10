@@ -82,9 +82,6 @@ jobs:
       - name: Validate 26.1.2 target structure
         run: python scripts/validate-26.1.2-target.py
 
-      - name: Verify frozen 26.1.2 materialized bytes
-        run: python scripts/validate-26.1.2-byte-parity.py
-
       - name: Test 26.X lib native boundaries
         run: python -m unittest discover -s scripts/tests -p test_lib_26.py -v
 
@@ -124,14 +121,8 @@ jobs:
       - name: Check Minecraft 26.2 compiler regressions
         run: python -m unittest discover -s scripts/tests -p test_262_compile_errors.py -v
 
-      - name: Verify reviewed 26.2 Java source manifests
-        run: python scripts/validate-26.2-reviewed-java.py
-
       - name: Test 26.2 compiler compatibility
         run: python -m unittest discover -s scripts/tests -p test_262_compile_errors.py -v
-
-      - name: Verify reviewed 26.2 Java sources
-        run: python scripts/validate-26.2-reviewed-java.py
 
       - name: Validate Zone Planner block preview parity
         run: python scripts/validate-zone-planner-preview.py

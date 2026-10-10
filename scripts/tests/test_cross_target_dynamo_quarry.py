@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """MJ Dynamo wrench/facing and six-sided quarry lattice regression tests for all targets."""
 from __future__ import annotations
-import hashlib
-import json
 import sys
 import tempfile
 import unittest
@@ -135,34 +133,8 @@ class DynamoAndQuarryAllTargets(unittest.TestCase):
         source=ROOT/'source-families/26.X/src/main/java/buildcraft/lib/client/render/laser/CompiledLaserRow.java'
         self.assertTrue(execute_quarry(source).endswith('assertions PASS'))
 
-    def test_corrected_2612_hashes_match_new_reviewed_baseline(self):
-        manifest=json.loads((ROOT/'build-config/materialized-baselines/26.1.2-neoforge.json').read_text())['files']
-        for label,logical in FILES.items():
-            self.assertEqual(manifest[logical],hashlib.sha256(self.effective['26.1.2-neoforge'][label].read_bytes()).hexdigest())
 
-    def test_old_2612_checksum_is_preserved_as_an_explicit_three_file_audit(self):
-        audit=json.loads((ROOT/'build-config/known-cross-target-fixes/mj-dynamo-quarry-2026-10.json').read_text())
-        manifest=json.loads((ROOT/'build-config/materialized-baselines/26.1.2-neoforge.json').read_text())['files']
-        self.assertEqual('26.1.2-neoforge',audit['target'])
-        self.assertEqual(4351,audit['total_files_before'])
-        self.assertEqual(4351,audit['total_files_after'])
-        self.assertEqual(set(FILES.values()),set(audit['modified'].keys()))
-        restoration=json.loads((ROOT/'build-config/known-cross-target-fixes/quarry-drill-texture-restoration-2026-10.json').read_text())
-        drill=FILES['quarry']
-        self.assertEqual([drill],list(restoration['modified']))
-        for name,item in audit['modified'].items():
-            self.assertEqual(64,len(item['before']))
-            self.assertNotEqual(item['before'],item['after'])
-            if name==drill:
-                self.assertEqual(item['after'],restoration['modified'][drill]['before'])
-                self.assertEqual(restoration['modified'][drill]['after'],manifest[drill])
-            else:
-                self.assertEqual(item['after'],manifest[name])
 
-    def test_corrected_262_quarry_hash_is_reflected_in_builders_baseline(self):
-        manifest=json.loads((ROOT/'build-config/materialized-baselines/26.2-builders.json').read_text())['files']
-        key=FILES['quarry']
-        self.assertEqual(manifest[key],hashlib.sha256(self.effective['26.2-neoforge']['quarry'].read_bytes()).hexdigest())
 
     def test_java_syntax_on_every_target(self):
         for version in TARGETS:

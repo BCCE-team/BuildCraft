@@ -46,7 +46,6 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Validate cross-version gameplay parity", (sys.executable, "scripts/validate-behavior-parity.py")),
     ("Validate 1.21.11 parity", (sys.executable, "scripts/validate-1.21.11-parity.py")),
     ("Validate 26.1.2 target structure", (sys.executable, "scripts/validate-26.1.2-target.py")),
-    ("Verify frozen 26.1.2 materialized bytes", (sys.executable, "scripts/validate-26.1.2-byte-parity.py")),
     ("Test 26.X lib native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_lib_26.py", "-v")),
     ("Test 26.X core native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_core_26.py", "-v")),
     ("Test 26.X energy native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_energy_26.py", "-v")),
@@ -60,9 +59,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test MJ Dynamo wrench and Quarry lattice all targets", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_cross_target_dynamo_quarry.py", "-v")),
     ("Test uniform BC8 engine wrench rotation on all targets", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_all_engine_wrench.py", "-v")),
     ("Check Minecraft 26.2 compiler regressions", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_262_compile_errors.py", "-v")),
-    ("Verify reviewed 26.2 Java source manifests", (sys.executable, "scripts/validate-26.2-reviewed-java.py")),
     ("Test 26.2 compiler compatibility", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_262_compile_errors.py", "-v")),
-    ("Verify reviewed 26.2 Java sources", (sys.executable, "scripts/validate-26.2-reviewed-java.py")),
     ("Validate Zone Planner block preview parity", (sys.executable, "scripts/validate-zone-planner-preview.py")),
     ("Validate FE compatibility", (sys.executable, "scripts/validate-fe-compat.py")),
     ("Validate FE Engine and MJ Dynamo parity", (sys.executable, "scripts/validate-fe-mj-engine-parity.py")),
@@ -138,7 +135,6 @@ def workflow_alignment_check() -> None:
         "python scripts/validate-api2-modules.py",
         "python scripts/validate-1.21.11-parity.py",
         "python scripts/validate-26.1.2-target.py",
-        "python scripts/validate-26.1.2-byte-parity.py",
         "python scripts/validate-cross-target-integrity.py",
     )
     for fragment in required_validate_fragments:

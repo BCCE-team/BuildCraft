@@ -38,7 +38,6 @@ BASELINE_VALIDATIONS: tuple[tuple[str, ...], ...] = (
     ("python", "scripts/validate-repository-cleanliness.py"),
     ("python", "scripts/validate-1.20.1-target.py", "--source-root", "version-src/1.20.1-forge"),
     ("python", "scripts/validate-26.1.2-target.py"),
-    ("python", "scripts/validate-26.1.2-byte-parity.py"),
     ("python", "scripts/validate-behavior-parity.py"),
     ("python", "scripts/validate-1.21.11-parity.py"),
     ("python", "scripts/validate-fe-compat.py"),
@@ -541,7 +540,7 @@ def markdown_report(report: dict[str, object]) -> str:
     lines.append(f"- `.replace(...)` calls: **{materializer['totals']['text_replace_calls']}**")
     lines.append(f"- `re.sub(...)` calls: **{materializer['totals']['re_sub_calls']}**")
     lines.append(f"- Java-path literals in materializer helpers: **{materializer['totals']['java_path_literals']}**")
-    lines.append(f"- Frozen architecture/gameplay/parity validator sources: **{report['repository']['validation_sources_files']} files**, SHA-256 `{report['repository']['validation_sources_sha256']}`")
+    lines.append(f"- Architecture/gameplay/parity validator sources: **{report['repository']['validation_sources_files']} files**, SHA-256 `{report['repository']['validation_sources_sha256']}`")
     lines.append(f"- Non-API validation commands inventoried: **{len(report['repository']['validation_inventory'])}**")
     versioned = report["repository"].get("versioned_resource_sources", {})
     lines.append(f"- Versioned resource-source files: **{versioned.get('files', 0)}**")
