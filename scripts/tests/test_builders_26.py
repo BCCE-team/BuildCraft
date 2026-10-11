@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT/'scripts'), str(ROOT/'scripts/tests')]
 from source_config import load_properties, target_layout
 from source_layout import effective_source_files, _materialize_text_file
+from transforms.neoforge263 import relocate_removed_neoforge_apis
 from minecraft_compat_fixture import parse_sources
 from builders_26_fixture import execute
 
@@ -114,7 +115,14 @@ class Builders26Tests(unittest.TestCase):
             'snapshot/BlueprintBuilder.java','snapshot/SnapshotBuilder.java',
             'snapshot/TemplateBuilder.java','snapshot/ItemStackRef.java',
             'snapshot/Blueprint.java', 'snapshot/Template.java'):
-            self.assertEqual(self.text('26.2',relative),self.text('26.3',relative),relative)
+            original = self.text('26.2', relative)
+            current = self.text('26.3', relative)
+            # Compare 26.2 business logic after the supported 26.3 loader-API
+            # relocation; imported IFluidHandler / IItemHandler types move.
+            original = relocate_removed_neoforge_apis(
+                original, minecraft='26.3',
+                relative='src/main/java/buildcraft/builders/' + relative)
+            self.assertEqual(original, current, relative)
 
     def test_26_2_and_26_3_render_submission(self):
         for version in ('26.2','26.3'):

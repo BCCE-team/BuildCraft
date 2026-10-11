@@ -110,6 +110,7 @@
         "BCBuildersGuis.MENU_BUILDER.get(),GuiBuilder::new",
         "BCBuildersGuis.MENU_ELIBRARY.get(),GuiElectronicLibrary::new",
         "BCBuildersGuis.MENU_FILLER.get(),GuiFiller::new",
+        "BCBuildersGuis.MENU_FILLER_PLANNER.get(),GuiFillerPlanner::new",
         "BCBuildersGuis.MENU_REPLACER.get(),ScreenReplacer::new"
       ],
       "factory/BCFactoryClientGuis.java": [
@@ -263,6 +264,7 @@
         "BCBuildersGuis.MENU_BUILDER.get(),GuiBuilder::new",
         "BCBuildersGuis.MENU_ELIBRARY.get(),GuiElectronicLibrary::new",
         "BCBuildersGuis.MENU_FILLER.get(),GuiFiller::new",
+        "BCBuildersGuis.MENU_FILLER_PLANNER.get(),GuiFillerPlanner::new",
         "BCBuildersGuis.MENU_REPLACER.get(),ScreenReplacer::new"
       ],
       "factory/BCFactoryClientGuis.java": [
@@ -416,6 +418,7 @@
         "BCBuildersGuis.MENU_BUILDER.get(),GuiBuilder::new",
         "BCBuildersGuis.MENU_ELIBRARY.get(),GuiElectronicLibrary::new",
         "BCBuildersGuis.MENU_FILLER.get(),GuiFiller::new",
+        "BCBuildersGuis.MENU_FILLER_PLANNER.get(),GuiFillerPlanner::new",
         "BCBuildersGuis.MENU_REPLACER.get(),ScreenReplacer::new"
       ],
       "factory/BCFactoryClientGuis.java": [
@@ -566,6 +569,7 @@
         "BCBuildersGuis.MENU_BUILDER.get(),GuiBuilder::new",
         "BCBuildersGuis.MENU_ELIBRARY.get(),GuiElectronicLibrary::new",
         "BCBuildersGuis.MENU_FILLER.get(),GuiFiller::new",
+        "BCBuildersGuis.MENU_FILLER_PLANNER.get(),GuiFillerPlanner::new",
         "BCBuildersGuis.MENU_REPLACER.get(),ScreenReplacer::new"
       ],
       "factory/BCFactoryClientGuis.java": [

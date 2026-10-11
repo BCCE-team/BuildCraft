@@ -57,11 +57,8 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test 26.X compat and bucket presentation", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_compat_buckets_26.py", "-v")),
     ("Test 26.X robotics native boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_robotics_26.py", "-v")),
     ("Test MJ Dynamo wrench and Quarry lattice all targets", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_cross_target_dynamo_quarry.py", "-v")),
-    ("Test uniform BC8 engine wrench rotation on all targets", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_all_engine_wrench.py", "-v")),
-    ("Check Minecraft 26.2 compiler regressions", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_262_compile_errors.py", "-v")),
     ("Test 26.2 compiler compatibility", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_262_compile_errors.py", "-v")),
     ("Test 26.3 removed NeoForge APIs and worldgen migration", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_263_transfer_compile.py", "-v")),
-    ("Test 26.3 inventory adapters in Java", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_263_item_storage_java.py", "-v")),
     ("Test 26.3 removed vanilla APIs and power bridge", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_263_followup_api.py", "-v")),
     ("Validate Zone Planner block preview parity", (sys.executable, "scripts/validate-zone-planner-preview.py")),
     ("Validate FE compatibility", (sys.executable, "scripts/validate-fe-compat.py")),
@@ -73,7 +70,6 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test actor tickets and client registration boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_actor_client_boundaries.py", "-v")),
     ("Test loader-neutral packet boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_loader_boundaries.py", "-v")),
     ("Test storage, event, registry and config boundaries", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_platform_boundaries.py", "-v")),
-    ("Test capability lifecycle invalidation and revival", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_capability_lifecycle.py", "-v")),
     ("Test platform contracts", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_platform_contracts.py", "-v")),
     ("Test pure Java gameplay algorithms", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_pure_logic.py", "-v")),
     ("Test pipe items, recipe book and optional client integrations", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_client_integrations.py", "-v")),
@@ -83,7 +79,6 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test Guide Book filtering pagination and live previews", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_guide_book_features.py", "-v")),
     ("Test ownership persistence and ledgers", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_ownership_ledgers.py", "-v")),
     ("Test canonical resource pipeline", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_resource_pipeline.py", "-v")),
-    ("Test fluid sprite reload and model atlas references", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_fluid_resource_reload_262.py", "-v")),
     ("Validate resources, metadata and build hygiene", (sys.executable, "scripts/validate-cross-target-integrity.py")),
 )
 

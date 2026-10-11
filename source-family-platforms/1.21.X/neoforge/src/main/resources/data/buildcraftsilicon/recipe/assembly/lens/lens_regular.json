@@ -7,7 +7,7 @@
   ],
   "ingredients": [
     {
-      "tag": "c:glass_blocks"
+      "item": "minecraft:glass"
     }
   ],
   "result": {

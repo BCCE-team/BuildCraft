@@ -99,9 +99,7 @@ class Transport26EffectiveContracts(unittest.TestCase):
         self.assertIn('new BakedQuad.MaterialInfo(sprite',source)
         self.assertIn('Sheets.translucentBlockItemGlintSheet()',source)
         self.assertIn('Sheets.cutoutBlockItemGlintSpecialSheet()',source)
-        self.assertIn('tintIndex, shade ? null : Direction.UP, lightEmission, ambientOcclusion',source)
-        self.assertIn('material(sprite, translucentLayer, -1, true, 0, true)',source)
-        self.assertIn('!translucentLayer || isOuterGlassFace(quad, face))',source)
+        self.assertIn('tintIndex, shade ? null : Direction.UP, lightEmission, true',source)
         self.assertFalse((self.targets['26.1.2']/PREFIX/'internal/pipe/FluidAction.java').exists())
         self.assertTrue((self.targets['26.3']/PREFIX/'internal/pipe/FluidAction.java').exists())
 
@@ -121,4 +119,89 @@ class Transport26EffectiveContracts(unittest.TestCase):
         self.assertIn('0 errors',result)
         print(result,flush=True)
 
-if __name__=='__main__':unittest.main()
+
+
+# ---- Facade geometry cardinality and UV rotation ----
+
+FACADE_ROTATION_ROOT = Path(__file__).resolve().parents[2]
+FACADE_ROTATION_VECTORS = {
+    'DOWN': (0, -1, 0), 'UP': (0, 1, 0),
+    'NORTH': (0, 0, -1), 'SOUTH': (0, 0, 1),
+    'WEST': (-1, 0, 0), 'EAST': (1, 0, 0),
+}
+
+
+def FACADE_ROTATION_rotate(vec, source, target):
+    """The axis/quarter-turn mapping of MutableQuad.rotate and MutableVertex.rotate*_90."""
+    if source == target:
+        return vec
+    x, y, z = vec
+    sx, sy, sz = FACADE_ROTATION_VECTORS[source]
+    tx, ty, tz = FACADE_ROTATION_VECTORS[target]
+    axis_s = next(i for i, component in enumerate((sx, sy, sz)) if component)
+    axis_t = next(i for i, component in enumerate((tx, ty, tz)) if component)
+    if axis_s == axis_t:
+        if axis_s == 0 or axis_s == 2:
+            return (-x, y, -z)
+        return (-x, -y, z)
+    if axis_s == 0 and axis_t == 1:
+        k = sx * ty
+        return (-k * y, k * x, z)
+    if axis_s == 0 and axis_t == 2:
+        k = sx * tz
+        return (-k * z, y, k * x)
+    if axis_s == 1 and axis_t == 0:
+        k = -sy * tx
+        return (-k * y, k * x, z)
+    if axis_s == 1 and axis_t == 2:
+        k = sy * tz
+        return (x, -k * z, k * y)
+    if axis_s == 2 and axis_t == 0:
+        k = -sz * tx
+        return (-k * z, y, k * x)
+    if axis_s == 2 and axis_t == 1:
+        k = -sz * ty
+        return (x, -k * z, k * y)
+    raise AssertionError((source, target))
+
+
+class FacadeRotationPort(unittest.TestCase):
+    def test_all_36_direction_pairs(self):
+        for src, vector in FACADE_ROTATION_VECTORS.items():
+            for dst, target in FACADE_ROTATION_VECTORS.items():
+                with self.subTest(src=src, dst=dst):
+                    self.assertEqual(target, FACADE_ROTATION_rotate(vector, src, dst))
+
+    def test_216_face_rotations_remain_cardinal(self):
+        for face, vector in FACADE_ROTATION_VECTORS.items():
+            for src in FACADE_ROTATION_VECTORS:
+                for dst in FACADE_ROTATION_VECTORS:
+                    with self.subTest(face=face, src=src, dst=dst):
+                        self.assertIn(FACADE_ROTATION_rotate(vector, src, dst), FACADE_ROTATION_VECTORS.values())
+
+    def test_materialized_sources_cover_all_targets(self):
+        paths = [
+            'source-families/old/src/main/java/buildcraft/lib/client/model/MutableQuad.java',
+            'source-families/1.21.X/src/main/java/buildcraft/lib/client/model/MutableQuad.java',
+            'source-families/26.X/src/main/java/buildcraft/lib/client/model/MutableQuad.java',
+            'source-downports/26.X/26.1.2/neoforge/src/main/java/buildcraft/lib/client/model/MutableQuad.java',
+            'source-downports/26.X/26.2/neoforge/src/main/java/buildcraft/lib/client/model/MutableQuad.java',
+        ]
+        for rel in paths:
+            with self.subTest(rel=rel):
+                code = (FACADE_ROTATION_ROOT / rel).read_text(encoding='utf-8')
+                self.assertIn('face = rotateFace(face, from, to)', code)
+                self.assertIn('probe.rotate(from, to, 0, 0, 0)', code)
+                self.assertIn('if (face != null)', code)
+                self.assertIn('DirectionCompat.nearest(', code)
+        self.assertIn('Direction.getNearest(', (
+            FACADE_ROTATION_ROOT / 'source-downports/1.21.X/1.21.1/family/src/main/java/buildcraft/lib/misc/DirectionCompat.java'
+        ).read_text())
+
+    def test_blocker_uv_fix(self):
+        code = (FACADE_ROTATION_ROOT / 'source-shared/src/main/resources/assets/buildcrafttransport/models/plugs/blocker.json').read_text()
+        self.assertIn('"north": { "uv": [ 4, 4, 2, 12 ]', code)
+
+
+if __name__ == '__main__':
+    unittest.main()

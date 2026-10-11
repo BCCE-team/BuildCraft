@@ -7,7 +7,7 @@
   ],
   "ingredients": [
     {
-      "tag": "forge:glass"
+      "item": "minecraft:glass"
     }
   ],
   "result": {

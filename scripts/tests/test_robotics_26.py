@@ -144,7 +144,13 @@ class Robotics26Contracts(unittest.TestCase):
                          'client/render/RenderRobot.java','client/render/RenderZonePlanner.java',
                          'SimpleRobotRegistryProvider.java', 'RoboticsNbtUtil.java'):
             with self.subTest(file=filename):
-                self.assertEqual(self.text('26.2',filename),self.text('26.3',filename))
+                previous = self.text('26.2', filename)
+                current = self.text('26.3', filename)
+                if filename == 'client/render/RenderRobot.java':
+                    # Mojang renamed PoseStack.mulPose to rotate in 26.3;
+                    # identical renderer behavior does not imply identical source.
+                    previous = previous.replace('poseStack.mulPose(', 'poseStack.rotate(')
+                self.assertEqual(previous, current)
 
     def test_no_removed_neoforge_import_in_effective_robotics(self):
         names=('net.neoforged.neoforge.fluids.capability.IFluidHandler',
@@ -162,4 +168,43 @@ class Robotics26Contracts(unittest.TestCase):
         self.assertIn('151 units, 0 errors',parsed)
         self.assertIn('152 units, 0 errors',parsed)
 
-if __name__=='__main__':unittest.main()
+
+
+# ---- Seven-target robot recharge priority ----
+
+
+
+
+from robot_recharge_fixture import execute as execute_robot_recharge
+
+ROBOT_RECHARGE_TARGETS=('1.19.2-forge','1.20.1-forge','1.21.1-neoforge','1.21.11-neoforge',
+         '26.1.2-neoforge','26.2-neoforge','26.3-neoforge')
+ROBOT_RECHARGE_PREFIX='src/main/java/buildcraft/robotics/ai/'
+ROBOT_RECHARGE_CLASSES=('AIRobotMain.java','AIRobotRecharge.java','AIRobotSleep.java','AIRobotSearchStation.java','AIRobotSearchAndGotoStation.java')
+
+class RobotRechargeBehaviorTests(unittest.TestCase):
+    def test_recharge_priority_in_all_targets(self):
+        props=load_properties()
+        with tempfile.TemporaryDirectory(prefix='bc-seven-robot-ai-') as temp:
+            for target in ROBOT_RECHARGE_TARGETS:
+                with self.subTest(target=target):
+                    layout=target_layout(target,props)
+                    effective=effective_source_files(layout,props,'src/main/java/buildcraft/robotics')
+                    downs=tuple(p for p in (layout.family_downport_root,layout.family_platform_downport_root) if p)
+                    result=[]
+                    for name in ROBOT_RECHARGE_CLASSES:
+                        relative=ROBOT_RECHARGE_PREFIX+name
+                        source=effective[relative]
+                        dst=Path(temp)/target/name
+                        _materialize_text_file(source,dst,logical_relative=relative,
+                            minecraft=props['target.'+target+'.deps.minecraft'],family=layout.family,
+                            platform=layout.platform,preprocess=True,
+                            native_source=any(source.is_relative_to(down) for down in downs))
+                        result.append(dst)
+                    output=execute_robot_recharge(*result)
+                    self.assertEqual('30 assertions PASS',output)
+                    print(target+': '+output,flush=True)
+
+
+if __name__ == '__main__':
+    unittest.main()

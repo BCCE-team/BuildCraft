@@ -46,6 +46,8 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.common.util.TriState;
 
 @Mod(BCCore.MODID)
 public class BCCore {
@@ -90,7 +92,7 @@ public class BCCore {
         modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCCoreConfig.config));
         ConfigScreenRegistration.register(modContainer);
         MessageManager.registerClientboundMessageClass(BCModules.CORE, MessageVolumeBoxes.class, MessageVolumeBoxes.HANDLER, MessageVolumeBoxes::toBytes, MessageVolumeBoxes::new);
-        NeoForge.EVENT_BUS.addListener(ItemPaintbrush_BC8::onRightClickBlock);
+        NeoForge.EVENT_BUS.addListener(this::onPaintbrushRightClickBlock);
         BCCoreVolumeBoxEvents.register();
         BCCoreStatements.preInit();
     }
@@ -100,6 +102,15 @@ public class BCCore {
             event.includeServer(),
             new BCCoreRecipes(event.getGenerator().getPackOutput(), event.getLookupProvider())
         );
+    }
+
+    /** Keep NeoForge interaction flags out of family-owned item code. */
+    private void onPaintbrushRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
+        if (!ItemPaintbrush_BC8.shouldOverrideBlockUse(event.getItemStack(), event.getLevel(), event.getPos())) {
+            return;
+        }
+        event.setUseBlock(TriState.FALSE);
+        event.setUseItem(TriState.TRUE);
     }
 
     private void registerCapabilities(RegisterCapabilitiesEvent event) {

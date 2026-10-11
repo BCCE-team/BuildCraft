@@ -156,5 +156,161 @@ class SiliconRecipeBookSweep(unittest.TestCase):
         self.assertIn("assembly = List.of();", sync)
 
 
-if __name__ == "__main__":
+
+
+# ---- Lens recipes and result variants across targets ----
+
+
+
+import json
+import re
+import subprocess
+
+from source_layout import load_properties, resolve_effective_source, target_layout
+
+LENS_RECIPE_TARGETS = ('1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge',
+           '1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge')
+LENS_RECIPE_COLORS = ('white', 'orange', 'magenta', 'light_blue', 'yellow', 'lime', 'pink',
+          'gray', 'light_gray', 'cyan', 'purple', 'blue', 'brown', 'green', 'red', 'black')
+
+
+class LensRecipeTargets(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.props = load_properties()
+
+    def source(self, target: str, path: str) -> Path:
+        file = resolve_effective_source(target_layout(target, self.props), self.props, path)
+        self.assertIsNotNone(file, f'{target} missing {path}')
+        return file
+
+    def recipe(self, target: str, file: str) -> dict:
+        base = 'src/main/resources/data/buildcraftsilicon/'
+        sub = 'recipes' if target.startswith(('1.19.', '1.20.')) else 'recipe'
+        path = f'{base}{sub}/assembly/lens/{file}.json'
+        return json.loads(self.source(target, path).read_text(encoding='utf-8'))
+
+    def test_clear_lenses_require_uncoloured_glass_in_all_targets(self):
+        for target in LENS_RECIPE_TARGETS:
+            for kind, variant in (('lens_regular', 32), ('lens_filter', 33)):
+                with self.subTest(target=target, kind=kind):
+                    recipe = self.recipe(target, kind)
+                    self.assertEqual(recipe['ingredients'][0], {'item': 'minecraft:glass'})
+                    self.assertEqual(recipe['result']['nbt'], f'{{Damage:{variant}}}')
+                    self.assertEqual(recipe['result']['item'], 'buildcraftsilicon:plug/lens')
+                    self.assertEqual(recipe['group'], 'buildcraftsilicon:lens_filters' if kind == 'lens_filter' else 'buildcraftsilicon:lens_regulars')
+                    self.assertEqual(recipe['ingredient_counts'], [1, 1] if kind == 'lens_filter' else [1])
+                    if kind == 'lens_filter':
+                        self.assertEqual(recipe['ingredients'][1], {'item': 'minecraft:iron_bars'})
+
+    def test_all_sixteen_colours_and_both_lens_types(self):
+        for target in LENS_RECIPE_TARGETS:
+            for colour_id, colour in enumerate(LENS_RECIPE_COLORS):
+                for kind, offset in (('regular', 0), ('filter', 16)):
+                    with self.subTest(target=target, colour=colour, kind=kind):
+                        recipe = self.recipe(target, f'{kind}/{colour}')
+                        self.assertEqual(recipe['ingredients'][0], {'item': f'minecraft:{colour}_stained_glass'})
+                        self.assertEqual(recipe['result']['nbt'], f'{{Damage:{colour_id + offset}}}')
+                        self.assertEqual(recipe['result']['item'], 'buildcraftsilicon:plug/lens')
+                        self.assertEqual(recipe['ingredient_counts'], [1, 1] if kind == 'filter' else [1])
+                        if kind == 'filter':
+                            self.assertEqual(recipe['ingredients'][1], {'item': 'minecraft:iron_bars'})
+
+    def test_datagen_agrees_with_packaged_recipes(self):
+        path = 'src/main/java/buildcraft/silicon/BCSiliconRecipesProvider.java'
+        for target in LENS_RECIPE_TARGETS:
+            with self.subTest(target=target):
+                source = self.source(target, path).read_text(encoding='utf-8')
+                self.assertIn('IngredientStack glass = IngredientStack.of(Blocks.GLASS);', source)
+                self.assertIn('group("buildcraftsilicon:lens_filters")', source)
+
+    def test_modern_jei_identifies_lens_variant_by_custom_data(self):
+        path = 'src/main/java/buildcraft/compat/jei/BuildCraftJeiPlugin.java'
+        for target in LENS_RECIPE_TARGETS:
+            with self.subTest(target=target):
+                source = self.source(target, path).read_text(encoding='utf-8')
+                if target.startswith(('1.19.', '1.20.')):
+                    self.assertNotIn('ItemPluggableLens.getData(stack).getItemDamage()', source)
+                else:
+                    self.assertIn('ItemPluggableLens.getData(stack).getItemDamage()', source)
+                    self.assertIn('ItemPluggableLens.getData(', source)
+                    self.assertNotIn('Integer.toString(stack.getDamageValue())', source)
+                    self.assertNotIn('case LENS, LENS_FILTER -> Comparator.comparingInt(view -> assemblyResult(view.recipe()).getDamageValue())', source)
+
+    def test_26x_template_preserves_legacy_variant_for_non_damageable_item(self):
+        path = 'src/main/java/buildcraft/lib/recipe/AssemblyRecipe.java'
+        for target in ('26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge'):
+            with self.subTest(target=target):
+                source = self.source(target, path).read_text(encoding='utf-8')
+                signature = '        private ItemStackTemplate template() {'
+                start = source.index(signature)
+                opening = source.index('{', start)
+                depth = 1
+                cursor = opening + 1
+                while depth:
+                    depth += (source[cursor] == '{') - (source[cursor] == '}')
+                    cursor += 1
+                method = source[start:cursor]
+                self.assertIn('new ItemStack(item).isDamageableItem()', method)
+                # Execute the *actual Java implementation* using minimal data-component and NBT stubs.
+                fixture = '''import java.util.*;
+public class LensCodecProbe {
+    static class Item { final boolean damageable; Item(boolean b){damageable=b;} }
+    static class ItemStack { final Item item; ItemStack(Item item){this.item=item;} boolean isDamageableItem(){return item.damageable;} }
+    static class CompoundTag {
+        final Map<String,Integer> values = new HashMap<>();
+        boolean isEmpty(){return values.isEmpty();}
+        void remove(String key){values.remove(key);}
+        int getInt(String key){return values.getOrDefault(key,0);}
+    }
+    static class NbtCompat {
+        static boolean contains(CompoundTag tag,String key,int type){return tag.values.containsKey(key);}
+        static int getInt(CompoundTag tag,String key){return tag.getInt(key);}
+    }
+    static class DataComponents {static final String DAMAGE="durability"; static final String CUSTOM_DATA="custom";}
+    static class CustomData {static CompoundTag of(CompoundTag tag){return tag;}}
+    static class DataComponentPatch {
+        static Builder builder(){return new Builder();}
+        static class Builder {
+            Map<String,Object> components = new HashMap<>();
+            void set(String key,Object value){components.put(key,value);}
+            Map<String,Object> build(){return components;}
+        }
+    }
+    static class ItemStackTemplate {
+        final Item item; final int count; final Map<String,Object> components;
+        ItemStackTemplate(Item item,int count,Map<String,Object> components){this.item=item;this.count=count;this.components=components;}
+    }
+    static class LegacyResult {
+        final Item item;final int count;final int damage;
+        LegacyResult(Item item,int damage){this.item=item;this.count=1;this.damage=damage;}
+        CompoundTag parseLegacyTag(){CompoundTag tag=new CompoundTag();tag.values.put("Damage",damage);tag.values.put("Other",42);return tag;}
+METHOD
+    }
+    public static void main(String[] args) {
+        for (int variant=0;variant<34;variant++) {
+            ItemStackTemplate lens = new LegacyResult(new Item(false),variant).template();
+            if (lens.components.containsKey(DataComponents.DAMAGE))throw new AssertionError("lens durability "+variant);
+            CompoundTag tag=(CompoundTag)lens.components.get(DataComponents.CUSTOM_DATA);
+            if(tag==null||tag.getInt("Damage")!=variant||tag.getInt("Other")!=42)throw new AssertionError("lens variant lost: "+variant);
+        }
+        ItemStackTemplate tool = new LegacyResult(new Item(true),17).template();
+        if(!Integer.valueOf(17).equals(tool.components.get(DataComponents.DAMAGE)))throw new AssertionError("tool durability lost");
+        CompoundTag other=(CompoundTag)tool.components.get(DataComponents.CUSTOM_DATA);
+        if(other==null||other.values.containsKey("Damage")||other.getInt("Other")!=42)throw new AssertionError("tool custom data broken");
+        System.out.println("34 lens variants and tool durability PASS");
+    }
+}
+'''.replace('METHOD', method)
+                with tempfile.TemporaryDirectory(prefix='bcce-lens-codec-') as tmp:
+                    work = Path(tmp)
+                    (work / 'LensCodecProbe.java').write_text(fixture, encoding='utf-8')
+                    cmd = subprocess.run(['javac', '--release', '21', 'LensCodecProbe.java'], cwd=work, capture_output=True, text=True, timeout=30)
+                    self.assertEqual(cmd.returncode, 0, cmd.stderr)
+                    run = subprocess.run(['java', 'LensCodecProbe'], cwd=work, capture_output=True, text=True, timeout=20)
+                    self.assertEqual(run.returncode, 0, run.stderr)
+                    self.assertIn('PASS', run.stdout)
+
+
+if __name__ == '__main__':
     unittest.main()

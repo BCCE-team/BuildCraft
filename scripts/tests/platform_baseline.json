@@ -196,6 +196,7 @@
           "MENUS:\"builder_menu\"",
           "MENUS:\"elibrary_menu\"",
           "MENUS:\"filler_menu\"",
+          "MENUS:\"filler_planner_menu\"",
           "MENUS:\"replacer_menu\""
         ],
         "builders/BCBuildersItems.java": [
@@ -443,6 +444,7 @@
           "MENUS:\"builder_menu\"",
           "MENUS:\"elibrary_menu\"",
           "MENUS:\"filler_menu\"",
+          "MENUS:\"filler_planner_menu\"",
           "MENUS:\"replacer_menu\""
         ],
         "builders/BCBuildersItems.java": [
@@ -690,6 +692,7 @@
           "MENUS:\"builder_menu\"",
           "MENUS:\"elibrary_menu\"",
           "MENUS:\"filler_menu\"",
+          "MENUS:\"filler_planner_menu\"",
           "MENUS:\"replacer_menu\""
         ],
         "builders/BCBuildersItems.java": [
@@ -940,6 +943,7 @@
           "MENUS:\"builder_menu\"",
           "MENUS:\"elibrary_menu\"",
           "MENUS:\"filler_menu\"",
+          "MENUS:\"filler_planner_menu\"",
           "MENUS:\"replacer_menu\""
         ],
         "builders/BCBuildersItems.java": [

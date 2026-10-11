@@ -75,24 +75,84 @@ class PaintbrushAllTargetsTest(unittest.TestCase):
             with self.subTest(target=target):
                 src = effective(target, 'core/item/ItemPaintbrush_BC8')
                 core = effective(target, 'core/BCCore')
-                self.assertIn('public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event)', src)
-                self.assertIn('event.getItemStack().getItem() instanceof ItemPaintbrush_BC8 brush', src)
-                self.assertIn('brush.type == null', src)
-                for block in ('BedBlock', 'ShulkerBoxBlock', 'BannerBlock', 'WallBannerBlock'):
-                    self.assertIn('instanceof ' + block, src)
-                if target.endswith('forge') and not target.endswith('neoforge'):
+                if target.endswith('neoforge'):
+                    # The family source owns the vanilla-only decision, while the
+                    # native NeoForge adapter owns the event and TriState API.
+                    self.assertIn('public static boolean shouldOverrideBlockUse(ItemStack brushStack, Level level, BlockPos pos)', src)
+                    self.assertIn('brushStack.getItem() instanceof ItemPaintbrush_BC8 brush', src)
+                    self.assertNotIn('net.neoforged', src)
+                    self.assertNotIn('PlayerInteractEvent', src)
+                    self.assertIn('NeoForge.EVENT_BUS.addListener(this::onPaintbrushRightClickBlock)', core)
+                    self.assertIn('private void onPaintbrushRightClickBlock(PlayerInteractEvent.RightClickBlock event)', core)
+                    self.assertIn('ItemPaintbrush_BC8.shouldOverrideBlockUse(event.getItemStack(), event.getLevel(), event.getPos())', core)
+                    self.assertIn('event.setUseBlock(TriState.FALSE)', core)
+                    self.assertIn('event.setUseItem(TriState.TRUE)', core)
+                    if target == '1.21.1-neoforge':
+                        self.assertIn('net.neoforged.neoforge.common.util.TriState;', core)
+                    else:
+                        self.assertIn('net.minecraft.util.TriState;', core)
+                else:
+                    self.assertIn('public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event)', src)
+                    self.assertIn('event.getItemStack().getItem() instanceof ItemPaintbrush_BC8 brush', src)
                     self.assertIn('event.setUseBlock(Event.Result.DENY)', src)
                     self.assertIn('event.setUseItem(Event.Result.ALLOW)', src)
                     self.assertIn('MinecraftForge.EVENT_BUS.addListener(ItemPaintbrush_BC8::onRightClickBlock)', core)
-                else:
-                    self.assertIn('event.setUseBlock(TriState.FALSE)', src)
-                    self.assertIn('event.setUseItem(TriState.TRUE)', src)
-                    if target == '1.21.1-neoforge':
-                        self.assertIn('net.neoforged.neoforge.common.util.TriState;', src)
-                    else:
-                        self.assertIn('net.minecraft.util.TriState;', src)
-                    self.assertIn('NeoForge.EVENT_BUS.addListener(ItemPaintbrush_BC8::onRightClickBlock)', core)
+                self.assertIn('brush.type == null', src)
+                for block in ('BedBlock', 'ShulkerBoxBlock', 'BannerBlock', 'WallBannerBlock'):
+                    self.assertIn('instanceof ' + block, src)
                 self.assertNotIn('//?', src)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK needed')
+    def test_neoforge_click_bridge_compiles_and_only_overrides_paintable_targets(self):
+        # Compile the actual method selected by each native API generation,
+        # rather than only looking for method signatures in source text.
+        for target in ('1.21.1-neoforge', '1.21.11-neoforge', '26.3-neoforge'):
+            with self.subTest(target=target):
+                src = effective(target, 'core/BCCore')
+                start = src.index('    private void onPaintbrushRightClickBlock(')
+                end = src.index('    private void registerCapabilities(', start)
+                actual = src[start:end]
+                code = '''public class Main {
+  enum TriState { TRUE, FALSE, DEFAULT }
+  static class ItemStack {}
+  static class BlockPos {}
+  static class Level {}
+  static class ItemPaintbrush_BC8 {
+    static boolean isPaintable;
+    static boolean shouldOverrideBlockUse(ItemStack stack, Level level, BlockPos pos) {
+      return isPaintable;
+    }
+  }
+  static class PlayerInteractEvent {
+    static class RightClickBlock {
+      TriState block = TriState.DEFAULT, item = TriState.DEFAULT;
+      ItemStack getItemStack() { return new ItemStack(); }
+      Level getLevel() { return new Level(); }
+      BlockPos getPos() { return new BlockPos(); }
+      void setUseBlock(TriState state) { block = state; }
+      void setUseItem(TriState state) { item = state; }
+    }
+  }
+  static class BCCore {
+''' + actual + '''
+  }
+  public static void main(String[] args) {
+    BCCore core = new BCCore();
+    PlayerInteractEvent.RightClickBlock e = new PlayerInteractEvent.RightClickBlock();
+    core.onPaintbrushRightClickBlock(e);
+    if (e.block != TriState.DEFAULT || e.item != TriState.DEFAULT) throw new AssertionError("changed unrelated click");
+    ItemPaintbrush_BC8.isPaintable = true;
+    core.onPaintbrushRightClickBlock(e);
+    if (e.block != TriState.FALSE || e.item != TriState.TRUE) throw new AssertionError("failed to override useBlock/useItem");
+  }
+}
+'''
+                with tempfile.TemporaryDirectory(prefix='bc-click-bridge-') as td:
+                    (Path(td) / 'Main.java').write_text(code, encoding='utf-8')
+                    subprocess.run(['javac', 'Main.java'], cwd=td, check=True,
+                                   capture_output=True, text=True)
+                    subprocess.run(['java', 'Main'], cwd=td, check=True,
+                                   capture_output=True, text=True)
 
     def test_facades_change_actual_material_and_sync_full_state(self):
         for target in TARGETS:

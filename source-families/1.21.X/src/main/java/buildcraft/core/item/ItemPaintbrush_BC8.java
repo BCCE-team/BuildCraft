@@ -28,12 +28,6 @@ import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.world.level.block.BannerBlock;
 import net.minecraft.world.level.block.WallBannerBlock;
-import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-//? if >=1.21.11 {
-import net.minecraft.util.TriState;
-//?} else {
-import net.neoforged.neoforge.common.util.TriState;
-//?}
 import net.minecraft.world.phys.Vec3;
 
 public class ItemPaintbrush_BC8 extends ItemByEnum<DyeColor> {
@@ -82,25 +76,21 @@ public class ItemPaintbrush_BC8 extends ItemByEnum<DyeColor> {
     }
 
     /**
-     * Beds, signs, shulkers and BuildCraft paintable blocks can consume the
-     * right-click before Item.useOn. Give the colored brush precedence so that
-     * installed pipe lenses/facades get the same paint behavior as world blocks.
+     * Loader-neutral click priority decision. Beds, signs, shulkers and
+     * BuildCraft paintable blocks can consume interaction before Item.useOn.
+     * NeoForge translates this decision into its native useBlock/useItem flags.
      */
-    public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-        if (!(event.getItemStack().getItem() instanceof ItemPaintbrush_BC8 brush) || brush.type == null) {
-            return;
+    public static boolean shouldOverrideBlockUse(ItemStack brushStack, Level level, BlockPos pos) {
+        if (!(brushStack.getItem() instanceof ItemPaintbrush_BC8 brush) || brush.type == null) {
+            return false;
         }
-        BlockState state = event.getLevel().getBlockState(event.getPos());
-        if (!(event.getLevel().getBlockEntity(event.getPos()) instanceof SignBlockEntity)
-                && !(state.getBlock() instanceof BedBlock
+        BlockState state = level.getBlockState(pos);
+        return level.getBlockEntity(pos) instanceof SignBlockEntity
+                || state.getBlock() instanceof BedBlock
                 || state.getBlock() instanceof ShulkerBoxBlock
                 || state.getBlock() instanceof BannerBlock
                 || state.getBlock() instanceof WallBannerBlock
-                || state.getBlock() instanceof ICustomPaintHandler)) {
-            return;
-        }
-        event.setUseBlock(TriState.FALSE);
-        event.setUseItem(TriState.TRUE);
+                || state.getBlock() instanceof ICustomPaintHandler;
     }
 
     /** Paint only the visible sign face, preserving its lines, formatting and glowing effect. */

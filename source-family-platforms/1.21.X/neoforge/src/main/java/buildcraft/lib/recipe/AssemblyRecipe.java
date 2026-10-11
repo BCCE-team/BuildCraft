@@ -166,7 +166,9 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
     }
 
     public Set<ItemStack> getOutputPreviews() {
-        return ImmutableSet.of();
+        // JEI and assembly-table previews need the actual output (including
+        // gate components and lens colour/damage), not an empty set.
+        return ImmutableSet.of(output.copy());
     }
 
     public List<RecipeDisplay> display() {

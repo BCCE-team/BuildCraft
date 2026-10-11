@@ -24,6 +24,8 @@ public final class BCSiliconRecipeSync {
     @EventBusSubscriber(modid = BCSilicon.MODID, value = Dist.CLIENT)
     public static final class Client {
         private static List<RecipeHolder<AssemblyRecipeBasic>> assembly = List.of();
+        /** Optional client callback. JEI installs it only while its runtime is active. */
+        private static Runnable assemblyRecipesChanged;
 
         private Client() {}
 
@@ -31,16 +33,32 @@ public final class BCSiliconRecipeSync {
             return assembly;
         }
 
+        /** Catch both orders: recipes may arrive before or after JEI finishes loading. */
+        public static void setAssemblyRecipesChangedListener(Runnable listener) {
+            assemblyRecipesChanged = listener;
+            if (listener != null) {
+                listener.run();
+            }
+        }
+
+        private static void notifyAssemblyRecipesChanged() {
+            if (assemblyRecipesChanged != null) {
+                assemblyRecipesChanged.run();
+            }
+        }
+
         @SubscribeEvent(priority = EventPriority.HIGHEST)
         public static void onRecipes(net.neoforged.neoforge.client.event.RecipesReceivedEvent event) {
             if (event.getRecipeTypes().contains(BCSiliconRecipes.ASSEMBLY_TYPE.get())) {
                 assembly = List.copyOf(event.getRecipeMap().byType(BCSiliconRecipes.ASSEMBLY_TYPE.get()));
+                notifyAssemblyRecipesChanged();
             }
         }
 
         @SubscribeEvent
         public static void onLogout(net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) {
             assembly = List.of();
+            notifyAssemblyRecipesChanged();
         }
     }
 }

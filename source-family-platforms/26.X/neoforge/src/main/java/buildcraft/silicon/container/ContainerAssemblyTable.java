@@ -36,7 +36,12 @@ public class ContainerAssemblyTable extends ContainerBCTile<TileAssemblyTable> {
             }
         }
 
-        SiliconDisplayContainer263 displaySlots = new SiliconDisplayContainer263(display);
+        // The client menu is constructed with an empty placeholder ItemProvider.
+        // Recipe previews instead arrive in the TileAssemblyTable GUI-state packet;
+        // use the tile-owned live provider so the slots see those synced results.
+        // Keeping the provider as fallback also supports menus without a resolved tile.
+        SiliconDisplayContainer263 displaySlots = new SiliconDisplayContainer263(
+                tile != null ? tile.display : display);
         for(int y = 0; y < 4; y++) {
             for(int x = 0; x < 3; x++) {
                 addSlot(displaySlots.slot( x + y * 3, 116 + x * 18, 36 + y * 18));

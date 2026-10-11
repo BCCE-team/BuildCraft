@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MJ Dynamo wrench/facing and six-sided quarry lattice regression tests for all targets."""
+"""Cross-target engine wrench, MJ Dynamo and six-sided quarry lattice regressions."""
 from __future__ import annotations
 import sys
 import tempfile
@@ -12,6 +12,7 @@ from source_config import load_properties,target_layout
 from source_layout import resolve_effective_source,_materialize_text_file
 from minecraft_compat_fixture import parse_sources
 from dynamo_rotation_fixture import execute as execute_rotation
+from all_engine_wrench_fixture import execute as execute_wrench
 from quarry_lattice_fixture import execute as execute_quarry
 
 TARGETS=('1.19.2-forge','1.20.1-forge','1.21.1-neoforge','1.21.11-neoforge',
@@ -19,6 +20,7 @@ TARGETS=('1.19.2-forge','1.20.1-forge','1.21.1-neoforge','1.21.11-neoforge',
 FILES={
  'dynamo':'src/main/java/buildcraft/energy/block/BlockDynamoMJ.java',
  'engine':'src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java',
+ 'engine_block':'src/main/java/buildcraft/lib/engine/BlockEngineBase_BC8.java',
  'quarry':'src/main/java/buildcraft/builders/client/render/RenderQuarry.java',
 }
 
@@ -62,6 +64,24 @@ class DynamoAndQuarryAllTargets(unittest.TestCase):
                 self.assertIn('return attemptRotation(true);',engine)
                 self.assertIn('if (manual || isFacingReceiver(current))',engine)
                 self.assertIn('if (manual) manuallySelectedDirection = true;',engine)
+
+    def test_all_engines_use_manual_wrench_rotation(self):
+        for version in TARGETS:
+            with self.subTest(version=version):
+                block = self.text(version, 'engine_block')
+                self.assertIn('return engine.attemptManualRotation();', block)
+                self.assertNotIn('return engine.attemptRotation();', block)
+                self.assertIn('if (world.isClientSide', block)
+                self.assertIn('return InteractionResult.SUCCESS;', block)
+                self.assertIn('engine.rotateIfInvalid();', block)
+                self.assertIn('ICustomRotationHandler', block)
+
+    def test_all_five_engine_wrench_paths_execute_in_java(self):
+        unique = {self.effective[target]['engine_block'].read_bytes():
+                  self.effective[target]['engine_block'] for target in TARGETS}
+        for source in unique.values():
+            with self.subTest(source=source):
+                self.assertIn('145 assertions PASS', execute_wrench(source))
 
     def test_all_targets_keep_wrench_direction_until_player_changes_it(self):
         for version in TARGETS:

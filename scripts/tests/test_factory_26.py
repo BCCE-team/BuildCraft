@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(ROOT / 'scripts/tests'))
 from source_config import load_properties, target_layout
-from source_layout import effective_source_files, _materialize_text_file
+from source_layout import effective_source_files, resolve_effective_source, _materialize_text_file
 from minecraft_compat_fixture import parse_sources
 from factory_26_fixture import execute
 
@@ -56,21 +57,25 @@ class Factory26EffectiveContracts(unittest.TestCase):
             with self.subTest(source=relative):
                 self.assertTrue((root / relative).is_file())
 
-    def test_native_recipe_bootstrap(self):
-        main=self.text('26.3','BCFactory.java')
-        rec=self.text('26.3','BCFactoryRecipesProvider.java')
-        self.assertIn('modEventBus.addListener(this::gatherData)',main)
-        self.assertIn('GatherDataEvent.Server event',main)
-        self.assertIn('event.createReloadableRegistryObjects(',main)
-        self.assertIn('RecipeProvider.asBootstrap(BCFactoryRecipesProvider::new)',main)
-        self.assertIn('BootstrapContext<Recipe<?>> recipes',rec)
-        self.assertIn('BootstrapContext<Advancement> advancements',rec)
-        self.assertIn('protected void buildRecipes()',rec)
-        self.assertEqual(8,rec.count('shaped(RecipeCategory.MISC'))
-        self.assertIn('ResourceKey.create(Registries.RECIPE',rec)
-        self.assertIn('autowork_bench_1',rec)
-        self.assertIn('autowork_bench_2',rec)
-        self.assertNotIn('ShapedRecipeBuilder.shaped(',rec)
+    def test_native_recipe_resources_follow_current_26_3_registry_pipeline(self):
+        # 26.3 uses packaged JSON rather than reloadable datagen registration.
+        # Test the actual selected resources instead of an obsolete generator.
+        main = self.text('26.3', 'BCFactory.java')
+        self.assertNotIn('event.createReloadableRegistryObjects(', main)
+        props = load_properties()
+        layout = target_layout('26.3-neoforge', props)
+        recipes = ('autowork_bench_1', 'autowork_bench_2', 'chute',
+                   'distiller', 'flood_gate', 'heat_exchange', 'mining_well',
+                   'pump', 'tank', 'water_gel', 'water_gel_to_bucket')
+        for name in recipes:
+            with self.subTest(recipe=name):
+                relative = f'src/main/resources/data/buildcraftfactory/recipe/{name}.json'
+                source = resolve_effective_source(layout, props, relative)
+                self.assertIsNotNone(source, relative)
+                payload = json.loads(source.read_text(encoding='utf-8'))
+                self.assertEqual('minecraft:crafting_shaped', payload.get('type'))
+                self.assertTrue(payload.get('pattern'), relative)
+                self.assertTrue(payload.get('result'), relative)
 
     def test_flood_gate_uses_native_transfer_for_bucket_placement(self):
         src=self.text('26.3','tile/TileFloodGate.java')

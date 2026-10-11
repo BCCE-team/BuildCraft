@@ -46,6 +46,7 @@ import buildcraft.robotics.item.ItemRedstoneBoard;
 import buildcraft.robotics.item.ItemRobot;
 import buildcraft.silicon.BCSiliconGuis;
 import buildcraft.silicon.BCSiliconItems;
+import buildcraft.silicon.item.ItemPluggableLens;
 import buildcraft.silicon.BCSiliconConfig;
 import buildcraft.silicon.BCSiliconRecipes;
 import buildcraft.silicon.container.ContainerAssemblyTable;
@@ -69,6 +70,7 @@ import buildcraft.factory.client.gui.ScreenHeatExchange;
 import buildcraft.energy.client.gui.GuiEngineIron_BC8;
 import buildcraft.energy.client.gui.GuiEngineStone_BC8;
 import mezz.jei.api.IModPlugin;
+import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.constants.VanillaTypes;
@@ -138,6 +140,9 @@ public class BuildCraftJeiPlugin implements IModPlugin {
     public static final IRecipeType<CombustionFuelRecipeView> COMBUSTION_FUEL = IRecipeType.create("buildcraftenergy", "combustion_fuel", CombustionFuelRecipeView.class);
 
     private static final Map<Identifier, GroupedAssemblyRecipe> GROUPED_ASSEMBLY_RECIPES = new LinkedHashMap<>();
+    private static IJeiRuntime activeRuntime;
+    private static List<RecipeHolder<AssemblyRecipeBasic>> publishedAssemblySource = List.of();
+    private static List<AssemblyJeiRecipe> publishedAssemblyRecipes = List.of();
 
     public Identifier getPluginUid() {
         return UID;
@@ -194,7 +199,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         // Lens colour/filter state is stored in Damage NBT on a single item. Expose it to JEI so focused
         // recipe lookups can select the matching variant inside the grouped lens pages.
         registration.registerSubtypeInterpreter(BCSiliconItems.PLUG_LENS_ITEM.get(),
-                (stack, context) -> Integer.toString(stack.getDamageValue()));
+                (stack, context) -> Integer.toString(ItemPluggableLens.getData(stack).getItemDamage()));
     }
 
     public void registerVanillaCategoryExtensions(IVanillaCategoryExtensionRegistration registration) {
@@ -214,16 +219,11 @@ public class BuildCraftJeiPlugin implements IModPlugin {
     }
 
     public void registerRecipes(IRecipeRegistration registration) {
-        List<AssemblyJeiRecipe> assemblyRecipes = BCSiliconRecipeSync.Client.assemblyRecipes().stream()
-                .map(holder -> new AssemblyJeiRecipe(holder.id().identifier(), holder.value()))
-                .collect(Collectors.toCollection(ArrayList::new));
-        boolean hadFacadeRecipe = assemblyRecipes.removeIf(view -> view.recipe() instanceof FacadeAssemblyRecipes);
-        if (hadFacadeRecipe && BCSiliconConfig.enableFacades) {
-            assemblyRecipes.add(new AssemblyJeiRecipe(
-                    Identifier.fromNamespaceAndPath("buildcraftsilicon", "jei/facades"),
-                    FacadeAssemblyJeiRecipe.create()));
-        }
-        registration.addRecipes(ASSEMBLY, groupAssemblyRecipes(assemblyRecipes));
+        List<RecipeHolder<AssemblyRecipeBasic>> source = BCSiliconRecipeSync.Client.assemblyRecipes();
+        List<AssemblyJeiRecipe> assemblyRecipes = collectAssemblyRecipes(source);
+        publishedAssemblySource = source;
+        publishedAssemblyRecipes = assemblyRecipes;
+        registration.addRecipes(ASSEMBLY, assemblyRecipes);
 
         BCRoboticsBoards.init();
         List<ProgrammingRecipeView> programming = new ArrayList<>();
@@ -292,8 +292,53 @@ public class BuildCraftJeiPlugin implements IModPlugin {
                 .findFirst().map(ItemStack::copy).orElse(ItemStack.EMPTY);
     }
 
+    /** Reload the server-authoritative recipe list even if JEI registered before login sync. */
+    private static List<AssemblyJeiRecipe> collectAssemblyRecipes(List<RecipeHolder<AssemblyRecipeBasic>> source) {
+        List<AssemblyJeiRecipe> assemblyRecipes = source.stream()
+                .map(holder -> new AssemblyJeiRecipe(holder.id().identifier(), holder.value()))
+                .collect(Collectors.toCollection(ArrayList::new));
+        boolean hadFacadeRecipe = assemblyRecipes.removeIf(view -> view.recipe() instanceof FacadeAssemblyRecipes);
+        if (hadFacadeRecipe && BCSiliconConfig.enableFacades) {
+            assemblyRecipes.add(new AssemblyJeiRecipe(
+                    Identifier.fromNamespaceAndPath("buildcraftsilicon", "jei/facades"),
+                    FacadeAssemblyJeiRecipe.create()));
+        }
+        return List.copyOf(groupAssemblyRecipes(assemblyRecipes));
+    }
+
+    @Override
+    public void onRuntimeAvailable(IJeiRuntime runtime) {
+        activeRuntime = runtime;
+        // Immediately reconcile the snapshot registered before runtime startup, then
+        // handle subsequent logins and /reloads using the same callback.
+        BCSiliconRecipeSync.Client.setAssemblyRecipesChangedListener(BuildCraftJeiPlugin::refreshAssemblyRecipes);
+    }
+
+    private static void refreshAssemblyRecipes() {
+        IJeiRuntime runtime = activeRuntime;
+        if (runtime == null) return;
+        List<RecipeHolder<AssemblyRecipeBasic>> source = BCSiliconRecipeSync.Client.assemblyRecipes();
+        if (source.equals(publishedAssemblySource)) return;
+
+        List<AssemblyJeiRecipe> updated = collectAssemblyRecipes(source);
+        // JEI has no removeRecipes API. Hide stale pages, then publish the new
+        // set so a datapack reload (including an empty list) never shows old recipes.
+        if (!publishedAssemblyRecipes.isEmpty()) {
+            runtime.getRecipeManager().hideRecipes(ASSEMBLY, publishedAssemblyRecipes);
+        }
+        if (!updated.isEmpty()) {
+            runtime.getRecipeManager().addRecipes(ASSEMBLY, updated);
+        }
+        publishedAssemblySource = source;
+        publishedAssemblyRecipes = updated;
+    }
+
     @Override
     public void onRuntimeUnavailable() {
+        BCSiliconRecipeSync.Client.setAssemblyRecipesChangedListener(null);
+        activeRuntime = null;
+        publishedAssemblySource = List.of();
+        publishedAssemblyRecipes = List.of();
         GROUPED_ASSEMBLY_RECIPES.clear();
     }
 
@@ -361,7 +406,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
 
     private static Comparator<AssemblyJeiRecipe> groupedAssemblyComparator(GroupedAssemblyKey key) {
         return switch (key.kind()) {
-            case LENS, LENS_FILTER -> Comparator.comparingInt(view -> assemblyResult(view.recipe()).getDamageValue());
+            case LENS, LENS_FILTER -> Comparator.comparingInt(view -> ItemPluggableLens.getData(assemblyResult(view.recipe())).getItemDamage());
             case WIRE -> Comparator.comparing(view -> String.valueOf(BuiltInRegistries.ITEM.getKey(assemblyResult(view.recipe()).getItem())));
             case GATE_BASE, GATE_MODIFIER -> Comparator
                     .comparingInt((AssemblyJeiRecipe view) -> ItemPluggableGate.getVariant(assemblyResult(view.recipe())).logic.ordinal())

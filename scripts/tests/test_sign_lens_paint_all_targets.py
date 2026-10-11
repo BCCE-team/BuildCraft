@@ -55,8 +55,14 @@ class SignLensPaintTest(unittest.TestCase):
             with self.subTest(target=target):
                 code = effective(target, 'core/item/ItemPaintbrush_BC8')
                 self.assertIn('paintSignText(level, pos, player)', code)
-                self.assertIn('event.getLevel().getBlockEntity(event.getPos()) instanceof SignBlockEntity', code)
-                self.assertIn('state.getBlock() instanceof ICustomPaintHandler', code)
+                if target.endswith('neoforge'):
+                    self.assertIn('level.getBlockEntity(pos) instanceof SignBlockEntity', code)
+                    self.assertIn('state.getBlock() instanceof ICustomPaintHandler', code)
+                    core = effective(target, 'core/BCCore')
+                    self.assertIn('ItemPaintbrush_BC8.shouldOverrideBlockUse(', core)
+                else:
+                    self.assertIn('event.getLevel().getBlockEntity(event.getPos()) instanceof SignBlockEntity', code)
+                    self.assertIn('state.getBlock() instanceof ICustomPaintHandler', code)
                 self.assertIn('!player.mayBuild()', code)
                 self.assertIn('!level.mayInteract(player, pos)', code)
                 self.assertIn('return InteractionResult.FAIL', code)

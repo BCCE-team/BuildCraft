@@ -198,7 +198,7 @@ for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
         f"{base}/assembly/lens/lens_regular.json",
         f"{base}/assembly/lens/lens_filter.json",
     ):
-        require_effective(target, rel, '"tag": "c:glass_blocks"')
+        require_effective(target, rel, '"item": "minecraft:glass"')
 
 # Energy-priced crafting keeps the original source balance in BCCE's MJ units.
 # BuildCraft 8.0.0 Assembly Table values were already expressed in MJ and therefore stay unchanged.
@@ -354,5 +354,5 @@ print(" - Construction Marker and Flood Gate interaction parity is guarded")
 print(" - dead custom oil biomes and their legacy Forge tag hooks are removed")
 print(" - Programming Table selection packets use an allocated container message ID")
 print(" - NeoForge config-owning modules expose the native generated config screen")
-print(" - 1.21.1/1.21.11 gate and clear-lens recipes use live NeoForge ingredients/tags")
+print(" - 1.21.1/1.21.11 gate ingredients and clear-lens recipes use uncoloured glass")
 print(" - BC8 assembly JSON/provider prices and BC7 robotics laser-energy balances are preserved")

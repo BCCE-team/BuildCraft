@@ -470,5 +470,301 @@ class ClientIntegrations(unittest.TestCase):
         self.assertFalse((old_root / 'src/main/java/buildcraft/lib/compat/jade/mixin/JadeEntrypointDedupMixin.java').exists())
 
 
+
+
+# ---- JEI assembly recipes, sync and reload ----
+
+
+
+import subprocess
+
+from source_layout import load_properties, target_layout, resolve_effective_source, _materialize_text_file
+
+JEI_ASSEMBLY_SYNC_MODERN = ('1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge')
+JEI_ASSEMBLY_SYNC_LEGACY = ('1.19.2-forge', '1.20.1-forge')
+
+
+def JEI_ASSEMBLY_SYNC_write(root: Path, relative: str, code: str) -> Path:
+    file = root / relative
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(code, encoding='utf-8')
+    return file
+
+
+def JEI_ASSEMBLY_SYNC_javaprobe(root: Path, sources: list[Path], main: str) -> str:
+    classes = root / 'classes'
+    classes.mkdir(exist_ok=True)
+    result = subprocess.run(['javac', '--release', '21', '-encoding', 'UTF-8', '-d', str(classes), *(str(f) for f in sources)], capture_output=True, text=True, timeout=40)
+    if result.returncode:
+        raise AssertionError('javac error: ' + result.stderr)
+    result = subprocess.run(['java', '-cp', str(classes), main], capture_output=True, text=True, timeout=30)
+    if result.returncode:
+        raise AssertionError('Java assertion: ' + result.stderr + '\n' + result.stdout)
+    return result.stdout
+
+
+class JeiAssemblySyncTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory(prefix='bc-jei-skm-')
+        cls.props = load_properties()
+        cls.roots = {target: Path(cls.temp.name) / target for target in (*JEI_ASSEMBLY_SYNC_MODERN, *JEI_ASSEMBLY_SYNC_LEGACY, '1.21.1-neoforge')}
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp.cleanup()
+
+    def source(self, target, path):
+        relative = 'src/main/java/' + path
+        layout = target_layout(target, self.props)
+        source = resolve_effective_source(layout, self.props, relative)
+        self.assertIsNotNone(source, f'missing {target}: {relative}')
+        dest = self.roots[target] / relative
+        if not dest.is_file():
+            downports = tuple(root for root in (layout.family_downport_root, layout.family_platform_downport_root) if root)
+            _materialize_text_file(source, dest, logical_relative=relative,
+                minecraft=self.props[f'target.{target}.deps.minecraft'], family=layout.family,
+                platform=layout.platform, preprocess=True,
+                native_source=any(source.is_relative_to(root) for root in downports))
+        return dest
+
+    def code(self, target, path):
+        return self.source(target, path).read_text(encoding='utf-8')
+
+    def test_modern_jei_registers_initial_and_late_assembly_recipes(self):
+        for target in JEI_ASSEMBLY_SYNC_MODERN:
+            with self.subTest(target=target):
+                plugin = self.code(target, 'buildcraft/compat/jei/BuildCraftJeiPlugin.java')
+                sync = self.code(target, 'buildcraft/silicon/BCSiliconRecipeSync.java')
+                provider = self.code(target, 'buildcraft/silicon/BCSiliconRecipesProvider.java')
+                self.assertIn('registration.addRecipes(ASSEMBLY, assemblyRecipes);', plugin)
+                self.assertIn('onRuntimeAvailable(IJeiRuntime runtime)', plugin)
+                self.assertIn('setAssemblyRecipesChangedListener(BuildCraftJeiPlugin::refreshAssemblyRecipes)', plugin)
+                self.assertIn('runtime.getRecipeManager().addRecipes(ASSEMBLY, updated)', plugin)
+                self.assertIn('runtime.getRecipeManager().hideRecipes(ASSEMBLY, publishedAssemblyRecipes)', plugin)
+                self.assertIn('source.equals(publishedAssemblySource)', plugin)
+                self.assertIn('collectAssemblyRecipes(source)', plugin)
+                self.assertIn('registration.addRecipes(PROGRAMMING', plugin)
+                self.assertIn('registration.addRecipes(INTEGRATION', plugin)
+                self.assertIn('registration.addRecipes(DISTILLATION', plugin)
+                self.assertIn('registration.addRecipes(HEAT_EXCHANGE', plugin)
+                self.assertIn('registration.addRecipes(COMBUSTION_FUEL', plugin)
+                self.assertIn('FacadeAssemblyJeiRecipe.create()', plugin)
+                self.assertIn('GROUPED_ASSEMBLY_RECIPES', plugin)
+                self.assertIn('event.sendRecipes(BCSiliconRecipes.ASSEMBLY_TYPE.get())', sync)
+                self.assertIn('notifyAssemblyRecipesChanged()', sync)
+                self.assertIn('assembly = List.of();', sync)
+                for marker in ('assembly/gate/and_', 'assembly/gate/or_', 'assembly/lens/', 'assembly/diamond_chipset'):
+                    self.assertIn(marker, provider)
+
+    def test_assembly_output_previews_preserve_item_components(self):
+        # Before 1.21.11 JEI used Recipe#getResultItem, but modern JEI's
+        # assemblyResult() consumes getOutputPreviews(). Returning an empty
+        # set makes every gate, lens, wire and chipset have an empty output.
+        for target in JEI_ASSEMBLY_SYNC_MODERN:
+            with self.subTest(target=target):
+                code = self.code(target, 'buildcraft/lib/recipe/AssemblyRecipe.java')
+                match = re.search(r'public Set<ItemStack> getOutputPreviews\(\) \{.*?\n    \}', code, re.S)
+                self.assertIsNotNone(match)
+                method = match.group()
+                deferred = target.startswith('26.')
+                self.assertIn('return ImmutableSet.of(resultTemplate().create());' if deferred
+                              else 'return ImmutableSet.of(output.copy());', method)
+                self.assertNotIn('ImmutableSet.of();', method)
+                root = Path(self.temp.name) / ('preview-stubs-' + target)
+                value_type = 'ItemStackTemplate' if deferred else 'ItemStack'
+                value_type_init = 'new ItemStackTemplate("gate", 193)' if deferred else 'new ItemStack("gate", 193)'
+                template_accessor = 'ItemStackTemplate resultTemplate(){return output;}' if deferred else ''
+                fixture = '''import java.util.*;
+public class PreviewProbe {
+  record ItemStack(String item,int components) {ItemStack copy(){return new ItemStack(item,components);}}
+  record ItemStackTemplate(String item,int components) {ItemStack create(){return new ItemStack(item,components);}}
+  static class ImmutableSet { static <T> Set<T> of(T value){return Set.of(value);} }
+  VALUE_TYPE output = VALUE_INIT;
+  TEMPLATE_ACCESSOR
+  METHOD
+  public static void main(String[]args){
+    PreviewProbe recipe=new PreviewProbe();
+    var previews=recipe.getOutputPreviews();
+    if(previews.size()!=1)throw new AssertionError("missing output");
+    var result=previews.iterator().next();
+    if(!result.item().equals("gate")||result.components()!=193)throw new AssertionError("lost gate variant");
+    System.out.println("assembly output preview PASS");
+  }
+}
+'''.replace('VALUE_TYPE', value_type).replace('VALUE_INIT', value_type_init).replace('TEMPLATE_ACCESSOR', template_accessor).replace('  METHOD', '  ' + method)
+                out=JEI_ASSEMBLY_SYNC_javaprobe(root,[JEI_ASSEMBLY_SYNC_write(root,'PreviewProbe.java',fixture)],'PreviewProbe')
+                self.assertIn('PASS',out)
+
+    def test_263_gate_lens_json_present_and_compatible_with_assembly_codec(self):
+        # On 26.3 datagen Java is intentionally omitted; packaged JSON from
+        # the 1.21.X source family remains the authoritative recipe source.
+        target = '26.3-neoforge'
+        layout = target_layout(target, self.props)
+        path_root = 'src/main/resources/data/buildcraftsilicon/recipe/assembly/'
+        for relative, result in (
+            ('gate/and_iron_no_modifier.json', 'buildcraftsilicon:plug/gate'),
+            ('lens/regular/purple.json', 'buildcraftsilicon:plug/lens'),
+            ('lens/filter/red.json', 'buildcraftsilicon:plug/lens'),
+        ):
+            with self.subTest(recipe=relative):
+                src = resolve_effective_source(layout, self.props, path_root + relative)
+                self.assertIsNotNone(src)
+                recipe = json.loads(src.read_text(encoding='utf-8'))
+                self.assertEqual(recipe['type'], 'buildcraftsilicon:assembly')
+                self.assertEqual(recipe['result']['item'], result)
+                self.assertEqual(len(recipe['ingredients']),len(recipe['ingredient_counts']))
+                self.assertGreater(recipe['MJ'],0)
+        source = self.code(target,'buildcraft/lib/recipe/AssemblyRecipe.java')
+        for field in ('"ingredients"','"ingredient_counts"','"result"','"MJ"'):
+            self.assertIn(field,source)
+        custom = self.code(target,'buildcraft/lib/recipe/BCLibIngredientTypes.java')
+        self.assertIn('"strict_nbt"',custom)
+
+    def test_1211_falls_back_to_sync_but_1211_api_not_used_on_1211_downport(self):
+        old = self.code('1.21.1-neoforge', 'buildcraft/compat/jei/BuildCraftJeiPlugin.java')
+        self.assertIn('.getAllRecipesFor(BCSiliconRecipes.ASSEMBLY_TYPE.get())', old)
+        self.assertNotIn('setAssemblyRecipesChangedListener', old)
+
+    def test_recipe_sync_real_source_compiles_and_notifies_both_orders(self):
+        root = Path(self.temp.name) / 'sync-stubs'
+        stubs = {
+            'buildcraft/lib/recipe/AssemblyRecipeBasic.java': 'package buildcraft.lib.recipe; public class AssemblyRecipeBasic {}',
+            'buildcraft/silicon/BCSilicon.java': 'package buildcraft.silicon; public class BCSilicon { public static final String MODID="buildcraftsilicon"; }',
+            'buildcraft/silicon/BCSiliconRecipes.java': 'package buildcraft.silicon; import buildcraft.lib.recipe.AssemblyRecipeBasic; import net.minecraft.world.item.crafting.RecipeType; public class BCSiliconRecipes { public static final Entry<RecipeType<AssemblyRecipeBasic>> ASSEMBLY_TYPE = new Entry<>(new RecipeType<>()); public record Entry<T>(T obj){ public T get(){return obj;} }}',
+            'net/minecraft/world/item/crafting/RecipeType.java': 'package net.minecraft.world.item.crafting; public class RecipeType<T> {}',
+            'net/minecraft/world/item/crafting/RecipeHolder.java': 'package net.minecraft.world.item.crafting; public record RecipeHolder<T>(String id,T value) {}',
+            'net/minecraft/world/item/crafting/RecipeMap.java': 'package net.minecraft.world.item.crafting; import java.util.*; public record RecipeMap(List<RecipeHolder<?>> entries){ @SuppressWarnings("unchecked") public <T> List<RecipeHolder<T>> byType(RecipeType<T> type){return (List)entries;} }',
+            'net/neoforged/api/distmarker/Dist.java': 'package net.neoforged.api.distmarker; public enum Dist { CLIENT, DEDICATED_SERVER }',
+            'net/neoforged/bus/api/EventPriority.java': 'package net.neoforged.bus.api; public enum EventPriority { NORMAL, HIGHEST }',
+            'net/neoforged/bus/api/SubscribeEvent.java': 'package net.neoforged.bus.api; import java.lang.annotation.*; @Retention(RetentionPolicy.RUNTIME) public @interface SubscribeEvent { EventPriority priority() default EventPriority.NORMAL; }',
+            'net/neoforged/fml/common/EventBusSubscriber.java': 'package net.neoforged.fml.common; import java.lang.annotation.*; import net.neoforged.api.distmarker.Dist; @Retention(RetentionPolicy.RUNTIME) public @interface EventBusSubscriber { String modid(); Dist value() default Dist.DEDICATED_SERVER; }',
+            'net/neoforged/neoforge/event/OnDatapackSyncEvent.java': 'package net.neoforged.neoforge.event; import net.minecraft.world.item.crafting.RecipeType; public class OnDatapackSyncEvent{public RecipeType<?> sent; public void sendRecipes(RecipeType<?> type){sent=type;}}',
+            'net/neoforged/neoforge/client/event/RecipesReceivedEvent.java': 'package net.neoforged.neoforge.client.event; import java.util.*; import net.minecraft.world.item.crafting.*; public record RecipesReceivedEvent(Set<RecipeType<?>> getRecipeTypes,RecipeMap getRecipeMap) {}',
+            'net/neoforged/neoforge/client/event/ClientPlayerNetworkEvent.java': 'package net.neoforged.neoforge.client.event; public class ClientPlayerNetworkEvent { public static class LoggingOut{} }'
+        }
+        sources = [JEI_ASSEMBLY_SYNC_write(root, k, v) for k, v in stubs.items()]
+        source = self.source('1.21.11-neoforge', 'buildcraft/silicon/BCSiliconRecipeSync.java')
+        sources.append(source)
+        main = '''import buildcraft.silicon.*;
+import buildcraft.lib.recipe.AssemblyRecipeBasic;
+import net.minecraft.world.item.crafting.*;
+import net.neoforged.neoforge.event.OnDatapackSyncEvent;
+import net.neoforged.neoforge.client.event.*;
+import java.util.*;
+public class TestMain{
+  static int changed;
+  static void check(boolean b){if(!b)throw new AssertionError();}
+  static RecipesReceivedEvent event(RecipeHolder<AssemblyRecipeBasic>... holders){return new RecipesReceivedEvent(Set.of(BCSiliconRecipes.ASSEMBLY_TYPE.get()),new RecipeMap(new ArrayList<>(List.of(holders))));}
+  @SuppressWarnings("unchecked")
+  public static void main(String[] args){
+    check(BCSiliconRecipeSync.Client.assemblyRecipes().isEmpty());
+    OnDatapackSyncEvent toSend=new OnDatapackSyncEvent();BCSiliconRecipeSync.onDatapackSync(toSend);
+    check(toSend.sent==BCSiliconRecipes.ASSEMBLY_TYPE.get());
+    var gate=new RecipeHolder<>("assembly/gate",new AssemblyRecipeBasic());
+    var lens=new RecipeHolder<>("assembly/lens",new AssemblyRecipeBasic());
+    // Recipes arrive before JEI runtime becomes available.
+    BCSiliconRecipeSync.Client.onRecipes(event(gate,lens));
+    check(BCSiliconRecipeSync.Client.assemblyRecipes().size()==2);
+    BCSiliconRecipeSync.Client.setAssemblyRecipesChangedListener(()->changed++);
+    check(changed==1); // listener immediately receives existing cache
+    BCSiliconRecipeSync.Client.onRecipes(event(lens));
+    check(changed==2 && BCSiliconRecipeSync.Client.assemblyRecipes().size()==1);
+    BCSiliconRecipeSync.Client.onRecipes(event());
+    check(changed==3 && BCSiliconRecipeSync.Client.assemblyRecipes().isEmpty());
+    BCSiliconRecipeSync.Client.setAssemblyRecipesChangedListener(null);
+    BCSiliconRecipeSync.Client.onRecipes(event(gate));
+    check(changed==3);
+    BCSiliconRecipeSync.Client.setAssemblyRecipesChangedListener(()->changed++);
+    check(changed==4);
+    BCSiliconRecipeSync.Client.onLogout(new ClientPlayerNetworkEvent.LoggingOut());
+    check(changed==5 && BCSiliconRecipeSync.Client.assemblyRecipes().isEmpty());
+    System.out.println("server recipe sync ordering and reload PASS");
+  }
+}
+'''
+        sources.append(JEI_ASSEMBLY_SYNC_write(root, 'TestMain.java', main))
+        out = JEI_ASSEMBLY_SYNC_javaprobe(root, sources, 'TestMain')
+        self.assertIn('PASS', out)
+
+
+
+    def test_modern_jei_real_refresh_method_removes_stale_pages(self):
+        # Compile the actual methods extracted from each maintained JEI plugin
+        # against the runtime contracts. Exercise a late login, unchanged sync,
+        # datapack replacement, empty reload, and runtime detach.
+        for target in JEI_ASSEMBLY_SYNC_MODERN:
+            with self.subTest(target=target):
+                code = self.code(target, 'buildcraft/compat/jei/BuildCraftJeiPlugin.java')
+                def method(signature):
+                    start = code.index(signature)
+                    end = code.index('\n    }', start) + len('\n    }')
+                    return code[start:end]
+                available = method('public void onRuntimeAvailable(IJeiRuntime runtime)')
+                refresh = method('private static void refreshAssemblyRecipes()')
+                unavailable = method('public void onRuntimeUnavailable()')
+                available = available.replace('BuildCraftJeiPlugin::refreshAssemblyRecipes', 'JeiRuntimeProbe::refreshAssemblyRecipes')
+                source = """import java.util.*;
+public class JeiRuntimeProbe {
+  interface IJeiRuntime { RecipeManager getRecipeManager(); }
+  static class RecipeManager {
+    List<AssemblyJeiRecipe> visible=new ArrayList<>();int added,hidden;
+    void hideRecipes(Object type, Collection<AssemblyJeiRecipe> recipes){visible.removeAll(recipes); hidden+=recipes.size();}
+    void addRecipes(Object type, List<AssemblyJeiRecipe> recipes){visible.addAll(recipes); added+=recipes.size();}
+  }
+  record AssemblyRecipeBasic(String name){}
+  record RecipeHolder<T>(String id,T value){}
+  record AssemblyJeiRecipe(String id,AssemblyRecipeBasic recipe){}
+  static class BCSiliconRecipeSync {
+    static class Client {
+      private static List<RecipeHolder<AssemblyRecipeBasic>> recipes=List.of();private static Runnable listener;
+      static List<RecipeHolder<AssemblyRecipeBasic>> assemblyRecipes(){return recipes;}
+      static void setAssemblyRecipesChangedListener(Runnable next){listener=next;if(listener!=null)listener.run();}
+      static void push(RecipeHolder<AssemblyRecipeBasic>... items){recipes=List.of(items);if(listener!=null)listener.run();}
+    }
+  }
+  static class GroupedAssemblyRecipes { void clear() {} }
+  static final Map<String,Integer> GROUPED_ASSEMBLY_RECIPES=new HashMap<>();
+  static final Object ASSEMBLY=new Object();
+  private static IJeiRuntime activeRuntime;
+  private static List<RecipeHolder<AssemblyRecipeBasic>> publishedAssemblySource=List.of();
+  private static List<AssemblyJeiRecipe> publishedAssemblyRecipes=List.of();
+  static List<AssemblyJeiRecipe> collectAssemblyRecipes(List<RecipeHolder<AssemblyRecipeBasic>> source){
+    return source.stream().map(r->new AssemblyJeiRecipe(r.id(),r.value())).toList();
+  }
+  public void register(){var source=BCSiliconRecipeSync.Client.assemblyRecipes();
+    publishedAssemblySource=source;publishedAssemblyRecipes=collectAssemblyRecipes(source);}
+  AVAILABLE
+  REFRESH
+  UNAVAILABLE
+  static void check(boolean value){if(!value)throw new AssertionError();}
+  public static void main(String[] args){
+    var probe=new JeiRuntimeProbe();var manager=new RecipeManager();IJeiRuntime rt=()->manager;
+    probe.register();probe.onRuntimeAvailable(rt);
+    check(manager.added==0 && manager.hidden==0);
+    var gate=new RecipeHolder<>("gate",new AssemblyRecipeBasic("and"));
+    var lens=new RecipeHolder<>("lens",new AssemblyRecipeBasic("red"));
+    BCSiliconRecipeSync.Client.push(gate,lens);
+    check(manager.visible.size()==2 && manager.added==2);
+    BCSiliconRecipeSync.Client.push(gate,lens); // unchanged snapshot: no duplicates
+    check(manager.added==2 && manager.hidden==0);
+    BCSiliconRecipeSync.Client.push(gate); // reload replaces recipes
+    check(manager.visible.size()==1 && manager.visible.get(0).id().equals("gate"));
+    check(manager.added==3 && manager.hidden==2);
+    BCSiliconRecipeSync.Client.push(); // empty reload or server leaves world
+    check(manager.visible.isEmpty() && manager.hidden==3);
+    probe.onRuntimeUnavailable();
+    BCSiliconRecipeSync.Client.push(lens);
+    check(manager.visible.isEmpty() && manager.added==3); // detached from JEI
+    System.out.println("JEI live registration and reload PASS");
+  }
+}
+"""
+                source = source.replace('  AVAILABLE', available).replace('  REFRESH', refresh).replace('  UNAVAILABLE', unavailable)
+                root = Path(self.temp.name) / ('jei-stubs-' + target)
+                result=JEI_ASSEMBLY_SYNC_javaprobe(root, [JEI_ASSEMBLY_SYNC_write(root,'JeiRuntimeProbe.java',source)], 'JeiRuntimeProbe')
+                self.assertIn('PASS', result)
+
+
 if __name__ == '__main__':
     unittest.main()

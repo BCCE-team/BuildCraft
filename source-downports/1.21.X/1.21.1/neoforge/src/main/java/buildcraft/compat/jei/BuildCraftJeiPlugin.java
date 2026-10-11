@@ -45,6 +45,7 @@ import buildcraft.robotics.item.ItemRedstoneBoard;
 import buildcraft.robotics.item.ItemRobot;
 import buildcraft.silicon.BCSiliconGuis;
 import buildcraft.silicon.BCSiliconItems;
+import buildcraft.silicon.item.ItemPluggableLens;
 import buildcraft.silicon.BCSiliconConfig;
 import buildcraft.silicon.BCSiliconRecipes;
 import buildcraft.silicon.container.ContainerAssemblyTable;
@@ -169,7 +170,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         // Lens colour/filter state is stored in Damage NBT on a single item. Expose it to JEI so focused
         // recipe lookups can select the matching variant inside the grouped lens pages.
         registration.registerSubtypeInterpreter(BCSiliconItems.PLUG_LENS_ITEM.get(),
-                (stack, context) -> Integer.toString(stack.getDamageValue()));
+                (stack, context) -> Integer.toString(ItemPluggableLens.getData(stack).getItemDamage()));
     }
 
     @Override
@@ -334,7 +335,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
 
     private static Comparator<AssemblyJeiRecipe> groupedAssemblyComparator(GroupedAssemblyKey key) {
         return switch (key.kind()) {
-            case LENS, LENS_FILTER -> Comparator.comparingInt(view -> view.recipe().getResultItem(registryAccess()).getDamageValue());
+            case LENS, LENS_FILTER -> Comparator.comparingInt(view -> ItemPluggableLens.getData(view.recipe().getResultItem(registryAccess())).getItemDamage());
             case WIRE -> Comparator.comparing(view -> String.valueOf(BuiltInRegistries.ITEM.getKey(view.recipe().getResultItem(registryAccess()).getItem())));
             case GATE_BASE, GATE_MODIFIER -> Comparator
                     .comparingInt((AssemblyJeiRecipe view) -> ItemPluggableGate.getVariant(view.recipe().getResultItem(registryAccess())).logic.ordinal())

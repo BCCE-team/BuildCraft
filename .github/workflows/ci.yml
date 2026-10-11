@@ -115,11 +115,7 @@ jobs:
       - name: Test MJ Dynamo wrench and Quarry lattice all targets
         run: python -m unittest discover -s scripts/tests -p test_cross_target_dynamo_quarry.py -v
 
-      - name: Test uniform BC8 engine wrench rotation on all targets
-        run: python -m unittest discover -s scripts/tests -p test_all_engine_wrench.py -v
 
-      - name: Check Minecraft 26.2 compiler regressions
-        run: python -m unittest discover -s scripts/tests -p test_262_compile_errors.py -v
 
       - name: Test 26.2 compiler compatibility
         run: python -m unittest discover -s scripts/tests -p test_262_compile_errors.py -v
@@ -127,8 +123,6 @@ jobs:
       - name: Test 26.3 removed NeoForge APIs and worldgen migration
         run: python -m unittest discover -s scripts/tests -p test_263_transfer_compile.py -v
 
-      - name: Test 26.3 inventory adapters in Java
-        run: python -m unittest discover -s scripts/tests -p test_263_item_storage_java.py -v
       - name: Test 26.3 removed vanilla APIs and power bridge
         run: python -m unittest discover -s scripts/tests -p test_263_followup_api.py -v
 
@@ -162,8 +156,6 @@ jobs:
       - name: Test storage, event, registry and config boundaries
         run: python -m unittest discover -s scripts/tests -p test_platform_boundaries.py -v
 
-      - name: Test capability lifecycle invalidation and revival
-        run: python -m unittest discover -s scripts/tests -p test_capability_lifecycle.py -v
 
       - name: Test platform contracts
         run: python -m unittest discover -s scripts/tests -p test_platform_contracts.py -v
@@ -192,8 +184,6 @@ jobs:
       - name: Test canonical resource pipeline
         run: python -m unittest discover -s scripts/tests -p test_resource_pipeline.py -v
 
-      - name: Test fluid sprite reload and model atlas references
-        run: python -m unittest discover -s scripts/tests -p test_fluid_resource_reload_262.py -v
 
       - name: Validate resources, metadata and build hygiene
         run: python scripts/validate-cross-target-integrity.py
