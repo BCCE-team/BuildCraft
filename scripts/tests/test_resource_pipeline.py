@@ -555,5 +555,45 @@ class ResourceReload26Regression(unittest.TestCase):
             self.assertLess(max(indices),height // width)
 
 
+class OilWorldgenPolicy(unittest.TestCase):
+    """Keep the issue #65 replacement contract consistent across the seven targets."""
+
+    def test_modded_blocks_are_blocked_only_by_unbreakable_hardness(self):
+        from source_layout import resolve_effective_source, target_layout
+
+        props = load_properties()
+        for target in (
+            '1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge',
+            '1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge',
+        ):
+            with self.subTest(target=target):
+                source = resolve_effective_source(
+                    target_layout(target, props), props,
+                    'src/main/java/buildcraft/energy/generation/features/OilStructure.java',
+                )
+                self.assertIsNotNone(source)
+                code = source.read_text(encoding='utf-8')
+                policy = code.split('private static boolean canReplaceNaturalTerrain(', 1)[1].split(
+                    '\n    private static boolean isProtectedConstructionPath(', 1)[0]
+                hardness = 'if (state.getDestroySpeed(world, pos) < 0.0F) {'
+                modded = 'if (!"minecraft".equals(key.getNamespace())) {'
+                block_entity = 'if (state.hasBlockEntity()) {'
+                vanilla_wood = 'state.is(BlockTags.LOGS)'
+                protected = 'if (isProtectedConstructionPath(path)) {'
+
+                # A modded block's name, tags and block entity are irrelevant.
+                # The only veto before returning true must be unbreakable hardness
+                # (and an unavailable registry key, whose namespace is unknown).
+                for fragment in (hardness, modded, block_entity, vanilla_wood, protected):
+                    self.assertIn(fragment, policy)
+                self.assertRegex(policy, r'if \(!"minecraft"\.equals\(key\.getNamespace\(\)\)\) \{[\s\S]*?return true;\s*\}')
+                self.assertLess(policy.index(hardness), policy.index(modded))
+                self.assertLess(policy.index('if (key == null) {'), policy.index(modded))
+                self.assertLess(policy.index(modded), policy.index(block_entity))
+                self.assertLess(policy.index(modded), policy.index(vanilla_wood))
+                self.assertLess(policy.index(modded), policy.index(protected))
+                self.assertIn('return isNaturalTerrainPath(path);', policy)
+
+
 if __name__ == '__main__':
     unittest.main()

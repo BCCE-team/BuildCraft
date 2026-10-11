@@ -549,6 +549,9 @@ class LegacyPipePickTests(unittest.TestCase):
                 method = match.group()
                 self.assertIn('getPickSubHit(world, pos, tile, target, player)', code)
                 self.assertIn('return plug.getPickStack();', code)
+                reach_api = ('player.getReachDistance()' if target == '1.19.2-forge'
+                    else 'player.getAttributeValue(ForgeMod.BLOCK_REACH.get())')
+                self.assertIn(reach_api, method)
                 root = Path(self.temp.name) / ('pick-stubs-' + target)
                 fixture = '''public class PickRayProbe {
   static class BlockGetter {}
@@ -594,6 +597,20 @@ class LegacyPipePickTests(unittest.TestCase):
   }
 }
 '''.replace('  METHOD', method)
+                if target == '1.20.1-forge':
+                    # Forge 1.20.1 removed Player#getReachDistance; the block-reach
+                    # attribute is available through ForgeMod.BLOCK_REACH instead.
+                    fixture = fixture.replace(
+                        '  static class Player{',
+                        '  static class ForgeMod { '
+                        'static final AttributeRef BLOCK_REACH = new AttributeRef(); '
+                        'static class Attribute {} '
+                        'static class AttributeRef { Attribute get(){ return new Attribute(); } } '
+                        '}\n  static class Player{',
+                    ).replace(
+                        'double getReachDistance(){return 5;}',
+                        'double getAttributeValue(ForgeMod.Attribute attr){return 5;}',
+                    )
                 file = PICK_1211_write(root, 'PickRayProbe.java', fixture)
                 out=PICK_1211_javaprobe(root, [file], 'PickRayProbe')
                 self.assertIn('PASS', out)

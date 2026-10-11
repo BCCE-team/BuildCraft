@@ -598,7 +598,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 			Vec3 start = player.getEyePosition();
 			Vec3 aim = target != null ? target.getLocation().subtract(start) : player.getLookAngle();
 			if (aim.lengthSqr() > 1.0E-8D) {
-				Vec3 end = start.add(aim.normalize().scale(player.getReachDistance()));
+				Vec3 end = start.add(aim.normalize().scale(player.getAttributeValue(ForgeMod.BLOCK_REACH.get())));
 				VoxelShape[] shapes = getAllShape(world, pos);
 				double nearest = Double.MAX_VALUE;
 				int nearestPart = -1;

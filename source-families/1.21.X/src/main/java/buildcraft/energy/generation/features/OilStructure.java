@@ -84,29 +84,35 @@ public abstract class OilStructure {
     }
 
     /**
-     * Returns whether oil worldgen may replace this block. This is intentionally conservative:
-     * unknown/constructed blocks are protected by default, while normal terrain, replaceable
-     * vegetation and fluids remain eligible. That keeps deposits from eating player builds or
-     * generated structures from other mods.
+     * Decide whether worldgen oil can replace a block.
+     * Modded blocks are replaceable whenever they are breakable, regardless of their registry
+     * name, tags or block entity. Vanilla blocks retain the conservative terrain/structure policy.
      */
     private static boolean canReplaceNaturalTerrain(WorldGenLevel world, BlockPos pos, BlockState state) {
-        // Never touch blocks that are creative-only/unbreakable (bedrock, end portal frames,
-        // barriers, command/structure blocks, etc.) or blocks carrying persistent state.
-        if (state.getDestroySpeed(world, pos) < 0.0F || state.hasBlockEntity()) {
-            return false;
-        }
-
-        // Trees and processed wood are deliberately preserved even though logs/leaves can be
-        // naturally generated: an oil deposit should flow around them instead of deleting them.
-        if (state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES) || state.is(BlockTags.PLANKS)) {
+        // Unbreakable blocks are protected in every namespace, including other mods.
+        if (state.getDestroySpeed(world, pos) < 0.0F) {
             return false;
         }
 
         ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
         if (key == null) {
-            // Unknown/unregistered blocks are safest to treat as structure/player content.
+            // Without a registry namespace we cannot classify the block as modded.
             return false;
         }
+        if (!"minecraft".equals(key.getNamespace())) {
+            // Issue #65: modded rock layers, machines, block entities, logs, and other blocks
+            // are all valid oil terrain as long as they are not unbreakable.
+            return true;
+        }
+
+        // Preserve the existing safety checks for vanilla structures and wood.
+        if (state.hasBlockEntity()) {
+            return false;
+        }
+        if (state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES) || state.is(BlockTags.PLANKS)) {
+            return false;
+        }
+
         String path = key.getPath();
         if (isProtectedConstructionPath(path)) {
             return false;
@@ -121,15 +127,12 @@ public abstract class OilStructure {
             return true;
         }
 
-        // Only known natural decoration is allowed through the generic replaceable-block path.
-        // A modded/player block being replaceable is not, by itself, permission to destroy it.
+        // Only known vanilla natural decoration is allowed through the replaceable-block path.
         if (state.canBeReplaced() && isNaturalDecorationPath(path)) {
             return true;
         }
 
-        // Everything solid is denied unless it looks like ordinary geological terrain. This
-        // makes modded machines/decorative blocks safe by default while still accepting common
-        // modded ores and terrain blocks whose registry names follow vanilla conventions.
+        // For vanilla blocks, only known geological terrain can be replaced.
         return isNaturalTerrainPath(path);
     }
 
