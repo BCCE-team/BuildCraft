@@ -120,7 +120,13 @@ public final class PipeFluidPowerGameTests {
         PipeFlowFluids flow = new PipeFlowFluids(pipe);
         pipe.setFlow(flow);
 
+//? if >=26.3 {
+        IFluidHandler handler = buildcraft.lib.compat.transfer.TransferInterop.importFluids(
+            flow.resourceHandler(Direction.EAST)
+        );
+//? } else {
         IFluidHandler handler = flow.getCapability(CapUtil.CAP_FLUIDS, Direction.EAST);
+//? }
         require(helper, handler != null, "fluid pipe did not expose its fluid capability");
         require(helper, handler.getTanks() == 1, "fluid pipe capability reported no tanks");
         require(helper, handler.getTankCapacity(0) == flow.capacity, "fluid pipe reported the wrong tank capacity");

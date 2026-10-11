@@ -199,6 +199,10 @@ public final class PipeGameTestSupport {
 
         private final Level level;
         private final IPipe pipe;
+        /** Stand-in tile so transaction commits can mark the pipe dirty like they do on a placed pipe. */
+        private final BlockEntity pipeTile = new net.minecraft.world.level.block.entity.ChestBlockEntity(
+            BlockPos.ZERO, net.minecraft.world.level.block.Blocks.CHEST.defaultBlockState()
+        );
         private final Map<Direction, Map<BlockCapability<?, Direction>, Object>> capabilities = new EnumMap<>(Direction.class);
 
         private TestHolder(Level level, IPipe pipe) {
@@ -218,7 +222,7 @@ public final class PipeGameTestSupport {
 
         @Override
         public BlockEntity getPipeTile() {
-            return null;
+            return pipeTile;
         }
 
         @Override
@@ -254,8 +258,88 @@ public final class PipeGameTestSupport {
         @SuppressWarnings("unchecked")
         public <T> @Nullable T getCapabilityFromPipe(Direction side, @Nonnull BlockCapability<T, Direction> capability) {
             Map<BlockCapability<?, Direction>, Object> byCapability = capabilities.get(side);
-            return byCapability == null ? null : (T) byCapability.get(capability);
+            if (byCapability == null) {
+                return null;
+            }
+            Object exposed = byCapability.get(capability);
+//? if >=26.3 {
+            if (exposed == null) {
+                exposed = exportNative(byCapability, capability);
+            }
+//? }
+            return (T) exposed;
         }
+
+//? if >=26.3 {
+        /** 26.3 pipes query the native transfer capabilities, so wrap the BuildCraft ones exposed by a test. */
+        @Nullable
+        private static Object exportNative(
+            Map<BlockCapability<?, Direction>, Object> exposed, BlockCapability<?, Direction> capability
+        ) {
+            if (capability == net.neoforged.neoforge.capabilities.Capabilities.Energy.BLOCK
+                && exposed.get(buildcraft.lib.misc.CapUtil.CAP_FE)
+                    instanceof buildcraft.lib.compat.neoforge263.energy.IEnergyStorage storage) {
+                return legacyEnergyHandler(storage);
+            }
+            if (capability == net.neoforged.neoforge.capabilities.Capabilities.Fluid.BLOCK
+                && exposed.get(buildcraft.lib.misc.CapUtil.CAP_FLUIDS)
+                    instanceof buildcraft.lib.compat.neoforge263.fluids.IFluidHandler handler) {
+                return buildcraft.lib.compat.transfer.TransferInterop.exportFluids(() -> handler);
+            }
+            return null;
+        }
+
+        /** TransferInterop only supports journaled storage, so fixtures get a handler that applies on commit. */
+        private static net.neoforged.neoforge.transfer.energy.EnergyHandler legacyEnergyHandler(
+            buildcraft.lib.compat.neoforge263.energy.IEnergyStorage storage
+        ) {
+            return new net.neoforged.neoforge.transfer.energy.EnergyHandler() {
+                @Override
+                public long getAmountAsLong() {
+                    return storage.getEnergyStored();
+                }
+
+                @Override
+                public long getCapacityAsLong() {
+                    return storage.getMaxEnergyStored();
+                }
+
+                @Override
+                public int insert(int amount, net.neoforged.neoforge.transfer.transaction.TransactionContext transaction) {
+                    if (amount < 0) {
+                        throw new IllegalArgumentException("Negative energy amount: " + amount);
+                    }
+                    if (amount == 0 || !storage.canReceive()) {
+                        return 0;
+                    }
+                    int accepted = storage.receiveEnergy(amount, true);
+                    if (accepted > 0) {
+                        buildcraft.lib.compat.transfer.TransferJournal.notifyAfterCommit(
+                            () -> storage.receiveEnergy(accepted, false)
+                        );
+                    }
+                    return Math.max(0, accepted);
+                }
+
+                @Override
+                public int extract(int amount, net.neoforged.neoforge.transfer.transaction.TransactionContext transaction) {
+                    if (amount < 0) {
+                        throw new IllegalArgumentException("Negative energy amount: " + amount);
+                    }
+                    if (amount == 0 || !storage.canExtract()) {
+                        return 0;
+                    }
+                    int extracted = storage.extractEnergy(amount, true);
+                    if (extracted > 0) {
+                        buildcraft.lib.compat.transfer.TransferJournal.notifyAfterCommit(
+                            () -> storage.extractEnergy(extracted, false)
+                        );
+                    }
+                    return Math.max(0, extracted);
+                }
+            };
+        }
+//? }
 
         @Override
         public WireManager getWireManager() {

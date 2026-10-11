@@ -113,8 +113,14 @@ public final class PipeForgeEnergyGameTests {
 
         int accepted = flow.tryExtractPower(max * 2, Direction.WEST);
         require(helper, accepted == max, "Wooden FE Pipe extracted outside its per-section capacity");
+//? if >=26.3 {
+        // Native transactions simulate again when the execute transaction opens, so only the execute count is exact.
+        require(helper, source.simulateExtractions >= 1 && source.executeExtractions == 1,
+            "Wooden FE Pipe did not simulate and then execute exactly one extraction");
+//? } else {
         require(helper, source.simulateExtractions == 1 && source.executeExtractions == 1,
             "Wooden FE Pipe did not perform one simulate + one execute extraction");
+//? }
         require(helper, source.lastSimulated == max && source.lastExecuted == max,
             "Wooden FE Pipe executed more FE than it simulated");
         require(helper, flow.getSection(Direction.WEST).getEnergyStored() == max,
