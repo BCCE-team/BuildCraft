@@ -21,7 +21,11 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
+//? if >=26.3 {
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//? }
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -127,7 +131,7 @@ public final class PipeFluidPowerGameTests {
         int rate = PipeApi.getFluidTransferInfo(BCTransportPipes.cobbleFluid).transferPerTick;
         int inserted = handler.fill(
             new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate),
-            FluidAction.EXECUTE
+            IFluidHandler.FluidAction.EXECUTE
         );
         require(helper, inserted == rate, "fluid capability filled the wrong amount");
         FluidStack reported = handler.getFluidInTank(0);
@@ -288,7 +292,7 @@ public final class PipeFluidPowerGameTests {
         int initial = FluidType.BUCKET_VOLUME;
         int filled = source.tank.fill(
             new FluidStack(net.minecraft.world.level.material.Fluids.WATER, initial),
-            FluidAction.EXECUTE
+            IFluidHandler.FluidAction.EXECUTE
         );
         require(helper, filled == initial, "failed to fill source tank");
         int[] extracted = { 0 };
@@ -695,7 +699,7 @@ public final class PipeFluidPowerGameTests {
         }
 
         @Override
-        public long receivePower(long microJoules, FluidAction action) {
+        public long receivePower(long microJoules, IFluidHandler.FluidAction action) {
             if (microJoules <= 0) {
                 return microJoules;
             }
