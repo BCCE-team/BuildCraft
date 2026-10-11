@@ -707,7 +707,24 @@ public class MutableQuad {
         }
         // @formatter:on
         translatef(ox, oy, oz);
+        if (face != null) {
+            face = rotateFace(face, from, to);
+        }
         return this;
+    }
+
+    /** Rotates a face label the same way {@link #rotate(Direction, Direction, float, float, float)} rotates geometry,
+     * by rotating a probe quad whose vertices sit one block step from the origin along the face. Without this a
+     * rotated quad keeps its old culling and shading direction, so baked pluggables look different (or get culled) per
+     * viewing direction. */
+    private static Direction rotateFace(Direction face, Direction from, Direction to) {
+        MutableQuad probe = new MutableQuad();
+        for (MutableVertex vertex : probe.vertexs) {
+            vertex.positionf(face.getStepX(), face.getStepY(), face.getStepZ());
+        }
+        probe.rotate(from, to, 0, 0, 0);
+        MutableVertex moved = probe.vertex_0;
+        return Direction.getApproximateNearest(moved.position_x, moved.position_y, moved.position_z);
     }
 
     public MutableQuad rotateX_90(float scale) {
