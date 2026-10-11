@@ -10,7 +10,7 @@ import buildcraft.transport.internal.IInjectable;
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
-import buildcraft.transport.internal.pipe.FluidAction;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 
 public interface IFlowItems extends IInjectable {
 

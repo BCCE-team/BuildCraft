@@ -160,39 +160,4 @@ def upgrade_minecraft_263_apis(text: str, *, minecraft: str, relative: str) -> s
         text = text.replace("new ItemHandlerSimple(24), DataSlot.standalone()",
                             "new ItemProvider(slot -> net.minecraft.world.item.ItemStack.EMPTY, 24), DataSlot.standalone()")
 
-    # The power-transport module has its own FluidAction enum. Keep both
-    # contracts explicit: all IMjReceiver callers use an adapter, while each
-    # transport-specific receiver implements the required legacy bridge.
-    if relative.endswith("/lib/internal/mj/IMjReceiver.java"):
-        needle = "    long receivePower(long microJoules, FluidAction simulate);"
-        if needle in text:
-            text = text.replace(needle, needle + "\n\n" +
-                "    default long receivePower(long microJoules, Enum<?> action) {\n" +
-                "        return receivePower(microJoules, FluidAction.valueOf(action.name()));\n" +
-                "    }")
-
-    transport_receivers = (
-        "/transport/pipe/behaviour/PipeBehaviourObsidian.java",
-        "/transport/pipe/behaviour/PipeBehaviourWood.java",
-        "/transport/pipe/behaviour/PipeBehaviourStripes.java",
-        "/transport/pipe/flow/PipeFlowPower.java",
-        "/robotics/plug/RobotStationPluggable.java",
-    )
-    if any(relative.endswith(path) for path in transport_receivers):
-        pattern = r"(\s+public long receivePower\(long microJoules, FluidAction (?:simulate|action)\) \{)"
-        bridge = ("\n    public long receivePower(long microJoules, "
-                  "buildcraft.lib.compat.neoforge263.fluids.IFluidHandler.FluidAction action) {\n"
-                  "        return receivePower(microJoules, FluidAction.valueOf(action.name()));\n"
-                  "    }\n")
-        text = re.sub(pattern, lambda m: bridge + m.group(1), text)
-
-    if relative.endswith("/lib/internal/mj/MjBattery.java"):
-        needle = "    public long addPowerChecking(long microJoulesToAdd, FluidAction simulate) {"
-        if needle in text:
-            bridge = ("    public long addPowerChecking(long microJoulesToAdd, "
-                "Enum<?> action) {\n"
-                "        return addPowerChecking(microJoulesToAdd, FluidAction.valueOf(action.name()));\n"
-                "    }\n\n")
-            text = text.replace(needle, bridge + needle)
-
     return text

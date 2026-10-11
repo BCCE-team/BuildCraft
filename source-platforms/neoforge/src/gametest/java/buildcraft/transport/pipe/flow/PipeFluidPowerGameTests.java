@@ -21,11 +21,7 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
-//? if >=26.3 {
-import buildcraft.transport.internal.pipe.FluidAction;
-//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
-//? }
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 

@@ -79,7 +79,7 @@ import net.neoforged.neoforge.transfer.transaction.Transaction;
 import net.neoforged.neoforge.transfer.transaction.TransactionContext;
 import net.neoforged.neoforge.fluids.FluidStack;
 
-import buildcraft.transport.internal.pipe.FluidAction;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.compat.FluidCompat;
 import buildcraft.lib.compat.NbtCompat;

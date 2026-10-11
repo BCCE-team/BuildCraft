@@ -12,7 +12,7 @@ import buildcraft.robotics.statements.ActionRobotFilter;
 import buildcraft.robotics.statements.ActionStationProvideFluids;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
-import buildcraft.transport.internal.pipe.FluidAction;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 
 public class AIRobotLoadFluids extends AIRobot {
     private static final int FLUID_LOAD_DELAY_TICKS = 10;

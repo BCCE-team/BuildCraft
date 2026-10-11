@@ -116,6 +116,7 @@ import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.capabilities.BlockCapability;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
 import buildcraft.lib.compat.NbtCompat;
@@ -944,8 +945,8 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
         return result;
     }
 
-    private static buildcraft.transport.internal.pipe.FluidAction fluidAction(OperationMode mode) {
-        return mode == OperationMode.EXECUTE ? buildcraft.transport.internal.pipe.FluidAction.EXECUTE : buildcraft.transport.internal.pipe.FluidAction.SIMULATE;
+    private static FluidAction fluidAction(OperationMode mode) {
+        return mode == OperationMode.EXECUTE ? FluidAction.EXECUTE : FluidAction.SIMULATE;
     }
 
     public void addDrops(NonNullList<ItemStack> toDrop, int fortune) {

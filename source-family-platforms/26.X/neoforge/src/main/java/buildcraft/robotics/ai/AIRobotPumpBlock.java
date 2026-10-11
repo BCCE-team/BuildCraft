@@ -15,7 +15,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.transfer.fluid.FluidUtil;
 import buildcraft.robotics.compat.RobotFluidResourceHandler263;
-import buildcraft.transport.internal.pipe.FluidAction;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.compat.NbtCompat;
 
 /** Pumps one source fluid block into the robot's internal tank, matching the classic BuildCraft pump robot cadence. */

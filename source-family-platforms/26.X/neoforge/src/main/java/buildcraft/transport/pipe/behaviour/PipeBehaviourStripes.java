@@ -55,7 +55,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.Rotation;
 import net.neoforged.neoforge.capabilities.BlockCapability;
-import buildcraft.transport.internal.pipe.FluidAction;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.fml.util.thread.SidedThreadGroups;
 import buildcraft.lib.net.BCPacketContext;

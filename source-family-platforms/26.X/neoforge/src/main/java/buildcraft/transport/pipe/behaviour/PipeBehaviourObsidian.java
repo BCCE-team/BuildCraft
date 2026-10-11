@@ -39,7 +39,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.capabilities.BlockCapability;
-import buildcraft.transport.internal.pipe.FluidAction;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 
 public class PipeBehaviourObsidian extends PipeBehaviour implements IMjRedstoneReceiver {
     private static final long POWER_PER_ITEM = MjAmount.MICRO_MJ_PER_MJ / 2;

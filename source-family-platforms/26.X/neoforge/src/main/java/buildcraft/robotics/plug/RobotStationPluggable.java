@@ -41,7 +41,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.neoforge.capabilities.BlockCapability;
-import buildcraft.transport.internal.pipe.FluidAction;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
 import buildcraft.lib.compat.RenderCompat;

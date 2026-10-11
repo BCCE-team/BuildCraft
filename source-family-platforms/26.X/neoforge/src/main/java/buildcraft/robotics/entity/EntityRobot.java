@@ -89,7 +89,7 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.transfer.ResourceHandler;
 import net.neoforged.neoforge.transfer.fluid.FluidResource;
 import buildcraft.robotics.compat.RobotFluidResourceHandler263;
-import buildcraft.transport.internal.pipe.FluidAction;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.compat.GameProfileCompat;
 import buildcraft.lib.compat.ItemCompat;
 import buildcraft.lib.compat.NbtCompat;

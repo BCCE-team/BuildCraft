@@ -11,7 +11,7 @@ import net.minecraft.world.InteractionResult;
 import buildcraft.lib.misc.InteractionResultHolder;
 import net.neoforged.neoforge.fluids.FluidStack;
 
-import buildcraft.transport.internal.pipe.FluidAction;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 
 public interface IFlowFluid {
     /** @deprecated use the version below with a simulate paramater. */

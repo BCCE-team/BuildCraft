@@ -42,7 +42,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import buildcraft.transport.compat.NativeFluidStorage263;
-import buildcraft.transport.internal.pipe.FluidAction;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import org.jetbrains.annotations.NotNull;
 
 public class DockingStationPipe extends DockingStation implements RequestProvider {
