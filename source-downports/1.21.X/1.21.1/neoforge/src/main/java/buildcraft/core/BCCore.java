@@ -19,6 +19,7 @@ import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftRegistries;
 import buildcraft.core.item.ItemFragileFluidContainer;
 import buildcraft.core.list.ContainerList;
+import buildcraft.core.item.ItemPaintbrush_BC8;
 import buildcraft.core.marker.PathCache;
 import buildcraft.core.marker.VolumeCache;
 import buildcraft.core.marker.volume.MessageVolumeBoxes;
@@ -44,6 +45,7 @@ import net.neoforged.fml.config.ModConfig.Type;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.common.NeoForge;
 
 @Mod(BCCore.MODID)
 public class BCCore {
@@ -88,6 +90,7 @@ public class BCCore {
         modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCCoreConfig.config));
         ConfigScreenRegistration.register(modContainer);
         MessageManager.registerClientboundMessageClass(BCModules.CORE, MessageVolumeBoxes.class, MessageVolumeBoxes.HANDLER, MessageVolumeBoxes::toBytes, MessageVolumeBoxes::new);
+        NeoForge.EVENT_BUS.addListener(ItemPaintbrush_BC8::onRightClickBlock);
         BCCoreVolumeBoxEvents.register();
         BCCoreStatements.preInit();
     }

@@ -5,6 +5,7 @@
 package buildcraft.core.item;
 
 import buildcraft.lib.internal.api.v2.BlockInteractionRuntime;
+import buildcraft.lib.internal.block.ICustomPaintHandler;
 import buildcraft.core.BCCoreItems;
 import buildcraft.lib.item.ItemByEnum;
 import buildcraft.lib.misc.SoundUtil;
@@ -19,6 +20,14 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.entity.SignBlockEntity;
+import net.minecraft.world.level.block.entity.SignText;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.world.level.block.BannerBlock;
+import net.minecraft.world.level.block.WallBannerBlock;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.eventbus.api.Event;
 import net.minecraft.world.phys.Vec3;
 
 public class ItemPaintbrush_BC8 extends ItemByEnum<DyeColor> {
@@ -36,12 +45,17 @@ public class ItemPaintbrush_BC8 extends ItemByEnum<DyeColor> {
         ItemStack stack = ctx.getItemInHand();
         Vec3 hitPos = ctx.getClickLocation();
 
-        InteractionResult result = BlockInteractionRuntime.paint(
+        // Client-side prediction cannot modify block entities or durability.
+        if (level.isClientSide()) return InteractionResult.SUCCESS;
+
+        InteractionResult result = paintSignText(level, pos, player);
+        if (result == InteractionResult.PASS) result = BlockInteractionRuntime.paint(
             level, pos, level.getBlockState(pos), hitPos, ctx.getClickedFace(), type, player
         );
         if (result != InteractionResult.SUCCESS) {
             return InteractionResult.FAIL;
         }
+        SoundUtil.playChangeColour(level, pos, type);
         if (player == null) {
             return InteractionResult.SUCCESS;
         }
@@ -60,6 +74,41 @@ public class ItemPaintbrush_BC8 extends ItemByEnum<DyeColor> {
     @Override
     public void setDamage(ItemStack stack, int damage) {
         super.setDamage(stack, damage);
+    }
+
+    /**
+     * Beds, signs, shulkers and BuildCraft paintable blocks can consume the
+     * right-click before Item.useOn. Give the colored brush precedence so that
+     * installed pipe lenses/facades get the same paint behavior as world blocks.
+     */
+    public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
+        if (!(event.getItemStack().getItem() instanceof ItemPaintbrush_BC8 brush) || brush.type == null) {
+            return;
+        }
+        BlockState state = event.getLevel().getBlockState(event.getPos());
+        if (!(event.getLevel().getBlockEntity(event.getPos()) instanceof SignBlockEntity)
+                && !(state.getBlock() instanceof BedBlock
+                || state.getBlock() instanceof ShulkerBoxBlock
+                || state.getBlock() instanceof BannerBlock
+                || state.getBlock() instanceof WallBannerBlock
+                || state.getBlock() instanceof ICustomPaintHandler)) {
+            return;
+        }
+        event.setUseBlock(Event.Result.DENY);
+        event.setUseItem(Event.Result.ALLOW);
+    }
+
+    /** Paint the side the player sees; retain text, formatting and glowing-text state. */
+    private InteractionResult paintSignText(Level level, BlockPos pos, Player player) {
+        if (!(level.getBlockEntity(pos) instanceof SignBlockEntity sign)) return InteractionResult.PASS;
+        if (type == null || player == null || !player.mayBuild() || !level.mayInteract(player, pos)
+                || sign.isWaxed()) return InteractionResult.FAIL;
+        boolean front = sign.isFacingFrontText(player);
+        SignText current = sign.getText(front);
+        if (current.getColor() == type) return InteractionResult.FAIL;
+        // updateText calls SignBlockEntity's update routine, keeping the other face intact.
+        return sign.updateText(text -> text.setColor(type), front)
+            ? InteractionResult.SUCCESS : InteractionResult.FAIL;
     }
 
     public boolean tryBrush(ItemStack stack, Level world, BlockPos pos, BlockState state, Vec3 hitPos, Direction side, Player player) {

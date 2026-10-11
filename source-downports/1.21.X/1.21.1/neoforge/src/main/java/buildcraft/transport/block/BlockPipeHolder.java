@@ -997,7 +997,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 
 		// The holder collision shape can report the pipe's face even when the visible hit is a facade.
 		// Select the facade by its actual volume, so a failed facade paint never falls through to the pipe.
-		Direction facadeSide = getFacadeSideAt(tile, pos, hitPos);
+		Direction facadeSide = getFacadeSideAt(tile, pos, hitPos, hitSide);
 		if (facadeSide != null) {
 			PipePluggable pluggable = tile.getPluggable(facadeSide);
 			if (pluggable instanceof buildcraft.silicon.plug.PluggableFacade facade) {
@@ -1012,6 +1012,23 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 				return InteractionResult.SUCCESS;
 			}
 		}
+
+        // A lens/filter is itself a coloured pluggable. Recolour the installed instance
+        // rather than the underlying pipe, preserving its filter mode and connections.
+        Direction lensSide = getLensSideAt(tile, pos, hitPos, hitSide);
+        if (lensSide != null) {
+            buildcraft.silicon.plug.PluggableLens lens =
+                (buildcraft.silicon.plug.PluggableLens) tile.getPluggable(lensSide);
+            if (lens.colour == paintColour) return InteractionResult.FAIL;
+            tile.replacePluggable(lensSide, new buildcraft.silicon.plug.PluggableLens(
+                lens.definition, tile, lensSide, paintColour, lens.isFilter));
+            // replacePluggable synchronises the complete pluggable and updates its event handlers.
+            tile.requestModelDataUpdate();
+            tile.scheduleRenderUpdate();
+            tile.redrawBlock();
+            tile.setChanged();
+            return InteractionResult.SUCCESS;
+        }
 
 		Pipe pipe = tile.getPipe();
 		if (pipe == Pipe.EMPTY) {
@@ -1030,17 +1047,47 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 	}
 
 	@Nullable
-	private static Direction getFacadeSideAt(TilePipeHolder tile, BlockPos pos, Vec3 hitPos) {
-		Vec3 localHit = hitPos.subtract(pos.getX(), pos.getY(), pos.getZ());
-		for (Direction side : Direction.values()) {
-			PipePluggable pluggable = tile.getPluggable(side);
-			if (pluggable instanceof buildcraft.silicon.plug.PluggableFacade
-				&& pluggable.getBoundingBox().bounds().contains(localHit)) {
-				return side;
-			}
-		}
-		return null;
-	}
+	private static Direction getFacadeSideAt(TilePipeHolder tile, BlockPos pos, Vec3 hitPos,
+            @Nullable Direction hitSide) {
+        Vec3 localHit = hitPos.subtract(pos.getX(), pos.getY(), pos.getZ());
+        // A click exactly on a corner can be inside several facade bounding boxes:
+        // honor the face the player actually targeted before scanning the others.
+        // AABB.contains excludes max boundaries; inflate slightly for clicks right on a facade surface.
+        if (hitSide != null) {
+            PipePluggable selected = tile.getPluggable(hitSide);
+            if (selected instanceof buildcraft.silicon.plug.PluggableFacade
+                    && selected.getBoundingBox().bounds().inflate(1.0E-4).contains(localHit)) return hitSide;
+        }
+        for (Direction side : Direction.values()) {
+            PipePluggable pluggable = tile.getPluggable(side);
+            if (pluggable instanceof buildcraft.silicon.plug.PluggableFacade
+                    && pluggable.getBoundingBox().bounds().inflate(1.0E-4).contains(localHit)) return side;
+        }
+        // The collision ray may hit the central pipe rather than the facade's outer plane.
+        // A solid facade still occupies the clicked face; don't accidentally paint the pipe.
+        if (hitSide != null && tile.getPluggable(hitSide) instanceof buildcraft.silicon.plug.PluggableFacade facade
+                && !facade.isHollow()) return hitSide;
+        return null;
+    }
+
+
+    /** Target the visible lens rather than colouring the supporting pipe. */
+    @Nullable
+    private static Direction getLensSideAt(TilePipeHolder tile, BlockPos pos, Vec3 hitPos,
+            @Nullable Direction hitSide) {
+        Vec3 localHit = hitPos.subtract(pos.getX(), pos.getY(), pos.getZ());
+        if (hitSide != null) {
+            PipePluggable selected = tile.getPluggable(hitSide);
+            if (selected instanceof buildcraft.silicon.plug.PluggableLens
+                    && selected.getBoundingBox().bounds().inflate(1.0E-4).contains(localHit)) return hitSide;
+        }
+        for (Direction side : Direction.values()) {
+            PipePluggable pluggable = tile.getPluggable(side);
+            if (pluggable instanceof buildcraft.silicon.plug.PluggableLens
+                    && pluggable.getBoundingBox().bounds().inflate(1.0E-4).contains(localHit)) return side;
+        }
+        return null;
+    }
 
 	@Override
 	public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {

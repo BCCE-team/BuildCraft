@@ -6,7 +6,6 @@
 
 package buildcraft.silicon.plug;
 
-import java.util.ArrayList;
 
 import javax.annotation.Nullable;
 
@@ -37,7 +36,6 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.StainedGlassBlock;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.neoforge.client.ChunkRenderTypeSet;
@@ -67,7 +65,7 @@ public class PluggableFacade extends PipePluggable {
 
     public static final int SIZE = 2;
     public FacadeInstance states;
-    public final boolean isSideSolid;
+    public boolean isSideSolid;
     public int activeState;
 
     public PluggableFacade(PluggableDefinition definition, IPipeHolder holder, Direction side, FacadeInstance states) {
@@ -102,49 +100,38 @@ public class PluggableFacade extends PipePluggable {
     }
 
     public boolean setColour(@Nullable DyeColor colour) {
-        if (activeState >= 0 && activeState < states.phasedStates.length
-            && states.phasedStates[activeState].activeColour == colour) {
-            return false;
+        if (states.type == FacadeType.Basic) {
+            FacadePhasedState previous = states.phasedStates[0];
+            BlockState newMaterial = buildcraft.lib.internal.block.CustomPaintHelper.recoloredState(
+                previous.stateInfo.state, colour);
+            if (newMaterial == null) return false;
+            FacadeBlockStateInfo candidate = FacadeStateManager.validFacadeStates.get(newMaterial);
+            if (candidate == null) return false; // Do not make unsaveable, unrenderable facades.
+            states = new FacadeInstance(
+                new FacadePhasedState[] { candidate.createPhased(previous.activeColour) }, states.isHollow);
+            activeState = 0;
+            isSideSolid = states.areAllStatesSolid(side);
+            return true;
         }
-        int fallback = -1;
+        // Multi-phase facades retain their original paint/redstone phase selection.
         for (int i = 0; i < states.phasedStates.length; i++) {
-            FacadePhasedState phasedState = states.phasedStates[i];
-            if (phasedState.activeColour == colour) {
+            if (states.phasedStates[i].activeColour == colour && i != activeState) {
                 activeState = i;
                 return true;
             }
-            if (fallback < 0 && phasedState.activeColour == null) {
-                fallback = i;
-            }
         }
-        if (colour == null && fallback >= 0) {
-            activeState = fallback;
-            return true;
-        }
-        if (states.type == FacadeType.Basic && enableStainedGlassPhases() && setColour(colour)) {
-            return true;
-        }
-        return false;
-    }
-
-    /** Turns a basic stained-glass facade into switchable glass-colour phases on its first brush use. */
-    private boolean enableStainedGlassPhases() {
-        FacadeBlockStateInfo current = states.phasedStates[activeState].stateInfo;
-        if (!(current.state.getBlock() instanceof StainedGlassBlock)) {
-            return false;
-        }
-        ArrayList<FacadePhasedState> phases = new ArrayList<>();
-        phases.add(current.createPhased(null));
-        for (BlockState state : FacadeStateManager.validFacadeStates.keySet()) {
-            if (state.getBlock() instanceof StainedGlassBlock glass && glass.getColor() != null) {
-                phases.add(FacadeStateManager.validFacadeStates.get(state).createPhased(glass.getColor()));
-            }
-        }
-        if (phases.size() <= 1) {
-            return false;
-        }
-        states = new FacadeInstance(phases.toArray(FacadePhasedState[]::new), states.isHollow);
-        activeState = 0;
+        // If no different phase is selected, an inherently dyeable material can still be repainted.
+        // Keep the number and labels of phases unchanged, rather than rebuilding the facade.
+        FacadePhasedState current = states.phasedStates[activeState];
+        BlockState recolored = buildcraft.lib.internal.block.CustomPaintHelper.recoloredState(
+            current.stateInfo.state, colour);
+        if (recolored == null) return false;
+        FacadeBlockStateInfo candidate = FacadeStateManager.validFacadeStates.get(recolored);
+        if (candidate == null) return false;
+        FacadePhasedState[] phases = states.phasedStates.clone();
+        phases[activeState] = candidate.createPhased(current.activeColour);
+        states = new FacadeInstance(phases, states.isHollow);
+        isSideSolid = states.areAllStatesSolid(side);
         return true;
     }
 
@@ -164,6 +151,7 @@ public class PluggableFacade extends PipePluggable {
     public void readSyncState(CompoundTag nbt, BCNetworkSide side, BCPacketContext ctx) {
         states = FacadeInstance.readFromNbt(nbt.getCompound("facade"));
         activeState = MathUtil.clamp(nbt.getInt("activeState"), 0, states.phasedStates.length - 1);
+        isSideSolid = states.areAllStatesSolid(this.side);
     }
 
     // Networking
@@ -184,13 +172,17 @@ public class PluggableFacade extends PipePluggable {
 
     @Override
     public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
+        // Dyeing a basic facade replaces its actual material, not just its phase index.
+        // Both pieces must be sent for clients to rebuild the correct model immediately.
+        states.writeToBuffer(buffer);
         buffer.writeVarInt(activeState);
     }
 
     @Override
     public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) {
-        int receivedState = buffer.readVarInt();
-        activeState = MathUtil.clamp(receivedState, 0, states.phasedStates.length - 1);
+        states = FacadeInstance.readFromBuffer(buffer);
+        activeState = MathUtil.clamp(buffer.readVarInt(), 0, states.phasedStates.length - 1);
+        isSideSolid = states.areAllStatesSolid(this.side);
     }
 
     // Pluggable methods

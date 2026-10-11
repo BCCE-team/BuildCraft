@@ -3,21 +3,19 @@ package buildcraft.lib.internal.block;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import javax.annotation.Nullable;
-
-import buildcraft.lib.internal.debug.BCDebugging;
-import buildcraft.lib.internal.debug.BCLog;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
+import buildcraft.lib.internal.debug.BCDebugging;
+import buildcraft.lib.internal.debug.BCLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.Identifier;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BannerBlock;
+import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CandleBlock;
@@ -29,139 +27,190 @@ import net.minecraft.world.level.block.StainedGlassBlock;
 import net.minecraft.world.level.block.StainedGlassPaneBlock;
 import net.minecraft.world.level.block.WallBannerBlock;
 import net.minecraft.world.level.block.WoolCarpetBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.resources.Identifier;
 import net.minecraft.core.registries.BuiltInRegistries;
 
-/** Provides a simple way to paint a single block, iterating through all {@link ICustomPaintHandler}'s that are
- * registered for the block. */
+/** Shared, safe vanilla/registry paint fallback. Custom handlers still take precedence. */
 public enum CustomPaintHelper {
     INSTANCE;
 
-    /* If you want to test your class-based rotation registration then add the system property
-     * "-Dbuildcraft.api.rotation.debug.class=true" to your launch. */
     private static final boolean DEBUG = BCDebugging.shouldDebugLog("api.painting");
-    
-    protected static final Map<Class<? extends Block>,String> RECOLOR_MAP = new HashMap<>(); 
-
+    protected static final Map<Class<? extends Block>, String> RECOLOR_MAP = new HashMap<>();
     private final Map<Class<? extends Block>, List<ICustomPaintHandler>> handlers = Maps.newIdentityHashMap();
     private final List<ICustomPaintHandler> allHandlers = Lists.newArrayList();
-    
+
     static {
-    	RECOLOR_MAP.put(GlazedTerracottaBlock.class, "_glazed_terracotta");
-		RECOLOR_MAP.put(CandleBlock.class, "_candle");
-		RECOLOR_MAP.put(CandleCakeBlock.class, "_candle_cake");
-		RECOLOR_MAP.put(StainedGlassBlock.class, "_stained_glass");
-		RECOLOR_MAP.put(StainedGlassPaneBlock.class, "_stained_glass_pane");
-		RECOLOR_MAP.put(WoolCarpetBlock.class, "_carpet");
-		RECOLOR_MAP.put(BannerBlock.class, "_banner");
-		RECOLOR_MAP.put(WallBannerBlock.class, "_wall_banner");
-		RECOLOR_MAP.put(ShulkerBoxBlock.class, "_shulker_box");
-		RECOLOR_MAP.put(ConcretePowderBlock.class, "_concrete_powder");
+        RECOLOR_MAP.put(GlazedTerracottaBlock.class, "_glazed_terracotta");
+        RECOLOR_MAP.put(CandleBlock.class, "_candle");
+        RECOLOR_MAP.put(CandleCakeBlock.class, "_candle_cake");
+        RECOLOR_MAP.put(StainedGlassBlock.class, "_stained_glass");
+        RECOLOR_MAP.put(StainedGlassPaneBlock.class, "_stained_glass_pane");
+        RECOLOR_MAP.put(WoolCarpetBlock.class, "_carpet");
+        RECOLOR_MAP.put(BannerBlock.class, "_banner");
+        RECOLOR_MAP.put(WallBannerBlock.class, "_wall_banner");
+        RECOLOR_MAP.put(BedBlock.class, "_bed");
+        RECOLOR_MAP.put(ShulkerBoxBlock.class, "_shulker_box");
+        RECOLOR_MAP.put(ConcretePowderBlock.class, "_concrete_powder");
     }
 
-    /** Registers a handler that will be called LAST for ALL blocks, if all other paint handlers have returned PASS or
-     * none are registered for that block. */
     public void registerHandlerForAll(ICustomPaintHandler handler) {
-        if (DEBUG) {
-            BCLog.logger.info("[api.painting] Adding a paint handler for ALL blocks (" + handler.getClass() + ")");
-        }
+        if (DEBUG) BCLog.logger.info("[api.painting] Adding handler for all blocks: " + handler.getClass());
         allHandlers.add(handler);
     }
 
-
     public void registerHandler(Class<? extends Block> block, ICustomPaintHandler handler) {
-        if (registerHandlerInternal(block, handler)) {
-            if (DEBUG) {
-                BCLog.logger.info("[api.painting] Setting a paint handler for block " + block.getClass().getSimpleName() + "(" + handler.getClass() + ")");
-            }
-        } else if (DEBUG) {
-            BCLog.logger.info("[api.painting] Adding another paint handler for block " + block.getClass().getSimpleName() + "(" + handler.getClass() + ")");
-        }
+        if (DEBUG) BCLog.logger.info("[api.painting] Adding handler for " + block + ": " + handler.getClass());
+        handlers.computeIfAbsent(block, key -> Lists.newArrayList()).add(handler);
     }
 
-    private boolean registerHandlerInternal(Class<? extends Block> block, ICustomPaintHandler handler) {
-        if (!handlers.containsKey(block)) {
-            List<ICustomPaintHandler> forBlock = Lists.newArrayList();
-            forBlock.add(handler);
-            handlers.put(block, forBlock);
-            return true;
-        } else {
-            handlers.get(block).add(handler);
-            return false;
-        }
-    }
-
-    /** Attempts to paint a block at the given position. Basically iterates through all registered paint handlers. */
-    public InteractionResult attemptPaintBlock(Level world, BlockPos pos, BlockState state, Vec3 hitPos, @Nullable Direction hitSide, @Nullable DyeColor paint) {
+    public InteractionResult attemptPaintBlock(Level world, BlockPos pos, BlockState state, Vec3 hitPos,
+            @Nullable Direction hitSide, @Nullable DyeColor paint) {
         Block block = state.getBlock();
-        Class<? extends Block> Cblock = block.getClass();
-        if (block instanceof ICustomPaintHandler) {
-            return ((ICustomPaintHandler) block).attemptPaint(world, pos, state, hitPos, hitSide, paint);
+        if (block instanceof ICustomPaintHandler special) {
+            InteractionResult result = special.attemptPaint(world, pos, state, hitPos, hitSide, paint);
+            if (result != InteractionResult.PASS) return result;
         }
-        List<ICustomPaintHandler> custom = handlers.get(Cblock);
-        if (custom == null || custom.isEmpty()) {
-            return defaultAttemptPaint(world, pos, state, hitPos, hitSide, paint);
-        }
-        for (ICustomPaintHandler handler : custom) {
-            InteractionResult result = handler.attemptPaint(world, pos, state, hitPos, hitSide, paint);
-            if (result != InteractionResult.PASS) {
-                return result;
+        List<ICustomPaintHandler> custom = handlers.get(block.getClass());
+        if (custom != null) {
+            for (ICustomPaintHandler handler : custom) {
+                InteractionResult result = handler.attemptPaint(world, pos, state, hitPos, hitSide, paint);
+                if (result != InteractionResult.PASS) return result;
             }
         }
-        return defaultAttemptPaint(world, pos, state, hitPos, hitSide, paint);
-    }
-
-    private InteractionResult defaultAttemptPaint(Level world, BlockPos pos, BlockState state, Vec3 hitPos, Direction hitSide, @Nullable DyeColor paint) {
         for (ICustomPaintHandler handler : allHandlers) {
             InteractionResult result = handler.attemptPaint(world, pos, state, hitPos, hitSide, paint);
-            if (result != InteractionResult.PASS) {
-                return result;
+            if (result != InteractionResult.PASS) return result;
+        }
+        return recolorBlock(world, pos, paint) ? InteractionResult.SUCCESS : InteractionResult.FAIL;
+    }
+
+    /** External mods can register an uncolored/color-family suffix for a block class. */
+    public static void registryRecolor(Class<? extends Block> block, String suffix) {
+        RECOLOR_MAP.put(block, suffix);
+    }
+
+    /**
+     * Resolve the actual block material, without touching the world. Also used by facade brushes.
+     * Retain all compatible properties (facing, occupied, rotation, waterlogging, etc.).
+     * If the destination variant does not exist, never substitute air.
+     */
+    @Nullable
+    public static BlockState recoloredState(BlockState source, @Nullable DyeColor paint) {
+        Identifier key = BuiltInRegistries.BLOCK.getKey(source.getBlock());
+        if (key == null) return null;
+        String path = key.getPath();
+        String suffix = null;
+        for (DyeColor existing : DyeColor.values()) {
+            String prefix = existing.getName() + "_";
+            if (path.startsWith(prefix)) {
+                suffix = path.substring(prefix.length());
+                break;
             }
         }
-        if (paint == null) {
-            return InteractionResult.FAIL;
+        if (suffix == null) {
+            suffix = switch (path) {
+                case "glass" -> "stained_glass";
+                case "glass_pane" -> "stained_glass_pane";
+                case "terracotta", "candle", "candle_cake", "shulker_box" -> path;
+                default -> null;
+            };
         }
-        if (recolorBlock(world, pos, paint)) {
-            return InteractionResult.SUCCESS;
+        if (suffix == null) {
+            String registered = RECOLOR_MAP.get(source.getBlock().getClass());
+            if (registered != null && !registered.isEmpty()) {
+                suffix = registered.startsWith("_") ? registered.substring(1) : registered;
+            }
+        }
+        if (suffix == null || suffix.isEmpty()) return null;
+
+        String destination;
+        if (paint != null) {
+            destination = paint.getName() + "_" + suffix;
         } else {
-            return InteractionResult.FAIL;
+            destination = switch (suffix) {
+                case "stained_glass" -> "glass";
+                case "stained_glass_pane" -> "glass_pane";
+                case "candle", "candle_cake", "terracotta", "shulker_box" -> suffix;
+                default -> null;
+            };
+            if (destination == null) return null;
         }
+        Block target = BuiltInRegistries.BLOCK.get(Identifier.parse(key.getNamespace() + ":" + destination))
+                .map(net.minecraft.core.Holder.Reference::value).orElse(Blocks.AIR);
+        if (target == null || target == Blocks.AIR || target == source.getBlock()) return null;
+        BlockState result = target.defaultBlockState();
+        for (Property<?> property : source.getProperties()) {
+            if (result.hasProperty(property)) result = transferProperty(source, result, property);
+        }
+        return result;
     }
-    /**
-     * registry your block that can be recolored
-     * @param block the Block class
-     * @param name the registry name 
-     */
-    public static void registryRecolor(Class<? extends Block> block, String name) {
-    	RECOLOR_MAP.put(block, name);
+
+    private static <T extends Comparable<T>> BlockState transferProperty(BlockState from, BlockState to, Property<T> property) {
+        return to.setValue(property, from.getValue(property));
     }
-    
-    /**
-     * Tool to recolor vanilla block, except for woof and concrete
-     * @warning if the DyeColor of vanilla block changed, bugs may occur!
-     * @param world
-     * @param pos
-     * @param paint
-     * @return If the recoloring was successful
-     */
-    public static boolean recolorBlock(Level world, BlockPos pos, DyeColor paint) {
-    	BlockState state = world.getBlockState(pos);
-    	Block block = state.getBlock();
-    	Class<? extends Block> Cblock = block.getClass();
-    	String type = "";
-    	if(RECOLOR_MAP.containsKey(Cblock))
-    		type = RECOLOR_MAP.get(Cblock);
-    	else return false;
-    	Block newblock = BuiltInRegistries.BLOCK.get(Identifier.parse(paint.getName() + type)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR);
-    	if(newblock == null) return false;
-    	BlockState[] newState = {newblock.defaultBlockState()};
-        state.getProperties().forEach(k -> newState[0] = newState[0].setValue((Property) k, state.getValue(k)));
-		world.setBlockAndUpdate(pos, newState[0]);
-    	return true;
-    	
-    		
-    		
+
+    /** Recolor world blocks only on the server, with block-entity data and multi-block structure preserved. */
+    public static boolean recolorBlock(Level world, BlockPos pos, @Nullable DyeColor paint) {
+        BlockState original = world.getBlockState(pos);
+        BlockState colored = recoloredState(original, paint);
+        if (colored == null) return false;
+        if (world.isClientSide()) return true;
+
+        if (original.getBlock() instanceof BedBlock) {
+            return recolorBed(world, pos, original, colored, paint);
+        }
+
+        BlockEntity previous = world.getBlockEntity(pos);
+        if (previous != null && !colored.hasBlockEntity()) return false;
+        CompoundTag saved = previous == null ? null : previous.saveWithFullMetadata(world.registryAccess());
+        // 16 defers neighbor shape updates until all data has been transferred;
+        // 32 prevents drops from a color-only replacement.
+        if (!world.setBlock(pos, colored, 2 | 16 | 32)) return false;
+        if (saved != null) {
+            BlockEntity replacement = world.getBlockEntity(pos);
+            if (replacement == null) {
+                world.setBlock(pos, original, 2 | 16 | 32);
+                BlockEntity reverted = world.getBlockEntity(pos);
+                if (reverted != null) reverted.loadWithComponents(net.minecraft.world.level.storage.TagValueInput.create(
+                    net.minecraft.util.ProblemReporter.DISCARDING, world.registryAccess(), saved));
+                return false;
+            }
+            replacement.loadWithComponents(net.minecraft.world.level.storage.TagValueInput.create(
+                net.minecraft.util.ProblemReporter.DISCARDING, world.registryAccess(), saved));
+            replacement.setChanged();
+        }
+        world.updateNeighborsAt(pos, colored.getBlock());
+        world.sendBlockUpdated(pos, original, colored, 3);
+        return true;
+    }
+
+    private static boolean recolorBed(Level world, BlockPos pos, BlockState original, BlockState colored,
+            @Nullable DyeColor paint) {
+        Direction facing = original.getValue(BedBlock.FACING);
+        BedPart part = original.getValue(BedBlock.PART);
+        BlockPos partnerPos = pos.relative(part == BedPart.FOOT ? facing : facing.getOpposite());
+        BlockState partner = world.getBlockState(partnerPos);
+        if (!(partner.getBlock() instanceof BedBlock) || partner.getBlock() != original.getBlock()
+                || partner.getValue(BedBlock.FACING) != facing || partner.getValue(BedBlock.PART) == part) {
+            return false;
+        }
+        BlockState coloredPartner = recoloredState(partner, paint);
+        if (coloredPartner == null || coloredPartner.getBlock() != colored.getBlock()) return false;
+        // Commit both halves without intermediate neighbor shape notifications.
+        if (!world.setBlock(pos, colored, 2 | 16 | 32)) return false;
+        if (!world.setBlock(partnerPos, coloredPartner, 2 | 16 | 32)) {
+            world.setBlock(pos, original, 2 | 16 | 32);
+            return false;
+        }
+        world.updateNeighborsAt(pos, colored.getBlock());
+        world.updateNeighborsAt(partnerPos, colored.getBlock());
+        world.sendBlockUpdated(pos, original, colored, 3);
+        world.sendBlockUpdated(partnerPos, partner, coloredPartner, 3);
+        return true;
     }
 }

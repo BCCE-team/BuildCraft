@@ -5,6 +5,7 @@
 package buildcraft.core.item;
 
 import buildcraft.lib.internal.api.v2.BlockInteractionRuntime;
+import buildcraft.lib.internal.block.ICustomPaintHandler;
 import buildcraft.core.BCCoreItems;
 import buildcraft.lib.item.ItemByEnum;
 import buildcraft.lib.misc.ItemStackUtil;
@@ -14,13 +15,25 @@ import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.entity.SignBlockEntity;
+import net.minecraft.world.level.block.entity.SignText;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.world.level.block.BannerBlock;
+import net.minecraft.world.level.block.WallBannerBlock;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+//? if >=1.21.11 {
+import net.minecraft.util.TriState;
+//?} else {
+import net.neoforged.neoforge.common.util.TriState;
+//?}
 import net.minecraft.world.phys.Vec3;
 
 public class ItemPaintbrush_BC8 extends ItemByEnum<DyeColor> {
@@ -38,18 +51,25 @@ public class ItemPaintbrush_BC8 extends ItemByEnum<DyeColor> {
         ItemStack stack = ctx.getItemInHand();
         Vec3 hitPos = ctx.getClickLocation();
 
-        InteractionResult result = BlockInteractionRuntime.paint(
+        // Client-side prediction cannot modify block entities or durability.
+        if (level.isClientSide()) return InteractionResult.SUCCESS;
+
+        InteractionResult result = paintSignText(level, pos, player);
+        if (result == InteractionResult.PASS) result = BlockInteractionRuntime.paint(
             level, pos, level.getBlockState(pos), hitPos, ctx.getClickedFace(), type, player
         );
         if (result != InteractionResult.SUCCESS) {
             return InteractionResult.FAIL;
         }
+        SoundUtil.playChangeColour(level, pos, type);
         if (player == null) {
             return InteractionResult.SUCCESS;
         }
 
         CompoundTag tag = ItemStackUtil.getCustomDataOrNull(stack);
-        stack.hurtAndBreak(1, player, LivingEntity.getSlotForHand(hand));
+        EquipmentSlot slot = hand == InteractionHand.MAIN_HAND
+                ? EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
+        stack.hurtAndBreak(1, player, slot);
         if (stack.isEmpty()) {
             ItemStack cleanBrush = new ItemStack(BCCoreItems.PAINT_BRUSH.get());
             if (tag != null) {
@@ -59,6 +79,48 @@ public class ItemPaintbrush_BC8 extends ItemByEnum<DyeColor> {
         }
         player.inventoryMenu.broadcastChanges();
         return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * Beds, signs, shulkers and BuildCraft paintable blocks can consume the
+     * right-click before Item.useOn. Give the colored brush precedence so that
+     * installed pipe lenses/facades get the same paint behavior as world blocks.
+     */
+    public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
+        if (!(event.getItemStack().getItem() instanceof ItemPaintbrush_BC8 brush) || brush.type == null) {
+            return;
+        }
+        BlockState state = event.getLevel().getBlockState(event.getPos());
+        if (!(event.getLevel().getBlockEntity(event.getPos()) instanceof SignBlockEntity)
+                && !(state.getBlock() instanceof BedBlock
+                || state.getBlock() instanceof ShulkerBoxBlock
+                || state.getBlock() instanceof BannerBlock
+                || state.getBlock() instanceof WallBannerBlock
+                || state.getBlock() instanceof ICustomPaintHandler)) {
+            return;
+        }
+        event.setUseBlock(TriState.FALSE);
+        event.setUseItem(TriState.TRUE);
+    }
+
+    /** Paint only the visible sign face, preserving its lines, formatting and glowing effect. */
+    private InteractionResult paintSignText(Level level, BlockPos pos, Player player) {
+        if (!(level.getBlockEntity(pos) instanceof SignBlockEntity sign)) return InteractionResult.PASS;
+        if (type == null || player == null || !player.mayBuild() || !level.mayInteract(player, pos)
+                || sign.isWaxed()) return InteractionResult.FAIL;
+        //? if >=26.3 {
+        net.minecraft.world.level.block.entity.SignTextSlot face = sign.getSlotPlayerIsFacing(player);
+        SignText current = sign.getText(face);
+        if (current.getColor() == type) return InteractionResult.FAIL;
+        return sign.updateText(text -> text.withColor(type), face)
+            ? InteractionResult.SUCCESS : InteractionResult.FAIL;
+        //?} else {
+        boolean front = sign.isFacingFrontText(player);
+        SignText current = sign.getText(front);
+        if (current.getColor() == type) return InteractionResult.FAIL;
+        return sign.updateText(text -> text.setColor(type), front)
+            ? InteractionResult.SUCCESS : InteractionResult.FAIL;
+        //?}
     }
 
     public boolean tryBrush(ItemStack stack, Level world, BlockPos pos, BlockState state, Vec3 hitPos, Direction side, Player player) {

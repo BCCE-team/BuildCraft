@@ -1007,6 +1007,23 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 			}
 		}
 
+        // A lens/filter is itself a coloured pluggable. Recolour the installed instance
+        // rather than the underlying pipe, preserving its filter mode and connections.
+        Direction lensSide = getLensSideAt(tile, pos, hitPos, hitSide);
+        if (lensSide != null) {
+            buildcraft.silicon.plug.PluggableLens lens =
+                (buildcraft.silicon.plug.PluggableLens) tile.getPluggable(lensSide);
+            if (lens.colour == paintColour) return InteractionResult.FAIL;
+            tile.replacePluggable(lensSide, new buildcraft.silicon.plug.PluggableLens(
+                lens.definition, tile, lensSide, paintColour, lens.isFilter));
+            // replacePluggable synchronises the complete pluggable and updates its event handlers.
+            tile.requestModelDataUpdate();
+            tile.scheduleRenderUpdate();
+            tile.redrawBlock();
+            tile.setChanged();
+            return InteractionResult.SUCCESS;
+        }
+
 		Pipe pipe = tile.getPipe();
 		if (pipe == Pipe.EMPTY) {
 			return InteractionResult.FAIL;
@@ -1022,6 +1039,25 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 		tile.setChanged();
 		return InteractionResult.SUCCESS;
 	}
+
+
+    /** Target the visible lens rather than colouring the supporting pipe. */
+    @Nullable
+    private static Direction getLensSideAt(TilePipeHolder tile, BlockPos pos, Vec3 hitPos,
+            @Nullable Direction hitSide) {
+        Vec3 localHit = hitPos.subtract(pos.getX(), pos.getY(), pos.getZ());
+        if (hitSide != null) {
+            PipePluggable selected = tile.getPluggable(hitSide);
+            if (selected instanceof buildcraft.silicon.plug.PluggableLens
+                    && selected.getBoundingBox().bounds().inflate(1.0E-4).contains(localHit)) return hitSide;
+        }
+        for (Direction side : Direction.values()) {
+            PipePluggable pluggable = tile.getPluggable(side);
+            if (pluggable instanceof buildcraft.silicon.plug.PluggableLens
+                    && pluggable.getBoundingBox().bounds().inflate(1.0E-4).contains(localHit)) return side;
+        }
+        return null;
+    }
 
 	@Override
 	public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
