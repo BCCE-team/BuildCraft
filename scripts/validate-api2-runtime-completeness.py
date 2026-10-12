@@ -146,13 +146,23 @@ def validate_robot_extensions() -> None:
             ROOT / f"source-platforms/{platform}/src/main/java/buildcraft/robotics/internal/api2/RobotServiceImpl.java",
             "BuildCraftRegistries.ROBOT_RESOURCE_TYPES",
             "type.acquirer().acquire",
-            "BuildCraftRegistries.ROBOT_TASK_TYPES",
-            "type.taskType().isInstance(task)",
+            "ApiTaskAI.canAssign(task)",
+            "ApiTaskAI::trackIfExecuting",
             "BuildCraftRegistries.ROBOT_DOCK_PORT_TYPES",
             "type.resolve(new RobotDockContext",
         )
         if "resource instanceof BlockRobotResource" in service:
             fail(f"{platform}: RobotService.acquire still hard-codes BlockRobotResource instead of registry dispatch")
+
+        require(
+            ROOT / "source-shared/src/main/java/buildcraft/robotics/internal/api2/ApiTaskAI.java",
+            "BuildCraftRegistries.ROBOT_TASK_TYPES",
+            "type.taskType().isInstance(value)",
+            "taskRegistry().decode",
+            "writeSelfToNBT",
+            "loadSelfFromNBT",
+            "trackIfExecuting",
+        )
 
         bootstrap = require(
             ROOT / f"source-platforms/{platform}/src/main/java/buildcraft/robotics/internal/api2/RoboticsApi2Bootstrap.java",

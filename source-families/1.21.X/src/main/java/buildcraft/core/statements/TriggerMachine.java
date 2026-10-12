@@ -10,6 +10,11 @@ import buildcraft.lib.internal.statement.IStatement;
 import buildcraft.lib.internal.statement.IStatementContainer;
 import buildcraft.lib.internal.statement.IStatementParameter;
 import buildcraft.lib.internal.statement.ITriggerExternal;
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.api.v2.machine.MachineView;
+import buildcraft.api.v2.machine.WorkState;
+
 import buildcraft.lib.internal.tiles.IHasWork;
 import buildcraft.lib.internal.tiles.TilesAPI;
 import buildcraft.core.BCCoreSprites;
@@ -43,10 +48,14 @@ public class TriggerMachine extends BCStatement implements ITriggerExternal {
     @Override
     public boolean isTriggerActive(BlockEntity tile, Direction side, IStatementContainer container, IStatementParameter[] parameters) {
         IHasWork hasWork = CapUtil.getCapability(tile.getLevel(), tile.getBlockPos(), TilesAPI.CAP_HAS_WORK, side.getOpposite());
-        if (hasWork == null) {
-            return false;
-        }
-        return hasWork.hasWork() == active;
+        if (hasWork != null) return hasWork.hasWork() == active;
+        if (tile.getLevel() == null) return false;
+        return BuildCraftApi.service(BuildCraftServices.MACHINES).machine(tile.getLevel(), tile.getBlockPos())
+            .map(machine -> {
+                WorkState state = machine.workStatus().state();
+                boolean scheduled = state == WorkState.RUNNING || state == WorkState.BLOCKED || state == WorkState.PAUSED;
+                return scheduled == active;
+            }).orElse(false);
 
     }
 

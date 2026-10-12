@@ -247,6 +247,67 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         return Math.max(0, maxPower);
     }
 
+    private long lastApiSendTick = Long.MIN_VALUE;
+    private int apiSentThisTick;
+    private long lastApiReceiveTick = Long.MIN_VALUE;
+    private int apiReceivedThisTick;
+
+    /** Extract FE already present in the pipe, without drawing from adjacent machines. */
+    public int extractEnergyForApi(Direction side, int requested, boolean simulate) {
+        if (side == null || requested <= 0) return 0;
+        ensureConfigured();
+        if (disabled) return 0;
+        Section section = sections.get(side);
+        long now = pipe.getHolder().getPipeWorld().getGameTime();
+        int available = currentWorldTime == now ? section.internalPower
+            : Math.min(maxPower, saturatingAdd(section.internalPower, section.internalNextPower));
+        int budget = Math.max(0, maxPower - (lastApiSendTick == now ? apiSentThisTick : 0));
+        int taken = Math.max(0, Math.min(requested, Math.min(available, budget)));
+        if (!simulate && taken > 0) {
+            step();
+            section.internalPower -= taken;
+            if (lastApiSendTick != now) apiSentThisTick = 0;
+            lastApiSendTick = now;
+            apiSentThisTick += taken;
+            transferJournal.record();
+        }
+        return taken;
+    }
+
+    /** Atomic in-memory FE transfer between loaded pipe buffers. */
+    public int transferEnergyForApi(PipeFlowForgeEnergy target, Direction sourceSide, Direction targetSide,
+                                    int maximum, boolean simulate) {
+        if (target == null || target == this || sourceSide == null || targetSide == null || maximum <= 0) return 0;
+        ensureConfigured();
+        target.ensureConfigured();
+        if (disabled || target.disabled) return 0;
+        Section from = sections.get(sourceSide);
+        Section to = target.sections.get(targetSide);
+        long sourceTick = pipe.getHolder().getPipeWorld().getGameTime();
+        long targetTick = target.pipe.getHolder().getPipeWorld().getGameTime();
+        int available = currentWorldTime == sourceTick ? from.internalPower
+            : Math.min(maxPower, saturatingAdd(from.internalPower, from.internalNextPower));
+        int buffered = saturatingAdd(to.internalPower, to.internalNextPower);
+        int sourceBudget = Math.max(0, maxPower - (lastApiSendTick == sourceTick ? apiSentThisTick : 0));
+        int targetBudget = Math.max(0, target.maxPower - (target.lastApiReceiveTick == targetTick ? target.apiReceivedThisTick : 0));
+        int accepted = Math.max(0, Math.min(maximum, Math.min(available,
+            Math.min(Math.max(0, target.maxPower - buffered), Math.min(sourceBudget, targetBudget)))));
+        if (accepted == 0 || simulate) return accepted;
+        step();
+        target.step();
+        from.internalPower -= accepted;
+        to.internalNextPower += accepted;
+        if (lastApiSendTick != sourceTick) apiSentThisTick = 0;
+        lastApiSendTick = sourceTick;
+        apiSentThisTick += accepted;
+        if (target.lastApiReceiveTick != targetTick) target.apiReceivedThisTick = 0;
+        target.lastApiReceiveTick = targetTick;
+        target.apiReceivedThisTick += accepted;
+        transferJournal.record();
+        target.transferJournal.record();
+        return accepted;
+    }
+
     /** Rolling server-side FE throughput through the pipe, in FE per tick. */
     public int getAverageThroughput() {
         ensureConfigured();

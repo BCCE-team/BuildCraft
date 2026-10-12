@@ -16,6 +16,9 @@ import net.minecraft.world.item.DyeColor;
 public interface PipeView {
     ResourceLocation typeId();
     BlockPos position();
+    default boolean isClientSide() { return false; }
+    /** Client-only, last decoded value from a registered PipeSyncChannel. */
+    default <T> Optional<T> presentation(ResourceLocation channelId, Class<T> type) { return Optional.empty(); }
     Set<Direction> connectedSides();
     default PipeEndpointKind endpoint(Direction side) { return connectedSides().contains(side) ? PipeEndpointKind.BLOCK : PipeEndpointKind.NONE; }
     default Optional<DyeColor> color() { return Optional.empty(); }

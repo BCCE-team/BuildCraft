@@ -16,6 +16,7 @@ import net.minecraft.core.Direction;
 /** Aggregates built-in tile diagnostics and API2 addon contributors. */
 final class DebugServiceImpl implements DebugService {
     public Collection<DebugSection> collect(DebugContext context) {
+        if (!context.level().hasChunkAt(context.position())) return List.of();
         List<DebugSection> sections = new ArrayList<>();
         Object blockEntity = context.level().getBlockEntity(context.position());
         if (blockEntity instanceof IDebuggable debuggable) {

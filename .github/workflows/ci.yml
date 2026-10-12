@@ -67,6 +67,33 @@ jobs:
       - name: Validate API2 runtime completeness
         run: python scripts/validate-api2-runtime-completeness.py
 
+      - name: Test extension runtime lifecycle and state
+        run: python -m unittest discover -s scripts/tests -p test_runtime_extensions.py -v
+      - name: Test pipe component persistence and sync
+        run: python -m unittest discover -s scripts/tests -p test_pipe_component_runtime.py -v
+      - name: Test addon pipe attachment placement and persistence
+        run: python -m unittest discover -s scripts/tests -p test_pipe_attachment_runtime.py -v
+      - name: Test pipe item transit ownership and callbacks
+        run: python -m unittest discover -s scripts/tests -p test_pipe_item_transit.py -v
+      - name: Test fluid, MJ and FE pipe transfers
+        run: python -m unittest discover -s scripts/tests -p test_pipe_resource_transfers.py -v
+      - name: Test standalone addon pipe types and routing
+        run: python -m unittest discover -s scripts/tests -p test_custom_pipe_types.py -v
+      - name: Test addon machine runtime and GUI actions
+        run: python -m unittest discover -s scripts/tests -p test_machine_runtime.py -v
+      - name: Test addon engine MJ runtime and persisted thermal stages
+        run: python -m unittest discover -s scripts/tests -p test_engine_runtime.py -v
+      - name: Test persisted robot task lifecycle and leases
+        run: python -m unittest discover -s scripts/tests -p test_robot_task_runtime.py -v
+      - name: Test requester reservations and durable logistics
+        run: python -m unittest discover -s scripts/tests -p test_request_lifecycle.py -v
+
+      - name: Test dynamic API2 client presentation
+        run: python -m unittest discover -s scripts/tests -p test_presentation_runtime.py -v
+
+      - name: Verify independent API2 addon JAR conformance
+        run: python -m unittest discover -s scripts/tests -p test_external_addon_conformance.py -v
+
       - name: Validate API2 module contracts
         run: python scripts/validate-api2-modules.py
 
@@ -184,6 +211,24 @@ jobs:
       - name: Test canonical resource pipeline
         run: python -m unittest discover -s scripts/tests -p test_resource_pipeline.py -v
 
+
+      - name: Test 26.3 glass facade opacity
+        run: python -m unittest discover -s scripts/tests -p test_facade_glass_alpha_263.py -v
+
+      - name: Test glass facade materials
+        run: python -m unittest discover -s scripts/tests -p test_glass_facade_263.py -v
+
+      - name: Test all-target paintbrush interactions
+        run: python -m unittest discover -s scripts/tests -p test_paintbrush_all_targets.py -v
+
+      - name: Test all-target sign and lens paint
+        run: python -m unittest discover -s scripts/tests -p test_sign_lens_paint_all_targets.py -v
+
+      - name: Test 26.3 signed normals
+        run: python -m unittest discover -s scripts/tests -p test_signed_normals_263.py -v
+
+      - name: Test 26.3 cushion paint
+        run: python -m unittest discover -s scripts/tests -p test_cushion_paint_263.py -v
 
       - name: Validate resources, metadata and build hygiene
         run: python scripts/validate-cross-target-integrity.py

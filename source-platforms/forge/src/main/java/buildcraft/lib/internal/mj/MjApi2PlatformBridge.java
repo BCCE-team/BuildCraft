@@ -36,6 +36,7 @@ public final class MjApi2PlatformBridge {
     private static final class Backend implements MjRuntimeLookup.Backend {
         @Override
         public Optional<MjPort> port(Level level, BlockPos pos, Direction side) {
+            if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             Endpoint endpoint = endpoint(level, pos, side);
             if (!endpoint.isEmpty()) return Optional.of(endpoint);
             FeEndpoint fe = feEndpoint(level, pos, side);
@@ -44,6 +45,7 @@ public final class MjApi2PlatformBridge {
 
         @Override
         public Optional<MjPortDescriptor> descriptor(Level level, BlockPos pos, Direction side) {
+            if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             Endpoint endpoint = endpoint(level, pos, side);
             if (!endpoint.isEmpty()) return Optional.of(endpoint.descriptor());
             FeEndpoint fe = feEndpoint(level, pos, side);
@@ -52,8 +54,10 @@ public final class MjApi2PlatformBridge {
 
         @Override
         public boolean canConnect(MjConnectionContext context) {
+            BlockPos remotePos = context.position().relative(context.side());
+            if (!context.level().hasChunkAt(context.position()) || !context.level().hasChunkAt(remotePos)) return false;
             BlockEntity localTile = context.level().getBlockEntity(context.position());
-            BlockEntity remoteTile = context.level().getBlockEntity(context.position().relative(context.side()));
+            BlockEntity remoteTile = context.level().getBlockEntity(remotePos);
             if (localTile == null || remoteTile == null) return false;
             IMjConnector local = localTile.getCapability(MjCapabilities.CAP_CONNECTOR, context.side()).orElse(null);
             IMjConnector remote = remoteTile.getCapability(MjCapabilities.CAP_CONNECTOR, context.side().getOpposite()).orElse(null);

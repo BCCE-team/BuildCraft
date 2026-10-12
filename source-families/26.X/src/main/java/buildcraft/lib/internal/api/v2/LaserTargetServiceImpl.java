@@ -10,7 +10,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 
 final class LaserTargetServiceImpl implements LaserTargetService {
     public Optional<LaserTarget> target(Level level, BlockPos pos, Direction side) {
-        if (level == null || pos == null) return Optional.empty();
+        if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
         BlockEntity blockEntity = level.getBlockEntity(pos);
         return blockEntity instanceof LaserTarget target ? Optional.of(target) : Optional.empty();
     }

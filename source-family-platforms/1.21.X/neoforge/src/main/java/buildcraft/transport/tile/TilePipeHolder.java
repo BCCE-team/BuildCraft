@@ -87,6 +87,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
     public static final int NET_UPDATE_PLUG_WEST = getReceiverId(PipeMessageReceiver.PLUGGABLE_WEST);
     public static final int NET_UPDATE_PLUG_EAST = getReceiverId(PipeMessageReceiver.PLUGGABLE_EAST);
     public static final int NET_UPDATE_WIRES = getReceiverId(PipeMessageReceiver.WIRES);
+    public static final int NET_UPDATE_API_COMPONENTS = getReceiverId(PipeMessageReceiver.API_COMPONENTS);
 
     private static final Identifier ADVANCEMENT_PLACE_PIPE = Identifier.parse(
         "buildcrafttransport:pipe_dream"
@@ -251,6 +252,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
             if (meta > 0 && meta <= 16) {
                 pipe.setColour(DyeColor.byId(meta - 1));
             }
+            if (level != null && !level.isClientSide()) pipe.onApiPlaced();
         }
         if (level != null && !level.isClientSide()) {
             markChunkDirty();
@@ -281,9 +283,14 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
                 }
             }
         }
+        if (pipe != Pipe.EMPTY) {
+            pipe.onApiRemoved();
+            pipe.invalidateApiComponents();
+        }
     }
 
 	public void setRemoved() {
+        if (pipe != Pipe.EMPTY) pipe.onChunkUnloaded();
 		super.setRemoved();
 		eventBus.fireEvent(new PipeEventTileState.Invalidate(this));
 		wireManager.invalidate();
@@ -293,10 +300,12 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         super.clearRemoved();
         eventBus.fireEvent(new PipeEventTileState.Validate(this));
         wireManager.validate();
+        if (pipe != Pipe.EMPTY) pipe.onLoad();
     }
 
     public void onChunkUnloaded() {
         super.onChunkUnloaded();
+        if (pipe != Pipe.EMPTY) pipe.onChunkUnloaded();
         eventBus.fireEvent(new PipeEventTileState.ChunkUnload(this));
     }
 
@@ -447,6 +456,9 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
                 }
             } else if (id == NET_UPDATE_WIRES) {
                 wireManager.writePayload(buffer, side);
+            } else if (id == NET_UPDATE_API_COMPONENTS) {
+                buffer.writeBoolean(pipe != Pipe.EMPTY);
+                if (pipe != Pipe.EMPTY) pipe.writeApiComponentSync(buffer);
             }
         }
         if (id == NET_UPDATE_PIPE_FLOW) {
@@ -469,6 +481,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
             	if (buffer.readBoolean()) {
+                    if (pipe != Pipe.EMPTY) pipe.invalidateApiComponents();
                     pipe = new Pipe(this, buffer, ctx);
                     eventBus.registerHandler(pipe.behaviour);
                     eventBus.registerHandler(pipe.flow);
@@ -476,6 +489,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
                         eventBus.registerHandler(FilterEventHandler.class);
                     }
                 } else if (pipe != Pipe.EMPTY) {
+                    pipe.invalidateApiComponents();
                     eventBus.unregisterHandler(pipe.behaviour);
                     eventBus.unregisterHandler(pipe.flow);
                     pipe = Pipe.EMPTY;
@@ -501,6 +515,12 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
                     } else {
                         pipe.readPayload(buffer, side, ctx);
                     }
+                }
+                refreshClientPipeModel();
+            } else if (id == NET_UPDATE_API_COMPONENTS) {
+                if (buffer.readBoolean()) {
+                    if (pipe == Pipe.EMPTY) throw new IOException("Pipe missing for component update");
+                    pipe.readApiComponentSync(buffer);
                 }
                 refreshClientPipeModel();
             } else if (id == NET_UPDATE_WIRES) {

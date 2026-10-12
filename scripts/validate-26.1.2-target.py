@@ -260,12 +260,27 @@ def main() -> int:
             assembly_recipe,
             "Codec<LegacyResult> LEGACY_RESULT_CODEC",
             "private record LegacyResult",
-            "final ItemStackTemplate output;",
             "ItemStackTemplate.fromNonEmptyStack(output.copy())",
-            "new SlotDisplay.ItemStackSlotDisplay(output)",
             "ItemStack.STREAM_CODEC.decode(buffer)",
-            "ItemStack.STREAM_CODEC.encode(buffer, output.create())",
         )
+        if assembly_recipe == PLATFORM / "buildcraft/lib/recipe/AssemblyRecipe.java":
+            require(
+                assembly_recipe,
+                "private final ItemStackTemplate eagerOutput;",
+                "private final LegacyResult deferredResult;",
+                "private volatile ItemStackTemplate materializedOutput;",
+                "recipe.deferredResult != null",
+                "new SlotDisplay.ItemStackSlotDisplay(resultTemplate())",
+                "ItemStack.STREAM_CODEC.encode(buffer, resultTemplate().create())",
+                "return new AssemblyRecipe(id, requiredMicroJoules, ImmutableSet.copyOf(stacks), null, result, group);",
+            )
+        else:
+            require(
+                assembly_recipe,
+                "final ItemStackTemplate output;",
+                "new SlotDisplay.ItemStackSlotDisplay(output)",
+                "ItemStack.STREAM_CODEC.encode(buffer, output.create())",
+            )
         if "Codec<ItemStack> LEGACY_RESULT_CODEC" in assembly_text or "AssemblyRecipe::legacyStack" in assembly_text:
             fail(f"assembly recipe codec creates ItemStacks while recipes are decoded: {assembly_recipe.relative_to(ROOT)}")
         if "LegacyResult.fromStack(output)" in assembly_text:
@@ -295,7 +310,8 @@ def main() -> int:
     pipe_native = PLATFORM / "buildcraft/transport/client/model/ModelPipeNative2612.java"
     require(
         pipe_native,
-        "material(sprite, translucentLayer, quad.getTint(), quad.isShade(), lightEmission(quad))",
+        "material(sprite, translucentLayer, quad.getTint(), quad.isShade(), lightEmission(quad),",
+        "!translucentLayer || isOuterGlassFace(quad, face))",
         "BakedColors.of(argb(quad.vertex_0), argb(quad.vertex_1), argb(quad.vertex_2), argb(quad.vertex_3))",
         "convertPluggables(legacyPlugTranslucent, true)",
     )

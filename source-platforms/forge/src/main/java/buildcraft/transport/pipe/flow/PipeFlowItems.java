@@ -9,6 +9,10 @@ package buildcraft.transport.pipe.flow;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.UUID;
+import java.util.LinkedHashSet;
+import java.nio.ByteBuffer;
+import java.util.Optional;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -23,6 +27,10 @@ import buildcraft.lib.internal.core.IStackFilter;
 import buildcraft.lib.internal.inventory.IItemTransactor;
 import buildcraft.transport.internal.IInjectable;
 import buildcraft.api.v2.pipe.ItemTransportProfile;
+import buildcraft.api.v2.pipe.ItemTransitData;
+import buildcraft.api.v2.pipe.ItemTransitPhase;
+import buildcraft.api.v2.OperationMode;
+import buildcraft.transport.api2.PipeItemTransitRuntime;
 import buildcraft.transport.internal.pipe.IFlowItems;
 import buildcraft.transport.internal.pipe.IPipe;
 import buildcraft.transport.internal.pipe.IPipe.ConnectedType;
@@ -76,6 +84,10 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
 
     private final ItemTransportProfile itemTransportProfile = requireItemProfile();
     private final DelayedList<TravellingItem> items = new DelayedList<>();
+    private static final int MAX_TRANSFER_RECEIPTS = 512;
+    private final LinkedHashSet<UUID> acceptedTransferIds = new LinkedHashSet<>();
+    private UUID incomingTransferId;
+
     /**
      * Game tick on which this flow last advanced its timing wheel. Cross-pipe insertion can happen either before or
      * after the destination pipe has ticked, so a raw relative DelayedList delay is otherwise off by one depending on
@@ -99,6 +111,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
 
     public PipeFlowItems(IPipe pipe, CompoundTag nbt) {
         super(pipe, nbt);
+        restoreTransferReceipts(nbt.getByteArray("apiTransferReceipts"));
         ListTag list = nbt.getList("items", Tag.TAG_COMPOUND);
         Level level = pipe.getHolder().getPipeWorld();
         long tickNow = level == null ? 0 :level.getGameTime();
@@ -113,6 +126,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     @Override
     public CompoundTag writeToNbt() {
         CompoundTag nbt = super.writeToNbt();
+        writeTransferReceipts(nbt);
         List<List<TravellingItem>> allItems = items.getAllElements();
         ListTag list = new ListTag();
 
@@ -494,11 +508,17 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         );
         holder.fireEvent(reachCenter);
         if (reachCenter.getStack().isEmpty()) {
+            fireTransit(ItemTransitPhase.CANCELLED, item, null);
             return;
         }
+        item.stack = reachCenter.getStack();
+        item.colour = reachCenter.colour;
+        PipeItemTransitRuntime.Result centreEvent = fireTransit(ItemTransitPhase.CENTER, item, null);
+        if (finishControlledEvent(item, centreEvent)) return;
+        Direction requestedRoute = centreEvent.redirected();
 
         PipeEventItem.SideCheck sideCheck = new PipeEventItem.SideCheck(
-            holder, this, reachCenter.colour, reachCenter.from, reachCenter.getStack()
+            holder, this, item.colour, reachCenter.from, item.stack
         );
         sideCheck.disallow(reachCenter.from);
         for (Direction face : Direction.values()) {
@@ -509,6 +529,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         holder.fireEvent(sideCheck);
 
         List<EnumSet<Direction>> order = sideCheck.getOrder();
+        if (requestedRoute != null) order = ImmutableList.of(EnumSet.of(requestedRoute));
         if (order.isEmpty()) {
             PipeEventItem.TryBounce tryBounce = new PipeEventItem.TryBounce(
                 holder, this, reachCenter.colour, reachCenter.from, reachCenter.getStack()
@@ -530,7 +551,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         }
 
         PipeEventItem.ItemEntry entry = new PipeEventItem.ItemEntry(
-            reachCenter.colour, reachCenter.getStack(), reachCenter.from
+            item.colour, item.stack, reachCenter.from
         );
         PipeEventItem.Split split = new PipeEventItem.Split(holder, this, order, entry);
         holder.fireEvent(split);
@@ -576,15 +597,26 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             if (pipe instanceof Pipe runtimePipe) {
                 destinations = runtimePipe.applyItemRouting(reachCenter.from, itemEntry.stack, destinations);
             }
+            if (requestedRoute != null) destinations = List.of(requestedRoute);
+            TravellingItem routeItem = new TravellingItem(itemEntry.stack.copy());
+            routeItem.side = reachCenter.from;
+            routeItem.colour = itemEntry.colour;
+            routeItem.speed = newSpeed;
+            routeItem.apiTransitId = findDest.items.size() == 1 ? item.apiTransitId : null;
+            PipeItemTransitRuntime.Result routeEvent = fireTransit(ItemTransitPhase.ROUTING, routeItem,
+                destinations.isEmpty() ? null : destinations.get(0));
+            if (finishControlledEvent(routeItem, routeEvent)) continue;
+            if (routeEvent.redirected() != null) destinations = List.of(routeEvent.redirected());
             if (destinations.size() == 0) {
-                dropItem(itemEntry.stack, null, item.side.getOpposite(), newSpeed);
+                dropItem(routeItem.stack, null, item.side.getOpposite(), routeItem.speed);
             } else {
-                TravellingItem newItem = new TravellingItem(itemEntry.stack);
+                TravellingItem newItem = new TravellingItem(routeItem.stack);
+                newItem.apiTransitId = routeItem.apiTransitId;
                 newItem.tried.addAll(item.tried);
                 newItem.toCenter = false;
-                newItem.colour = itemEntry.colour;
+                newItem.colour = routeItem.colour;
                 newItem.side = destinations.get(0);
-                newItem.speed = newSpeed;
+                newItem.speed = routeItem.speed;
                 newItem.genTimings(now, getPipeLength(newItem.side));
                 scheduleTravellingItem(newItem);
                 sendItemDataToClient(newItem);
@@ -607,8 +639,11 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         holder.fireEvent(reachEnd);
         item.colour = reachEnd.colour;
         item.stack = reachEnd.getStack();
+        PipeItemTransitRuntime.Result exitEvent = fireTransit(ItemTransitPhase.EXIT, item, item.side);
+        if (finishControlledEvent(item, exitEvent)) return;
         ItemStack excess = item.stack;
         if (excess.isEmpty()) {
+            fireTransit(ItemTransitPhase.CANCELLED, item, item.side);
             return;
         }
         if (!pipe.isConnected(item.side)) {
@@ -617,6 +652,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             dropItem(excess, item.side, item.side, item.speed);
             return;
         }
+        int beforeTransferCount = excess.getCount();
         if (pipe.isConnected(item.side)) {
             ConnectedType type = pipe.getConnectedType(item.side);
             Direction oppositeSide = item.side.getOpposite();
@@ -657,9 +693,19 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                 }
             }
         }
+        int moved = Math.max(0, beforeTransferCount - excess.getCount());
+        if (moved > 0 && pipe instanceof Pipe runtimePipe) {
+            ItemStack transferred = item.stack.copy();
+            transferred.setCount(moved);
+            PipeItemTransitRuntime.fire(runtimePipe, ItemTransitPhase.TRANSFERRED,
+                transferred, new ItemTransitData(Optional.ofNullable(item.colour), item.speed),
+                item.side.getOpposite(), item.side, item.apiTransitId);
+            if (!excess.isEmpty()) item.apiTransitId = UUID.randomUUID();
+        }
         if (excess.isEmpty()) {
             return;
         }
+        fireTransit(ItemTransitPhase.REJECTED, item, item.side);
         item.tried.add(item.side);
         item.toCenter = true;
         item.stack = excess;
@@ -707,7 +753,11 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             return;
         }
 
-        world.addFreshEntity(ent);
+        if (world.addFreshEntity(ent) && pipe instanceof Pipe runtimePipe) {
+            PipeItemTransitRuntime.fire(runtimePipe, ItemTransitPhase.EJECTED,
+                ent.getItem(), new ItemTransitData(Optional.empty(), Math.max(0.0, speed)),
+                side, motion, null);
+        }
     }
 
     @Override
@@ -722,7 +772,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         if (pipe.getHolder().getPipeWorld().isClientSide()) {
             throw new IllegalStateException("Cannot inject items on the client side!");
         }
-        if (!canInjectItems(from)) {
+        if (!canInjectItems(from)
+            || (pipe instanceof Pipe runtimePipe && !runtimePipe.acceptItemInjection(stack, from,
+                doAdd ? OperationMode.EXECUTE : OperationMode.SIMULATE))) {
             return stack;
         }
 
@@ -786,7 +838,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         if (stack.isEmpty()) {
             return StackUtil.EMPTY;
         }
-        if (from == null) {
+        if (from == null || (pipe instanceof Pipe runtimePipe
+            && !runtimePipe.acceptItemInjection(stack, from,
+                doAdd ? OperationMode.EXECUTE : OperationMode.SIMULATE))) {
             return stack;
         }
         if (speed < 0.01) {
@@ -865,6 +919,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         long now = world.getGameTime();
 
         TravellingItem item = new TravellingItem(stack);
+        item.apiTransitId = incomingTransferId;
         item.side = from;
         item.toCenter = true;
         item.speed = speed;
@@ -874,6 +929,12 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             item.tried.add(from);
         }
 
+        if (pipe instanceof Pipe runtimePipe) {
+            PipeItemTransitRuntime.Result entered = PipeItemTransitRuntime.fire(runtimePipe, ItemTransitPhase.ENTER,
+                item.stack, new ItemTransitData(Optional.ofNullable(item.colour), item.speed),
+                from, null, item.apiTransitId);
+            item.apiTransitId = entered.id();
+        }
         if (sendToClient) {
             addItemTryMerge(item);
         } else {
@@ -883,6 +944,114 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
 
     private ItemStack splitSingleTravellingStack(ItemStack stack) {
         return stack.split(getSingleTravellingStackCount(stack, stack.getCount()));
+    }
+
+    private PipeItemTransitRuntime.Result fireTransit(ItemTransitPhase phase, TravellingItem item,
+                                                        Direction outgoing) {
+        ItemTransitData metadata = new ItemTransitData(Optional.ofNullable(item.colour), item.speed);
+        if (!(pipe instanceof Pipe runtimePipe)) {
+            return new PipeItemTransitRuntime.Result(item.stack, metadata, item.apiTransitId, null, 0, null);
+        }
+        PipeItemTransitRuntime.Result action = PipeItemTransitRuntime.fire(runtimePipe, phase,
+            item.stack, metadata, item.side, outgoing, item.apiTransitId);
+        item.stack = action.stack();
+        item.colour = action.transit().color().orElse(null);
+        if (action.transit().speedBlocksPerTick() > 0) item.speed = action.transit().speedBlocksPerTick();
+        item.apiTransitId = action.id();
+        return action;
+    }
+
+    private boolean finishControlledEvent(TravellingItem item, PipeItemTransitRuntime.Result action) {
+        if (item.stack.isEmpty()) return true;
+        if (action.eject() != null) {
+            dropItem(item.stack, action.eject(), action.eject(), item.speed);
+            return true;
+        }
+        if (action.delay() > 0) {
+            holdAtCentre(item, action.delay());
+            return true;
+        }
+        return false;
+    }
+
+    private void holdAtCentre(TravellingItem item, int ticks) {
+        long now = pipe.getHolder().getPipeWorld().getGameTime();
+        item.toCenter = true;
+        item.tickStarted = now;
+        item.timeToDest = ticks;
+        item.tickFinished = now + ticks;
+        scheduleTravellingItem(item);
+        sendItemDataToClient(item);
+        pipe.getHolder().getPipeTile().setChanged();
+    }
+
+    private void restoreTransferReceipts(byte[] data) {
+        if (data.length % 16 != 0 || data.length > MAX_TRANSFER_RECEIPTS * 16) return;
+        ByteBuffer buffer = ByteBuffer.wrap(data);
+        while (buffer.remaining() >= 16) {
+            acceptedTransferIds.add(new UUID(buffer.getLong(), buffer.getLong()));
+        }
+    }
+
+    private void writeTransferReceipts(CompoundTag nbt) {
+        if (acceptedTransferIds.isEmpty()) return;
+        ByteBuffer buffer = ByteBuffer.allocate(acceptedTransferIds.size() * 16);
+        for (UUID id : acceptedTransferIds) {
+            buffer.putLong(id.getMostSignificantBits());
+            buffer.putLong(id.getLeastSignificantBits());
+        }
+        nbt.putByteArray("apiTransferReceipts", buffer.array());
+    }
+
+    private void rememberTransfer(UUID id) {
+        if (id == null) return;
+        acceptedTransferIds.remove(id);
+        acceptedTransferIds.add(id);
+        if (acceptedTransferIds.size() > MAX_TRANSFER_RECEIPTS) {
+            acceptedTransferIds.remove(acceptedTransferIds.iterator().next());
+        }
+        pipe.getHolder().getPipeTile().setChanged();
+    }
+
+    /** Virtual entry from an API transit callback, independent of physical pipe connections. */
+    public ItemStack injectTransitStack(ItemStack stack, boolean doAdd, Direction from,
+                                        DyeColor colour, double speed, UUID id) {
+        Level world = pipe.getHolder().getPipeWorld();
+        if (world == null || world.isClientSide()) throw new IllegalStateException("Server transfer only");
+        if (stack.isEmpty()) return ItemStack.EMPTY;
+        if (from == null) return stack.copy();
+        if (id != null && acceptedTransferIds.contains(id)) return ItemStack.EMPTY;
+        if (pipe instanceof Pipe runtimePipe && !runtimePipe.acceptItemInjection(stack, from,
+            doAdd ? OperationMode.EXECUTE : OperationMode.SIMULATE)) return stack.copy();
+        if (!Double.isFinite(speed) || speed < 0.01) speed = 0.05;
+        PipeEventItem.TryInsert attempt = new PipeEventItem.TryInsert(pipe.getHolder(), this, colour, from, stack.copy());
+        pipe.getHolder().fireEvent(attempt);
+        if (attempt.isCanceled() || attempt.accepted <= 0) return stack.copy();
+        int accepted = getSingleTravellingStackCount(stack, attempt.accepted);
+        if (accepted <= 0) return stack.copy();
+        ItemStack offered = stack.copy();
+        offered.setCount(accepted);
+        if (!doAdd) {
+            ItemStack remainder = stack.copy();
+            remainder.shrink(accepted);
+            return remainder;
+        }
+        PipeEventItem.OnInsert onInsert = new PipeEventItem.OnInsert(pipe.getHolder(), this,
+            colour, offered.copy(), from);
+        pipe.getHolder().fireEvent(onInsert);
+        ItemStack entered = onInsert.getStack();
+        if (entered.isEmpty() || entered.getCount() > accepted || entered.getCount() < 0) return stack.copy();
+        UUID previous = incomingTransferId;
+        incomingTransferId = id;
+        try {
+            addTravellingItem(entered.copy(), onInsert.colour, speed, from, getPipeLength(from), true);
+            rememberTransfer(id);
+        } finally {
+            incomingTransferId = previous;
+        }
+        ItemStack remainder = stack.copy();
+        remainder.shrink(entered.getCount());
+        return remainder;
     }
 
     private int getSingleTravellingStackCount(ItemStack stack, int accepted) {

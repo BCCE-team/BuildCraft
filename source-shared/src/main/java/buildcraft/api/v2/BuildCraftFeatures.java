@@ -21,6 +21,7 @@ public final class BuildCraftFeatures {
     public static final ResourceLocation SIGNALS = id("signals");
     public static final ResourceLocation AUTOMATION = id("automation");
     public static final ResourceLocation ROBOTS = id("robots");
+    public static final ResourceLocation LOGISTICS = id("logistics");
     public static final ResourceLocation SCHEMATICS = id("schematics");
     public static final ResourceLocation MACHINES = id("machines");
     public static final ResourceLocation CLIENT_PRESENTATION = id("client_presentation");

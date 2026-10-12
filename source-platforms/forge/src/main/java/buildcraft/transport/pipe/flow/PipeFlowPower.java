@@ -279,12 +279,72 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
         if (side == null) return 0;
         ensureConfigured();
         Section section = sections.get(side);
-        return section == null ? 0 : Math.max(0, section.getEffectivePendingPower());
+        return section == null ? 0 : Math.max(0, Math.min(maxPower, saturatingAdd(section.internalPower, section.internalNextPower)));
     }
 
     public long getMaxPowerForApi() {
         ensureConfigured();
         return Math.max(0, maxPower);
+    }
+
+    private long lastApiSendTick = Long.MIN_VALUE;
+    private long apiSentThisTick;
+    private long lastApiReceiveTick = Long.MIN_VALUE;
+    private long apiReceivedThisTick;
+
+    /** Amount of buffered micro-MJ currently available to an external consumer. */
+    public long extractPowerForApi(Direction side, long requested, boolean simulate) {
+        if (side == null || requested <= 0) return 0;
+        ensureConfigured();
+        if (disabled) return 0;
+        Section section = sections.get(side);
+        long now = pipe.getHolder().getPipeWorld().getGameTime();
+        long available = currentWorldTime == now ? section.internalPower
+            : Math.min(maxPower, section.internalNextPower);
+        long remaining = Math.max(0, maxPower - (lastApiSendTick == now ? apiSentThisTick : 0));
+        long taken = Math.max(0, Math.min(requested, Math.min(available, remaining)));
+        if (!simulate && taken > 0) {
+            step();
+            section.internalPower -= taken;
+            if (lastApiSendTick != now) apiSentThisTick = 0;
+            lastApiSendTick = now;
+            apiSentThisTick += taken;
+        }
+        return taken;
+    }
+
+    /** Server-thread transfer between two native MJ buffers; no capability callbacks are invoked. */
+    public long transferPowerForApi(PipeFlowPower target, Direction sourceSide, Direction targetSide,
+                                    long maximum, boolean simulate) {
+        if (target == null || target == this || sourceSide == null || targetSide == null || maximum <= 0) return 0;
+        ensureConfigured();
+        target.ensureConfigured();
+        if (disabled || target.disabled) return 0;
+        Section from = sections.get(sourceSide);
+        Section to = target.sections.get(targetSide);
+        long sourceTick = pipe.getHolder().getPipeWorld().getGameTime();
+        long targetTick = target.pipe.getHolder().getPipeWorld().getGameTime();
+        long available = currentWorldTime == sourceTick ? from.internalPower
+            : Math.min(maxPower, from.internalNextPower);
+        long buffered = target.currentWorldTime == targetTick
+            ? saturatingAdd(to.internalPower, to.internalNextPower)
+            : Math.min(target.maxPower, saturatingAdd(to.internalPower, to.internalNextPower));
+        long sourceBudget = Math.max(0, maxPower - (lastApiSendTick == sourceTick ? apiSentThisTick : 0));
+        long targetBudget = Math.max(0, target.maxPower - (target.lastApiReceiveTick == targetTick ? target.apiReceivedThisTick : 0));
+        long accepted = Math.max(0, Math.min(maximum, Math.min(available,
+            Math.min(Math.max(0, target.maxPower - buffered), Math.min(sourceBudget, targetBudget)))));
+        if (accepted == 0 || simulate) return accepted;
+        step();
+        target.step();
+        from.internalPower -= accepted;
+        to.internalNextPower += accepted;
+        if (lastApiSendTick != sourceTick) apiSentThisTick = 0;
+        lastApiSendTick = sourceTick;
+        apiSentThisTick += accepted;
+        if (target.lastApiReceiveTick != targetTick) target.apiReceivedThisTick = 0;
+        target.lastApiReceiveTick = targetTick;
+        target.apiReceivedThisTick += accepted;
+        return accepted;
     }
 
     /** Rolling server-side MJ throughput through the pipe, in micro-MJ per tick. */

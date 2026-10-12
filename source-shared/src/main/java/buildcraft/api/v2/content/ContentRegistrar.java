@@ -199,6 +199,10 @@ public final class ContentRegistrar {
         if (!expected.equals(type.id())) {
             throw new IllegalArgumentException("Snapshot element id must match content id " + expected + ": " + type.id());
         }
+        Objects.requireNonNull(adapter, "adapter");
+        if (BuildCraftApi.registry(BuildCraftRegistries.SCHEMATIC_ADAPTERS).get(expected) != null) {
+            throw new IllegalStateException("Duplicate schematic adapter id: " + expected);
+        }
         register(BuildCraftRegistries.SNAPSHOT_ELEMENT_TYPES, type.id(), type);
         register(BuildCraftRegistries.SCHEMATIC_ADAPTERS, expected, adapter);
         return type;
@@ -212,6 +216,10 @@ public final class ContentRegistrar {
         ResourceLocation expected = id(path);
         if (!expected.equals(type.id())) {
             throw new IllegalArgumentException("Snapshot element id must match content id " + expected + ": " + type.id());
+        }
+        Objects.requireNonNull(adapter, "adapter");
+        if (BuildCraftApi.registry(BuildCraftRegistries.SCHEMATIC_ENTITY_ADAPTERS).get(expected) != null) {
+            throw new IllegalStateException("Duplicate schematic adapter id: " + expected);
         }
         register(BuildCraftRegistries.SNAPSHOT_ELEMENT_TYPES, type.id(), type);
         register(BuildCraftRegistries.SCHEMATIC_ENTITY_ADAPTERS, expected, adapter);

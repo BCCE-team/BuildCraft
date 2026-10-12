@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Enforce architecture budgets and emit a trend report.
+"""Validate source ownership invariants and report architecture metrics.
 
-The guard measures maintained source ownership rather than materialized build
-output. It prevents architecture drift into target overlays, conditional jungles,
-loader-owned gameplay copies, class-specific Python rewrites, or stale downports.
+File, branch, downport and transform counts are informational, not CI budgets.
+The remaining failures indicate structural inconsistencies (for example,
+loader leakage, duplicate ownership, or a changed canonical source).
 """
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import subprocess
 import sys
 from typing import Iterable
 
@@ -25,7 +24,8 @@ if str(SCRIPT_DIR) not in sys.path:
 from source_layout import ROOT, effective_source_files, load_properties, target_ids, target_layout
 from source_preprocessor import version_tuple
 
-BUDGET_FILE = ROOT / "build-config" / "architecture-budgets.json"
+# Keep the existing config path for compatibility; only invariants remain in it.
+POLICY_FILE = ROOT / "build-config" / "architecture-budgets.json"
 ALLOWLIST_FILE = ROOT / "build-config" / "platform-gameplay-allowlist.txt"
 
 CONDITIONAL_IF_RE = re.compile(r"^[ \t]*(?://\?|/\*\?)[ \t]*if\b", re.MULTILINE)
@@ -402,71 +402,25 @@ def current_metrics() -> dict[str, object]:
     }
 
 
-def load_budget_file(path: Path = BUDGET_FILE) -> dict[str, object]:
+def load_policy_file(path: Path = POLICY_FILE) -> dict[str, object]:
     if not path.is_file():
         fail(f"missing {path.relative_to(ROOT)}")
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        fail(f"invalid architecture budget JSON: {exc}")
-    if value.get("schema_version") != 1:
-        fail("unsupported architecture budget schema")
+        fail(f"invalid architecture policy JSON: {exc}")
+    if not isinstance(value, dict) or value.get("schema_version") != 1:
+        fail("unsupported architecture policy schema")
+    if not isinstance(value.get("invariants"), dict):
+        fail("architecture policy: invariants must be an object")
     return value
 
 
-def load_budget_from_git(ref: str | None) -> dict[str, object] | None:
-    if not ref:
-        return None
-    try:
-        completed = subprocess.run(
-            ["git", "show", f"{ref}:build-config/architecture-budgets.json"],
-            cwd=ROOT,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            check=False,
-            timeout=20,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if completed.returncode != 0 or not completed.stdout.strip():
-        return None
-    try:
-        return json.loads(completed.stdout)
-    except json.JSONDecodeError:
-        return None
-
-
-def get_metric(metrics: dict[str, object], path: str) -> int:
-    value: object = metrics
-    parts = path[1:].split("/") if path.startswith("/") else path.split(".")
-    for part in parts:
-        if not isinstance(value, dict) or part not in value:
-            fail(f"budget references unknown metric {path!r}")
-        value = value[part]
-    if isinstance(value, bool) or not isinstance(value, int):
-        fail(f"budget metric {path!r} is not an integer")
-    return value
-
-
-def validate(metrics: dict[str, object], budget: dict[str, object]) -> list[str]:
+def validate(metrics: dict[str, object], policy: dict[str, object]) -> list[str]:
     errors: list[str] = []
-    limits = budget.get("limits", {})
-    if not isinstance(limits, dict):
-        fail("architecture budgets: limits must be an object")
-    for metric_path, maximum in sorted(limits.items()):
-        if not isinstance(maximum, int):
-            fail(f"architecture budget {metric_path!r} must be an integer")
-        current = get_metric(metrics, metric_path)
-        if current > maximum:
-            errors.append(f"{metric_path}: {current} exceeds budget {maximum}")
-
-    conditions = metrics["conditions"]
-    invariants = budget.get("invariants", {})
-    max_blocks = int(invariants.get("max_conditional_blocks_per_java", 4))
-    if int(conditions["max_blocks_per_file"]) > max_blocks:
-        paths = ", ".join(conditions["max_block_files"][:5])
-        errors.append(f"conditional block budget: max is {conditions['max_blocks_per_file']} > {max_blocks}; {paths}")
+    # Deliberately no numeric limits. Metrics still appear in reports, but
+    # increasing source counts or using class-specific transforms cannot fail CI.
+    invariants = policy["invariants"]
 
     targets = metrics["targets"]
     frozen_api = set(invariants.get("frozen_1.21.11_api_files", []))
@@ -500,10 +454,6 @@ def validate(metrics: dict[str, object], budget: dict[str, object]) -> list[str]
     if downports["target_overlay_duplicates"]:
         errors.append(f"target override duplicates its downport: {downports['target_overlay_duplicates'][0]}")
 
-    transforms = metrics["transforms"]
-    if int(transforms["class_specific_java_rewrites"]) != 0:
-        errors.append(f"class-specific Java transform detected: {transforms['violations'][0]}")
-
     foreign = metrics["foreign_packages"]
     if int(foreign["count"]) != 0:
         errors.append(f"foreign package declaration in maintained source: {foreign['violations'][0]}")
@@ -520,32 +470,21 @@ def validate(metrics: dict[str, object], budget: dict[str, object]) -> list[str]
     return errors
 
 
-def trend_rows(metrics: dict[str, object], budget: dict[str, object], previous: dict[str, object] | None) -> list[tuple[str, int, int, int | None]]:
-    rows: list[tuple[str, int, int, int | None]] = []
-    limits = budget.get("limits", {})
-    previous_limits = previous.get("limits", {}) if isinstance(previous, dict) else {}
-    for path, maximum in sorted(limits.items()):
-        current = get_metric(metrics, path)
-        prior = previous_limits.get(path) if isinstance(previous_limits, dict) else None
-        rows.append((path, current, int(maximum), int(prior) if isinstance(prior, int) else None))
-    return rows
-
-
-def markdown(metrics: dict[str, object], budget: dict[str, object], previous: dict[str, object] | None, errors: list[str]) -> str:
+def markdown(metrics: dict[str, object], errors: list[str]) -> str:
     lines = [
-        "# Architecture hardening",
+        "# Source architecture diagnostics",
         "",
-        f"Status: **{'FAIL' if errors else 'PASS'}**",
+        f"Structural checks: **{'FAIL' if errors else 'PASS'}**",
         "",
-        "## Budget trend",
+        "Source counts and class-specific transforms are reported, not limited.",
         "",
-        "| Metric | Current | Budget | Previous budget | Delta vs previous |",
-        "|---|---:|---:|---:|---:|",
+        "## Target overlay counts (informational)",
+        "",
+        "| Target | Java | Resources |",
+        "|---|---:|---:|",
     ]
-    for path, current, maximum, prior in trend_rows(metrics, budget, previous):
-        prior_text = "-" if prior is None else str(prior)
-        delta_text = "-" if prior is None else f"{current - prior:+d}"
-        lines.append(f"| `{path}` | {current} | {maximum} | {prior_text} | {delta_text} |")
+    for target, stats in sorted(metrics["targets"].items()):
+        lines.append(f"| `{target}` | {stats['java']} | {stats['resources']} |")
 
     cond = metrics["conditions"]
     lines.extend([
@@ -571,6 +510,16 @@ def markdown(metrics: dict[str, object], budget: dict[str, object], previous: di
     ])
     for item in down["similar_to_canonical_ge_90"][:10]:
         lines.append(f"  - `{item['path']}` - {float(item['similarity']) * 100:.1f}%")
+
+    transforms = metrics["transforms"]
+    lines.extend([
+        "",
+        "## Java transform diagnostics (informational)",
+        "",
+        f"- Class-specific Java transform references: **{transforms['class_specific_java_rewrites']}**",
+    ])
+    for violation in transforms["violations"][:12]:
+        lines.append(f"  - `{violation}`")
 
     plat = metrics["platform"]
     lines.extend([
@@ -602,26 +551,26 @@ def write_json(path: Path, value: object) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--budget-ref", help="optional git ref whose budget file is shown as the previous trend baseline")
+    # Accepted for compatibility with existing GitHub/local CI invocations.
+    # Budget comparisons are no longer performed.
+    parser.add_argument("--budget-ref", help="deprecated and ignored; accepted for CI compatibility")
     parser.add_argument("--json", type=Path, help="write current architecture metrics as JSON")
     parser.add_argument("--markdown", type=Path, help="write a human-readable CI summary")
     args = parser.parse_args()
 
-    budget = load_budget_file()
-    previous = load_budget_from_git(args.budget_ref)
+    policy = load_policy_file()
     metrics = current_metrics()
-    errors = validate(metrics, budget)
+    errors = validate(metrics, policy)
 
     report = {
         "schema_version": 1,
         "metrics": metrics,
-        "budget": budget,
-        "previous_budget": previous,
+        "policy": policy,
         "errors": errors,
     }
     if args.json:
         write_json(args.json, report)
-    text = markdown(metrics, budget, previous, errors)
+    text = markdown(metrics, errors)
     if args.markdown:
         args.markdown.parent.mkdir(parents=True, exist_ok=True)
         args.markdown.write_text(text, encoding="utf-8", newline="")

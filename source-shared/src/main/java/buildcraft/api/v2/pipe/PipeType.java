@@ -83,6 +83,9 @@ public final class PipeType {
         public Builder archetype(ResourceLocation value) { archetypeId = Objects.requireNonNull(value, "value"); return this; }
         public PipeType build() {
             if (media.isEmpty()) throw new IllegalStateException("Pipe type must declare at least one medium");
+            if (media.contains(PipeMedium.ITEM) && itemProfile == null) {
+                itemProfile = new ItemTransportProfile(64, 1);
+            }
             return new PipeType(this);
         }
     }

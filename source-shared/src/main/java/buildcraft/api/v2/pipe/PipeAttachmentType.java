@@ -6,6 +6,11 @@ import java.util.Objects;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 
+/**
+ * Registered attachment factory and optional persisted codec. Stateful attachments need a codec;
+ * without one, the factory is also used on world reload and client creation with an empty stack
+ * and an unknown actor.
+ */
 public final class PipeAttachmentType<A extends PipeAttachment> {
     private final ResourceLocation id;
     private final PipeAttachmentFactory<A> factory;

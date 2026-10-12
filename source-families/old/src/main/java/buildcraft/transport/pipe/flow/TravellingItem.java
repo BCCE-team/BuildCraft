@@ -7,6 +7,7 @@
 package buildcraft.transport.pipe.flow;
 
 import java.util.EnumSet;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
@@ -36,6 +37,8 @@ public class TravellingItem {
     ItemStack stack;
     int id = 0;
     boolean toCenter;
+    /** Stable owner token for a transfer until the item is consumed. Null for ordinary untracked items. */
+    UUID apiTransitId;
     double speed = 0.05;
     /** Absolute times (relative to world.getTotalWorldTime()) with when an item started to when it finishes. */
     long tickStarted, tickFinished;
@@ -116,6 +119,10 @@ public class TravellingItem {
         }
         tried = NBTUtilBC.readEnumSet(nbt.get("tried"), Direction.class);
         isPhantom = nbt.getBoolean("isPhantom");
+        if (nbt.contains("apiTransitId")) {
+            try { apiTransitId = UUID.fromString(nbt.getString("apiTransitId")); }
+            catch (IllegalArgumentException ignored) { apiTransitId = null; }
+        }
     }
 
     public CompoundTag writeToNbt(long tickNow) {
@@ -132,6 +139,7 @@ public class TravellingItem {
         if (isPhantom) {
             nbt.putBoolean("isPhantom", true);
         }
+        if (apiTransitId != null) nbt.putString("apiTransitId", apiTransitId.toString());
         return nbt;
     }
 
@@ -157,7 +165,7 @@ public class TravellingItem {
     }
 
     public boolean canMerge(TravellingItem with) {
-        if (isPhantom || with.isPhantom) {
+        if (isPhantom || with.isPhantom || apiTransitId != null || with.apiTransitId != null) {
             return false;
         }
         return toCenter == with.toCenter//

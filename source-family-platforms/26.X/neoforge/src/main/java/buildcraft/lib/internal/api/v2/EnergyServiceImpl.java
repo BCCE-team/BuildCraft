@@ -15,6 +15,7 @@ import buildcraft.api.v2.energy.MjPort;
 import buildcraft.api.v2.energy.MjPortDescriptor;
 import buildcraft.api.v2.energy.MjPortProvider;
 import buildcraft.api.v2.machine.MachineView;
+import buildcraft.api.v2.machine.MachineHostProvider;
 import buildcraft.lib.internal.api.v2.energy.MjRuntimeLookup;
 import java.util.EnumSet;
 import java.util.Optional;
@@ -41,7 +42,7 @@ final class EnergyServiceImpl implements EnergyService {
     }
 
     public Optional<MjPort> port(Level level, BlockPos pos, Direction side) {
-        if (level == null || pos == null) return Optional.empty();
+        if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity instanceof MjPortProvider provider) {
             Optional<MjPort> direct = provider.mjPort(side);
@@ -51,11 +52,15 @@ final class EnergyServiceImpl implements EnergyService {
             Optional<MjPort> direct = machine.mjPort(side);
             if (direct.isPresent()) return direct;
         }
+        if (blockEntity instanceof MachineHostProvider provider) {
+            Optional<MjPort> direct = provider.machineHost().mjPort(side);
+            if (direct.isPresent()) return direct;
+        }
         return MjRuntimeLookup.port(level, pos, side);
     }
 
     public Optional<MjPortDescriptor> descriptor(Level level, BlockPos pos, Direction side) {
-        if (level == null || pos == null) return Optional.empty();
+        if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity instanceof MjPortProvider provider) {
             Optional<MjPortDescriptor> direct = provider.mjPortDescriptor(side);
@@ -67,6 +72,10 @@ final class EnergyServiceImpl implements EnergyService {
         if (platform.isPresent()) return platform;
         if (blockEntity instanceof MachineView machine) {
             Optional<MjPort> port = machine.mjPort(side);
+            if (port.isPresent()) return Optional.of(describePort(port.get()));
+        }
+        if (blockEntity instanceof MachineHostProvider provider) {
+            Optional<MjPort> port = provider.machineHost().mjPort(side);
             if (port.isPresent()) return Optional.of(describePort(port.get()));
         }
         return Optional.empty();

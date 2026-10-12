@@ -12,6 +12,12 @@ import buildcraft.lib.internal.statement.IActionExternal;
 import buildcraft.lib.internal.statement.IStatement;
 import buildcraft.lib.internal.statement.IStatementContainer;
 import buildcraft.lib.internal.statement.IStatementParameter;
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.api.v2.machine.MachineView;
+import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.machine.MachineControlMode;
+
 import buildcraft.lib.internal.tiles.IControllable;
 import buildcraft.lib.internal.tiles.IControllable.Mode;
 import buildcraft.lib.internal.tiles.TilesAPI;
@@ -43,9 +49,14 @@ public class ActionMachineControl extends BCStatement implements IActionExternal
     @Override
     public void actionActivate(BlockEntity target, Direction side, IStatementContainer source, IStatementParameter[] parameters) {
         IControllable controllable = CapUtil.getCapability(target.getLevel(), target.getBlockPos(), TilesAPI.CAP_CONTROLLABLE, side.getOpposite());
-        if (controllable != null && controllable.acceptsControlMode(mode)) {
-            controllable.setControlMode(mode);
+        if (controllable != null) {
+            if (controllable.acceptsControlMode(mode)) controllable.setControlMode(mode);
+            return;
         }
+        if (target.getLevel() == null || target.getLevel().isClientSide()) return;
+        BuildCraftApi.service(BuildCraftServices.MACHINES).machine(target.getLevel(), target.getBlockPos())
+            .flatMap(MachineView::control)
+            .ifPresent(control -> control.setMode(MachineControlMode.valueOf(mode.name()), OperationMode.EXECUTE));
     }
 
     @Override

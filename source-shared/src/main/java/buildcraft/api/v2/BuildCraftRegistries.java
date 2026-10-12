@@ -5,6 +5,8 @@ import buildcraft.api.v2.automation.StripesHandler;
 import buildcraft.api.v2.block.PaintHandler;
 import buildcraft.api.v2.block.RotationHandler;
 import buildcraft.api.v2.client.ContentPresentation;
+import buildcraft.api.v2.client.DynamicPresentation;
+import buildcraft.api.v2.client.MenuPresentation;
 import buildcraft.api.v2.client.ParameterPresentation;
 import buildcraft.api.v2.client.PipePresentation;
 import buildcraft.api.v2.client.StatementPresentation;
@@ -93,6 +95,8 @@ public final class BuildCraftRegistries {
     public static final RegistryKey<PaintHandler> PAINT_HANDLERS = key("paint_handlers");
 
     public static final RegistryKey<ContentPresentation> CLIENT_PRESENTATIONS = key("client_presentations");
+    public static final RegistryKey<DynamicPresentation> DYNAMIC_PRESENTATIONS = key("dynamic_presentations");
+    public static final RegistryKey<MenuPresentation> MENU_PRESENTATIONS = key("menu_presentations");
     public static final RegistryKey<PipePresentation> PIPE_PRESENTATIONS = key("pipe_presentations");
     public static final RegistryKey<StatementPresentation> STATEMENT_PRESENTATIONS = key("statement_presentations");
     public static final RegistryKey<ParameterPresentation> PARAMETER_PRESENTATIONS = key("parameter_presentations");

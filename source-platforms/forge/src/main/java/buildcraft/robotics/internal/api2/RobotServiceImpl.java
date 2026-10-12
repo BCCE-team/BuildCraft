@@ -31,6 +31,7 @@ import buildcraft.api.v2.robot.RobotStatus;
 import buildcraft.api.v2.robot.RobotTask;
 import buildcraft.api.v2.robot.RobotTaskContext;
 import buildcraft.api.v2.robot.RobotTaskResult;
+import buildcraft.api.v2.robot.RobotTaskLifecycle;
 import buildcraft.api.v2.robot.RobotTaskType;
 import buildcraft.robotics.ai.AIRobotGotoBlock;
 import buildcraft.robotics.entity.EntityRobot;
@@ -63,6 +64,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
@@ -108,7 +110,8 @@ public final class RobotServiceImpl implements RobotService {
         if (registry == null || request == null || registry.getLoadedRobot(robotId) == null) return Optional.empty();
         RobotResource resource = request.resource();
         RobotResourceType<?> type = BuildCraftApi.registry(BuildCraftRegistries.ROBOT_RESOURCE_TYPES).get(resource.typeId());
-        return type == null ? Optional.empty() : acquireRegistered(type, level, robotId, resource, request.amount());
+        return type == null ? Optional.empty() : acquireRegistered(type, level, robotId, resource, request.amount())
+            .filter(ApiTaskAI::trackIfExecuting);
     }
 
     private static <R extends RobotResource> Optional<RobotResourceLease> acquireRegistered(
@@ -156,6 +159,8 @@ public final class RobotServiceImpl implements RobotService {
         //?}
     }
 
+    static AutomationActor actorForTask(EntityRobotBase robot) { return actor(robot); }
+
     private static AutomationActor actor(EntityRobotBase robot) {
         if (robot instanceof EntityRobot entity) {
             GameProfile owner = entity.getOwnerProfile();
@@ -194,6 +199,7 @@ public final class RobotServiceImpl implements RobotService {
         @Override
         public Optional<ResourceLocation> currentTaskType() {
             AIRobot active = robot.getActiveAI();
+            if (active instanceof ApiTaskAI apiTask) return apiTask.taskTypeId();
             if (active == null) return Optional.empty();
             String name = RobotManager.getAIRobotName(active.getClass());
             if (name == null || name.isBlank()) return Optional.empty();
@@ -215,44 +221,28 @@ public final class RobotServiceImpl implements RobotService {
 
             @Override
             public boolean assign(RobotTask task, OperationMode mode) {
-                if (task == null || !robot.isAlive()) return false;
-                RobotTaskType<?> type = BuildCraftApi.registry(BuildCraftRegistries.ROBOT_TASK_TYPES).get(task.typeId());
-                if (type == null || !type.taskType().isInstance(task)) return false;
-                if (mode == OperationMode.EXECUTE) robot.setMainAIOverride(new ApiTaskAI(robot, task, RobotHandleAdapter.this));
+                if (task == null || mode == null || !robot.isAlive() || !(level(robot) instanceof ServerLevel)) return false;
+                if (!ApiTaskAI.canAssign(task)) return false;
+                if (mode == OperationMode.EXECUTE) {
+                    robot.setMainAIOverride(new ApiTaskAI(robot, task));
+                }
                 return true;
             }
 
             @Override
             public boolean cancelTask(OperationMode mode) {
-                if (!robot.isAlive()) return false;
-                if (mode == OperationMode.EXECUTE) robot.setMainAIOverride(null);
+                if (mode == null || !robot.isAlive() || !(level(robot) instanceof ServerLevel)) return false;
+                if (mode == OperationMode.EXECUTE) {
+                    robot.setMainAIOverride(null);
+                    if (robot.getActiveAI() instanceof ApiTaskAI current) current.abort();
+                }
                 return true;
             }
-        }
-    }
 
-    private static final class ApiTaskAI extends AIRobot {
-        private final RobotTask task;
-        private final RobotHandle handle;
-
-        private ApiTaskAI(EntityRobotBase robot, RobotTask task, RobotHandle handle) {
-            super(robot);
-            this.task = task;
-            this.handle = handle;
-        }
-
-        @Override
-        public void update() {
-            RobotTaskResult result = task.tick(new RobotTaskContext(level(robot), handle, actor(robot)));
-            if (result == null) {
-                setSuccess(false);
-                terminate();
-                return;
-            }
-            switch (result.status()) {
-                case RUNNING, RETRY -> { }
-                case COMPLETE -> terminate();
-                case FAILED -> { setSuccess(false); terminate(); }
+            @Override
+            public Optional<RobotTaskLifecycle.Phase> taskPhase() {
+                return robot.getActiveAI() instanceof ApiTaskAI current
+                    ? Optional.of(current.phase()) : Optional.empty();
             }
         }
     }

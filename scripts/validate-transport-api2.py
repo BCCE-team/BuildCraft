@@ -63,7 +63,7 @@ def main() -> int:
     for path in pipe_paths:
         src = text(path)
         for token in [
-            "implements IPipe, IDebuggable, PipeMutationContext",
+            "implements IPipe, IDebuggable, PipeExecutionContext",
             "applyItemRouting(",
             "applyFluidRouting(",
             "applyMjRouting(",
@@ -72,10 +72,15 @@ def main() -> int:
             "PipeActivationComponent",
             "PipeConnectionComponent",
             "PIPE_CONNECTION_RULES",
-            "PIPE_COMPONENT_TYPES",
+            "apiRuntime.components()",
         ]:
             if token not in src:
                 errors.append(f"{path}: missing API2 runtime hook {token}")
+
+    component_runtime = text("source-shared/src/main/java/buildcraft/transport/api2/PipeComponentRuntime.java")
+    for token in ("PIPE_COMPONENT_TYPES", "PIPE_SYNC_CHANNELS", "RuntimeExtensions", "readState(", "writeState(", "writeFullSync(", "writeChangedSync("):
+        if token not in component_runtime:
+            errors.append(f"PipeComponentRuntime: missing {token}")
 
     flow_checks = {
         "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java": ["applyItemRouting(", "requireItemProfile()", "maxItemsPerCycle()"],

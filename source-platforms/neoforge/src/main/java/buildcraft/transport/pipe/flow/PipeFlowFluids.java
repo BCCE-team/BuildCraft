@@ -147,7 +147,53 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         return FluidStackUtil.parseOptional(registries, nbt);
     }
 
-    @Override
+    private long lastApiTransferTick = Long.MIN_VALUE;
+    private int apiSentThisTick;
+    private long lastApiReceiveTick = Long.MIN_VALUE;
+    private int apiReceivedThisTick;
+
+    /** Matured, extractable fluid in the requested section, including variant components. */
+    public buildcraft.api.v2.fluid.FluidVolume availableFluidForApi(Direction side) {
+        if (side == null || currentFluid.isEmpty()) return buildcraft.api.v2.fluid.FluidVolume.empty();
+        Section section = sections.get(EnumPipePart.fromFacing(side));
+        int available = Math.max(0, section.getMaxDrained());
+        if (available == 0) return buildcraft.api.v2.fluid.FluidVolume.empty();
+        return FuelApiBridge.volumeOf(currentFluid.copyWithAmount(available));
+    }
+
+    /** Move matured fluid directly between loaded pipe sections without external handler callbacks. */
+    public int transferFluidForApi(PipeFlowFluids target, Direction sourceSide, Direction targetSide,
+                                   int maximum, boolean simulate) {
+        if (target == null || target == this || sourceSide == null || targetSide == null
+            || maximum <= 0 || currentFluid.isEmpty()) return 0;
+        if (!target.currentFluid.isEmpty()
+            && !FuelApiBridge.volumeOf(currentFluid.copyWithAmount(1)).sameVariant(
+                FuelApiBridge.volumeOf(target.currentFluid.copyWithAmount(1)))) return 0;
+        Section from = sections.get(EnumPipePart.fromFacing(sourceSide));
+        Section to = target.sections.get(EnumPipePart.fromFacing(targetSide));
+        long sourceTick = pipe.getHolder().getPipeWorld().getGameTime();
+        long targetTick = target.pipe.getHolder().getPipeWorld().getGameTime();
+        int leftSource = transferPerTick - (lastApiTransferTick == sourceTick ? apiSentThisTick : 0);
+        int leftTarget = target.transferPerTick - (target.lastApiReceiveTick == targetTick ? target.apiReceivedThisTick : 0);
+        int amount = Math.max(0, Math.min(maximum, Math.min(from.getMaxDrained(),
+            Math.min(to.getMaxFilled(), Math.min(leftSource, leftTarget)))));
+        if (amount == 0 || simulate) return amount;
+        if (target.currentFluid.isEmpty()) target.setFluid(currentFluid.copy());
+        int inserted = to.fill(amount, FluidAction.EXECUTE);
+        if (inserted <= 0) return 0;
+        int extracted = from.drainInternal(inserted, true);
+        if (extracted != inserted) throw new IllegalStateException("Pipe fluid transfer lost its source reservation");
+        from.ticksInDirection = COOLDOWN_OUTPUT;
+        to.ticksInDirection = COOLDOWN_INPUT;
+        if (lastApiTransferTick != sourceTick) apiSentThisTick = 0;
+        lastApiTransferTick = sourceTick;
+        apiSentThisTick += inserted;
+        if (target.lastApiReceiveTick != targetTick) target.apiReceivedThisTick = 0;
+        target.lastApiReceiveTick = targetTick;
+        target.apiReceivedThisTick += inserted;
+        return inserted;
+    }
+
     public boolean requiresPeriodicSave() {
         return sections.values().stream().anyMatch(section -> section.amount > 0 || section.incomingTotalCache > 0);
     }

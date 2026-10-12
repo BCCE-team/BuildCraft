@@ -1,6 +1,9 @@
 package buildcraft.robotics.ai;
 
 import buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot;
+import buildcraft.robotics.internal.api2.ApiTaskAI;
+import buildcraft.robotics.internal.legacy.robots.RobotManager;
+import net.minecraft.nbt.CompoundTag;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
@@ -115,15 +118,32 @@ public class AIRobotMain extends AIRobot {
     }
 
     public void setOverridingAI(AIRobot ai) {
-        if (ai == null) {
-            overridingAI = null;
-        } else if (overridingAI == null) {
-            overridingAI = ai;
+        if (overridingAI != null && overridingAI != ai && overridingAI != getDelegateAI()) {
+            overridingAI.abort();
         }
+        overridingAI = ai;
     }
 
     public AIRobot getOverridingAI() {
         return overridingAI;
+    }
+
+    @Override
+    public void writeSelfToNBT(CompoundTag nbt) {
+        if (overridingAI instanceof ApiTaskAI && overridingAI != getDelegateAI()) {
+            CompoundTag pending = new CompoundTag();
+            overridingAI.writeToNBT(pending);
+            nbt.put("queuedApiTask", pending);
+        }
+    }
+
+    @Override
+    public void loadSelfFromNBT(CompoundTag nbt) {
+        overridingAI = null;
+        if (nbt.get("queuedApiTask") instanceof CompoundTag queued) {
+            AIRobot loaded = AIRobot.loadAI(queued, robot);
+            if (loaded instanceof ApiTaskAI) overridingAI = loaded;
+        }
     }
 
     @Override

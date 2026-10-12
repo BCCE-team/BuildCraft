@@ -308,7 +308,7 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
         // alpha, and only for installed glass facades (not facade items).
         if (applyGlassAlpha && PluggableFacade.isGlass(key.state)) {
             for (MutableQuad quad : quads) {
-                quad.multColourd(1.0, 1.0, 1.0, 1.0);
+                quad.multColourd(1.0, 1.0, 1.0, 0.65);
             }
         }
         //? }

@@ -36,6 +36,7 @@ public final class MjApi2PlatformBridge {
     private static final class Backend implements MjRuntimeLookup.Backend {
         @Override
         public Optional<MjPort> port(Level level, BlockPos pos, Direction side) {
+            if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             Endpoint endpoint = endpoint(level, pos, side);
             if (!endpoint.isEmpty()) return Optional.of(endpoint);
             FeEndpoint fe = feEndpoint(level, pos, side);
@@ -44,6 +45,7 @@ public final class MjApi2PlatformBridge {
 
         @Override
         public Optional<MjPortDescriptor> descriptor(Level level, BlockPos pos, Direction side) {
+            if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             Endpoint endpoint = endpoint(level, pos, side);
             if (!endpoint.isEmpty()) return Optional.of(endpoint.descriptor());
             FeEndpoint fe = feEndpoint(level, pos, side);
@@ -53,6 +55,7 @@ public final class MjApi2PlatformBridge {
         @Override
         public boolean canConnect(MjConnectionContext context) {
             BlockPos remotePos = context.position().relative(context.side());
+            if (!context.level().hasChunkAt(context.position()) || !context.level().hasChunkAt(remotePos)) return false;
             IMjConnector local = context.level().getCapability(MjCapabilities.CAP_CONNECTOR, context.position(), context.side());
             IMjConnector remote = context.level().getCapability(MjCapabilities.CAP_CONNECTOR, remotePos, context.side().getOpposite());
             return local == null || remote == null || (local.canConnect(remote) && remote.canConnect(local));

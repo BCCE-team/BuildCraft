@@ -10,10 +10,14 @@ import buildcraft.lib.platform.registry.BCRegistryEntry;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import buildcraft.lib.internal.core.InvalidInputDataException;
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftRegistries;
 import buildcraft.api.v2.pipe.PipeType;
 import buildcraft.transport.internal.pipe.IItemPipe;
 import buildcraft.transport.internal.pipe.IPipeRegistry;
@@ -41,24 +45,38 @@ public enum PipeRegistry implements IPipeRegistry {
         PipeTypeBridge.ensureRegistered(definition);
     }
 
-    /** Materializes an API2 pipe variant into the legacy-compatible runtime implementation. */
+    /** Materializes both explicit variants and standalone API2 pipes on BCCE's standard block carrier. */
     public synchronized PipeDefinition ensureRuntimeDefinition(PipeType type) {
         if (type == null) throw new NullPointerException("type");
+        return materialize(type, new LinkedHashSet<>());
+    }
+
+    private PipeDefinition materialize(PipeType type, Set<ResourceLocation> resolving) {
         PipeDefinition existing = definitions.get(type.id());
         if (existing != null) {
             existing.setApiType(type);
             return existing;
         }
-        ResourceLocation baseId = type.archetypeId().orElseThrow(() -> new IllegalArgumentException(
-            "Pipe type " + type.id() + " has no runtime archetype; create it with PipeType.variant(...)"
-        ));
-        PipeDefinition base = getDefinition(baseId);
-        if (base == null) {
-            throw new IllegalStateException("Unknown runtime pipe archetype " + baseId + " for " + type.id());
+        if (!resolving.add(type.id())) {
+            throw new IllegalStateException("Cyclic pipe carrier inheritance: " + resolving + " -> " + type.id());
         }
-        PipeDefinition definition = PipeDefinition.apiVariant(type, base);
-        registerPipe(definition);
-        return definition;
+        try {
+            ResourceLocation baseId = PipeTypeBridge.carrierId(type);
+            PipeDefinition base = getDefinition(baseId);
+            if (base == null) {
+                PipeType baseType = BuildCraftApi.registry(BuildCraftRegistries.PIPE_TYPES).get(baseId);
+                if (baseType != null) base = materialize(baseType, resolving);
+            }
+            if (base == null) {
+                throw new IllegalStateException("Unknown pipe carrier " + baseId + " for " + type.id());
+            }
+            PipeTypeBridge.validateCarrier(type, base);
+            PipeDefinition definition = PipeDefinition.apiVariant(type, base);
+            registerPipe(definition);
+            return definition;
+        } finally {
+            resolving.remove(type.id());
+        }
     }
 
     @Override
@@ -124,6 +142,11 @@ public enum PipeRegistry implements IPipeRegistry {
     @Nonnull
     public PipeDefinition loadDefinition(String identifier) throws InvalidInputDataException {
         PipeDefinition def = getDefinition(new ResourceLocation(identifier));
+        if (def == null) {
+            ResourceLocation id = ResourceLocation.tryParse(identifier);
+            PipeType registered = id == null ? null : BuildCraftApi.registry(BuildCraftRegistries.PIPE_TYPES).get(id);
+            if (registered != null) def = ensureRuntimeDefinition(registered);
+        }
         if (def == null) {
             throw new InvalidInputDataException("Unknown pipe definition " + identifier);
         }

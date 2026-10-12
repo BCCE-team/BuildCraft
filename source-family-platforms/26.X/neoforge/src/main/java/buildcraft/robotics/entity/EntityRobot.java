@@ -20,6 +20,7 @@ import buildcraft.lib.internal.core.BlockIndex;
 import buildcraft.lib.internal.area.IZone;
 import buildcraft.lib.internal.mj.MjBattery;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
+import buildcraft.robotics.internal.api2.ApiTaskAI;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.api.v2.robot.RobotEventKind;
@@ -1449,11 +1450,18 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
     }
 
     public void onChunkUnload() {
+        if (level() instanceof ServerLevel && getActiveAI() instanceof ApiTaskAI task) {
+            task.suspendForUnload();
+        }
         IRobotRegistry registry = getRegistry();
         if (registry != null) registry.unloadRobot(this);
     }
 
     public void remove(RemovalReason reason) {
+        if (level() instanceof ServerLevel && getActiveAI() instanceof ApiTaskAI task) {
+            if (reason.shouldDestroy()) task.abort();
+            else task.suspendForUnload();
+        }
         IRobotRegistry registry = getRegistry();
         if (!level().isClientSide() && !convertingToItems && registry != null) {
             if (reason.shouldDestroy()) {

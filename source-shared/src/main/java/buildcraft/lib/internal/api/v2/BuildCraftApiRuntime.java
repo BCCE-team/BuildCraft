@@ -36,14 +36,15 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         new ApiFeature(BuildCraftFeatures.PERMISSIONS, 1),
         new ApiFeature(BuildCraftFeatures.ENERGY, 1),
         new ApiFeature(BuildCraftFeatures.DATA_DOMAINS, 1),
-        new ApiFeature(BuildCraftFeatures.PIPES, 1),
+        new ApiFeature(BuildCraftFeatures.PIPES, 2),
         new ApiFeature(BuildCraftFeatures.STATEMENTS, 1),
         new ApiFeature(BuildCraftFeatures.SIGNALS, 1),
         new ApiFeature(BuildCraftFeatures.AUTOMATION, 1),
-        new ApiFeature(BuildCraftFeatures.ROBOTS, 1),
+        new ApiFeature(BuildCraftFeatures.ROBOTS, 2),
+        new ApiFeature(BuildCraftFeatures.LOGISTICS, 1),
         new ApiFeature(BuildCraftFeatures.SCHEMATICS, 1),
-        new ApiFeature(BuildCraftFeatures.MACHINES, 1),
-        new ApiFeature(BuildCraftFeatures.CLIENT_PRESENTATION, 1),
+        new ApiFeature(BuildCraftFeatures.MACHINES, 2),
+        new ApiFeature(BuildCraftFeatures.CLIENT_PRESENTATION, 2),
         new ApiFeature(BuildCraftFeatures.CONTENT_EXTENSION, 1),
         new ApiFeature(BuildCraftFeatures.GUIDE, 1),
         new ApiFeature(BuildCraftFeatures.WORLDGEN, 1)
@@ -64,6 +65,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     private final StatementServiceImpl statements = StatementServiceImpl.INSTANCE;
     private final FillerPatternServiceImpl fillerPatterns = FillerPatternServiceImpl.INSTANCE;
     private final MachineServiceImpl machines = new MachineServiceImpl();
+    private final EngineServiceImpl engines = new EngineServiceImpl();
     private final LaserTargetServiceImpl laserTargets = new LaserTargetServiceImpl();
     private final MjFormatterImpl mjFormatter = new MjFormatterImpl();
     private final PowerLossEffectServiceImpl powerLossEffects = new PowerLossEffectServiceImpl();
@@ -97,6 +99,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         services.put(BuildCraftServices.STATEMENTS, statements);
         services.put(BuildCraftServices.FILLER_PATTERNS, fillerPatterns);
         services.put(BuildCraftServices.MACHINES, machines);
+        services.put(BuildCraftServices.ENGINES, engines);
         services.put(BuildCraftServices.LASER_TARGETS, laserTargets);
         services.put(BuildCraftServices.MJ_FORMATTER, mjFormatter);
         services.put(BuildCraftServices.POWER_LOSS_EFFECTS, powerLossEffects);
@@ -152,6 +155,8 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         registerRegistry(BuildCraftRegistries.ROTATION_HANDLERS);
         registerRegistry(BuildCraftRegistries.PAINT_HANDLERS);
         registerRegistry(BuildCraftRegistries.CLIENT_PRESENTATIONS);
+        registerRegistry(BuildCraftRegistries.DYNAMIC_PRESENTATIONS);
+        registerRegistry(BuildCraftRegistries.MENU_PRESENTATIONS);
         registerRegistry(BuildCraftRegistries.PIPE_PRESENTATIONS);
         registerRegistry(BuildCraftRegistries.STATEMENT_PRESENTATIONS);
         registerRegistry(BuildCraftRegistries.PARAMETER_PRESENTATIONS);

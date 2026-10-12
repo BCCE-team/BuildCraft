@@ -324,11 +324,12 @@ class OriginalGuideResourcesTester {
     }
 
     @Test
-    void everyListedPageHasOptionalHints() throws Exception {
+    void listedPagesRespectOptionalHintVisibility() throws Exception {
         JsonObject manifest = json(MANIFEST);
         JsonObject layouts = json(LAYOUTS).getAsJsonObject("pages");
         JsonObject english = json(ENGLISH).getAsJsonObject("pages");
         Set<String> checked = new HashSet<>();
+        int pagesWithHints = 0;
 
         for (JsonElement element : manifest.getAsJsonArray("entries")) {
             JsonObject entry = element.getAsJsonObject();
@@ -341,16 +342,36 @@ class OriginalGuideResourcesTester {
             }
             String template = layouts.getAsJsonObject(page).get("template").getAsString();
             String en = render(template, strings(english.getAsJsonArray(page)));
-            Assertions.assertTrue(en.contains("<hint>"), "Missing hint section in " + page);
-            Assertions.assertTrue(en.contains("<bold>Hint:</bold>"), "English hint is not labelled in " + page);
-
             GuideDocument hidden = GuideDocument.parse(en, true, false, false);
             GuideDocument visible = GuideDocument.parse(en, true, true, false);
-            Assertions.assertTrue(visible.blocks.size() > hidden.blocks.size(),
-                "Show Hints must reveal additional content in " + page);
+
+            if (en.contains("<hint>")) {
+                pagesWithHints++;
+                Assertions.assertTrue(visible.blocks.size() > hidden.blocks.size(),
+                    "Show Hints must reveal additional content in " + page);
+            } else if (!en.contains("<no_hint>")) {
+                Assertions.assertEquals(hidden.blocks.size(), visible.blocks.size(),
+                    "Show Hints must not affect pages without hints: " + page);
+            }
         }
         Assertions.assertTrue(checked.size() >= 215,
-            "The current guide should retain practical hints for every listed page");
+            "The current guide must retain every listed page");
+        Assertions.assertTrue(pagesWithHints > 0, "The guide must exercise optional hint visibility");
+    }
+
+    @Test
+    void hintVisibilityDoesNotRequireAnEnglishLabel() {
+        String page = "Guide content\n<hint>\nAn optional tip\n</hint>";
+        GuideDocument hidden = GuideDocument.parse(page, true, false, false);
+        GuideDocument visible = GuideDocument.parse(page, true, true, false);
+        Assertions.assertFalse(hidden.blocks.stream().anyMatch(block ->
+            block.text != null && block.text.getString().contains("An optional tip")));
+        Assertions.assertTrue(visible.blocks.stream().anyMatch(block ->
+            block.text != null && block.text.getString().contains("An optional tip")));
+
+        GuideDocument withoutHints = GuideDocument.parse("Guide content", true, false, false);
+        GuideDocument withoutHintsVisible = GuideDocument.parse("Guide content", true, true, false);
+        Assertions.assertEquals(withoutHints.blocks.size(), withoutHintsVisible.blocks.size());
     }
 
     @Test
