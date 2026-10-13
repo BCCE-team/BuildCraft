@@ -7,6 +7,7 @@ import buildcraft.api.v2.pipe.ItemTransitComponent;
 import buildcraft.api.v2.pipe.ItemTransitContext;
 import buildcraft.api.v2.pipe.ItemTransitData;
 import buildcraft.api.v2.pipe.ItemTransitPhase;
+import buildcraft.api.v2.pipe.ItemTransitPayload;
 import buildcraft.api.v2.pipe.ItemTransitStatus;
 import buildcraft.api.v2.pipe.ItemTransitTransfer;
 import buildcraft.api.v2.pipe.PipeComponent;
@@ -30,22 +31,34 @@ public final class PipeItemTransitRuntime {
     private PipeItemTransitRuntime() { }
 
     public record Result(ItemStack stack, ItemTransitData transit, UUID id,
-                         Direction redirected, int delay, Direction eject) {
+                         Direction redirected, int delay, Direction eject, ItemTransitPayload payload) {
         public Result {
             stack = stack.copy();
+            Objects.requireNonNull(payload, "payload");
+        }
+        public Result(ItemStack stack, ItemTransitData transit, UUID id,
+                      Direction redirected, int delay, Direction eject) {
+            this(stack, transit, id, redirected, delay, eject, ItemTransitPayload.EMPTY);
         }
     }
 
     public static Result fire(Pipe pipe, ItemTransitPhase phase, ItemStack stack,
                               ItemTransitData transit, Direction input, Direction output, UUID id) {
+        return fire(pipe, phase, stack, transit, input, output, id, ItemTransitPayload.EMPTY);
+    }
+
+    public static Result fire(Pipe pipe, ItemTransitPhase phase, ItemStack stack,
+                              ItemTransitData transit, Direction input, Direction output, UUID id,
+                              ItemTransitPayload payload) {
+        Objects.requireNonNull(payload, "payload");
         Objects.requireNonNull(stack, "stack");
         Objects.requireNonNull(transit, "transit");
         boolean hasListener = false;
         for (PipeComponent component : pipe.components()) {
             if (component instanceof ItemTransitComponent) { hasListener = true; break; }
         }
-        if (!hasListener) return new Result(stack, transit, id, null, 0, null);
-        Context context = new Context(pipe, phase, stack, transit, input, output, id);
+        if (!hasListener) return new Result(stack, transit, id, null, 0, null, payload);
+        Context context = new Context(pipe, phase, stack, transit, input, output, id, payload);
         try {
             for (PipeComponent component : pipe.components()) {
                 if (!(component instanceof ItemTransitComponent listener)) continue;
@@ -60,7 +73,7 @@ public final class PipeItemTransitRuntime {
             context.open = false;
         }
         return new Result(context.stack, context.transit, context.id,
-            context.redirected, context.delay, context.eject);
+            context.redirected, context.delay, context.eject, context.payload);
     }
 
     private static final class Context implements ItemTransitContext {
@@ -72,13 +85,15 @@ public final class PipeItemTransitRuntime {
         private ItemStack stack;
         private ItemTransitData transit;
         private UUID id;
+        private ItemTransitPayload payload;
         private Direction redirected;
         private int delay;
         private Direction eject;
         private boolean open = true;
 
         private Context(Pipe pipe, ItemTransitPhase phase, ItemStack stack, ItemTransitData transit,
-                        Direction input, Direction output, UUID id) {
+                        Direction input, Direction output, UUID id, ItemTransitPayload payload) {
+            this.payload = payload;
             this.pipe = pipe;
             this.view = ReadOnlyPipeView.of(pipe);
             this.phase = phase;
@@ -109,6 +124,19 @@ public final class PipeItemTransitRuntime {
         @Override public ItemTransitData transit() { checkOpen(); return transit; }
         @Override public Optional<Direction> input() { checkOpen(); return Optional.ofNullable(input); }
         @Override public Optional<Direction> output() { checkOpen(); return Optional.ofNullable(redirected == null ? output : redirected); }
+        @Override public ItemTransitPayload payload() { checkOpen(); return payload; }
+        @Override public boolean setPayload(ItemTransitPayload next) {
+            Objects.requireNonNull(next, "payload");
+            checkOpen();
+            Level level = pipe.getHolder().getPipeWorld();
+            if (level == null || level.isClientSide() || level.getServer() == null
+                || !level.getServer().isSameThread() || stack.isEmpty()
+                || !(phase == ItemTransitPhase.ENTER || phase == ItemTransitPhase.CENTER
+                    || phase == ItemTransitPhase.ROUTING || phase == ItemTransitPhase.EXIT)) return false;
+            payload = next;
+            pipe.markChanged();
+            return true;
+        }
         @Override public UUID transitId() {
             checkOpen();
             if (id == null) id = UUID.randomUUID();
@@ -175,7 +203,7 @@ public final class PipeItemTransitRuntime {
                 stack.shrink(accepted);
                 if (!stack.isEmpty()) delay = 1;
                 pipe.markChanged();
-                fire(pipe, ItemTransitPhase.TRANSFERRED, result.transferred(), transit, input, output, id);
+                fire(pipe, ItemTransitPhase.TRANSFERRED, result.transferred(), transit, input, output, id, payload);
             }
             return new ItemTransitTransfer(offered.getCount(), accepted,
                 mode == OperationMode.SIMULATE ? ItemTransitStatus.SIMULATED
@@ -216,8 +244,10 @@ public final class PipeItemTransitRuntime {
             ItemStack offered = stack.copy();
             ItemStack excess;
             try {
-                excess = flow.injectTransitStack(offered, mode == OperationMode.EXECUTE, enteringFrom,
-                    transit.color().orElse(null), transit.speedBlocksPerTick(), token);
+                try (PipeTransitHandoff handoff = PipeTransitHandoff.begin(token, payload)) {
+                    excess = flow.injectTransitStack(offered, mode == OperationMode.EXECUTE, enteringFrom,
+                        transit.color().orElse(null), transit.speedBlocksPerTick(), token);
+                }
             } catch (RuntimeException ex) {
                 BCLog.logger.warn("Item transit target rejected a transfer at {}", targetPos, ex);
                 return ItemTransitTransfer.blocked(offeredCount, ItemTransitStatus.FAILED);
@@ -233,7 +263,7 @@ public final class PipeItemTransitRuntime {
                 pipe.markChanged();
                 ItemStack moved = offered.copy();
                 moved.setCount(accepted);
-                fire(pipe, ItemTransitPhase.TRANSFERRED, moved, transit, input, output, token);
+                fire(pipe, ItemTransitPhase.TRANSFERRED, moved, transit, input, output, token, payload);
             }
             return new ItemTransitTransfer(offeredCount, accepted,
                 mode == OperationMode.SIMULATE ? ItemTransitStatus.SIMULATED

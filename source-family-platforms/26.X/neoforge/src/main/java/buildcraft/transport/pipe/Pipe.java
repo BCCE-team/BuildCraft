@@ -63,14 +63,20 @@ import buildcraft.api.v2.pipe.PipeConnectionComponent;
 import buildcraft.api.v2.pipe.PipeConnectionContext;
 import buildcraft.api.v2.pipe.PipeConnectionDecision;
 import buildcraft.api.v2.pipe.PipeConnectionRule;
+import buildcraft.api.v2.pipe.PipeExternalEndpoint;
 import buildcraft.api.v2.pipe.MjRouteComponent;
 import buildcraft.api.v2.pipe.MjRouteContext;
 import buildcraft.api.v2.pipe.PipeMutationContext;
 import buildcraft.api.v2.pipe.PipeExecutionContext;
+import buildcraft.lib.internal.permission.IPlayerOwned;
+import buildcraft.lib.platform.permission.BCPermissions;
+import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.api.v2.world.WorldAccessContext;
 import buildcraft.api.v2.pipe.PipeConnectionChange;
 import buildcraft.api.v2.pipe.PipeTickComponent;
 import buildcraft.api.v2.pipe.PipeType;
 import buildcraft.api.v2.pipe.PipeView;
+import buildcraft.api.v2.pipe.PipeRuntimeComponent;
 import buildcraft.api.v2.platform.ExternalEnergyPort;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.internal.tiles.IDebuggable;
@@ -95,9 +101,11 @@ import buildcraft.transport.item.ItemPipeHolder;
 import buildcraft.lib.fluid.FuelApiBridge;
 import buildcraft.transport.api2.PipeTypeBridge;
 import buildcraft.transport.api2.PipeComponentRuntime;
+import buildcraft.transport.api2.ApiPipeFlow;
 import buildcraft.transport.api2.PipeResourceRuntime;
 import buildcraft.transport.api2.PipeAttachmentBridge;
 import buildcraft.transport.api2.ReadOnlyPipeView;
+import buildcraft.transport.api2.PipeEndpointRuntime;
 import buildcraft.transport.pipe.flow.PipeFlowForgeEnergy;
 import buildcraft.transport.pipe.flow.PipeFlowPower;
 import buildcraft.transport.client.model.key.PipeModelKey;
@@ -387,6 +395,7 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
             }
 
             BlockPos nPos = pipePos.relative(facing);
+            if (!level.hasChunkAt(nPos)) continue;
             BlockState neighbour = level.getBlockState(nPos);
             BlockEntity oTile = level.getBlockEntity(nPos);
 
@@ -418,13 +427,19 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
             float ext = DEFAULT_CONNECTION_DISTANCE
                 + cust.getExtension(level, nPos, facing.getOpposite(), neighbour);
 
-            boolean forceFlow = flow.shouldForceConnection(facing, level, nPos, oTile);
-            boolean flowCompatible = forceFlow || flow.canConnect(facing, level, nPos, oTile);
-            boolean legacyConnect = behaviour.shouldForceConnection(facing, level, nPos, oTile) || forceFlow
-                || (behaviour.canConnect(facing, level, nPos, oTile) && flowCompatible);
             PipeConnectionDecision apiDecision = apiConnectionDecision(facing, neighbour);
+            PipeExternalEndpoint endpoint = PipeEndpointRuntime.find(holder.getPipeWorld(), this, facing).orElse(null);
+            boolean externalAllowed = endpoint != null && PipeEndpointRuntime.canConnect(endpoint, this, facing);
+            if (externalAllowed) ext += PipeEndpointRuntime.extension(endpoint);
+            boolean customFlow = flow instanceof ApiPipeFlow;
+            boolean forceFlow = !customFlow && flow.shouldForceConnection(facing, level, nPos, oTile);
+            boolean flowCompatible = customFlow
+                ? apiDecision == PipeConnectionDecision.ALLOW
+                : forceFlow || flow.canConnect(facing, level, nPos, oTile);
+            boolean legacyConnect = !customFlow && (behaviour.shouldForceConnection(facing, level, nPos, oTile)
+                || forceFlow || (behaviour.canConnect(facing, level, nPos, oTile) && flowCompatible));
             if (apiDecision != PipeConnectionDecision.DENY
-                && (legacyConnect || (apiDecision == PipeConnectionDecision.ALLOW && flowCompatible))) {
+                && (legacyConnect || externalAllowed || (apiDecision == PipeConnectionDecision.ALLOW && flowCompatible))) {
                 connected.put(facing, ext);
                 types.put(facing, ConnectedType.TILE);
             }
@@ -456,6 +471,24 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
     }
 
     // API2 pipe runtime surface
+
+    /** After the holder ticks its pluggables, custom transport can observe their settled state. */
+    public void onApiPostAttachmentTick() {
+        if (apiRuntime != null) apiRuntime.postAttachmentTick();
+    }
+
+    /** Preserve built-in collision behaviour while notifying custom flow/behaviour components. */
+    public void onApiEntityCollided(net.minecraft.world.entity.Entity entity) {
+        if (holder == null || holder.getPipeWorld() == null || holder.getPipeWorld().isClientSide()) return;
+        behaviour.onEntityCollide(entity);
+        for (PipeComponent component : components()) {
+            if (!(component instanceof PipeRuntimeComponent hook)) continue;
+            try { hook.entityCollided(ReadOnlyPipeView.of(this), entity); }
+            catch (RuntimeException exception) {
+                BCLog.logger.warn("Custom pipe collision hook failed at {}", position(), exception);
+            }
+        }
+    }
 
     private PipeComponentRuntime createApiRuntime(byte[] saved) {
         PipeType type = definition.getApiType();
@@ -520,11 +553,32 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
     }
 
     public Optional<ItemPort> itemPort(Direction side) {
-        return itemPipePort(side).map(port -> (ItemPort) port);
+        Objects.requireNonNull(side, "side");
+        Optional<ItemPort> attached = PipeEndpointRuntime.attachmentPort(holder.getPluggable(side),
+            PipeAttachment::itemPort);
+        return attached.isPresent() ? attached : itemPipePort(side).map(port -> (ItemPort) port);
     }
 
     public Optional<ItemPipePort> itemPipePort(Direction side) {
         Objects.requireNonNull(side, "side");
+        Optional<ItemPipePort> attachmentPort = PipeEndpointRuntime.attachmentPort(holder.getPluggable(side),
+            PipeAttachment::itemPipePort);
+        if (attachmentPort.isPresent()) return attachmentPort;
+        if (holder.getPluggable(side).isBlocking()) return Optional.empty();
+        for (PipeComponent component : components()) {
+            if (!apiEnvironmentActive || apiEnvironmentInvalidated) break;
+            if (!(component instanceof PipeRuntimeComponent provider)) continue;
+            try {
+                Optional<ItemPipePort> provided = Objects.requireNonNull(provider.itemPipePort(side), "pipe port");
+                if (provided.isPresent()) return provided;
+            } catch (RuntimeException exception) {
+                BCLog.logger.warn("Custom itemPipePort provider failed at {}", position(), exception);
+                return Optional.empty();
+            }
+        }
+        // Custom item flows MUST supply a real ItemPipePort. Falling back to the
+        // legacy adapter would call back into ApiItemPipeFlow and recurse.
+        if (flow instanceof ApiPipeFlow) return Optional.empty();
         if (!(flow instanceof IFlowItems itemFlow)) return Optional.empty();
         return Optional.of(new ItemPipePort() {
             public ItemTransferResult insert(ItemStack offered, OperationMode mode) {
@@ -556,6 +610,21 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
 
     public Optional<FluidPort> fluidPort(Direction side) {
         Objects.requireNonNull(side, "side");
+        Optional<FluidPort> attachmentPort = PipeEndpointRuntime.attachmentPort(holder.getPluggable(side),
+            PipeAttachment::fluidPort);
+        if (attachmentPort.isPresent()) return attachmentPort;
+        if (holder.getPluggable(side).isBlocking()) return Optional.empty();
+        for (PipeComponent component : components()) {
+            if (!apiEnvironmentActive || apiEnvironmentInvalidated) break;
+            if (!(component instanceof PipeRuntimeComponent provider)) continue;
+            try {
+                Optional<FluidPort> provided = Objects.requireNonNull(provider.fluidPort(side), "pipe port");
+                if (provided.isPresent()) return provided;
+            } catch (RuntimeException exception) {
+                BCLog.logger.warn("Custom fluidPort provider failed at {}", position(), exception);
+                return Optional.empty();
+            }
+        }
         if (!(flow instanceof IFlowFluid fluidFlow)) return Optional.empty();
         return Optional.of(new FluidPort() {
             public FluidTransferResult insert(FluidVolume offered, OperationMode mode) {
@@ -594,6 +663,21 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
 
     public Optional<MjPort> mjPort(Direction side) {
         Objects.requireNonNull(side, "side");
+        Optional<MjPort> attachmentPort = PipeEndpointRuntime.attachmentPort(holder.getPluggable(side),
+            PipeAttachment::mjPort);
+        if (attachmentPort.isPresent()) return attachmentPort;
+        if (holder.getPluggable(side).isBlocking()) return Optional.empty();
+        for (PipeComponent component : components()) {
+            if (!apiEnvironmentActive || apiEnvironmentInvalidated) break;
+            if (!(component instanceof PipeRuntimeComponent provider)) continue;
+            try {
+                Optional<MjPort> provided = Objects.requireNonNull(provider.mjPort(side), "pipe port");
+                if (provided.isPresent()) return provided;
+            } catch (RuntimeException exception) {
+                BCLog.logger.warn("Custom mjPort provider failed at {}", position(), exception);
+                return Optional.empty();
+            }
+        }
         if (!(flow instanceof PipeFlowPower powerFlow)) return Optional.empty();
         return Optional.of(new MjPort() {
             public MjTransferResult insert(MjAmount offered, OperationMode mode) {
@@ -622,6 +706,21 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
 
     public Optional<ExternalEnergyPort> externalEnergyPort(Direction side) {
         Objects.requireNonNull(side, "side");
+        Optional<ExternalEnergyPort> attachmentPort = PipeEndpointRuntime.attachmentPort(holder.getPluggable(side),
+            PipeAttachment::externalEnergyPort);
+        if (attachmentPort.isPresent()) return attachmentPort;
+        if (holder.getPluggable(side).isBlocking()) return Optional.empty();
+        for (PipeComponent component : components()) {
+            if (!apiEnvironmentActive || apiEnvironmentInvalidated) break;
+            if (!(component instanceof PipeRuntimeComponent provider)) continue;
+            try {
+                Optional<ExternalEnergyPort> provided = Objects.requireNonNull(provider.externalEnergyPort(side), "pipe port");
+                if (provided.isPresent()) return provided;
+            } catch (RuntimeException exception) {
+                BCLog.logger.warn("Custom externalEnergyPort provider failed at {}", position(), exception);
+                return Optional.empty();
+            }
+        }
         if (!(flow instanceof PipeFlowForgeEnergy energyFlow)) return Optional.empty();
         return Optional.of(new ExternalEnergyPort() {
             public long insert(long offered, OperationMode mode) {
@@ -647,6 +746,21 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
             public boolean canInsert() { return energyFlow.canReceiveEnergyFromApi(); }
             public boolean canExtract() { return true; }
         });
+    }
+
+    /** A tick-scoped world facade, including the persisted owner identity. */
+    @Override
+    public Optional<WorldAccessContext> worldAccess() {
+        if (!isServerSide() || !isActive() || apiRuntime == null || !apiRuntime.inCallback()) {
+            return Optional.empty();
+        }
+        long callbackEpoch = apiRuntime.callbackEpoch();
+        var tile = holder.getPipeTile();
+        var owner = tile instanceof IPlayerOwned owned ? owned.getOwner() : null;
+        AutomationActor actor = BCPermissions.actor(owner, Objects.requireNonNull(Identifier.tryParse("buildcraft:pipe")));
+        return Optional.of(BuildCraftApi.service(BuildCraftServices.WORLD_ACCESS).scoped(
+            holder.getPipeWorld(), position(), actor,
+            () -> apiRuntime != null && apiRuntime.callbackEpoch() == callbackEpoch && isActive()));
     }
 
     public boolean isServerSide() {
@@ -745,7 +859,12 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
         PipeActivationContext context = new PipeActivationContext(this, side, held, actor, mode);
         for (PipeComponent component : apiComponents) {
             if (!(component instanceof PipeActivationComponent activation)) continue;
-            PipeActivationResult current = Objects.requireNonNull(activation.activate(context), "activation result");
+            final PipeActivationResult current;
+            try { current = Objects.requireNonNull(activation.activate(context), "activation result"); }
+            catch (RuntimeException exception) {
+                BCLog.logger.warn("Pipe activation component failed at {}", position(), exception);
+                return PipeActivationResult.FAILED;
+            }
             if (current == PipeActivationResult.DENIED || current == PipeActivationResult.FAILED) return current;
             if (current == PipeActivationResult.SUCCESS) result = current;
         }
@@ -923,7 +1042,8 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
 
     private PipeConnectionDecision apiConnectionDecision(Direction side, BlockState neighbourState) {
         PipeConnectionContext context = new PipeConnectionContext(holder.getPipeWorld(), this, side, neighbourState);
-        PipeConnectionDecision result = PipeConnectionDecision.PASS;
+        PipeConnectionDecision result = PipeEndpointRuntime.attachmentDecision(holder.getPluggable(side), context);
+        if (result == PipeConnectionDecision.DENY) return result;
         for (PipeComponent component : apiComponents) {
             if (!(component instanceof PipeConnectionComponent connection)) continue;
             PipeConnectionDecision current;
@@ -937,7 +1057,13 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
             if (current == PipeConnectionDecision.ALLOW) result = current;
         }
         for (PipeConnectionRule rule : BuildCraftApi.registry(BuildCraftRegistries.PIPE_CONNECTION_RULES).values()) {
-            PipeConnectionDecision current = Objects.requireNonNull(rule.decide(context), "connection rule decision");
+            final PipeConnectionDecision current;
+            try {
+                current = Objects.requireNonNull(rule.decide(context), "connection rule decision");
+            } catch (RuntimeException failure) {
+                BCLog.logger.warn("Pipe connection rule failed at {}", position(), failure);
+                return PipeConnectionDecision.DENY;
+            }
             if (current == PipeConnectionDecision.DENY) return current;
             if (current == PipeConnectionDecision.ALLOW) result = current;
         }

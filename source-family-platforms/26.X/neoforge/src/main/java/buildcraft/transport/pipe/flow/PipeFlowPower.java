@@ -66,6 +66,14 @@ import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.compat.NbtCompat;
 
 public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
+    private long apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase phase,
+                                 Direction side, long offered, boolean simulate) {
+        if (offered <= 0) return 0;
+        return buildcraft.transport.api2.PipeFlowEventRuntime.powerLimit(pipe,
+            buildcraft.api.v2.pipe.PipeMedium.MJ, phase, side, offered,
+            simulate ? buildcraft.api.v2.OperationMode.SIMULATE : buildcraft.api.v2.OperationMode.EXECUTE);
+    }
+
     private static final long DEFAULT_MAX_POWER = MjAmount.MICRO_MJ_PER_MJ * 10;
     public static final int NET_POWER_AMOUNTS = 2;
 
@@ -224,6 +232,16 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
         configure.setPowerLoss(transferInfo.lossPerTick);
         configure.setPowerResistance(transferInfo.resistancePerTick);
         pipe.getHolder().fireEvent(configure);
+        buildcraft.api.v2.pipe.PowerFlowSettings settings = buildcraft.transport.api2.PipeFlowEventRuntime.configure(
+            pipe, new buildcraft.api.v2.pipe.PowerFlowSettings(buildcraft.api.v2.pipe.PipeMedium.MJ,
+                configure.getMaxPower() > 0 ? configure.getMaxPower() : DEFAULT_MAX_POWER,
+                configure.getPowerLoss(), Math.max(-1L, Math.min(1_000_000L, configure.getPowerResistance())),
+                configure.isReceiver(), configure.isTransferDisabled()));
+        configure.setMaxPower(settings.maxPerTick());
+        configure.setPowerLoss(settings.lossPerTick());
+        configure.setPowerResistance(settings.resistancePpm());
+        configure.setReceiver(settings.receiver());
+        if (settings.disabled()) configure.disableTransfer();
         isReceiver = configure.isReceiver();
         maxPower = configure.getMaxPower();
         disabled = configure.isTransferDisabled();
@@ -260,9 +278,9 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
         Section section = sections.get(from);
         long freeCapacity = Math.max(0, maxPower - section.internalNextPower);
         long requested = Math.min(Math.min(Math.min(maxExtracted, maxPower), getPowerRequested(from)), freeCapacity);
-        if (requested <= 0) {
-            return 0;
-        }
+        requested = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.EXTRACT,
+            from, requested, false);
+        if (requested <= 0) return 0;
 
         // Existing BuildCraft providers use false for a dry run and true for the actual extraction.
         long simulated = Math.max(0, Math.min(requested, provider.extractPower(0, requested, false)));
@@ -331,6 +349,7 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
             : Math.min(maxPower, section.internalNextPower);
         long remaining = Math.max(0, maxPower - (lastApiSendTick == now ? apiSentThisTick : 0));
         long taken = Math.max(0, Math.min(requested, Math.min(available, remaining)));
+        taken = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.EXTRACT, side, taken, simulate);
         if (!simulate && taken > 0) {
             step();
             section.internalPower -= taken;
@@ -362,6 +381,10 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
         long targetBudget = Math.max(0, target.maxPower - (target.lastApiReceiveTick == targetTick ? target.apiReceivedThisTick : 0));
         long accepted = Math.max(0, Math.min(maximum, Math.min(available,
             Math.min(Math.max(0, target.maxPower - buffered), Math.min(sourceBudget, targetBudget)))));
+        accepted = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.PIPE_TRANSFER,
+            sourceSide, accepted, simulate);
+        accepted = target.apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.PIPE_TRANSFER,
+            targetSide, accepted, simulate);
         if (accepted == 0 || simulate) return accepted;
         step();
         target.step();
@@ -491,6 +514,8 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
                         long routeWeight = routeWeights.getOrDefault(face2, 0L);
                         if (s2.powerQuery > 0 && routeWeight > 0) {
                             long offeredInput = allocation.offer(s.internalPower, s2.powerQuery, routeWeight);
+                            offeredInput = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.SEND,
+                                face2, offeredInput, false);
 
                             long offeredAfterLoss = applyResistance(offeredInput);
                             if (offeredAfterLoss <= 0) {
@@ -504,7 +529,10 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
                                     .isConnected(face2.getOpposite())
                             ) {
                                 PipeFlowPower oFlow = (PipeFlowPower) neighbour.getFlow();
-                                leftover = oFlow.sections.get(face2.getOpposite()).receivePowerInternal(offeredAfterLoss);
+                                long remoteOffer = oFlow.apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.RECEIVE,
+                                    face2.getOpposite(), offeredAfterLoss, false);
+                                leftover = offeredAfterLoss - remoteOffer
+                                    + oFlow.sections.get(face2.getOpposite()).receivePowerInternal(remoteOffer);
                             } else {
                                 IMjReceiver receiver = getPowerSink(face2);
                                 if (receiver != null && receiver.canReceive()) {
@@ -639,7 +667,9 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
         long requested = pipe.getBehaviour() instanceof IPipeTransportPowerHook
             ? ((IPipeTransportPowerHook) pipe.getBehaviour()).requestPower(from, amount)
             : amount;
-        s.nextPowerQuery = Math.min(maxPower, saturatingAdd(s.nextPowerQuery, Math.max(0, requested)));
+        requested = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.REQUEST,
+            from, Math.max(0, requested), false);
+        s.nextPowerQuery = Math.min(maxPower, saturatingAdd(s.nextPowerQuery, requested));
     }
 
     @Nullable
@@ -777,6 +807,8 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
             long requested = Math.min(maxPower, getPowerRequested());
             long free = Math.max(0, maxPower - getEffectivePendingPower());
             long accepted = Math.min(microJoules, Math.min(requested, free));
+            accepted = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.RECEIVE,
+                side, accepted, action == FluidAction.SIMULATE);
             if (action == FluidAction.SIMULATE) {
                 return microJoules - accepted;
             }
@@ -786,6 +818,8 @@ public class PipeFlowPower extends PipeFlow implements IFlowPower, IDebuggable {
             requested = Math.min(maxPower, getPowerRequested());
             free = Math.max(0, maxPower - internalNextPower);
             accepted = Math.min(microJoules, Math.min(requested, free));
+            accepted = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.RECEIVE,
+                side, accepted, false);
             if (accepted <= 0) {
                 return microJoules;
             }

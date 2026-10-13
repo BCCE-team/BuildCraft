@@ -19,6 +19,8 @@ SOURCES = [BASE / p for p in (
     'buildcraft/api/v2/fluid/FluidVolume.java',
     'buildcraft/api/v2/energy/MjAmount.java',
     'buildcraft/api/v2/pipe/PipeMedium.java',
+    'buildcraft/api/v2/pipe/FluidMovementPhase.java',
+    'buildcraft/api/v2/pipe/PowerMovementPhase.java',
     'buildcraft/api/v2/pipe/PipeResourceStatus.java',
     'buildcraft/api/v2/pipe/PipeFluidTransferResult.java',
     'buildcraft/api/v2/pipe/PipeMjTransferResult.java',
@@ -218,6 +220,10 @@ import net.minecraft.core.Direction;
 import java.util.*;
 public class PipeFlowFluids {
     public final Pipe pipe;
+    private int apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase phase, Direction side,
+                              int offered, int capacity, boolean simulate) { return Math.max(0, offered); }
+    private int apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase phase, Direction side,
+                              FluidStack fluid, int offered, int capacity, boolean simulate) { return Math.max(0, offered); }
     private int transferPerTick=10, capacity=60;
     private static final int COOLDOWN_OUTPUT=60, COOLDOWN_INPUT=-60;
     private final Map<EnumPipePart,Section> sections=new EnumMap<>(EnumPipePart.class);
@@ -255,6 +261,8 @@ import net.minecraft.core.Direction;
 import java.util.*;
 public class PipeFlowPower {
     public final Pipe pipe;
+    private long apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase phase,
+                               Direction side, long offered, boolean simulate) { return Math.max(0L, offered); }
     private long maxPower=100, currentWorldTime=100;
     private boolean disabled;
     private final Map<Direction,Section> sections=new EnumMap<>(Direction.class);
@@ -285,6 +293,8 @@ import net.minecraft.core.Direction;
 import java.util.*;
 public class PipeFlowForgeEnergy {
     public final Pipe pipe;
+    private int apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase phase,
+                              Direction side, int offered, boolean simulate) { return Math.max(0, offered); }
     private int maxPower=100;
     private long currentWorldTime=100;
     private boolean disabled;

@@ -12,11 +12,15 @@ public final class MapLocationServiceImpl implements MapLocationService {
     @Override
     public Optional<MapLocationAdapter> adapter(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return Optional.empty();
-        if (stack.getItem() instanceof MapLocationAdapter direct && direct.supports(stack)) {
-            return Optional.of(direct);
+        if (stack.getItem() instanceof MapLocationAdapter direct) {
+            try {
+                if (direct.supports(stack)) return Optional.of(direct);
+            } catch (RuntimeException ignored) { }
         }
         for (MapLocationAdapter adapter : BuildCraftApi.registry(BuildCraftRegistries.MAP_LOCATION_ADAPTERS).values()) {
-            if (adapter.supports(stack)) return Optional.of(adapter);
+            try {
+                if (adapter.supports(stack)) return Optional.of(adapter);
+            } catch (RuntimeException ignored) { }
         }
         return Optional.empty();
     }

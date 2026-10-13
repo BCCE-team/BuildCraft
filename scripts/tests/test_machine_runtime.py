@@ -30,7 +30,7 @@ SOURCES = [
     'buildcraft/api/v2/machine/WorkStatus.java',
     *('buildcraft/api/v2/machine/'+name+'.java' for name in (
         'MachineComponent','MachineComponentType','MachineComponentFactory','MachineComponentPresentation',
-        'MachineTickComponent','MachineActionComponent','MachineComponentLifecycle',
+        'MachineTickComponent','MachineActionComponent','MachineComponentLifecycle','MachineWorkComponent','HeatPortProvider',
         'MachineWorldAccess','MachineHostOwner','MachineHost','MachineHostProvider',
         'MachineView','MachineControl','MachineControlMode','MachineExecutionContext','MachineService')),
     'buildcraft/lib/internal/api/v2/MachineRuntimeHost.java',
@@ -84,6 +84,19 @@ public interface ItemPort { ItemTransferResult insert(ItemStack offered, Operati
  'buildcraft/api/v2/fluid/FluidPort.java':'package buildcraft.api.v2.fluid; public interface FluidPort {}',
  'buildcraft/api/v2/platform/ExternalEnergyPort.java':'package buildcraft.api.v2.platform; public interface ExternalEnergyPort {}',
  'buildcraft/api/v2/machine/HeatPort.java':'package buildcraft.api.v2.machine; public interface HeatPort {}',
+ 'buildcraft/lib/internal/tiles/IHasWork.java': 'package buildcraft.lib.internal.tiles; public interface IHasWork {boolean hasWork();}',
+ 'buildcraft/lib/platform/capability/PlatformCapabilities.java': """package buildcraft.lib.platform.capability;
+ import buildcraft.lib.internal.tiles.IHasWork;
+ import buildcraft.api.v2.machine.MachineHostProvider;
+ import net.minecraft.world.level.block.entity.BlockEntity;
+ import net.minecraft.core.Direction;
+ public final class PlatformCapabilities {
+  public static IHasWork hasWork(BlockEntity entity,Direction side) {
+   if(entity instanceof MachineHostProvider provider)return ()->provider.machineHost().hasWork();
+   return entity instanceof IHasWork work?work:null;
+  }
+ }""",
+
  'buildcraft/api/v2/machine/MachineAreaView.java':'package buildcraft.api.v2.machine; public interface MachineAreaView {}',
  'buildcraft/api/v2/recipe/MachineRecipeService.java':'package buildcraft.api.v2.recipe; public interface MachineRecipeService {}',
  'buildcraft/api/v2/fuels/EnergyFluidService.java':'package buildcraft.api.v2.fuels; public interface EnergyFluidService {}',
@@ -217,6 +230,8 @@ public class MachineRuntimeFixture {
    server.host.tick();server.host.tick();
    ok(server.inventory.count==2 && server.energy.amount==6_000_000L,"Tick must transfer real resources");
    ok(server.host.workStatus().state()==WorkState.RUNNING,"Work status missing");
+   ok(server.host.hasWork(),"MachineHost work view missing");
+   ok(SERVICE.hasWork(server.level,server.pos,Direction.NORTH).orElseThrow(),"Native work bridge missing");
    ok(server.host.component(CustomMachineFixtureAddon.COMPONENT,CustomMachineFixtureAddon.Press.class).orElseThrow().completed()==2,"Factory-created component not ticked");
    ok(server.notifications>0,"Changed state did not notify BE owner");
    byte[] saved=saveBlockEntity(server);ok(saved.length>20,"No persistent data");
@@ -227,6 +242,7 @@ public class MachineRuntimeFixture {
    Owner client=new Owner(true);client.host.applySync(restored.host.fullSync());
    ok(client.host.presentation(CustomMachineFixtureAddon.COMPONENT,CustomMachineFixtureAddon.CounterView.class).orElseThrow().completed()==3,"Client typed presentation missing");
    ok(client.host.workStatus().state()==WorkState.RUNNING,"Client working state missing");
+   ok(client.host.hasWork(),"Client work indicator missing from synced status");
    restored.host.tick();byte[] delta=restored.host.changedSync();ok(delta.length>0,"No dirty sync");
    client.host.applySync(delta);
    ok(client.host.presentation(CustomMachineFixtureAddon.COMPONENT,CustomMachineFixtureAddon.CounterView.class).orElseThrow().completed()==4,"Delta value incorrect");
@@ -241,6 +257,7 @@ public class MachineRuntimeFixture {
    ok(restored.host.setMode(MachineControlMode.OFF,OperationMode.EXECUTE),"Control mutation rejected");
    restored.host.tick();ok(restored.host.component(CustomMachineFixtureAddon.COMPONENT,CustomMachineFixtureAddon.Press.class).orElseThrow().completed()==0,"OFF executed component");
    ok(restored.host.workStatus().state()==WorkState.PAUSED,"OFF did not pause status");
+   ok(!restored.host.hasWork(),"Disabled machine incorrectly reports work");
    client.host.applySync(restored.host.changedSync());ok(client.host.mode()==MachineControlMode.OFF,"Control did not sync");
    ok(restored.host.setMode(MachineControlMode.ON,OperationMode.EXECUTE),"Cannot resume");
    restored.host.tick();ok(restored.host.component(CustomMachineFixtureAddon.COMPONENT,CustomMachineFixtureAddon.Press.class).orElseThrow().completed()==1,"Resume did not tick");
@@ -248,6 +265,7 @@ public class MachineRuntimeFixture {
    restored.modified=false;restored.level.loaded=false;
    ok(!restored.host.setBlock(new BlockPos(10,10,10),new BlockState()) && !restored.modified,"Unloaded chunk changed");
    ok(SERVICE.machine(restored.level,restored.pos).isEmpty(),"Lookup force-loaded chunk");
+   ok(SERVICE.hasWork(restored.level,restored.pos,Direction.NORTH).isEmpty(),"Work lookup force-loaded chunk");
    restored.level.loaded=true;
    Owner migrated=new Owner(false);migrated.host.restoreState(migrated(5));migrated.host.onLoad();
    ok(migrated.host.component(CustomMachineFixtureAddon.COMPONENT,CustomMachineFixtureAddon.Press.class).orElseThrow().completed()==6,"Alias migration failed");

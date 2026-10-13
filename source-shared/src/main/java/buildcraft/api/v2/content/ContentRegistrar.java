@@ -10,6 +10,8 @@ import buildcraft.api.v2.fuels.CoolantProfile;
 import buildcraft.api.v2.fuels.FuelProfile;
 import buildcraft.api.v2.guide.GuideEntry;
 import buildcraft.api.v2.guide.GuideSection;
+import buildcraft.api.v2.list.ItemList;
+import buildcraft.api.v2.map.MapLocationAdapter;
 import buildcraft.api.v2.machine.EngineType;
 import buildcraft.api.v2.machine.MachineComponentType;
 import buildcraft.api.v2.machine.MachineProperty;
@@ -17,13 +19,26 @@ import buildcraft.api.v2.machine.MachineType;
 import buildcraft.api.v2.pipe.PipeAttachmentType;
 import buildcraft.api.v2.pipe.PipeComponentType;
 import buildcraft.api.v2.pipe.PipeType;
+import buildcraft.api.v2.pipe.PipeFlowDefinition;
+import buildcraft.api.v2.pipe.PipeBehaviourDefinition;
 import buildcraft.api.v2.recipe.DistillationRecipeDefinition;
+import buildcraft.api.v2.recipe.AssemblyRecipeDefinition;
+import buildcraft.api.v2.recipe.IntegrationRecipeDefinition;
+import buildcraft.api.v2.recipe.IntegrationRecipeProvider;
+import buildcraft.api.v2.recipe.HeatExchangeRecipeDefinition;
 import buildcraft.api.v2.registry.ApiRegistry;
 import buildcraft.api.v2.registry.RegistrationContext;
 import buildcraft.api.v2.registry.RegistryKey;
+import buildcraft.api.v2.reload.DefinitionDecoder;
 import buildcraft.api.v2.reload.DefinitionProvenance;
+import buildcraft.api.v2.reload.ReloadObserver;
+import buildcraft.api.v2.reload.ReloadContributor;
+import buildcraft.api.v2.reload.ScriptableDefinitionType;
+import buildcraft.api.v2.module.ModuleInfo;
+import java.util.Collection;
 import buildcraft.api.v2.robot.DockPortType;
 import buildcraft.api.v2.robot.RobotBoardType;
+import buildcraft.api.v2.robot.RobotBoardProgram;
 import buildcraft.api.v2.robot.RobotResourceType;
 import buildcraft.api.v2.robot.RobotTaskType;
 import buildcraft.api.v2.schematic.EntitySchematicAdapter;
@@ -36,6 +51,7 @@ import buildcraft.api.v2.statement.ActionType;
 import buildcraft.api.v2.statement.ParameterType;
 import buildcraft.api.v2.statement.StatementContributor;
 import buildcraft.api.v2.statement.TriggerType;
+import buildcraft.api.v2.tool.WrenchAdapter;
 import buildcraft.api.v2.worldgen.ResourceDepositRule;
 import buildcraft.api.v2.worldgen.WorldTargetSelector;
 import java.util.Objects;
@@ -62,6 +78,29 @@ public final class ContentRegistrar {
         this.provenance = new DefinitionProvenance(this.namespace, "addon-code", priority);
     }
 
+    public void module(String path, String version, Collection<ResourceLocation> required) {
+        BuildCraftApi.service(BuildCraftServices.MODULES).registerExternal(
+            new ModuleInfo(id(path), Objects.requireNonNull(version, "version"), true), required, registrationContext);
+    }
+
+    public <T> void definitionType(ScriptableDefinitionType<T> type) {
+        BuildCraftApi.service(BuildCraftServices.DEFINITION_RELOAD).registerType(type, registrationContext);
+    }
+
+    public <T> void definitionDecoder(ScriptableDefinitionType<T> type, String path, DefinitionDecoder<T> decoder) {
+        BuildCraftApi.service(BuildCraftServices.DEFINITION_RELOAD).registerDecoder(
+            type, id(path), decoder, registrationContext);
+    }
+
+    public <T> void reloadContributor(ScriptableDefinitionType<T> type, String path, ReloadContributor<T> contributor) {
+        BuildCraftApi.service(BuildCraftServices.DEFINITION_RELOAD).registerContributor(
+            type, id(path), contributor, registrationContext);
+    }
+
+    public <T> void reloadObserver(ScriptableDefinitionType<T> type, String path, ReloadObserver<T> observer) {
+        BuildCraftApi.service(BuildCraftServices.DEFINITION_RELOAD).observe(type, id(path), observer, registrationContext);
+    }
+
     public String namespace() { return namespace; }
     public int priority() { return priority; }
     public RegistrationContext registrationContext() { return registrationContext; }
@@ -80,6 +119,18 @@ public final class ContentRegistrar {
         Objects.requireNonNull(value, "value");
         BuildCraftApi.registry(key).register(id, value, registrationContext);
         return value;
+    }
+
+    public WrenchAdapter wrench(String path, WrenchAdapter adapter) {
+        return register(BuildCraftRegistries.WRENCH_ADAPTERS, id(path), adapter);
+    }
+
+    public MapLocationAdapter mapLocationAdapter(String path, MapLocationAdapter adapter) {
+        return register(BuildCraftRegistries.MAP_LOCATION_ADAPTERS, id(path), adapter);
+    }
+
+    public ItemList namedItemList(String path, ItemList definition) {
+        return register(BuildCraftRegistries.NAMED_ITEM_LISTS, id(path), definition);
     }
 
     public MachineProperty<?> machineProperty(MachineProperty<?> property) {
@@ -109,6 +160,29 @@ public final class ContentRegistrar {
 
     public PipeAttachmentType<?> pipeAttachment(PipeAttachmentType<?> type) {
         return register(BuildCraftRegistries.PIPE_ATTACHMENT_TYPES, type.id(), type);
+    }
+
+    public PipeFlowDefinition<?> pipeFlow(PipeFlowDefinition<?> type) {
+        Objects.requireNonNull(type, "type");
+        ensurePipeComponent(type.componentType());
+        return register(BuildCraftRegistries.PIPE_FLOW_TYPES, type.id(), type);
+    }
+
+    public PipeBehaviourDefinition<?> pipeBehaviour(PipeBehaviourDefinition<?> type) {
+        Objects.requireNonNull(type, "type");
+        ensurePipeComponent(type.componentType());
+        return register(BuildCraftRegistries.PIPE_BEHAVIOUR_TYPES, type.id(), type);
+    }
+
+    private void ensurePipeComponent(PipeComponentType<?> component) {
+        ApiRegistry<PipeComponentType<?>> registry = BuildCraftApi.registry(BuildCraftRegistries.PIPE_COMPONENT_TYPES);
+        PipeComponentType<?> existing = registry.get(component.id());
+        if (existing == null) {
+            pipeComponent(component);
+        } else if (existing != component) {
+            throw new IllegalArgumentException("Pipe component ID is already registered with another definition: "
+                + component.id());
+        }
     }
 
     public PipeType pipe(PipeType type) {
@@ -144,6 +218,11 @@ public final class ContentRegistrar {
 
     public RobotBoardType robotBoard(RobotBoardType type) {
         return register(BuildCraftRegistries.ROBOT_BOARD_TYPES, type.id(), type);
+    }
+
+    /** The corresponding RobotBoardType must also be registered, with the task type in its taskTypes set. */
+    public RobotBoardProgram robotBoardProgram(RobotBoardProgram program) {
+        return register(BuildCraftRegistries.ROBOT_BOARD_PROGRAMS, program.id(), program);
     }
 
     public ParameterType<?> parameter(ParameterType<?> type) {
@@ -235,6 +314,26 @@ public final class ContentRegistrar {
     public CoolantProfile coolant(String path, CoolantProfile profile) {
         service(BuildCraftServices.ENERGY_FLUIDS).register(id(path), profile, provenance);
         return profile;
+    }
+
+    public AssemblyRecipeDefinition assembly(String path, AssemblyRecipeDefinition recipe) {
+        service(BuildCraftServices.MACHINE_RECIPES).register(id(path), recipe, provenance);
+        return recipe;
+    }
+
+    public IntegrationRecipeDefinition integration(String path, IntegrationRecipeDefinition recipe) {
+        service(BuildCraftServices.MACHINE_RECIPES).register(id(path), recipe, provenance);
+        return recipe;
+    }
+
+    public IntegrationRecipeProvider integrationProvider(String path, IntegrationRecipeProvider provider) {
+        service(BuildCraftServices.MACHINE_RECIPES).register(id(path), provider, provenance);
+        return provider;
+    }
+
+    public HeatExchangeRecipeDefinition heatExchange(String path, HeatExchangeRecipeDefinition recipe) {
+        service(BuildCraftServices.MACHINE_RECIPES).register(id(path), recipe, provenance);
+        return recipe;
     }
 
     public DistillationRecipeDefinition distillation(String path, DistillationRecipeDefinition recipe) {

@@ -24,7 +24,8 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 
 public class TemplateBuilder extends SnapshotBuilder<ITileForTemplateBuilder> {
-    private static final IStackFilter PLACEABLE_BLOCK_FILTER = stack -> stack.getItem() instanceof BlockItem;
+    private static final IStackFilter PLACEABLE_BLOCK_FILTER = stack -> stack.getItem() instanceof BlockItem
+        || BuildCraftApi.service(BuildCraftServices.TEMPLATES).acceptsItem(stack);
 
     public TemplateBuilder(ITileForTemplateBuilder tile) {
         super(tile);
@@ -85,7 +86,7 @@ public class TemplateBuilder extends SnapshotBuilder<ITileForTemplateBuilder> {
             placeTask.pos,
             fakePlayer,
             placeTask.items.get(0)
-        );
+        ) || TemplateHandlerDefault.INSTANCE.handle(tile.getWorldBC(), placeTask.pos, fakePlayer, placeTask.items.get(0));
     }
 
     @Override

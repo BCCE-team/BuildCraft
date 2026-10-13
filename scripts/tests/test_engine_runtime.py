@@ -110,13 +110,15 @@ public class EngineRuntimeFixture {
   public MjAmount capacity(){return MjAmount.ofMicro(capacity);}
  }
  static final class Lookup implements EnergyService {
-   Storage receiver=new Storage(100*MJ); boolean pulsed=true; boolean connected=true;
+   Storage receiver=new Storage(100*MJ); boolean pulsed=true; boolean connected=true; boolean accepting=true; boolean providing=true; long receiveRate=100*MJ; long sendRate=100*MJ;
    public Optional<MjPort> port(Level l,BlockPos p,Direction d){return p.equals(TARGET)?Optional.of(receiver):Optional.empty();}
    public Optional<MjPortDescriptor> descriptor(Level l,BlockPos p,Direction d){
     if(!p.equals(POS)&&!p.equals(TARGET))return Optional.empty();
     EnumSet<MjPortRole> roles=p.equals(TARGET)?EnumSet.of(MjPortRole.CONSUMER):EnumSet.of(MjPortRole.PROVIDER);
     if(p.equals(TARGET)&&pulsed)roles.add(MjPortRole.REDSTONE_RECEIVER);
-    return Optional.of(new MjPortDescriptor(NET,roles,MjAmount.ofMj(100),MjAmount.ofMj(100)));
+    if(p.equals(TARGET)&&!accepting)roles.remove(MjPortRole.CONSUMER);
+    if(p.equals(POS)&&!providing)roles.remove(MjPortRole.PROVIDER);
+    return Optional.of(new MjPortDescriptor(NET,roles,MjAmount.ofMicro(receiveRate),MjAmount.ofMicro(sendRate)));
    }
    public boolean canConnect(MjConnectionContext context){return connected;}
  }
@@ -146,6 +148,7 @@ public class EngineRuntimeFixture {
    ok(!owner.host.mjPort(Direction.NORTH).orElseThrow().canInsert(),"Engine accepted MJ despite profile policy");
    fails(()->owner.host.heatPort().orElseThrow().setTemperature(Double.NaN,OperationMode.SIMULATE));
    ok(ENGINES.engine(owner.world,POS).orElseThrow()==owner.host,"engine lookup");
+   ok(MACHINES.heat(owner.world,POS,Direction.NORTH).orElseThrow()==owner.host.heatPort().orElseThrow(),"Engine HeatPort lookup");
    ok(MACHINES.machine(owner.world,POS).orElseThrow()==owner.host,"gates/host discovery");
    fails(()->owner.host.generate(MjAmount.ofMj(1),OperationMode.EXECUTE));
    owner.host.tick();
@@ -207,6 +210,24 @@ public class EngineRuntimeFixture {
    ok(overheated.host.workStatus().state()==WorkState.BLOCKED,"Overheat status missing");
    fails(()->new EngineRuntimeHost(new EngineType(ResourceLocation.tryParse("test:missing"),CustomEngineFixtureAddon.ENGINE.profile()),
        new Owner(false),ctx->new CustomEngineFixtureAddon.SteamEngine(),CustomEngineFixtureAddon.STATE,CustomEngineFixtureAddon.HEAT));
+   Lookup rate=new Lookup();rate.pulsed=false;rate.receiveRate=MJ/4;
+   BuildCraftApi.bind(BuildCraftServices.ENERGY,rate);
+   Owner limited=new Owner(false);limited.host.tick();
+   ok(rate.receiver.energy==MJ/4,"Receiver advertised MJ insert rate was ignored");
+   ok(limited.buffer.energy==3*MJ/4,"Capped MJ transfer did not conserve energy");
+   Lookup outbound=new Lookup();outbound.pulsed=false;outbound.sendRate=MJ/8;
+   BuildCraftApi.bind(BuildCraftServices.ENERGY,outbound);
+   Owner capped=new Owner(false);capped.host.tick();
+   ok(outbound.receiver.energy==MJ/8,"Sender advertised MJ extract rate was ignored");
+   Lookup denyConsumer=new Lookup();denyConsumer.accepting=false;denyConsumer.pulsed=false;
+   BuildCraftApi.bind(BuildCraftServices.ENERGY,denyConsumer);
+   Owner denied=new Owner(false);denied.host.tick();
+   ok(denyConsumer.receiver.energy==0,"Receiver without consumer role accepted MJ");
+   Lookup denyProvider=new Lookup();denyProvider.providing=false;denyProvider.pulsed=false;
+   BuildCraftApi.bind(BuildCraftServices.ENERGY,denyProvider);
+   Owner noSupply=new Owner(false);noSupply.host.tick();
+   ok(denyProvider.receiver.energy==0,"Sender without provider role emitted MJ");
+   BuildCraftApi.bind(BuildCraftServices.ENERGY,lookup);
    owner.host.removed();owner.host.invalidate();
    fails(owner.host::tick);
    System.out.println("Engine power, piston pulses, temperature, state, machine lifecycle, client view, lookup and crash safety OK");

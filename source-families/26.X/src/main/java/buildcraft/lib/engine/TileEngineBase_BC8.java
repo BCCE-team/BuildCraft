@@ -21,6 +21,9 @@ import buildcraft.api.v2.energy.MjPortRole;
 import buildcraft.api.v2.energy.MjTransferResult;
 import buildcraft.api.v2.machine.EngineStage;
 import buildcraft.api.v2.machine.EngineView;
+import buildcraft.api.v2.machine.HeatPort;
+import buildcraft.api.v2.machine.HeatProfile;
+import buildcraft.api.v2.machine.HeatState;
 import buildcraft.api.v2.machine.MachineComponent;
 import buildcraft.api.v2.machine.MachineControl;
 import buildcraft.api.v2.machine.WorkState;
@@ -428,6 +431,19 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     public double getHeat() {
         return heat;
     }
+
+    private final HeatPort api2HeatPort = new HeatPort() {
+        @Override public HeatState heatState() {
+            return new HeatState(getHeat(), MIN_HEAT + (MAX_HEAT - MIN_HEAT) * 0.85);
+        }
+        @Override public HeatProfile profile() { return new HeatProfile(MIN_HEAT, IDEAL_HEAT, MAX_HEAT); }
+        @Override public boolean canSetTemperature() { return false; }
+        @Override public HeatState setTemperature(double temperature, OperationMode mode) {
+            throw new UnsupportedOperationException("Native engine temperature is controlled by its power cycle");
+        }
+    };
+
+    @Override public Optional<HeatPort> heatPort() { return Optional.of(api2HeatPort); }
 
     public double getPistonSpeed() {
         // BC8 uses the continuous heat-derived speed for server-side engine timing. The stage values below are only

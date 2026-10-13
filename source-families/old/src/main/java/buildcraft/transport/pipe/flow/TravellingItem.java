@@ -20,6 +20,7 @@ import buildcraft.lib.misc.VecUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import buildcraft.api.v2.pipe.ItemTransitPayload;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
@@ -39,6 +40,7 @@ public class TravellingItem {
     boolean toCenter;
     /** Stable owner token for a transfer until the item is consumed. Null for ordinary untracked items. */
     UUID apiTransitId;
+    ItemTransitPayload apiTransitPayload = ItemTransitPayload.EMPTY;
     double speed = 0.05;
     /** Absolute times (relative to world.getTotalWorldTime()) with when an item started to when it finishes. */
     long tickStarted, tickFinished;
@@ -119,6 +121,13 @@ public class TravellingItem {
         }
         tried = NBTUtilBC.readEnumSet(nbt.get("tried"), Direction.class);
         isPhantom = nbt.getBoolean("isPhantom");
+        if (nbt.contains("apiTransitPayload")) {
+            CompoundTag entries = nbt.getCompound("apiTransitPayload");
+            java.util.Map<String, byte[]> data = new java.util.LinkedHashMap<>();
+            for (String key : entries.getAllKeys()) data.put(key, entries.getByteArray(key));
+            try { apiTransitPayload = new ItemTransitPayload(data); }
+            catch (IllegalArgumentException ignored) { apiTransitPayload = ItemTransitPayload.EMPTY; }
+        }
         if (nbt.contains("apiTransitId")) {
             try { apiTransitId = UUID.fromString(nbt.getString("apiTransitId")); }
             catch (IllegalArgumentException ignored) { apiTransitId = null; }
@@ -138,6 +147,11 @@ public class TravellingItem {
         nbt.put("tried", NBTUtilBC.writeEnumSet(tried, Direction.class));
         if (isPhantom) {
             nbt.putBoolean("isPhantom", true);
+        }
+        if (!apiTransitPayload.entries().isEmpty()) {
+            CompoundTag entries = new CompoundTag();
+            apiTransitPayload.entries().forEach(entries::putByteArray);
+            nbt.put("apiTransitPayload", entries);
         }
         if (apiTransitId != null) nbt.putString("apiTransitId", apiTransitId.toString());
         return nbt;
@@ -165,7 +179,9 @@ public class TravellingItem {
     }
 
     public boolean canMerge(TravellingItem with) {
-        if (isPhantom || with.isPhantom || apiTransitId != null || with.apiTransitId != null) {
+        if (isPhantom || with.isPhantom || apiTransitId != null || with.apiTransitId != null
+            || !apiTransitPayload.equals(ItemTransitPayload.EMPTY)
+            || !with.apiTransitPayload.equals(ItemTransitPayload.EMPTY)) {
             return false;
         }
         return toCenter == with.toCenter//

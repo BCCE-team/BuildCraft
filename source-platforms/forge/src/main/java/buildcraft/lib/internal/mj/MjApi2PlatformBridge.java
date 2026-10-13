@@ -6,6 +6,8 @@ import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.api.v2.energy.MjConnectionContext;
 import buildcraft.api.v2.energy.MjPort;
+import buildcraft.api.v2.energy.MjDemandPort;
+import buildcraft.api.v2.energy.MjPassivePort;
 import buildcraft.api.v2.energy.MjPortDescriptor;
 import buildcraft.api.v2.energy.MjPortRole;
 import buildcraft.api.v2.energy.MjTransferResult;
@@ -87,7 +89,7 @@ public final class MjApi2PlatformBridge {
         return fe != null && (fe.canReceive() || fe.canExtract()) ? new FeEndpoint(fe) : null;
     }
 
-    private static final class FeEndpoint implements MjPort {
+    private static final class FeEndpoint implements MjDemandPort, MjPassivePort {
         private final IEnergyStorage fe;
         private FeEndpoint(IEnergyStorage fe) { this.fe = fe; }
 
@@ -113,15 +115,39 @@ public final class MjApi2PlatformBridge {
             return MjTransferResult.of(requested, MjAmount.ofMicro((long) Math.max(0, extracted) * ratio));
         }
 
-        @Override public MjAmount stored() { return MjAmount.ofMicro(BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMj(Math.max(0, fe.getEnergyStored()))); }
-        @Override public MjAmount capacity() { return MjAmount.ofMicro(BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMj(Math.max(0, fe.getMaxEnergyStored()))); }
+        @Override public MjAmount stored() { return MjAmount.ofMicro(BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMjClamped(Math.max(0, fe.getEnergyStored()))); }
+        @Override public MjAmount capacity() { return MjAmount.ofMicro(BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMjClamped(Math.max(0, fe.getMaxEnergyStored()))); }
         @Override public boolean canInsert() { return fe.canReceive(); }
         @Override public boolean canExtract() { return fe.canExtract(); }
+
+        @Override
+        public MjAmount requested() {
+            if (!fe.canReceive()) return MjAmount.ZERO;
+            long room = Math.max(0L, (long) fe.getMaxEnergyStored() - Math.max(0L, fe.getEnergyStored()));
+            long ratio = BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjPerFe();
+            return MjAmount.ofMicro(room > Long.MAX_VALUE / ratio ? Long.MAX_VALUE : room * ratio);
+        }
+
+        @Override
+        public MjTransferResult extract(MjAmount minimum, MjAmount maximum, OperationMode mode) {
+            if (minimum.compareTo(maximum) > 0) throw new IllegalArgumentException("minimum exceeds maximum");
+            if (!fe.canExtract() || maximum.isZero()) return MjTransferResult.none(maximum);
+            long ratio = BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjPerFe();
+            long lowFe = minimum.microMj() / ratio + (minimum.microMj() % ratio == 0 ? 0 : 1);
+            long maxFe = maximum.microMj() / ratio;
+            if (lowFe > maxFe) return MjTransferResult.none(maximum);
+            int offer = (int) Math.min(Integer.MAX_VALUE, maxFe);
+            int preview = Math.max(0, Math.min(offer, fe.extractEnergy(offer, true)));
+            if (preview < lowFe) return MjTransferResult.none(maximum);
+            int actual = mode == OperationMode.SIMULATE ? preview
+                : Math.max(0, Math.min(preview, fe.extractEnergy(preview, false)));
+            return MjTransferResult.of(maximum, MjAmount.ofMicro((long) actual * ratio));
+        }
 
         private MjPortDescriptor descriptor() {
             EnumSet<MjPortRole> roles = EnumSet.of(MjPortRole.CONNECTOR, MjPortRole.READABLE);
             if (fe.canReceive()) roles.add(MjPortRole.CONSUMER);
-            if (fe.canExtract()) roles.add(MjPortRole.PROVIDER);
+            if (fe.canExtract()) { roles.add(MjPortRole.PROVIDER); roles.add(MjPortRole.PASSIVE_PROVIDER); }
             // A descriptor is topology metadata, not a live transfer probe. Some FE implementations only permit
             // receive/extract calls on the logical server, so simulation here can crash client-side placement/rendering.
             // FE has no loader-neutral max-transfer accessor; advertise an unknown/unbounded structural rate instead.
@@ -134,7 +160,7 @@ public final class MjApi2PlatformBridge {
         }
     }
 
-    private static final class Endpoint implements MjPort {
+    private static final class Endpoint implements MjDemandPort, MjPassivePort {
         private static final Endpoint EMPTY = new Endpoint(null, null, null, null, null);
         private final IMjConnector connector;
         private final IMjReceiver receiver;
@@ -157,29 +183,46 @@ public final class MjApi2PlatformBridge {
 
         @Override
         public MjTransferResult insert(MjAmount offered, OperationMode mode) {
-            if (receiver == null || !receiver.canReceive() || offered.isZero()) return MjTransferResult.none(offered);
-            long remainder = receiver.receivePower(offered.microMj(), mode == OperationMode.EXECUTE ? FluidAction.EXECUTE : FluidAction.SIMULATE);
+            IMjReceiver receiving = receiver != null ? receiver : redstone;
+            if (receiving == null || !receiving.canReceive() || offered.isZero()) return MjTransferResult.none(offered);
+            long remainder = receiving.receivePower(offered.microMj(), mode == OperationMode.EXECUTE ? FluidAction.EXECUTE : FluidAction.SIMULATE);
             remainder = Math.max(0L, Math.min(offered.microMj(), remainder));
             return MjTransferResult.of(offered, MjAmount.ofMicro(offered.microMj() - remainder));
         }
 
         @Override
         public MjTransferResult extract(MjAmount requested, OperationMode mode) {
-            if (provider == null || requested.isZero()) return MjTransferResult.none(requested);
-            long moved = provider.extractPower(0L, requested.microMj(), mode == OperationMode.EXECUTE);
-            moved = Math.max(0L, Math.min(requested.microMj(), moved));
-            return MjTransferResult.of(requested, MjAmount.ofMicro(moved));
+            return extract(MjAmount.ZERO, requested, mode);
+        }
+
+        @Override
+        public MjTransferResult extract(MjAmount minimum, MjAmount maximum, OperationMode mode) {
+            if (minimum.compareTo(maximum) > 0) throw new IllegalArgumentException("minimum exceeds maximum");
+            if (provider == null || maximum.isZero()) return MjTransferResult.none(maximum);
+            long moved = provider.extractPower(minimum.microMj(), maximum.microMj(), mode == OperationMode.EXECUTE);
+            if ((moved != 0 && moved < minimum.microMj()) || moved > maximum.microMj()) {
+                throw new IllegalStateException("Legacy MJ provider violated minimum/maximum extraction contract");
+            }
+            return MjTransferResult.of(maximum, MjAmount.ofMicro(moved));
+        }
+
+        @Override
+        public MjAmount requested() {
+            IMjReceiver receiving = receiver != null ? receiver : redstone;
+            return MjAmount.ofMicro(receiving == null || !receiving.canReceive() ? 0L
+                : Math.max(0L, receiving.getPowerRequested()));
         }
 
         @Override public MjAmount stored() { return MjAmount.ofMicro(readable == null ? 0L : Math.max(0L, readable.getStored())); }
         @Override public MjAmount capacity() { return MjAmount.ofMicro(readable == null ? 0L : Math.max(0L, readable.getCapacity())); }
-        @Override public boolean canInsert() { return receiver != null && receiver.canReceive(); }
+        @Override public boolean canInsert() { return (receiver != null ? receiver : redstone) != null
+            && (receiver != null ? receiver : redstone).canReceive(); }
         @Override public boolean canExtract() { return provider != null; }
 
         private MjPortDescriptor descriptor() {
             EnumSet<MjPortRole> roles = EnumSet.noneOf(MjPortRole.class);
             if (connector != null) roles.add(MjPortRole.CONNECTOR);
-            if (receiver != null) roles.add(MjPortRole.CONSUMER);
+            if (receiver != null || redstone != null) roles.add(MjPortRole.CONSUMER);
             if (redstone != null) roles.add(MjPortRole.REDSTONE_RECEIVER);
             if (readable != null) roles.add(MjPortRole.READABLE);
             if (provider != null) roles.add(MjPortRole.PASSIVE_PROVIDER);
@@ -188,7 +231,7 @@ public final class MjApi2PlatformBridge {
             return new MjPortDescriptor(
                 NETWORK_ID,
                 roles,
-                receiver == null ? MjAmount.ZERO : UNKNOWN_RATE,
+                receiver == null && redstone == null ? MjAmount.ZERO : UNKNOWN_RATE,
                 provider == null ? MjAmount.ZERO : UNKNOWN_RATE
             );
         }

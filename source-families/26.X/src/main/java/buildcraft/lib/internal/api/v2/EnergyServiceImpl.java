@@ -11,6 +11,10 @@ import buildcraft.api.v2.energy.MjConnectionContext;
 import buildcraft.api.v2.energy.MjConnectionRule;
 import buildcraft.api.v2.energy.MjPortRole;
 import buildcraft.api.v2.energy.MjStorage;
+import buildcraft.api.v2.energy.MjStoragePolicy;
+import buildcraft.api.v2.energy.MjDemandPort;
+import buildcraft.api.v2.energy.MjPassivePort;
+import buildcraft.api.v2.energy.PowerLossContext;
 import buildcraft.api.v2.energy.MjPort;
 import buildcraft.api.v2.energy.MjPortDescriptor;
 import buildcraft.api.v2.energy.MjPortProvider;
@@ -92,14 +96,40 @@ final class EnergyServiceImpl implements EnergyService {
         EnumSet<MjPortRole> roles = EnumSet.of(MjPortRole.READABLE);
         if (port.canInsert()) roles.add(MjPortRole.CONSUMER);
         if (port.canExtract()) roles.add(MjPortRole.PROVIDER);
+        if (port instanceof MjPassivePort && (!(port instanceof MjStorage storage) || storage.policy().passiveProvider())) {
+            roles.add(MjPortRole.PASSIVE_PROVIDER);
+        }
+        if (port instanceof MjStorage storage && storage.policy().redstoneReceiver()) {
+            roles.add(MjPortRole.REDSTONE_RECEIVER);
+        }
         return new MjPortDescriptor(java.util.Objects.requireNonNull(net.minecraft.resources.Identifier.tryParse("buildcraft:mj")),
             roles,
-            port.canInsert() ? MjAmount.ofMicro(Long.MAX_VALUE) : MjAmount.ZERO,
-            port.canExtract() ? MjAmount.ofMicro(Long.MAX_VALUE) : MjAmount.ZERO);
+            port.canInsert() ? (port instanceof MjStorage storage ? storage.policy().maxInsertPerTick() : MjAmount.ofMicro(Long.MAX_VALUE)) : MjAmount.ZERO,
+            port.canExtract() ? (port instanceof MjStorage storage ? storage.policy().maxExtractPerTick() : MjAmount.ofMicro(Long.MAX_VALUE)) : MjAmount.ZERO);
     }
 
     public MjStorage createStorage(MjAmount capacity, MjAmount initial) {
         return new MjStorageImpl(capacity, initial);
     }
+
+    @Override
+    public MjStorage createStorage(MjStoragePolicy policy, MjAmount initial) {
+        return new MjStorageImpl(policy, initial);
+    }
+
+    @Override
+    public MjAmount tickStorage(MjStorage storage, Level level, BlockPos position) {
+        java.util.Objects.requireNonNull(storage, "storage");
+        java.util.Objects.requireNonNull(level, "level");
+        java.util.Objects.requireNonNull(position, "position");
+        if (level.getServer() == null || !level.hasChunkAt(position)) return MjAmount.ZERO;
+        MjAmount lost = storage.tick(level.getGameTime());
+        if (!lost.isZero()) {
+            BuildCraftApi.service(buildcraft.api.v2.BuildCraftServices.POWER_LOSS_EFFECTS)
+                .onPowerLost(new PowerLossContext(level, position, lost));
+        }
+        return lost;
+    }
+
 
 }

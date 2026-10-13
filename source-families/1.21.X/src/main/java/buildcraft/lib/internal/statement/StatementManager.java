@@ -109,7 +109,9 @@ public final class StatementManager {
         if (entity instanceof IOverrideDefaultStatements) {
             List<ITriggerExternal> result = ((IOverrideDefaultStatements) entity).overrideTriggers();
             if (result != null) {
-                return result;
+                LinkedHashSet<ITriggerExternal> merged = new LinkedHashSet<>(result);
+                merged.addAll(StatementApi2Bridge.nativeExternalTriggers(side, entity));
+                return new ArrayList<>(merged);
             }
         }
 
@@ -118,6 +120,7 @@ public final class StatementManager {
         for (ITriggerProvider provider : triggerProviders) {
             provider.addExternalTriggers(triggers, side, entity);
         }
+        triggers.addAll(StatementApi2Bridge.nativeExternalTriggers(side, entity));
 
         return new ArrayList<>(triggers);
     }
@@ -126,7 +129,9 @@ public final class StatementManager {
         if (entity instanceof IOverrideDefaultStatements) {
             List<IActionExternal> result = ((IOverrideDefaultStatements) entity).overrideActions();
             if (result != null) {
-                return result;
+                LinkedHashSet<IActionExternal> merged = new LinkedHashSet<>(result);
+                merged.addAll(StatementApi2Bridge.nativeExternalActions(side, entity));
+                return new ArrayList<>(merged);
             }
         }
 
@@ -135,6 +140,7 @@ public final class StatementManager {
         for (IActionProvider provider : actionProviders) {
             provider.addExternalActions(actions, side, entity);
         }
+        actions.addAll(StatementApi2Bridge.nativeExternalActions(side, entity));
 
         return new ArrayList<>(actions);
     }
@@ -167,6 +173,7 @@ public final class StatementManager {
         for (ITriggerProvider provider : triggerProviders) {
             provider.addInternalSidedTriggers(triggers, container, side);
         }
+        triggers.addAll(StatementApi2Bridge.nativeInternalSidedTriggers(container, side));
 
         return new ArrayList<>(triggers);
     }
@@ -177,6 +184,7 @@ public final class StatementManager {
         for (IActionProvider provider : actionProviders) {
             provider.addInternalSidedActions(actions, container, side);
         }
+        actions.addAll(StatementApi2Bridge.nativeInternalSidedActions(container, side));
 
         return new ArrayList<>(actions);
     }

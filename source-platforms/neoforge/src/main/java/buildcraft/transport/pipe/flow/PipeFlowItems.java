@@ -580,6 +580,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             }
         }
         holder.fireEvent(sideCheck);
+        fireTransit(ItemTransitPhase.SIDE_CHECK, item, null);
 
         List<EnumSet<Direction>> order = sideCheck.getOrder();
         if (requestedRoute != null) order = ImmutableList.of(EnumSet.of(requestedRoute));
@@ -608,10 +609,12 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         );
         PipeEventItem.Split split = new PipeEventItem.Split(holder, this, order, entry);
         holder.fireEvent(split);
+        fireTransit(ItemTransitPhase.SPLIT, item, null);
         ImmutableList<PipeEventItem.ItemEntry> entries = ImmutableList.copyOf(split.items);
 
         PipeEventItem.FindDest findDest = new PipeEventItem.FindDest(holder, this, order, entries);
         holder.fireEvent(findDest);
+        fireTransit(ItemTransitPhase.FIND_DEST, item, null);
 
         Level world = holder.getPipeWorld();
         long now = world.getGameTime();
@@ -651,11 +654,17 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                 destinations = runtimePipe.applyItemRouting(reachCenter.from, itemEntry.stack, destinations);
             }
             if (requestedRoute != null) destinations = List.of(requestedRoute);
+            // Read-only observation of the post-BC8 speed decision.
+            fireTransit(ItemTransitPhase.MODIFY_SPEED, item, null);
             TravellingItem routeItem = new TravellingItem(itemEntry.stack.copy());
             routeItem.side = reachCenter.from;
             routeItem.colour = itemEntry.colour;
             routeItem.speed = newSpeed;
-            routeItem.apiTransitId = findDest.items.size() == 1 ? item.apiTransitId : null;
+            // A split creates distinct item owners: preserve the original ID only for
+            // a single successor; otherwise give every child a fresh token.
+            routeItem.apiTransitId = findDest.items.size() == 1 ? item.apiTransitId
+                : (item.apiTransitId == null ? null : UUID.randomUUID());
+            routeItem.apiTransitPayload = item.apiTransitPayload;
             PipeItemTransitRuntime.Result routeEvent = fireTransit(ItemTransitPhase.ROUTING, routeItem,
                 destinations.isEmpty() ? null : destinations.get(0));
             if (finishControlledEvent(routeItem, routeEvent)) continue;
@@ -665,6 +674,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             } else {
                 TravellingItem newItem = new TravellingItem(routeItem.stack);
                 newItem.apiTransitId = routeItem.apiTransitId;
+                newItem.apiTransitPayload = routeItem.apiTransitPayload;
                 newItem.tried.addAll(item.tried);
                 newItem.toCenter = false;
                 newItem.colour = routeItem.colour;
@@ -719,7 +729,10 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                     if (flow instanceof IFlowItems) {
                         IFlowItems oFlow = (IFlowItems) flow;
                         ItemStack before = excess;
-                        excess = oFlow.injectItem(excess.copy(), true, oppositeSide, item.colour, item.speed);
+                        try (buildcraft.transport.api2.PipeTransitHandoff handoff =
+                            buildcraft.transport.api2.PipeTransitHandoff.begin(item.apiTransitId, item.apiTransitPayload)) {
+                            excess = oFlow.injectItem(excess.copy(), true, oppositeSide, item.colour, item.speed);
+                        }
 
                         if (!excess.isEmpty()) {
                             before.shrink(excess.getCount());
@@ -754,7 +767,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             transferred.setCount(moved);
             PipeItemTransitRuntime.fire(runtimePipe, ItemTransitPhase.TRANSFERRED,
                 transferred, new ItemTransitData(Optional.ofNullable(item.colour), item.speed),
-                item.side.getOpposite(), item.side, item.apiTransitId);
+                item.side.getOpposite(), item.side, item.apiTransitId, item.apiTransitPayload);
             if (!excess.isEmpty()) item.apiTransitId = UUID.randomUUID();
         }
         if (excess.isEmpty()) {
@@ -977,7 +990,10 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         long now = world.getGameTime();
 
         TravellingItem item = new TravellingItem(stack);
-        item.apiTransitId = incomingTransferId;
+        buildcraft.transport.api2.PipeTransitHandoff.Envelope handoff =
+            buildcraft.transport.api2.PipeTransitHandoff.claim();
+        item.apiTransitId = incomingTransferId != null ? incomingTransferId : handoff.id();
+        item.apiTransitPayload = handoff.payload();
         item.side = from;
         item.toCenter = true;
         item.speed = speed;
@@ -990,8 +1006,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         if (pipe instanceof Pipe runtimePipe) {
             PipeItemTransitRuntime.Result entered = PipeItemTransitRuntime.fire(runtimePipe, ItemTransitPhase.ENTER,
                 item.stack, new ItemTransitData(Optional.ofNullable(item.colour), item.speed),
-                from, null, item.apiTransitId);
+                from, null, item.apiTransitId, item.apiTransitPayload);
             item.apiTransitId = entered.id();
+            item.apiTransitPayload = entered.payload();
         }
         if (sendToClient) {
             addItemTryMerge(item);
@@ -1008,14 +1025,15 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                                                         Direction outgoing) {
         ItemTransitData metadata = new ItemTransitData(Optional.ofNullable(item.colour), item.speed);
         if (!(pipe instanceof Pipe runtimePipe)) {
-            return new PipeItemTransitRuntime.Result(item.stack, metadata, item.apiTransitId, null, 0, null);
+            return new PipeItemTransitRuntime.Result(item.stack, metadata, item.apiTransitId, null, 0, null, item.apiTransitPayload);
         }
         PipeItemTransitRuntime.Result action = PipeItemTransitRuntime.fire(runtimePipe, phase,
-            item.stack, metadata, item.side, outgoing, item.apiTransitId);
+            item.stack, metadata, item.side, outgoing, item.apiTransitId, item.apiTransitPayload);
         item.stack = action.stack();
         item.colour = action.transit().color().orElse(null);
         if (action.transit().speedBlocksPerTick() > 0) item.speed = action.transit().speedBlocksPerTick();
         item.apiTransitId = action.id();
+        item.apiTransitPayload = action.payload();
         return action;
     }
 

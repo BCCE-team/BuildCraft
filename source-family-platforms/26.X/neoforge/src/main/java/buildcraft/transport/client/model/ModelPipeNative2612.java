@@ -104,8 +104,19 @@ public final class ModelPipeNative2612 implements DynamicBlockStateModel {
         // both the pipe body and the static pluggable bakers behind the same lock. The immutable native quads produced
         // below are then safe for asynchronous chunk-meshing workers.
         synchronized (PipeModelCacheBase.class) {
-            legacyBaseCutout = PipeModelCacheBase.cacheCutout.bake(new PipeBaseCutoutKey(key));
-            legacyBaseTranslucent = PipeModelCacheBase.cacheTranslucent.bake(new PipeBaseTranslucentKey(key));
+            var apiModel = buildcraft.lib.client.render.ApiPresentationModels.pipeBaseModel(pipe);
+            if (apiModel != null && apiModel.hasBakedQuads()) {
+                boolean dynamic = buildcraft.lib.client.render.ApiPresentationModels.animatedPipe(pipe);
+                legacyBaseCutout = dynamic ? List.of()
+                    : java.util.Arrays.stream(apiModel.getCutoutQuads())
+                        .map(buildcraft.lib.client.model.MutableQuad::toBakedBlock).toList();
+                legacyBaseTranslucent = dynamic ? List.of()
+                    : java.util.Arrays.stream(apiModel.getTranslucentQuads())
+                        .map(buildcraft.lib.client.model.MutableQuad::toBakedBlock).toList();
+            } else {
+                legacyBaseCutout = PipeModelCacheBase.cacheCutout.bake(new PipeBaseCutoutKey(key));
+                legacyBaseTranslucent = PipeModelCacheBase.cacheTranslucent.bake(new PipeBaseTranslucentKey(key));
+            }
             legacyPlugCutout = PipeModelCachePluggable.cacheCutoutAll.bake(plugCutoutKey);
             legacyPlugTranslucent = PipeModelCachePluggable.cacheTranslucentAll.bake(plugTranslucentKey);
         }

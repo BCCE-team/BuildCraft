@@ -67,12 +67,28 @@ public class GuiProgrammingTable extends GuiBC8<ContainerProgrammingTable> {
     protected void drawForegroundLayer(PoseStack pose, int mouseX, int mouseY) {
         getActiveGraphics().drawString(font, title, leftPos + (imageWidth - font.width(title)) / 2, topPos + 15, 0x404040, false);
         getActiveGraphics().drawString(font, playerInventoryTitle, leftPos + 8, topPos + imageHeight - 97, 0x404040, false);
+        if (container.tile.pageCount() > 1) {
+            font.draw(pose, "<", leftPos + 47, topPos + 26, 0x404040);
+            font.draw(pose, Integer.toString(container.tile.selectedPage + 1) + "/" + container.tile.pageCount(), leftPos + 91, topPos + 26, 0x404040);
+            font.draw(pose, ">", leftPos + 147, topPos + 26, 0x404040);
+        }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
         boolean flag = super.mouseClicked(mouseX, mouseY, mouseButton);
         if (mouseButton == 0) {
+            if (container.tile.pageCount() > 1 && mouseY >= topPos + 23 && mouseY < topPos + 35) {
+                if (mouseX >= leftPos + 43 && mouseX < leftPos + 60 && container.tile.selectedPage > 0) {
+                    container.sendSelectPage(container.tile.selectedPage - 1);
+                    return true;
+                }
+                if (mouseX >= leftPos + 142 && mouseX < leftPos + 159
+                        && container.tile.selectedPage + 1 < container.tile.pageCount()) {
+                    container.sendSelectPage(container.tile.selectedPage + 1);
+                    return true;
+                }
+            }
             for (int i = 0; i < TileProgrammingTable_Neptune.OPTION_COUNT; i++) {
                 int x = leftPos + optionX(i);
                 int y = topPos + optionY(i);

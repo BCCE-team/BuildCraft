@@ -20,6 +20,7 @@ import buildcraft.api.v2.machine.MachineControlMode;
 import buildcraft.api.v2.machine.MachineHost;
 import buildcraft.api.v2.machine.MachineHostOwner;
 import buildcraft.api.v2.machine.MachineTickComponent;
+import buildcraft.api.v2.machine.MachineWorkComponent;
 import buildcraft.api.v2.machine.MachineType;
 import buildcraft.api.v2.machine.MachineWorldAccess;
 import buildcraft.api.v2.machine.WorkState;
@@ -182,6 +183,24 @@ class MachineRuntimeHost implements MachineHost {
     @Override public boolean isActive() { return !invalidated && !removed && initialized && !client
         && runtime.phase() == RuntimeExtensions.Phase.ACTIVE; }
     @Override public WorkStatus workStatus() { return status; }
+    @Override public boolean hasWork() {
+        checkThread();
+        if (removed || controlMode == MachineControlMode.OFF || undecodableState != null) return false;
+        if (client) return status.state() == WorkState.RUNNING || status.state() == WorkState.BLOCKED;
+        if (!isActive()) return false;
+        boolean supplied = false;
+        for (ResourceLocation id : types.keySet()) {
+            MachineComponent component = runtime.component(id).orElse(null);
+            if (!(component instanceof MachineWorkComponent work)) continue;
+            supplied = true;
+            try {
+                if (work.hasWork(this)) return true;
+            } catch (RuntimeException ex) {
+                BCLog.logger.warn("Machine {} work callback {} failed", type.id(), id, ex);
+            }
+        }
+        return !supplied && (status.state() == WorkState.RUNNING || status.state() == WorkState.BLOCKED);
+    }
     @Override public MachineControlMode mode() { return controlMode; }
     @Override public Optional<MachineControl> control() { return Optional.of(this); }
     @Override public Set<MachineControlMode> supportedModes() { return Set.copyOf(EnumSet.allOf(MachineControlMode.class)); }

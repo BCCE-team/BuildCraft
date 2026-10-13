@@ -463,6 +463,32 @@ tasks.register('buildAndCollect') {
     dependsOn tasks.named('build')
 }
 
+
+// Compile independent addon fixtures a second time against the actual production JAR.
+// The source-set probe alone would not detect packaging or ABI omissions.
+def verifyApi2AddonBinary = tasks.register('verifyApi2AddonBinary', Exec) {
+    group = 'verification'
+    description = "Verify independent API v2 fixtures against the production ${targetName} JAR"
+    dependsOn tasks.named('jar')
+    dependsOn prepareEffectiveSource
+    workingDir repositoryRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    doFirst {
+        def jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
+        commandLine pythonExecutable,
+            new File(repositoryRoot, 'scripts/verify-addon-binary.py').absolutePath,
+            '--bcce-jar', jarFile.absolutePath,
+            '--dependencies', sourceSets.main.compileClasspath.asPath,
+            '--release', javaVersion.toString(),
+            '--fixture-root', new File(effectiveSourceDir, 'addon-fixture/src/main/java/dev/bcce/apifixture').absolutePath,
+            '--output', new File(project.buildDir, 'conformance/api2-fixtures.jar').absolutePath
+    }
+}
+
+tasks.named('buildAndCollect') {
+    dependsOn verifyApi2AddonBinary
+}
+
 // API 2 is bundled directly in the normal BuildCraft production jar.
 // The isolated apiV2 source set and addonFixture remain verification-only: they
 // prove that addons can compile against the public surface without implementation

@@ -143,6 +143,7 @@ public final class RoboticsApi2Bootstrap {
     private static void registerBoards() {
         var registry = BuildCraftApi.registry(BuildCraftRegistries.ROBOT_BOARD_TYPES);
         for (BCRoboticsBoards.BoardEntry entry : BCRoboticsBoards.entriesWithEmpty()) {
+            if (!entry.id().startsWith("buildcraft:")) continue;
             ResourceLocation id = BuildCraftRobotBoards.id(entry.key());
             if (registry.get(id) != null) continue;
             int tier = entry.energyCost() <= 0 ? 0

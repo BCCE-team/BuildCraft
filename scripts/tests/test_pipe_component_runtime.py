@@ -82,14 +82,31 @@ public interface PipeMutationContext extends PipeView {
 }''',
     "buildcraft/api/v2/pipe/PipeTickComponent.java": r'''package buildcraft.api.v2.pipe;
 public interface PipeTickComponent extends PipeComponent { void tick(PipeMutationContext pipe); }''',
+    "buildcraft/api/v2/pipe/PipeRuntimeComponent.java": r'''package buildcraft.api.v2.pipe;
+public interface PipeRuntimeComponent extends PipeComponent {
+    default void postAttachmentTick(PipeMutationContext ctx) { }
+}''',
+    "buildcraft/api/v2/pipe/PipeFlowDefinition.java": r'''package buildcraft.api.v2.pipe;
+import net.minecraft.resources.ResourceLocation;
+public record PipeFlowDefinition<T extends PipeComponent>(ResourceLocation id, PipeComponentType<T> componentType) { }
+''',
+    "buildcraft/api/v2/pipe/PipeBehaviourDefinition.java": r'''package buildcraft.api.v2.pipe;
+import net.minecraft.resources.ResourceLocation;
+public record PipeBehaviourDefinition<T extends PipeComponent>(ResourceLocation id, PipeComponentType<T> componentType) { }
+''',
     "buildcraft/api/v2/pipe/PipeType.java": r'''package buildcraft.api.v2.pipe;
 import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
-public record PipeType(ResourceLocation id, Set<ResourceLocation> defaultComponents) { }''',
+public record PipeType(ResourceLocation id, Set<ResourceLocation> defaultComponents) {
+ public java.util.Optional<ResourceLocation> flowTypeId(){return java.util.Optional.empty();}
+ public java.util.Optional<ResourceLocation> behaviourTypeId(){return java.util.Optional.empty();}
+}''',
     "buildcraft/api/v2/BuildCraftRegistries.java": r'''package buildcraft.api.v2;
 import buildcraft.api.v2.pipe.*;
 public class BuildCraftRegistries {
     public static final Key<PipeComponentType<?>> PIPE_COMPONENT_TYPES = new Key<>();
+    public static final Key<PipeFlowDefinition<?>> PIPE_FLOW_TYPES = new Key<>();
+    public static final Key<PipeBehaviourDefinition<?>> PIPE_BEHAVIOUR_TYPES = new Key<>();
     public static final Key<PipeSyncChannel<?>> PIPE_SYNC_CHANNELS = new Key<>();
     public record Key<T>() { }
 }''',

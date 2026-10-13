@@ -117,8 +117,20 @@ public final class RobotServiceImpl implements RobotService {
     private static <R extends RobotResource> Optional<RobotResourceLease> acquireRegistered(
         RobotResourceType<R> type, Level level, long robotId, RobotResource resource, long amount
     ) {
-        if (!type.resourceType().isInstance(resource)) return Optional.empty();
-        return type.acquirer().acquire(level, robotId, type.resourceType().cast(resource), amount);
+        if (amount <= 0 || !type.resourceType().isInstance(resource)) return Optional.empty();
+        try {
+            Optional<RobotResourceLease> acquired = type.acquirer().acquire(
+                level, robotId, type.resourceType().cast(resource), amount);
+            if (acquired == null || acquired.isEmpty()) return Optional.empty();
+            RobotResourceLease lease = acquired.get();
+            if (lease != null && lease.active() && lease.robotId() == robotId
+                    && lease.amount() > 0 && lease.amount() <= amount
+                    && resource.typeId().equals(lease.resource().typeId())) return acquired;
+            if (lease != null) lease.close();
+        } catch (RuntimeException error) {
+            buildcraft.lib.internal.debug.BCLog.logger.warn("Robot resource acquisition failed: " + type.id(), error);
+        }
+        return Optional.empty();
     }
 
     static Optional<RobotResourceLease> acquireBlockResource(Level level, long robotId, BlockRobotResource resource, long amount) {
@@ -137,8 +149,12 @@ public final class RobotServiceImpl implements RobotService {
         entries.sort(Comparator.comparing(entry -> entry.id().toString()));
         for (var entry : entries) {
             RobotEventListener listener = entry.value();
-            RobotEventDecision next = listener.onRobotEvent(context);
-            if (next != null) decision = decision.merge(next);
+            try {
+                RobotEventDecision next = listener.onRobotEvent(context);
+                if (next != null) decision = decision.merge(next);
+            } catch (RuntimeException error) {
+                buildcraft.lib.internal.debug.BCLog.logger.warn("Robot event listener failed: " + entry.id(), error);
+            }
             if (decision.isTerminal()) break;
         }
         return decision;
@@ -274,7 +290,14 @@ public final class RobotServiceImpl implements RobotService {
             }
             Level level = station.level();
             if (level == null) return Optional.empty();
-            return type.resolve(new RobotDockContext(level, position(), side(), occupied()));
+            if (!level.hasChunkAt(position())) return Optional.empty();
+            try {
+                Optional<T> resolved = type.resolve(new RobotDockContext(level, position(), side(), occupied()));
+                return resolved == null ? Optional.empty() : resolved;
+            } catch (RuntimeException error) {
+                buildcraft.lib.internal.debug.BCLog.logger.warn("Robot dock port resolver failed: " + type.id(), error);
+                return Optional.empty();
+            }
         }
 
         @Override public boolean occupied() { return station.isTaken(); }

@@ -85,6 +85,16 @@ public final class ApiPipePluggable extends PipePluggable {
         catch (RuntimeException ex) { report("connection", ex); return true; }
     }
 
+    @Override public boolean isSideSolid() {
+        try { return attachment.solidFace(); }
+        catch (RuntimeException ex) { report("solid face", ex); return false; }
+    }
+
+    @Override public boolean canConnectToRedstone(Direction facing) {
+        try { return attachment.canConnectRedstone(facing); }
+        catch (RuntimeException ex) { report("redstone", ex); return false; }
+    }
+
     @Override public VoxelShape getBoundingBox() {
         try { return Objects.requireNonNull(attachment.boundingBox(), "bounding box"); }
         catch (RuntimeException ex) { report("bounds", ex); return Shapes.empty(); }

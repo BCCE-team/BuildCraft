@@ -86,7 +86,8 @@ public class BuildCraftRegistries {
 }''',
     "buildcraft/api/v2/BuildCraftServices.java": '''package buildcraft.api.v2;
 import buildcraft.api.v2.service.*;import buildcraft.api.v2.robot.*;
-public class BuildCraftServices {public static final ServiceKey<RobotService> ROBOTS=new ServiceKey<>("robots");}
+public class BuildCraftServices {public static final ServiceKey<RobotService> ROBOTS=new ServiceKey<>("robots");
+ public static final ServiceKey<buildcraft.api.v2.request.RequestService> REQUESTS=new ServiceKey<>("requests");}
 ''',
     "buildcraft/api/v2/BuildCraftApi.java": '''package buildcraft.api.v2;
 import buildcraft.api.v2.registry.*;import buildcraft.api.v2.service.*;import java.util.*;
@@ -97,6 +98,22 @@ public class BuildCraftApi {
  @SuppressWarnings("unchecked") public static <T> T service(ServiceKey<T> id){return (T)services.get(id);}
  public static <T> void bind(ServiceKey<T> key,T value){services.put(key,value);}
 }''',
+    "buildcraft/api/v2/request/RequestLedger.java": '''package buildcraft.api.v2.request;
+public class RequestLedger { public static class PromiseView {} public static class DeliveryResult {} }
+''',
+    "buildcraft/api/v2/request/RequestService.java": '''package buildcraft.api.v2.request;
+import buildcraft.api.v2.OperationMode;import buildcraft.api.v2.permission.AutomationActor;
+import java.util.*;import net.minecraft.world.item.ItemStack;import net.minecraft.world.level.Level;
+import net.minecraft.core.*;import net.minecraft.resources.ResourceLocation;
+public interface RequestService {
+ Optional<RequestLedger.PromiseView> reserve(Level level, BlockPos origin, BlockPos destination,
+ Direction side, ResourceLocation requestId, UUID reservationId, int quantity, AutomationActor actor, long durationTicks);
+ boolean cancel(Level level, BlockPos origin, BlockPos destination, Direction side,
+ ResourceLocation requestId, AutomationActor actor, String reason);
+ RequestLedger.DeliveryResult deliver(Level level, BlockPos origin, BlockPos destination, Direction side,
+ UUID reservationId, UUID deliveryId, ItemStack stack, AutomationActor actor, OperationMode mode);
+}
+''',
     "buildcraft/api/v2/permission/AutomationActor.java": 'package buildcraft.api.v2.permission;public record AutomationActor() {}',
     "buildcraft/api/v2/robot/RobotHandle.java": 'package buildcraft.api.v2.robot; public interface RobotHandle {long id();}',
     "buildcraft/api/v2/robot/RobotService.java": '''package buildcraft.api.v2.robot;
@@ -144,7 +161,7 @@ public class RobotServiceImpl {
 }''',
     "buildcraft/robotics/internal/legacy/boards/RedstoneBoardRobot.java": '''package buildcraft.robotics.internal.legacy.boards;
 import buildcraft.robotics.internal.legacy.robots.*;
-public class RedstoneBoardRobot extends AIRobot {public RedstoneBoardRobot(EntityRobotBase r){super(r);}}
+public class RedstoneBoardRobot extends AIRobot {public RedstoneBoardRobot(EntityRobotBase r){super(r);} public AIRobot createWorkAI(){return this;}}
 ''',
 }
 for name in ("AIRobotReturnToLostStation", "AIRobotGotoSleep", "AIRobotSleep", "AIRobotShutdown", "AIRobotRecharge"):

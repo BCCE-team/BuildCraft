@@ -56,6 +56,14 @@ import buildcraft.lib.compat.NbtCompat;
 
 /** Forge Energy pipe flow using BuildCraft 8 external-energy semantics with FE terminology. */
 public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, IDebuggable {
+    private int apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase phase,
+                                 Direction side, int offered, boolean simulate) {
+        if (offered <= 0) return 0;
+        return (int) buildcraft.transport.api2.PipeFlowEventRuntime.powerLimit(pipe,
+            buildcraft.api.v2.pipe.PipeMedium.EXTERNAL_ENERGY, phase, side, offered,
+            simulate ? buildcraft.api.v2.OperationMode.SIMULATE : buildcraft.api.v2.OperationMode.EXECUTE);
+    }
+
     private static final int DEFAULT_MAX_POWER = 100;
     public static final int NET_POWER_AMOUNTS = 2;
 
@@ -181,6 +189,13 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         configure.setReceiver(transferInfo.isReceiver);
         configure.setMaxPower(transferInfo.transferPerTick);
         pipe.getHolder().fireEvent(configure);
+        buildcraft.api.v2.pipe.PowerFlowSettings settings = buildcraft.transport.api2.PipeFlowEventRuntime.configure(
+            pipe, new buildcraft.api.v2.pipe.PowerFlowSettings(buildcraft.api.v2.pipe.PipeMedium.EXTERNAL_ENERGY,
+                configure.getMaxPower() > 0 ? configure.getMaxPower() : DEFAULT_MAX_POWER,
+                -1L, -1L, configure.isReceiver(), configure.isTransferDisabled()));
+        configure.setMaxPower((int) settings.maxPerTick());
+        configure.setReceiver(settings.receiver());
+        if (settings.disabled()) configure.disableTransfer();
         isReceiver = configure.isReceiver();
         maxPower = configure.getMaxPower();
         disabled = configure.isTransferDisabled();
@@ -198,6 +213,8 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         int buffered = saturatingAdd(Math.max(0, section.internalPower), Math.max(0, section.internalNextPower));
         int free = Math.max(0, maxPower - buffered);
         int requested = Math.min(Math.min(maxExtracted, maxPower), Math.min(getPowerRequested(from), free));
+        requested = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.EXTRACT,
+            from, requested, false);
         if (requested <= 0) return 0;
         int simulated = Math.max(0, Math.min(requested, storage.extractEnergy(requested, true)));
         if (simulated <= 0) return 0;
@@ -263,6 +280,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
             : Math.min(maxPower, saturatingAdd(section.internalPower, section.internalNextPower));
         int budget = Math.max(0, maxPower - (lastApiSendTick == now ? apiSentThisTick : 0));
         int taken = Math.max(0, Math.min(requested, Math.min(available, budget)));
+        taken = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.EXTRACT, side, taken, simulate);
         if (!simulate && taken > 0) {
             step();
             section.internalPower -= taken;
@@ -292,6 +310,10 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         int targetBudget = Math.max(0, target.maxPower - (target.lastApiReceiveTick == targetTick ? target.apiReceivedThisTick : 0));
         int accepted = Math.max(0, Math.min(maximum, Math.min(available,
             Math.min(Math.max(0, target.maxPower - buffered), Math.min(sourceBudget, targetBudget)))));
+        accepted = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.PIPE_TRANSFER,
+            sourceSide, accepted, simulate);
+        accepted = target.apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.PIPE_TRANSFER,
+            targetSide, accepted, simulate);
         if (accepted == 0 || simulate) return accepted;
         step();
         target.step();
@@ -332,7 +354,9 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
 
     private EnergyStorage nativeEnergy(Direction face) {
         EnergyHandler handler = pipe.getHolder().getCapabilityFromPipe(face, Capabilities.Energy.BLOCK);
-        return handler == null ? null : new NativeEnergyStorage263(handler);
+        if (handler != null) return new NativeEnergyStorage263(handler);
+        return pipe instanceof Pipe runtime
+            ? buildcraft.transport.api2.ApiExternalStorage263.energy(runtime, face) : null;
     }
 
     @Nullable
@@ -424,13 +448,18 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
                 if (output.powerQuery <= 0 || routeWeight <= 0 || input.internalPower <= 0) continue;
 
                 int offered = allocation.offerInt(input.internalPower, output.powerQuery, routeWeight);
+                offered = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.SEND,
+                    outputFace, offered, false);
                 if (offered <= 0) continue;
 
                 int leftover = offered;
                 IPipe neighbour = pipe.getHolder().getNeighbourPipe(outputFace);
                 if (neighbour != null && neighbour != Pipe.EMPTY && neighbour.getFlow() instanceof PipeFlowForgeEnergy other
                     && neighbour.isConnected(outputFace.getOpposite())) {
-                    leftover = other.sections.get(outputFace.getOpposite()).receivePowerInternal(offered);
+                    int remoteOffer = other.apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.RECEIVE,
+                        outputFace.getOpposite(), offered, false);
+                    leftover = offered - remoteOffer
+                        + other.sections.get(outputFace.getOpposite()).receivePowerInternal(remoteOffer);
                 } else {
                     EnergyStorage receiver = nativeEnergy(outputFace);
                     if (receiver != null && receiver.canReceive()) {
@@ -523,7 +552,9 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         int requested = pipe.getBehaviour() instanceof IPipeTransportForgeEnergyHook hook
             ? hook.requestPower(from, amount) : amount;
         Section section = sections.get(from);
-        section.nextPowerQuery = Math.min(maxPower, saturatingAdd(section.nextPowerQuery, Math.max(0, requested)));
+        requested = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.REQUEST,
+            from, Math.max(0, requested), false);
+        section.nextPowerQuery = Math.min(maxPower, saturatingAdd(section.nextPowerQuery, requested));
     }
 
     public int getPowerRequested(@Nullable Direction side) {
@@ -599,6 +630,8 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
             int buffered = saturatingAdd(Math.max(0, internalPower), Math.max(0, internalNextPower));
             int free = Math.max(0, maxPower - buffered);
             int accepted = Math.min(maxReceive, Math.min(free, requested));
+            accepted = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.RECEIVE,
+                side, accepted, simulate);
             if (!simulate && accepted > 0) accepted -= receivePowerInternal(accepted);
             return accepted;
         }

@@ -17,8 +17,10 @@ SOURCES = [BASE + p for p in (
     'buildcraft/api/v2/pipe/ItemTransitContext.java',
     'buildcraft/api/v2/pipe/ItemTransitComponent.java',
     'buildcraft/api/v2/pipe/ItemTransitData.java',
+    'buildcraft/api/v2/pipe/ItemTransitPayload.java',
     'buildcraft/api/v2/item/ItemTransferResult.java',
     'buildcraft/transport/api2/PipeItemTransitRuntime.java',
+    'buildcraft/transport/api2/PipeTransitHandoff.java',
 )]
 STUBS = {
     'net/minecraft/resources/ResourceLocation.java': '''package net.minecraft.resources;

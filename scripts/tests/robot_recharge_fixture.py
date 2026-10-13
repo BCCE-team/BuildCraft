@@ -19,8 +19,8 @@ public enum Direction {
 public record Vec3(double x,double y,double z) {public static final Vec3 ZERO=new Vec3(0,0,0);}''',
 'net/minecraft/nbt/CompoundTag': '''package net.minecraft.nbt;
 import java.util.HashMap;
-public class CompoundTag extends HashMap<String,Integer>{
- public void putInt(String key,int value){put(key,value);}public int getInt(String key){return getOrDefault(key,0);}
+public class CompoundTag extends HashMap<String,Object>{
+ public void putInt(String key,int value){put(key,value);}public int getInt(String key){return (int)getOrDefault(key,0);}
 }''',
 'buildcraft/lib/compat/NbtCompat': '''package buildcraft.lib.compat;
 import net.minecraft.nbt.CompoundTag;
@@ -89,10 +89,21 @@ public class AIRobot {
  public AIRobot getActiveAI(){return delegate==null?this:delegate.getActiveAI();}
  public void startDelegateAI(AIRobot next){delegate=next;next.parent=this;next.start();}
  public void terminate(){if(parent!=null){AIRobot p=parent;parent=null;p.delegate=null;p.delegateAIEnded(this);}}
+ public void abort(){terminate();}
+ public void writeToNBT(net.minecraft.nbt.CompoundTag nbt){writeSelfToNBT(nbt);}
+ public static AIRobot loadAI(net.minecraft.nbt.CompoundTag tag,EntityRobotBase robot){return null;}
 }''',
 'buildcraft/robotics/internal/legacy/boards/RedstoneBoardRobot': '''package buildcraft.robotics.internal.legacy.boards;
 import buildcraft.robotics.internal.legacy.robots.*;
-public class RedstoneBoardRobot extends AIRobot {public RedstoneBoardRobot(EntityRobotBase r){super(r);}}''',
+public class RedstoneBoardRobot extends AIRobot {
+ public RedstoneBoardRobot(EntityRobotBase r){super(r);}
+ public AIRobot createWorkAI(){return this;}
+}''',
+'buildcraft/robotics/internal/legacy/robots/RobotManager': '''package buildcraft.robotics.internal.legacy.robots;
+public class RobotManager {}''',
+'buildcraft/robotics/internal/api2/ApiTaskAI': '''package buildcraft.robotics.internal.api2;
+import buildcraft.robotics.internal.legacy.robots.*;
+public class ApiTaskAI extends AIRobot {public ApiTaskAI(EntityRobotBase robot){super(robot);}}''',
 'buildcraft/robotics/ai/AIRobotGotoSleep': '''package buildcraft.robotics.ai;
 import buildcraft.robotics.internal.legacy.robots.*;
 public class AIRobotGotoSleep extends AIRobot{public AIRobotGotoSleep(EntityRobotBase robot){super(robot);}}''',

@@ -21,6 +21,9 @@ import buildcraft.api.v2.signal.BuildCraftSignalChannels;
 import buildcraft.api.v2.signal.SignalChannelType;
 import buildcraft.api.v2.signal.SignalPort;
 import buildcraft.api.v2.signal.SignalPortProvider;
+import buildcraft.api.v2.pipe.PipeExternalEndpoint;
+import buildcraft.api.v2.pipe.PipeView;
+import buildcraft.transport.api2.PipeEndpointRuntime;
 
 import buildcraft.transport.internal.EnumWirePart;
 import buildcraft.transport.internal.pipe.IPipe;
@@ -194,15 +197,29 @@ public class WireManager {
     }
 
     private boolean hasExternalSignalPort(Direction side, DyeColor color) {
-        BlockEntity blockEntity = holder.getPipeWorld().getBlockEntity(holder.getPipePos().relative(side));
-        if (!(blockEntity instanceof SignalPortProvider provider)) return false;
         var channelId = BuildCraftSignalChannels.id(color);
         SignalChannelType<?> expected = BuildCraftApi.registry(BuildCraftRegistries.SIGNAL_CHANNEL_TYPES).get(channelId);
         if (expected == null) return false;
-        return provider.signalPort(side.getOpposite(), channelId)
-            .map(SignalPort::channel)
-            .map(channel -> channel == expected)
-            .orElse(false);
+        try {
+            SignalPort<?> attached = PipeEndpointRuntime.attachmentPort(holder.getPluggable(side),
+                attachment -> attachment.signalPort(channelId).map(port -> (SignalPort<?>) port)).orElse(null);
+            if (attached != null && attached.channel() == expected) return true;
+        } catch (RuntimeException ex) { return false; }
+        if (!holder.getPipeWorld().hasChunkAt(holder.getPipePos().relative(side))) return false;
+        BlockEntity blockEntity = holder.getPipeWorld().getBlockEntity(holder.getPipePos().relative(side));
+        if (blockEntity instanceof SignalPortProvider provider) {
+            try {
+                if (provider.signalPort(side.getOpposite(), channelId)
+                    .map(SignalPort::channel).map(channel -> channel == expected).orElse(false)) return true;
+            } catch (RuntimeException ex) { return false; }
+        }
+        if (!(holder.getPipe() instanceof PipeView pipe)) return false;
+        PipeExternalEndpoint endpoint = PipeEndpointRuntime.find(holder.getPipeWorld(), pipe, side).orElse(null);
+        if (endpoint == null) return false;
+        try {
+            return endpoint.signalPort(channelId).map(SignalPort::channel)
+                .map(channel -> channel == expected).orElse(false);
+        } catch (RuntimeException ex) { return false; }
     }
 
     public DyeColor getColorOfPart(EnumWirePart part) {

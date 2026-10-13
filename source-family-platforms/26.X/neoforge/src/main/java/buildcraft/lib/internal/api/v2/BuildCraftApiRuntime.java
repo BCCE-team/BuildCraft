@@ -14,6 +14,7 @@ import buildcraft.api.v2.machine.BuiltInMachineProperties;
 import buildcraft.api.v2.machine.MachineProperty;
 import buildcraft.api.v2.registry.RegistryKey;
 import buildcraft.lib.internal.api.v2.registry.ApiRegistryImpl;
+import buildcraft.lib.internal.api.v2.reload.DefinitionReloadServiceImpl;
 import buildcraft.api.v2.service.ServiceKey;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,22 +32,36 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     private final ApiFeatureSet features = ApiFeatureSet.of(List.of(
         new ApiFeature(BuildCraftFeatures.REGISTRIES, 1),
         new ApiFeature(BuildCraftFeatures.PERSISTENCE, 1),
-        new ApiFeature(BuildCraftFeatures.RELOAD, 1),
+        new ApiFeature(BuildCraftFeatures.RELOAD, 2),
         new ApiFeature(BuildCraftFeatures.TRANSFER, 1),
         new ApiFeature(BuildCraftFeatures.PERMISSIONS, 1),
+        new ApiFeature(BuildCraftFeatures.WORLD_CONTEXT, 1),
+        new ApiFeature(BuildCraftFeatures.WORLD_EVENTS, 1),
         new ApiFeature(BuildCraftFeatures.ENERGY, 1),
         new ApiFeature(BuildCraftFeatures.DATA_DOMAINS, 1),
         new ApiFeature(BuildCraftFeatures.PIPES, 2),
+        new ApiFeature(BuildCraftFeatures.PIPE_FLUID_MOVEMENT, 1),
+        new ApiFeature(BuildCraftFeatures.PIPE_POWER_MOVEMENT, 1),
+        new ApiFeature(BuildCraftFeatures.PIPE_ENDPOINTS, 1),
+        new ApiFeature(BuildCraftFeatures.PIPE_ATTACHMENT_PORTS, 1),
         new ApiFeature(BuildCraftFeatures.STATEMENTS, 1),
         new ApiFeature(BuildCraftFeatures.SIGNALS, 1),
         new ApiFeature(BuildCraftFeatures.AUTOMATION, 1),
         new ApiFeature(BuildCraftFeatures.ROBOTS, 2),
+        new ApiFeature(BuildCraftFeatures.ROBOT_BOARD_PROGRAMS, 1),
         new ApiFeature(BuildCraftFeatures.LOGISTICS, 1),
         new ApiFeature(BuildCraftFeatures.SCHEMATICS, 1),
+        new ApiFeature(BuildCraftFeatures.LIBRARY_FORMATS, 1),
         new ApiFeature(BuildCraftFeatures.MACHINES, 2),
         new ApiFeature(BuildCraftFeatures.CLIENT_PRESENTATION, 2),
         new ApiFeature(BuildCraftFeatures.CONTENT_EXTENSION, 1),
         new ApiFeature(BuildCraftFeatures.GUIDE, 1),
+        new ApiFeature(BuildCraftFeatures.FACADE_PHASES, 1),
+        new ApiFeature(BuildCraftFeatures.NAMED_ITEM_LISTS, 1),
+        new ApiFeature(BuildCraftFeatures.MAP_LOCATIONS, 1),
+        new ApiFeature(BuildCraftFeatures.WRENCH_ADAPTERS, 1),
+        new ApiFeature(BuildCraftFeatures.CROPS, 1),
+        new ApiFeature(BuildCraftFeatures.PAINT, 1),
         new ApiFeature(BuildCraftFeatures.WORLDGEN, 1)
     ));
 
@@ -59,6 +74,8 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     private final FacadeRuleRegistryImpl facadeRules = new FacadeRuleRegistryImpl();
     private final WorldPropertyServiceImpl worldProperties = new WorldPropertyServiceImpl();
     private final WorldRuleServiceImpl worldRules = new WorldRuleServiceImpl();
+    private final WorldAccessServiceImpl worldAccess = new WorldAccessServiceImpl();
+    private final WorldEventServiceImpl worldEvents = new WorldEventServiceImpl();
     private final ApiDiagnosticsImpl diagnostics = new ApiDiagnosticsImpl();
     private final GuideServiceImpl guide = new GuideServiceImpl();
     private final WorldgenServiceImpl worldgen = new WorldgenServiceImpl();
@@ -72,6 +89,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     private final AutomationServiceImpl automation = new AutomationServiceImpl();
     private final ActorServiceImpl actors = new ActorServiceImpl();
     private final ModuleServiceImpl modules = new ModuleServiceImpl();
+    private final DefinitionReloadServiceImpl definitionReload = new DefinitionReloadServiceImpl();
     private final WrenchServiceImpl wrenches = new WrenchServiceImpl();
     private final BlockInteractionServiceImpl blockInteractions = new BlockInteractionServiceImpl();
     private final DebugServiceImpl debugViews = new DebugServiceImpl();
@@ -93,6 +111,8 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         services.put(BuildCraftServices.FACADE_RULES, facadeRules);
         services.put(BuildCraftServices.WORLD_PROPERTIES, worldProperties);
         services.put(BuildCraftServices.WORLD_RULES, worldRules);
+        services.put(BuildCraftServices.WORLD_ACCESS, worldAccess);
+        services.put(BuildCraftServices.WORLD_EVENTS, worldEvents);
         services.put(BuildCraftServices.DIAGNOSTICS, diagnostics);
         services.put(BuildCraftServices.GUIDE, guide);
         services.put(BuildCraftServices.WORLDGEN, worldgen);
@@ -106,6 +126,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         services.put(BuildCraftServices.AUTOMATION, automation);
         services.put(BuildCraftServices.ACTORS, actors);
         services.put(BuildCraftServices.MODULES, modules);
+        services.put(BuildCraftServices.DEFINITION_RELOAD, definitionReload);
         services.put(BuildCraftServices.WRENCHES, wrenches);
         services.put(BuildCraftServices.BLOCK_INTERACTIONS, blockInteractions);
         services.put(BuildCraftServices.DEBUG_VIEWS, debugViews);
@@ -124,9 +145,12 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         registerRegistry(BuildCraftRegistries.LASER_TABLE_TYPES);
         registerRegistry(BuildCraftRegistries.MJ_CONNECTION_RULES);
         registerRegistry(BuildCraftRegistries.PIPE_TYPES);
+        registerRegistry(BuildCraftRegistries.PIPE_FLOW_TYPES);
+        registerRegistry(BuildCraftRegistries.PIPE_BEHAVIOUR_TYPES);
         registerRegistry(BuildCraftRegistries.PIPE_COMPONENT_TYPES);
         registerRegistry(BuildCraftRegistries.PIPE_ATTACHMENT_TYPES);
         registerRegistry(BuildCraftRegistries.PIPE_CONNECTION_RULES);
+        registerRegistry(BuildCraftRegistries.PIPE_ENDPOINT_PROVIDERS);
         registerRegistry(BuildCraftRegistries.PIPE_SYNC_CHANNELS);
         registerRegistry(BuildCraftRegistries.PARAMETER_TYPES);
         registerRegistry(BuildCraftRegistries.ACTION_TYPES);
@@ -140,12 +164,14 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         registerRegistry(BuildCraftRegistries.ROBOT_RESOURCE_TYPES);
         registerRegistry(BuildCraftRegistries.ROBOT_DOCK_PORT_TYPES);
         registerRegistry(BuildCraftRegistries.ROBOT_BOARD_TYPES);
+        registerRegistry(BuildCraftRegistries.ROBOT_BOARD_PROGRAMS);
         registerRegistry(BuildCraftRegistries.ROBOT_EVENT_LISTENERS);
         registerRegistry(BuildCraftRegistries.SCHEMATIC_ADAPTERS);
         registerRegistry(BuildCraftRegistries.SCHEMATIC_ENTITY_ADAPTERS);
         registerRegistry(BuildCraftRegistries.SNAPSHOT_ELEMENT_TYPES);
         registerRegistry(BuildCraftRegistries.INVENTORY_COPY_POLICIES);
         registerRegistry(BuildCraftRegistries.FACADE_MATERIAL_ADAPTERS);
+        registerRegistry(BuildCraftRegistries.NAMED_ITEM_LISTS);
         registerRegistry(BuildCraftRegistries.LIST_MATCH_ADAPTERS);
         registerRegistry(BuildCraftRegistries.ITEM_LABEL_ADAPTERS);
         registerRegistry(BuildCraftRegistries.FLUID_ITEM_ADAPTERS);
@@ -154,6 +180,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         registerRegistry(BuildCraftRegistries.DEBUG_CONTRIBUTORS);
         registerRegistry(BuildCraftRegistries.ROTATION_HANDLERS);
         registerRegistry(BuildCraftRegistries.PAINT_HANDLERS);
+        registerRegistry(BuildCraftRegistries.WRENCH_ADAPTERS);
         registerRegistry(BuildCraftRegistries.CLIENT_PRESENTATIONS);
         registerRegistry(BuildCraftRegistries.DYNAMIC_PRESENTATIONS);
         registerRegistry(BuildCraftRegistries.MENU_PRESENTATIONS);
@@ -226,7 +253,13 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
             throw new IllegalStateException("API lifecycle phase skipped: " + lifecycle + " -> " + next);
         }
         if (next == ApiLifecycle.FROZEN) {
+            // Preflight every registry and external module before committing any freeze state.
+            for (ApiRegistryImpl<?> registry : registries.values()) registry.validateFreeze();
+            modules.validateFreeze();
             for (ApiRegistryImpl<?> registry : registries.values()) registry.freeze();
+            modules.freeze();
+            definitionReload.freeze();
+            worldEvents.freeze();
         }
         lifecycle = next;
     }

@@ -1,6 +1,9 @@
 package buildcraft.lib.internal.api.v2;
 
 import buildcraft.api.v2.tool.WrenchService;
+import buildcraft.api.v2.tool.WrenchAdapter;
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftRegistries;
 import buildcraft.lib.BCLibConfig;
 import buildcraft.lib.internal.tool.IToolWrench;
 import net.minecraft.world.item.ItemStack;
@@ -13,6 +16,11 @@ final class WrenchServiceImpl implements WrenchService {
     public boolean isWrench(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
         if (stack.getItem() instanceof IToolWrench) return true;
+        for (WrenchAdapter adapter : BuildCraftApi.registry(BuildCraftRegistries.WRENCH_ADAPTERS).values()) {
+            try {
+                if (adapter.recognizes(stack)) return true;
+            } catch (RuntimeException ignored) { }
+        }
         return BCLibConfig.useWrenchTag && stack.typeHolder().tags().anyMatch(tag ->
             WRENCH_TAG_NAMESPACE.equals(tag.location().getNamespace())
                 && WRENCH_TAG_PATH.equals(tag.location().getPath()));

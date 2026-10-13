@@ -345,6 +345,7 @@ final class EngineRuntimeHost extends MachineRuntimeHost implements EngineHost {
         Optional<MjPortDescriptor> localDesc = energy.descriptor(level, owner.position(), facing);
         Optional<MjPortDescriptor> remoteDesc = energy.descriptor(level, target, facing.getOpposite());
         if (localDesc.isEmpty() || remoteDesc.isEmpty()
+            || !localDesc.get().has(MjPortRole.PROVIDER) || !remoteDesc.get().has(MjPortRole.CONSUMER)
             || !localDesc.get().networkId().equals(remoteDesc.get().networkId())
             || !energy.canConnect(new MjConnectionContext(level, owner.position(), facing, localDesc.get(), remoteDesc.get()))) {
             return MjTransferResult.none(requested);
@@ -356,6 +357,8 @@ final class EngineRuntimeHost extends MachineRuntimeHost implements EngineHost {
         }
         long budget = Math.max(0, engineType.profile().maxOutputPerTick().microMj() - sentThisTick);
         long candidate = Math.min(requested.microMj(), Math.min(budget, outputBuffer.stored().microMj()));
+        candidate = Math.min(candidate, localDesc.get().maxExtractPerTick().microMj());
+        candidate = Math.min(candidate, remoteDesc.get().maxInsertPerTick().microMj());
         if (candidate == 0) return MjTransferResult.none(requested);
         MjAmount requestedPort = MjAmount.ofMicro(candidate);
         long sourceAvailable = outputBuffer.extract(requestedPort, OperationMode.SIMULATE).transferred().microMj();

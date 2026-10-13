@@ -31,6 +31,31 @@ public record MapLocationView(
         }
     }
 
+    public static MapLocationView point(String label, BlockPos pos, Direction side) {
+        return new MapLocationView(MapLocationKind.SPOT, label, Optional.of(Objects.requireNonNull(pos, "pos")),
+            Optional.ofNullable(side), Optional.empty(), Optional.empty(), Optional.empty());
+    }
+
+    public static MapLocationView box(String label, BlockBox box) {
+        return new MapLocationView(MapLocationKind.AREA, label, Optional.empty(), Optional.empty(),
+            Optional.of(Objects.requireNonNull(box, "box")), Optional.empty(), Optional.empty());
+    }
+
+    public static MapLocationView zone(String label, Zone zone) {
+        return new MapLocationView(MapLocationKind.ZONE, label, Optional.empty(), Optional.empty(),
+            Optional.empty(), Optional.of(Objects.requireNonNull(zone, "zone")), Optional.empty());
+    }
+
+    public static MapLocationView path(String label, Path path) {
+        return new MapLocationView(MapLocationKind.PATH, label, Optional.empty(), Optional.empty(),
+            Optional.empty(), Optional.empty(), Optional.of(Objects.requireNonNull(path, "path")));
+    }
+
+    public static MapLocationView repeatingPath(String label, Path path) {
+        return new MapLocationView(MapLocationKind.PATH_REPEATING, label, Optional.empty(), Optional.empty(),
+            Optional.empty(), Optional.empty(), Optional.of(Objects.requireNonNull(path, "path")));
+    }
+
     public static MapLocationView clean(String label) {
         return new MapLocationView(MapLocationKind.CLEAN, label, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
     }

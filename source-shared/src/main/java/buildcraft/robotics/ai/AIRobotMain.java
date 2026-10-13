@@ -103,7 +103,8 @@ public class AIRobotMain extends AIRobot {
     public void update() {
         RedstoneBoardRobot board = robot.getBoard();
         if (board != null) {
-            startDelegateAI(board);
+            AIRobot next = board.createWorkAI();
+            if (next != null) startDelegateAI(next);
         }
     }
 

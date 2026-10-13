@@ -12,6 +12,7 @@ public final class BuildersSchematicApi2 {
     public static synchronized void bootstrap() {
         if (bootstrapped) return;
         BuildCraftApiRuntime.INSTANCE.installService(BuildCraftServices.SCHEMATICS, SchematicServiceImpl.INSTANCE);
+        BuildCraftApiRuntime.INSTANCE.installService(BuildCraftServices.LIBRARY, LibraryServiceImpl.INSTANCE);
         bootstrapped = true;
     }
 }

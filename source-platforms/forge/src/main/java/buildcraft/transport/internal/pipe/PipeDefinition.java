@@ -4,6 +4,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import buildcraft.api.v2.pipe.PipeType;
+import buildcraft.transport.api2.PipeFlowBridge;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -60,7 +61,7 @@ public final class PipeDefinition {
         this.textures = base.textures.clone();
         this.logicConstructor = base.logicConstructor;
         this.logicLoader = base.logicLoader;
-        this.flowType = base.flowType;
+        this.flowType = PipeFlowBridge.resolve(type, base.flowType);
         this.itemTextureTop = base.itemTextureTop;
         this.itemTextureCenter = base.itemTextureCenter;
         this.itemTextureBottom = base.itemTextureBottom;
@@ -68,7 +69,7 @@ public final class PipeDefinition {
         this.itemModelCenter = base.itemModelCenter;
         this.itemModelBottom = base.itemModelBottom;
         this.canBeColoured = type.colorable();
-        this.colourType = base.colourType;
+        this.colourType = base.getColourType();
         this.apiType = type;
         this.runtimeComponentId = base.runtimeComponentId;
     }

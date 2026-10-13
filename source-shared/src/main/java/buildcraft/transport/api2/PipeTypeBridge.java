@@ -31,10 +31,13 @@ public final class PipeTypeBridge {
     /** Selects the built-in carrier; custom semantics are supplied exclusively by API components. */
     public static ResourceLocation carrierId(PipeType type) {
         Objects.requireNonNull(type, "type");
-        if (type.media().size() != 1) {
-            throw new IllegalArgumentException("One BCCE pipe carrier supports exactly one medium: " + type.id());
+        if (type.flowTypeId().isEmpty() && type.media().size() != 1) {
+            throw new IllegalArgumentException("Built-in pipe carrier supports one medium: " + type.id());
         }
         if (type.archetypeId().isPresent()) return type.archetypeId().orElseThrow();
+        if (type.flowTypeId().isPresent() && type.media().size() != 1) {
+            return Objects.requireNonNull(ResourceLocation.tryParse(BUILTIN_NAMESPACE + ":structure"));
+        }
         String path = switch (type.media().iterator().next()) {
             case ITEM -> "stone_item";
             case FLUID -> "stone_fluid";
@@ -47,8 +50,14 @@ public final class PipeTypeBridge {
 
     /** Rejects mismatched variants before they can join a network with the wrong flow implementation. */
     public static void validateCarrier(PipeType type, PipeDefinition base) {
+        if (type.flowTypeId().isPresent()) {
+            var flowId = type.flowTypeId().orElseThrow();
+            var flow = BuildCraftApi.registry(BuildCraftRegistries.PIPE_FLOW_TYPES).get(flowId);
+            if (flow == null) throw new IllegalArgumentException("Unknown custom flow " + flowId + " for " + type.id());
+            return; // The custom PipeFlow adapter replaces the carrier's transport implementation.
+        }
         if (type.media().size() != 1) {
-            throw new IllegalArgumentException("One BCCE pipe carrier supports exactly one medium: " + type.id());
+            throw new IllegalArgumentException("Built-in pipe carrier supports one medium: " + type.id());
         }
         PipeMedium medium = type.media().iterator().next();
         boolean matching = switch (medium) {

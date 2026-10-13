@@ -945,7 +945,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 		}
 		Pipe pipe = tile.getPipe();
 		if (pipe != Pipe.EMPTY) {
-			pipe.getBehaviour().onEntityCollide(entity);
+			pipe.onApiEntityCollided(entity);
 		}
 	}
 

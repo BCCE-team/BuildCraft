@@ -36,6 +36,7 @@ import buildcraft.lib.misc.ItemStackKey;
 import buildcraft.lib.misc.LocaleUtil;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.lib.recipe.AssemblyRecipeBasic;
+import buildcraft.lib.recipe.ApiAssemblyRecipeAdapter;
 import buildcraft.lib.recipe.ChangingItemStack;
 import buildcraft.robotics.BCRoboticsBoards;
 import buildcraft.robotics.BCRoboticsBoards.BoardEntry;
@@ -192,6 +193,12 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         Level level = Minecraft.getInstance().level;
         if (level != null) {
             List<AssemblyRecipeBasic> assemblyRecipes = new ArrayList<>(level.getRecipeManager().getAllRecipesFor(BCSiliconRecipes.ASSEMBLY_TYPE.get()));
+            for (var entry : BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).assemblyRecipes()) {
+                ApiAssemblyRecipeAdapter adapter = ApiAssemblyRecipeAdapter.fromService(entry.id());
+                if (adapter != null && !adapter.getOutputPreviews().isEmpty()) {
+                    assemblyRecipes.add(adapter);
+                }
+            }
             boolean hadFacadeRecipe = assemblyRecipes.removeIf(FacadeAssemblyRecipes.class::isInstance);
             if (hadFacadeRecipe && BCSiliconConfig.enableFacades) {
                 assemblyRecipes.add(FacadeAssemblyJeiRecipe.create());

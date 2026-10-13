@@ -376,13 +376,13 @@ public class GateLogic implements IGate, IRedstoneStatementContainer, GateView, 
         for (int i = 0; i < program.rules().size(); i++) {
             GateRule rule = program.rules().get(i);
             if (rule.trigger() != null) {
-                if (rule.trigger().kind() != StatementKind.TRIGGER) return false;
+                if (rule.trigger().kind() != StatementKind.TRIGGER || !StatementApi2Bridge.validateSlot(rule.trigger())) return false;
                 triggers[i] = StatementApi2Bridge.toLegacyTrigger(rule.trigger());
                 if (triggers[i] == null || !statements[i].trigger.canSet(triggers[i])) return false;
                 triggerParams[i] = StatementApi2Bridge.toLegacyParameters(triggers[i].getDelegate(), rule.trigger().parameters());
             }
             if (rule.action() != null) {
-                if (rule.action().kind() != StatementKind.ACTION) return false;
+                if (rule.action().kind() != StatementKind.ACTION || !StatementApi2Bridge.validateSlot(rule.action())) return false;
                 actions[i] = StatementApi2Bridge.toLegacyAction(rule.action());
                 if (actions[i] == null || !statements[i].action.canSet(actions[i])) return false;
                 actionParams[i] = StatementApi2Bridge.toLegacyParameters(actions[i].getDelegate(), rule.action().parameters());

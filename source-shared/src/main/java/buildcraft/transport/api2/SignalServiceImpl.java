@@ -9,6 +9,8 @@ import buildcraft.api.v2.signal.SignalEndpoint;
 import buildcraft.api.v2.signal.SignalNetworkView;
 import buildcraft.api.v2.signal.SignalPort;
 import buildcraft.api.v2.signal.SignalPortProvider;
+import buildcraft.api.v2.pipe.PipeExternalEndpoint;
+import buildcraft.api.v2.pipe.PipeView;
 import buildcraft.api.v2.signal.SignalService;
 import buildcraft.api.v2.signal.SignalUpdateResult;
 import buildcraft.transport.tile.TilePipeHolder;
@@ -46,13 +48,35 @@ public final class SignalServiceImpl implements SignalService {
         SignalChannelType<?> rawType = BuildCraftApi.registry(BuildCraftRegistries.SIGNAL_CHANNEL_TYPES).get(channelId);
         if (rawType == null) return Optional.empty();
 
+        if (!level.hasChunkAt(pos)) return Optional.empty();
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity instanceof SignalPortProvider provider) {
             Optional<? extends SignalPort<?>> provided = provider.signalPort(side, channelId);
             if (provided.isEmpty() || provided.get().channel() != rawType) return Optional.empty();
             return Optional.of(new ExternalSignalPort(level, pos, side, color, provided.get()));
         }
-        if (!(blockEntity instanceof TilePipeHolder holder)) return Optional.empty();
+        if (!(blockEntity instanceof TilePipeHolder holder)) {
+            if (!level.hasChunkAt(pos.relative(side))) return Optional.empty();
+            BlockEntity adjacent = level.getBlockEntity(pos.relative(side));
+            if (!(adjacent instanceof TilePipeHolder neighbour) || !(neighbour.getPipe() instanceof PipeView pipe)) {
+                return Optional.empty();
+            }
+            PipeExternalEndpoint endpoint = PipeEndpointRuntime.find(level, pipe, side.getOpposite()).orElse(null);
+            if (endpoint == null) return Optional.empty();
+            try {
+                SignalPort<?> supplied = endpoint.signalPort(channelId).orElse(null);
+                return supplied == null || supplied.channel() != rawType ? Optional.empty()
+                    : Optional.of(new ExternalSignalPort(level, pos, side, color, supplied));
+            } catch (RuntimeException ex) { return Optional.empty(); }
+        }
+        try {
+            SignalPort<?> attachment = PipeEndpointRuntime.attachmentPort(holder.getPluggable(side),
+                plug -> plug.signalPort(channelId).map(port -> (SignalPort<?>) port)).orElse(null);
+            if (attachment != null && attachment.channel() == rawType) {
+                return Optional.of(new ExternalSignalPort(level, pos.relative(side),
+                    side.getOpposite(), color, attachment));
+            }
+        } catch (RuntimeException ex) { return Optional.empty(); }
         WireManager manager = holder.getWireManager();
 
         @SuppressWarnings("unchecked")

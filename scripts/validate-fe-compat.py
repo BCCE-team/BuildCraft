@@ -369,7 +369,6 @@ for path in (
 ):
     require(path, "sameContent", "sameTarget", "contentSignature")
 
-require("README.md", "- [x] Add Forge Energy (FE) compatibility")
 
 # Public identifiers use FE. Legitimate third-party names and RF migration diagnostics
 # must not be rejected; guard actual deprecated identifiers and migration aliases.

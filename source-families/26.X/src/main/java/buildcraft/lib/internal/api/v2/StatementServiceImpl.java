@@ -10,6 +10,8 @@ import buildcraft.api.v2.statement.StatementContext;
 import buildcraft.api.v2.statement.StatementContributor;
 import buildcraft.api.v2.statement.StatementParameters;
 import buildcraft.api.v2.statement.StatementResult;
+import buildcraft.api.v2.statement.StatementScope;
+import buildcraft.api.v2.statement.StatementValidation;
 import buildcraft.api.v2.statement.StatementService;
 import buildcraft.api.v2.statement.TriggerType;
 import java.util.Collection;
@@ -36,41 +38,59 @@ public final class StatementServiceImpl implements StatementService {
     }
 
     public Collection<Identifier> availableTriggers(StatementContext context) {
-        LinkedHashSet<Identifier> result = new LinkedHashSet<>();
-        collectContributions(context, result, null);
-        return java.util.List.copyOf(result);
+        return availableTriggers(context, null);
     }
 
     public Collection<Identifier> availableActions(StatementContext context) {
-        LinkedHashSet<Identifier> result = new LinkedHashSet<>();
-        collectContributions(context, null, result);
-        return java.util.List.copyOf(result);
+        return availableActions(context, null);
     }
 
-    private static void collectContributions(
-        StatementContext context,
-        LinkedHashSet<Identifier> triggers,
-        LinkedHashSet<Identifier> actions
-    ) {
+    public Collection<Identifier> availableTriggers(StatementContext context, StatementScope scope) {
+        return collectContributions(context, scope, true);
+    }
+
+    public Collection<Identifier> availableActions(StatementContext context, StatementScope scope) {
+        return collectContributions(context, scope, false);
+    }
+
+    private static Collection<Identifier> collectContributions(StatementContext context, StatementScope scope, boolean triggers) {
+        LinkedHashSet<Identifier> result = new LinkedHashSet<>();
         ApiRegistry<StatementContributor> contributors = BuildCraftApi.registry(BuildCraftRegistries.STATEMENT_CONTRIBUTORS);
-        StatementCollector collector = new StatementCollector() {
-            public void addTrigger(Identifier id) { if (triggers != null) triggers.add(id); }
-            public void addAction(Identifier id) { if (actions != null) actions.add(id); }
-        };
         for (StatementContributor contributor : contributors.values()) {
-            contributor.contribute(context, collector);
+            StatementCollector collector = new StatementCollector() {
+                public void addTrigger(Identifier id) {
+                    if (triggers && id != null && (scope == null || contributor.scope(id) == scope)
+                        && BuildCraftApi.registry(BuildCraftRegistries.TRIGGER_TYPES).get(id) != null) result.add(id);
+                }
+                public void addAction(Identifier id) {
+                    if (!triggers && id != null && (scope == null || contributor.scope(id) == scope)
+                        && BuildCraftApi.registry(BuildCraftRegistries.ACTION_TYPES).get(id) != null) result.add(id);
+                }
+            };
+            try { contributor.contribute(context, collector); }
+            catch (RuntimeException | LinkageError ignored) { /* Failing addons cannot interrupt gate discovery. */ }
         }
+        return java.util.List.copyOf(result);
     }
 
     public boolean evaluateTrigger(Identifier id, StatementContext context, StatementParameters parameters) {
         TriggerType type = BuildCraftApi.registry(BuildCraftRegistries.TRIGGER_TYPES).get(id);
-        return type != null && type.evaluator().evaluate(context, parameters);
+        if (type == null || !StatementValidation.valid(type.parameters(), parameters)) return false;
+        try { return type.evaluator().evaluate(context, parameters); }
+        catch (RuntimeException | LinkageError ignored) { return false; }
     }
 
     public StatementResult executeAction(Identifier id, StatementContext context, StatementParameters parameters) {
         ActionType type = BuildCraftApi.registry(BuildCraftRegistries.ACTION_TYPES).get(id);
-        return type == null
-            ? new StatementResult(StatementResult.Status.FAILED, "unknown_action:" + id)
-            : type.executor().execute(context, parameters);
+        if (type == null) return new StatementResult(StatementResult.Status.FAILED, "unknown_action:" + id);
+        if (!StatementValidation.valid(type.parameters(), parameters))
+            return new StatementResult(StatementResult.Status.FAILED, "invalid_parameters:" + id);
+        if (context.mode() == buildcraft.api.v2.OperationMode.SIMULATE) return StatementResult.success();
+        try {
+            StatementResult result = type.executor().execute(context, parameters);
+            return result == null ? new StatementResult(StatementResult.Status.FAILED, "null_result:" + id) : result;
+        } catch (RuntimeException | LinkageError ignored) {
+            return new StatementResult(StatementResult.Status.FAILED, "callback_failed:" + id);
+        }
     }
 }

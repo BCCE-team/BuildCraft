@@ -28,6 +28,11 @@ import buildcraft.lib.net.MessageManager;
 import buildcraft.lib.net.NetworkSecurity;
 import buildcraft.lib.net.MessageUpdateTile;
 import buildcraft.lib.recipe.AssemblyRecipeBasic;
+import buildcraft.lib.recipe.ApiAssemblyRecipeAdapter;
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.api.v2.recipe.MachineRecipeService;
+import net.minecraft.core.NonNullList;
 import buildcraft.lib.tile.TileBC_Neptune;
 import buildcraft.lib.tile.item.ItemHandlerManager;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
@@ -80,6 +85,19 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
     private static final ResourceLocation ADVANCEMENT = new ResourceLocation("buildcraftsilicon:precision_crafting");
     
     protected boolean isDirty = true;
+    private long lastApiRecipeGeneration = -1;
+
+    private static MachineRecipeService machineRecipes() {
+        return BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES);
+    }
+
+    private boolean canConsume(AssemblyInstruction instruction, boolean simulate) {
+        if (instruction.recipe instanceof ApiAssemblyRecipeAdapter adapter) {
+            return adapter.consume(inv, instruction.output, simulate);
+        }
+        return extract(inv, instruction.recipe.getInputsFor(instruction.output), simulate, false);
+    }
+
 
     public TileAssemblyTable(BlockPos pos, BlockState state) {
     	super(BCSiliconBlocks.ASSEMBLY_TABLE_TILE.get(), pos, state);
@@ -93,6 +111,14 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
 
     private void updateRecipes() {
         boolean changed = false;
+        long generation = machineRecipes().snapshot().generation().id();
+        if (lastApiRecipeGeneration != generation) {
+            lastApiRecipeGeneration = generation;
+            isDirty = true;
+            // On datapack reload, stale cached instructions must not outlive their recipe.
+            changed |= recipesStates.entrySet().removeIf(entry ->
+                entry.getKey().recipe instanceof ApiAssemblyRecipeAdapter adapter && !adapter.registered());
+        }
         if (isDirty) {
             int previousSize = recipesStates.size();
             for (AssemblyRecipeBasic recipe : level.getRecipeManager().getAllRecipesFor(BCSiliconRecipes.ASSEMBLY_TYPE.get())) {
@@ -114,6 +140,21 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
                     }
                 }
             }
+            // API v2 recipes are not Minecraft recipe-manager entries. Feed their outputs
+            // through the same instruction, energy, persistence and GUI pipeline.
+            NonNullList<ItemStack> apiInputs = NonNullList.create();
+            for (int slot = 0; slot < inv.getSlots(); slot++) apiInputs.add(inv.getStackInSlot(slot).copy());
+            for (var match : machineRecipes().findAssembly(apiInputs)) {
+                ApiAssemblyRecipeAdapter recipe = ApiAssemblyRecipeAdapter.fromService(match.id());
+                if (recipe == null) continue;
+                for (ItemStack output : recipe.getOutputs(inv)) {
+                    if (output == null || output.isEmpty()) continue;
+                    AssemblyInstruction instruction = new AssemblyInstruction(recipe, output.copy());
+                    if (!recipesStates.containsKey(instruction)) {
+                        recipesStates.put(instruction, EnumAssemblyRecipeState.POSSIBLE);
+                    }
+                }
+            }
             changed |= previousSize != recipesStates.size();
             isDirty = false;
         }
@@ -124,7 +165,7 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
             AssemblyInstruction instruction = entry.getKey();
             EnumAssemblyRecipeState previousState = entry.getValue();
             EnumAssemblyRecipeState state = previousState;
-            boolean enough = extract(inv, instruction.recipe.getInputsFor(instruction.output), true, false);
+            boolean enough = canConsume(instruction, true);
             if (state == EnumAssemblyRecipeState.POSSIBLE) {
                 if (!enough) {
                     iterator.remove();
@@ -214,7 +255,7 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
             AdvancementUtil.unlockAdvancement(getOwner().getId(), ADVANCEMENT);
             if (power >= target) {
                 AssemblyInstruction instruction = getActiveRecipe();
-                if (instruction != null && extract(inv, instruction.recipe.getInputsFor(instruction.output), false, false)) {
+                if (instruction != null && canConsume(instruction, false)) {
                     InventoryUtil.addToBestAcceptor(getLevel(), getBlockPos(), null, instruction.output.copy());
                     power -= target;
                     activateNextRecipe();
@@ -367,8 +408,11 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
     @Nullable
     private AssemblyInstruction lookupRecipe(String name, ItemStack output) {
         Optional<? extends Recipe<?>> recipe = level.getRecipeManager().byKey(new ResourceLocation(name));
-        return (recipe.isPresent() && recipe.get() instanceof AssemblyRecipeBasic assemblyRecipeBasic)
-        		? new AssemblyInstruction(assemblyRecipeBasic, output) : null;
+        if (recipe.isPresent() && recipe.get() instanceof AssemblyRecipeBasic original) {
+            return new AssemblyInstruction(original, output.copy());
+        }
+        ApiAssemblyRecipeAdapter addon = ApiAssemblyRecipeAdapter.fromService(new ResourceLocation(name));
+        return addon == null ? null : new AssemblyInstruction(addon, output.copy());
     }
 
     private record PendingRecipeState(String recipeName, ItemStack output, EnumAssemblyRecipeState state) {

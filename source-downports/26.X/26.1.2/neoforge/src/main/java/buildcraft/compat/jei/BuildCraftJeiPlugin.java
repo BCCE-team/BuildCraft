@@ -37,6 +37,7 @@ import buildcraft.lib.misc.ItemStackKey;
 import buildcraft.lib.misc.LocaleUtil;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.lib.recipe.AssemblyRecipeBasic;
+import buildcraft.lib.recipe.ApiAssemblyRecipeAdapter;
 import buildcraft.lib.recipe.ChangingItemStack;
 import buildcraft.robotics.BCRoboticsBoards;
 import buildcraft.robotics.BCRoboticsBoards.BoardEntry;
@@ -142,6 +143,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
     private static IJeiRuntime activeRuntime;
     private static List<RecipeHolder<AssemblyRecipeBasic>> publishedAssemblySource = List.of();
     private static List<AssemblyJeiRecipe> publishedAssemblyRecipes = List.of();
+    private static long publishedAssemblyApiGeneration = -1;
 
     public Identifier getPluginUid() {
         return UID;
@@ -222,6 +224,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         List<AssemblyJeiRecipe> assemblyRecipes = collectAssemblyRecipes(source);
         publishedAssemblySource = source;
         publishedAssemblyRecipes = assemblyRecipes;
+        publishedAssemblyApiGeneration = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).snapshot().generation().id();
         registration.addRecipes(ASSEMBLY, assemblyRecipes);
 
         BCRoboticsBoards.init();
@@ -296,6 +299,13 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         List<AssemblyJeiRecipe> assemblyRecipes = source.stream()
                 .map(holder -> new AssemblyJeiRecipe(holder.id().identifier(), holder.value()))
                 .collect(Collectors.toCollection(ArrayList::new));
+        // Registered addon recipes are not Minecraft recipe holders; publish their previews as well.
+        for (var entry : BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).assemblyRecipes()) {
+            ApiAssemblyRecipeAdapter adapter = ApiAssemblyRecipeAdapter.fromService(entry.id());
+            if (adapter != null && !adapter.getOutputPreviews().isEmpty()) {
+                assemblyRecipes.add(new AssemblyJeiRecipe(entry.id(), adapter));
+            }
+        }
         boolean hadFacadeRecipe = assemblyRecipes.removeIf(view -> view.recipe() instanceof FacadeAssemblyRecipes);
         if (hadFacadeRecipe && BCSiliconConfig.enableFacades) {
             assemblyRecipes.add(new AssemblyJeiRecipe(
@@ -317,7 +327,8 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         IJeiRuntime runtime = activeRuntime;
         if (runtime == null) return;
         List<RecipeHolder<AssemblyRecipeBasic>> source = BCSiliconRecipeSync.Client.assemblyRecipes();
-        if (source.equals(publishedAssemblySource)) return;
+        long generation = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).snapshot().generation().id();
+        if (source.equals(publishedAssemblySource) && publishedAssemblyApiGeneration == generation) return;
 
         List<AssemblyJeiRecipe> updated = collectAssemblyRecipes(source);
         // JEI has no removeRecipes API. Hide stale pages, then publish the new
@@ -330,6 +341,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         }
         publishedAssemblySource = source;
         publishedAssemblyRecipes = updated;
+        publishedAssemblyApiGeneration = generation;
     }
 
     @Override
@@ -338,6 +350,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         activeRuntime = null;
         publishedAssemblySource = List.of();
         publishedAssemblyRecipes = List.of();
+        publishedAssemblyApiGeneration = -1;
         GROUPED_ASSEMBLY_RECIPES.clear();
     }
 

@@ -46,6 +46,10 @@ public class ContainerProgrammingTable extends ContainerBCTile<TileProgrammingTa
         addFullPlayerInventory(123);
     }
 
+    public void sendSelectPage(int page) {
+        if (page >= 0) sendSelectOption(-page - 2);
+    }
+
     public void sendSelectOption(int option) {
         sendMessage(NET_SELECT_OPTION, buffer -> buffer.writeVarInt(option));
     }

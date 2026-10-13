@@ -85,6 +85,22 @@ import buildcraft.lib.compat.FluidCompat;
 import buildcraft.lib.compat.NbtCompat;
 
 public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable {
+    private int apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase phase, Direction side,
+                              FluidStack fluid, int offered, int capacity, boolean simulate) {
+        if (offered <= 0) return 0;
+        if (!buildcraft.transport.api2.PipeFlowEventRuntime.hasFluidListeners(pipe)) return offered;
+        return buildcraft.transport.api2.PipeFlowEventRuntime.fluidLimit(pipe, phase, side,
+            FuelApiBridge.volumeOf(fluid), offered, capacity,
+            simulate ? buildcraft.api.v2.OperationMode.SIMULATE : buildcraft.api.v2.OperationMode.EXECUTE);
+    }
+
+    private int apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase phase, Direction side,
+                              int offered, int capacity, boolean simulate) {
+        if (currentFluid.isEmpty() || offered <= 0) return 0;
+        if (!buildcraft.transport.api2.PipeFlowEventRuntime.hasFluidListeners(pipe)) return offered;
+        return apiFluidLimit(phase, side, currentFluid.copyWithAmount(amount), offered, capacity, simulate);
+    }
+
 
     private static final int DIRECTION_COOLDOWN = 60;
     private static final int COOLDOWN_INPUT = -DIRECTION_COOLDOWN;
@@ -210,6 +226,11 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         int leftTarget = target.transferPerTick - (target.lastApiReceiveTick == targetTick ? target.apiReceivedThisTick : 0);
         int amount = Math.max(0, Math.min(maximum, Math.min(from.getMaxDrained(),
             Math.min(to.getMaxFilled(), Math.min(leftSource, leftTarget)))));
+        amount = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.PIPE_TRANSFER,
+            sourceSide, amount, target.capacity, simulate);
+        if (amount <= 0) return 0;
+        amount = target.apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.PIPE_TRANSFER,
+            targetSide, currentFluid.copyWithAmount(amount), amount, target.capacity, simulate);
         if (amount == 0 || simulate) return amount;
         if (target.currentFluid.isEmpty()) target.setFluid(currentFluid.copy());
         int inserted = to.fill(amount, FluidAction.EXECUTE);
@@ -268,7 +289,9 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
 
     private FluidStorage<FluidStack> adjacentFluidStorage(Direction from) {
         var nativeHandler = pipe.getHolder().getCapabilityFromPipe(from, Capabilities.Fluid.BLOCK);
-        return nativeHandler == null ? null : new NativeFluidStorage263(nativeHandler);
+        if (nativeHandler != null) return new NativeFluidStorage263(nativeHandler);
+        return pipe instanceof Pipe runtime
+            ? buildcraft.transport.api2.ApiExternalStorage263.fluid(runtime, from) : null;
     }
 
     private final class NativeSectionHandler implements ResourceHandler<FluidResource> {
@@ -682,6 +705,9 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
                 sideCheck.disallowAllExcept(part.face);
                 pipe.getHolder().fireEvent(sideCheck);
                 if (sideCheck.getOrder().size() == 1) {
+                    maxDrain = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.OUTPUT,
+                        part.face, maxDrain, transferPerTick, false);
+                    if (maxDrain <= 0) continue;
                     FluidStorage<FluidStack> fluidHandler = adjacentFluidStorage(part.face);
                     if (fluidHandler == null) continue;
 
@@ -756,6 +782,8 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
                 int amountToPush = EqualFlowMath.share(available, flowRate, random.size(), totalAvailable);
 
                 amountToPush = center.drainInternal(amountToPush, false);
+                amountToPush = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.FROM_CENTRE,
+                    direction, amountToPush, flowRate, false);
                 if (amountToPush > 0) {
                     int filled = section.fill(amountToPush, FluidAction.EXECUTE);
                     if (filled > 0) {
@@ -802,6 +830,11 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         );
         // Event handlers edit the array in-place
         pipe.getHolder().fireEvent(preMove);
+        for (Direction side : Direction.values()) {
+            int index = side.ordinal();
+            inputPerTick[index] = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.BEFORE_CENTRE,
+                side, Math.max(0, Math.min(totalOffered[index], inputPerTick[index])), spaceAvailable, false);
+        }
 
         int[] fluidLeavingSide = new int[6];
 
@@ -829,6 +862,17 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             pipe.getHolder(), this, currentFluid, fluidLeavingSide, fluidEnteringCentre
         );
         pipe.getHolder().fireEvent(move);
+        for (Direction side : Direction.values()) {
+            int index = side.ordinal();
+            int leaving = Math.max(0, fluidLeavingSide[index]);
+            int entering = Math.max(0, fluidEnteringCentre[index]);
+            int allowed = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.TO_CENTRE,
+                side, Math.min(leaving, entering), spaceAvailable, false);
+            if (allowed < Math.min(leaving, entering)) {
+                fluidLeavingSide[index] = allowed;
+                fluidEnteringCentre[index] = allowed;
+            }
+        }
 
         for (EnumPipePart part : EnumPipePart.FACES) {
             Section section = sections.get(part);
@@ -1163,13 +1207,11 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             }
 
             if (currentFluid.isEmpty() || FluidCompatRegistry.areEquivalent(currentFluid, resource)) {
-                if (!simulate) {
-                    if (currentFluid.isEmpty()) {
-                        setFluid(resource.copy());
-                    }
-                }
                 FluidAction action = simulate ? FluidAction.SIMULATE : FluidAction.EXECUTE;
-                int filled = fill(resource.getAmount(), action);
+                int offered = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.INSERT,
+                    part.face, resource, resource.getAmount(), capacity, simulate);
+                if (offered > 0 && !simulate && currentFluid.isEmpty()) setFluid(resource.copy());
+                int filled = offered <= 0 ? 0 : fill(offered, action);
                 if (filled > 0 && !simulate) {
                     ticksInDirection = COOLDOWN_INPUT;
                 }

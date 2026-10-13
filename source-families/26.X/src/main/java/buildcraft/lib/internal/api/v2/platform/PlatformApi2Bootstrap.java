@@ -9,6 +9,8 @@ import buildcraft.api.v2.fluid.FluidTransferResult;
 import buildcraft.api.v2.fluid.FluidVolume;
 import buildcraft.api.v2.item.ItemMatcher;
 import buildcraft.api.v2.item.ItemPort;
+import buildcraft.api.v2.item.SlottedItemPort;
+import buildcraft.lib.internal.inventory.IItemHandlerFiltered;
 import buildcraft.api.v2.item.ItemTransferResult;
 import buildcraft.api.v2.platform.EnergyTransfer;
 import buildcraft.api.v2.platform.ExternalEnergyPort;
@@ -53,7 +55,7 @@ public final class PlatformApi2Bootstrap {
     private enum ItemTransferImpl implements ItemTransfer {
         INSTANCE;
         public Optional<ItemPort> find(Level level, BlockPos pos, Direction side) {
-            if (level == null || pos == null) return Optional.empty();
+            if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             IItemHandler handler = CapUtil.getItemHandler(level, pos, side);
             return handler == null ? Optional.empty() : Optional.of(new NeoForgeItemPort(handler));
         }
@@ -62,7 +64,7 @@ public final class PlatformApi2Bootstrap {
     private enum FluidTransferImpl implements FluidTransfer {
         INSTANCE;
         public Optional<FluidPort> find(Level level, BlockPos pos, Direction side) {
-            if (level == null || pos == null) return Optional.empty();
+            if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             IFluidHandler handler = CapUtil.getFluidHandler(level, pos, side);
             return handler == null ? Optional.empty() : Optional.of(new NeoForgeFluidPort(handler));
         }
@@ -71,13 +73,13 @@ public final class PlatformApi2Bootstrap {
     private enum EnergyTransferImpl implements EnergyTransfer {
         INSTANCE;
         public Optional<ExternalEnergyPort> find(Level level, BlockPos pos, Direction side) {
-            if (level == null || pos == null) return Optional.empty();
+            if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             IEnergyStorage storage = CapUtil.getEnergyStorage(level, pos, side);
             return storage == null ? Optional.empty() : Optional.of(new NeoForgeEnergyPort(storage));
         }
     }
 
-    private record NeoForgeItemPort(IItemHandler handler) implements ItemPort {
+    private record NeoForgeItemPort(IItemHandler handler) implements SlottedItemPort {
         public ItemTransferResult insert(ItemStack offered, OperationMode mode) {
             if (offered == null || offered.isEmpty()) return ItemTransferResult.nothing(offered == null ? 0 : offered.getCount());
             ItemStack remainder = offered.copy();
@@ -86,6 +88,25 @@ public final class PlatformApi2Bootstrap {
                 remainder = handler.insertItem(slot, remainder, simulate);
             }
             return ItemTransferResult.ofInsertion(offered, offered.getCount() - remainder.getCount());
+        }
+
+        @Override public int slots() { return handler.getSlots(); }
+
+        @Override public ItemStack stackInSlot(int slot) { return handler.getStackInSlot(slot).copy(); }
+
+        @Override
+        public ItemMatcher filter(int slot) {
+            if (!(handler instanceof IItemHandlerFiltered filtered)) return ItemMatcher.any();
+            ItemStack example = filtered.getFilter(slot);
+            if (example == null || example.isEmpty()) return ItemMatcher.any();
+            ItemStack normalized = example.copy();
+            normalized.setCount(1);
+            return candidate -> {
+                if (candidate == null || candidate.isEmpty()) return false;
+                ItemStack test = candidate.copy();
+                test.setCount(1);
+                return ItemStack.matches(normalized, test);
+            };
         }
 
         public ItemTransferResult extract(ItemMatcher matcher, int maxCount, OperationMode mode) {
@@ -120,7 +141,19 @@ public final class PlatformApi2Bootstrap {
                 if (stored == null || stored.isEmpty()) continue;
                 if (!matcher.matches(FuelApiBridge.variantOf(stored), FuelApiBridge.MATCH_CONTEXT)) continue;
                 FluidStack request = stored.copyWithAmount(Math.min(limit, stored.getAmount()));
-                FluidStack drained = handler.drain(request, mode == OperationMode.EXECUTE ? FluidAction.EXECUTE : FluidAction.SIMULATE);
+                // A native handler may select an unexpected tank; check the simulated variant
+                // before allowing any destructive operation (including data components/NBT).
+                FluidStack preview = handler.drain(request, FluidAction.SIMULATE);
+                if (preview == null || preview.isEmpty()
+                    || !matcher.matches(FuelApiBridge.variantOf(preview), FuelApiBridge.MATCH_CONTEXT)) continue;
+                if (mode == OperationMode.SIMULATE) {
+                    return FluidTransferResult.ofExtraction(maxAmount, FuelApiBridge.volumeOf(preview));
+                }
+                FluidStack drained = handler.drain(request, FluidAction.EXECUTE);
+                if (drained != null && !drained.isEmpty()
+                    && !matcher.matches(FuelApiBridge.variantOf(drained), FuelApiBridge.MATCH_CONTEXT)) {
+                    throw new IllegalStateException("Fluid handler changed variant between simulation and execution");
+                }
                 return FluidTransferResult.ofExtraction(maxAmount, FuelApiBridge.volumeOf(drained));
             }
             return FluidTransferResult.nothing(maxAmount);

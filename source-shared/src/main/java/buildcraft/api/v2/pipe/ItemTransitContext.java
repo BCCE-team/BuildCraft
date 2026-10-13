@@ -23,6 +23,12 @@ public interface ItemTransitContext {
     Optional<Direction> output();
     UUID transitId();
 
+    /** Opaque namespaced data travels with the item across pipe boundaries and world saves. */
+    default ItemTransitPayload payload() { return ItemTransitPayload.EMPTY; }
+
+    /** Server-only bounded mutation; never changes the physical stack count. */
+    default boolean setPayload(ItemTransitPayload payload) { return false; }
+
     /** Replace an item with an equally sized stack. Cannot manufacture or silently discard items. */
     boolean replace(ItemStack stack, ItemTransitData transit);
 

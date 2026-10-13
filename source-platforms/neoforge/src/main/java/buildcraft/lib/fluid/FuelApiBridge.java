@@ -64,8 +64,9 @@ public final class FuelApiBridge {
         }
 
         FluidComponentPayload components = variant.components();
-        if (components.isEmpty() || !components.formatId().filter(COMPONENT_FORMAT::equals).isPresent()) {
-            return new FluidStack(fluid, amount);
+        if (components.isEmpty()) return new FluidStack(fluid, amount);
+        if (!components.formatId().filter(COMPONENT_FORMAT::equals).isPresent()) {
+            return FluidStack.EMPTY;
         }
 
         try {
@@ -78,7 +79,8 @@ public final class FuelApiBridge {
 
             return FluidStackUtil.parseOptional(serialized);
         } catch (IOException | RuntimeException e) {
-            return new FluidStack(fluid, amount);
+            // Invalid or foreign component payload must not be converted to an untagged fluid.
+            return FluidStack.EMPTY;
         }
     }
     public static FluidStack stackOf(FluidVolume volume) {

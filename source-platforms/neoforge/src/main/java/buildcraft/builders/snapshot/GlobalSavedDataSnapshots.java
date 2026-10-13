@@ -32,6 +32,10 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.api.v2.library.LibraryService;
+import buildcraft.builders.internal.schematic.api2.LibraryServiceImpl;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.misc.SingleCache;
 import buildcraft.lib.nbt.NbtSquisher;
@@ -258,7 +262,8 @@ public final class GlobalSavedDataSnapshots {
             BCLog.logger.warn("Refused to save a client snapshot with an invalid content key");
             return;
         }
-        if (findClientSnapshot(checked.key, true) != null) {
+        Pair<Snapshot, File> existing = findClientSnapshot(checked.key, true);
+        if (existing != null && existing.getRight().getName().toLowerCase(Locale.ROOT).endsWith(SNAPSHOT_FILE_EXTENSION)) {
             return;
         }
         writeSnapshotFile(nextClientFile(checked), checked);
@@ -325,11 +330,21 @@ public final class GlobalSavedDataSnapshots {
 
     @Nullable
     private static Snapshot readSnapshotFile(File file) {
-        if (!file.isFile() || !file.getName().toLowerCase(Locale.ROOT).endsWith(SNAPSHOT_FILE_EXTENSION)) {
-            return null;
-        }
-        try (FileInputStream input = new FileInputStream(file)) {
-            Snapshot snapshot = Snapshot.readFromNBT(NbtSquisher.expand(input));
+        if (!file.isFile()) return null;
+        boolean nativeFormat = file.getName().toLowerCase(Locale.ROOT).endsWith(SNAPSHOT_FILE_EXTENSION);
+        LibraryService library = BuildCraftApi.runtime().service(BuildCraftServices.LIBRARY).orElse(null);
+        if (!nativeFormat && (library == null || library.formatForFilename(file.getName()).isEmpty())) return null;
+        try {
+            Snapshot snapshot;
+            if (nativeFormat) {
+                try (FileInputStream input = new FileInputStream(file)) {
+                    snapshot = Snapshot.readFromNBT(NbtSquisher.expand(input));
+                }
+            } else {
+                if (Files.size(file.toPath()) > LibraryServiceImpl.MAX_FORMAT_BYTES) return null;
+                snapshot = LibraryServiceImpl.normalizedSnapshot(file.getName(),
+                    library.decode(file.getName(), Files.readAllBytes(file.toPath())).orElseThrow());
+            }
             Snapshot checked = validatedCopy(snapshot);
             if (checked == null) {
                 BCLog.logger.warn("Ignored blueprint with an invalid content key: " + file);
@@ -346,8 +361,10 @@ public final class GlobalSavedDataSnapshots {
     }
 
     private static File[] snapshotFiles(File directory) {
-        File[] files = directory.listFiles(file ->
-            file.isFile() && file.getName().toLowerCase(Locale.ROOT).endsWith(SNAPSHOT_FILE_EXTENSION)
+        LibraryService library = BuildCraftApi.runtime().service(BuildCraftServices.LIBRARY).orElse(null);
+        File[] files = directory.listFiles(file -> file.isFile() &&
+            (file.getName().toLowerCase(Locale.ROOT).endsWith(SNAPSHOT_FILE_EXTENSION)
+                || library != null && library.formatForFilename(file.getName()).isPresent())
         );
         return files == null ? new File[0] : files;
     }
@@ -425,6 +442,7 @@ public final class GlobalSavedDataSnapshots {
         }
         int imported = 0;
         for (File file : snapshotFiles(legacyDirectory)) {
+            if (!file.getName().toLowerCase(Locale.ROOT).endsWith(SNAPSHOT_FILE_EXTENSION)) continue;
             Snapshot snapshot = readSnapshotFile(file);
             if (snapshot == null) {
                 continue;

@@ -139,10 +139,18 @@ public class Level {
     public boolean hasChunkAt(BlockPos pos) { return true; }
     public BlockEntity getBlockEntity(BlockPos pos) { return tile; }
 }''',
+    "buildcraft/api/v2/world/WorldAccessContext.java": '''package buildcraft.api.v2.world;
+/** Minimal compile-time world context for attachment fixture; P02 tests the real contract separately. */
+public interface WorldAccessContext {}''',
     "buildcraft/api/v2/permission/AutomationActor.java": '''package buildcraft.api.v2.permission;
 public class AutomationActor { public static AutomationActor unknown() { return new AutomationActor(); } public static AutomationActor player(java.util.UUID id, String name) { return new AutomationActor(); } }''',
     "buildcraft/api/v2/OperationMode.java": '''package buildcraft.api.v2;
 public enum OperationMode { SIMULATE, EXECUTE }''',
+    'buildcraft/api/v2/signal/SignalPort.java': 'package buildcraft.api.v2.signal; public interface SignalPort<T> {}',
+    'buildcraft/api/v2/pipe/PipeConnectionDecision.java': 'package buildcraft.api.v2.pipe; public enum PipeConnectionDecision { PASS, ALLOW, DENY }',
+    'buildcraft/api/v2/pipe/PipeConnectionContext.java': 'package buildcraft.api.v2.pipe; public record PipeConnectionContext(net.minecraft.world.level.Level level, PipeView pipe, net.minecraft.core.Direction side, net.minecraft.world.level.block.state.BlockState neighbourState) {}',
+    'buildcraft/api/v2/pipe/PipeExternalEndpoint.java': 'package buildcraft.api.v2.pipe; public interface PipeExternalEndpoint {}',
+    'buildcraft/transport/api2/PipeEndpointRuntime.java': 'package buildcraft.transport.api2; import java.util.Optional; import buildcraft.api.v2.pipe.*; public final class PipeEndpointRuntime { public static Optional<PipeExternalEndpoint> find(net.minecraft.world.level.Level level, PipeView pipe, net.minecraft.core.Direction side) { return Optional.empty(); } }',
     "buildcraft/api/v2/pipe/ItemInjectionRequest.java": '''package buildcraft.api.v2.pipe;
 import net.minecraft.world.item.ItemStack;
 public record ItemInjectionRequest(ItemStack stack, net.minecraft.core.Direction from) {}''',
@@ -245,6 +253,8 @@ public abstract class PipePluggable {
     }
     public abstract VoxelShape getBoundingBox();
     public boolean isBlocking() { return false; }
+    public boolean isSideSolid() { return false; }
+    public boolean canConnectToRedstone(Direction side) { return false; }
     public ItemStack getPickStack() { return ItemStack.EMPTY; }
     public void addDrops(NonNullList<ItemStack> drops, int fortune) {}
     public void onTick() {}

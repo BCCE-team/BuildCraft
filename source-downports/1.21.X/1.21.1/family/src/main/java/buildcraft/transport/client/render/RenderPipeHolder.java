@@ -58,6 +58,13 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder> {
         
         Minecraft.getInstance().getProfiler().popPush("contents");
         renderContents(pipe, partialTicks, matrix, buffer, combinedLight, combinedOverlay);
+        buildcraft.lib.client.render.ApiPresentationModels.pipeFrame(pipe, partialTicks).ifPresent(frame -> {
+            if (buildcraft.lib.client.render.ApiPresentationModels.animatedPipe(p)
+                || buildcraft.lib.client.render.ApiPresentationModels.model(frame.model())
+                    != buildcraft.lib.client.render.ApiPresentationModels.pipeBaseModel(p)) {
+                buildcraft.lib.client.render.ApiPresentationModels.render(frame, matrix, buffer);
+            }
+        });
 
 		matrix.popPose();
         Minecraft.getInstance().getProfiler().pop();

@@ -11,6 +11,9 @@ import buildcraft.api.v2.pipe.PipeComponentLifecycle;
 import buildcraft.api.v2.pipe.PipeConnectionChange;
 import buildcraft.api.v2.pipe.PipeComponentSync;
 import buildcraft.api.v2.pipe.PipeComponentType;
+import buildcraft.api.v2.pipe.PipeFlowDefinition;
+import buildcraft.api.v2.pipe.PipeBehaviourDefinition;
+import buildcraft.api.v2.pipe.PipeRuntimeComponent;
 import buildcraft.api.v2.pipe.PipeSyncChannel;
 import buildcraft.api.v2.pipe.PipeTickComponent;
 import buildcraft.api.v2.pipe.PipeType;
@@ -56,6 +59,8 @@ public final class PipeComponentRuntime {
     private boolean clientInvalidated;
     private boolean placed;
     private boolean removed;
+    private long callbackSerial;
+    private long activeCallback;
 
     public PipeComponentRuntime(PipeMutationContext pipe, PipeType pipeType, boolean client, byte[] persisted) {
         this.pipe = Objects.requireNonNull(pipe, "pipe");
@@ -78,6 +83,26 @@ public final class PipeComponentRuntime {
             }
             types.put(type.id(), type);
         }
+        pipeType.flowTypeId().ifPresent(id -> {
+            PipeFlowDefinition<?> definition = BuildCraftApi.registry(BuildCraftRegistries.PIPE_FLOW_TYPES).get(id);
+            if (definition == null) throw new IllegalStateException("Unregistered pipe flow: " + id);
+            PipeComponentType<?> existing = types.putIfAbsent(
+                definition.componentType().id(), definition.componentType());
+            if (existing != null && existing != definition.componentType()) {
+                throw new IllegalStateException("Conflicting runtime component type for pipe: "
+                    + definition.componentType().id());
+            }
+        });
+        pipeType.behaviourTypeId().ifPresent(id -> {
+            PipeBehaviourDefinition<?> definition = BuildCraftApi.registry(BuildCraftRegistries.PIPE_BEHAVIOUR_TYPES).get(id);
+            if (definition == null) throw new IllegalStateException("Unregistered pipe behaviour: " + id);
+            PipeComponentType<?> existing = types.putIfAbsent(
+                definition.componentType().id(), definition.componentType());
+            if (existing != null && existing != definition.componentType()) {
+                throw new IllegalStateException("Conflicting runtime component type for pipe: "
+                    + definition.componentType().id());
+            }
+        });
         if (!client) {
             for (EncodedPayload<OpaqueData> entry : saved) {
                 for (PipeComponentType<?> type : BuildCraftApi.registry(BuildCraftRegistries.PIPE_COMPONENT_TYPES).values()) {
@@ -121,7 +146,11 @@ public final class PipeComponentRuntime {
                         if (value instanceof PipeComponentLifecycle lifecycle) lifecycle.suspended();
                     }
                     @Override public void tick(PipeComponent value) {
-                        if (value instanceof PipeTickComponent ticking) ticking.tick(pipe);
+                        if (value instanceof PipeTickComponent ticking) {
+                            long previous = activeCallback;
+                            activeCallback = ++callbackSerial;
+                            try { ticking.tick(pipe); } finally { activeCallback = previous; }
+                        }
                     }
                     @Override public void invalidate(PipeComponent value) {
                         if (value instanceof PipeComponentLifecycle lifecycle) lifecycle.invalidated();
@@ -145,6 +174,10 @@ public final class PipeComponentRuntime {
             server = runtime;
             if (unreadableState == null) {
                 for (ResourceLocation id : pipeType.defaultComponents()) server.create(id);
+                pipeType.flowTypeId().ifPresent(id -> server.create(
+                    BuildCraftApi.registry(BuildCraftRegistries.PIPE_FLOW_TYPES).get(id).componentType().id()));
+                pipeType.behaviourTypeId().ifPresent(id -> server.create(
+                    BuildCraftApi.registry(BuildCraftRegistries.PIPE_BEHAVIOUR_TYPES).get(id).componentType().id()));
                 for (PipeComponentType<?> type : types.values()) {
                     server.component(type.id()).ifPresent(value -> {
                         created.add(value);
@@ -244,13 +277,35 @@ public final class PipeComponentRuntime {
         if (client) {
             if (clientInvalidated) return;
             for (PipeComponent component : components) {
-                if (component instanceof PipeTickComponent ticking) ticking.tick(pipe);
+                if (component instanceof PipeRuntimeComponent) continue; // Server-authoritative custom flows.
+                if (component instanceof PipeTickComponent ticking) {
+                    try { ticking.tick(pipe); }
+                    catch (RuntimeException ex) { report("Client component tick failed", ex); }
+                }
             }
         } else {
             onLoad();
-            if (server.phase() == RuntimeExtensions.Phase.ACTIVE) server.tick();
+            if (server.phase() == RuntimeExtensions.Phase.ACTIVE) {
+                server.tick();
+            }
         }
     }
+
+    public void postAttachmentTick() {
+        if (client || removed || server.phase() != RuntimeExtensions.Phase.ACTIVE) return;
+        for (PipeComponent component : components) {
+            if (!(component instanceof PipeRuntimeComponent hook)) continue;
+            long previous = activeCallback;
+            activeCallback = ++callbackSerial;
+            try { hook.postAttachmentTick(pipe); }
+            catch (RuntimeException ex) { report("Custom flow/behaviour postAttachmentTick failed", ex); }
+            finally { activeCallback = previous; }
+        }
+    }
+
+    /** Unique epoch of the current component callback, or zero outside a callback. */
+    public long callbackEpoch() { return !client && !removed ? activeCallback : 0L; }
+    public boolean inCallback() { return callbackEpoch() != 0L; }
 
     public void onChunkUnloaded() {
         if (!client && server.phase() == RuntimeExtensions.Phase.ACTIVE) server.suspend();

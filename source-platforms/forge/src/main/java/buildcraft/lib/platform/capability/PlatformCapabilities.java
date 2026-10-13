@@ -3,6 +3,7 @@ package buildcraft.lib.platform.capability;
 import javax.annotation.Nullable;
 
 import buildcraft.lib.internal.tiles.IHasWork;
+import buildcraft.api.v2.machine.MachineHostProvider;
 import buildcraft.lib.internal.tiles.TilesAPI;
 import buildcraft.lib.misc.CapUtil;
 
@@ -21,6 +22,14 @@ public final class PlatformCapabilities {
             return null;
         }
         LazyOptional<IHasWork> capability = CapUtil.getCapability(tile, TilesAPI.CAP_HAS_WORK, face);
-        return capability.orElse(null);
+        IHasWork nativeWork = capability.orElse(null);
+        if (nativeWork != null) return nativeWork;
+        if (tile instanceof MachineHostProvider provider) {
+            return () -> {
+                try { return provider.machineHost() != null && provider.machineHost().hasWork(); }
+                catch (RuntimeException ignored) { return false; }
+            };
+        }
+        return null;
     }
 }

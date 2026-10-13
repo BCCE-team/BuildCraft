@@ -165,6 +165,19 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder, Ren
             );
         }
 
+        buildcraft.lib.client.render.ApiPresentationModels.pipeFrame(tile, state.partialTick).ifPresent(frame -> {
+            if (buildcraft.lib.client.render.ApiPresentationModels.animatedPipe(pipe)
+                || buildcraft.lib.client.render.ApiPresentationModels.model(frame.model())
+                    != buildcraft.lib.client.render.ApiPresentationModels.pipeBaseModel(pipe)) {
+                submitLegacyGeometry(collector, poseStack, RenderCompat.cutout(), (pose, buffers) ->
+                    buildcraft.lib.client.render.ApiPresentationModels.renderLayer(frame, pose,
+                        buffers.getBuffer(RenderCompat.cutout()), false));
+                submitLegacyGeometry(collector, poseStack, RenderCompat.translucent(), (pose, buffers) ->
+                    buildcraft.lib.client.render.ApiPresentationModels.renderLayer(frame, pose,
+                        buffers.getBuffer(RenderCompat.translucent()), true));
+            }
+        });
+
         if (pipe.behaviour != null) {
             submitLegacyGeometry(collector, poseStack, RenderCompat.cutout(), (matrix, buffers) ->
                 renderBehaviour(pipe.behaviour, state.partialTick, matrix, buffers, light, overlay)

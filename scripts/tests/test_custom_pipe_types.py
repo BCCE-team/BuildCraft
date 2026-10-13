@@ -142,6 +142,7 @@ import buildcraft.api.v2.registry.RegistryKey;
 import buildcraft.api.v2.pipe.*;
 public class BuildCraftRegistries {
     public static final RegistryKey<PipeType> PIPE_TYPES=new RegistryKey<>("pipes");
+    public static final RegistryKey<PipeFlowDefinition<?>> PIPE_FLOW_TYPES=new RegistryKey<>("flows");
     public static final RegistryKey<PipeComponentType<?>> PIPE_COMPONENT_TYPES=new RegistryKey<>("components");
 }''',
     'buildcraft/api/v2/BuildCraftServices.java': '''package buildcraft.api.v2;
@@ -164,6 +165,9 @@ public class BuildCraftApi {
             return PipeRegistry.INSTANCE.createItemForPipe(def); };
     }
 }''',
+    'buildcraft/api/v2/pipe/PipeFlowDefinition.java': '''package buildcraft.api.v2.pipe;
+import net.minecraft.resources.ResourceLocation;
+public record PipeFlowDefinition<T extends PipeComponent>(ResourceLocation id, PipeComponentType<T> componentType) {}''',
     'buildcraft/api/v2/pipe/PipeService.java': '''package buildcraft.api.v2.pipe;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
@@ -360,8 +364,8 @@ public class Main {
         PipeType wrong=PipeType.builder(id("addon:wrong")).itemProfile(new ItemTransportProfile(4,1))
             .archetype(id("buildcrafttransport:stone_fluid")).build();
         fails(()->runtime(wrong),"incompatible carrier");
-        PipeType multi=PipeType.builder(id("addon:multi")).medium(PipeMedium.ITEM).medium(PipeMedium.FLUID).build();
-        fails(()->runtime(multi),"unsupported hybrid carrier");
+        fails(()->PipeType.builder(id("addon:multi")).medium(PipeMedium.ITEM)
+            .medium(PipeMedium.FLUID).build(),"hybrid flow must be explicitly registered");
         PipeType a=PipeType.builder(id("addon:cycle_a")).medium(PipeMedium.ITEM)
             .archetype(id("addon:cycle_b")).build();
         PipeType b=PipeType.builder(id("addon:cycle_b")).medium(PipeMedium.ITEM)

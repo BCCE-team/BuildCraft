@@ -3,6 +3,10 @@ package buildcraft.lib.internal.api.v2;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.event.WorldEventContext;
+import buildcraft.api.v2.event.WorldEventDecision;
+import buildcraft.api.v2.event.WorldEventKind;
+import java.util.Optional;
 import buildcraft.api.v2.permission.AutomationActor;
 import buildcraft.api.v2.permission.PermissionVerdict;
 import buildcraft.api.v2.permission.WorldOperationContext;
@@ -41,7 +45,11 @@ final class WorldRuleServiceImpl implements WorldRuleService {
 
     public boolean mayPlace(Level level, BlockPos pos, BlockState state, AutomationActor actor) {
         Objects.requireNonNull(state, "state");
-        return permitted(level, pos, actor, WorldOperationKind.BLOCK_PLACE);
+        if (!permitted(level, pos, actor, WorldOperationKind.BLOCK_PLACE)) return false;
+        if (level.isClientSide()) return true; // Client prediction does not run server event listeners.
+        return BuildCraftApi.service(BuildCraftServices.WORLD_EVENTS).dispatch(new WorldEventContext(
+            WorldEventKind.BEFORE_BLOCK_PLACE, level, pos, actor, Optional.of(state),
+            Optional.empty(), OperationMode.SIMULATE)) != WorldEventDecision.DENY;
     }
 
     private static boolean permitted(Level level, BlockPos pos, AutomationActor actor, WorldOperationKind operation) {

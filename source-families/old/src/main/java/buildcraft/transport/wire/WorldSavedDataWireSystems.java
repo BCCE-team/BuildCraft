@@ -25,6 +25,9 @@ import buildcraft.api.v2.signal.BuildCraftSignalChannels;
 import buildcraft.api.v2.signal.SignalChannelType;
 import buildcraft.api.v2.signal.SignalPort;
 import buildcraft.api.v2.signal.SignalPortProvider;
+import buildcraft.api.v2.pipe.PipeView;
+import buildcraft.api.v2.pipe.PipeExternalEndpoint;
+import buildcraft.transport.api2.PipeEndpointRuntime;
 import buildcraft.transport.internal.EnumWirePart;
 import buildcraft.transport.internal.pipe.IPipeHolder;
 import buildcraft.lib.net.MessageManager;
@@ -109,35 +112,57 @@ public class WorldSavedDataWireSystems extends SavedData {
     }
 
     public boolean isEmitterEmitting(WireSystem.WireElement element, DyeColor color) {
-        if (!world.isLoaded(element.blockPos)) {
-            BCLog.logger.warn("[transport.wire] Ghost loading " + element.blockPos + " to resolve an API2 signal endpoint!");
-        }
+        if (!world.isLoaded(element.blockPos)) return false;
         BlockEntity tile = world.getBlockEntity(element.blockPos);
         if (!(tile instanceof IPipeHolder holder)) return false;
         if (holder.getWireManager().isSignalOutputActive(element.emitterSide, color)) return true;
         SignalPort<Boolean> external = getExternalPort(element, color);
-        return external != null && Boolean.TRUE.equals(external.publishedValue());
+        if (external == null) return false;
+        try { return Boolean.TRUE.equals(external.publishedValue()); }
+        catch (RuntimeException ex) {
+            BCLog.logger.warn("External wire signal source failed at {}", element.blockPos, ex);
+            return false;
+        }
     }
 
     @SuppressWarnings("unchecked")
     private SignalPort<Boolean> getExternalPort(WireSystem.WireElement element, DyeColor color) {
-        BlockPos externalPos = element.blockPos.relative(element.emitterSide);
-        if (!world.isLoaded(externalPos)) return null;
-        BlockEntity blockEntity = world.getBlockEntity(externalPos);
-        if (!(blockEntity instanceof SignalPortProvider provider)) return null;
+        BlockEntity source = world.getBlockEntity(element.blockPos);
+        if (!(source instanceof IPipeHolder holder) || !(holder.getPipe() instanceof PipeView pipe)) return null;
         ResourceLocation channelId = BuildCraftSignalChannels.id(color);
         SignalChannelType<?> expected = BuildCraftApi.registry(BuildCraftRegistries.SIGNAL_CHANNEL_TYPES).get(channelId);
         if (expected == null) return null;
-        SignalPort<?> port = provider.signalPort(element.emitterSide.getOpposite(), channelId).orElse(null);
-        if (port == null || port.channel() != expected) return null;
-        return (SignalPort<Boolean>) port;
+        try {
+            SignalPort<?> attachment = PipeEndpointRuntime.attachmentPort(holder.getPluggable(element.emitterSide),
+                plug -> plug.signalPort(channelId).map(port -> (SignalPort<?>) port)).orElse(null);
+            if (attachment != null && attachment.channel() == expected) return (SignalPort<Boolean>) attachment;
+
+            BlockPos externalPos = element.blockPos.relative(element.emitterSide);
+            if (!world.isLoaded(externalPos)) return null;
+            BlockEntity blockEntity = world.getBlockEntity(externalPos);
+            if (blockEntity instanceof SignalPortProvider provider) {
+                SignalPort<?> supplied = provider.signalPort(element.emitterSide.getOpposite(), channelId).orElse(null);
+                if (supplied != null && supplied.channel() == expected) return (SignalPort<Boolean>) supplied;
+            }
+            PipeExternalEndpoint endpoint = PipeEndpointRuntime.find(world, pipe, element.emitterSide).orElse(null);
+            if (endpoint == null) return null;
+            SignalPort<?> supplied = endpoint.signalPort(channelId).orElse(null);
+            return supplied != null && supplied.channel() == expected ? (SignalPort<Boolean>) supplied : null;
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 
     private void publishExternalSignal(WireSystem wireSystem, boolean powered) {
         for (WireSystem.WireElement element : wireSystem.elements) {
             if (element.type != WireSystem.WireElement.Type.EMITTER_SIDE) continue;
             SignalPort<Boolean> external = getExternalPort(element, wireSystem.color);
-            if (external != null) external.receive(powered, OperationMode.EXECUTE);
+            if (external != null) {
+                try { external.receive(powered, OperationMode.EXECUTE); }
+                catch (RuntimeException ex) {
+                    BCLog.logger.warn("External wire signal receiver failed at {}", element.blockPos, ex);
+                }
+            }
         }
     }
 

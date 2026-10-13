@@ -18,6 +18,9 @@ public final class PipeType {
     private final ExternalEnergyTransportProfile externalEnergyProfile;
     private final boolean colorable;
     private final ResourceLocation archetypeId;
+    private final ResourceLocation flowTypeId;
+    private final ResourceLocation behaviourTypeId;
+    private final Set<ResourceLocation> customMedia;
 
     private PipeType(Builder b) {
         id = b.id;
@@ -29,6 +32,9 @@ public final class PipeType {
         externalEnergyProfile = b.externalEnergyProfile;
         colorable = b.colorable;
         archetypeId = b.archetypeId;
+        flowTypeId = b.flowTypeId;
+        behaviourTypeId = b.behaviourTypeId;
+        customMedia = Collections.unmodifiableSet(new LinkedHashSet<>(b.customMedia));
     }
 
     public static Builder builder(ResourceLocation id) { return new Builder(id); }
@@ -44,6 +50,11 @@ public final class PipeType {
     public boolean colorable() { return colorable; }
     /** Runtime archetype whose stable behaviour/rendering is reused by this variant. */
     public Optional<ResourceLocation> archetypeId() { return Optional.ofNullable(archetypeId); }
+    /** Registered custom flow, hosted by a version-neutral component. */
+    public Optional<ResourceLocation> flowTypeId() { return Optional.ofNullable(flowTypeId); }
+    public Optional<ResourceLocation> behaviourTypeId() { return Optional.ofNullable(behaviourTypeId); }
+    /** Additional named media handled by the custom flow; not tied to built-in medium enums. */
+    public Set<ResourceLocation> customMedia() { return customMedia; }
 
     public static final class Builder {
         private final ResourceLocation id;
@@ -55,6 +66,9 @@ public final class PipeType {
         private ExternalEnergyTransportProfile externalEnergyProfile;
         private boolean colorable;
         private ResourceLocation archetypeId;
+        private ResourceLocation flowTypeId;
+        private ResourceLocation behaviourTypeId;
+        private final Set<ResourceLocation> customMedia = new LinkedHashSet<>();
 
         private Builder(ResourceLocation id) { this.id = Objects.requireNonNull(id, "id"); }
         public Builder copyFrom(PipeType base) {
@@ -69,6 +83,10 @@ public final class PipeType {
             externalEnergyProfile = base.externalEnergyProfile;
             colorable = base.colorable;
             archetypeId = base.archetypeId;
+            flowTypeId = base.flowTypeId;
+            behaviourTypeId = base.behaviourTypeId;
+            customMedia.clear();
+            customMedia.addAll(base.customMedia);
             return this;
         }
         public Builder medium(PipeMedium medium) { media.add(Objects.requireNonNull(medium, "medium")); return this; }
@@ -81,8 +99,16 @@ public final class PipeType {
         public Builder externalEnergyProfile(ExternalEnergyTransportProfile profile) { externalEnergyProfile = Objects.requireNonNull(profile, "profile"); return medium(PipeMedium.EXTERNAL_ENERGY); }
         public Builder colorable(boolean value) { colorable = value; return this; }
         public Builder archetype(ResourceLocation value) { archetypeId = Objects.requireNonNull(value, "value"); return this; }
+        public Builder flow(ResourceLocation id) { flowTypeId = Objects.requireNonNull(id, "flow id"); return this; }
+        public Builder behaviour(ResourceLocation id) { behaviourTypeId = Objects.requireNonNull(id, "behaviour id"); return this; }
+        public Builder customMedium(ResourceLocation id) { customMedia.add(Objects.requireNonNull(id, "medium id")); return this; }
         public PipeType build() {
-            if (media.isEmpty()) throw new IllegalStateException("Pipe type must declare at least one medium");
+            if (media.isEmpty() && customMedia.isEmpty()) {
+                throw new IllegalStateException("Pipe type must declare at least one medium");
+            }
+            if ((media.size() > 1 || !customMedia.isEmpty()) && flowTypeId == null) {
+                throw new IllegalStateException("Combined/custom pipe media require a registered custom flow");
+            }
             if (media.contains(PipeMedium.ITEM) && itemProfile == null) {
                 itemProfile = new ItemTransportProfile(64, 1);
             }

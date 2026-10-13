@@ -22,13 +22,20 @@ import net.minecraft.world.level.Level;
 public interface PipeService {
     /**
      * Creates the vanilla Item used to place a registered API2 pipe type. Standalone pipe
-     * types must declare exactly one medium; multiple independent flows in the same holder
-     * and entirely new carrier/block models are not supported by this contract.
+     * types using only the built-in flow must declare exactly one medium.
+     * A registered custom flow may combine built-in and namespaced custom media inside
+     * the standard BCCE holder; the optional archetype controls its carrier appearance.
+     * Addons can register their own block/renderer where the standard carrier is unsuitable.
      * Addons remain responsible for registering the returned Item with their loader's item registry.
      */
     net.minecraft.world.item.Item createItem(ResourceLocation pipeTypeId);
 
     Optional<PipeView> pipe(Level level, BlockPos pos);
+
+    /** Find a registered external endpoint without forcing the neighbouring chunk to load. */
+    default Optional<PipeExternalEndpoint> externalEndpoint(Level level, BlockPos pipePos, Direction side) {
+        return Optional.empty();
+    }
 
     PipeAttachmentResult placeAttachment(
         Level level,

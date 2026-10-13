@@ -37,6 +37,7 @@ import buildcraft.lib.misc.ItemStackKey;
 import buildcraft.lib.misc.LocaleUtil;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.lib.recipe.AssemblyRecipeBasic;
+import buildcraft.lib.recipe.ApiAssemblyRecipeAdapter;
 import buildcraft.lib.recipe.ChangingItemStack;
 import buildcraft.robotics.BCRoboticsBoards;
 import buildcraft.robotics.BCRoboticsBoards.BoardEntry;
@@ -200,6 +201,12 @@ public class BuildCraftJeiPlugin implements IModPlugin {
                 .stream()
                 .map(holder -> new AssemblyJeiRecipe(holder.id(), holder.value()))
                 .collect(Collectors.toCollection(ArrayList::new));
+            for (var entry : BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).assemblyRecipes()) {
+                ApiAssemblyRecipeAdapter adapter = ApiAssemblyRecipeAdapter.fromService(entry.id());
+                if (adapter != null && !adapter.getOutputPreviews().isEmpty()) {
+                    assemblyRecipes.add(new AssemblyJeiRecipe(entry.id(), adapter));
+                }
+            }
             boolean hadFacadeRecipe = assemblyRecipes.removeIf(view -> view.recipe() instanceof FacadeAssemblyRecipes);
             if (hadFacadeRecipe && BCSiliconConfig.enableFacades) {
                 assemblyRecipes.add(new AssemblyJeiRecipe(

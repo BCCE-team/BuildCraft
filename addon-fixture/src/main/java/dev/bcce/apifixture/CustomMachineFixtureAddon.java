@@ -11,6 +11,7 @@ import buildcraft.api.v2.machine.MachineComponentPresentation;
 import buildcraft.api.v2.machine.MachineComponentType;
 import buildcraft.api.v2.machine.MachineExecutionContext;
 import buildcraft.api.v2.machine.MachineTickComponent;
+import buildcraft.api.v2.machine.MachineWorkComponent;
 import buildcraft.api.v2.machine.MachineType;
 import buildcraft.api.v2.machine.WorkState;
 import buildcraft.api.v2.machine.WorkStatus;
@@ -77,12 +78,13 @@ public final class CustomMachineFixtureAddon {
 
     /** The actual inventory and MJ buffers belong to the addon block entity, not to the machine API. */
     public static final class Press implements MachineComponent, MachineTickComponent,
-        MachineComponentLifecycle, MachineActionComponent {
+        MachineComponentLifecycle, MachineActionComponent, MachineWorkComponent {
         private int completed;
         private MachineExecutionContext machine;
         public Press(int completed) { this.completed = completed; }
         @Override public ResourceLocation typeId() { return COMPONENT; }
         public int completed() { return completed; }
+        @Override public boolean hasWork(MachineExecutionContext context) { return true; }
         @Override public void attached(MachineExecutionContext context) { this.machine = context; }
         @Override public void tick(MachineExecutionContext context) {
             MjPort energy = context.mjPort(Direction.UP).orElse(null);

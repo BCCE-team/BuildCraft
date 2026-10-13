@@ -60,10 +60,19 @@ public final class CountedIngredient {
 
     public int count() { return count; }
 
-    public boolean test(ItemStack stack) {
-        if (stack == null || stack.isEmpty() || stack.getCount() < count) return false;
-        if (tag != null) return stack.is(tag);
+    /** Test item identity and components without imposing the required count. */
+    public boolean matchesItem(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
         if (exactStack != null) return ItemStack.isSameItemSameComponents(stack, exactStack);
+        if (tag != null) return stack.is(tag);
         return ingredient.test(stack);
+    }
+
+    public static boolean sameItemAndData(ItemStack first, ItemStack second) {
+        return first != null && second != null && ItemStack.isSameItemSameComponents(first, second);
+    }
+
+    public boolean test(ItemStack stack) {
+        return matchesItem(stack) && stack.getCount() >= count;
     }
 }

@@ -10,6 +10,7 @@ import buildcraft.api.v2.pipe.PipeAttachment;
 import buildcraft.api.v2.pipe.PipeAttachmentPlacementContext;
 import buildcraft.api.v2.pipe.PipeAttachmentResult;
 import buildcraft.api.v2.pipe.PipeAttachmentType;
+import buildcraft.api.v2.pipe.PipeExternalEndpoint;
 import buildcraft.api.v2.pipe.PipeService;
 import buildcraft.api.v2.pipe.PipeType;
 import buildcraft.api.v2.pipe.PipeView;
@@ -54,6 +55,12 @@ public final class PipeServiceImpl implements PipeService {
         if (!(blockEntity instanceof TilePipeHolder holder)) return Optional.empty();
         Pipe pipe = holder.getPipe();
         return pipe == null || pipe == Pipe.EMPTY ? Optional.empty() : Optional.of(ReadOnlyPipeView.of(pipe));
+    }
+
+    @Override
+    public Optional<PipeExternalEndpoint> externalEndpoint(Level level, BlockPos pos, Direction side) {
+        Objects.requireNonNull(side, "side");
+        return pipe(level, pos).flatMap(view -> PipeEndpointRuntime.find(level, view, side));
     }
 
     @Override

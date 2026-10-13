@@ -1,10 +1,21 @@
 package buildcraft.robotics;
 
 import buildcraft.api.v2.energy.MjAmount;
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftRegistries;
+import buildcraft.api.v2.robot.RobotBoardProgram;
+import buildcraft.api.v2.robot.RobotBoardType;
+import buildcraft.api.v2.robot.RobotTask;
+import buildcraft.robotics.internal.api2.ApiTaskAI;
+import buildcraft.robotics.internal.api2.RobotServiceImpl;
+import buildcraft.lib.internal.debug.BCLog;
+import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.lib.internal.mj.MjFormatting;
 
 import buildcraft.lib.misc.ItemStackUtil;
 import java.util.Collection;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -107,7 +118,8 @@ public final class BCRoboticsBoards {
         return MjFormatting.formatMicroMj((long) energyCostMj * MjAmount.MICRO_MJ_PER_MJ);
     }
 
-    public static void init() {
+    public static synchronized void init() {
+        refreshApiBoards();
         if (initialized && RedstoneBoardRegistry.instance != null) {
             return;
         }
@@ -122,20 +134,51 @@ public final class BCRoboticsBoards {
         initialized = true;
     }
 
-    public static Collection<BoardEntry> entriesWithEmpty() {
-        return Collections.unmodifiableCollection(ENTRIES_BY_ID.values());
+    private static synchronized void refreshApiBoards() {
+        var boardTypes = BuildCraftApi.registry(BuildCraftRegistries.ROBOT_BOARD_TYPES);
+        var programs = new ArrayList<>(BuildCraftApi.registry(BuildCraftRegistries.ROBOT_BOARD_PROGRAMS).entries());
+        programs.sort(Comparator.comparing(entry -> entry.id().toString()));
+        for (var entry : programs) {
+            RobotBoardProgram program = entry.value();
+            RobotBoardType type = boardTypes.get(program.id());
+            if (type == null || type.taskTypes().isEmpty()) continue;
+            String id = program.id().toString();
+            if (ENTRIES_BY_ID.containsKey(id)) continue;
+            String key = program.id().getNamespace() + "." + program.id().getPath();
+            ProgramBoardNBT nbt = new ProgramBoardNBT(program, key);
+            BoardEntry board = new BoardEntry(id, key, program.color(), "robot_base",
+                    program.programmingCostMj(), ENTRIES_BY_ID.size(), nbt);
+            ENTRIES_BY_ID.put(id, board);
+            ENTRIES_BY_KEY.put(key, board);
+            if (RedstoneBoardRegistry.instance != null) {
+                RedstoneBoardRegistry.instance.registerBoardType(nbt, program.programmingCostMj());
+            }
+        }
     }
 
-    public static Collection<BoardEntry> robotEntries() {
+    public static synchronized Collection<BoardEntry> entriesWithEmpty() {
+        refreshApiBoards();
+        return List.copyOf(ENTRIES_BY_ID.values());
+    }
+
+    public static synchronized Collection<BoardEntry> robotEntries() {
+        refreshApiBoards();
         return ENTRIES_BY_ID.values().stream().filter(entry -> entry != EMPTY).toList();
     }
 
-    public static BoardEntry getById(String id) {
+    public static synchronized BoardEntry getById(String id) {
+        if (id == null || id.isBlank()) return EMPTY;
+        refreshApiBoards();
         BoardEntry entry = ENTRIES_BY_ID.get(id);
-        return entry == null ? EMPTY : entry;
+        if (entry != null) return entry;
+        if (ResourceLocation.tryParse(id) == null) return EMPTY;
+        // Keep unknown board IDs intact when an addon is temporarily missing.
+        BasicBoardNBT missing = new BasicBoardNBT(id, "missing", "clean", "robot_base");
+        return new BoardEntry(id, "missing", "clean", "robot_base", 0, 0, missing);
     }
 
-    public static BoardEntry getByKey(String key) {
+    public static synchronized BoardEntry getByKey(String key) {
+        refreshApiBoards();
         BoardEntry entry = ENTRIES_BY_KEY.get(key);
         return entry == null ? EMPTY : entry;
     }
@@ -190,7 +233,7 @@ public final class BCRoboticsBoards {
         }
 
         public float modelValue() {
-            return modelIndex / 100.0F;
+            return nbt instanceof ProgramBoardNBT ? 0.0F : modelIndex / 100.0F;
         }
 
         public float boardColorValue() {
@@ -204,7 +247,7 @@ public final class BCRoboticsBoards {
         }
 
         public ResourceLocation robotTextureLocation() {
-            return ResourceLocation.fromNamespaceAndPath(BCRobotics.MODID, "textures/entities/" + robotTexture + ".png");
+            return nbt.getRobotTexture();
         }
 
         public boolean isInDev() {
@@ -307,6 +350,61 @@ public final class BCRoboticsBoards {
             return robotTexture;
         }
     }
+
+    private static final class ProgramBoardNBT extends BasicBoardNBT {
+       private final RobotBoardProgram program;
+
+       private ProgramBoardNBT(RobotBoardProgram program, String key) {
+           super(program.id().toString(), key, program.color(), "robot_base");
+           this.program = program;
+       }
+
+       @Override
+       public RedstoneBoardRobot create(EntityRobotBase robot) {
+           return new ProgramBoardRobot(robot, this);
+       }
+
+       @Override
+       public ResourceLocation getRobotTexture() {
+           return program.robotTexture();
+       }
+   }
+
+   private static final class ProgramBoardRobot extends RedstoneBoardRobot {
+       private final ProgramBoardNBT nbt;
+       private int retryDelay;
+
+       private ProgramBoardRobot(EntityRobotBase robot, ProgramBoardNBT nbt) {
+           super(robot);
+           this.nbt = nbt;
+       }
+
+       @Override
+       public RedstoneBoardRobotNBT getNBTHandler() { return nbt; }
+
+       @Override
+       public boolean canLoadFromNBT() { return false; }
+
+       @Override
+       public AIRobot createWorkAI() {
+           if (retryDelay-- > 0) return null;
+           RobotBoardType type = BuildCraftApi.registry(BuildCraftRegistries.ROBOT_BOARD_TYPES).get(nbt.program.id());
+           if (type == null) return null;
+           try {
+               RobotTask task = nbt.program.taskFactory().apply(RobotServiceImpl.view(robot));
+               if (task == null) return null;
+               if (!type.taskTypes().contains(task.typeId()) || !ApiTaskAI.canAssign(task)) {
+                   retryDelay = 100;
+                   return null;
+               }
+               return new ApiTaskAI(robot, task);
+           } catch (RuntimeException failure) {
+               retryDelay = 100;
+               BCLog.logger.warn("Robot board task factory failed: " + nbt.program.id(), failure);
+               return null;
+           }
+       }
+   }
 
     private static class BasicRobotBoard extends RedstoneBoardRobot {
         private final BasicBoardNBT nbt;

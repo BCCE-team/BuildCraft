@@ -124,7 +124,7 @@ def validate_runtime_services() -> None:
             "Optional<ItemTransfer>",
             "Optional<FluidTransfer>",
             "Optional<EnergyTransfer>",
-            "implements ItemPort",
+            "implements SlottedItemPort",
             "implements FluidPort",
             "implements ExternalEnergyPort",
         )
@@ -196,6 +196,10 @@ def validate_fixture_extensions() -> None:
         fail("addon fixture robot extensions leaked implementation/loader APIs")
 
 
+def validate_slotted_port_contract() -> None:
+    require(ROOT / "source-shared/src/main/java/buildcraft/api/v2/item/SlottedItemPort.java", "extends ItemPort")
+
+
 def validate_retired_dead_surface() -> None:
     registries = require(ROOT / "source-shared/src/main/java/buildcraft/api/v2/BuildCraftRegistries.java")
     services = require(ROOT / "source-shared/src/main/java/buildcraft/api/v2/BuildCraftServices.java")
@@ -234,6 +238,7 @@ def main() -> None:
     props = load_properties()
     validate_lifecycle(props)
     validate_runtime_services()
+    validate_slotted_port_contract()
     validate_robot_extensions()
     validate_fixture_extensions()
     validate_retired_dead_surface()

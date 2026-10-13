@@ -32,12 +32,50 @@ public interface MachineRecipeService {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(toIntegrate, "toIntegrate");
         for (ResolvedDefinition<RecipeDefinition> resolved : ordered()) {
-            if (resolved.value() instanceof IntegrationRecipeDefinition recipe
-                && !recipe.output(target, toIntegrate).isEmpty()) {
-                return Optional.of(match(resolved, recipe));
+            RecipeDefinition definition = resolved.value();
+            try {
+                IntegrationRecipeDefinition recipe = definition instanceof IntegrationRecipeDefinition direct ? direct
+                    : definition instanceof IntegrationRecipeProvider provider
+                    ? provider.recipeFor(target.copy(), copy(toIntegrate)) : null;
+                if (recipe != null && !recipe.output(target.copy(), copy(toIntegrate)).isEmpty()) {
+                    return Optional.of(match(resolved, recipe));
+                }
+            } catch (RuntimeException invalidAddonRecipe) {
+                // Broken addon definitions must not crash the server's Integration Table tick.
             }
         }
         return Optional.empty();
+    }
+
+    /** Priority-ordered addon recipes; the returned objects do not expose mutable registry state. */
+    default List<RecipeMatch<AssemblyRecipeDefinition>> assemblyRecipes() {
+        return recipes(AssemblyRecipeDefinition.class);
+    }
+
+    default List<RecipeMatch<AssemblyRecipeDefinition>> findAssembly(NonNullList<ItemStack> available) {
+        Objects.requireNonNull(available, "available");
+        List<RecipeMatch<AssemblyRecipeDefinition>> matches = new ArrayList<>();
+        for (RecipeMatch<AssemblyRecipeDefinition> candidate : assemblyRecipes()) {
+            try {
+                if (!candidate.recipe().outputs(copy(available)).isEmpty()) matches.add(candidate);
+            } catch (RuntimeException invalidAddonRecipe) {
+                // Reject a broken addon recipe without changing the live recipe snapshot.
+            }
+        }
+        return List.copyOf(matches);
+    }
+
+    default Optional<RecipeMatch<AssemblyRecipeDefinition>> assemblyById(ResourceLocation id) {
+        Objects.requireNonNull(id, "id");
+        return snapshot().resolved(id)
+            .filter(r -> r.value() instanceof AssemblyRecipeDefinition)
+            .map(r -> match(r, (AssemblyRecipeDefinition) r.value()));
+    }
+
+    private static NonNullList<ItemStack> copy(NonNullList<ItemStack> source) {
+        NonNullList<ItemStack> result = NonNullList.create();
+        for (ItemStack stack : source) result.add(stack == null ? ItemStack.EMPTY : stack.copy());
+        return result;
     }
 
     default Optional<RecipeMatch<DistillationRecipeDefinition>> findDistillation(

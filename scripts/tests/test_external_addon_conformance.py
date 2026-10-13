@@ -228,6 +228,7 @@ class ExternalAddonConformanceTest(unittest.TestCase):
                 "buildcraft/api/v2/pipe/ItemTransitContext.java",
                 "buildcraft/api/v2/pipe/ItemTransitComponent.java",
                 "buildcraft/api/v2/pipe/ItemTransitData.java",
+                "buildcraft/api/v2/pipe/ItemTransitPayload.java",
             )]
             stub_files = [file for file in stub_files
                           if file.name != "ResourceLocation.java"]
@@ -241,7 +242,10 @@ class ExternalAddonConformanceTest(unittest.TestCase):
             api_jar, addon_jar, host_jar = (root / name for name in ("api.jar", "addon.jar", "host.jar"))
             compile_jar(stub_files + api_files, api_jar)
             compile_addon(ADDONS / "AdditionalPipesConformanceAddon.java", (api_jar,), addon_jar)
-            runtime_files = [SOURCE / "buildcraft/transport/api2/PipeItemTransitRuntime.java"]
+            runtime_files = [SOURCE / name for name in (
+                "buildcraft/transport/api2/PipeItemTransitRuntime.java",
+                "buildcraft/transport/api2/PipeTransitHandoff.java",
+            )]
             test = write(root, "fixture/TeleportConformance.java", TELEPORT_TEST)
             compile_jar(runtime_files + [test], host_jar, dependencies=(api_jar, addon_jar))
             run("java", "-cp", os.pathsep.join(map(str, (api_jar, addon_jar, host_jar))), "fixture.TeleportConformance")

@@ -7,6 +7,20 @@
 
 package buildcraft.transport.tile;
 
+import java.util.Optional;
+
+import buildcraft.lib.platform.permission.BCPermissions;
+
+import buildcraft.api.v2.event.WorldEventKind;
+
+import buildcraft.api.v2.event.WorldEventContext;
+
+import buildcraft.api.v2.OperationMode;
+
+import buildcraft.api.v2.BuildCraftServices;
+
+import buildcraft.api.v2.BuildCraftApi;
+
 import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import java.io.IOException;
@@ -46,6 +60,10 @@ import buildcraft.silicon.plug.FilterEventHandler;
 import buildcraft.transport.item.ItemPipeHolder;
 import buildcraft.transport.BCTransportBlocks;
 import buildcraft.transport.pipe.Pipe;
+import buildcraft.transport.api2.ApiPipePluggable;
+import buildcraft.transport.api2.ApiPortCapabilities;
+import buildcraft.transport.api2.PipeEndpointRuntime;
+import buildcraft.api.v2.pipe.PipeExternalEndpoint;
 import buildcraft.transport.pipe.PipeEventBus;
 import buildcraft.transport.pipe.PluggableHolder;
 import buildcraft.transport.wire.WireManager;
@@ -251,7 +269,17 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
             if (meta > 0 && meta <= 16) {
                 pipe.setColour(DyeColor.byId(meta - 1));
             }
-            if (level != null && !level.isClientSide()) pipe.onApiPlaced();
+            if (level != null && !level.isClientSide()) {
+                pipe.onApiPlaced();
+                // BC8 PipePlacedEvent: notification only, never a post-placement veto.
+                // A pipe placement is also a block placement, but these are post-commit notifications.
+                var placementActor = BCPermissions.actor(getOwner(), Identifier.tryParse("buildcraft:pipe_placement"));
+                var worldEvents = BuildCraftApi.service(BuildCraftServices.WORLD_EVENTS);
+                worldEvents.dispatch(new WorldEventContext(WorldEventKind.BLOCK_PLACED, level, worldPosition,
+                    placementActor, Optional.of(getBlockState()), Optional.empty(), OperationMode.EXECUTE));
+                worldEvents.dispatch(new WorldEventContext(WorldEventKind.PIPE_PLACED, level, worldPosition,
+                    placementActor, Optional.of(getBlockState()), Optional.of(pipe.typeId()), OperationMode.EXECUTE));
+            }
         }
         if (level != null && !level.isClientSide()) {
             markChunkDirty();
@@ -346,6 +374,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         for (Direction face : Direction.values()) {
             pluggables.get(face).onTick();
         }
+        if (pipe != Pipe.EMPTY) pipe.onApiPostAttachmentTick();
 
         if (scheduleFullRenderSync && !level.isClientSide()) {
             scheduleFullRenderSync = false;
@@ -640,7 +669,12 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
                 return null;
             }
         }
-        if (pipe.isConnected(side) && level != null) {
+        if (pipe.isConnected(side) && level != null && level.hasChunkAt(worldPosition.relative(side))) {
+            PipeExternalEndpoint endpoint = PipeEndpointRuntime.find(level, pipe, side).orElse(null);
+            if (endpoint != null && PipeEndpointRuntime.canConnect(endpoint, pipe, side)) {
+                T custom = ApiPortCapabilities.external(endpoint, capability);
+                if (custom != null) return custom;
+            }
             Direction targetSide = side.getOpposite();
             BlockPos neighbourPos = worldPosition.relative(side);
             BlockEntity neighbour = level.getBlockEntity(neighbourPos);
@@ -770,6 +804,10 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         if (facing != null) {
             PipePluggable plug = getPluggable(facing);
             if (plug != PipePluggable.EMPTY) {
+                if (plug instanceof ApiPipePluggable api) {
+                    T exposed = ApiPortCapabilities.attachment(api.attachment(), capability);
+                    if (exposed != null) return exposed;
+                }
                 T value = plug.getCapability(capability);
                 if (value != null) {
                     return value;

@@ -108,6 +108,7 @@ Developed and ported by:
 - CurativeTree
 - ShipovskijKorp
 - Memesis414
+- Smail
 
 Thanks for helping with development:
 

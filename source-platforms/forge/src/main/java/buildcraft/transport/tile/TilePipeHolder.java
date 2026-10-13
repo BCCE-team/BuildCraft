@@ -6,6 +6,20 @@
 
 package buildcraft.transport.tile;
 
+import java.util.Optional;
+
+import buildcraft.lib.platform.permission.BCPermissions;
+
+import buildcraft.api.v2.event.WorldEventKind;
+
+import buildcraft.api.v2.event.WorldEventContext;
+
+import buildcraft.api.v2.OperationMode;
+
+import buildcraft.api.v2.BuildCraftServices;
+
+import buildcraft.api.v2.BuildCraftApi;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,6 +56,10 @@ import buildcraft.transport.item.ItemPipeHolder;
 import buildcraft.transport.BCTransportBlocks;
 import buildcraft.transport.client.model.ModelPipe;
 import buildcraft.transport.pipe.Pipe;
+import buildcraft.transport.api2.ApiPipePluggable;
+import buildcraft.transport.api2.ApiPortCapabilities;
+import buildcraft.transport.api2.PipeEndpointRuntime;
+import buildcraft.api.v2.pipe.PipeExternalEndpoint;
 import buildcraft.transport.pipe.PipeEventBus;
 import buildcraft.transport.pipe.PluggableHolder;
 import buildcraft.transport.wire.WireManager;
@@ -217,7 +235,17 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
             if (meta > 0 && meta <= 16) {
                 pipe.setColour(DyeColor.byId(meta - 1));
             }
-            if (level != null && !level.isClientSide()) pipe.onApiPlaced();
+            if (level != null && !level.isClientSide()) {
+                pipe.onApiPlaced();
+                // BC8 PipePlacedEvent: notification only, never a post-placement veto.
+                // A pipe placement is also a block placement, but these are post-commit notifications.
+                var placementActor = BCPermissions.actor(getOwner(), ResourceLocation.tryParse("buildcraft:pipe_placement"));
+                var worldEvents = BuildCraftApi.service(BuildCraftServices.WORLD_EVENTS);
+                worldEvents.dispatch(new WorldEventContext(WorldEventKind.BLOCK_PLACED, level, worldPosition,
+                    placementActor, Optional.of(getBlockState()), Optional.empty(), OperationMode.EXECUTE));
+                worldEvents.dispatch(new WorldEventContext(WorldEventKind.PIPE_PLACED, level, worldPosition,
+                    placementActor, Optional.of(getBlockState()), Optional.of(pipe.typeId()), OperationMode.EXECUTE));
+            }
         }
         scheduleRenderUpdate();
 
@@ -301,6 +329,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         for (Direction face : Direction.values()) {
             pluggables.get(face).onTick();
         }
+        if (pipe != Pipe.EMPTY) pipe.onApiPostAttachmentTick();
 
         // Coalesce all pipe-part changes scheduled in the same tick into one packet.
         if (!networkUpdates.isEmpty()) {
@@ -580,6 +609,14 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
             }
         }
         if (pipe.isConnected(side)) {
+            if (level == null || !level.hasChunkAt(worldPosition.relative(side))) return LazyOptional.empty();
+            if (pipe != Pipe.EMPTY) {
+                PipeExternalEndpoint endpoint = PipeEndpointRuntime.find(level, pipe, side).orElse(null);
+                if (endpoint != null && PipeEndpointRuntime.canConnect(endpoint, pipe, side)) {
+                    LazyOptional<T> custom = ApiPortCapabilities.external(endpoint, capability);
+                    if (custom.isPresent()) return custom;
+                }
+            }
             BlockEntity neighbour = getNeighbourTile(side);
             if (neighbour != null) {
                 //return neighbour.getCapability(capability, side.getOpposite());
@@ -683,6 +720,10 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         if (facing != null) {
             PipePluggable plug = getPluggable(facing);
             if (plug != PipePluggable.EMPTY) {
+                if (plug instanceof ApiPipePluggable api) {
+                    LazyOptional<T> exposed = ApiPortCapabilities.attachment(api.attachment(), capability);
+                    if (exposed.isPresent()) return exposed;
+                }
                 LazyOptional<T> cap = plug.getCapability(capability);
                 if (cap.isPresent()) return cap;
                 if (plug.isBlocking()) return LazyOptional.empty();

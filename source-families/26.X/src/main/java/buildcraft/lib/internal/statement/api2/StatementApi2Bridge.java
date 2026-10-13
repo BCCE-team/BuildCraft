@@ -22,6 +22,10 @@ import buildcraft.api.v2.statement.StatementContext;
 import buildcraft.api.v2.statement.StatementContributor;
 import buildcraft.api.v2.statement.StatementParameters;
 import buildcraft.api.v2.statement.StatementResult;
+import buildcraft.api.v2.statement.StatementScope;
+import buildcraft.api.v2.statement.StatementContexts;
+import buildcraft.api.v2.statement.StatementValidation;
+import buildcraft.api.v2.statement.StatementSlot;
 import buildcraft.api.v2.statement.TriggerType;
 import buildcraft.lib.internal.statement.IAction;
 import buildcraft.lib.internal.statement.IActionExternal;
@@ -69,8 +73,9 @@ public final class StatementApi2Bridge {
     private static final ContextKey<IStatementContainer> LEGACY_CONTAINER =
         ContextKey.of(id("internal/statement_container"), IStatementContainer.class);
     private static final Set<Identifier> MIRRORED_LEGACY = new LinkedHashSet<>();
-    private static final Map<Identifier, NativeTriggerAdapter> NATIVE_TRIGGERS = new LinkedHashMap<>();
-    private static final Map<Identifier, NativeActionAdapter> NATIVE_ACTIONS = new LinkedHashMap<>();
+    private static final Map<Identifier, IStatement> NATIVE_TRIGGERS = new LinkedHashMap<>();
+    private static final Map<Identifier, IStatement> NATIVE_ACTIONS = new LinkedHashMap<>();
+    private static final int MAX_PARAMETER_BYTES = 64 * 1024;
     private static boolean parameterBridgeRegistered;
 
     private StatementApi2Bridge() {}
@@ -129,26 +134,48 @@ public final class StatementApi2Bridge {
     public static synchronized IStatement ensureNativeAdapter(Identifier id) {
         IStatement existing = StatementManager.statements.get(id.toString());
         if (existing != null) return existing;
+        StatementScope scope = scopeFor(id);
         TriggerType trigger = BuildCraftApi.registry(BuildCraftRegistries.TRIGGER_TYPES).get(id);
         if (trigger != null && !MIRRORED_LEGACY.contains(id)) {
-            NativeTriggerAdapter adapter = NATIVE_TRIGGERS.computeIfAbsent(id, ignored -> new NativeTriggerAdapter(trigger));
+            IStatement adapter = NATIVE_TRIGGERS.computeIfAbsent(id, ignored -> switch (scope) {
+                case INTERNAL -> new NativeTriggerAdapter(trigger);
+                case INTERNAL_SIDED -> new NativeSidedTriggerAdapter(trigger);
+                case EXTERNAL -> new NativeExternalTriggerAdapter(trigger);
+            });
             StatementManager.statements.put(id.toString(), adapter);
             return adapter;
         }
         ActionType action = BuildCraftApi.registry(BuildCraftRegistries.ACTION_TYPES).get(id);
         if (action != null && !MIRRORED_LEGACY.contains(id)) {
-            NativeActionAdapter adapter = NATIVE_ACTIONS.computeIfAbsent(id, ignored -> new NativeActionAdapter(action));
+            IStatement adapter = NATIVE_ACTIONS.computeIfAbsent(id, ignored -> switch (scope) {
+                case INTERNAL -> new NativeActionAdapter(action);
+                case INTERNAL_SIDED -> new NativeSidedActionAdapter(action);
+                case EXTERNAL -> new NativeExternalActionAdapter(action);
+            });
             StatementManager.statements.put(id.toString(), adapter);
             return adapter;
         }
         return null;
     }
 
+    private static StatementScope scopeFor(Identifier id) {
+        StatementScope selected = StatementScope.INTERNAL;
+        for (StatementContributor contributor : BuildCraftApi.registry(BuildCraftRegistries.STATEMENT_CONTRIBUTORS).values()) {
+            try {
+                StatementScope scope = contributor.scope(id);
+                if (scope != null && scope != StatementScope.INTERNAL) {
+                    if (selected != StatementScope.INTERNAL && scope != selected) return StatementScope.INTERNAL;
+                    selected = scope;
+                }
+            } catch (RuntimeException | LinkageError ignored) { /* Ignore broken addon metadata. */ }
+        }
+        return selected;
+    }
+
     public static List<ITriggerInternal> nativeInternalTriggers(IStatementContainer container) {
         StatementContext context = context(container, null, OperationMode.SIMULATE);
-        LinkedHashSet<Identifier> ids = contributedIds(context, true);
         List<ITriggerInternal> result = new ArrayList<>();
-        for (Identifier id : ids) {
+        for (Identifier id : contributedIds(context, StatementScope.INTERNAL, true)) {
             if (MIRRORED_LEGACY.contains(id)) continue;
             IStatement statement = ensureNativeAdapter(id);
             if (statement instanceof ITriggerInternal trigger) result.add(trigger);
@@ -158,9 +185,8 @@ public final class StatementApi2Bridge {
 
     public static List<IActionInternal> nativeInternalActions(IStatementContainer container) {
         StatementContext context = context(container, null, OperationMode.EXECUTE);
-        LinkedHashSet<Identifier> ids = contributedIds(context, false);
         List<IActionInternal> result = new ArrayList<>();
-        for (Identifier id : ids) {
+        for (Identifier id : contributedIds(context, StatementScope.INTERNAL, false)) {
             if (MIRRORED_LEGACY.contains(id)) continue;
             IStatement statement = ensureNativeAdapter(id);
             if (statement instanceof IActionInternal action) result.add(action);
@@ -168,23 +194,91 @@ public final class StatementApi2Bridge {
         return result;
     }
 
-    private static LinkedHashSet<Identifier> contributedIds(StatementContext context, boolean triggers) {
+    public static List<ITriggerInternalSided> nativeInternalSidedTriggers(IStatementContainer container, Direction side) {
+        StatementContext context = context(container, side, OperationMode.SIMULATE);
+        List<ITriggerInternalSided> result = new ArrayList<>();
+        for (Identifier id : contributedIds(context, StatementScope.INTERNAL_SIDED, true)) {
+            if (MIRRORED_LEGACY.contains(id)) continue;
+            IStatement statement = ensureNativeAdapter(id);
+            if (statement instanceof ITriggerInternalSided trigger) result.add(trigger);
+        }
+        return result;
+    }
+
+    public static List<IActionInternalSided> nativeInternalSidedActions(IStatementContainer container, Direction side) {
+        StatementContext context = context(container, side, OperationMode.EXECUTE);
+        List<IActionInternalSided> result = new ArrayList<>();
+        for (Identifier id : contributedIds(context, StatementScope.INTERNAL_SIDED, false)) {
+            if (MIRRORED_LEGACY.contains(id)) continue;
+            IStatement statement = ensureNativeAdapter(id);
+            if (statement instanceof IActionInternalSided action) result.add(action);
+        }
+        return result;
+    }
+
+    public static List<ITriggerExternal> nativeExternalTriggers(Direction side, BlockEntity target) {
+        List<ITriggerExternal> result = new ArrayList<>();
+        for (Identifier id : contributedIds(externalContext(side, target, OperationMode.SIMULATE), StatementScope.EXTERNAL, true)) {
+            if (MIRRORED_LEGACY.contains(id)) continue;
+            IStatement statement = ensureNativeAdapter(id);
+            if (statement instanceof ITriggerExternal trigger) result.add(trigger);
+        }
+        return result;
+    }
+
+    public static List<IActionExternal> nativeExternalActions(Direction side, BlockEntity target) {
+        List<IActionExternal> result = new ArrayList<>();
+        for (Identifier id : contributedIds(externalContext(side, target, OperationMode.EXECUTE), StatementScope.EXTERNAL, false)) {
+            if (MIRRORED_LEGACY.contains(id)) continue;
+            IStatement statement = ensureNativeAdapter(id);
+            if (statement instanceof IActionExternal action) result.add(action);
+        }
+        return result;
+    }
+
+    private static LinkedHashSet<Identifier> contributedIds(StatementContext context, StatementScope scope, boolean triggers) {
         LinkedHashSet<Identifier> ids = new LinkedHashSet<>();
-        StatementCollector collector = new StatementCollector() {
-            public void addTrigger(Identifier id) { if (triggers) ids.add(id); }
-            public void addAction(Identifier id) { if (!triggers) ids.add(id); }
-        };
         for (StatementContributor contributor : BuildCraftApi.registry(BuildCraftRegistries.STATEMENT_CONTRIBUTORS).values()) {
-            contributor.contribute(context, collector);
+            StatementCollector collector = new StatementCollector() {
+                public void addTrigger(Identifier id) {
+                    if (triggers && id != null && scope == contributor.scope(id)
+                        && BuildCraftApi.registry(BuildCraftRegistries.TRIGGER_TYPES).get(id) != null) ids.add(id);
+                }
+                public void addAction(Identifier id) {
+                    if (!triggers && id != null && scope == contributor.scope(id)
+                        && BuildCraftApi.registry(BuildCraftRegistries.ACTION_TYPES).get(id) != null) ids.add(id);
+                }
+            };
+            try { contributor.contribute(context, collector); }
+            catch (RuntimeException | LinkageError ignored) { /* Malformed addon contributions are isolated. */ }
         }
         return ids;
     }
 
+    private static StatementContext externalContext(Direction side, BlockEntity target, OperationMode mode) {
+        ExtensionContext views = new ExtensionContext() {
+            public <T> java.util.Optional<T> get(ContextKey<T> key) {
+                if (key.equals(StatementContexts.EXTERNAL_TARGET)) return castOptional(target);
+                return java.util.Optional.empty();
+            }
+        };
+        return new StatementContext(views, AutomationActor.unknown(), mode, side);
+    }
+
     public static StatementContext context(IStatementContainer container, Direction side, OperationMode mode) {
+        return context(container, side, mode, null);
+    }
+
+    private static StatementContext context(IStatementContainer container, Direction side, OperationMode mode, BlockEntity target) {
         ExtensionContext views = new ExtensionContext() {
             public <T> java.util.Optional<T> get(ContextKey<T> key) {
                 if (key.equals(LEGACY_CONTAINER)) return castOptional(container);
-                if (key.type().isInstance(container) && key.id().equals(id("gate"))) return castOptional(container);
+                if (key.equals(StatementContexts.GATE) && container instanceof GateView gate)
+                    return castOptional(gate);
+                if (key.equals(StatementContexts.GATE_POSITION) && container instanceof GateView gate)
+                    return castOptional(gate.position());
+                if (key.equals(StatementContexts.EXTERNAL_TARGET) && target != null)
+                    return castOptional(target);
                 return java.util.Optional.empty();
             }
         };
@@ -242,16 +336,33 @@ public final class StatementApi2Bridge {
         return new Api2ParameterAdapter(value);
     }
 
+    /** Rejects mismatched, missing or unknown addon arguments before mutating a gate. */
+    public static boolean validateSlot(StatementSlot slot) {
+        if (slot == null) return true;
+        if (slot.kind() == buildcraft.api.v2.statement.StatementKind.TRIGGER) {
+            TriggerType type = BuildCraftApi.registry(BuildCraftRegistries.TRIGGER_TYPES).get(slot.statementId());
+            return type != null && StatementValidation.valid(type.parameters(), slot.parameters());
+        }
+        ActionType type = BuildCraftApi.registry(BuildCraftRegistries.ACTION_TYPES).get(slot.statementId());
+        return type != null && StatementValidation.valid(type.parameters(), slot.parameters());
+    }
+
     public static TriggerWrapper toLegacyTrigger(buildcraft.api.v2.statement.StatementSlot slot) {
         IStatement statement = StatementManager.statements.get(slot.statementId().toString());
         if (statement == null) statement = ensureNativeAdapter(slot.statementId());
-        return statement instanceof ITrigger ? TriggerWrapper.wrap(statement, slot.side()) : null;
+        if (!(statement instanceof ITrigger)) return null;
+        if (statement instanceof ITriggerInternalSided || statement instanceof ITriggerExternal)
+            return slot.side() == null ? null : TriggerWrapper.wrap(statement, slot.side());
+        return TriggerWrapper.wrap(statement, null);
     }
 
     public static ActionWrapper toLegacyAction(buildcraft.api.v2.statement.StatementSlot slot) {
         IStatement statement = StatementManager.statements.get(slot.statementId().toString());
         if (statement == null) statement = ensureNativeAdapter(slot.statementId());
-        return statement instanceof IAction ? ActionWrapper.wrap(statement, slot.side()) : null;
+        if (!(statement instanceof IAction)) return null;
+        if (statement instanceof IActionInternalSided || statement instanceof IActionExternal)
+            return slot.side() == null ? null : ActionWrapper.wrap(statement, slot.side());
+        return ActionWrapper.wrap(statement, null);
     }
 
     private static boolean evaluateLegacyTrigger(IStatement statement, StatementContext context, StatementParameters parameters) {
@@ -347,8 +458,10 @@ public final class StatementApi2Bridge {
             ParameterSpec spec = schema.parameters().get(index);
             ParameterType<?> type = BuildCraftApi.registry(BuildCraftRegistries.PARAMETER_TYPES).get(spec.typeId());
             if (type == null) return null;
-            List<?> suggestions = type.suggestions(new StatementContext(ExtensionContext.empty(), AutomationActor.unknown(), OperationMode.SIMULATE, null));
-            return suggestions.isEmpty() ? null : Api2ParameterAdapter.of(type, suggestions.get(0));
+            try {
+                List<?> suggestions = type.suggestions(new StatementContext(ExtensionContext.empty(), AutomationActor.unknown(), OperationMode.SIMULATE, null));
+                return suggestions.isEmpty() ? null : Api2ParameterAdapter.of(type, suggestions.get(0));
+            } catch (RuntimeException | LinkageError ignored) { return null; }
         }
         public IStatement rotateLeft() { return this; }
         public IStatement[] getPossible() { return new IStatement[] { this }; }
@@ -356,11 +469,39 @@ public final class StatementApi2Bridge {
         public ISprite getSprite() { return null; }
     }
 
+    private static boolean evaluate(TriggerType type, StatementContext context, StatementParameters parameters) {
+        if (!StatementValidation.valid(type.parameters(), parameters)) return false;
+        try { return type.evaluator().evaluate(context, parameters); }
+        catch (RuntimeException | LinkageError ignored) { return false; }
+    }
+
+    private static void execute(ActionType type, StatementContext context, StatementParameters parameters) {
+        if (!StatementValidation.valid(type.parameters(), parameters)) return;
+        try { type.executor().execute(context, parameters); }
+        catch (RuntimeException | LinkageError ignored) { /* Addons cannot interrupt a gate tick. */ }
+    }
+
     private static final class NativeTriggerAdapter extends BaseNativeAdapter implements ITriggerInternal {
         final TriggerType type;
         NativeTriggerAdapter(TriggerType type) { super(type.id(), type.parameters()); this.type = type; }
         public boolean isTriggerActive(IStatementContainer source, IStatementParameter[] parameters) {
-            return type.evaluator().evaluate(context(source, null, OperationMode.SIMULATE), toApiParameters(this, parameters));
+            return evaluate(type, context(source, null, OperationMode.SIMULATE), toApiParameters(this, parameters));
+        }
+    }
+
+    private static final class NativeSidedTriggerAdapter extends BaseNativeAdapter implements ITriggerInternalSided {
+        final TriggerType type;
+        NativeSidedTriggerAdapter(TriggerType type) { super(type.id(), type.parameters()); this.type = type; }
+        public boolean isTriggerActive(Direction side, IStatementContainer source, IStatementParameter[] parameters) {
+            return evaluate(type, context(source, side, OperationMode.SIMULATE), toApiParameters(this, parameters));
+        }
+    }
+
+    private static final class NativeExternalTriggerAdapter extends BaseNativeAdapter implements ITriggerExternal {
+        final TriggerType type;
+        NativeExternalTriggerAdapter(TriggerType type) { super(type.id(), type.parameters()); this.type = type; }
+        public boolean isTriggerActive(BlockEntity target, Direction side, IStatementContainer source, IStatementParameter[] parameters) {
+            return evaluate(type, context(source, side, OperationMode.SIMULATE, target), toApiParameters(this, parameters));
         }
     }
 
@@ -368,7 +509,23 @@ public final class StatementApi2Bridge {
         final ActionType type;
         NativeActionAdapter(ActionType type) { super(type.id(), type.parameters()); this.type = type; }
         public void actionActivate(IStatementContainer source, IStatementParameter[] parameters) {
-            type.executor().execute(context(source, null, OperationMode.EXECUTE), toApiParameters(this, parameters));
+            execute(type, context(source, null, OperationMode.EXECUTE), toApiParameters(this, parameters));
+        }
+    }
+
+    private static final class NativeSidedActionAdapter extends BaseNativeAdapter implements IActionInternalSided {
+        final ActionType type;
+        NativeSidedActionAdapter(ActionType type) { super(type.id(), type.parameters()); this.type = type; }
+        public void actionActivate(Direction side, IStatementContainer source, IStatementParameter[] parameters) {
+            execute(type, context(source, side, OperationMode.EXECUTE), toApiParameters(this, parameters));
+        }
+    }
+
+    private static final class NativeExternalActionAdapter extends BaseNativeAdapter implements IActionExternal {
+        final ActionType type;
+        NativeExternalActionAdapter(ActionType type) { super(type.id(), type.parameters()); this.type = type; }
+        public void actionActivate(BlockEntity target, Direction side, IStatementContainer source, IStatementParameter[] parameters) {
+            execute(type, context(source, side, OperationMode.EXECUTE, target), toApiParameters(this, parameters));
         }
     }
 
@@ -385,27 +542,37 @@ public final class StatementApi2Bridge {
         public ISprite getSprite() { return null; }
         public IStatementParameter onClick(IStatementContainer source, IStatement stmt, ItemStack stack, StatementMouseClick mouse) { return null; }
         public void writeToNbt(CompoundTag nbt) {
-            nbt.putString("api2Type", value.type().id().toString());
-            @SuppressWarnings({"rawtypes", "unchecked"}) ApiCodec<Object, OpaqueData> codec = (ApiCodec) value.type().codec();
-            CodecResult<OpaqueData> encoded = codec.encode(value.value());
-            if (!encoded.successful()) return;
-            OpaqueData data = encoded.valueOrThrow();
-            nbt.putString("format", data.format().toString());
-            nbt.putByteArray("payload", data.bytes());
+            try {
+                @SuppressWarnings({"rawtypes", "unchecked"}) ApiCodec<Object, OpaqueData> codec = (ApiCodec) value.type().codec();
+                CodecResult<OpaqueData> encoded = codec.encode(value.value());
+                if (!encoded.successful()) return;
+                OpaqueData data = encoded.valueOrThrow();
+                if (data.size() > MAX_PARAMETER_BYTES) return;
+                nbt.putString("api2Type", value.type().id().toString());
+                nbt.putString("format", data.format().toString());
+                nbt.putByteArray("payload", data.bytes());
+            } catch (RuntimeException | LinkageError ignored) { /* A bad addon codec cannot break gate saving. */ }
         }
         static IStatementParameter readFromNbt(CompoundTag nbt) {
-            Identifier typeId = parse(NbtCompat.getString(nbt, "api2Type"));
-            Identifier format = parse(NbtCompat.getString(nbt, "format"));
-            if (typeId == null || format == null) return null;
-            ParameterType<?> type = BuildCraftApi.registry(BuildCraftRegistries.PARAMETER_TYPES).get(typeId);
-            if (type == null) return null;
-            OpaqueData data = new OpaqueData(format, NbtCompat.getByteArray(nbt, "payload"));
-            @SuppressWarnings({"rawtypes", "unchecked"}) CodecResult<?> decoded = ((ApiCodec) type.codec()).decode(data);
-            return decoded.successful() ? new Api2ParameterAdapter(rawValue(type, decoded.valueOrThrow())) : null;
+            if (nbt == null) return null;
+            try {
+                var typeId = parse(NbtCompat.getString(nbt, "api2Type"));
+                var format = parse(NbtCompat.getString(nbt, "format"));
+                if (typeId == null || format == null) return null;
+                ParameterType<?> type = BuildCraftApi.registry(BuildCraftRegistries.PARAMETER_TYPES).get(typeId);
+                if (type == null) return null;
+                byte[] bytes = NbtCompat.getByteArray(nbt, "payload");
+                if (bytes.length > MAX_PARAMETER_BYTES) return null;
+                OpaqueData data = new OpaqueData(format, bytes);
+                @SuppressWarnings({"rawtypes", "unchecked"}) CodecResult<?> decoded = ((ApiCodec) type.codec()).decode(data);
+                return decoded.successful() ? new Api2ParameterAdapter(rawValue(type, decoded.valueOrThrow())) : null;
+            } catch (RuntimeException | LinkageError ignored) { return null; }
         }
         public IStatementParameter rotateLeft() { return this; }
         public IStatementParameter[] getPossible(IStatementContainer source) {
-            List<?> suggestions = value.type().suggestions(context(source, null, OperationMode.SIMULATE));
+            List<?> suggestions;
+            try { suggestions = value.type().suggestions(context(source, null, OperationMode.SIMULATE)); }
+            catch (RuntimeException | LinkageError ignored) { return new IStatementParameter[0]; }
             IStatementParameter[] out = new IStatementParameter[suggestions.size()];
             for (int i = 0; i < suggestions.size(); i++) out[i] = of(value.type(), suggestions.get(i));
             return out;
