@@ -1,9 +1,21 @@
 #!/usr/bin/env python3
-"""Compile an independent API2 misc addon against actual public contracts and native service bridges."""
-import pathlib, tempfile, subprocess, shutil, unittest
-ROOT=pathlib.Path(__file__).resolve().parents[2]
-BASE=ROOT/'source-shared/src/main/java'
-STUBS={
+"""Addon utility content, facades, maps, lists and wrench actions."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import tempfile
+import subprocess
+import shutil
+import unittest
+import pathlib
+
+UTILITIES_BASE=ROOT/'source-shared/src/main/java'
+UTILITIES_STUBS={
  'net/minecraft/resources/ResourceLocation.java': '''package net.minecraft.resources;
  public record ResourceLocation(String value){public static ResourceLocation tryParse(String v){return new ResourceLocation(v);}public String toString(){return value;}
  public String getNamespace(){return value.contains(":")?value.split(":",2)[0]:"minecraft";}
@@ -89,7 +101,7 @@ STUBS={
  public class BuildCraftServices{public static final String WRENCHES="wrenches";}
 ''',
 }
-FILES=[
+UTILITIES_FILES=[
  'buildcraft/api/v2/OperationMode.java','buildcraft/api/v2/item/ItemMatcher.java',
  'buildcraft/api/v2/list/ItemList.java','buildcraft/api/v2/list/ItemListEntry.java','buildcraft/api/v2/list/ListMatchMode.java',
  'buildcraft/api/v2/list/ItemListService.java','buildcraft/api/v2/list/ItemListAdapter.java',
@@ -103,14 +115,14 @@ FILES=[
  'buildcraft/lib/internal/api/v2/MapLocationServiceImpl.java','buildcraft/lib/internal/api/v2/WrenchServiceImpl.java',
  'buildcraft/lib/misc/WrenchUtil.java',
 ]
-MAIN = '''package check;
+UTILITIES_MAIN = '''package check;
  import buildcraft.api.v2.*;import buildcraft.api.v2.registry.*;import buildcraft.api.v2.list.*;
  import buildcraft.api.v2.facade.*;import buildcraft.api.v2.map.*;import buildcraft.api.v2.tool.*;
  import buildcraft.api.v2.crops.*;import buildcraft.lib.internal.api.v2.*;
  import net.minecraft.resources.*;import net.minecraft.world.item.*;import net.minecraft.world.level.*;
  import net.minecraft.world.level.block.state.*;import net.minecraft.core.*;import net.minecraft.world.entity.player.*;
  import dev.bcce.apifixture.MiscParityFixtureAddon;import java.util.*;
- public class P14Check {
+ public class UtilityContentProbe {
  static void ok(boolean yes,String message){if(!yes)throw new AssertionError(message);}
  public static void main(String[] args) throws Exception {
   MiscParityFixtureAddon.register();
@@ -164,11 +176,11 @@ MAIN = '''package check;
   var drops=NonNullList.<ItemStack>create();
   ok(crops.harvest(new Level(),new BlockPos(1,2,3),drops,new Player()),"crop harvest fallback broken");
   ok(drops.size()==1 && drops.get(0).name().equals("wheat"),"crop drops wrong");
-  System.out.println("P14 native API2 list/facade/map/wrench/crops conformance OK");
+  System.out.println("Native API2 list/facade/map/wrench/crops conformance OK");
  }
 }
 '''
-WRENCH_CHECK = '''package check;
+UTILITIES_WRENCH_CHECK = '''package check;
  import buildcraft.api.v2.*;import buildcraft.api.v2.tool.*;import buildcraft.lib.internal.api.v2.*;
  import net.minecraft.world.item.ItemStack;
  public class WrenchServiceImplProbe {
@@ -181,7 +193,7 @@ WRENCH_CHECK = '''package check;
   }
 }
 '''
-class P14MiscTest(unittest.TestCase):
+class UtilityContentConformanceTest(unittest.TestCase):
  def test_native_links_selected_for_all_seven_targets(self):
   import sys
   sys.path.insert(0,str(ROOT/'scripts'))
@@ -210,18 +222,20 @@ class P14MiscTest(unittest.TestCase):
   if not shutil.which('javac') or not shutil.which('java'):self.skipTest('JDK not available')
   addon=ROOT/'addon-fixture/src/main/java/dev/bcce/apifixture/MiscParityFixtureAddon.java'
   self.assertNotIn('buildcraft.lib.',addon.read_text());self.assertNotIn('buildcraft.transport.',addon.read_text())
-  with tempfile.TemporaryDirectory(prefix='p14-parity-') as td:
+  with tempfile.TemporaryDirectory(prefix='utility-content-') as td:
    d=pathlib.Path(td);sources=[]
-   for name,src in STUBS.items():
+   for name,src in UTILITIES_STUBS.items():
     dst=d/name;dst.parent.mkdir(parents=True,exist_ok=True);dst.write_text(src);sources.append(str(dst))
-   for rel in FILES:sources.append(str(BASE/rel))
+   for rel in UTILITIES_FILES:sources.append(str(UTILITIES_BASE/rel))
    sources.append(str(addon))
-   main=d/'check/P14Check.java';main.parent.mkdir(parents=True,exist_ok=True);main.write_text(MAIN);sources.append(str(main))
-   wrench=d/'check/WrenchServiceImplProbe.java';wrench.write_text(WRENCH_CHECK);sources.append(str(wrench))
+   main=d/'check/UtilityContentProbe.java';main.parent.mkdir(parents=True,exist_ok=True);main.write_text(UTILITIES_MAIN);sources.append(str(main))
+   wrench=d/'check/WrenchServiceImplProbe.java';wrench.write_text(UTILITIES_WRENCH_CHECK);sources.append(str(wrench))
    out=d/'classes';out.mkdir()
    proc=subprocess.run(['javac','-encoding','UTF-8','-d',str(out),*sources],capture_output=True,text=True,timeout=100)
    self.assertEqual(proc.returncode,0,proc.stdout+'\n'+proc.stderr)
-   run=subprocess.run(['java','-cp',str(out),'check.P14Check'],capture_output=True,text=True,timeout=30)
+   run=subprocess.run(['java','-cp',str(out),'check.UtilityContentProbe'],capture_output=True,text=True,timeout=30)
    self.assertEqual(run.returncode,0,run.stdout+'\n'+run.stderr)
    self.assertIn('conformance OK',run.stdout)
-if __name__=='__main__':unittest.main()
+
+if __name__ == "__main__":
+    unittest.main()

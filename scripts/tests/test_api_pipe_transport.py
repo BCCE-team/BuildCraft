@@ -1,46 +1,51 @@
 #!/usr/bin/env python3
-"""BC8 P05: independent addon JARs and real flow/component runtime, including restore/sync."""
+"""Custom pipe flows, behaviours and item transit ownership."""
 from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
 
 import importlib.util
 import shutil
 import subprocess
 import tempfile
 import unittest
-from pathlib import Path
+import pathlib
 
-ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "source-shared/src/main/java"
-ORIGINAL = Path(__file__).with_name("test_pipe_component_runtime.py")
-spec = importlib.util.spec_from_file_location("p05_component_fixture", ORIGINAL)
-base = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(base)
+FLOW_SRC = ROOT / "source-shared/src/main/java"
+FLOW_ORIGINAL = Path(__file__).with_name("test_pipe_component_runtime.py")
+flow_spec = importlib.util.spec_from_file_location("pipe_component_fixture", FLOW_ORIGINAL)
+flow_base = importlib.util.module_from_spec(flow_spec)
+flow_spec.loader.exec_module(flow_base)
 
-API = [p for p in base.SOURCES if '/lib/' not in p and '/transport/api2/' not in p]
-API += ['source-shared/src/main/java/buildcraft/api/v2/pipe/' + n + '.java' for n in (
+FLOW_API = [p for p in flow_base.SOURCES if '/lib/' not in p and '/transport/api2/' not in p]
+FLOW_API += ['source-shared/src/main/java/buildcraft/api/v2/pipe/' + n + '.java' for n in (
     'PipeRuntimeComponent', 'PipeFlowComponent', 'PipeBehaviourComponent',
     'PipeFlowDefinition', 'PipeBehaviourDefinition', 'PipeType', 'PipeMedium',
     'ItemTransportProfile', 'FluidTransportProfile', 'PowerTransportProfile',
     'ExternalEnergyTransportProfile', 'PipeActivationResult',
 )]
-API += ['source-shared/src/main/java/buildcraft/api/v2/' + n + '.java' for n in (
+FLOW_API += ['source-shared/src/main/java/buildcraft/api/v2/' + n + '.java' for n in (
     'OperationMode', 'item/ItemTransferResult', 'item/ItemTransferPolicy',
     'item/ItemMatcher', 'item/ItemPort', 'pipe/ItemInjectionRequest',
     'pipe/ItemTransitData', 'pipe/ItemPipePort',
 )]
-BACKEND = [p for p in base.SOURCES if '/lib/' in p or '/transport/api2/' in p]
-BACKEND += ['source-shared/src/main/java/buildcraft/transport/api2/' + n + '.java'
+FLOW_BACKEND = [p for p in flow_base.SOURCES if '/lib/' in p or '/transport/api2/' in p]
+FLOW_BACKEND += ['source-shared/src/main/java/buildcraft/transport/api2/' + n + '.java'
             for n in ('PipeFlowBridge', 'ApiPipeFlow')]
-STUBS = dict(base.STUBS)
+FLOW_STUBS = dict(flow_base.STUBS)
 for name in (
     'buildcraft/api/v2/pipe/PipeType.java',
     'buildcraft/api/v2/pipe/PipeRuntimeComponent.java',
     'buildcraft/api/v2/pipe/PipeFlowDefinition.java',
     'buildcraft/api/v2/pipe/PipeBehaviourDefinition.java',
 ):
-    STUBS.pop(name, None)
-STUBS.pop('buildcraft/api/v2/pipe/ItemPipePort.java', None)
-STUBS['net/minecraft/world/item/ItemStack.java'] = '''package net.minecraft.world.item;
+    FLOW_STUBS.pop(name, None)
+FLOW_STUBS.pop('buildcraft/api/v2/pipe/ItemPipePort.java', None)
+FLOW_STUBS['net/minecraft/world/item/ItemStack.java'] = '''package net.minecraft.world.item;
 public class ItemStack {
  public static final ItemStack EMPTY = new ItemStack("", 0);
  public final String id; private int count;
@@ -51,38 +56,38 @@ public class ItemStack {
  public void setCount(int n){count=n;}
  public void shrink(int n){count=Math.max(0,count-n);}
 }'''
-STUBS['net/minecraft/world/item/DyeColor.java'] = 'package net.minecraft.world.item; public enum DyeColor { RED, BLUE }'
-STUBS['net/minecraft/core/Direction.java'] = 'package net.minecraft.core; public enum Direction { NORTH,SOUTH,EAST,WEST,UP,DOWN }'
-STUBS['net/minecraft/world/entity/Entity.java'] = 'package net.minecraft.world.entity; public class Entity { }'
-STUBS['net/minecraft/world/level/block/entity/BlockEntity.java'] = 'package net.minecraft.world.level.block.entity; public class BlockEntity {}'
-STUBS['buildcraft/api/v2/energy/MjAmount.java'] = '''package buildcraft.api.v2.energy;
+FLOW_STUBS['net/minecraft/world/item/DyeColor.java'] = 'package net.minecraft.world.item; public enum DyeColor { RED, BLUE }'
+FLOW_STUBS['net/minecraft/core/Direction.java'] = 'package net.minecraft.core; public enum Direction { NORTH,SOUTH,EAST,WEST,UP,DOWN }'
+FLOW_STUBS['net/minecraft/world/entity/Entity.java'] = 'package net.minecraft.world.entity; public class Entity { }'
+FLOW_STUBS['net/minecraft/world/level/block/entity/BlockEntity.java'] = 'package net.minecraft.world.level.block.entity; public class BlockEntity {}'
+FLOW_STUBS['buildcraft/api/v2/energy/MjAmount.java'] = '''package buildcraft.api.v2.energy;
 public record MjAmount(long microMj) implements Comparable<MjAmount> {
   public static final long MICRO_MJ_PER_MJ=1000000L;
   public static MjAmount ofMicro(long n){return new MjAmount(n);}
   public boolean isZero(){return microMj==0;}
   public int compareTo(MjAmount o){return Long.compare(microMj,o.microMj);}
 }'''
-STUBS['buildcraft/api/v2/fluid/FluidAmount.java'] = '''package buildcraft.api.v2.fluid;
+FLOW_STUBS['buildcraft/api/v2/fluid/FluidAmount.java'] = '''package buildcraft.api.v2.fluid;
 public record FluidAmount(long milliBuckets) {
  public static FluidAmount of(long n){return new FluidAmount(n);}
 }'''
 
-STUBS['buildcraft/api/v2/fluid/FluidPort.java'] = 'package buildcraft.api.v2.fluid; public interface FluidPort {}'
-STUBS['buildcraft/api/v2/energy/MjPort.java'] = 'package buildcraft.api.v2.energy; public interface MjPort {}'
-STUBS['buildcraft/api/v2/platform/ExternalEnergyPort.java'] = 'package buildcraft.api.v2.platform; public interface ExternalEnergyPort {}'
-STUBS['buildcraft/api/v2/pipe/PipeConnectionContext.java'] = 'package buildcraft.api.v2.pipe; public record PipeConnectionContext() {}'
-STUBS['buildcraft/api/v2/pipe/PipeConnectionComponent.java'] = '''package buildcraft.api.v2.pipe;
+FLOW_STUBS['buildcraft/api/v2/fluid/FluidPort.java'] = 'package buildcraft.api.v2.fluid; public interface FluidPort {}'
+FLOW_STUBS['buildcraft/api/v2/energy/MjPort.java'] = 'package buildcraft.api.v2.energy; public interface MjPort {}'
+FLOW_STUBS['buildcraft/api/v2/platform/ExternalEnergyPort.java'] = 'package buildcraft.api.v2.platform; public interface ExternalEnergyPort {}'
+FLOW_STUBS['buildcraft/api/v2/pipe/PipeConnectionContext.java'] = 'package buildcraft.api.v2.pipe; public record PipeConnectionContext() {}'
+FLOW_STUBS['buildcraft/api/v2/pipe/PipeConnectionComponent.java'] = '''package buildcraft.api.v2.pipe;
 public interface PipeConnectionComponent extends PipeComponent {
   PipeConnectionDecision connection(PipeConnectionContext context);
 }'''
-STUBS['buildcraft/api/v2/pipe/PipeConnectionDecision.java'] = '''package buildcraft.api.v2.pipe;
+FLOW_STUBS['buildcraft/api/v2/pipe/PipeConnectionDecision.java'] = '''package buildcraft.api.v2.pipe;
 public enum PipeConnectionDecision { PASS,ALLOW,DENY }'''
-STUBS['buildcraft/api/v2/pipe/PipeActivationComponent.java'] = '''package buildcraft.api.v2.pipe;
+FLOW_STUBS['buildcraft/api/v2/pipe/PipeActivationComponent.java'] = '''package buildcraft.api.v2.pipe;
 public interface PipeActivationComponent extends PipeComponent {
   PipeActivationResult activate(PipeActivationContext context);
 }'''
-STUBS['buildcraft/api/v2/pipe/PipeActivationContext.java'] = 'package buildcraft.api.v2.pipe; public record PipeActivationContext() {}'
-STUBS['buildcraft/api/v2/BuildCraftRegistries.java'] = '''package buildcraft.api.v2;
+FLOW_STUBS['buildcraft/api/v2/pipe/PipeActivationContext.java'] = 'package buildcraft.api.v2.pipe; public record PipeActivationContext() {}'
+FLOW_STUBS['buildcraft/api/v2/BuildCraftRegistries.java'] = '''package buildcraft.api.v2;
 import buildcraft.api.v2.pipe.*;
 public class BuildCraftRegistries {
  public static final Key<PipeComponentType<?>> PIPE_COMPONENT_TYPES=new Key<>();
@@ -91,7 +96,7 @@ public class BuildCraftRegistries {
  public static final Key<PipeSyncChannel<?>> PIPE_SYNC_CHANNELS=new Key<>();
  public static final class Key<T> { }
 }'''
-STUBS['buildcraft/api/v2/BuildCraftApi.java'] = '''package buildcraft.api.v2;
+FLOW_STUBS['buildcraft/api/v2/BuildCraftApi.java'] = '''package buildcraft.api.v2;
 import java.util.*;
 import net.minecraft.resources.ResourceLocation;
 public class BuildCraftApi {
@@ -106,7 +111,7 @@ public class BuildCraftApi {
    public void put(ResourceLocation id,T value){if(entries.putIfAbsent(id,value)!=null)throw new IllegalStateException();}
  }
 }'''
-STUBS['buildcraft/transport/internal/pipe/PipeFlowType.java'] = '''package buildcraft.transport.internal.pipe;
+FLOW_STUBS['buildcraft/transport/internal/pipe/PipeFlowType.java'] = '''package buildcraft.transport.internal.pipe;
 import net.minecraft.nbt.CompoundTag;
 public final class PipeFlowType {
  public interface Creator { PipeFlow create(IPipe pipe); }
@@ -114,7 +119,7 @@ public final class PipeFlowType {
  public final Creator creator; public final Loader loader;
  public PipeFlowType(Creator creator, Loader loader){this.creator=creator;this.loader=loader;}
 }'''
-STUBS['buildcraft/transport/internal/pipe/PipeFlow.java'] = '''package buildcraft.transport.internal.pipe;
+FLOW_STUBS['buildcraft/transport/internal/pipe/PipeFlow.java'] = '''package buildcraft.transport.internal.pipe;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.entity.BlockEntity;
 public abstract class PipeFlow {
@@ -123,17 +128,17 @@ public abstract class PipeFlow {
  public abstract boolean canConnect(Direction side,PipeFlow other);
  public abstract boolean canConnect(Direction side,BlockEntity other);
 }'''
-STUBS['buildcraft/transport/internal/pipe/IPipe.java'] = '''package buildcraft.transport.internal.pipe;
+FLOW_STUBS['buildcraft/transport/internal/pipe/IPipe.java'] = '''package buildcraft.transport.internal.pipe;
 public interface IPipe { PipeDefinition getDefinition(); }'''
-STUBS['buildcraft/transport/internal/pipe/PipeDefinition.java'] = '''package buildcraft.transport.internal.pipe;
+FLOW_STUBS['buildcraft/transport/internal/pipe/PipeDefinition.java'] = '''package buildcraft.transport.internal.pipe;
 import buildcraft.api.v2.pipe.PipeType;
 public class PipeDefinition {
  private final PipeType type;
  public PipeDefinition(PipeType t){type=t;}
  public PipeType getApiType(){return type;}
 }'''
-STUBS['net/minecraft/nbt/CompoundTag.java'] = 'package net.minecraft.nbt; public class CompoundTag {}'
-STUBS['buildcraft/transport/pipe/Pipe.java'] = '''package buildcraft.transport.pipe;
+FLOW_STUBS['net/minecraft/nbt/CompoundTag.java'] = 'package net.minecraft.nbt; public class CompoundTag {}'
+FLOW_STUBS['buildcraft/transport/pipe/Pipe.java'] = '''package buildcraft.transport.pipe;
 import java.util.Optional;
 import buildcraft.api.v2.pipe.*;
 import buildcraft.transport.internal.pipe.*;
@@ -148,7 +153,7 @@ public class Pipe implements IPipe {
  public void setActive(boolean value){active=value;}
  public Optional<ItemPipePort> itemPipePort(Direction from){return active?Optional.ofNullable(port):Optional.empty();}
 }'''
-STUBS['buildcraft/transport/internal/pipe/IFlowItems.java'] = '''package buildcraft.transport.internal.pipe;
+FLOW_STUBS['buildcraft/transport/internal/pipe/IFlowItems.java'] = '''package buildcraft.transport.internal.pipe;
 import buildcraft.lib.internal.core.IStackFilter;
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.DyeColor;
@@ -161,21 +166,21 @@ public interface IFlowItems {
  void insertItemsForce(ItemStack stack,Direction from,DyeColor colour,double speed);
  void sendPhantomItem(ItemStack stack,Direction from,Direction to,DyeColor colour);
 }'''
-STUBS['buildcraft/lib/internal/core/IStackFilter.java'] = 'package buildcraft.lib.internal.core; public interface IStackFilter { }'
-STUBS['buildcraft/lib/misc/StackUtil.java'] = '''package buildcraft.lib.misc;
+FLOW_STUBS['buildcraft/lib/internal/core/IStackFilter.java'] = 'package buildcraft.lib.internal.core; public interface IStackFilter { }'
+FLOW_STUBS['buildcraft/lib/misc/StackUtil.java'] = '''package buildcraft.lib.misc;
 import net.minecraft.world.item.ItemStack;
 public class StackUtil {
  public static boolean canMerge(ItemStack left,ItemStack right){return left.id.equals(right.id);}
 }'''
-STUBS['net/minecraft/world/level/block/entity/BlockEntity.java'] = 'package net.minecraft.world.level.block.entity; public class BlockEntity {}'
-STUBS['net/minecraft/world/item/ItemStack.java'] = STUBS['net/minecraft/world/item/ItemStack.java']
+FLOW_STUBS['net/minecraft/world/level/block/entity/BlockEntity.java'] = 'package net.minecraft.world.level.block.entity; public class BlockEntity {}'
+FLOW_STUBS['net/minecraft/world/item/ItemStack.java'] = FLOW_STUBS['net/minecraft/world/item/ItemStack.java']
 for name in ('forge','neoforge'):
     domain = 'net.minecraftforge' if name=='forge' else 'net.neoforged.neoforge'
-    STUBS[domain.replace('.', '/')+'/fluids/capability/IFluidHandler.java'] = (
+    FLOW_STUBS[domain.replace('.', '/')+'/fluids/capability/IFluidHandler.java'] = (
         'package '+domain+'.fluids.capability; public interface IFluidHandler { enum FluidAction {SIMULATE,EXECUTE} }')
 
 
-ADDON_TEMPLATE = r'''package addon;
+FLOW_ADDON_TEMPLATE = r'''package addon;
 import buildcraft.api.v2.persistence.*;
 import buildcraft.api.v2.pipe.*;
 import net.minecraft.resources.ResourceLocation;
@@ -208,7 +213,7 @@ public final class CLASSNAME {
  public static final PipeFlowDefinition<Flow> DEFINITION=new PipeFlowDefinition<>(FLOW,COMPONENT_TYPE);
  public static PipeType pipe(){return PIPEBUILDER;}
 }'''
-BEHAVIOUR = r'''package addon;
+FLOW_BEHAVIOUR = r'''package addon;
 import buildcraft.api.v2.persistence.*;
 import buildcraft.api.v2.pipe.*;
 import net.minecraft.resources.ResourceLocation;
@@ -230,7 +235,7 @@ public final class BehaviourAddon {
     p->new Behaviour(0),PersistentType.<Behaviour,OpaqueData>builder(ID,1,CODEC).build());
  public static final PipeBehaviourDefinition<Behaviour> DEFINITION=new PipeBehaviourDefinition<>(TYPE,COMPONENT);
 }'''
-HOST = r'''package host;
+FLOW_HOST = r'''package host;
 import java.util.*;
 import net.minecraft.resources.ResourceLocation;
 import buildcraft.api.v2.*;
@@ -330,14 +335,14 @@ public class Main {
 }'''
 
 
-def write(root: Path, name: str, contents: str) -> Path:
+def flow_write(root: Path, name: str, contents: str) -> Path:
     p = root / name
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(contents, encoding="utf-8")
     return p
 
 
-def compile_java(output: Path, inputs: list[Path], cp: tuple[Path, ...] = ()) -> None:
+def flow_compile_java(output: Path, inputs: list[Path], cp: tuple[Path, ...] = ()) -> None:
     output.mkdir(parents=True, exist_ok=True)
     cmd = ["javac", "--release", "17", "-encoding", "UTF-8", "-d", str(output)]
     if cp:
@@ -348,12 +353,12 @@ def compile_java(output: Path, inputs: list[Path], cp: tuple[Path, ...] = ()) ->
         raise AssertionError(result.stdout + "\n" + result.stderr[-18000:])
 
 
-def jar_classes(output: Path, classes: Path) -> None:
+def flow_jar_classes(output: Path, classes: Path) -> None:
     subprocess.run(["jar", "cf", str(output), "-C", str(classes), "."], check=True,
                    capture_output=True, timeout=25)
 
 
-class P05StandaloneConformance(unittest.TestCase):
+class PipeFlowConformanceTest(unittest.TestCase):
     def test_native_263_item_flow_abi(self):
         """The 26.3 IFlowItems ABI uses its own FluidAction, not the NeoForge API."""
         import sys
@@ -366,7 +371,7 @@ class P05StandaloneConformance(unittest.TestCase):
             layout = target_layout(target, properties)
             source = resolve_effective_source(layout, properties, rel)
             self.assertIsNotNone(source)
-            with tempfile.TemporaryDirectory(prefix="bc-p05-abi-") as tmp:
+            with tempfile.TemporaryDirectory(prefix="bc-pipes-abi-") as tmp:
                 output = Path(tmp) / "ApiItemPipeFlow.java"
                 _materialize_text_file(source, output, logical_relative=rel,
                     minecraft=properties[f"target.{target}.deps.minecraft"],
@@ -386,26 +391,26 @@ class P05StandaloneConformance(unittest.TestCase):
                 self._check_platform(platform)
 
     def _check_platform(self, platform: str):
-        with tempfile.TemporaryDirectory(prefix="bc-p05-addon-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="bc-pipes-addon-") as tmp:
             directory = Path(tmp)
             public_stubs = []
             internal_stubs = []
-            for name, content in STUBS.items():
+            for name, content in FLOW_STUBS.items():
                 if name == 'buildcraft/transport/internal/pipe/IFlowItems.java' and platform == 'neoforge':
                     content = content.replace('net.minecraftforge.fluids', 'net.neoforged.neoforge.fluids')
-                path = write(directory / 'stubs', name, content)
+                path = flow_write(directory / 'stubs', name, content)
                 if name.startswith('buildcraft/transport/') or name.startswith('buildcraft/lib/'):
                     internal_stubs.append(path)
                 else:
                     public_stubs.append(path)
             api_jar = directory / 'api.jar'
-            compile_java(directory/'api-classes', [ROOT / x for x in API] + public_stubs)
-            jar_classes(api_jar, directory/'api-classes')
+            flow_compile_java(directory/'api-classes', [ROOT / x for x in FLOW_API] + public_stubs)
+            flow_jar_classes(api_jar, directory/'api-classes')
 
-            extra = write(directory/'behaviour-src','addon/BehaviourAddon.java', BEHAVIOUR)
-            compile_java(directory/'behaviour-classes',[extra],(api_jar,))
+            extra = flow_write(directory/'behaviour-src','addon/BehaviourAddon.java', FLOW_BEHAVIOUR)
+            flow_compile_java(directory/'behaviour-classes',[extra],(api_jar,))
             behaviour_jar = directory/'behaviour.jar'
-            jar_classes(behaviour_jar,directory/'behaviour-classes')
+            flow_jar_classes(behaviour_jar,directory/'behaviour-classes')
             addon_jars = [behaviour_jar]
             for cls, component, flow, channel, build in (
                 ('ItemAddon', 'item_flow_state', 'item_flow', 'item_channel',
@@ -415,18 +420,18 @@ class P05StandaloneConformance(unittest.TestCase):
                  '.customMedium(ResourceLocation.tryParse("addon:packets")).flow(FLOW)'
                  '.behaviour(BehaviourAddon.TYPE).build()'),
             ):
-                addon = ADDON_TEMPLATE.replace('CLASSNAME', cls).replace('COMPID',component).replace('FLOWID',flow)
+                addon = FLOW_ADDON_TEMPLATE.replace('CLASSNAME', cls).replace('COMPID',component).replace('FLOWID',flow)
                 addon = addon.replace('CHANNELID',channel).replace('PIPEBUILDER',build)
                 out = directory/f'{cls}-classes'
-                file = write(directory/f'{cls}-src', f'addon/{cls}.java', addon)
+                file = flow_write(directory/f'{cls}-src', f'addon/{cls}.java', addon)
                 cp = (api_jar, *addon_jars)  # no backend classes
-                compile_java(out, [file], cp)
+                flow_compile_java(out, [file], cp)
                 dest = directory/f'{cls}.jar'
-                jar_classes(dest,out)
+                flow_jar_classes(dest,out)
                 addon_jars.append(dest)
-            host = write(directory/'host-src', 'host/Main.java', HOST)
+            host = flow_write(directory/'host-src', 'host/Main.java', FLOW_HOST)
             adapter = ROOT / f'source-platforms/{platform}/src/main/java/buildcraft/transport/api2/ApiItemPipeFlow.java'
-            compile_java(directory/'host-classes', [ROOT/x for x in BACKEND] + [adapter] + internal_stubs + [host],
+            flow_compile_java(directory/'host-classes', [ROOT/x for x in FLOW_BACKEND] + [adapter] + internal_stubs + [host],
                          (api_jar,*addon_jars))
             cp = __import__('os').pathsep.join(map(str, (api_jar,*addon_jars,directory/'host-classes')))
             result = subprocess.run(['java','-cp',cp,'host.Main'],capture_output=True,text=True,timeout=40)
@@ -434,5 +439,72 @@ class P05StandaloneConformance(unittest.TestCase):
             self.assertIn('PASS: two independent addon JARs',result.stdout)
 
 
-if __name__ == '__main__':
+TRANSIT_FLOW = pathlib.Path('src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java')
+TRANSIT_FLOW_VARIANTS = [
+    ROOT / 'source-platforms/forge' / TRANSIT_FLOW,
+    ROOT / 'source-platforms/neoforge' / TRANSIT_FLOW,
+    ROOT / 'source-family-platforms/1.21.X/neoforge' / TRANSIT_FLOW,
+    ROOT / 'source-family-platforms/26.X/neoforge' / TRANSIT_FLOW,
+    ROOT / 'source-downports/26.X/26.1.2/neoforge' / TRANSIT_FLOW,
+    ROOT / 'source-downports/26.X/26.2/neoforge' / TRANSIT_FLOW,
+]
+
+
+class PipeTransitOwnershipTest(unittest.TestCase):
+    def test_native_flow_variants(self):
+        phases = ('SIDE_CHECK', 'SPLIT', 'FIND_DEST', 'MODIFY_SPEED')
+        for path in TRANSIT_FLOW_VARIANTS:
+            with self.subTest(path=path):
+                source = path.read_text(encoding='utf-8')
+                for phase in phases:
+                    self.assertIn('fireTransit(ItemTransitPhase.' + phase, source)
+                self.assertIn('PipeTransitHandoff.begin(item.apiTransitId, item.apiTransitPayload)', source)
+                self.assertIn('PipeTransitHandoff.claim()', source)
+                self.assertIn('UUID.randomUUID()', source)
+                self.assertNotIn('findDest.items.size() == 1 ? item.apiTransitId : null', source)
+
+    def test_nested_transfer_ownership(self):
+        java = ROOT / 'source-shared/src/main/java/buildcraft/transport/api2/PipeTransitHandoff.java'
+        with tempfile.TemporaryDirectory() as tmp:
+            test = pathlib.Path(tmp) / 'Probe.java'
+            test.write_text('''import java.util.UUID;
+import buildcraft.transport.api2.PipeTransitHandoff;
+import buildcraft.api.v2.pipe.ItemTransitPayload;
+import java.util.Map;
+public class Probe {
+  public static void main(String[] args) {
+    UUID first=UUID.randomUUID(), second=UUID.randomUUID();
+    if (PipeTransitHandoff.take()!=null) throw new AssertionError("unscoped");
+    try (var a=PipeTransitHandoff.begin(first)) {
+      try (var b=PipeTransitHandoff.begin(second)) {
+        if (!second.equals(PipeTransitHandoff.take())) throw new AssertionError("nested");
+        if (PipeTransitHandoff.take()!=null) throw new AssertionError("reused");
+      }
+      if (!first.equals(PipeTransitHandoff.take())) throw new AssertionError("outer");
+      if (PipeTransitHandoff.take()!=null) throw new AssertionError("outer reused");
+    }
+    if (PipeTransitHandoff.take()!=null) throw new AssertionError("leaked");
+    byte[] external={1,2,3};
+    ItemTransitPayload payload=new ItemTransitPayload(Map.of("logistics:route", external));
+    external[0]=8;
+    if (payload.get("logistics:route").orElseThrow()[0]!=1) throw new AssertionError("mutable input");
+    payload.get("logistics:route").orElseThrow()[0]=9;
+    if (payload.get("logistics:route").orElseThrow()[0]!=1) throw new AssertionError("mutable output");
+    try (var scope=PipeTransitHandoff.begin(first,payload)) {
+      var handoff=PipeTransitHandoff.claim();
+      if (!first.equals(handoff.id()) || !payload.equals(handoff.payload())) throw new AssertionError("payload lost");
+      if (PipeTransitHandoff.claim().id()!=null) throw new AssertionError("payload claimed twice");
+    }
+    try { new ItemTransitPayload(Map.of("other:big",new byte[ItemTransitPayload.MAX_ENTRY_BYTES+1]));
+      throw new AssertionError("unbounded payload");
+    } catch (IllegalArgumentException expected) { }
+    try { payload.with("not-namespaced",new byte[]{1});
+      throw new AssertionError("invalid namespace");
+    } catch (IllegalArgumentException expected) { }
+  }
+}''', encoding='utf-8')
+            subprocess.run(['javac', '-d', tmp, str(ROOT / 'source-shared/src/main/java/buildcraft/api/v2/pipe/ItemTransitPayload.java'), str(java), str(test)], check=True, capture_output=True)
+            subprocess.run(['java', '-cp', tmp, 'Probe'], check=True, capture_output=True)
+
+if __name__ == "__main__":
     unittest.main()

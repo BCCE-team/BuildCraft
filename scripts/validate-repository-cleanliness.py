@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import fnmatch
+import re
+import shlex
 import subprocess
 import sys
 
@@ -91,14 +94,36 @@ if tracked_files is not None:
         ):
             errors.append(f"generated/backup file is tracked: {rel}")
 
-# Every unittest module must be part of the declared CI plan. A test file that is never
-# invoked is worse than no test because it creates false confidence.
+# Every unittest module must be selected by both CI runners. Module globs are
+# legitimate discovery patterns; checking literal filenames would reject a
+# consolidated subsystem suite even when every test is actually executed.
 ci_file = ROOT / ".github/workflows/ci.yml"
-if ci_file.is_file():
+local_runner = ROOT / "scripts/run-ci-local.py"
+if ci_file.is_file() and local_runner.is_file():
     ci_text = ci_file.read_text(encoding="utf-8", errors="replace")
+    local_text = local_runner.read_text(encoding="utf-8", errors="replace")
+    ci_patterns = []
+    for line in ci_text.splitlines():
+        line = line.strip()
+        if not line.startswith("run: python -m unittest discover "):
+            continue
+        command = shlex.split(line.removeprefix("run: "))
+        if "-p" in command:
+            index = command.index("-p")
+            if index + 1 < len(command):
+                ci_patterns.append(command[index + 1])
+    local_patterns = re.findall(r'"-p",\s*"(test_[^"\n]+\.py)"', local_text)
+    if ci_patterns != local_patterns:
+        errors.append("unittest discovery patterns differ between GitHub CI and run-ci-local.py")
     for test_path in sorted((ROOT / "scripts/tests").glob("test_*.py")):
-        if test_path.name not in ci_text:
+        matches = [pattern for pattern in ci_patterns if fnmatch.fnmatchcase(test_path.name, pattern)]
+        if not matches:
             errors.append(f"unreferenced unittest module is not executed by CI: {test_path.relative_to(ROOT)}")
+        elif len(matches) != 1:
+            errors.append(f"unittest module is selected by multiple CI steps: {test_path.relative_to(ROOT)}")
+    for pattern in ci_patterns:
+        if not list((ROOT / "scripts/tests").glob(pattern)):
+            errors.append(f"CI discovery pattern matches no unittest modules: {pattern}")
 
 # Scratch-class '$' prefixes are forbidden in maintained sources.
 for source_root in SOURCE_ROOTS:

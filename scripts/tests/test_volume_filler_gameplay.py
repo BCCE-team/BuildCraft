@@ -156,7 +156,7 @@ class VolumeFillerGameplayTests(unittest.TestCase):
                 self.assertIn('nearest.addons.values().forEach(Addon::onRemoved)',tool)
                 self.assertIn('Lock.Target.TargetRemove',tool)
 
-    def test_reported_cross_version_compile_boundaries(self):
+    def test_cross_version_compilation_contracts(self):
         for target in TARGETS:
             with self.subTest(target=target):
                 item=self.java(target,'builders/item/ItemFillerPlanner.java')

@@ -115,7 +115,7 @@ class ClientIntegrations(unittest.TestCase):
         for screen in ('GuiAssemblyTable','GuiProgrammingTable','GuiIntegrationTable',
                        'GuiAdvancedCraftingTable','GuiAutoCraftItems','ScreenHeatExchange','GuiEngineStone_BC8'):
             self.assertIn('addRecipeClickArea('+screen+'.class', plugin)
-        # The combustion engine's former 26,18,16,60 click area is the actual fuel tank.
+        # The combustion engine fuel tank must remain interactive outside JEI recipe shortcuts.
         # JEI must not steal bucket clicks from WidgetFluidTank.
         self.assertNotIn('addRecipeClickArea(GuiEngineIron_BC8.class', plugin)
         self.assertIn('new AutoWorkbenchRecipeTransferHandler()', plugin)
@@ -149,7 +149,7 @@ class ClientIntegrations(unittest.TestCase):
         mid_pipe = (ROOT / 'version-src/1.20.1-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text()
 
         # Alpha handling is generation-specific. Forge 1.19.2/1.20.1 and NeoForge 1.21.1 still use the legacy
-        # baked-quad path whose facade vertex alpha is opaque, so they need the historical 0.2 multiplier.
+        # baked-quad path with opaque facade vertex alpha, so they require a 0.2 multiplier.
         # 1.21.11+ carries per-vertex BakedColors/alpha natively and must not receive that extra multiplier.
         old_baker = self.java('buildcraft/silicon/client/model/plug/PlugBakerFacade.java', old=True)
         forge_baker = (ROOT / 'source-platforms/forge/src/main/java/buildcraft/silicon/client/model/plug/PlugBakerFacade.java').read_text()

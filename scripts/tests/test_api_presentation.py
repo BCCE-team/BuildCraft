@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
-"""BC8-P09: bake-time asset registration and real client-frame rendering adapters."""
+"""Addon models, client rendering and animation contracts."""
 from __future__ import annotations
 
-import subprocess
 import sys
-import tempfile
-import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "source-shared/src/main/java"
 sys.path.insert(0, str(ROOT / "scripts"))
+
+import subprocess
+import tempfile
+import unittest
 from source_preprocessor import preprocess_text
 
-STUBS = {
+PRESENTATION_SRC = ROOT / "source-shared/src/main/java"
+
+PRESENTATION_STUBS = {
     "net/minecraft/resources/ResourceLocation.java": '''package net.minecraft.resources;
 public record ResourceLocation(String key) { public String toString(){return key;} }''',
     "net/minecraft/client/renderer/texture/TextureAtlasSprite.java": '''package net.minecraft.client.renderer.texture;
@@ -185,7 +187,7 @@ public TilePipeHolder(Pipe pipe){this.pipe=pipe;}public Pipe getPipe(){return pi
 ''',
 }
 
-FIXTURE = '''package fixture;
+PRESENTATION_FIXTURE = '''package fixture;
 import java.util.*;
 import net.minecraft.resources.ResourceLocation;
 import buildcraft.api.v2.*;
@@ -195,7 +197,7 @@ import buildcraft.lib.client.model.MutableQuad;
 import buildcraft.transport.pipe.Pipe;
 import buildcraft.transport.tile.TilePipeHolder;
 import com.mojang.blaze3d.vertex.*;
-public class P09AddonFixture {
+public class ClientPresentationFixture {
  static ResourceLocation id(String name){return new ResourceLocation("addon:"+name);}
  static void check(boolean test,String msg){if(!test)throw new AssertionError(msg);}
  public static void main(String[] args) {
@@ -222,16 +224,16 @@ public class P09AddonFixture {
 }'''
 
 
-def write(base: Path, name: str, data: str) -> Path:
+def presentation_write(base: Path, name: str, data: str) -> Path:
     p = base / name
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(data, encoding="utf-8")
     return p
 
 
-class TestPresentationP09(unittest.TestCase):
+class ClientPresentationConformanceTest(unittest.TestCase):
     def test_addon_assets_and_native_render_adapters(self):
-        source = (SRC / "buildcraft/lib/client/render/ApiPresentationModels.java").read_text()
+        source = (PRESENTATION_SRC / "buildcraft/lib/client/render/ApiPresentationModels.java").read_text()
         for version, family, platform in (("1.19.2", "old", "forge"),
                                           ("1.20.1", "old", "forge"),
                                           ("1.21.1", "1.21.X", "neoforge"),
@@ -239,23 +241,23 @@ class TestPresentationP09(unittest.TestCase):
                                           ("26.1.2", "26.X", "neoforge"),
                                           ("26.2", "26.X", "neoforge"),
                                           ("26.3", "26.X", "neoforge")):
-            with self.subTest(target=version), tempfile.TemporaryDirectory(prefix="bc8-p09-") as temp:
+            with self.subTest(target=version), tempfile.TemporaryDirectory(prefix="bcce-client-presentation-") as temp:
                 root = Path(temp)
-                files = [write(root, name, stub) for name, stub in STUBS.items()
+                files = [presentation_write(root, name, stub) for name, stub in PRESENTATION_STUBS.items()
                          if version in ("1.21.11", "26.1.2", "26.2", "26.3")
                          or name != "buildcraft/lib/compat/RenderCompat.java"]
-                files.append(write(root, "buildcraft/api/v2/client/DynamicPresentation.java",
-                                   (SRC / "buildcraft/api/v2/client/DynamicPresentation.java").read_text()))
-                files.append(write(root, "buildcraft/lib/client/render/ApiPresentationModels.java",
+                files.append(presentation_write(root, "buildcraft/api/v2/client/DynamicPresentation.java",
+                                   (PRESENTATION_SRC / "buildcraft/api/v2/client/DynamicPresentation.java").read_text()))
+                files.append(presentation_write(root, "buildcraft/lib/client/render/ApiPresentationModels.java",
                                    preprocess_text(source, minecraft=version, family=family,
                                                    platform=platform, source="ApiPresentationModels.java")))
-                files.append(write(root, "fixture/P09AddonFixture.java", FIXTURE))
+                files.append(presentation_write(root, "fixture/ClientPresentationFixture.java", PRESENTATION_FIXTURE))
                 classes = root / "classes"
                 classes.mkdir()
                 javac = subprocess.run(["javac", "-d", str(classes), *map(str, files)],
                                        text=True, capture_output=True, timeout=35)
                 self.assertEqual(javac.returncode, 0, javac.stderr)
-                run = subprocess.run(["java", "-cp", str(classes), "fixture.P09AddonFixture"],
+                run = subprocess.run(["java", "-cp", str(classes), "fixture.ClientPresentationFixture"],
                                      text=True, capture_output=True, timeout=10)
                 self.assertEqual(run.returncode, 0, run.stderr)
 
@@ -280,7 +282,7 @@ class TestPresentationP09(unittest.TestCase):
                 self.assertIn(model, selected)
                 self.assertIn("ApiPresentationModels.pipeBaseModel", selected[model].read_text(), model)
                 self.assertIn("buildcraft/lib/client/render/ApiPresentationModels.java", selected)
-                # Legacy BERs must forward both Minecraft light and overlay to the P09 renderer.
+                # Legacy BERs must forward both Minecraft light and overlay to the client presentation renderer.
                 # A stale three-argument call compiles in standalone API fixtures but fails in Gradle.
                 if target in ("1.19.2-forge", "1.20.1-forge", "1.21.1-neoforge"):
                     holder = selected["buildcraft/transport/client/render/RenderPipeHolder.java"].read_text()
@@ -303,7 +305,6 @@ class TestPresentationP09(unittest.TestCase):
                             rf"\s*{translucent}\s*,\s*light\s*,\s*overlay\s*\)",
                             f"{target}: {layer} pass must provide light and overlay",
                         )
-
 
 if __name__ == "__main__":
     unittest.main()

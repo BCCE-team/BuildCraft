@@ -77,6 +77,6 @@ public final class ApiItemPipeFlow extends ApiPipeFlow implements IFlowItems {
     }
 
     @Override public void sendPhantomItem(ItemStack stack, Direction from, Direction to, DyeColor colour) {
-        // Item-flow presentation is a separate client-side SPI (BC8-P09).
+        // Item-flow presentation is a separate client-side SPI.
     }
 }

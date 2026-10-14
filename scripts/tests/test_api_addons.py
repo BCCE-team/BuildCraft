@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
-"""Independent addon-inspired Java bytecode checks using production public API contracts.
-
-These are compatibility probes, not ports of historical addon source trees and not GameTests.
-"""
+"""Independent addon compatibility and production JAR ABI checks."""
 from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
 
 import os
 import shutil
 import tempfile
 import unittest
-from pathlib import Path
-
 import test_external_addon_conformance as external
 import test_request_lifecycle as requests
+import importlib.util
+import subprocess
+import zipfile
+from unittest.mock import patch
 
-ROOT = Path(__file__).resolve().parents[2]
-PUBLIC = ROOT / "source-shared/src/main/java"
-ADDONS = ROOT / "addon-fixture/src/main/java/dev/bcce/apifixture"
+ADDON_PARITY_PUBLIC = ROOT / "source-shared/src/main/java"
+ADDON_PARITY_ADDONS = ROOT / "addon-fixture/src/main/java/dev/bcce/apifixture"
 
 
-def source(relative: str) -> Path:
-    result = PUBLIC / relative
+def addon_parity_source(relative: str) -> Path:
+    result = ADDON_PARITY_PUBLIC / relative
     if not result.is_file():
         raise AssertionError(f"Missing production API contract: {relative}")
     return result
@@ -33,27 +37,27 @@ class AddonPortingConformanceTest(unittest.TestCase):
             raise unittest.SkipTest("Java toolchain is required")
 
     def test_logistics_pipes_request_delivery_and_route_metadata(self):
-        with tempfile.TemporaryDirectory(prefix="bcce-p15-logistics-") as td:
+        with tempfile.TemporaryDirectory(prefix="bcce-addons-logistics-") as td:
             root = Path(td)
             stubs = [external.write(root / "stubs", name, content)
                      for name, content in requests.STUBS.items()
                      if name.startswith("net/minecraft/") or name.startswith("buildcraft/api/v2/")]
-            files = [source(name) for name in requests.PUBLIC]
-            files.append(source("buildcraft/api/v2/pipe/ItemTransitPayload.java"))
+            files = [addon_parity_source(name) for name in requests.PUBLIC]
+            files.append(addon_parity_source("buildcraft/api/v2/pipe/ItemTransitPayload.java"))
             api, addon, probe = (root / name for name in ("api.jar", "addon.jar", "probe.jar"))
             external.compile_jar(stubs + files, api)
-            external.compile_addon(ADDONS / "LogisticsPipesParityAddon.java", (api,), addon)
-            test = external.write(root, "probe/Logistics.java", LOGISTICS_PROBE)
+            external.compile_addon(ADDON_PARITY_ADDONS / "LogisticsPipesParityAddon.java", (api,), addon)
+            test = external.write(root, "probe/Logistics.java", ADDON_PARITY_LOGISTICS_PROBE)
             external.compile_jar([test], probe, dependencies=(api, addon))
             external.run("java", "-cp", os.pathsep.join(map(str, (api, addon, probe))), "probe.Logistics")
 
     def test_buildcraft_additions_canister_transactions_and_components(self):
-        with tempfile.TemporaryDirectory(prefix="bcce-p15-additions-") as td:
+        with tempfile.TemporaryDirectory(prefix="bcce-addons-additions-") as td:
             root = Path(td)
             stubs = [external.write(root, "stubs/net/minecraft/resources/ResourceLocation.java",
-                                    RESOURCE_LOCATION),
-                     external.write(root, "stubs/net/minecraft/world/item/ItemStack.java", ITEM_STACK)]
-            files = [source("buildcraft/api/v2/" + name) for name in (
+                                    ADDON_PARITY_RESOURCE_LOCATION),
+                     external.write(root, "stubs/net/minecraft/world/item/ItemStack.java", ADDON_PARITY_ITEM_STACK)]
+            files = [addon_parity_source("buildcraft/api/v2/" + name) for name in (
                 "OperationMode.java", "item/ItemMatcher.java",
                 "persistence/ApiCodec.java", "persistence/CodecResult.java",
                 "fluid/FluidAmount.java", "fluid/FluidComponentPayload.java",
@@ -64,18 +68,12 @@ class AddonPortingConformanceTest(unittest.TestCase):
             )]
             api, addon, probe = (root / name for name in ("api.jar", "addon.jar", "probe.jar"))
             external.compile_jar(stubs + files, api)
-            external.compile_addon(ADDONS / "BuildCraftAdditionsParityAddon.java", (api,), addon)
-            test = external.write(root, "probe/Additions.java", ADDITIONS_PROBE)
+            external.compile_addon(ADDON_PARITY_ADDONS / "BuildCraftAdditionsParityAddon.java", (api,), addon)
+            test = external.write(root, "probe/Additions.java", ADDON_PARITY_ADDITIONS_PROBE)
             external.compile_jar([test], probe, dependencies=(api, addon))
             external.run("java", "-cp", os.pathsep.join(map(str, (api, addon, probe))), "probe.Additions")
 
-    def test_additional_pipes_teleport_ownership_still_conforms(self):
-        # This uses the actual BCCE PipeItemTransitRuntime, not a mock of its transfer semantics.
-        probe = external.ExternalAddonConformanceTest(methodName="test_additional_pipes_teleporter_jar")
-        probe.test_additional_pipes_teleporter_jar()
-
-
-RESOURCE_LOCATION = """package net.minecraft.resources;
+ADDON_PARITY_RESOURCE_LOCATION = """package net.minecraft.resources;
 public record ResourceLocation(String namespace, String path) {
  public static ResourceLocation tryParse(String value) {
   String[] parts = value.split(":",2);
@@ -83,7 +81,7 @@ public record ResourceLocation(String namespace, String path) {
  }
  public String toString() {return namespace+":"+path;}
 } """
-ITEM_STACK = """package net.minecraft.world.item;
+ADDON_PARITY_ITEM_STACK = """package net.minecraft.world.item;
 public class ItemStack {
  public static final ItemStack EMPTY = new ItemStack("",0);
  private final String type;private int count;
@@ -97,7 +95,7 @@ public class ItemStack {
  public static boolean matches(ItemStack a,ItemStack b){return isSameItem(a,b)&&a.count==b.count;}
 } """
 
-LOGISTICS_PROBE = r'''package probe;
+ADDON_PARITY_LOGISTICS_PROBE = r'''package probe;
 import java.util.*;
 import java.nio.charset.StandardCharsets;
 import buildcraft.api.v2.*;
@@ -141,7 +139,7 @@ public final class Logistics {
  }
 }'''
 
-ADDITIONS_PROBE = r'''package probe;
+ADDON_PARITY_ADDITIONS_PROBE = r'''package probe;
 import java.util.*;
 import buildcraft.api.v2.*;
 import buildcraft.api.v2.fluid.*;
@@ -177,6 +175,94 @@ public final class Additions {
   require(FluidVariant.CODEC.decode(encoded).valueOrThrow().equals(oil),"component-bearing fluid serialization");
  }
 }'''
+
+
+ADDON_BINARY_BINARY = ROOT / "scripts/verify-addon-binary.py"
+
+
+class ProductionJarAddonGateTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("addon_binary", ADDON_BINARY_BINARY)
+        cls.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.module)
+
+    def test_reject_non_public_buildcraft_import(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "Addon.java"
+            path.write_text("import buildcraft.api.v2.OperationMode;\n" +
+                            "import buildcraft.transport.pipe.Pipe;\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "non-public"):
+                self.module.ensure_public_sources([path])
+            path.write_text("import buildcraft.api.v2.pipe.PipeView;\n", encoding="utf-8")
+            self.module.ensure_public_sources([path])
+
+    def test_reject_internal_bytecode_and_empty_compilation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            classes = Path(temporary)
+            with self.assertRaisesRegex(ValueError, "No independently"):
+                self.module.ensure_public_bytecode(classes)
+            unit = classes / "addon/Example.class"
+            unit.parent.mkdir(parents=True)
+            unit.write_bytes(b"Lbuildcraft/api/v2/pipe/PipeView;")
+            self.assertEqual(self.module.ensure_public_bytecode(classes), [unit])
+            unit.write_bytes(b"Lbuildcraft/lib/internal/api/v2/BuildCraftApiRuntime;")
+            with self.assertRaisesRegex(ValueError, "internal BuildCraft"):
+                self.module.ensure_public_bytecode(classes)
+
+    def test_all_three_named_addon_fixtures_are_in_binary_gate(self):
+        names = set(self.module.ADDONS)
+        for name in ("AdditionalPipesConformanceAddon.java", "LogisticsPipesParityAddon.java",
+                     "BuildCraftAdditionsParityAddon.java"):
+            self.assertIn(name, names)
+        self.module.ensure_public_sources([self.module.FIXTURE_ROOT / name for name in names])
+
+    def test_every_loader_runs_gate_after_jar(self):
+        for path in (ROOT / "build-logic/loaders/forge-target.gradle",
+                     ROOT / "build-logic/loaders/neoforge-target.gradle"):
+            with self.subTest(loader=path.name):
+                text = path.read_text(encoding="utf-8")
+                self.assertIn("dependsOn tasks.named('jar')", text)
+                self.assertIn("tasks.register('verifyApi2AddonBinary', Exec)", text)
+                self.assertIn("dependsOn verifyApi2AddonBinary", text)
+                self.assertIn("--fixture-root", text)
+                self.assertIn("--bcce-jar", text)
+                self.assertIn("'--javac', javac", text)
+                self.assertIn(".javaCompiler.get().executablePath.asFile.absolutePath", text)
+
+    def test_uses_requested_toolchain_javac(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            jar = root / "buildcraft.jar"
+            with zipfile.ZipFile(jar, "w") as archive:
+                for name in ("buildcraft/api/v2/BuildCraftApi.class", "buildcraft/api/v2/BuildCraftRegistries.class"):
+                    archive.writestr(name, b"test-api-class")
+            fixtures = root / "fixtures"
+            fixtures.mkdir()
+            for name in self.module.ADDONS:
+                (fixtures / name).write_text("// independent addon fixture\n", encoding="utf-8")
+            output = root / "compiled-fixtures.jar"
+            used_compiler = str(root / "jdk21" / "bin" / "javac")
+            commands = []
+
+            def compile_fixture(command, **kwargs):
+                commands.append(command)
+                classes = Path(command[command.index("-d") + 1])
+                classes.mkdir(parents=True, exist_ok=True)
+                (classes / "Fixture.class").write_bytes(b"Lbuildcraft/api/v2/BuildCraftApi;")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with patch.object(self.module.subprocess, "run", side_effect=compile_fixture):
+                code = self.module.main([
+                    "--bcce-jar", str(jar), "--dependencies", "", "--release", "21",
+                    "--javac", used_compiler, "--fixture-root", str(fixtures), "--output", str(output)
+                ])
+            self.assertEqual(code, 0)
+            self.assertEqual(len(commands), 1)
+            self.assertEqual(commands[0][0], used_compiler)
+            self.assertEqual(commands[0][1:3], ["--release", "21"])
+            with zipfile.ZipFile(output) as archive:
+                self.assertIn("Fixture.class", archive.namelist())
 
 if __name__ == "__main__":
     unittest.main()

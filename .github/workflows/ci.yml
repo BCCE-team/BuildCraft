@@ -87,64 +87,8 @@ jobs:
       - name: Verify independent API2 addon JAR conformance
         run: python -m unittest discover -s scripts/tests -p test_external_addon_conformance.py -v
 
-      - name: Verify BC8-P01 addon foundation and reload
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p01_foundation.py -v
-
-      - name: Verify BC8-P02 world and Core contracts
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p02_core_world.py -v
-
-      - name: Verify BC8-P03 MJ, FE and fluid contracts
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p03_energy_ports.py -v
-
-      - name: Verify BC8-P04 assembly and machine recipes
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p04_recipes.py -v
-
-      - name: Verify BC8-P05 custom pipe flows and behaviours
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p05_flow.py -v
-
-      - name: Verify BC8-P06 item transit ownership and payloads
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p06_item_transit.py -v
-
-      - name: Verify BC8-P07 fluid and power transport
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p07_fluid_power.py -v
-
-      - name: Verify BC8-P08 endpoints and pluggables
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p08_connections.py -v
-
-      - name: Verify BC8-P08 capability adapters
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p08_capabilities.py -v
-      - name: Verify BC8-P09 client models and animation rendering
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p09_presentation.py -v
-
-      - name: Verify BC8-P10 statement scopes and parameters
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p10_statements.py -v
-
-      - name: Verify BC8-P10 native Gate bridge
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p10_bridge.py -v
-      - name: Verify BC8-P11 laser targets and addon receivers
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p11_laser.py -v
-      - name: Verify BC8-P11 native work and thermal bridges
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p11_native.py -v
-
-      - name: Verify BC8-P12 independent Electronic Library formats
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p12_library.py -v
-      - name: Verify BC8-P12 schematic and template runtime
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p12_builders.py -v
-
-      - name: Verify BC8-P12 native schematic adapter dispatch
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p12_schematic.py -v
-
-      - name: Verify BC8-P13 robotics boards and requests
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p13_robotics.py -v
-
-      - name: Verify BC8-P14 facades lists maps wrenches and crops
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p14_misc.py -v
-
-      - name: Verify BC8-P15 Additional Pipes LogisticsPipes and BuildCraft Additions contracts
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p15_addon_parity.py -v
-
-      - name: Verify BC8-P15 production JAR ABI gate
-        run: python -m unittest discover -s scripts/tests -p test_bc8_p15_binary.py -v
+      - name: Verify independent API extension contracts
+        run: python -m unittest discover -s scripts/tests -p 'test_api_*.py' -v
 
       - name: Validate API2 module contracts
         run: python scripts/validate-api2-modules.py
@@ -196,14 +140,8 @@ jobs:
 
 
 
-      - name: Test 26.2 compiler compatibility
-        run: python -m unittest discover -s scripts/tests -p test_262_compile_errors.py -v
-
-      - name: Test 26.3 removed NeoForge APIs and worldgen migration
-        run: python -m unittest discover -s scripts/tests -p test_263_transfer_compile.py -v
-
-      - name: Test 26.3 removed vanilla APIs and power bridge
-        run: python -m unittest discover -s scripts/tests -p test_263_followup_api.py -v
+      - name: Test Minecraft 26.x native API compatibility
+        run: python -m unittest discover -s scripts/tests -p test_version_compatibility_26x.py -v
 
       - name: Validate Zone Planner block preview parity
         run: python scripts/validate-zone-planner-preview.py
@@ -264,11 +202,8 @@ jobs:
         run: python -m unittest discover -s scripts/tests -p test_resource_pipeline.py -v
 
 
-      - name: Test 26.3 glass facade opacity
-        run: python -m unittest discover -s scripts/tests -p test_facade_glass_alpha_263.py -v
-
-      - name: Test glass facade materials
-        run: python -m unittest discover -s scripts/tests -p test_glass_facade_263.py -v
+      - name: Test native facade rendering and materials
+        run: python -m unittest discover -s scripts/tests -p test_facade_rendering.py -v
 
       - name: Test all-target paintbrush interactions
         run: python -m unittest discover -s scripts/tests -p test_paintbrush_all_targets.py -v

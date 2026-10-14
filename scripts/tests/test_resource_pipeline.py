@@ -393,7 +393,7 @@ FLUID_RELOAD_ASSETS = FLUID_RELOAD_ROOT / 'source-shared/src/main/resources/asse
 from source_config import load_properties, target_layout
 from source_layout import resolve_effective_source
 
-# Exact local-model diagnostics reported by the 26.2 game startup log.
+# Resource and model sprites that must resolve with valid atlas animation metadata.
 FLUID_RELOAD_MODEL_WARNINGS = """
 buildcraftrobotics:item/robot/lumberjack
 buildcraftrobotics:item/robot/planter

@@ -2,7 +2,7 @@
 """Compile independent addon fixtures against the built BCCE production JAR.
 
 This requires target Minecraft/loader compile dependencies. It tests binary linkage,
-not successful loading of historical mod JARs or in-game GameTest behavior.
+not successful loading of third-party mod JARs or in-game GameTest behavior.
 """
 from __future__ import annotations
 

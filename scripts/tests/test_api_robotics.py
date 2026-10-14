@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
-"""Independent addon robot-board execution plus BC8 robotics production wiring."""
+"""Robot boards, programming and durable request services."""
 from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+
 import re
 import shutil
 import subprocess
 import tempfile
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-API = ROOT / 'source-shared/src/main/java'
+ROBOTICS_API = ROOT / 'source-shared/src/main/java'
 
-STUBS = {
+ROBOTICS_STUBS = {
  'net/minecraft/resources/ResourceLocation.java': '''package net.minecraft.resources;
  public record ResourceLocation(String namespace,String path){
  public ResourceLocation(String full){this(full.contains(":")?full.split(":",2)[0]:"minecraft",full.contains(":")?full.split(":",2)[1]:full);}
@@ -91,15 +96,15 @@ STUBS = {
  'buildcraft/lib/internal/debug/BCLog.java':'''package buildcraft.lib.internal.debug;
  public class BCLog{public static final Logger logger=new Logger();public static class Logger{public void warn(String s,Throwable t){}}}''',
 }
-BOARD_NAMES = ('Picker','Carrier','FluidCarrier','Lumberjack','Harvester','Miner','Planter','Farmer',
+ROBOTICS_BOARD_NAMES = ('Picker','Carrier','FluidCarrier','Lumberjack','Harvester','Miner','Planter','Farmer',
                'LeaveCutter','Butcher','Shovelman','Pump','Delivery','Knight','Bomber','Stripes','Builder')
-for name in BOARD_NAMES:
- STUBS[f'buildcraft/robotics/boards/BoardRobot{name}.java'] = f'''package buildcraft.robotics.boards;
+for name in ROBOTICS_BOARD_NAMES:
+ ROBOTICS_STUBS[f'buildcraft/robotics/boards/BoardRobot{name}.java'] = f'''package buildcraft.robotics.boards;
  import buildcraft.robotics.internal.legacy.boards.*;import buildcraft.robotics.internal.legacy.robots.*;
  public class BoardRobot{name} extends RedstoneBoardRobot{{public BoardRobot{name}(EntityRobotBase r){{super(r);}}
  public RedstoneBoardRobotNBT getNBTHandler(){{return null;}}}}'''
 
-MAIN = '''package check;
+ROBOTICS_MAIN = '''package check;
 import buildcraft.robotics.BCRoboticsBoards;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.robot.*;
@@ -146,24 +151,24 @@ public class Check {
   BuildCraftApi.programs.register(badBoard,new RobotBoardProgram(badBoard,1,"blue",badBoard,r->new Task(board)));
   ok(BCRoboticsBoards.getById(badBoard.toString()).nbt().create(new EntityRobotBase()).createWorkAI()==null,
     "board ran task that was not allowed");
-  System.out.println("BC8-P13 dynamic addon board, programming MJ, task factory and missing board preservation PASS");
+  System.out.println("API robotics dynamic addon board, programming MJ, task factory and missing board preservation PASS");
  }
 }'''
 
-class P13RoboticsTests(unittest.TestCase):
+class RobotBoardConformanceTest(unittest.TestCase):
  def test_actual_board_registry_and_task_runtime(self):
   if not shutil.which('javac') or not shutil.which('java'): self.skipTest('Java toolchain absent')
-  with tempfile.TemporaryDirectory(prefix='bc8-p13-') as tmpname:
+  with tempfile.TemporaryDirectory(prefix='bcce-robotics-') as tmpname:
    tmp=Path(tmpname)
-   for name,code in STUBS.items():
+   for name,code in ROBOTICS_STUBS.items():
     f=tmp/name; f.parent.mkdir(parents=True,exist_ok=True);f.write_text(code)
-   harness=tmp/'check/Check.java';harness.parent.mkdir(parents=True,exist_ok=True);harness.write_text(MAIN)
+   harness=tmp/'check/Check.java';harness.parent.mkdir(parents=True,exist_ok=True);harness.write_text(ROBOTICS_MAIN)
    shared=[
-      API/'buildcraft/api/v2/robot/RobotBoardType.java',
-      API/'buildcraft/api/v2/robot/RobotBoardProgram.java',
-      API/'buildcraft/robotics/internal/legacy/boards/RedstoneBoardRobot.java',
-      API/'buildcraft/robotics/internal/legacy/boards/RedstoneBoardRobotNBT.java',
-      API/'buildcraft/robotics/internal/legacy/boards/RedstoneBoardRegistry.java',
+      ROBOTICS_API/'buildcraft/api/v2/robot/RobotBoardType.java',
+      ROBOTICS_API/'buildcraft/api/v2/robot/RobotBoardProgram.java',
+      ROBOTICS_API/'buildcraft/robotics/internal/legacy/boards/RedstoneBoardRobot.java',
+      ROBOTICS_API/'buildcraft/robotics/internal/legacy/boards/RedstoneBoardRobotNBT.java',
+      ROBOTICS_API/'buildcraft/robotics/internal/legacy/boards/RedstoneBoardRegistry.java',
    ]
    fixture=ROOT/'addon-fixture/src/main/java/dev/bcce/apifixture/RobotBoardFixtureAddon.java'
    addon_source=fixture.read_text()
@@ -171,20 +176,20 @@ class P13RoboticsTests(unittest.TestCase):
    self.assertNotIn('buildcraft.lib.',addon_source)
    for family in ('old','1.21.X'):
     board=ROOT/f'source-families/{family}/src/main/java/buildcraft/robotics/BCRoboticsBoards.java'
-    args=['javac','-d',str(tmp/family),*(str(tmp/k) for k in STUBS),*(str(s) for s in shared),str(board),str(harness),str(fixture)]
+    args=['javac','-d',str(tmp/family),*(str(tmp/k) for k in ROBOTICS_STUBS),*(str(s) for s in shared),str(board),str(harness),str(fixture)]
     compiled=subprocess.run(args,capture_output=True,text=True,timeout=45)
     self.assertEqual(compiled.returncode,0,f'{family}: {compiled.stderr}')
     run=subprocess.run(['java','-cp',str(tmp/family),'check.Check'],capture_output=True,text=True,timeout=25)
     self.assertEqual(run.returncode,0,f'{family}: {run.stdout}\n{run.stderr}')
 
- def test_p13_production_wiring_and_no_internal_addon_surface(self):
-  registrations=(API/'buildcraft/api/v2/BuildCraftRegistries.java').read_text()
+ def test_production_wiring_and_no_internal_addon_surface(self):
+  registrations=(ROBOTICS_API/'buildcraft/api/v2/BuildCraftRegistries.java').read_text()
   self.assertIn('ROBOT_BOARD_PROGRAMS = key(',registrations)
-  self.assertIn('robotBoardProgram(RobotBoardProgram', (API/'buildcraft/api/v2/content/ContentRegistrar.java').read_text())
+  self.assertIn('robotBoardProgram(RobotBoardProgram', (ROBOTICS_API/'buildcraft/api/v2/content/ContentRegistrar.java').read_text())
   for place in ('source-shared','source-families/26.X','source-family-platforms/26.X/neoforge'):
    runtime=ROOT/place/'src/main/java/buildcraft/lib/internal/api/v2/BuildCraftApiRuntime.java'
    self.assertIn('registerRegistry(BuildCraftRegistries.ROBOT_BOARD_PROGRAMS)',runtime.read_text())
-  main=(API/'buildcraft/robotics/ai/AIRobotMain.java').read_text()
+  main=(ROBOTICS_API/'buildcraft/robotics/ai/AIRobotMain.java').read_text()
   self.assertIn('board.createWorkAI()',main)
   for family in ('old','1.21.X'):
    table=ROOT/f'source-{"platforms/forge" if family=="old" else "families/1.21.X"}/src/main/java/buildcraft/silicon/tile/TileProgrammingTable_Neptune.java'
@@ -204,7 +209,8 @@ class P13RoboticsTests(unittest.TestCase):
    self.assertIn('lease.robotId() == robotId',s)
    self.assertIn('Robot dock port resolver failed:',s)
    self.assertIn('Robot event listener failed:',s)
-  task=(API/'buildcraft/api/v2/robot/RobotTaskContext.java').read_text()
+  task=(ROBOTICS_API/'buildcraft/api/v2/robot/RobotTaskContext.java').read_text()
   for term in ('reserveRequest(', 'cancelRequest(', 'deliverRequest('):self.assertIn(term,task)
 
-if __name__=='__main__':unittest.main()
+if __name__ == "__main__":
+    unittest.main()

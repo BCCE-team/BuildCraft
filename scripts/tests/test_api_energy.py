@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
-"""BC8 P03: independent API-only MJ addon and genuine storage/service backend tests.
-
-Minecraft/loader collaborators are lightweight Java stubs; full GameTests are a separate gate.
-"""
+"""Energy, fluid transfer and pipe resource event contracts."""
 from __future__ import annotations
 
-import os
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 import zipfile
+import pathlib
 
-ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "source-shared/src/main/java"
-PUBLIC = [
+ENERGY_SRC = ROOT / "source-shared/src/main/java"
+ENERGY_PUBLIC = [
     "buildcraft/api/v2/OperationMode.java",
     *["buildcraft/api/v2/energy/" + name + ".java" for name in (
         "MjAmount", "MjTransferResult", "MjTransferPolicy", "MjPort",
@@ -26,7 +28,7 @@ PUBLIC = [
         "PowerLossContext", "PowerLossEffectService",
     )],
 ]
-STUBS = {
+ENERGY_STUBS = {
     "net/minecraft/resources/ResourceLocation.java": """package net.minecraft.resources;
 public class ResourceLocation {
  private final String id;
@@ -99,7 +101,7 @@ public final class BCLibConfig {
  public enum TimeGap {SECONDS,TICKS;}
 }""",
 }
-ADDON = r'''package addon;
+ENERGY_ADDON = r'''package addon;
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.energy.*;
 import net.minecraft.core.*;
@@ -149,7 +151,7 @@ public final class IndependentEnergyAddon {
   check(overflow,"MJ overflow guard");
  }
 }'''
-HOST = r'''package buildcraft.lib.internal.api.v2;
+ENERGY_HOST = r'''package buildcraft.lib.internal.api.v2;
 import addon.IndependentEnergyAddon;
 import buildcraft.api.v2.*;
 import buildcraft.api.v2.energy.*;
@@ -184,17 +186,17 @@ public final class EnergyConformanceHost {
   if(!svc.tickStorage(buffer,level,pos).isZero())throw new AssertionError("Ticked unloaded world");
   level.loaded=true;level.server=null;
   if(!svc.tickStorage(buffer,level,pos).isZero())throw new AssertionError("Ticked client world");
-  System.out.println("BC8-P03 PASS API-only addon energy, MJ/FE, buffer, rates, loss, persistence, demand, metadata");
+  System.out.println("API resource contracts PASS API-only addon energy, MJ/FE, buffer, rates, loss, persistence, demand, metadata");
  }
 }'''
 
-def call(*args: str) -> str:
+def energy_call(*args: str) -> str:
     p = subprocess.run(args, capture_output=True, text=True, timeout=105)
     if p.returncode:
         raise AssertionError(" ".join(args[:6])+"\n"+p.stdout+"\n"+p.stderr[-16000:])
     return p.stdout
 
-def write(base: Path, path: str, text: str) -> Path:
+def energy_write(base: Path, path: str, text: str) -> Path:
     full = base/path
     full.parent.mkdir(parents=True, exist_ok=True)
     full.write_text(text, encoding="utf-8")
@@ -204,23 +206,23 @@ class EnergyConformanceTest(unittest.TestCase):
     def test_api_only_jar_and_production_backends(self):
         if not all(shutil.which(it) for it in ("javac", "java", "jar")):
             self.skipTest("JDK required")
-        with tempfile.TemporaryDirectory(prefix="bcce-p03-") as td:
+        with tempfile.TemporaryDirectory(prefix="bcce-energy-") as td:
             root = Path(td)
-            stubs = [write(root/"stub", name, source) for name, source in STUBS.items()]
+            stubs = [energy_write(root/"stub", name, source) for name, source in ENERGY_STUBS.items()]
             api_dir = root/"api-classes"; api_dir.mkdir()
-            call("javac","--release","17","-encoding","UTF-8","-sourcepath","", "-d",str(api_dir),
-                *map(str,stubs),*(str(SRC/f) for f in PUBLIC))
+            energy_call("javac","--release","17","-encoding","UTF-8","-sourcepath","", "-d",str(api_dir),
+                *map(str,stubs),*(str(ENERGY_SRC/f) for f in ENERGY_PUBLIC))
             api_jar = root/"public-api.jar"
-            call("jar","--create","--file",str(api_jar),"-C",str(api_dir),".")
-            addon_file = write(root,"addon-src/addon/IndependentEnergyAddon.java",ADDON)
+            energy_call("jar","--create","--file",str(api_jar),"-C",str(api_dir),".")
+            addon_file = energy_write(root,"addon-src/addon/IndependentEnergyAddon.java",ENERGY_ADDON)
             addon_dir = root/"addon-classes"; addon_dir.mkdir()
-            call("javac","--release","17","-encoding","UTF-8","-sourcepath","",
+            energy_call("javac","--release","17","-encoding","UTF-8","-sourcepath","",
                  "-cp",str(api_jar),"-d",str(addon_dir),str(addon_file))
             addon_jar = root/"addon.jar"
-            call("jar","--create","--file",str(addon_jar),"-C",str(addon_dir),".")
+            energy_call("jar","--create","--file",str(addon_jar),"-C",str(addon_dir),".")
             with zipfile.ZipFile(addon_jar) as addon:
                 self.assertTrue(all(not x.startswith(("buildcraft/","net/minecraft/")) for x in addon.namelist()))
-            host_file = write(root,"host-src/buildcraft/lib/internal/api/v2/EnergyConformanceHost.java",HOST)
+            host_file = energy_write(root,"host-src/buildcraft/lib/internal/api/v2/EnergyConformanceHost.java",ENERGY_HOST)
             for family, base in (
                 ("legacy", "source-shared/src/main/java/buildcraft/lib/internal/api/v2"),
                 ("26.x", "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/internal/api/v2"),
@@ -230,12 +232,12 @@ class EnergyConformanceTest(unittest.TestCase):
                         ROOT/base/"energy/MjStorageImpl.java",
                         ROOT/"source-shared/src/main/java/buildcraft/lib/internal/api/v2/energy/MjRuntimeLookup.java"]
                     classdir = root/(family+"-classes"); classdir.mkdir()
-                    call("javac","--release","17","-encoding","UTF-8","-sourcepath","",
+                    energy_call("javac","--release","17","-encoding","UTF-8","-sourcepath","",
                         "-cp",os.pathsep.join((str(api_jar),str(addon_jar))),"-d",str(classdir),
                         str(host_file),*(str(p) for p in backend))
-                    result = call("java","-cp",os.pathsep.join((str(api_jar),str(addon_jar),str(classdir))),
+                    result = energy_call("java","-cp",os.pathsep.join((str(api_jar),str(addon_jar),str(classdir))),
                         "buildcraft.lib.internal.api.v2.EnergyConformanceHost")
-                    self.assertIn("BC8-P03 PASS",result)
+                    self.assertIn("API resource contracts PASS",result)
 
     def test_native_bridge_and_document_independent_ci(self):
         paths = [
@@ -272,11 +274,169 @@ class EnergyConformanceTest(unittest.TestCase):
                 self.assertIn("return FluidStack.EMPTY;",fragment)
                 self.assertNotIn("return new FluidStack(fluid, amount);\n        } catch",fragment)
         self.assertNotIn('require("README.md",',(ROOT/"scripts/validate-fe-compat.py").read_text(encoding="utf-8"))
-        for file in (SRC/"buildcraft/api/v2/energy").glob("*.java"):
+        for file in (ENERGY_SRC/"buildcraft/api/v2/energy").glob("*.java"):
             text=file.read_text(encoding="utf-8")
             self.assertNotIn("import net.minecraftforge",text)
             self.assertNotIn("import net.neoforged",text)
             self.assertNotIn("import net.fabricmc",text)
+
+
+PIPE_RESOURCES_SRC = ROOT / 'source-shared/src/main/java'
+
+PIPE_RESOURCES_STUBS = {
+    'net/minecraft/core/Direction.java': 'package net.minecraft.core; public enum Direction { DOWN,UP,NORTH,SOUTH,WEST,EAST }',
+    'net/minecraft/resources/ResourceLocation.java': 'package net.minecraft.resources; public record ResourceLocation(String id) {}',
+    'net/minecraft/world/level/Level.java': '''package net.minecraft.world.level;
+public class Level { public boolean client=false; public boolean isClientSide(){return client;}
+public Server getServer(){return new Server();} public static class Server { public boolean isSameThread(){return true;} } }''',
+    'buildcraft/api/v2/fluid/FluidVolume.java': 'package buildcraft.api.v2.fluid; public record FluidVolume(long amount) {}',
+    'buildcraft/api/v2/pipe/PipeView.java': 'package buildcraft.api.v2.pipe; public interface PipeView { Object position(); }',
+    'buildcraft/transport/internal/pipe/IPipe.java': 'package buildcraft.transport.internal.pipe; public interface IPipe {}',
+    'buildcraft/transport/pipe/Pipe.java': '''package buildcraft.transport.pipe;
+import java.util.*; import net.minecraft.world.level.Level;
+import buildcraft.api.v2.pipe.*; import buildcraft.transport.internal.pipe.*;
+public class Pipe implements IPipe,PipeView {
+ private final List<PipeComponent> components=new ArrayList<>();
+ public List<PipeComponent> components(){return components;}
+ public Object position(){return "test-position";}
+ public Holder getHolder(){return new Holder();}
+ public static class Holder { public Level world=new Level(); public Level getPipeWorld(){return world;} }
+}''',
+    'buildcraft/transport/api2/ReadOnlyPipeView.java': '''package buildcraft.transport.api2;
+import buildcraft.api.v2.pipe.PipeView;
+public class ReadOnlyPipeView { public static PipeView of(PipeView pipe){return pipe;} }''',
+    'buildcraft/lib/internal/debug/BCLog.java': '''package buildcraft.lib.internal.debug;
+public class BCLog {public static final Logger logger=new Logger();
+public static class Logger {public void warn(String message,Object... args){} }}''',
+}
+PIPE_RESOURCES_API_NAMES = (
+    'OperationMode', 'pipe/PipeMedium', 'pipe/PipeComponent',
+    'pipe/FluidMovementPhase', 'pipe/FluidMovementContext', 'pipe/FluidMovementComponent',
+    'pipe/PowerMovementPhase', 'pipe/PowerMovementContext',
+    'pipe/PowerFlowSettings', 'pipe/PowerFlowComponent',
+)
+PIPE_RESOURCES_ADDON = '''package addon;
+import buildcraft.api.v2.pipe.*;
+import net.minecraft.core.Direction;
+import net.minecraft.resources.ResourceLocation;
+public final class PipeResourceAddon {
+ public static FluidMovementComponent fluid() { return new FluidMovementComponent() {
+  public ResourceLocation typeId(){return new ResourceLocation("addon:fluid");}
+  public int limitFluidMovement(FluidMovementContext c){
+   if(c.phase()==FluidMovementPhase.BEFORE_CENTRE)return Math.min(3,c.offeredMb());
+   if(c.phase()==FluidMovementPhase.TO_CENTRE)return Math.min(2,c.offeredMb());
+   return c.offeredMb();
+  }
+ }; }
+ public static PowerFlowComponent power() {return new PowerFlowComponent() {
+  public ResourceLocation typeId(){return new ResourceLocation("addon:energy");}
+  public PowerFlowSettings configure(PipeView pipe,PowerFlowSettings settings){
+   return new PowerFlowSettings(settings.medium(),20,settings.lossPerTick(),settings.resistancePpm(),true,settings.disabled());
+  }
+  public long limitPower(PowerMovementContext c){return Math.min(4,c.offered());}
+ }; }
+}'''
+PIPE_RESOURCES_HOST = '''package host;
+import addon.PipeResourceAddon;
+import buildcraft.transport.pipe.Pipe;
+import buildcraft.transport.api2.PipeFlowEventRuntime;
+import buildcraft.api.v2.*; import buildcraft.api.v2.pipe.*;
+import buildcraft.api.v2.fluid.FluidVolume;
+import net.minecraft.core.Direction; import net.minecraft.resources.ResourceLocation;
+public class PipeResourceHost {
+ static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
+ public static void main(String[] args){
+  Pipe pipe=new Pipe(); pipe.components().add(PipeResourceAddon.fluid()); pipe.components().add(PipeResourceAddon.power());
+  int before=PipeFlowEventRuntime.fluidLimit(pipe,FluidMovementPhase.BEFORE_CENTRE,Direction.NORTH,
+    new FluidVolume(10),10,8,OperationMode.SIMULATE);
+  check(before==3,"pre-move cap");
+  int moving=PipeFlowEventRuntime.fluidLimit(pipe,FluidMovementPhase.TO_CENTRE,Direction.NORTH,
+    new FluidVolume(3),3,8,OperationMode.EXECUTE);
+  check(moving==2,"on-move cap");
+  long budget=PipeFlowEventRuntime.powerLimit(pipe,PipeMedium.MJ,PowerMovementPhase.SEND,
+    Direction.EAST,100,OperationMode.EXECUTE);
+  check(budget==4,"mj send cap");
+  check(PipeFlowEventRuntime.powerLimit(pipe,PipeMedium.EXTERNAL_ENERGY,PowerMovementPhase.REQUEST,
+    Direction.WEST,10,OperationMode.SIMULATE)==4,"fe request cap");
+  PowerFlowSettings base=new PowerFlowSettings(PipeMedium.MJ,8,-1,-1,false,false);
+  check(PipeFlowEventRuntime.configure(pipe,base).maxPerTick()==20,"public power profile");
+  pipe.components().add(new PowerFlowComponent(){
+    public ResourceLocation typeId(){return new ResourceLocation("addon:overlimit");}
+    public long limitPower(PowerMovementContext c){return Long.MAX_VALUE;}
+  });
+  check(PipeFlowEventRuntime.powerLimit(pipe,PipeMedium.MJ,PowerMovementPhase.SEND,
+     Direction.EAST,100,OperationMode.EXECUTE)==4,"no power creation");
+  pipe.components().add(new FluidMovementComponent(){
+    public ResourceLocation typeId(){return new ResourceLocation("addon:negative");}
+    public int limitFluidMovement(FluidMovementContext c){return -10;}
+  });
+  check(PipeFlowEventRuntime.fluidLimit(pipe,FluidMovementPhase.INSERT,Direction.NORTH,
+    new FluidVolume(11),11,16,OperationMode.EXECUTE)==0,"negative fluid limit");
+  pipe.components().add(new PowerFlowComponent(){
+    public ResourceLocation typeId(){return new ResourceLocation("addon:throw");}
+    public long limitPower(PowerMovementContext c){throw new IllegalStateException("broken addon");}
+  });
+  check(PipeFlowEventRuntime.powerLimit(pipe,PipeMedium.EXTERNAL_ENERGY,PowerMovementPhase.EXTRACT,
+    Direction.EAST,9,OperationMode.EXECUTE)==0,"addon exception fails closed");
+  pipe.components().clear();
+  check(PipeFlowEventRuntime.fluidLimit(pipe,FluidMovementPhase.TO_CENTRE,Direction.NORTH,
+    new FluidVolume(9),9,9,OperationMode.EXECUTE)==9,"native fluid default");
+  check(PipeFlowEventRuntime.powerLimit(pipe,PipeMedium.MJ,PowerMovementPhase.SEND,
+    Direction.EAST,9,OperationMode.EXECUTE)==9,"native power default");
+  boolean invalid=false;
+  try {new PowerFlowSettings(PipeMedium.EXTERNAL_ENERGY,(long)Integer.MAX_VALUE+1,-1,-1,true,false);}
+  catch(IllegalArgumentException expected){invalid=true;}
+  check(invalid,"FE overflow guard");
+ }
+}'''
+
+
+def pipe_resources_write(root, name, data):
+    path = root / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(data, encoding='utf-8')
+    return path
+
+
+class PipeResourceEventTest(unittest.TestCase):
+    def test_real_native_wiring(self):
+        files = [p for p in ROOT.glob('source-*/**/buildcraft/transport/pipe/flow/PipeFlowFluids.java')]
+        self.assertEqual(6, len(files))
+        for f in files:
+            with self.subTest(f=str(f)):
+                s = f.read_text(encoding='utf-8')
+                for phase in ('BEFORE_CENTRE', 'TO_CENTRE', 'FROM_CENTRE', 'OUTPUT', 'INSERT', 'PIPE_TRANSFER'):
+                    self.assertIn('FluidMovementPhase.' + phase, s)
+                self.assertIn('PipeFlowEventRuntime.fluidLimit', s)
+                self.assertLess(s.index('FluidMovementPhase.BEFORE_CENTRE'), s.index('FluidMovementPhase.TO_CENTRE'))
+        for name in ('PipeFlowPower', 'PipeFlowForgeEnergy'):
+            files = [p for p in ROOT.glob('source-*/**/buildcraft/transport/pipe/flow/' + name + '.java')]
+            self.assertEqual(6, len(files))
+            for f in files:
+                with self.subTest(f=str(f)):
+                    s = f.read_text(encoding='utf-8')
+                    for phase in ('REQUEST', 'EXTRACT', 'SEND', 'RECEIVE', 'PIPE_TRANSFER'):
+                        self.assertIn('PowerMovementPhase.' + phase, s)
+                    self.assertIn('PipeFlowEventRuntime.configure', s)
+                    self.assertIn('target.apiPowerLimit', s)
+
+    def test_independent_addon_and_callback_sandbox(self):
+        with tempfile.TemporaryDirectory(prefix='bcce-pipe-resources-') as temp:
+            root = pathlib.Path(temp)
+            stubs = [pipe_resources_write(root/'stub', key, value) for key, value in PIPE_RESOURCES_STUBS.items()]
+            api = [PIPE_RESOURCES_SRC / ('buildcraft/api/v2/' + name + '.java') for name in PIPE_RESOURCES_API_NAMES]
+            backend = PIPE_RESOURCES_SRC/'buildcraft/transport/api2/PipeFlowEventRuntime.java'
+            pubclasses, addonclasses, runtimeclasses = (root/'public', root/'addon', root/'runtime')
+            for directory in (pubclasses, addonclasses, runtimeclasses):directory.mkdir()
+            subprocess.run(['javac','-d',str(pubclasses), *[str(p) for p in stubs], *[str(p) for p in api]],check=True,capture_output=True,text=True)
+            addon=pipe_resources_write(root/'addon-source','addon/PipeResourceAddon.java',PIPE_RESOURCES_ADDON)
+            subprocess.run(['javac','-cp',str(pubclasses),'-d',str(addonclasses),str(addon)],check=True,capture_output=True,text=True)
+            jar=root/'PipeResourceAddon.jar'
+            subprocess.run(['jar','cf',str(jar),'-C',str(addonclasses),'.'],check=True,capture_output=True,text=True)
+            host=pipe_resources_write(root/'host-source','host/PipeResourceHost.java',PIPE_RESOURCES_HOST)
+            classpath=str(pubclasses)+__import__('os').pathsep+str(jar)
+            subprocess.run(['javac','-cp',classpath,'-d',str(runtimeclasses),str(backend),str(host)],check=True,capture_output=True,text=True)
+            subprocess.run(['java','-cp',classpath+__import__('os').pathsep+str(runtimeclasses),'host.PipeResourceHost'],check=True,capture_output=True,text=True)
 
 if __name__ == "__main__":
     unittest.main()

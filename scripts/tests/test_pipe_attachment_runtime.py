@@ -140,7 +140,7 @@ public class Level {
     public BlockEntity getBlockEntity(BlockPos pos) { return tile; }
 }''',
     "buildcraft/api/v2/world/WorldAccessContext.java": '''package buildcraft.api.v2.world;
-/** Minimal compile-time world context for attachment fixture; P02 tests the real contract separately. */
+/** Minimal compile-time world context for attachment fixture; the world contract is tested separately. */
 public interface WorldAccessContext {}''',
     "buildcraft/api/v2/permission/AutomationActor.java": '''package buildcraft.api.v2.permission;
 public class AutomationActor { public static AutomationActor unknown() { return new AutomationActor(); } public static AutomationActor player(java.util.UUID id, String name) { return new AutomationActor(); } }''',

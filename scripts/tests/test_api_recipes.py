@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
-"""BC8-P04: real machine recipe registry and loader-neutral Assembly Table addon conformance."""
+"""Assembly recipes, machine recipe discovery and refresh contracts."""
 from __future__ import annotations
 
-import os
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 import zipfile
 
-ROOT = Path(__file__).resolve().parents[2]
-SHARED = ROOT / 'source-shared/src/main/java'
-PUBLIC = [
+RECIPES_SHARED = ROOT / 'source-shared/src/main/java'
+RECIPES_PUBLIC = [
     'buildcraft/api/v2/recipe/RecipeDefinition.java',
     'buildcraft/api/v2/recipe/CountedIngredient.java',
     'buildcraft/api/v2/recipe/AssemblyIngredients.java',
@@ -26,14 +30,14 @@ PUBLIC = [
         'DefinitionEntry', 'DefinitionProvenance', 'DefinitionSnapshot',
         'ReloadDiagnostic', 'ReloadGeneration', 'ResolvedDefinition')),
 ]
-BACKEND = [
+RECIPES_BACKEND = [
     'buildcraft/lib/internal/api/v2/MachineRecipeRegistryImpl.java',
     *('buildcraft/lib/internal/api/v2/reload/' + name + '.java' for name in (
         'ReloadableDefinitionRegistry', 'ReloadTransaction', 'ReloadPhase', 'DefinitionValidator')),
     *('buildcraft/lib/internal/api/v2/recipe/' + name + '.java' for name in (
         'MachineRecipeRegistration', 'MachineRecipeReloadResult')),
 ]
-STUBS = {
+RECIPES_STUBS = {
     'net/minecraft/resources/ResourceLocation.java': '''package net.minecraft.resources;
 public class ResourceLocation {
  private final String id;
@@ -184,7 +188,7 @@ public interface IItemHandlerModifiable {
  int getSlots();ItemStack getStackInSlot(int slot);void setStackInSlot(int slot,ItemStack stack);
 }''',
 }
-ADDON = r'''package addon;
+RECIPES_ADDON = r'''package addon;
 import java.util.*;
 import buildcraft.api.v2.recipe.*;
 import buildcraft.api.v2.reload.*;
@@ -227,7 +231,7 @@ public final class IndependentRecipeAddon {
          public CountedIngredient centerIngredient(){return CountedIngredient.of(WRENCH,1);}
        }:null;}
 }'''
-HOST = r'''package fixture;
+RECIPES_HOST = r'''package fixture;
 import java.util.*;
 import addon.IndependentRecipeAddon;
 import buildcraft.api.v2.BuildCraftApi;
@@ -311,36 +315,36 @@ public class Host {
     "failed craft mutated slots");
   ok(service.removeCode(id),"code removal failed");
   ok(!adapter.registered() && !adapter.consume(items,IndependentRecipeAddon.OUTPUT,true),"stale recipe usable after removal");
-  System.out.println("BC8-P04 PASS independent addon, exact input, lifecycle, reload, JEI preview and table consumption");
+  System.out.println("API assembly contracts PASS independent addon, exact input, lifecycle, reload, JEI preview and table consumption");
  }
 }'''
 
 
-def run(*args: str, timeout=110) -> str:
+def recipes_run(*args: str, timeout=110) -> str:
     result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
     if result.returncode:
         raise AssertionError(' '.join(map(str, args[:6])) + '\n' + result.stdout + '\n' + result.stderr[-14000:])
     return result.stdout
 
 
-def write(root: Path, name: str, data: str) -> Path:
+def recipes_write(root: Path, name: str, data: str) -> Path:
     path = root / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(data, encoding='utf-8')
     return path
 
 
-class BC8P04RecipeTest(unittest.TestCase):
+class AssemblyRecipeConformanceTest(unittest.TestCase):
     def test_public_jar_and_production_recipe_registry(self):
         if not all(shutil.which(tool) for tool in ('javac','java','jar')):
             self.skipTest('JDK needed to test real JVM behavior')
-        with tempfile.TemporaryDirectory(prefix='bcce-p04-') as td:
+        with tempfile.TemporaryDirectory(prefix='bcce-recipes-') as td:
             temp = Path(td)
-            common_stubs = [write(temp / 'stub', name, body) for name,body in STUBS.items()]
+            common_stubs = [recipes_write(temp / 'stub', name, body) for name,body in RECIPES_STUBS.items()]
             for family, counted, adapter in (
-                ('old',SHARED/'buildcraft/api/v2/recipe/CountedIngredient.java',
+                ('old',RECIPES_SHARED/'buildcraft/api/v2/recipe/CountedIngredient.java',
                     ROOT/'source-platforms/forge/src/main/java/buildcraft/lib/recipe/ApiAssemblyRecipeAdapter.java'),
-                ('1.21.1',SHARED/'buildcraft/api/v2/recipe/CountedIngredient.java',
+                ('1.21.1',RECIPES_SHARED/'buildcraft/api/v2/recipe/CountedIngredient.java',
                     ROOT/'source-downports/1.21.X/1.21.1/neoforge/src/main/java/buildcraft/lib/recipe/ApiAssemblyRecipeAdapter.java'),
                 ('1.21.11',ROOT/'version-src/1.21.11-neoforge/src/main/java/buildcraft/api/v2/recipe/CountedIngredient.java',
                     ROOT/'source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/recipe/ApiAssemblyRecipeAdapter.java'),
@@ -351,37 +355,37 @@ class BC8P04RecipeTest(unittest.TestCase):
                     work = temp/family
                     api_dir=work/'public'; api_dir.mkdir(parents=True)
                     # For this test, the Forge IItemHandlerModifiable is an ABI-compatible alias in stubs.
-                    selected = [SHARED/f for f in PUBLIC if not f.endswith('/CountedIngredient.java')]
+                    selected = [RECIPES_SHARED/f for f in RECIPES_PUBLIC if not f.endswith('/CountedIngredient.java')]
                     sources = common_stubs.copy()
                     if family=='1.21.1':
-                        neo_stub=STUBS['buildcraft/lib/recipe/AssemblyRecipe.java'].replace(
+                        neo_stub=RECIPES_STUBS['buildcraft/lib/recipe/AssemblyRecipe.java'].replace(
                             'AssemblyRecipe(Identifier id','AssemblyRecipe(ResourceLocation id')
                         sources=[s for s in sources if s != temp/'stub/buildcraft/lib/recipe/AssemblyRecipe.java']
-                        sources.append(write(work/'stub','buildcraft/lib/recipe/AssemblyRecipe.java',neo_stub))
+                        sources.append(recipes_write(work/'stub','buildcraft/lib/recipe/AssemblyRecipe.java',neo_stub))
                     if family=='old':
-                        forge_interface = write(work/'stub','net/minecraftforge/items/IItemHandlerModifiable.java',
+                        forge_interface = recipes_write(work/'stub','net/minecraftforge/items/IItemHandlerModifiable.java',
                             'package net.minecraftforge.items; public interface IItemHandlerModifiable extends net.neoforged.neoforge.items.IItemHandlerModifiable {}')
                         sources.append(forge_interface)
-                        old_stub = STUBS['buildcraft/lib/recipe/AssemblyRecipe.java'].replace(
+                        old_stub = RECIPES_STUBS['buildcraft/lib/recipe/AssemblyRecipe.java'].replace(
                             'import net.neoforged.neoforge.items.IItemHandlerModifiable;',
                             'import net.minecraftforge.items.IItemHandlerModifiable;').replace('AssemblyRecipe(Identifier id',
                             'AssemblyRecipe(ResourceLocation id')
                         sources=[s for s in sources if s != temp/'stub/buildcraft/lib/recipe/AssemblyRecipe.java']
-                        sources.append(write(work/'stub','buildcraft/lib/recipe/AssemblyRecipe.java',old_stub))
-                    run('javac','--release','17','-encoding','UTF-8','-sourcepath','',
+                        sources.append(recipes_write(work/'stub','buildcraft/lib/recipe/AssemblyRecipe.java',old_stub))
+                    recipes_run('javac','--release','17','-encoding','UTF-8','-sourcepath','',
                         '-d',str(api_dir),*map(str,sources),*map(str,selected),str(counted))
                     api_jar=work/'api.jar'
-                    run('jar','--create','--file',str(api_jar),'-C',str(api_dir),'.')
-                    addon=write(work,'addon-src/addon/IndependentRecipeAddon.java',ADDON)
+                    recipes_run('jar','--create','--file',str(api_jar),'-C',str(api_dir),'.')
+                    addon=recipes_write(work,'addon-src/addon/IndependentRecipeAddon.java',RECIPES_ADDON)
                     addon_dir=work/'addon-classes';addon_dir.mkdir()
-                    run('javac','--release','17','-encoding','UTF-8','-sourcepath','',
+                    recipes_run('javac','--release','17','-encoding','UTF-8','-sourcepath','',
                         '-cp',str(api_jar),'-d',str(addon_dir),str(addon))
                     addon_jar=work/'addon.jar'
-                    run('jar','--create','--file',str(addon_jar),'-C',str(addon_dir),'.')
+                    recipes_run('jar','--create','--file',str(addon_jar),'-C',str(addon_dir),'.')
                     with zipfile.ZipFile(addon_jar) as z:
                         self.assertEqual([f for f in z.namelist() if f.endswith('.class')],
                                          [f for f in z.namelist() if f.startswith('addon/') and f.endswith('.class')])
-                    host_src=HOST
+                    host_src=RECIPES_HOST
                     if family=='1.21.1':
                         host_src=host_src.replace(
                             'ApiAssemblyRecipeAdapter.fromService(net.minecraft.resources.Identifier.tryParse(id.toString()))',
@@ -392,14 +396,14 @@ class BC8P04RecipeTest(unittest.TestCase):
                             'ApiAssemblyRecipeAdapter.fromService(net.minecraft.resources.Identifier.tryParse(id.toString()))',
                             'ApiAssemblyRecipeAdapter.fromService(id)').replace(
                             'ok(adapter.getResultItem(null).getItem()==IndependentRecipeAddon.MODULE,"JEI result is placeholder");','')
-                    host=write(work,'host-src/fixture/Host.java',host_src)
+                    host=recipes_write(work,'host-src/fixture/Host.java',host_src)
                     compiled=work/'host-classes';compiled.mkdir()
-                    run('javac','--release','17','-encoding','UTF-8','-sourcepath','',
+                    recipes_run('javac','--release','17','-encoding','UTF-8','-sourcepath','',
                         '-cp',os.pathsep.join((str(api_jar),str(addon_jar))),'-d',str(compiled),
-                        str(host),str(adapter),*(str(SHARED/f) for f in BACKEND))
-                    result=run('java','-cp',os.pathsep.join((str(api_jar),str(addon_jar),str(compiled))),
+                        str(host),str(adapter),*(str(RECIPES_SHARED/f) for f in RECIPES_BACKEND))
+                    result=recipes_run('java','-cp',os.pathsep.join((str(api_jar),str(addon_jar),str(compiled))),
                         'fixture.Host')
-                    self.assertIn('BC8-P04 PASS',result)
+                    self.assertIn('API assembly contracts PASS',result)
 
     def test_all_target_assembly_wiring(self):
         base = ROOT/'scripts'
@@ -433,4 +437,5 @@ class BC8P04RecipeTest(unittest.TestCase):
                         self.assertIn('matchesItem(',source)
                         self.assertIn('sameItemAndData(',source)
 
-if __name__=='__main__': unittest.main()
+if __name__ == "__main__":
+    unittest.main()

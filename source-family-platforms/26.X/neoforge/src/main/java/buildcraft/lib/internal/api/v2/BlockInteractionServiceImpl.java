@@ -65,7 +65,7 @@ final class BlockInteractionServiceImpl implements BlockInteractionService {
 
     private static boolean denied(Level level, BlockPos pos, BlockState state,
             AutomationActor actor, OperationMode mode) {
-        // Client prediction retains its pre-P02 behaviour; listeners execute only on the server.
+        // Client prediction remains unchanged; registered listeners execute only on the server.
         if (level.isClientSide()) return false;
         return BuildCraftApi.service(BuildCraftServices.WORLD_EVENTS).dispatch(new WorldEventContext(
             WorldEventKind.BLOCK_INTERACT, level, pos, actor, Optional.of(state), Optional.empty(), mode))
