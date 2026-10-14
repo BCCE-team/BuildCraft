@@ -16,7 +16,7 @@ from source_config import load_properties, target_layout
 from source_layout import resolve_effective_source, _materialize_text_file
 
 FACADE_ALPHA_LOGICAL = 'src/main/java/buildcraft/silicon/client/model/plug/PlugBakerFacade.java'
-FACADE_ALPHA_CORRECTED_ALPHA = 'quad.multColourd(1.0, 1.0, 1.0, 0.65);'
+FACADE_ALPHA_CORRECTED_ALPHA = 'quad.multColourd(1.0, 1.0, 1.0, 1.0);'
 FACADE_ALPHA_WORLD_FACADE_CHECK = 'if (applyGlassAlpha && PluggableFacade.isGlass(key.state))'
 
 
@@ -110,8 +110,8 @@ __EXACT_BRANCH__
         }
     }
     public static void main(String[] args) {
-        check(255, true, true, 165); // 26.3 installed glass keeps visible detail
-        check(128, true, true, 82);  // preserve original per-vertex alpha proportion
+        check(255, true, true, 255); // 26.3 installed glass keeps visible detail
+        check(128, true, true, 128);  // preserve original per-vertex alpha proportion
         check(255, true, false, 255); // facade item must keep original alpha
         check(255, false, true, 255); // stone/solid facade unchanged
         check(70, false, true, 70);   // non-glass translucent material unchanged
@@ -128,6 +128,97 @@ __EXACT_BRANCH__
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('PASS 80 java opacity checks', result.stdout)
             print(result.stdout.strip())
+
+
+class NativeGlassNormals263(unittest.TestCase):
+    def test_only_263_reorients_glass_normals(self):
+        _, source = facade_alpha_effective_baker('26.3-neoforge')
+        self.assertIn('if (PluggableFacade.isGlass(state)) {', source)
+        self.assertIn('alignGlassNormalToGeometry(mutableQuad, side);', source)
+        self.assertIn('quad.normalvf(normal);', source)
+        self.assertIn('quad.setFace(Direction.getApproximateNearest(', source)
+        for version in ('1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge'):
+            with self.subTest(version=version):
+                _, old = facade_alpha_effective_baker(version)
+                self.assertNotIn('alignGlassNormalToGeometry', old)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'Java SDK required')
+    def test_actual_263_normal_helper_handles_slopes_winding_and_flat_faces(self):
+        _, baker = facade_alpha_effective_baker('26.3-neoforge')
+        start = baker.index('    private static void alignGlassNormalToGeometry(')
+        end = baker.index('    private static MutableQuad fromNative(', start)
+        method = baker[start:end]
+        code = r'''public final class FacadeNormalProbe {
+    enum Direction {
+        EAST(1,0,0), WEST(-1,0,0), UP(0,1,0), DOWN(0,-1,0), SOUTH(0,0,1), NORTH(0,0,-1);
+        final int x,y,z;
+        Direction(int x,int y,int z){this.x=x;this.y=y;this.z=z;}
+        int getStepX(){return x;} int getStepY(){return y;} int getStepZ(){return z;}
+        static Direction getApproximateNearest(float x,float y,float z){
+            Direction nearest=EAST;float score=Float.NEGATIVE_INFINITY;
+            for(Direction d:values()){float s=x*d.x+y*d.y+z*d.z;if(s>score){score=s;nearest=d;}}
+            return nearest;
+        }
+    }
+    static class MutableQuad {
+        org.joml.Vector3f expected, actual;
+        Direction face;
+        MutableQuad(org.joml.Vector3f expected){this.expected=expected;}
+        org.joml.Vector3f getCalculatedNormal(){return new org.joml.Vector3f(expected);}
+        void normalvf(org.joml.Vector3f n){actual=new org.joml.Vector3f(n);}
+        void setFace(Direction d){face=d;}
+    }
+''' + method + r'''
+    static int assertions=0;
+    static void check(boolean correct) {assertions++;if(!correct) throw new AssertionError("assertion "+assertions);}
+    public static void main(String[] args) {
+        for(Direction source:Direction.values()) {
+            org.joml.Vector3f flat=new org.joml.Vector3f(source.x,source.y,source.z);
+            MutableQuad q=new MutableQuad(flat);
+            alignGlassNormalToGeometry(q,source);
+            check(q.face==source);
+            check(q.actual!=null && Math.abs(q.actual.lengthSquared()-1)<.00001f);
+            org.joml.Vector3f sloped=new org.joml.Vector3f(source.x+.35f*(source.x==0?1:0),
+                source.y+.35f*(source.x!=0?1:0),source.z);
+            if(source.x==0 && source.y==0) sloped.x=0.35f;
+            q=new MutableQuad(sloped);
+            alignGlassNormalToGeometry(q,source);
+            check(q.actual!=null && q.actual.x()*source.x+q.actual.y()*source.y+q.actual.z()*source.z>0);
+            check(Math.abs(q.actual.lengthSquared()-1)<.00001f);
+            q=new MutableQuad(new org.joml.Vector3f(-sloped.x(),-sloped.y(),-sloped.z()));
+            alignGlassNormalToGeometry(q,source);
+            check(q.actual!=null && q.actual.x()*source.x+q.actual.y()*source.y+q.actual.z()*source.z>0);
+        }
+        MutableQuad degenerate=new MutableQuad(new org.joml.Vector3f(0,0,0));
+        alignGlassNormalToGeometry(degenerate,Direction.UP);
+        check(degenerate.actual==null);
+        System.out.println(assertions+" normal tests PASS");
+    }
+}
+'''
+        vector = r'''package org.joml;
+public class Vector3f {
+    public float x,y,z;
+    public Vector3f(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
+    public Vector3f(Vector3f o){this(o.x,o.y,o.z);}
+    public float x(){return x;} public float y(){return y;} public float z(){return z;}
+    public float lengthSquared(){return x*x+y*y+z*z;}
+    public Vector3f negate(){x=-x;y=-y;z=-z;return this;}
+    public Vector3f normalize(){float len=(float)Math.sqrt(lengthSquared());x/=len;y/=len;z/=len;return this;}
+}
+'''
+        with tempfile.TemporaryDirectory(prefix='bc-glass-normals-') as tmp:
+            root = Path(tmp)
+            vpath = root / 'org/joml/Vector3f.java'
+            vpath.parent.mkdir(parents=True, exist_ok=True)
+            vpath.write_text(vector, encoding='utf-8')
+            (root / 'FacadeNormalProbe.java').write_text(code, encoding='utf-8')
+            build = subprocess.run(['javac', '-encoding', 'UTF-8', 'FacadeNormalProbe.java',
+                                    'org/joml/Vector3f.java'], cwd=root, capture_output=True, text=True)
+            self.assertEqual(0, build.returncode, build.stderr)
+            result = subprocess.run(['java', 'FacadeNormalProbe'], cwd=root, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn('31 normal tests PASS', result.stdout)
 
 
 class GlassFacadeLighting263Test(unittest.TestCase):

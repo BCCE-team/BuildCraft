@@ -157,9 +157,37 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
                         );
                     }
                 });
+            //? if >=26.3 {
+            // The thin glass shell contains bevels whose surface normals differ from the
+            // source block face. Native terrain lighting uses both the face label and the
+            // per-vertex normals, so retaining the source normal lights these bevels from
+            // the wrong neighbour when the facade is placed against terrain.
+            if (PluggableFacade.isGlass(state)) {
+                alignGlassNormalToGeometry(mutableQuad, side);
+            }
+            //? }
             return mutableQuad;
         }).collect(Collectors.toList());
     }
+
+    //? if >=26.3 {
+    private static void alignGlassNormalToGeometry(MutableQuad quad, Direction sourceFace) {
+        org.joml.Vector3f normal = quad.getCalculatedNormal();
+        float lengthSquared = normal.lengthSquared();
+        if (!Float.isFinite(lengthSquared) || lengthSquared < 1.0E-10F) {
+            return;
+        }
+        // Preserve the front/back orientation of the sampled vanilla glass face.
+        // Reassign only its slope; opposite winding must not turn a visible face inward.
+        if (normal.x() * sourceFace.getStepX() + normal.y() * sourceFace.getStepY()
+            + normal.z() * sourceFace.getStepZ() < 0.0F) {
+            normal.negate();
+        }
+        normal.normalize();
+        quad.normalvf(normal);
+        quad.setFace(Direction.getApproximateNearest(normal.x(), normal.y(), normal.z()));
+    }
+    //? }
 
     private static MutableQuad fromNative(BlockState state, net.minecraft.client.resources.model.geometry.BakedQuad quad) {
         // Keep the source block tint index unresolved here. World facades must resolve biome-dependent colours
@@ -308,7 +336,7 @@ public enum PlugBakerFacade implements IPluggableStaticBaker<KeyPlugFacade> {
         // alpha, and only for installed glass facades (not facade items).
         if (applyGlassAlpha && PluggableFacade.isGlass(key.state)) {
             for (MutableQuad quad : quads) {
-                quad.multColourd(1.0, 1.0, 1.0, 0.65);
+                quad.multColourd(1.0, 1.0, 1.0, 1.0);
             }
         }
         //? }
