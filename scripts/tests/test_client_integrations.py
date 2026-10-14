@@ -312,8 +312,13 @@ class ClientIntegrations(unittest.TestCase):
         for root in (old_root, current_root):
             pipe_holder = (root / 'buildcraft/transport/block/BlockPipeHolder.java').read_text()
             paint = pipe_holder[pipe_holder.index('InteractionResult attemptPaint'):]
-            self.assertIn('Direction facadeSide = getFacadeSideAt(tile, pos, hitPos)', paint)
-            self.assertIn('pluggable.getBoundingBox().bounds().contains(localHit)', paint)
+            self.assertIn('Direction facadeSide = getFacadeSideAt(tile, pos, hitPos, hitSide)', paint)
+            facade_hit = paint[paint.index('private static Direction getFacadeSideAt'):paint.index('private static Direction getLensSideAt')]
+            self.assertIn('tile.getPluggable(hitSide)', facade_hit)
+            self.assertIn('selected.getBoundingBox().bounds().inflate(1.0E-4).contains(localHit)', facade_hit)
+            self.assertIn('pluggable.getBoundingBox().bounds().inflate(1.0E-4).contains(localHit)', facade_hit)
+            self.assertIn('!facade.isHollow()', facade_hit)
+            self.assertLess(paint.index('if (facadeSide != null)'), paint.index('Pipe pipe = tile.getPipe()'))
             self.assertNotIn('computSubhit(tile, localHit', paint)
 
         # 1.21.11 uses the real vanilla Recipe Book texture/sprites/layout rather than a recoloured custom panel.
@@ -355,7 +360,11 @@ class ClientIntegrations(unittest.TestCase):
         facade_state = self.java('buildcraft/silicon/plug/PluggableFacade.java')
         self.assertIn('activeState = MathUtil.clamp(buffer.readVarInt(), 0, states.phasedStates.length - 1);', facade_state)
         self.assertIn('buffer.writeVarInt(activeState);', facade_state)
-        self.assertIn('states.type == FacadeType.Basic && enableStainedGlassPhases()', facade_state)
+        self.assertIn('if (states.type == FacadeType.Basic)', facade_state)
+        self.assertIn('CustomPaintHelper.recoloredState(', facade_state)
+        self.assertIn('states = new FacadeInstance(', facade_state)
+        self.assertIn('states.writeToBuffer(buffer);', facade_state)
+        self.assertIn('states = FacadeInstance.readFromBuffer(buffer);', facade_state)
         self.assertIn('public CompoundTag writeSyncState(BCNetworkSide side)', facade_state)
 
         # Legacy baked vertices are ABGR. The native 1.21.11 pipe converter reads these vertices before passing
@@ -723,17 +732,41 @@ public class JeiRuntimeProbe {
       static void push(RecipeHolder<AssemblyRecipeBasic>... items){recipes=List.of(items);if(listener!=null)listener.run();}
     }
   }
+  record RecipeGeneration(long id){}
+  record RecipeSnapshot(RecipeGeneration generation){}
+  static class MachineRecipeService {
+    long generation;
+    List<RecipeHolder<AssemblyRecipeBasic>> addonRecipes=List.of();
+    RecipeSnapshot snapshot(){return new RecipeSnapshot(new RecipeGeneration(generation));}
+    List<RecipeHolder<AssemblyRecipeBasic>> assemblyRecipes(){return addonRecipes;}
+    @SafeVarargs final void publish(RecipeHolder<AssemblyRecipeBasic>... next){
+      addonRecipes=List.of(next);generation++;
+    }
+  }
+  static class BuildCraftServices { static final Object MACHINE_RECIPES=new Object(); }
+  static class BuildCraftApi {
+    static final MachineRecipeService MACHINE_RECIPES=new MachineRecipeService();
+    static MachineRecipeService service(Object key){
+      check(key==BuildCraftServices.MACHINE_RECIPES);return MACHINE_RECIPES;
+    }
+  }
   static class GroupedAssemblyRecipes { void clear() {} }
   static final Map<String,Integer> GROUPED_ASSEMBLY_RECIPES=new HashMap<>();
   static final Object ASSEMBLY=new Object();
   private static IJeiRuntime activeRuntime;
   private static List<RecipeHolder<AssemblyRecipeBasic>> publishedAssemblySource=List.of();
   private static List<AssemblyJeiRecipe> publishedAssemblyRecipes=List.of();
+  private static long publishedAssemblyApiGeneration=-1;
   static List<AssemblyJeiRecipe> collectAssemblyRecipes(List<RecipeHolder<AssemblyRecipeBasic>> source){
-    return source.stream().map(r->new AssemblyJeiRecipe(r.id(),r.value())).toList();
+    List<AssemblyJeiRecipe> views=new ArrayList<>();
+    for(var recipe:source)views.add(new AssemblyJeiRecipe(recipe.id(),recipe.value()));
+    for(var recipe:BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).assemblyRecipes())
+      views.add(new AssemblyJeiRecipe(recipe.id(),recipe.value()));
+    return List.copyOf(views);
   }
   public void register(){var source=BCSiliconRecipeSync.Client.assemblyRecipes();
-    publishedAssemblySource=source;publishedAssemblyRecipes=collectAssemblyRecipes(source);}
+    publishedAssemblySource=source;publishedAssemblyRecipes=collectAssemblyRecipes(source);
+    publishedAssemblyApiGeneration=BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).snapshot().generation().id();}
   AVAILABLE
   REFRESH
   UNAVAILABLE
@@ -748,14 +781,26 @@ public class JeiRuntimeProbe {
     check(manager.visible.size()==2 && manager.added==2);
     BCSiliconRecipeSync.Client.push(gate,lens); // unchanged snapshot: no duplicates
     check(manager.added==2 && manager.hidden==0);
-    BCSiliconRecipeSync.Client.push(gate); // reload replaces recipes
+    var addon=new RecipeHolder<>("addon/board",new AssemblyRecipeBasic("addon"));
+    BuildCraftApi.MACHINE_RECIPES.publish(addon);
+    BCSiliconRecipeSync.Client.push(gate,lens); // same vanilla recipes, new API generation
+    check(manager.visible.size()==3 && manager.visible.stream().anyMatch(r->r.id().equals("addon/board")));
+    check(manager.added==5 && manager.hidden==2);
+    BCSiliconRecipeSync.Client.push(gate,lens); // same generation must not re-register recipes
+    check(manager.added==5 && manager.hidden==2);
+    BuildCraftApi.MACHINE_RECIPES.publish(); // remove the addon-only recipe
+    BCSiliconRecipeSync.Client.push(gate,lens);
+    check(manager.visible.size()==2 && manager.visible.stream().noneMatch(r->r.id().equals("addon/board")));
+    check(manager.added==7 && manager.hidden==5);
+    BCSiliconRecipeSync.Client.push(gate); // reload replaces synced recipes
     check(manager.visible.size()==1 && manager.visible.get(0).id().equals("gate"));
-    check(manager.added==3 && manager.hidden==2);
+    check(manager.added==8 && manager.hidden==7);
     BCSiliconRecipeSync.Client.push(); // empty reload or server leaves world
-    check(manager.visible.isEmpty() && manager.hidden==3);
+    check(manager.visible.isEmpty() && manager.hidden==8);
     probe.onRuntimeUnavailable();
+    check(publishedAssemblyApiGeneration==-1);
     BCSiliconRecipeSync.Client.push(lens);
-    check(manager.visible.isEmpty() && manager.added==3); // detached from JEI
+    check(manager.visible.isEmpty() && manager.added==8); // detached from JEI
     System.out.println("JEI live registration and reload PASS");
   }
 }

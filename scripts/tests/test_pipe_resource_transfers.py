@@ -177,10 +177,11 @@ public enum FluidAction { EXECUTE, SIMULATE }''',
     'buildcraft/transport/pipe/flow/FluidStack.java': '''package buildcraft.transport.pipe.flow;
 import buildcraft.api.v2.fluid.FluidVariant;
 public class FluidStack {
-    public static final FluidStack EMPTY=new FluidStack(null,0);
+    public static final FluidStack EMPTY=new FluidStack((FluidVariant)null,0);
     public final FluidVariant variant;
     private final int amount;
     public FluidStack(FluidVariant variant,int amount) { this.variant=variant;this.amount=amount; }
+    public FluidStack(FluidStack original,int amount) { this(original.variant,amount); }
     public boolean isEmpty() { return variant == null || amount<=0; }
     public FluidStack copy() { return new FluidStack(variant,amount); }
     public FluidStack copyWithAmount(int amount) { return new FluidStack(variant,amount); }

@@ -19,10 +19,18 @@ public final class BlueprintLibraryFixtureAddon implements LibraryFormatHandler 
         return snapshot;
     }
 
+    private static String readString(CompoundTag snapshot, String key) {
+        Object value = snapshot.getString(key);
+        if (value instanceof java.util.Optional<?> optional) {
+            return optional.map(Object::toString).orElse("");
+        }
+        return value instanceof String string ? string : "";
+    }
+
     @Override
     public byte[] encode(CompoundTag snapshot) throws IOException {
-        String type = snapshot.getString("type");
+        String type = readString(snapshot, "type");
         if (!type.equals("BLUEPRINT") && !type.equals("TEMPLATE")) throw new IOException("Invalid type");
-        return (snapshot.getString("name") + "|" + type).getBytes(StandardCharsets.UTF_8);
+        return (readString(snapshot, "name") + "|" + type).getBytes(StandardCharsets.UTF_8);
     }
 }

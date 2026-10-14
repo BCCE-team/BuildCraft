@@ -68,9 +68,9 @@ public class GuiProgrammingTable extends GuiBC8<ContainerProgrammingTable> {
         getActiveGraphics().drawString(font, title, leftPos + (imageWidth - font.width(title)) / 2, topPos + 15, 0x404040, false);
         getActiveGraphics().drawString(font, playerInventoryTitle, leftPos + 8, topPos + imageHeight - 97, 0x404040, false);
         if (container.tile.pageCount() > 1) {
-            font.draw(pose, "<", leftPos + 47, topPos + 26, 0x404040);
-            font.draw(pose, Integer.toString(container.tile.selectedPage + 1) + "/" + container.tile.pageCount(), leftPos + 91, topPos + 26, 0x404040);
-            font.draw(pose, ">", leftPos + 147, topPos + 26, 0x404040);
+            getActiveGraphics().drawString(font, "<", leftPos + 47, topPos + 26, 0x404040, false);
+            getActiveGraphics().drawString(font, Integer.toString(container.tile.selectedPage + 1) + "/" + container.tile.pageCount(), leftPos + 91, topPos + 26, 0x404040, false);
+            getActiveGraphics().drawString(font, ">", leftPos + 147, topPos + 26, 0x404040, false);
         }
     }
 

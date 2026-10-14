@@ -51,10 +51,17 @@ def validate_target(target: str) -> None:
     if "ZonePlannerMapDataClient" in renderer or "MessageZoneMapRequest" in renderer:
         raise AssertionError(f"{target}: block preview must not use remote GUI-map requests")
 
+    # Minecraft's packed-light API changes between renderer generations. Validate
+    # the vertex call itself, not a constant name from another target version.
     if target == "26.1.2-neoforge":
-        require(target, renderer, ".setLight(0xF000F0)")
+        full_bright = ".setLight(0xF000F0)"
+    elif target in {"26.2-neoforge", "26.3-neoforge"}:
+        full_bright = ".setLight(LightCoordsUtil.FULL_BRIGHT)"
+    elif target in {"1.19.2-forge", "1.20.1-forge"}:
+        full_bright = ".uv2(LightTexture.FULL_BRIGHT)"
     else:
-        require(target, renderer, "LightTexture.FULL_BRIGHT")
+        full_bright = ".setLight(LightTexture.FULL_BRIGHT)"
+    require(target, renderer, full_bright)
 
     if target in MODERN_CAPTURE_TARGETS:
         require(

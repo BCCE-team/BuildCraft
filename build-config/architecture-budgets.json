@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "invariants": {
-    "canonical_1_21_x_minecraft": "1.21.11",
-    "frozen_1.21.11_api_files": [
-      "src/main/java/buildcraft/api/v2/recipe/CountedIngredient.java"
-    ]
-  }
-}

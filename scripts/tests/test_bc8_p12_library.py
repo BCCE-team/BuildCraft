@@ -113,4 +113,67 @@ class LibraryP12Test(unittest.TestCase):
    test=subprocess.run(['java','-cp',str(tmp/'classes'),'check.P12LibraryCheck'],capture_output=True,text=True,timeout=30)
    self.assertEqual(test.returncode,0,test.stdout+'\n'+test.stderr)
 
+
+ def test_materialized_library_addon_stays_public_across_targets(self):
+  import sys
+  scripts=str(ROOT/'scripts')
+  if scripts not in sys.path:sys.path.insert(0,scripts)
+  from source_config import load_properties,target_ids,target_layout
+  from source_layout import _materialize_text_file
+
+  addon=ROOT/'addon-fixture/src/main/java/dev/bcce/apifixture/BlueprintLibraryFixtureAddon.java'
+  properties=load_properties()
+  with tempfile.TemporaryDirectory(prefix='p12-public-fixture-') as d:
+   tmp=Path(d)
+   for target in target_ids(properties):
+    layout=target_layout(target,properties)
+    selected=tmp/target/'dev/bcce/apifixture/BlueprintLibraryFixtureAddon.java'
+    _materialize_text_file(addon,selected,
+       logical_relative='addon-fixture/src/main/java/dev/bcce/apifixture/BlueprintLibraryFixtureAddon.java',
+       minecraft=properties[f'target.{target}.deps.minecraft'],
+       family=layout.family,platform=layout.platform,preprocess=True)
+    code=selected.read_text(encoding='utf-8')
+    with self.subTest(target=target):
+     self.assertNotIn('buildcraft.lib.',code)
+     self.assertIn('readString(snapshot, "type")',code)
+
+   # Minecraft changed CompoundTag#getString from String to Optional<String>.
+   simple=STUBS['net/minecraft/nbt/CompoundTag.java']
+   modern=simple.replace('public String getString(String k){return m.getOrDefault(k,"");}',
+      'public java.util.Optional<String> getString(String k){return java.util.Optional.ofNullable(m.get(k));}')
+   self.assertNotEqual(simple,modern)
+   harness='''package check;
+import dev.bcce.apifixture.BlueprintLibraryFixtureAddon;
+import java.nio.charset.StandardCharsets;
+public class Check {
+ public static void main(String[] args) throws Exception {
+  var codec=new BlueprintLibraryFixtureAddon();
+  var blueprint=codec.decode("Workshop|BLUEPRINT".getBytes(StandardCharsets.UTF_8));
+  var exported=new String(codec.encode(blueprint),StandardCharsets.UTF_8);
+  if (!exported.equals("Workshop|BLUEPRINT")) throw new AssertionError(exported);
+  var template=codec.decode("Tower|TEMPLATE".getBytes(StandardCharsets.UTF_8));
+  if (!new String(codec.encode(template),StandardCharsets.UTF_8).equals("Tower|TEMPLATE")) throw new AssertionError();
+  try { codec.decode("invalid".getBytes(StandardCharsets.UTF_8)); throw new AssertionError(); }
+  catch (java.io.IOException expected) {}
+ }
+}
+'''
+   for target,nbt_stub in [('1.19.2-forge',simple),('1.21.11-neoforge',modern),('26.3-neoforge',modern)]:
+    with self.subTest(compilation=target):
+     temp=tmp/('javac-'+target)
+     stub=temp/'net/minecraft/nbt/CompoundTag.java'
+     stub.parent.mkdir(parents=True,exist_ok=True)
+     stub.write_text(nbt_stub,encoding='utf-8')
+     check=temp/'check/Check.java'
+     check.parent.mkdir(parents=True,exist_ok=True)
+     check.write_text(harness,encoding='utf-8')
+     addon_source=tmp/target/'dev/bcce/apifixture/BlueprintLibraryFixtureAddon.java'
+     classes=temp/'classes'
+     compilation=subprocess.run(['javac','--release','17','-encoding','UTF-8','-d',str(classes),
+         str(stub),str(BASE/'buildcraft/api/v2/library/LibraryFormatHandler.java'),
+         str(addon_source),str(check)],capture_output=True,text=True,timeout=35)
+     self.assertEqual(0,compilation.returncode,compilation.stderr)
+     run=subprocess.run(['java','-cp',str(classes),'check.Check'],capture_output=True,text=True,timeout=15)
+     self.assertEqual(0,run.returncode,run.stderr)
+
 if __name__=='__main__':unittest.main()

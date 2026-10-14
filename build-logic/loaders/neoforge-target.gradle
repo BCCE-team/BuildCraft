@@ -457,11 +457,14 @@ def verifyApi2AddonBinary = tasks.register('verifyApi2AddonBinary', Exec) {
     environment 'PYTHONDONTWRITEBYTECODE', '1'
     doFirst {
         def jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
+        def javac = tasks.named('compileJava', org.gradle.api.tasks.compile.JavaCompile)
+            .get().javaCompiler.get().executablePath.asFile.absolutePath
         commandLine pythonExecutable,
             new File(repositoryRoot, 'scripts/verify-addon-binary.py').absolutePath,
             '--bcce-jar', jarFile.absolutePath,
             '--dependencies', sourceSets.main.compileClasspath.asPath,
             '--release', javaVersion.toString(),
+            '--javac', javac,
             '--fixture-root', new File(effectiveSourceDir, 'addon-fixture/src/main/java/dev/bcce/apifixture').absolutePath,
             '--output', new File(project.buildDir, 'conformance/api2-fixtures.jar').absolutePath
     }

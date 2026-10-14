@@ -85,15 +85,26 @@ class SiliconRecipeBookSweep(unittest.TestCase):
             self.assertIn("OPTION_COUNT = WIDTH * HEIGHT", tile, target)
             self.assertIn("options = new ArrayList<>(BCRoboticsBoards.robotEntries())", tile, target)
             self.assertIn("options.sort", tile, target)
-            self.assertIn("if (option < 0 || option >= opts.size())", tile, target)
+            # The programming table displays one page at a time. An option is a slot
+            # on the current page, while page-change messages use negative indices.
+            self.assertIn("if (option <= -2)", tile, target)
+            self.assertIn("long requested = -((long) option) - 2L;", tile, target)
+            self.assertIn("if (requested < 0 || requested >= pageCount()) return;", tile, target)
+            self.assertIn("selectedPage = (int) requested;", tile, target)
+            self.assertIn("option < 0 || option >= OPTION_COUNT || selectedPage * OPTION_COUNT + option >= opts.size()", tile, target)
+            self.assertIn("if (selectedOption < 0 || absolute < 0 || absolute >= opts.size())", tile, target)
+            self.assertIn("return absolute >= 0 && absolute < opts.size()", tile, target)
             self.assertIn("selectedOption = -1;", tile, target)
             self.assertIn("sendNetworkGuiUpdate(NET_GUI_DATA);", tile, target)
 
             self.assertIn("new SlotDisplay(options, index", menu, target)
             self.assertIn("sendSelectOption", menu, target)
+            self.assertIn("if (page >= 0) sendSelectOption(-page - 2);", menu, target)
             self.assertIn("side == BCNetworkSide.SERVER", menu, target)
             self.assertIn("tile.selectOption(buffer.readVarInt())", menu, target)
             self.assertIn("container.sendSelectOption(container.tile.selectedOption == i ? -1 : i)", gui, target)
+            self.assertIn("container.sendSelectPage(container.tile.selectedPage - 1)", gui, target)
+            self.assertIn("container.sendSelectPage(container.tile.selectedPage + 1)", gui, target)
 
     def test_laser_targets_only_tables_with_real_work(self):
         for target in self.roots:

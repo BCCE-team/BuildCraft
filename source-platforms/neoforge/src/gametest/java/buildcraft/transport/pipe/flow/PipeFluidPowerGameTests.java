@@ -57,6 +57,18 @@ public final class PipeFluidPowerGameTests {
     private PipeFluidPowerGameTests() {
     }
 
+    //? if >=26.3 {
+    private static buildcraft.transport.internal.pipe.FluidAction flowFluidAction(FluidAction action) {
+        return action.execute()
+            ? buildcraft.transport.internal.pipe.FluidAction.EXECUTE
+            : buildcraft.transport.internal.pipe.FluidAction.SIMULATE;
+    }
+    //? } else {
+    private static FluidAction flowFluidAction(FluidAction action) {
+        return action;
+    }
+    //? }
+
     @GameTest(templateNamespace = BCLib.MODID, template = PipeGameTestSupport.LARGE_EMPTY_TEMPLATE, timeoutTicks = 20)
     public static void fluidForceInsertionSimulationMixingAndNbtRoundTrip(GameTestHelper helper) {
         TestPipe pipe = new TestPipe(helper.getLevel(), BCTransportPipes.cobbleFluid);
@@ -66,18 +78,18 @@ public final class PipeFluidPowerGameTests {
         int rate = PipeApi.getFluidTransferInfo(BCTransportPipes.cobbleFluid).transferPerTick;
         FluidStack water = new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate + 25);
 
-        int simulated = flow.insertFluidsForce(water, Direction.WEST, FluidAction.SIMULATE);
+        int simulated = flow.insertFluidsForce(water, Direction.WEST, flowFluidAction(FluidAction.SIMULATE));
         require(helper, simulated == rate, "fluid simulation ignored the per-tick transfer limit");
         require(helper, totalFluid(flow) == 0, "fluid simulation mutated the pipe");
 
-        int inserted = flow.insertFluidsForce(water, Direction.WEST, FluidAction.EXECUTE);
+        int inserted = flow.insertFluidsForce(water, Direction.WEST, flowFluidAction(FluidAction.EXECUTE));
         require(helper, inserted == simulated, "executed fluid insertion disagreed with simulation");
         require(helper, totalFluid(flow) == rate, "executed insertion stored the wrong amount");
 
         int mixed = flow.insertFluidsForce(
             new FluidStack(net.minecraft.world.level.material.Fluids.LAVA, rate),
             Direction.EAST,
-            FluidAction.EXECUTE
+            flowFluidAction(FluidAction.EXECUTE)
         );
         require(helper, mixed == 0, "pipe accepted lava while it already contained water");
         require(helper, totalFluid(flow) == rate, "rejected mixed fluid changed the stored amount");
@@ -149,20 +161,20 @@ public final class PipeFluidPowerGameTests {
         int inserted = flow.insertFluidsForce(
             new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate),
             null,
-            FluidAction.EXECUTE
+            flowFluidAction(FluidAction.EXECUTE)
         );
         require(helper, inserted == rate, "test setup failed to fill the centre section");
 
-        FluidStack belowMinimum = flow.extractFluidsForce(rate + 1, rate + 1, null, FluidAction.EXECUTE);
+        FluidStack belowMinimum = flow.extractFluidsForce(rate + 1, rate + 1, null, flowFluidAction(FluidAction.EXECUTE));
         require(helper, belowMinimum.isEmpty(), "force extraction ignored its minimum");
         require(helper, totalFluid(flow) == rate, "failed minimum check still drained fluid");
 
         int requested = Math.max(1, rate / 2);
-        FluidStack simulated = flow.extractFluidsForce(0, requested, null, FluidAction.SIMULATE);
+        FluidStack simulated = flow.extractFluidsForce(0, requested, null, flowFluidAction(FluidAction.SIMULATE));
         require(helper, simulated.getAmount() == requested, "simulated extraction returned the wrong amount");
         require(helper, totalFluid(flow) == rate, "simulated extraction mutated the pipe");
 
-        FluidStack executed = flow.extractFluidsForce(0, requested, null, FluidAction.EXECUTE);
+        FluidStack executed = flow.extractFluidsForce(0, requested, null, flowFluidAction(FluidAction.EXECUTE));
         require(helper, executed.getAmount() == requested, "executed extraction returned the wrong amount");
         require(helper, FluidCompatRegistry.areEquivalent(simulated, executed),
             "simulation and execution selected different fluids");
@@ -181,13 +193,13 @@ public final class PipeFluidPowerGameTests {
         pipe.setFlow(flow);
 
         require(helper, flow.insertFluidsForce(
-            new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate), null, FluidAction.EXECUTE
+            new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate), null, flowFluidAction(FluidAction.EXECUTE)
         ) == rate, "test setup failed to seed fluid pipe");
-        require(helper, flow.extractFluidsForce(0, rate, null, FluidAction.EXECUTE).getAmount() == rate,
+        require(helper, flow.extractFluidsForce(0, rate, null, flowFluidAction(FluidAction.EXECUTE)).getAmount() == rate,
             "force extraction did not fully empty the pipe");
         require(helper, totalFluid(flow) == 0, "force extraction left fluid behind");
         require(helper, flow.insertFluidsForce(
-            new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate), null, FluidAction.EXECUTE
+            new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate), null, flowFluidAction(FluidAction.EXECUTE)
         ) == rate, "pipe could not be refilled after force extraction");
 
         int delay = Math.max(1, (int) Math.ceil(
@@ -217,7 +229,7 @@ public final class PipeFluidPowerGameTests {
             inserted[0] = flow.insertFluidsForce(
                 new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate),
                 Direction.WEST,
-                FluidAction.EXECUTE
+                flowFluidAction(FluidAction.EXECUTE)
             );
             require(helper, inserted[0] == rate, "failed to seed the fluid network");
         });
@@ -260,7 +272,7 @@ public final class PipeFluidPowerGameTests {
                 flow.insertFluidsForce(
                     new FluidStack(net.minecraft.world.level.material.Fluids.WATER, rate),
                     null,
-                    FluidAction.EXECUTE
+                    flowFluidAction(FluidAction.EXECUTE)
                 );
             });
         }

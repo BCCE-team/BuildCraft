@@ -713,7 +713,8 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     text = re.sub(r"return\s+switch\s*\(result\)\s*\{\s*case SUCCESS -> InteractionResult\.SUCCESS;\s*case CONSUME -> InteractionResult\.CONSUME;\s*case CONSUME_PARTIAL -> InteractionResult\.CONSUME;\s*case FAIL -> InteractionResult\.FAIL;\s*case PASS -> InteractionResult\.PASS;\s*case SUCCESS_NO_ITEM_USED -> InteractionResult\.TRY_WITH_EMPTY_HAND;\s*\};", "return result;", text, flags=re.DOTALL)
     text = re.sub(r"(?m)^[ \t]*@Override[ \t]*\n", "", text)
     text = _apply_1_21_11_item_class_compat(text)
-    text = _apply_1_21_11_nbt_compat(text)
+    if not relative.startswith("addon-fixture/"):
+        text = _apply_1_21_11_nbt_compat(text)
     text = text.replace("NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(),", "NbtUtils.readBlockState(BuiltInRegistries.BLOCK,")
     text = re.sub(r'NbtUtils\.readBlockState\(BuiltInRegistries\.BLOCK\.asLookup\(\),\s*NbtCompat\.getCompound\(([^,]+),\s*"(blockState|state)"\)\)', r'NbtUtils.readBlockState(BuiltInRegistries.BLOCK, NbtCompat.getCompound(\1, "\2"))', text)
     text = text.replace("BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))", "BuiltInRegistries.BLOCK.get(Identifier.parse(NbtCompat.getString(nbt, \"block\")))")

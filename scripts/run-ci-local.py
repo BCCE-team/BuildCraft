@@ -36,8 +36,7 @@ TARGETS = (
 VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Validate independent Stonecutter builds", (sys.executable, "scripts/validate-stonecutter.py")),
     ("Validate hybrid source layout", (sys.executable, "scripts/validate-source-families.py")),
-    # Architecture hardening is assembled at runtime because BASE_SHA is optional in the workflow.
-    ("Enforce architecture budgets and trend", ("__ARCHITECTURE__",)),
+    ("Validate source architecture invariants", ("__ARCHITECTURE__",)),
     ("Validate API v2 boundary", (sys.executable, "scripts/validate-api-v2.py")),
     ("Validate API v2-only public surface", (sys.executable, "scripts/validate-api-v2-only.py")),
     ("Validate API2 runtime completeness", (sys.executable, "scripts/validate-api2-runtime-completeness.py")),
@@ -701,9 +700,6 @@ def main() -> int:
                 "--json", "build/reports/source-architecture/architecture-hardening.json",
                 "--markdown", "build/reports/source-architecture/architecture-hardening.md",
             ]
-            base_sha = base_env.get("BASE_SHA", "").strip()
-            if base_sha:
-                actual.extend(("--budget-ref", base_sha))
             status, log = run_command(name, actual, env=validation_env, run_dir=run_dir, step_number=step_number)
             if status == 0:
                 report = ROOT / "build/reports/source-architecture/architecture-hardening.md"

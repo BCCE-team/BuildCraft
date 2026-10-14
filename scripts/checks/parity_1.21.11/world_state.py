@@ -49,8 +49,18 @@ def main() -> int:
                 "Pipe fallback no longer delegates to the real 1.21.11 block destruction path")
         require("InsideBlockEffectApplier effectApplier, boolean submerged" in pipe,
                 "Obsidian pipe collision callback is not a live 1.21.11 entityInside override")
-        require("pipe.getBehaviour().onEntityCollide(entity);" in pipe,
-                "Obsidian/item collision dispatch was lost")
+        require("pipe.onApiEntityCollided(entity);" in pipe,
+                "Pipe entityInside no longer reaches the collision dispatcher")
+        pipe_runtime = src("transport/pipe/Pipe.java")
+        require("void onApiEntityCollided(" in pipe_runtime
+                and "behaviour.onEntityCollide(entity);" in pipe_runtime,
+                "Pipe collision dispatcher no longer invokes built-in behaviours")
+        require("hook.entityCollided(ReadOnlyPipeView.of(this), entity);" in pipe_runtime,
+                "Pipe collision dispatcher no longer invokes addon runtime components")
+        obsidian = src("transport/pipe/behaviour/PipeBehaviourObsidian.java")
+        require("void onEntityCollide(Entity entity)" in obsidian
+                and "trySuckEntity(entity, openFace, Long.MAX_VALUE, FluidAction.EXECUTE);" in obsidian,
+                "Obsidian pipe collision no longer triggers item pickup")
 
         stripes = src("transport/stripes/PipeExtensionManager.java")
         require("TagValueInput.create" in stripes and "loadWithComponents" in stripes,

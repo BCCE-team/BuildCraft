@@ -58,9 +58,9 @@ public final class SignalServiceImpl implements SignalService {
         if (!(blockEntity instanceof TilePipeHolder holder)) {
             if (!level.hasChunkAt(pos.relative(side))) return Optional.empty();
             BlockEntity adjacent = level.getBlockEntity(pos.relative(side));
-            if (!(adjacent instanceof TilePipeHolder neighbour) || !(neighbour.getPipe() instanceof PipeView pipe)) {
-                return Optional.empty();
-            }
+            if (!(adjacent instanceof TilePipeHolder neighbour)) return Optional.empty();
+            PipeView pipe = neighbour.getPipe();
+            if (pipe == null) return Optional.empty();
             PipeExternalEndpoint endpoint = PipeEndpointRuntime.find(level, pipe, side.getOpposite()).orElse(null);
             if (endpoint == null) return Optional.empty();
             try {

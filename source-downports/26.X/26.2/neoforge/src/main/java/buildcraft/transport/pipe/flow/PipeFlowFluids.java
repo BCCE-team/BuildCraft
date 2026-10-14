@@ -91,7 +91,7 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
                               int offered, int capacity, boolean simulate) {
         if (currentFluid.isEmpty() || offered <= 0) return 0;
         if (!buildcraft.transport.api2.PipeFlowEventRuntime.hasFluidListeners(pipe)) return offered;
-        return apiFluidLimit(phase, side, currentFluid.copyWithAmount(amount), offered, capacity, simulate);
+        return apiFluidLimit(phase, side, currentFluid.copyWithAmount(offered), offered, capacity, simulate);
     }
 
 

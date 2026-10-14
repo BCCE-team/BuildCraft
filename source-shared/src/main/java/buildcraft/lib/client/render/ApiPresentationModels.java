@@ -13,7 +13,13 @@ import buildcraft.api.v2.pipe.PipeView;
 import buildcraft.lib.client.model.ModelHolderStatic;
 import buildcraft.lib.client.model.MutableQuad;
 import buildcraft.lib.client.model.MutableVertex;
+//? if <1.21.11 {
+import net.minecraft.client.renderer.RenderType;
+//?} else {
+/*?
 import buildcraft.lib.compat.RenderCompat;
+?*/
+//?}
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.transport.pipe.Pipe;
 import buildcraft.transport.tile.TilePipeHolder;
@@ -27,6 +33,7 @@ import com.mojang.math.Axis;
 ?*/
 //?}
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +53,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 public final class ApiPresentationModels {
     private static final Map<String, ModelHolderStatic> MODELS = new LinkedHashMap<>();
     private static final Set<String> WARNED = new HashSet<>();
+    private static final Map<String, List<String>> DYNAMIC_MODELS = new LinkedHashMap<>();
 
     private ApiPresentationModels() {}
 
@@ -57,9 +65,17 @@ public final class ApiPresentationModels {
         for (PipePresentation pipe : BuildCraftApi.registry(BuildCraftRegistries.PIPE_PRESENTATIONS).values()) {
             register(pipe.base().model());
         }
-        for (DynamicPresentation selector : BuildCraftApi.registry(BuildCraftRegistries.DYNAMIC_PRESENTATIONS).values()) {
+        DYNAMIC_MODELS.clear();
+        for (var entry : BuildCraftApi.registry(BuildCraftRegistries.DYNAMIC_PRESENTATIONS).entries()) {
             try {
-                for (ResourceLocation id : selector.models()) register(id);
+                List<String> variants = new ArrayList<>();
+                for (ResourceLocation id : entry.value().models()) {
+                    if (id == null) continue;
+                    register(id);
+                    variants.add(id.toString());
+                }
+                variants.sort(String::compareTo);
+                DYNAMIC_MODELS.put(entry.id().toString(), List.copyOf(variants));
             } catch (RuntimeException error) {
                 warn("model-list", error);
             }
@@ -89,6 +105,12 @@ public final class ApiPresentationModels {
         }
     }
 
+    /** A failed or empty bake must fall back to the original BuildCraft body, not make the pipe invisible. */
+    public static boolean renderable(ModelHolderStatic baked) {
+        return baked != null && baked.hasBakedQuads()
+            && (baked.getCutoutQuads().length != 0 || baked.getTranslucentQuads().length != 0);
+    }
+
     /** Dynamic pipe bodies are drawn only by the BER, to avoid terrain/BER double geometry. */
     public static boolean animatedPipe(PipeView view) {
         if (view == null) return false;
@@ -98,11 +120,10 @@ public final class ApiPresentationModels {
             PipePresentation pipe = BuildCraftApi.registry(BuildCraftRegistries.PIPE_PRESENTATIONS).get(id);
             if (selector == null && (pipe == null || pipe.textureLayers().isEmpty())) return false;
             ModelHolderStatic base = pipeBaseModel(view);
-            if (base != null && base.hasBakedQuads()) return true;
-            if (selector != null) {
-                for (ResourceLocation variant : selector.models()) {
-                    ModelHolderStatic candidate = model(variant);
-                    if (candidate != null && candidate.hasBakedQuads()) return true;
+            if (renderable(base)) return true;
+            synchronized (ApiPresentationModels.class) {
+                for (String variant : DYNAMIC_MODELS.getOrDefault(id.toString(), List.of())) {
+                    if (renderable(MODELS.get(variant))) return true;
                 }
             }
         } catch (RuntimeException error) {
@@ -115,7 +136,28 @@ public final class ApiPresentationModels {
         Pipe pipe = holder.getPipe();
         if (pipe == null || pipe == Pipe.EMPTY || !pipe.isClientSide()) return Optional.empty();
         try {
-            return BuildCraftApi.service(BuildCraftServices.CLIENT_PRESENTATIONS).frame(pipe, partialTick);
+            Optional<PresentationFrame> result = BuildCraftApi.service(BuildCraftServices.CLIENT_PRESENTATIONS)
+                .frame(pipe, partialTick);
+            if (result.isPresent() && renderable(model(result.orElseThrow().model()))) return result;
+            ModelHolderStatic base = pipeBaseModel(pipe);
+            if (renderable(base)) {
+                var fallback = result.orElse(PresentationFrame.empty());
+                return Optional.of(new PresentationFrame(base.modelLocation, fallback.textureLayers(),
+                    fallback.animations(), fallback.sound(), fallback.menu()));
+            }
+            synchronized (ApiPresentationModels.class) {
+                for (String alternative : DYNAMIC_MODELS.getOrDefault(pipe.typeId().toString(), List.of())) {
+                    ModelHolderStatic baked = MODELS.get(alternative);
+                    if (renderable(baked)) {
+                        return Optional.of(new PresentationFrame(baked.modelLocation,
+                            result.map(PresentationFrame::textureLayers).orElse(List.of()),
+                            result.map(PresentationFrame::animations).orElse(Map.of()),
+                            result.map(PresentationFrame::sound).orElse(null),
+                            result.map(PresentationFrame::menu).orElse(null)));
+                    }
+                }
+            }
+            return Optional.empty();
         } catch (RuntimeException error) {
             warn("pipe-frame", error);
             return Optional.empty();
@@ -139,21 +181,31 @@ public final class ApiPresentationModels {
         return Optional.empty();
     }
 
-    public static boolean render(PresentationFrame frame, PoseStack pose, MultiBufferSource buffers) {
+    public static boolean render(PresentationFrame frame, PoseStack pose, MultiBufferSource buffers,
+        int light, int overlay) {
         ModelHolderStatic baked = frame == null ? null : model(frame.model());
-        if (baked == null || !baked.hasBakedQuads()) return false;
+        if (!renderable(baked)) return false;
         pose.pushPose();
         try {
             applyTransform(frame, pose);
-            emit(baked.getCutoutQuads(), pose, buffers.getBuffer(RenderCompat.cutout()), null, 0);
-            emit(baked.getTranslucentQuads(), pose, buffers.getBuffer(RenderCompat.translucent()), null, 0);
+            //? if <1.21.11 {
+            var cutout = RenderType.cutout();
+            var translucent = RenderType.translucent();
+            //?} else {
+            /*?
+            var cutout = RenderCompat.cutout();
+            var translucent = RenderCompat.translucent();
+            ?*/
+            //?}
+            emit(baked.getCutoutQuads(), pose, buffers.getBuffer(cutout), null, 0, light, overlay);
+            emit(baked.getTranslucentQuads(), pose, buffers.getBuffer(translucent), null, 0, light, overlay);
             if (!frame.textureLayers().isEmpty()) {
-                VertexConsumer overlay = buffers.getBuffer(RenderCompat.translucent());
+                VertexConsumer layerBuffer = buffers.getBuffer(translucent);
                 for (int i = 0; i < frame.textureLayers().size(); i++) {
                     TextureAtlasSprite sprite = sprite(frame.textureLayers().get(i));
                     if (sprite == null) continue;
-                    emit(baked.getCutoutQuads(), pose, overlay, sprite, i + 1);
-                    emit(baked.getTranslucentQuads(), pose, overlay, sprite, i + 1);
+                    emit(baked.getCutoutQuads(), pose, layerBuffer, sprite, i + 1, light, overlay);
+                    emit(baked.getTranslucentQuads(), pose, layerBuffer, sprite, i + 1, light, overlay);
                 }
             }
             return true;
@@ -163,21 +215,22 @@ public final class ApiPresentationModels {
     }
 
     /** Native submit renderers own their own layer buffers, so never mix cutout and translucent vertices. */
-    public static void renderLayer(PresentationFrame frame, PoseStack pose, VertexConsumer vertices, boolean translucent) {
+    public static void renderLayer(PresentationFrame frame, PoseStack pose, VertexConsumer vertices,
+        boolean translucent, int light, int overlay) {
         ModelHolderStatic baked = frame == null ? null : model(frame.model());
-        if (baked == null || !baked.hasBakedQuads()) return;
+        if (!renderable(baked)) return;
         pose.pushPose();
         try {
             applyTransform(frame, pose);
             if (!translucent) {
-                emit(baked.getCutoutQuads(), pose, vertices, null, 0);
+                emit(baked.getCutoutQuads(), pose, vertices, null, 0, light, overlay);
             } else {
-                emit(baked.getTranslucentQuads(), pose, vertices, null, 0);
+                emit(baked.getTranslucentQuads(), pose, vertices, null, 0, light, overlay);
                 for (int i = 0; i < frame.textureLayers().size(); i++) {
                     TextureAtlasSprite sprite = sprite(frame.textureLayers().get(i));
                     if (sprite == null) continue;
-                    emit(baked.getCutoutQuads(), pose, vertices, sprite, i + 1);
-                    emit(baked.getTranslucentQuads(), pose, vertices, sprite, i + 1);
+                    emit(baked.getCutoutQuads(), pose, vertices, sprite, i + 1, light, overlay);
+                    emit(baked.getTranslucentQuads(), pose, vertices, sprite, i + 1, light, overlay);
                 }
             }
         } finally {
@@ -207,7 +260,7 @@ public final class ApiPresentationModels {
     }
 
     private static void emit(MutableQuad[] quads, PoseStack pose, VertexConsumer vertices,
-        TextureAtlasSprite replacement, int layer) {
+        TextureAtlasSprite replacement, int layer, int light, int overlay) {
         for (MutableQuad quad : quads) {
             MutableQuad copy = new MutableQuad(quad);
             if (replacement != null) {
@@ -228,6 +281,10 @@ public final class ApiPresentationModels {
                     vertex.position_z += vertex.normal_z * shift;
                 }
                 copy.setSprite(replacement);
+            }
+            for (MutableVertex vertex : copy.vertexs) {
+                vertex.lighti(light);
+                vertex.overlay = overlay;
             }
             copy.multShade();
             copy.render(pose.last().pose(), pose.last().normal(), vertices);

@@ -27,6 +27,7 @@ ADDONS = (
     "PresentationConformanceAddon.java",
     "LogisticsPipesParityAddon.java",
     "BuildCraftAdditionsParityAddon.java",
+    "BlueprintLibraryFixtureAddon.java",
 )
 
 INTERNAL_IMPORT = re.compile(r"\bbuildcraft\.(?!api\.v2\b)[A-Za-z][\w.]*")
@@ -56,6 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bcce-jar", type=Path, required=True, help="Built BCCE mod JAR")
     parser.add_argument("--dependencies", default="", help="Target Minecraft/loader compile classpath")
     parser.add_argument("--release", type=int, choices=(17, 21, 25), required=True)
+    parser.add_argument("--javac", default="javac", help="Target JDK compiler executable (normally provided by Gradle toolchains)")
     parser.add_argument("--fixture-root", type=Path, default=FIXTURE_ROOT,
                         help="Per-target materialized addon fixtures, not internal BuildCraft sources")
     parser.add_argument("--output", type=Path, default=ROOT / "build/conformance/api2-fixtures.jar")
@@ -81,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="bcce-api2-external-") as temporary:
         classes = Path(temporary) / "classes"
         classes.mkdir()
-        command = ["javac", "--release", str(args.release), "-encoding", "UTF-8", "-sourcepath", "",
+        command = [args.javac, "--release", str(args.release), "-encoding", "UTF-8", "-sourcepath", "",
                    "-cp", classpath, "-d", str(classes), *map(str, files)]
         result = subprocess.run(command, text=True, capture_output=True, check=False)
         if result.returncode:

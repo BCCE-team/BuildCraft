@@ -42,20 +42,13 @@ jobs:
       - name: Validate hybrid source layout
         run: python scripts/validate-source-families.py
 
-      - name: Enforce architecture budgets and trend
+      - name: Validate source architecture invariants
         shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          args=(
-            --json build/reports/source-architecture/architecture-hardening.json
+          python scripts/validate-architecture-hardening.py \
+            --json build/reports/source-architecture/architecture-hardening.json \
             --markdown build/reports/source-architecture/architecture-hardening.md
-          )
-          if [[ -n "${BASE_SHA:-}" ]]; then
-            args+=(--budget-ref "$BASE_SHA")
-          fi
-          python scripts/validate-architecture-hardening.py "${args[@]}"
           cat build/reports/source-architecture/architecture-hardening.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate API v2 boundary

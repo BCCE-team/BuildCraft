@@ -117,6 +117,7 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
         state.facing = tile.getCurrentFacing();
         state.powerStage = tile.getPowerStage();
         state.offset = tile.getRenderProgress(partialTick) * 8.0F * PX;
+        state.apiFrame = buildcraft.lib.client.render.ApiPresentationModels.hostFrame(tile, partialTick).orElse(null);
     }
 
     public void submit(EngineRenderState state, PoseStack poseStack, SubmitNodeCollector collector,
@@ -126,6 +127,25 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
 
     /** Shared with the 1.21.11 MJ Dynamo wrapper. */
     public static void submitEngine(EngineRenderState state, PoseStack poseStack, SubmitNodeCollector collector) {
+        var frame = state.apiFrame;
+        if (frame != null && buildcraft.lib.client.render.ApiPresentationModels.renderable(
+            buildcraft.lib.client.render.ApiPresentationModels.model(frame.model()))) {
+            collector.submitCustomGeometry(poseStack, RenderCompat.cutout(), (pose, vertices) -> {
+                PoseStack matrix = new PoseStack();
+                matrix.last().pose().set(pose.pose());
+                matrix.last().normal().set(pose.normal());
+                buildcraft.lib.client.render.ApiPresentationModels.renderLayer(frame, matrix, vertices, false,
+                    state.lightCoords, OverlayTexture.NO_OVERLAY);
+            });
+            collector.submitCustomGeometry(poseStack, RenderCompat.translucent(), (pose, vertices) -> {
+                PoseStack matrix = new PoseStack();
+                matrix.last().pose().set(pose.pose());
+                matrix.last().normal().set(pose.normal());
+                buildcraft.lib.client.render.ApiPresentationModels.renderLayer(frame, matrix, vertices, true,
+                    state.lightCoords, OverlayTexture.NO_OVERLAY);
+            });
+            return;
+        }
         EngineTextures textures = resolveTextures(state.visualType);
 
         poseStack.pushPose();
@@ -483,5 +503,6 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8,
         Direction facing = Direction.UP;
         EnumPowerStage powerStage = EnumPowerStage.BLUE;
         float offset;
+        buildcraft.api.v2.client.PresentationFrame apiFrame;
     }
 }

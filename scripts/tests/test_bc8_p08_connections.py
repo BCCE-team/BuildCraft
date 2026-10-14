@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """BC8-P08 public endpoints/attachments, real connection wiring, and addon isolation."""
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -175,8 +176,20 @@ class P08Tests(unittest.TestCase):
                 self.assertIn('PipeEndpointRuntime.canConnect', code)
                 self.assertIn('PipeEndpointRuntime.attachmentDecision', code)
                 self.assertIn('PipeEndpointRuntime.attachmentPort', code)
-                self.assertIn('level.hasChunkAt(nPos)' if '/source-platforms/forge/' not in str(file)
-                    else 'hasChunkAt(adjacentPos)', code)
+                # Verify the unloaded-neighbour guard in the connection path, not
+                # the OS-specific spelling of the file path or a variable name.
+                self.assertIn('private void updateConnections()', code)
+                connections = code.split('private void updateConnections()', 1)[1].split(
+                    '// API2 pipe runtime surface', 1)[0]
+                guard = re.search(
+                    r'if\s*\(\s*!\s*(?:level|holder\.getPipeWorld\(\))'
+                    r'\.hasChunkAt\((?:nPos|adjacentPos)\)\s*\)\s*continue\s*;',
+                    connections)
+                self.assertIsNotNone(guard, f'missing unloaded-chunk guard in {file}')
+                endpoint_lookup = connections.find('PipeEndpointRuntime.find(')
+                self.assertGreaterEqual(endpoint_lookup, 0)
+                self.assertLess(guard.start(), endpoint_lookup,
+                    f'endpoint queried before checking loaded chunk in {file}')
         native = list(ROOT.glob('source-*/**/buildcraft/transport/tile/TilePipeHolder.java'))
         self.assertEqual(4, len(native))
         for file in native:

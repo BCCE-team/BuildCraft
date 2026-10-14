@@ -24,9 +24,11 @@ if str(SCRIPT_DIR) not in sys.path:
 from source_layout import ROOT, effective_source_files, load_properties, target_ids, target_layout
 from source_preprocessor import version_tuple
 
-# Keep the existing config path for compatibility; only invariants remain in it.
-POLICY_FILE = ROOT / "build-config" / "architecture-budgets.json"
 ALLOWLIST_FILE = ROOT / "build-config" / "platform-gameplay-allowlist.txt"
+EXPECTED_CANONICAL_121X = "1.21.11"
+FROZEN_12111_API_OVERLAYS = frozenset({
+    "src/main/java/buildcraft/api/v2/recipe/CountedIngredient.java",
+})
 
 CONDITIONAL_IF_RE = re.compile(r"^[ \t]*(?://\?|/\*\?)[ \t]*if\b", re.MULTILINE)
 IF_LINE_RE = re.compile(r"^\s*(?://\?|/\*\?)\s*if\b.*\{\s*(?:\*/)?\s*$")
@@ -402,28 +404,12 @@ def current_metrics() -> dict[str, object]:
     }
 
 
-def load_policy_file(path: Path = POLICY_FILE) -> dict[str, object]:
-    if not path.is_file():
-        fail(f"missing {path.relative_to(ROOT)}")
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        fail(f"invalid architecture policy JSON: {exc}")
-    if not isinstance(value, dict) or value.get("schema_version") != 1:
-        fail("unsupported architecture policy schema")
-    if not isinstance(value.get("invariants"), dict):
-        fail("architecture policy: invariants must be an object")
-    return value
-
-
-def validate(metrics: dict[str, object], policy: dict[str, object]) -> list[str]:
+def validate(metrics: dict[str, object]) -> list[str]:
     errors: list[str] = []
-    # Deliberately no numeric limits. Metrics still appear in reports, but
-    # increasing source counts or using class-specific transforms cannot fail CI.
-    invariants = policy["invariants"]
+    # Keep source ownership checks; file-count and transform statistics are informational.
 
     targets = metrics["targets"]
-    frozen_api = set(invariants.get("frozen_1.21.11_api_files", []))
+    frozen_api = FROZEN_12111_API_OVERLAYS
     t1_21_11 = targets.get("1.21.11-neoforge", {})
     if int(t1_21_11.get("gameplay_lib_java", -1)) != 0:
         errors.append(f"1.21.11 target gameplay/lib overrides must be 0, got {t1_21_11.get('gameplay_lib_java')}")
@@ -459,7 +445,7 @@ def validate(metrics: dict[str, object], policy: dict[str, object]) -> list[str]
         errors.append(f"foreign package declaration in maintained source: {foreign['violations'][0]}")
 
     canonical = metrics["canonical"]
-    expected_canonical = invariants.get("canonical_1_21_x_minecraft", "1.21.11")
+    expected_canonical = EXPECTED_CANONICAL_121X
     if canonical["configured"] != expected_canonical:
         errors.append(f"1.21.X canonical Minecraft changed unexpectedly: {canonical['configured']} != {expected_canonical}")
     if canonical["configured"] != canonical["newest_1_21_x"]:
@@ -551,21 +537,16 @@ def write_json(path: Path, value: object) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    # Accepted for compatibility with existing GitHub/local CI invocations.
-    # Budget comparisons are no longer performed.
-    parser.add_argument("--budget-ref", help="deprecated and ignored; accepted for CI compatibility")
     parser.add_argument("--json", type=Path, help="write current architecture metrics as JSON")
     parser.add_argument("--markdown", type=Path, help="write a human-readable CI summary")
     args = parser.parse_args()
 
-    policy = load_policy_file()
     metrics = current_metrics()
-    errors = validate(metrics, policy)
+    errors = validate(metrics)
 
     report = {
         "schema_version": 1,
         "metrics": metrics,
-        "policy": policy,
         "errors": errors,
     }
     if args.json:

@@ -63,10 +63,10 @@ class BuildersP12Tests(unittest.TestCase):
      *(str(API/('buildcraft/api/v2/template/'+name)) for name in
        ('TemplateHandler.java','TemplateRegistration.java','TemplateService.java')),
      str(API/'buildcraft/lib/internal/api/v2/TemplateServiceImpl.java')]
-   compiled=subprocess.run(['javac','-d',str(tmp/'classes'),*sources],text=True,capture_output=True,timeout=40)
-   self.assertEqual(compiled.returncode,0,compiled.stderr)
-   result=subprocess.run(['java','-cp',str(tmp/'classes'),'check.P12TemplateCheck'],text=True,capture_output=True,timeout=20)
-   self.assertEqual(result.returncode,0,result.stdout+'\n'+result.stderr)
+   compiled=subprocess.run(['javac','-encoding','UTF-8','-d',str(tmp/'classes'),*sources],capture_output=True,timeout=40)
+   self.assertEqual(compiled.returncode,0,compiled.stderr.decode('utf-8',errors='replace'))
+   result=subprocess.run(['java','-cp',str(tmp/'classes'),'check.P12TemplateCheck'],capture_output=True,timeout=20)
+   self.assertEqual(result.returncode,0,(result.stdout+b'\n'+result.stderr).decode('utf-8',errors='replace'))
 
  def test_production_bridges_and_native_library_stores(self):
   for family in ('old','1.21.X'):

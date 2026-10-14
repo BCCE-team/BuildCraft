@@ -62,7 +62,7 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder> {
             if (buildcraft.lib.client.render.ApiPresentationModels.animatedPipe(p)
                 || buildcraft.lib.client.render.ApiPresentationModels.model(frame.model())
                     != buildcraft.lib.client.render.ApiPresentationModels.pipeBaseModel(p)) {
-                buildcraft.lib.client.render.ApiPresentationModels.render(frame, matrix, buffer);
+                buildcraft.lib.client.render.ApiPresentationModels.render(frame, matrix, buffer, combinedLight, combinedOverlay);
             }
         });
 

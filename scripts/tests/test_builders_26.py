@@ -2,6 +2,7 @@
 """26.X Builders migration: immutable legacy views and native 26.3 container/fluids."""
 from __future__ import annotations
 
+import re
 import sys
 import tempfile
 import unittest
@@ -141,10 +142,16 @@ class Builders26Tests(unittest.TestCase):
         self.assertIn('46 assertions PASS',result)
 
     def test_java_syntax_all_versions(self):
-        result=parse_sources([self.outputs[version] for version in ('26.2','26.3')])
-        print(result,flush=True)
-        self.assertIn('157 units, 0 errors',result)
-        self.assertIn('160 units, 0 errors',result)
+        versions = ('26.2', '26.3')
+        result = parse_sources([self.outputs[version] for version in versions])
+        print(result, flush=True)
+        parsed = re.findall(r'^Java syntax: (\d+) units, (\d+) errors \(parse only\)$',
+                            result, flags=re.MULTILINE)
+        self.assertEqual(len(versions), len(parsed), result)
+        for version, (units, errors) in zip(versions, parsed):
+            with self.subTest(version=version):
+                self.assertEqual(len(self.files(version)), int(units), result)
+                self.assertEqual(0, int(errors), result)
 
 
 if __name__ == '__main__':
