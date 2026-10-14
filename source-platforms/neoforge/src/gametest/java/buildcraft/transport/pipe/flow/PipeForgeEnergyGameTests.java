@@ -10,6 +10,11 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.energy.IEnergyStorage;
+//? if >=26.3 {
+import buildcraft.lib.compat.transfer.TransferJournal;
+import net.neoforged.neoforge.transfer.energy.EnergyHandler;
+import net.neoforged.neoforge.transfer.transaction.TransactionContext;
+//? }
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -72,9 +77,9 @@ public final class PipeForgeEnergyGameTests {
         TestPipe pipe = new TestPipe(helper.getLevel(), BCTransportPipes.woodFe)
             .connect(Direction.WEST, ConnectedType.TILE)
             .connect(Direction.EAST, ConnectedType.TILE)
-            .connect(Direction.SOUTH, ConnectedType.TILE)
-            .exposeCapability(Direction.EAST, Capabilities.EnergyStorage.BLOCK, east)
-            .exposeCapability(Direction.SOUTH, Capabilities.EnergyStorage.BLOCK, south);
+            .connect(Direction.SOUTH, ConnectedType.TILE);
+        exposeEnergy(pipe, Direction.EAST, east);
+        exposeEnergy(pipe, Direction.SOUTH, south);
         PipeFlowForgeEnergy flow = new PipeFlowForgeEnergy(pipe);
         pipe.setFlow(flow);
         flow.reconfigure();
@@ -104,8 +109,8 @@ public final class PipeForgeEnergyGameTests {
         ChestBlockEntity sourceTile = new ChestBlockEntity(BlockPos.ZERO, Blocks.CHEST.defaultBlockState());
         TestPipe pipe = new TestPipe(helper.getLevel(), BCTransportPipes.woodFe)
             .connectTile(Direction.WEST, sourceTile)
-            .exposeCapability(Direction.WEST, Capabilities.EnergyStorage.BLOCK, source)
             .connect(Direction.EAST, ConnectedType.TILE);
+        exposeEnergy(pipe, Direction.WEST, source);
         PipeFlowForgeEnergy flow = new PipeFlowForgeEnergy(pipe);
         pipe.setFlow(flow);
         flow.reconfigure();
@@ -188,13 +193,43 @@ public final class PipeForgeEnergyGameTests {
         return event;
     }
 
+    private static TestPipe exposeEnergy(TestPipe pipe, Direction side, IEnergyStorage storage) {
+        //? if >=26.3 {
+        return pipe.exposeCapability(side, Capabilities.Energy.BLOCK, (EnergyHandler) storage);
+        //? } else {
+        return pipe.exposeCapability(side, Capabilities.EnergyStorage.BLOCK, storage);
+        //? }
+    }
+
     private static void require(GameTestHelper helper, boolean condition, String message) {
         if (!condition) helper.fail(message);
     }
 
+    //? if >=26.3 {
+    private static final class BufferlessReceiver implements IEnergyStorage, EnergyHandler {
+    //? } else {
     private static final class BufferlessReceiver implements IEnergyStorage {
+    //? }
+
         private final int capacity;
         private int accepted;
+
+        //? if >=26.3 {
+        private final TransferJournal<Integer> journal = new TransferJournal<>(
+            () -> accepted, before -> accepted = before, before -> {});
+
+        @Override public long getAmountAsLong() { return 0; }
+        @Override public long getCapacityAsLong() { return 0; }
+        @Override public int insert(int amount, TransactionContext transaction) {
+            int added = Math.min(Math.max(0, amount), Math.max(0, capacity - accepted));
+            if (added > 0) {
+                journal.record();
+                accepted += added;
+            }
+            return added;
+        }
+        @Override public int extract(int amount, TransactionContext transaction) { return 0; }
+        //? }
 
         private BufferlessReceiver(int capacity) {
             this.capacity = capacity;
@@ -214,7 +249,12 @@ public final class PipeForgeEnergyGameTests {
         @Override public boolean canReceive() { return true; }
     }
 
+    //? if >=26.3 {
+    private static final class TrackingEnergyStorage implements IEnergyStorage, EnergyHandler {
+    //? } else {
     private static final class TrackingEnergyStorage implements IEnergyStorage {
+    //? }
+
         private int stored;
         private final int capacity;
         private final boolean canExtract;
@@ -223,6 +263,35 @@ public final class PipeForgeEnergyGameTests {
         private int executeExtractions;
         private int lastSimulated;
         private int lastExecuted;
+
+        //? if >=26.3 {
+        private record ExtractSnapshot(int stored, int executeCalls, int lastExecutedMax) {}
+        private final TransferJournal<ExtractSnapshot> journal = new TransferJournal<>(
+            () -> new ExtractSnapshot(stored, executeExtractions, lastExecuted), before -> {
+                // A rolled-back native extraction is the modern equivalent of the
+                // legacy simulate=true probe. Restore its storage and execution count.
+                if (executeExtractions > before.executeCalls()) {
+                    simulateExtractions += executeExtractions - before.executeCalls();
+                    lastSimulated = lastExecuted;
+                }
+                stored = before.stored();
+                executeExtractions = before.executeCalls();
+                lastExecuted = before.lastExecutedMax();
+            }, before -> {});
+
+        @Override public long getAmountAsLong() { return stored; }
+        @Override public long getCapacityAsLong() { return capacity; }
+        @Override public int insert(int amount, TransactionContext transaction) {
+            if (!canReceive || amount <= 0) return 0;
+            journal.record();
+            return receiveEnergy(amount, false);
+        }
+        @Override public int extract(int amount, TransactionContext transaction) {
+            if (!canExtract || amount <= 0) return 0;
+            journal.record();
+            return extractEnergy(amount, false);
+        }
+        //? }
 
         private TrackingEnergyStorage(int stored, int capacity, boolean canExtract, boolean canReceive) {
             this.stored = stored;

@@ -22,6 +22,13 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//? if >=26.3 {
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.transfer.ResourceHandler;
+import net.neoforged.neoforge.transfer.fluid.FluidResource;
+import net.neoforged.neoforge.transfer.transaction.Transaction;
+import net.neoforged.neoforge.transfer.transaction.TransactionContext;
+//? }
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -128,6 +135,40 @@ public final class PipeFluidPowerGameTests {
         PipeFlowFluids flow = new PipeFlowFluids(pipe);
         pipe.setFlow(flow);
 
+        //? if >=26.3 {
+        // 26.3 exposes native transactional ResourceHandler rather than the retired fluid capability.
+        ResourceHandler<FluidResource> handler = flow.resourceHandler(Direction.EAST);
+        require(helper, handler != null, "fluid pipe did not expose its native fluid handler");
+        require(helper, handler.size() == 1, "fluid pipe capability reported no tanks");
+        FluidResource water = FluidResource.of(new FluidStack(net.minecraft.world.level.material.Fluids.WATER, 1));
+        FluidResource lava = FluidResource.of(new FluidStack(net.minecraft.world.level.material.Fluids.LAVA, 1));
+        require(helper, handler.getCapacityAsLong(0, water) == flow.capacity,
+            "fluid pipe reported the wrong tank capacity");
+        require(helper, handler.getAmountAsLong(0) == 0 && handler.getResource(0).isEmpty(),
+            "empty pipe reported non-empty tank contents");
+        require(helper, handler.isValid(0, water), "empty connected fluid pipe rejected a valid fluid");
+
+        int rate = PipeApi.getFluidTransferInfo(BCTransportPipes.cobbleFluid).transferPerTick;
+        try (Transaction tx = Transaction.openRoot()) {
+            int simulated = handler.insert(0, water, rate, tx);
+            require(helper, simulated == rate, "fluid capability simulated the wrong fill amount");
+            // Deliberately do not commit; rollback must restore the actual pipe state.
+        }
+        require(helper, handler.getAmountAsLong(0) == 0 && handler.getResource(0).isEmpty(),
+            "fluid capability simulation changed the pipe");
+        int inserted;
+        try (Transaction tx = Transaction.openRoot()) {
+            inserted = handler.insert(0, water, rate, tx);
+            tx.commit();
+        }
+        require(helper, inserted == rate, "fluid capability filled the wrong amount");
+        require(helper, handler.getAmountAsLong(0) == rate, "fluid capability reported the wrong stored amount");
+        FluidResource reported = handler.getResource(0);
+        require(helper, !reported.isEmpty() && reported.toStack(rate).getFluid()
+            == net.minecraft.world.level.material.Fluids.WATER,
+            "fluid capability reported the wrong stored fluid");
+        require(helper, !handler.isValid(0, lava), "water-filled pipe advertised lava as valid");
+        //? } else {
         IFluidHandler handler = flow.getCapability(CapUtil.CAP_FLUIDS, Direction.EAST);
         require(helper, handler != null, "fluid pipe did not expose its fluid capability");
         require(helper, handler.getTanks() == 1, "fluid pipe capability reported no tanks");
@@ -148,6 +189,7 @@ public final class PipeFluidPowerGameTests {
             "fluid capability reported the wrong stored fluid");
         require(helper, !handler.isFluidValid(0, new FluidStack(net.minecraft.world.level.material.Fluids.LAVA, 1)),
             "water-filled pipe advertised lava as valid");
+        //? }
         helper.succeed();
     }
 
@@ -187,8 +229,12 @@ public final class PipeFluidPowerGameTests {
         int rate = PipeApi.getFluidTransferInfo(BCTransportPipes.stoneFluid).transferPerTick;
         Tank sink = new Tank("sink", rate * 4, null);
         TestPipe pipe = new TestPipe(helper.getLevel(), BCTransportPipes.stoneFluid)
-            .connect(Direction.EAST, ConnectedType.TILE)
-            .exposeCapability(Direction.EAST, CapUtil.CAP_FLUIDS, sink);
+            .connect(Direction.EAST, ConnectedType.TILE);
+        //? if >=26.3 {
+        pipe.exposeCapability(Direction.EAST, Capabilities.Fluid.BLOCK, nativeFluidSink(sink));
+        //? } else {
+        pipe.exposeCapability(Direction.EAST, CapUtil.CAP_FLUIDS, sink);
+        //? }
         PipeFlowFluids flow = new PipeFlowFluids(pipe);
         pipe.setFlow(flow);
 
@@ -668,6 +714,45 @@ public final class PipeFluidPowerGameTests {
     private static boolean containsOnlyFluid(PipeFlowFluids flow, net.minecraft.world.level.material.Fluid fluid) {
         return totalFluid(flow) == 0 || containsFluid(flow, fluid);
     }
+
+    //? if >=26.3 {
+    /** A real native fluid capability backed by the transactional BuildCraft tank. */
+    private static ResourceHandler<FluidResource> nativeFluidSink(Tank sink) {
+        return new ResourceHandler<FluidResource>() {
+            private void checkIndex(int index) { java.util.Objects.checkIndex(index, 1); }
+            @Override public int size() { return 1; }
+            @Override public FluidResource getResource(int index) {
+                checkIndex(index);
+                return sink.getFluid().isEmpty() ? FluidResource.EMPTY : FluidResource.of(sink.getFluid());
+            }
+            @Override public long getAmountAsLong(int index) {
+                checkIndex(index);
+                return sink.getFluidAmount();
+            }
+            @Override public long getCapacityAsLong(int index, FluidResource resource) {
+                checkIndex(index);
+                return sink.getCapacity();
+            }
+            @Override public boolean isValid(int index, FluidResource resource) {
+                checkIndex(index);
+                return !resource.isEmpty() && sink.isFluidValid(0, resource.toStack(1));
+            }
+            @Override public int insert(int index, FluidResource resource, int amount, TransactionContext context) {
+                checkIndex(index);
+                if (amount <= 0 || !isValid(index, resource)) return 0;
+                try (Transaction nested = Transaction.open(context)) {
+                    int accepted = sink.fill(resource.toStack(amount), FluidAction.EXECUTE);
+                    if (accepted > 0) nested.commit();
+                    return accepted;
+                }
+            }
+            @Override public int extract(int index, FluidResource resource, int amount, TransactionContext context) {
+                checkIndex(index);
+                return 0;
+            }
+        };
+    }
+    //? }
 
     private static long applyPowerResistance(long amount, PipeApi.PowerTransferInfo transferInfo) {
         if (amount <= 0) {

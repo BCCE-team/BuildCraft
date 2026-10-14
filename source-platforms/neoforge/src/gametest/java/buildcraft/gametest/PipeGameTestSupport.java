@@ -18,6 +18,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+//? if >=26.3 {
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+//? }
 import net.neoforged.neoforge.capabilities.BlockCapability;
 
 import buildcraft.transport.wire.WireManager;
@@ -199,6 +203,11 @@ public final class PipeGameTestSupport {
 
         private final Level level;
         private final IPipe pipe;
+        //? if >=26.3 {
+        // Transactional 26.3 flows mark the holder's backing block entity dirty on root commit.
+        // The test holder must obey the same non-null contract as a placed pipe holder.
+        private final BlockEntity backingTile = new ChestBlockEntity(BlockPos.ZERO, Blocks.CHEST.defaultBlockState());
+        //? }
         private final Map<Direction, Map<BlockCapability<?, Direction>, Object>> capabilities = new EnumMap<>(Direction.class);
 
         private TestHolder(Level level, IPipe pipe) {
@@ -218,7 +227,11 @@ public final class PipeGameTestSupport {
 
         @Override
         public BlockEntity getPipeTile() {
+            //? if >=26.3 {
+            return backingTile;
+            //? } else {
             return null;
+            //? }
         }
 
         @Override
