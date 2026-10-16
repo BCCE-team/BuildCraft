@@ -1218,8 +1218,10 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
 		types.clear();
 		for(Direction dir : Direction.values()) {
 			Direction targetDir = rot.rotate(dir);
-			connected.put(targetDir, copyConnected.get(dir));
-			types.put(targetDir, copyTypes.get(dir));
+			Float distance = copyConnected.get(dir);
+			ConnectedType type = copyTypes.get(dir);
+			if (distance != null) connected.put(targetDir, distance);
+			if (type != null) types.put(targetDir, type);
 		}
 		behaviour.rotate(rot);
 	}
