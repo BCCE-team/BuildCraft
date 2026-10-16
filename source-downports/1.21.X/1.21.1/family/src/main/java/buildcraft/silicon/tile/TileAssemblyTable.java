@@ -363,6 +363,11 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
         super.readPayload(id, buffer, side, ctx);
 
         if (id == NET_GUI_DATA) {
+            // Full GUI state is server-authoritative. A client may only send the
+            // narrowly validated NET_RECIPE_STATE command.
+            if (side == BCNetworkSide.SERVER) {
+                throw new IOException("Client cannot replace Assembly Table recipe state");
+            }
             recipesStates.clear();
             int count = NetworkSecurity.requireCount(buffer.readInt(), MAX_RECIPE_STATES, "assembly recipe states");
             for (int i = 0; i < count; i++) {
@@ -389,7 +394,9 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
             AssemblyInstruction recipe = side == BCNetworkSide.SERVER
                 ? lookupServerRecipe(recipeName, output)
                 : null;
-            if (recipe != null && stateIndex >= 0 && stateIndex < EnumAssemblyRecipeState.values().length
+            boolean knownOutput = recipe != null && recipesStates.keySet().stream().anyMatch(known ->
+                known.recipeId.equals(recipe.recipeId) && ItemStack.matches(known.output, output));
+            if (knownOutput && stateIndex >= 0 && stateIndex < EnumAssemblyRecipeState.values().length
                 && recipesStates.containsKey(recipe)) {
                 recipesStates.put(recipe, EnumAssemblyRecipeState.values()[stateIndex]);
                 // Echo the authoritative state immediately instead of waiting for a later laser-table tick.
