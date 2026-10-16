@@ -348,12 +348,6 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
             ((Blueprint) snapshot).entities.addAll(blueprintScannedEntities);
         }
         snapshot.computeKey();
-        ItemStack stackIn = invSnapshotIn.getStackInSlot(0);
-        stackIn.setCount(stackIn.getCount() - 1);
-        if (stackIn.getCount() == 0) {
-            stackIn = ItemStack.EMPTY;
-        }
-        invSnapshotIn.setStackInSlot(0, stackIn);
         var ownerProfile = getOwner();
         Header header = new Header(
             snapshot.key,
@@ -365,7 +359,17 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
             canRotate,
             canExcavate
         );
-        SnapshotCreationPersistence.persist(level, snapshot, header);
+        try {
+            // Persist BEFORE consuming the blank blueprint or creating the output item.
+            // Disk failures leave the scan and all input items intact for a later retry.
+            SnapshotCreationPersistence.persist(level, snapshot, header);
+        } catch (IllegalStateException failure) {
+            BCLog.logger.warn("Cannot save Architect Table blueprint at " + worldPosition, failure);
+            return;
+        }
+        ItemStack stackIn = invSnapshotIn.getStackInSlot(0).copy();
+        stackIn.shrink(1);
+        invSnapshotIn.setStackInSlot(0, stackIn.isEmpty() ? ItemStack.EMPTY : stackIn);
         invSnapshotOut.setStackInSlot(0, ItemSnapshot.getUsed(snapshotType, header));
         templateScannedBlocks = null;
         blueprintScannedData = null;

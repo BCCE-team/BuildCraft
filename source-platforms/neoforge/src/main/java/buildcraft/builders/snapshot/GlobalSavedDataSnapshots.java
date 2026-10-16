@@ -274,8 +274,7 @@ public final class GlobalSavedDataSnapshots {
         requireSide(BCNetworkSide.SERVER);
         Snapshot checked = validatedCopy(snapshot);
         if (checked == null) {
-            BCLog.logger.warn("Refused to cache a server snapshot with an invalid content key");
-            return;
+            throw new IllegalStateException("Refused to cache a server snapshot with an invalid content key");
         }
         File snapshotFile = new File(snapshotsFile, checked.key.toString() + SNAPSHOT_FILE_EXTENSION);
         Snapshot existing = readSnapshotFile(snapshotFile);
@@ -421,14 +420,16 @@ public final class GlobalSavedDataSnapshots {
             temp = File.createTempFile(".buildcraft-blueprint-", ".tmp", target.getParentFile());
             try (FileOutputStream output = new FileOutputStream(temp)) {
                 NbtSquisher.squishVanilla(Snapshot.writeToNBT(snapshot), output);
+                output.getFD().sync();
             }
             try {
-                Files.move(temp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE);
+                Files.move(temp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
-            BCLog.logger.warn("Failed to write the snapshot file: " + target, e);
+            throw new IllegalStateException("Failed to write the snapshot file: " + target, e);
         } finally {
             if (temp != null && temp.exists() && !temp.delete()) {
                 temp.deleteOnExit();
