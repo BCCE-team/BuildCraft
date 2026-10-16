@@ -163,11 +163,17 @@ public final class PluggableHolder {
         int id = buffer.readUnsignedByte();
         if (netSide == BCNetworkSide.SERVER) {
             if (pluggable == PipePluggable.EMPTY) return;
+            if (id == ID_SYNC_STATE) {
+                // Complete pluggable snapshots only travel server -> client.
+                throw new InvalidInputDataException("Client cannot replace pluggable sync state");
+            }
             if (id == ID_UPDATE_PLUG) {
+                // A pluggable with an authoritative full snapshot (notably facades)
+                // must not also accept an unrestricted legacy update payload.
+                if (pluggable.writeSyncState(BCNetworkSide.SERVER) != null) {
+                    throw new InvalidInputDataException("Client cannot update server-owned pluggable state");
+                }
                 pluggable.readPayload(buffer, netSide, ctx);
-            } else if (id == ID_SYNC_STATE) {
-                CompoundTag state = buffer.readNbt();
-                pluggable.readSyncState(state == null ? new CompoundTag() : state, netSide, ctx);
             }
             return;
         }
