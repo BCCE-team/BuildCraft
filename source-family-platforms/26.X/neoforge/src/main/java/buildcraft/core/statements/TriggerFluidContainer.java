@@ -98,7 +98,7 @@ public class TriggerFluidContainer extends BCStatement implements ITriggerExtern
                 case FULL:
                     if (searchedFluid.isEmpty()) {
                         for (int i = 0; i < liquids ; i++) {
-                            FluidStack fluid = handler.getFluidInTank(1);
+                            FluidStack fluid = handler.getFluidInTank(i);
                             if ((fluid.isEmpty() || fluid.getAmount() < handler.getTankCapacity(i))) {
                                 return false;
                             }
