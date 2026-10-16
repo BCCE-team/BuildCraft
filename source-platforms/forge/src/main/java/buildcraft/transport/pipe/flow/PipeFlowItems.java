@@ -118,7 +118,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         for (int i = 0; i < list.size(); i++) {
             TravellingItem item = new TravellingItem(list.getCompound(i), tickNow);
             if (!item.stack.isEmpty()) {
-                items.add(item.getCurrentDelay(tickNow), item);
+                items.add(Math.min(TravellingItem.MAX_TRANSIT_TICKS, item.getCurrentDelay(tickNow)), item);
             }
         }
     }
@@ -431,7 +431,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             // "next tick" and every future absolute deadline is one bucket closer than it is before this tick's advance.
             remaining--;
         }
-        return remaining > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) remaining;
+        // DelayedList materializes one bucket per tick of delay; do not let a
+        // corrupt save or oversized packet allocate millions of buckets.
+        return (int) Math.min(TravellingItem.MAX_TRANSIT_TICKS, remaining);
     }
 
     private TravellingItem claimClientPredecessor(TravellingItem successor) {

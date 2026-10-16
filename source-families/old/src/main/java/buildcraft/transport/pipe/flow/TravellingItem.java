@@ -45,6 +45,8 @@ public class TravellingItem {
     /** Absolute times (relative to world.getTotalWorldTime()) with when an item started to when it finishes. */
     long tickStarted, tickFinished;
     /** Relative times (from tickStarted) until an event needs to be fired or this item needs changing. */
+    /** Upper bound for in-pipe travel; even the minimum legitimate speed needs under 1000 ticks. */
+    public static final int MAX_TRANSIT_TICKS = 1200;
     int timeToDest;
     /** If {@link #toCenter} is true then this represents the side that the item is coming from, otherwise this
      * represents the side that the item is going to. */
@@ -106,13 +108,16 @@ public class TravellingItem {
         this.colour = c == 0 ? null : DyeColor.byId(c - 1);
         this.toCenter = nbt.getBoolean("toCenter");
         this.speed = nbt.getDouble("speed");
-        if (speed < 0.001) {
+        if (!Double.isFinite(speed) || speed < 0.001) {
             // Just to make sure that we don't have an invalid speed
             speed = 0.001;
         }
-        tickStarted = nbt.getInt("tickStarted") + tickNow;
-        tickFinished = nbt.getInt("tickFinished") + tickNow;
-        timeToDest = nbt.getInt("timeToDest");
+        // The saved times are relative to the old world clock. Bound both the
+        // remaining ETA and total travel duration before allocating delay buckets.
+        timeToDest = Math.max(1, Math.min(MAX_TRANSIT_TICKS, nbt.getInt("timeToDest")));
+        long remaining = Math.max(0L, Math.min(MAX_TRANSIT_TICKS, (long) nbt.getInt("tickFinished")));
+        tickFinished = tickNow + remaining;
+        tickStarted = tickFinished - timeToDest;
 
         side = NBTUtilBC.readEnum(nbt.get("side"), Direction.class);
         if (side == null || timeToDest == 0) {
@@ -174,7 +179,7 @@ public class TravellingItem {
 
     public void genTimings(long now, double distance) {
         tickStarted = now;
-        timeToDest = (int) Math.ceil(distance / speed);
+        timeToDest = Math.max(1, Math.min(MAX_TRANSIT_TICKS, (int) Math.ceil(distance / speed)));
         tickFinished = now + timeToDest;
     }
 
