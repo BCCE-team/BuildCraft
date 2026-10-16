@@ -290,9 +290,6 @@ public final class RequestLedger {
         }
         int wanted = Math.min(offered.getCount(), promise.promised - promise.confirmed);
         if (wanted <= 0) return DeliveryResult.failure(DeliveryStatus.CLOSED, offered.getCount(), "promise_fulfilled");
-        if (mode == OperationMode.EXECUTE && receipts.size() >= MAX_RECEIPTS) {
-            return DeliveryResult.failure(DeliveryStatus.BLOCKED, offered.getCount(), "receipt_limit");
-        }
         ItemStack bounded = offered.copy();
         bounded.setCount(wanted);
         try {
@@ -306,6 +303,13 @@ public final class RequestLedger {
                 return new DeliveryResult(DeliveryStatus.SIMULATED, 0, accepted, offered.getCount() - accepted, "");
             }
             if (accepted == 0) return new DeliveryResult(DeliveryStatus.BLOCKED, 0, 0, offered.getCount(), "destination_full");
+            // Only retain the most recent acknowledgements. An exhausted replay
+            // window must never permanently deadlock an otherwise open request.
+            // Old IDs cease to be replay-protected once evicted; the protocol's
+            // deduplication guarantee is deliberately bounded by MAX_RECEIPTS.
+            if (receipts.size() >= MAX_RECEIPTS) {
+                receipts.remove(receipts.keySet().iterator().next());
+            }
             promise.confirmed += accepted;
             entry.confirmed += accepted;
             receipts.put(deliveryId, new Receipt(token, accepted));
