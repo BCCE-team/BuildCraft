@@ -504,6 +504,12 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     }
 
     private void onItemReachCenter(TravellingItem item) {
+        if (item.side == null) {
+            // A broken saved direction has no valid route. Return the payload to
+            // the world instead of crashing the server or silently deleting it.
+            dropItem(item.stack, Direction.UP, Direction.UP, item.speed);
+            return;
+        }
         IPipeHolder holder = pipe.getHolder();
         PipeEventItem.ReachCenter reachCenter = new PipeEventItem.ReachCenter(
             holder, this, item.colour, item.stack, item.side
@@ -646,6 +652,10 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     }
 
     private void onItemReachEnd(TravellingItem item) {
+        if (item.side == null) {
+            dropItem(item.stack, Direction.UP, Direction.UP, item.speed);
+            return;
+        }
         IPipeHolder holder = pipe.getHolder();
         PipeEventItem.ReachEnd reachEnd = new PipeEventItem.ReachEnd(holder, this, item.colour, item.stack, item.side);
         holder.fireEvent(reachEnd);
