@@ -24,7 +24,7 @@ public class ItemProvider implements IItemHandler{
 
 	public @NotNull ItemStack getStackInSlot(int slot) {
 		ItemStack item = provider.apply(slot);
-		return item == null ? ItemStack.EMPTY : item;
+		return item == null ? ItemStack.EMPTY : item.copy();
 	}
 
 	public @NotNull ItemStack insertItem(int slot, @NotNull ItemStack stack, boolean simulate) {
@@ -32,8 +32,8 @@ public class ItemProvider implements IItemHandler{
 	}
 
 	public @NotNull ItemStack extractItem(int slot, int amount, boolean simulate) {
-		ItemStack item = provider.apply(slot);
-		return item == null ? ItemStack.EMPTY : item;
+		// Display-only provider: extraction must never manufacture an item.
+		return ItemStack.EMPTY;
 	}
 
 	public int getSlotLimit(int slot) {

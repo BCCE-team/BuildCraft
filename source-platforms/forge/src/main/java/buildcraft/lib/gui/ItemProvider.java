@@ -26,7 +26,7 @@ public class ItemProvider implements IItemHandler{
 	@Override
 	public @NotNull ItemStack getStackInSlot(int slot) {
 		ItemStack item = provider.apply(slot);
-		return item == null ? ItemStack.EMPTY : item;
+		return item == null ? ItemStack.EMPTY : item.copy();
 	}
 
 	@Override
@@ -36,8 +36,8 @@ public class ItemProvider implements IItemHandler{
 
 	@Override
 	public @NotNull ItemStack extractItem(int slot, int amount, boolean simulate) {
-		ItemStack item = provider.apply(slot);
-		return item == null ? ItemStack.EMPTY : item;
+		// Display-only provider: extraction must never manufacture an item.
+		return ItemStack.EMPTY;
 	}
 
 	@Override
