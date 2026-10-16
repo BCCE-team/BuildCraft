@@ -230,6 +230,20 @@ public final class RequestLedger {
         if (request == null || request.phase != Phase.OPEN || request.definition == null || available(request) < count) {
             return Optional.empty();
         }
+        if (promises.size() >= MAX_PROMISES) {
+            // Terminal leases are historical data, not live reservations. Compact
+            // oldest terminal entries first; never evict an ACTIVE promise.
+            var cursor = promises.entrySet().iterator();
+            while (promises.size() >= MAX_PROMISES && cursor.hasNext()) {
+                Promise stale = cursor.next().getValue();
+                if (stale.phase != PromisePhase.ACTIVE) {
+                    cursor.remove();
+                    // Receipts are tied to persisted promise IDs. Discarding
+                    // both maintains the load() referential-integrity check.
+                    receipts.entrySet().removeIf(receipt -> receipt.getValue().promise.equals(stale.id));
+                }
+            }
+        }
         if (promises.size() >= MAX_PROMISES) return Optional.empty();
         long until = Math.min(request.deadline, deadline(now, durationTicks));
         if (until <= now) return Optional.empty();
