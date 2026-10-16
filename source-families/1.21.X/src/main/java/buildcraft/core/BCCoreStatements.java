@@ -119,7 +119,9 @@ public class BCCoreStatements {
         TRIGGER_POWER_YELLOW = new TriggerEnginePowerStage(EnumPowerStage.YELLOW);
         TRIGGER_POWER_RED = new TriggerEnginePowerStage(EnumPowerStage.RED);
         TRIGGER_POWER_OVERHEAT = new TriggerEnginePowerStage(EnumPowerStage.OVERHEAT);
-        TRIGGER_POWER_STAGES = new TriggerEnginePowerStage[] {};
+        TRIGGER_POWER_STAGES = new TriggerEnginePowerStage[] {
+            TRIGGER_POWER_BLUE, TRIGGER_POWER_GREEN, TRIGGER_POWER_YELLOW, TRIGGER_POWER_RED, TRIGGER_POWER_OVERHEAT
+        };
 
         TRIGGER_INVENTORY_ALL = new BCStatement[7];
         System.arraycopy(TRIGGER_INVENTORY, 0, TRIGGER_INVENTORY_ALL, 0, 4);
