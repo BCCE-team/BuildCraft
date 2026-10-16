@@ -70,8 +70,9 @@ public final class Tank {
     public FluidStack getFluid() {return stack;}
     public int getFluidAmount() {return stack.getAmount();}
     public int getCapacity() {return capacity;}
-    public boolean isFluidValid(FluidStack offered) {return !offered.isEmpty() && offered.getFluid().equals(accepted)
-        && (stack.isEmpty() || stack.getFluid().equals(offered.getFluid()));}
+    public boolean isFluidValid(FluidStack offered) {return !offered.isEmpty()
+        && (offered.getFluid().equals(accepted)
+            || accepted.equals("fuel") && offered.getFluid().startsWith("fuel_"));}
     public void setFluid(FluidStack next) {FluidStack before=stack;Transaction.snapshot(()->stack=before);stack=next;}
 }''',
     'buildcraft/lib/compat/transfer/TransferJournal': '''package buildcraft.lib.compat.transfer;
@@ -111,6 +112,13 @@ public final class Harness {
             root.commit();
         }
         equals(handler.getAmountAsLong(0),100);equals(handler.getAmountAsLong(1),15);
+        // Two independently valid fuel variants must not mix, even when both
+        // satisfy the tank's type predicate.
+        var mixedFuel = new Tank("fuel",100);
+        mixedFuel.setFluid(new FluidStack("fuel",40));
+        equals(EnergyFluidResourceHandler.insertInternal(mixedFuel,new FluidStack("fuel_alternative",5),engine),0);
+        equals(mixedFuel.getFluidAmount(),40);
+        yes(FluidResource.of(mixedFuel.getFluid()).equals(oil));
         yes(engine.dirty>0);int dirtyBefore=engine.dirty;
         try(Transaction root=Transaction.openRoot()) {
             equals(handler.insert(0,oil,1,root),0);

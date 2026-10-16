@@ -87,6 +87,10 @@ public final class EnergyFluidResourceHandler implements ResourceHandler<FluidRe
     static int insertInternal(Tank tank, FluidStack offered, TileEngineIron_BC8 engine) {
         if (offered == null || offered.isEmpty() || !tank.isFluidValid(offered)) return 0;
         FluidStack existing = tank.getFluid();
+        // A valid fuel type is not necessarily the same as the fuel already stored.
+        // Resource identity includes data components, not only the Fluid type.
+        if (existing != null && !existing.isEmpty()
+            && !FluidResource.of(existing).equals(FluidResource.of(offered))) return 0;
         int stored = existing.isEmpty() ? 0 : existing.getAmount();
         int accepted = Math.min(offered.getAmount(), Math.max(0, tank.getCapacity() - stored));
         if (accepted <= 0) return 0;
