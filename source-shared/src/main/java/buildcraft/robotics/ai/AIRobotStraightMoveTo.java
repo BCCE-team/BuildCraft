@@ -6,6 +6,7 @@ import net.minecraft.world.phys.Vec3;
 
 public class AIRobotStraightMoveTo extends AIRobotGoto {
     private double prevDistance = Double.MAX_VALUE;
+    private int stalledTicks;
     private double x, y, z;
 
     public AIRobotStraightMoveTo(EntityRobotBase robot) {
@@ -29,12 +30,19 @@ public class AIRobotStraightMoveTo extends AIRobotGoto {
     @Override
     public void update() {
         double d = Math.sqrt(robot.distanceToSqr(x, y, z));
-        if (d < 0.05D || d >= prevDistance) {
+        if (d < 0.05D) {
             robot.setDeltaMovement(Vec3.ZERO);
-            robot.setPos(x, y, z);
+            robot.setPos(x, y, z); // Only snap the final few centimeters on arrival.
             terminate();
-        } else {
-            prevDistance = d;
+            return;
+        }
+        // Lack of progress is not arrival: an obstacle must never teleport the robot.
+        stalledTicks = d >= prevDistance - 0.005D ? stalledTicks + 1 : 0;
+        prevDistance = d;
+        if (stalledTicks >= 20) {
+            robot.setDeltaMovement(Vec3.ZERO);
+            setSuccess(false);
+            terminate();
         }
     }
 
