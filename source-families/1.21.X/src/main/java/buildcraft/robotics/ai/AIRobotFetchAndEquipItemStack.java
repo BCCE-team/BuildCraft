@@ -85,21 +85,22 @@ public class AIRobotFetchAndEquipItemStack extends AIRobot {
         for (int slot = 0; slot < inventory.getContainerSize() && remaining > 0; slot++) {
             ItemStack stack = inventory.getItem(slot);
             if (stack.isEmpty() || !filter.matches(stack)) continue;
-
-            if (result.isEmpty()) {
-                result = stack.copy();
-                result.setCount(0);
-            } else if (!ItemStack.isSameItemSameComponents(result, stack)) {
-                continue;
-            }
+            // Check compatibility before extraction; skipping a mismatched
+            // source after removeItem() would destroy the returned item.
+            if (!result.isEmpty() && !ItemStack.isSameItemSameComponents(result, stack)) continue;
 
             int toTake = Math.min(remaining, stack.getCount());
-            result.grow(toTake);
-            remaining -= toTake;
-
-            if (doTake) {
-                inventory.removeItem(slot, toTake);
+            ItemStack actual = doTake ? inventory.removeItem(slot, toTake) : stack.copy();
+            if (actual.isEmpty()) continue; // Extraction can be refused by foreign Containers.
+            if (result.isEmpty()) {
+                result = actual.copy();
+                result.setCount(0);
+            } else if (!ItemStack.isSameItemSameComponents(result, actual)) {
+                continue;
             }
+            int accepted = Math.min(toTake, actual.getCount());
+            result.grow(accepted);
+            remaining -= accepted;
         }
 
         if (doTake && !result.isEmpty()) {

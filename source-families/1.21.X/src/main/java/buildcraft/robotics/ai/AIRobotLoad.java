@@ -64,13 +64,17 @@ public class AIRobotLoad extends AIRobot {
                 continue;
             }
 
-            ItemStack result = stack.copy();
-            result.setCount(1);
             if (doTake) {
-                container.removeItem(slot, 1);
+                // A modded Container may refuse extraction despite exposing an item.
+                // Return only the stack the source actually removed.
+                ItemStack extracted = container.removeItem(slot, 1);
+                if (extracted.isEmpty()) continue;
                 container.setChanged();
+                return extracted;
             }
-            return result;
+            ItemStack preview = stack.copy();
+            preview.setCount(1);
+            return preview;
         }
         return ItemStack.EMPTY;
     }
@@ -104,16 +108,39 @@ public class AIRobotLoad extends AIRobot {
 
             ItemStack candidate = stack.copy();
             candidate.setCount(toMove);
-            ItemStack remaining = insertIntoRobot(robot, candidate, doLoad);
-            int moved = candidate.getCount() - remaining.getCount();
-            if (moved <= 0) {
-                continue;
-            }
+            // First reserve capacity without mutating the robot, then debit the
+            // source. Never insert a copied preview before removeItem succeeds.
+            ItemStack simulatedRemainder = insertIntoRobot(robot, candidate, false);
+            int canMove = candidate.getCount() - simulatedRemainder.getCount();
+            if (canMove <= 0) continue;
 
+            int moved;
             if (doLoad) {
-                container.removeItem(slot, moved);
+                ItemStack extracted = container.removeItem(slot, canMove);
+                if (extracted.isEmpty()) continue;
+                ItemStack remainder = insertIntoRobot(robot, extracted, true);
+                moved = extracted.getCount() - remainder.getCount();
                 container.setChanged();
+                // The preflight should make this impossible under normal
+                // server-thread Container contracts, but preserve any excess.
+                if (!remainder.isEmpty()) {
+                    ItemStack sourceAfter = container.getItem(slot);
+                    if (sourceAfter.isEmpty()) {
+                        container.setItem(slot, remainder.copy());
+                    } else if (sourceAfter.getCount() + remainder.getCount() <= container.getMaxStackSize()) {
+                        // Only restore into a compatible stack; never merge
+                        // different items just to hide a broken handler.
+                        if (compatibleStacks(sourceAfter, remainder)) {
+                            ItemStack restored = sourceAfter.copy();
+                            restored.grow(remainder.getCount());
+                            container.setItem(slot, restored);
+                        }
+                    }
+                }
+            } else {
+                moved = canMove;
             }
+            if (moved <= 0) continue;
             loaded += moved;
 
             if (loaded >= targetQuantity) {
@@ -145,6 +172,10 @@ public class AIRobotLoad extends AIRobot {
             return sided.canTakeItemThroughFace(slot, stack, side);
         }
         return true;
+    }
+
+    private static boolean compatibleStacks(ItemStack a, ItemStack b) {
+        return ItemStack.isSameItemSameComponents(a, b);
     }
 
     private static ItemStack insertIntoRobot(EntityRobotBase robot, ItemStack stack, boolean doInsert) {
