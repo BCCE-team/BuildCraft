@@ -401,6 +401,13 @@ public final class RobotServiceImpl implements RobotService {
         @Override public RobotResource resource() { return resource; }
         @Override public long amount() { return 1; }
         @Override public boolean active() { return active; }
-        @Override public void close() { if (active) { registry.release(legacy); active = false; } }
+        @Override public void close() {
+            if (!active) return;
+            active = false;
+            // A stale Lease must never release a reservation reacquired by another robot.
+            if (registry.robotIdTaking(legacy) == robotId) {
+                registry.release(legacy);
+            }
+        }
     }
 }

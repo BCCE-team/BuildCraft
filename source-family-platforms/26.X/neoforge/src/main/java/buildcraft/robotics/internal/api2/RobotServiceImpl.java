@@ -385,6 +385,13 @@ public final class RobotServiceImpl implements RobotService {
         public RobotResource resource() { return resource; }
         public long amount() { return 1; }
         public boolean active() { return active; }
-        public void close() { if (active) { registry.release(legacy); active = false; } }
+        public void close() {
+            if (!active) return;
+            active = false;
+            // A stale Lease must never release a reservation reacquired by another robot.
+            if (registry.robotIdTaking(legacy) == robotId) {
+                registry.release(legacy);
+            }
+        }
     }
 }
