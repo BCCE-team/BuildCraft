@@ -411,7 +411,9 @@ class MachineRuntimeHost implements MachineHost {
             }
             out.flush();
             if (buffer.size() > MAX_TOTAL_BYTES) throw new IOException("Oversized machine sync");
-            statusDirty = false;
+            // Sending a full snapshot to one observer must not acknowledge a
+            // pending status delta on behalf of all other observers.
+            if (!full) statusDirty = false;
             return buffer.toByteArray();
         } catch (IOException ex) { throw new IllegalStateException("Cannot sync machine", ex); }
     }

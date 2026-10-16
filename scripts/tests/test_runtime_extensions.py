@@ -125,7 +125,9 @@ public final class RuntimeExtensionsFixture {
         List<EncodedPayload<OpaqueData>> save = server.save();
         check(save.size() == 1 && save.get(0).schemaVersion() == 1, "Persistence not encoded");
         SyncFrame first = server.fullSync();
-        check(server.changedSync().isEmpty(), "Full sync did not acknowledge dirty state");
+        SyncFrame initialPending = server.changedSync().orElseThrow();
+        check(!initialPending.full() && initialPending.revision() > first.revision(),
+            "Full sync consumed pending changes needed by existing observers");
         RuntimeExtensions<Value, View> client = host(definition(callbacks), Side.CLIENT, errors);
         check(client.applySync(first) && client.view(ID).orElseThrow().number() == 10, "Full sync failed");
         check(!client.applySync(first), "Duplicate frame accepted");

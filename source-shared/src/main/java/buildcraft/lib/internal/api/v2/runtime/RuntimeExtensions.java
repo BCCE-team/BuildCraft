@@ -280,9 +280,9 @@ public final class RuntimeExtensions<T, V> {
 
     public SyncFrame fullSync() {
         server();
-        SyncFrame frame = encodeSync(true, active.keySet());
-        dirty.clear();
-        return frame;
+        // A new observer's full snapshot must not consume pending deltas for
+        // existing observers, which still need their changedSync delivery.
+        return encodeSync(true, active.keySet());
     }
 
     public Optional<SyncFrame> changedSync() {
