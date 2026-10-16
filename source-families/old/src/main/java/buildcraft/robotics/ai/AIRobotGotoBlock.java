@@ -28,6 +28,8 @@ public class AIRobotGotoBlock extends AIRobotGoto {
     private BlockIndex lastBlockInPath;
     private boolean loadedFromNBT;
     private int stuckTicks;
+    private int repathAttempts;
+    private static final int MAX_REPATH_ATTEMPTS = 3;
 
     public AIRobotGotoBlock(EntityRobotBase robot) {
         super(robot);
@@ -82,9 +84,21 @@ public class AIRobotGotoBlock extends AIRobotGoto {
         if (path != null && !path.isEmpty()) {
             double distance = distanceTo(nextX, nextY, nextZ);
             boolean notProgressing = distance > prevDistance + 0.025D || !robot.isMoving();
-            if (distance <= 0.18D || (notProgressing && ++stuckTicks > 8)) {
+            if (distance <= 0.18D) {
+                repathAttempts = 0;
                 path.removeFirst();
                 setNextInPath();
+            } else if (notProgressing && ++stuckTicks > 8) {
+                robot.setDeltaMovement(Vec3.ZERO);
+                // A stalled waypoint is not reached. Recalculate from the real
+                // position instead of silently skipping an obstruction.
+                if (++repathAttempts > MAX_REPATH_ATTEMPTS) {
+                    setSuccess(false);
+                    terminate();
+                    return;
+                }
+                path = null;
+                prevDistance = Double.MAX_VALUE;
             } else {
                 stuckTicks = notProgressing ? stuckTicks : 0;
                 prevDistance = Math.min(prevDistance, distance);
@@ -93,9 +107,7 @@ public class AIRobotGotoBlock extends AIRobotGoto {
 
         if (path != null && path.isEmpty()) {
             robot.setDeltaMovement(Vec3.ZERO);
-            if (lastBlockInPath != null) {
-                robot.setPos(lastBlockInPath.x + 0.5D, lastBlockInPath.y + 0.5D, lastBlockInPath.z + 0.5D);
-            }
+            // Every waypoint was reached physically; no forced end-of-path teleport.
             terminate();
         }
     }
