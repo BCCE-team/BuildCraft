@@ -10,6 +10,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.server.level.ServerLevel;
 
 public class ChunkUtil {
     private static final ThreadLocal<LevelChunk> lastChunk = new ThreadLocal<>();
@@ -23,6 +24,17 @@ public class ChunkUtil {
     }
 
     public static LevelChunk getChunk(Level Level, int x, int z, boolean force) {
+        // A non-forcing lookup must never return a cached chunk that has since unloaded.
+        // getChunkNow is a loaded-only lookup and cannot generate a missing chunk.
+        if (!force && Level instanceof ServerLevel serverLevel) {
+            LevelChunk loaded = serverLevel.getChunkSource().getChunkNow(x, z);
+            if (loaded == null) lastChunk.remove();
+            return loaded;
+        }
+        if (!force && !Level.hasChunk(x, z)) {
+            lastChunk.remove();
+            return null;
+        }
         LevelChunk chunk = lastChunk.get();
 
         if (chunk != null) {
@@ -35,11 +47,8 @@ public class ChunkUtil {
             }
         }
 
-        if (force) {
-            chunk = Level.getChunk(x, z);
-        } else {
-            chunk = Level.getChunk(x, z);
-        }
+        // For client levels hasChunk above already rejected unavailable positions.
+        chunk = Level.getChunk(x, z);
 
         if (chunk != null) {
             lastChunk.set(chunk);
