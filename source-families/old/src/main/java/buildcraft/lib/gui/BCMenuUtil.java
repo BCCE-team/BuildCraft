@@ -118,7 +118,8 @@ public final class BCMenuUtil {
         }
 
         Slot slot = menu.slots.get(index);
-        if (slot == null || !slot.hasItem()) {
+        // Display/ghost slots may contain previews but are never a source of real items.
+        if (slot == null || !slot.hasItem() || !slot.mayPickup(player)) {
             return ItemStack.EMPTY;
         }
 
