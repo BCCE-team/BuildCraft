@@ -50,7 +50,11 @@ public abstract class Snapshot {
 
     
     public static int posToIndex(int sizeX, int sizeY, int sizeZ, int x, int y, int z) {
-        return ((z * sizeY) + y) * sizeX + x;
+        getDataSize(sizeX, sizeY, sizeZ);
+        if (x < 0 || x >= sizeX || y < 0 || y >= sizeY || z < 0 || z >= sizeZ) {
+            throw new IndexOutOfBoundsException("Snapshot position outside bounds");
+        }
+        return (int) (((long) z * sizeY + y) * sizeX + x);
     }
 
     public static int posToIndex(BlockPos size, int x, int y, int z) {
@@ -75,6 +79,8 @@ public abstract class Snapshot {
     }
 
     public static BlockPos indexToPos(int sizeX, int sizeY, int sizeZ, int i) {
+        int length = getDataSize(sizeX, sizeY, sizeZ);
+        if (i < 0 || i >= length) throw new IndexOutOfBoundsException("Snapshot index outside bounds");
         return new BlockPos(
             i % sizeX,
             (i / sizeX) % sizeY,
@@ -91,7 +97,17 @@ public abstract class Snapshot {
     }
 
     public static int getDataSize(int x, int y, int z) {
-        return x * y * z;
+        // Prevent integer overflow and malicious multi-gigabyte blueprint allocation.
+        if (x <= 0 || y <= 0 || z <= 0) {
+            throw new IllegalArgumentException("Snapshot dimensions must be positive");
+        }
+        // Two positive int dimensions fit in long; check the third before
+        // multiplication so even a 2^31-by-2^31-by-2^31 input cannot wrap.
+        long area = (long) x * y;
+        if (area > 16_777_216L / z) {
+            throw new IllegalArgumentException("Snapshot is too large");
+        }
+        return (int) (area * z);
     }
 
     public static int getDataSize(BlockPos size) {
@@ -131,6 +147,11 @@ public abstract class Snapshot {
     public void deserializeNBT(CompoundTag nbt) throws InvalidInputDataException {
         key = new Key(nbt.getCompound("key"));
         size = BuildersNbtUtil.readBlockPos(nbt, "size");
+        try {
+            getDataSize(size);
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidInputDataException("Invalid snapshot dimensions", ex);
+        }
         facing = NBTUtilBC.readEnum(nbt.get("facing"), Direction.class);
         offset = BuildersNbtUtil.readBlockPos(nbt, "offset");
     }
