@@ -92,6 +92,7 @@ public final class PlatformApi2Bootstrap {
     private record ForgeItemPort(IItemHandler handler) implements SlottedItemPort {
         @Override
         public ItemTransferResult insert(ItemStack offered, OperationMode mode) {
+            java.util.Objects.requireNonNull(mode, "mode");
             if (offered == null || offered.isEmpty()) return ItemTransferResult.nothing(offered == null ? 0 : offered.getCount());
             ItemStack remainder = offered.copy();
             boolean simulate = mode == OperationMode.SIMULATE;
@@ -121,6 +122,7 @@ public final class PlatformApi2Bootstrap {
         }
 
         public ItemTransferResult extract(ItemMatcher matcher, int maxCount, OperationMode mode) {
+            java.util.Objects.requireNonNull(mode, "mode");
             if (matcher == null || maxCount <= 0) return ItemTransferResult.nothing(Math.max(0, maxCount));
             boolean simulate = mode == OperationMode.SIMULATE;
             for (int slot = 0; slot < handler.getSlots(); slot++) {
@@ -136,6 +138,7 @@ public final class PlatformApi2Bootstrap {
     private record ForgeFluidPort(IFluidHandler handler) implements FluidPort {
         @Override
         public FluidTransferResult insert(FluidVolume offered, OperationMode mode) {
+            java.util.Objects.requireNonNull(mode, "mode");
             if (offered == null || offered.isEmpty()) return FluidTransferResult.nothing(offered == null ? FluidAmount.ZERO : offered.amount());
             FluidStack stack = FuelApiBridge.stackOf(offered);
             if (stack.isEmpty()) return FluidTransferResult.nothing(offered.amount());
@@ -145,6 +148,7 @@ public final class PlatformApi2Bootstrap {
 
         @Override
         public FluidTransferResult extract(FluidMatcher matcher, FluidAmount maxAmount, OperationMode mode) {
+            java.util.Objects.requireNonNull(mode, "mode");
             if (matcher == null || maxAmount == null || maxAmount.isZero()) {
                 return FluidTransferResult.nothing(maxAmount == null ? FluidAmount.ZERO : maxAmount);
             }
@@ -176,10 +180,12 @@ public final class PlatformApi2Bootstrap {
 
     private record ForgeEnergyPort(IEnergyStorage storage) implements ExternalEnergyPort {
         @Override public long insert(long offered, OperationMode mode) {
+            java.util.Objects.requireNonNull(mode, "mode");
             int request = (int) Math.min(Integer.MAX_VALUE, Math.max(0L, offered));
             return storage.receiveEnergy(request, mode == OperationMode.SIMULATE);
         }
         @Override public long extract(long requested, OperationMode mode) {
+            java.util.Objects.requireNonNull(mode, "mode");
             int request = (int) Math.min(Integer.MAX_VALUE, Math.max(0L, requested));
             return storage.extractEnergy(request, mode == OperationMode.SIMULATE);
         }
