@@ -17,7 +17,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
-import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.resources.ResourceKey;
 
 public abstract class MarkerCache<S extends MarkerSubCache<?>> {
     public static final boolean DEBUG = BCDebugging.shouldDebugLog("lib.markers");
@@ -25,8 +25,8 @@ public abstract class MarkerCache<S extends MarkerSubCache<?>> {
 
     public final String name;
 
-    private final Map<DimensionType, S> cacheClient = new ConcurrentHashMap<>();
-    private final Map<DimensionType, S> cacheServer = new ConcurrentHashMap<>();
+    private final Map<ResourceKey<Level>, S> cacheClient = new ConcurrentHashMap<>();
+    private final Map<ResourceKey<Level>, S> cacheServer = new ConcurrentHashMap<>();
 
     public MarkerCache(String name) {
         this.name = name;
@@ -77,16 +77,18 @@ public abstract class MarkerCache<S extends MarkerSubCache<?>> {
     }
 
     private void onLevelUnloadImpl(LevelAccessor levelAccessor) {
-        Map<DimensionType, S> cache = levelAccessor.isClientSide() ? cacheClient : cacheServer;
-        DimensionType key = levelAccessor.dimensionType();
-        cache.remove(key);
+        Map<ResourceKey<Level>, S> cache = levelAccessor.isClientSide() ? cacheClient : cacheServer;
+        // A LevelAccessor need not represent a dimension (e.g. during world generation).
+        if (levelAccessor instanceof Level level) {
+            cache.remove(level.dimension());
+        }
     }
 
     protected abstract S createSubCache(Level level);
 
     public S getSubCache(Level level) {
-        Map<DimensionType, S> cache = level.isClientSide ? cacheClient : cacheServer;
-        DimensionType key = level.dimensionType();
+        Map<ResourceKey<Level>, S> cache = level.isClientSide ? cacheClient : cacheServer;
+        ResourceKey<Level> key = level.dimension();
         return cache.computeIfAbsent(key, k -> createSubCache(level));
     }
 }
