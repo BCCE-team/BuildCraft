@@ -88,6 +88,8 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
     }
 
     public long extractPower(long min, long max) {
+        // Invalid bounds must never turn a subtraction into free generated MJ.
+        if (min < 0 || max < 0 || min > max) return 0;
         if (microJoules < min) return 0;
         long extracting = Math.min(microJoules, max);
         transferJournal.record();
