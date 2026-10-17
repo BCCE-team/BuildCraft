@@ -88,6 +88,9 @@ public abstract class OilStructure {
      * name, tags or block entity. Vanilla blocks retain the conservative terrain/structure policy.
      */
     private static boolean canReplaceNaturalTerrain(WorldGenLevel world, BlockPos pos, BlockState state) {
+        // Protect block-entity inventories, machines and data regardless of namespace.
+        // A modded ore/stone can be replaced; a modded tile entity never can.
+        if (state.hasBlockEntity() || world.getBlockEntity(pos) != null) return false;
         // Unbreakable blocks are protected in every namespace, including other mods.
         if (state.getDestroySpeed(world, pos) < 0.0F) {
             return false;
@@ -554,7 +557,8 @@ public abstract class OilStructure {
             while (springPos.getY() < maxSpringY && world.getBlockState(springPos).is(Blocks.BEDROCK)) {
                 springPos = springPos.above();
             }
-            if (world.getBlockState(springPos).is(Blocks.BEDROCK)) {
+            if (world.getBlockState(springPos).is(Blocks.BEDROCK)
+                || world.getBlockState(springPos).hasBlockEntity()) {
                 BCLog.logger.warn("[energy.gen.oil] Could not find a non-bedrock position for oil spring at " + pos);
                 return;
             }
