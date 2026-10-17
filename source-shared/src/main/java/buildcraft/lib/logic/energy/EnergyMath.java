@@ -38,7 +38,7 @@ public final class EnergyMath {
         if (retainedRatio <= 0) return maxInput;
         BigInteger numerator = BigInteger.valueOf(delivered).multiply(BigInteger.valueOf(scale));
         BigInteger denominator = BigInteger.valueOf(retainedRatio);
-        long required = numerator.add(denominator).subtract(BigInteger.ONE).divide(denominator).longValue();
-        return Math.min(required, maxInput);
+        BigInteger required = numerator.add(denominator).subtract(BigInteger.ONE).divide(denominator);
+        return required.compareTo(BigInteger.valueOf(maxInput)) >= 0 ? maxInput : required.longValue();
     }
 }
