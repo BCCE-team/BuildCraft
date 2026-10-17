@@ -128,10 +128,14 @@ public final class PlatformApi2Bootstrap {
         public FluidTransferResult insert(FluidVolume offered, OperationMode mode) {
             java.util.Objects.requireNonNull(mode, "mode");
             if (offered == null || offered.isEmpty()) return FluidTransferResult.nothing(offered == null ? FluidAmount.ZERO : offered.amount());
-            FluidStack stack = FuelApiBridge.stackOf(offered);
+            // Native Forge/NeoForge fluid stacks use a 32-bit amount. Transfer a bounded
+            // portion and keep the unsent remainder in the API2 result.
+            FluidVolume portion = offered.withAmount(FluidAmount.of(
+                Math.min(Integer.MAX_VALUE, offered.amount().milliBuckets())));
+            FluidStack stack = FuelApiBridge.stackOf(portion);
             if (stack.isEmpty()) return FluidTransferResult.nothing(offered.amount());
             int accepted = handler.fill(stack, mode == OperationMode.EXECUTE ? FluidAction.EXECUTE : FluidAction.SIMULATE);
-            return FluidTransferResult.ofInsertion(offered, FluidAmount.of(Math.max(0, accepted)));
+            return FluidTransferResult.ofInsertion(offered, FluidAmount.of(Math.min(portion.amount().milliBuckets(), Math.max(0L, accepted))));
         }
 
         public FluidTransferResult extract(FluidMatcher matcher, FluidAmount maxAmount, OperationMode mode) {
