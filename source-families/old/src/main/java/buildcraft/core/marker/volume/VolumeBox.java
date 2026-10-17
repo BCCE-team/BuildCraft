@@ -227,38 +227,34 @@ public class VolumeBox {
         box = new Box();
         box.readData(buf);
         player = buf.readBoolean() ? buf.readUUID() : null;
-        Map<EnumAddonSlot, Addon> newAddons = new EnumMap<>(EnumAddonSlot.class);
+        Map<EnumAddonSlot, Addon> incomingAddons = new EnumMap<>(EnumAddonSlot.class);
         int count = buf.readInt();
+        if (count < 0 || count > EnumAddonSlot.values().length) {
+            throw new IOException("Invalid Volume Box addon count " + count);
+        }
         for (int i = 0; i < count; i++) {
             EnumAddonSlot slot = buf.readEnum(EnumAddonSlot.class);
             ResourceLocation rl = new ResourceLocation(buf.readUtf(1024));
             Class<? extends Addon> addonClass = AddonsRegistry.INSTANCE.getClassByName(rl);
+            if (addonClass == null) throw new IOException("Unknown addon class " + rl);
+            if (incomingAddons.containsKey(slot)) throw new IOException("Duplicate Volume Box addon " + slot);
             try {
-                if (addonClass == null) {
-                    throw new IOException("Unknown addon class " + rl);
+                // Resyncs must not create a new heavy addon (Filler Planner etc.)
+                // when the type at this slot has not changed.
+                Addon addon = addons.get(slot);
+                if (addon == null || addon.getClass() != addonClass) {
+                    addon = addonClass.getDeclaredConstructor().newInstance();
+                    addon.volumeBox = this;
+                    addon.onAdded();
                 }
-                Addon addon = addonClass.getDeclaredConstructor().newInstance();
-                addon.volumeBox = this;
-                addon.onAdded();
                 addon.fromBytes(buf);
-                newAddons.put(slot, addon);
-            } catch (InstantiationException | IllegalAccessException | 
-            		 InvocationTargetException | NoSuchMethodException e) {
-                throw new IOException("Failed to deserialize addon!", e);
+                incomingAddons.put(slot, addon);
+            } catch (ReflectiveOperationException ex) {
+                throw new IOException("Failed to deserialize Volume Box addon", ex);
             }
         }
-        addons.keySet().removeIf(slot -> !newAddons.containsKey(slot));
-        newAddons.entrySet().stream().filter(slotAddon -> !addons.containsKey(slotAddon.getKey()))
-            .forEach(slotAddon -> addons.put(slotAddon.getKey(), slotAddon.getValue()));
-        for (Map.Entry<EnumAddonSlot, Addon> slotAddon : newAddons.entrySet()) {
-            FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
-            try {
-                slotAddon.getValue().toBytes(buffer);
-                addons.get(slotAddon.getKey()).fromBytes(buffer);
-            } finally {
-                buffer.release();
-            }
-        }
+        addons.clear();
+        addons.putAll(incomingAddons);
         locks.clear();
         IntStream.range(0, buf.readInt()).mapToObj(i -> {
             Lock lock = new Lock();
