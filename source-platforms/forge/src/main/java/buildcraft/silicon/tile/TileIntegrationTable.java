@@ -76,11 +76,30 @@ public class TileIntegrationTable extends TileLaserTableBase implements MenuProv
     private boolean extract(CountedIngredient item, List<CountedIngredient> items, boolean simulate) {
         ItemStack targetStack = invTarget.getStackInSlot(0);
         if (targetStack.isEmpty() || !item.test(targetStack)) return false;
-        List<IngredientStack> legacyItems = new ArrayList<>(items.size());
-        for (CountedIngredient definition : items) {
-            legacyItems.add(new IngredientStack(definition.ingredient(), definition.count()));
+        // Keep the API2 exact-sample matcher (including NBT/Data Components).
+        // Converting to legacy IngredientStack silently discards that information.
+        List<ItemStack> remaining = new ArrayList<>(invToIntegrate.getSlots());
+        for (int slot = 0; slot < invToIntegrate.getSlots(); slot++) {
+            remaining.add(invToIntegrate.getStackInSlot(slot).copy());
         }
-        if (!extract(invToIntegrate, legacyItems, simulate, true)) return false;
+        for (CountedIngredient definition : items) {
+            int needed = definition.count();
+            for (int slot = 0; slot < remaining.size() && needed > 0; slot++) {
+                ItemStack stack = remaining.get(slot);
+                if (!definition.matchesItem(stack)) continue;
+                int taken = Math.min(needed, stack.getCount());
+                stack.shrink(taken);
+                needed -= taken;
+            }
+            if (needed > 0) return false;
+        }
+        // Integration recipes consume all inserted ingredients, not arbitrary extras.
+        if (remaining.stream().anyMatch(stack -> !stack.isEmpty())) return false;
+        if (!simulate) {
+            for (int slot = 0; slot < remaining.size(); slot++) {
+                invToIntegrate.setStackInSlot(slot, remaining.get(slot));
+            }
+        }
         if (!simulate) {
             targetStack.setCount(targetStack.getCount() - item.count());
             invTarget.setStackInSlot(0, targetStack);
