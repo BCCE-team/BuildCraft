@@ -84,6 +84,17 @@ public class WorldSavedDataVolumeBoxes extends SavedData {
 
     public void tick() {
         AtomicBoolean dirty = new AtomicBoolean(false);
+        // Disconnected editors are paused, not cancelled. Reattach their saved UUID when they rejoin this level.
+        for (VolumeBox volumeBox : volumeBoxes) {
+            if (volumeBox.isEditing()) continue;
+            for (Player player : world.players()) {
+                if (volumeBox.isPausedEditingBy(player) && getCurrentEditing(player) == null) {
+                    volumeBox.resumeEditing();
+                    dirty.set(true);
+                    break;
+                }
+            }
+        }
         volumeBoxes.stream().filter(VolumeBox::isEditing).forEach(volumeBox -> {
             Player player = volumeBox.getPlayer(world);
             if (player == null) {
