@@ -560,7 +560,7 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
     }
 
     public @NotNull FluidStack getFluid() {
-        return fluid;
+        return fluid.copy();
     }
 
     public int getFluidAmount() {
@@ -587,7 +587,7 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
     }
 
     public @NotNull FluidStack getFluidInTank(int tank) {
-        return fluid;
+        return fluid.copy();
     }
 
     public int getTankCapacity(int tank) {
@@ -604,6 +604,6 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
 
     public void setFluid(FluidStack residueFluid) {
         transferJournal.record();
-        this.fluid = FluidCompatRegistry.canonicalize(residueFluid);
+        this.fluid = FluidCompatRegistry.canonicalize(residueFluid.copy());
     }
 }

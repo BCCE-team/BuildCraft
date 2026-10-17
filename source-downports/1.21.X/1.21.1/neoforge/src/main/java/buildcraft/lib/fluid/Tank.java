@@ -538,7 +538,7 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
 
 	@Override
 	public @NotNull FluidStack getFluid() {
-		return fluid;
+		return fluid.copy();
 	}
 
 	@Override
@@ -569,7 +569,7 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
 
 	@Override
 	public @NotNull FluidStack getFluidInTank(int tank) {
-		return fluid;
+		return fluid.copy();
 	}
 
 	@Override
@@ -587,6 +587,6 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
 	}
 
 	public void setFluid(FluidStack residueFluid) {
-		this.fluid = FluidCompatRegistry.canonicalize(residueFluid);
+		this.fluid = FluidCompatRegistry.canonicalize(residueFluid.copy());
 	}
 }
