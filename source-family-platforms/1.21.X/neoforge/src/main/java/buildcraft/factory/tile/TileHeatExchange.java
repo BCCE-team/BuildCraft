@@ -1134,6 +1134,11 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
         STOPPING;
     }
 
+    /** Menus must stop using the previous TankContainerData when the multiblock is rebuilt. */
+    public TankContainerData getGuiTankData() {
+        return tankData;
+    }
+
     public Tank getSectionTank(int index) {
         return tanks[index%4];
     }

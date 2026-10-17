@@ -81,20 +81,28 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
 
     public void broadcastChanges() {
         super.broadcastChanges();
-        if (tile != null) {
+        if (tile != null && stillValid(playerInventory.player)) {
             tile.sendNetworkGuiTick(playerInventory.player);
         }
     }
 
     public boolean stillValid(Player player) {
         if (tile != null) {
-            return tile.canInteractWith(player);
+            if (!tile.canInteractWith(player)) return false;
+            // The server passed this exact TankContainerData on opening. A structure rebuild
+            // creates another instance; closing this menu avoids displaying or editing dead tanks.
+            return access.evaluate((level, pos) -> {
+                if (level.isClientSide()) return true; // Client menu data is a local synchronisation mirror.
+                return level.hasChunkAt(pos) && level.getBlockEntity(pos) == tile
+                    && tile.getGuiTankData() == data;
+            }).orElse(false);
         }
         return buildcraft.lib.gui.BCMenuUtil.stillValidBlock(this.access, player, BCFactoryBlocks.HEATEXCHANGE_BLOCK.get());
     }
 
     public boolean clickMenuButton(Player player, int index) {
-        if (player == null || player.isSpectator() || index < 0 || index >= TANK_DATA_COUNT) return false;
+        if (player == null || player.isSpectator() || index < 0 || index >= TANK_DATA_COUNT
+            || !stillValid(player)) return false;
         return access.evaluate((level, pos) -> {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof TileHeatExchange heatExchange) {
