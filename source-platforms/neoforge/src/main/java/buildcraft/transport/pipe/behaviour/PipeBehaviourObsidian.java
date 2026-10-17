@@ -223,7 +223,9 @@ public class PipeBehaviourObsidian extends PipeBehaviour implements IMjRedstoneR
                 }
             }
         }
-        return microJoules - MjAmount.MICRO_MJ_PER_MJ;
+        // A partial power offer may be smaller than the idle suction cost.
+        // Remainder must never be negative or exceed the offered power.
+        return Math.max(0L, microJoules - MjAmount.MICRO_MJ_PER_MJ);
     }
 
     @Override
