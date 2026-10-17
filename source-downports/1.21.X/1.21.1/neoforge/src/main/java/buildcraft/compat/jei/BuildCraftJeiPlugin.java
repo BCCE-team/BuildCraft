@@ -300,6 +300,8 @@ public class BuildCraftJeiPlugin implements IModPlugin {
 
     private static GroupedAssemblyKey getGroupedAssemblyKey(AssemblyJeiRecipe view) {
         AssemblyRecipeBasic recipe = view.recipe();
+        // Multi-output addon recipes must not be folded into a one-output classic group.
+        if (recipe.getOutputPreviews().stream().filter(stack -> stack != null && !stack.isEmpty()).count() > 1) return null;
         ItemStack output = recipe.getResultItem(registryAccess());
         if (output.getItem() == BCSiliconItems.PLUG_LENS_ITEM.get()) {
             boolean filter = recipe.getInputsFor(output).stream()
@@ -833,8 +835,20 @@ public class BuildCraftJeiPlugin implements IModPlugin {
                     index++;
                 }
             }
+            List<ItemStack> outputs = recipe.getOutputPreviews().stream()
+                    .filter(stack -> stack != null && !stack.isEmpty())
+                    .map(ItemStack::copy).toList();
+            if (outputs.isEmpty() && !result.isEmpty()) outputs = List.of(result);
+            // Index component-sensitive ingredient variants as well as every output.
+            for (ItemStack otherOutput : outputs) {
+                if (ItemStack.isSameItemSameComponents(otherOutput, result)) continue;
+                for (IngredientStack additionalInput : recipe.getInputsFor(otherOutput)) {
+                    builder.addInvisibleIngredients(RecipeIngredientRole.INPUT)
+                            .addItemStacks(expandIngredient(additionalInput));
+                }
+            }
             builder.addSlot(RecipeIngredientRole.OUTPUT, 111, 12)
-                    .addItemStack(result);
+                    .addItemStacks(outputs);
         }
 
         private void setGroupedAssemblyRecipe(IRecipeLayoutBuilder builder, GroupedAssemblyRecipe grouped,
