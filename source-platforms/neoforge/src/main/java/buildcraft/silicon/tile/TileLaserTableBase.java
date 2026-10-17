@@ -179,13 +179,9 @@ public abstract class TileLaserTableBase extends TileBC_Neptune implements Laser
     protected boolean extract(ItemHandlerSimple inv, Collection<IngredientStack> items, boolean simulate,
         boolean precise) {
         List<ItemStack> working = new ArrayList<>(inv.getSlots());
-        long remainingStacks = 0;
         for (int i = 0; i < inv.getSlots(); i++) {
             ItemStack copy = inv.getStackInSlot(i).copy();
             working.add(copy);
-            if (!copy.isEmpty()) {
-                remainingStacks++;
-            }
         }
 
         for (IngredientStack definition : items) {
@@ -205,9 +201,11 @@ public abstract class TileLaserTableBase extends TileBC_Neptune implements Laser
             if (remaining != 0) {
                 return false;
             }
-            remainingStacks--;
         }
-        if (precise && remainingStacks != 0) {
+        // A definition may consume multiple slots, and several definitions may
+        // consume the same slot. Precision means there is no leftover input,
+        // not that the number of occupied slots equals the ingredient count.
+        if (precise && working.stream().anyMatch(stack -> !stack.isEmpty())) {
             return false;
         }
         if (!simulate) {
