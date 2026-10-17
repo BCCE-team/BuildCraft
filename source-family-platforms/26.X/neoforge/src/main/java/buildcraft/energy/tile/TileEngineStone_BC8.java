@@ -137,6 +137,8 @@ public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvi
             burnTime--;
             if (getPowerStage() != EnumPowerStage.OVERHEAT) {
                 // this seems wrong...
+                long error = 3 * getMaxPower() / 8 - power;
+                esum = clamp(esum + error, -eLimit, eLimit);
                 long output = getCurrentOutput();
                 currentOutput = output; // Comment out for constant power
                 addPower(output);
@@ -208,7 +210,6 @@ public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvi
         // return MathUtils.clamp(e * 1 + esum * 0.05, MIN_OUTPUT, MAX_OUTPUT);
 
         long e = 3 * getMaxPower() / 8 - power;
-        esum = clamp(esum + e, -eLimit, eLimit);
         return clamp(e + esum / 20, MIN_OUTPUT, MAX_OUTPUT);
     }
 
