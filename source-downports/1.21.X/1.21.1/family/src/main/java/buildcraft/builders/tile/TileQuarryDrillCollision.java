@@ -28,7 +28,11 @@ public class TileQuarryDrillCollision extends BCBlockEntity {
     }
 
     public void setOwner(BlockPos owner) {
-        this.owner = owner.immutable();
+        BlockPos newOwner = owner == null ? null : owner.immutable();
+        if (java.util.Objects.equals(this.owner, newOwner)) {
+            return;
+        }
+        this.owner = newOwner;
         setChanged();
     }
 
