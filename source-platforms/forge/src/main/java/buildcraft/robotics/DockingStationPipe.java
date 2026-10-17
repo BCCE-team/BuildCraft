@@ -372,17 +372,24 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
             return ItemTransferResult.nothing(offered == null ? 0 : offered.getCount());
         }
         int slot = RequestSupport.slot(requestId).orElse(-1);
-        if (slot < 0 || getRequest(slot).isEmpty()) {
+        ItemStack requested = getRequest(slot);
+        if (slot < 0 || requested.isEmpty()
+            || !RequestSupport.request(slot, requested, 0).matcher().matches(offered)) {
             return ItemTransferResult.nothing(offered.getCount());
         }
+        ItemStack bounded = offered.copy();
+        bounded.setCount(Math.min(offered.getCount(), requested.getCount()));
 
         IInjectable output = getItemOutput();
         Direction outputSide = getItemOutputSide();
         if (output == null || outputSide == null || !output.canInjectItems(outputSide)) {
             return ItemTransferResult.nothing(offered.getCount());
         }
-        ItemStack remainder = output.injectItem(offered.copy(), mode == OperationMode.EXECUTE, outputSide, null, 0.08D);
-        return ItemTransferResult.ofInsertion(offered, offered.getCount() - remainder.getCount());
+        ItemStack remainder = output.injectItem(bounded, mode == OperationMode.EXECUTE, outputSide, null, 0.08D);
+        if (remainder == null || remainder.getCount() > bounded.getCount()) {
+            return ItemTransferResult.nothing(offered.getCount());
+        }
+        return ItemTransferResult.ofInsertion(offered, bounded.getCount() - remainder.getCount());
     }
 
     private List<ItemStack> getActiveItemRequests() {
