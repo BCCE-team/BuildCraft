@@ -73,12 +73,17 @@ public class TriggerFluidContainerLevel extends BCStatement implements ITriggerE
         for (int i = 0; i < tanks ; i++) {
             FluidStack fluid = handler.getFluidInTank(i);
             if (fluid.isEmpty()) {
-                return searchedFluid.isEmpty() || handler.fill(searchedFluid, true) > 0;
+                if (searchedFluid.isEmpty() || handler.fill(searchedFluid, true) > 0) {
+                    return true;
+                }
+                continue;
             }
 
             if (searchedFluid.isEmpty() || FluidCompatRegistry.areEquivalent(searchedFluid, fluid)) {
-                float percentage = fluid.getAmount() / (float) handler.getTankCapacity(i);
-                return percentage < type.level;
+                int capacity = handler.getTankCapacity(i);
+                if (capacity > 0 && fluid.getAmount() / (float) capacity < type.level) {
+                    return true;
+                }
             }
         }
         return false;
