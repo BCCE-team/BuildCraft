@@ -217,9 +217,14 @@ public class Blueprint extends Snapshot {
         for (int z = 0; z < size.getZ(); z++) {
             for (int y = 0; y < size.getY(); y++) {
                 for (int x = 0; x < size.getX(); x++) {
-                    data[posToIndex(x, y, z)] = serializedDataList == null
+                    int index = serializedDataList == null
                         ? serializedDataIntArray[posToIndex(x, y, z)]
                         : serializedDataList.getInt(posToIndex(x, y, z));
+                    if (index < 0 || index >= palette.size()) {
+                        throw new InvalidInputDataException("Invalid blueprint palette index " + index
+                            + " for palette size " + palette.size());
+                    }
+                    data[posToIndex(x, y, z)] = index;
                 }
             }
         }
