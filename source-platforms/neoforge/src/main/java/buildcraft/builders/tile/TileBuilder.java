@@ -431,7 +431,7 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
 
     private void updateBasePoses() {
         basePoses.clear();
-        if (path != null) {
+        if (path != null && !path.isEmpty()) {
             int max = path.size() - 1;
             // Create a list of all the possible block positions on the path that could be used
             basePoses.add(path.get(0));
