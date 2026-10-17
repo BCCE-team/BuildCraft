@@ -250,6 +250,7 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
             clientModelData.tick();
             return;
         }
+        long previousDistillPower = distillPower;
         powerAvg.tick();
         changedSinceNetUpdate |= powerAvgClient != powerAvg.getAverageLong();
         refundPendingPower();
@@ -299,6 +300,11 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
             powerAvgClient = powerAvg.getAverageLong();
             sendNetworkUpdate(NET_RENDER_DATA);
             changedSinceNetUpdate = false;
+        }
+        // Persist in-flight MJ without marking the chunk dirty on every active tick.
+        // Clearing or completing a recipe must still be saved immediately.
+        if (distillPower != previousDistillPower && (distillPower == 0 || level.getGameTime() % 20 == 0)) {
+            markChunkDirty();
         }
     }
     

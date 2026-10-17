@@ -137,6 +137,7 @@ public class TileChute extends TileBC_Neptune implements IDebuggable, MenuProvid
 
         Direction currentSide = level.getBlockState(worldPosition).getValue(BlockBCBase_Neptune.BLOCK_FACING_6);
 
+        int previousProgress = progress;
         int target = 100000;
         if (currentSide == Direction.UP) {
             progress += 1000; // can be free because of gravity
@@ -149,6 +150,10 @@ public class TileChute extends TileBC_Neptune implements IDebuggable, MenuProvid
         }
 
         putInNearInventories(currentSide);
+        // Persist the paid extraction credits periodically and after each completed pickup.
+        if (progress != previousProgress && (progress == 0 || level.getGameTime() % 20 == 0)) {
+            markChunkDirty();
+        }
     }
 
     @Override

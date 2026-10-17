@@ -91,7 +91,12 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
             sendNetworkUpdate(NET_LED_STATUS);
         }
 
+        long previousProgress = progress;
         mine();
+        // The drill saves its accumulated power; a completed operation is immediately durable.
+        if (progress != previousProgress && (progress == 0 || level.getGameTime() % 20 == 0)) {
+            markChunkDirty();
+        }
     }
 
     @Override
