@@ -128,9 +128,22 @@ public class BCEnergy {
         return advancement != null && player.getAdvancements().getOrStartProgress(advancement).isDone();
     }
 
+    private record NegativeOilScan(Level level, BlockPos center, long tick) {}
+
+    // Weak player keys avoid retaining disconnected players and worlds in the discovery scan cache.
+    private static final java.util.Map<ServerPlayer, NegativeOilScan> NEGATIVE_OIL_SCANS =
+        new java.util.WeakHashMap<>();
+
     private static boolean isNearOilSpot(ServerPlayer player) {
         Level level = player.level();
         BlockPos center = player.blockPosition();
+        long now = level.getGameTime();
+        NegativeOilScan previous = NEGATIVE_OIL_SCANS.get(player);
+        if (previous != null && previous.level() == level
+                && now >= previous.tick() && now - previous.tick() < 200
+                && center.distSqr(previous.center()) <= 16) {
+            return false;
+        }
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 
         for (int y = -OIL_SPOT_CHECK_RADIUS_Y; y <= OIL_SPOT_CHECK_RADIUS_Y; y++) {
@@ -138,11 +151,13 @@ public class BCEnergy {
                 for (int z = -OIL_SPOT_CHECK_RADIUS_XZ; z <= OIL_SPOT_CHECK_RADIUS_XZ; z++) {
                     pos.set(center.getX() + x, center.getY() + y, center.getZ() + z);
                     if (isOilSpotBlock(level, pos)) {
+                        NEGATIVE_OIL_SCANS.remove(player);
                         return true;
                     }
                 }
             }
         }
+        NEGATIVE_OIL_SCANS.put(player, new NegativeOilScan(level, center.immutable(), now));
         return false;
     }
 
