@@ -146,6 +146,17 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
             this.fluid = fluid;
             readTankFromNBT(nbt);
         }
+        normalizeLoadedFluid();
+    }
+
+    private void normalizeLoadedFluid() {
+        // Check after subclass metadata has loaded, since it may change capacity.
+        if (capacity <= 0 || fluid.isEmpty() || fluid.getAmount() <= 0 || !validator.test(fluid)) {
+            fluid = FluidStack.EMPTY;
+        } else if (fluid.getAmount() > capacity) {
+            fluid = fluid.copy();
+            fluid.setAmount(capacity);
+        }
     }
 
     /** Writes subclass-specific information to NBT. */
