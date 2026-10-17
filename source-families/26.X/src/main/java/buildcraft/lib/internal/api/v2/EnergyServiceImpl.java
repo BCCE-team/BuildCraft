@@ -67,22 +67,20 @@ final class EnergyServiceImpl implements EnergyService {
         if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity instanceof MjPortProvider provider) {
-            Optional<MjPortDescriptor> direct = provider.mjPortDescriptor(side);
-            if (direct.isPresent()) return direct;
-            Optional<MjPort> port = provider.mjPort(side);
-            if (port.isPresent()) return Optional.of(describePort(port.get()));
+            Optional<MjPort> direct = provider.mjPort(side);
+            if (direct.isPresent()) {
+                return provider.mjPortDescriptor(side).or(() -> Optional.of(describePort(direct.get())));
+            }
         }
-        Optional<MjPortDescriptor> platform = MjRuntimeLookup.descriptor(level, pos, side);
-        if (platform.isPresent()) return platform;
         if (blockEntity instanceof MachineView machine) {
-            Optional<MjPort> port = machine.mjPort(side);
-            if (port.isPresent()) return Optional.of(describePort(port.get()));
+            Optional<MjPort> direct = machine.mjPort(side);
+            if (direct.isPresent()) return Optional.of(describePort(direct.get()));
         }
         if (blockEntity instanceof MachineHostProvider provider) {
-            Optional<MjPort> port = provider.machineHost().mjPort(side);
-            if (port.isPresent()) return Optional.of(describePort(port.get()));
+            Optional<MjPort> direct = provider.machineHost().mjPort(side);
+            if (direct.isPresent()) return Optional.of(describePort(direct.get()));
         }
-        return Optional.empty();
+        return MjRuntimeLookup.descriptor(level, pos, side);
     }
 
     public boolean canConnect(MjConnectionContext context) {
