@@ -275,7 +275,11 @@ public class TileFiller extends TileBC_Neptune
         battery.tick(level, worldPosition);
         if (--renderUpdateCooldown <= 0) {
             renderUpdateCooldown = RENDER_UPDATE_INTERVAL;
-            sendNetworkUpdate(NET_RENDER_DATA);
+            // Flying blocks need per-tick interpolation only while work can actually advance.
+            if (mode != Mode.OFF && !(mode == Mode.ON && finished)
+                && battery.getStored() >= MjAmount.MICRO_MJ_PER_MJ && getBuilder() != null) {
+                sendNetworkUpdate(NET_RENDER_DATA);
+            }
         }
         lockedTicks--;
         if (lockedTicks < 0) {
@@ -294,6 +298,8 @@ public class TileFiller extends TileBC_Neptune
                 finished = nowFinished;
                 setChanged();
                 sendNetworkGuiUpdate(NET_GUI_TICK);
+                // Deliver the terminal render state even after periodic idle sync is suppressed.
+                sendNetworkUpdate(NET_RENDER_DATA);
             }
         }
     }
