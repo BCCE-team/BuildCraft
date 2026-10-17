@@ -339,7 +339,10 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
                             residueBlocked = true;
                             break;
                         }
-                        storedFuel.setAmount(storedFuel.getAmount() - 1);
+                        if (EnergyFluidResourceHandler.drainInternal(tankFuel, 1, this).isEmpty()) {
+                            break;
+                        }
+                        storedFuel.shrink(1);
                         consumed = true;
                         activePowerPerTick = nextFuel.powerPerTickMicroMj();
                         if (nextFuel.hasResidue()) {
