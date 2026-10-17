@@ -71,6 +71,8 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
 
     public final ItemProvider optionDisplay = new ItemProvider(this::getOptionStack, OPTION_COUNT);
     private List<BoardEntry> options = List.of();
+    /** Registry order is stable until an addon registers new boards. */
+    private List<BoardEntry> cachedBoardCatalog = List.of();
     public int selectedOption = -1;
     public int selectedPage;
 
@@ -150,11 +152,16 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
             options = List.of();
             return;
         }
-        options = new ArrayList<>(BCRoboticsBoards.robotEntries());
-        options.sort((a, b) -> {
-            int byCost = Integer.compare(a.energyCost(), b.energyCost());
-            return byCost != 0 ? byCost : a.id().compareTo(b.id());
-        });
+        List<BoardEntry> catalog = List.copyOf(BCRoboticsBoards.robotEntries());
+        if (!catalog.equals(cachedBoardCatalog) || options.isEmpty()) {
+            cachedBoardCatalog = catalog;
+            List<BoardEntry> sorted = new ArrayList<>(catalog);
+            sorted.sort((a, b) -> {
+                int byCost = Integer.compare(a.energyCost(), b.energyCost());
+                return byCost != 0 ? byCost : a.id().compareTo(b.id());
+            });
+            options = List.copyOf(sorted);
+        }
         int pageCount = Math.max(1, (options.size() + OPTION_COUNT - 1) / OPTION_COUNT);
         if (selectedPage < 0 || selectedPage >= pageCount) selectedPage = 0;
         if (selectedOption >= OPTION_COUNT || selectedPage * OPTION_COUNT + selectedOption >= options.size()) {
