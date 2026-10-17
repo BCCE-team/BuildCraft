@@ -122,7 +122,7 @@ public final class PropolisSpeciesWidget extends Widget implements ISelectablePr
     @Override
     public void handleMouseClick(double mouseX, double mouseY, int mouseButton) {
         if (gui.getMinecraft().player != null) {
-            ItemStack carried = gui.getMinecraft().player.inventoryMenu.getCarried();
+            ItemStack carried = gui.getMenu().getCarried();
             if (!carried.isEmpty()) {
                 IIndividual individual = IIndividualHandlerItem.getIndividual(carried);
                 if (individual != null) {
