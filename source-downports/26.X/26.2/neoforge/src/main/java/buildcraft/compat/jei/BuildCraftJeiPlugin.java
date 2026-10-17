@@ -252,7 +252,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         EnergyFluidService energyFluids = BuildCraftApi.service(BuildCraftServices.ENERGY_FLUIDS);
         List<CombustionFuelRecipeView> fuels = energyFluids.fuels().stream()
                 .map(match -> match.profile())
-                .filter(fuel -> fuel.representativeVariant().isPresent())
+                .filter(fuel -> !fuelDisplayVariants(fuel).isEmpty())
                 .map(CombustionFuelRecipeView::new)
                 .toList();
         registration.addRecipes(COMBUSTION_FUEL, fuels);
@@ -663,11 +663,41 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         }
     }
 
+    private static List<FluidStack> fuelDisplayVariants(FuelProfile fuel) {
+        List<FluidStack> variants = new ArrayList<>();
+        if (fuel.representativeVariant().isPresent()) {
+            FluidStack shown = FuelApiBridge.stackOfVariant(fuel.representativeVariant().get(), FluidType.BUCKET_VOLUME);
+            if (shown != null && !shown.isEmpty()) variants.add(shown);
+        } else {
+            // Tag-backed profiles have no single representative. Publish all known
+            // matching source fluids (bounded so addon tags cannot flood JEI).
+            for (var fluid : BuiltInRegistries.FLUID) {
+                if (variants.size() >= 64) break;
+                if (fluid == net.minecraft.world.level.material.Fluids.EMPTY) continue;
+                var id = BuiltInRegistries.FLUID.getKey(fluid);
+                if (id == null) continue;
+                var candidate = buildcraft.api.v2.fluid.FluidVariant.of(id);
+                boolean matches;
+                try {
+                    matches = fuel.matcher().matches(candidate, FuelApiBridge.MATCH_CONTEXT);
+                } catch (RuntimeException brokenMatcher) {
+                    continue;
+                }
+                if (!matches) continue;
+                FluidStack shown = FuelApiBridge.stackOfVariant(candidate, FluidType.BUCKET_VOLUME);
+                if (shown != null && !shown.isEmpty()) variants.add(shown);
+            }
+        }
+        return List.copyOf(variants);
+    }
+
     public record CombustionFuelRecipeView(FuelProfile fuel) {
+        public List<FluidStack> inputs() {
+            return fuelDisplayVariants(fuel);
+        }
         public FluidStack input() {
-            return fuel.representativeVariant()
-                    .map(variant -> FuelApiBridge.stackOfVariant(variant, FluidType.BUCKET_VOLUME))
-                    .orElse(FluidStack.EMPTY);
+            List<FluidStack> inputs = inputs();
+            return inputs.isEmpty() ? FluidStack.EMPTY : inputs.get(0);
         }
 
         public FluidStack residue() {
@@ -1406,7 +1436,11 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         }
 
         public void setRecipe(IRecipeLayoutBuilder builder, CombustionFuelRecipeView recipe, IFocusGroup focuses) {
-            addFluidSlot(builder, RecipeIngredientRole.INPUT, 1, 15, recipe.input(), null);
+            IRecipeSlotBuilder inputSlot = addFluidSlot(builder, RecipeIngredientRole.INPUT, 1, 15, recipe.input(), null);
+            inputSlot.addIngredients(NeoForgeTypes.FLUID_STACK, recipe.inputs());
+            for (FluidStack variant : recipe.inputs()) {
+                addFilledBucketFocus(builder, RecipeIngredientRole.INPUT, variant);
+            }
             FluidStack residue = recipe.residue();
             if (!residue.isEmpty()) {
                 addFluidSlot(builder, RecipeIngredientRole.OUTPUT, 95, 15, residue, null);
