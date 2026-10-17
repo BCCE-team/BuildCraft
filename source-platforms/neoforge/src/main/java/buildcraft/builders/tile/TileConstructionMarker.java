@@ -274,10 +274,18 @@ public class TileConstructionMarker extends TileBC_Neptune implements IDebuggabl
         if (level == null) {
             return;
         }
-        if (level.isClientSide) {
-            if (getBuilder() != null) {
-                blueprintBuilder.tick();
+        if (!level.isClientSide) {
+            // The blueprint library may become available after the marker loads. A failed lookup
+            // is not a permanent failure: retry occasionally while the blueprint slot is populated.
+            if (blueprintBuildingInfo == null && level.getGameTime() % 40L == 0L
+                && isValidBlueprint(invBlueprint.getStackInSlot(0))) {
+                reloadSnapshotFromItem(invBlueprint.getStackInSlot(0), null, true);
+                if (blueprintBuildingInfo != null) {
+                    sendNetworkUpdate(NET_RENDER_DATA);
+                }
             }
+        } else if (getBuilder() != null) {
+            blueprintBuilder.tick();
         }
     }
 
