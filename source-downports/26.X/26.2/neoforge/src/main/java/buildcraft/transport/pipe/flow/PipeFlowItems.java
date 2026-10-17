@@ -584,7 +584,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         if (item.side == null) {
             // A broken saved direction has no valid route. Return the payload to
             // the world instead of crashing the server or silently deleting it.
-            dropItem(item.stack, Direction.UP, Direction.UP, item.speed);
+            if (!dropItem(item.stack, Direction.UP, Direction.UP, item.speed)) holdAtCentre(item, 20);
             return;
         }
         IPipeHolder holder = pipe.getHolder();
@@ -631,7 +631,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                 // A true dead-end must eject out of the open face, not reverse back through the pipe network.
                 order = ImmutableList.of(EnumSet.of(reachCenter.from));
             } else {
-                dropItem(item.stack, null, item.side.getOpposite(), item.speed);
+                if (!dropItem(item.stack, null, item.side.getOpposite(), item.speed)) holdAtCentre(item, 20);
                 return;
             }
         }
@@ -702,7 +702,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             if (finishControlledEvent(routeItem, routeEvent)) continue;
             if (routeEvent.redirected() != null) destinations = List.of(routeEvent.redirected());
             if (destinations.size() == 0) {
-                dropItem(routeItem.stack, null, item.side.getOpposite(), routeItem.speed);
+                if (!dropItem(routeItem.stack, null, item.side.getOpposite(), routeItem.speed)) holdAtCentre(routeItem, 20);
             } else {
                 TravellingItem newItem = new TravellingItem(routeItem.stack);
                 newItem.apiTransitId = routeItem.apiTransitId;
@@ -730,7 +730,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
 
     private void onItemReachEnd(TravellingItem item) {
         if (item.side == null) {
-            dropItem(item.stack, Direction.UP, Direction.UP, item.speed);
+            if (!dropItem(item.stack, Direction.UP, Direction.UP, item.speed)) holdAtCentre(item, 20);
             return;
         }
         IPipeHolder holder = pipe.getHolder();
@@ -748,7 +748,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         if (!pipe.isConnected(item.side)) {
             // An item that reached an open pipe end has already completed its route. Eject it from that face now;
             // sending it back to the centre first makes it visibly reverse and can spawn it inside the pipe block.
-            dropItem(excess, item.side, item.side, item.speed);
+            if (!dropItem(excess, item.side, item.side, item.speed)) holdAtCentre(item, 20);
             return;
         }
         int beforeTransferCount = excess.getCount();
@@ -833,9 +833,10 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         return event.getExcess();
     }
 
-    private void dropItem(ItemStack stack, Direction side, Direction motion, double speed) {
+    /** Returns false if an addon rejects entity spawn, so the travelling item can be retried. */
+    private boolean dropItem(ItemStack stack, Direction side, Direction motion, double speed) {
         if (stack == null || stack.isEmpty()) {
-            return;
+            return true;
         }
 
         IPipeHolder holder = pipe.getHolder();
@@ -853,15 +854,16 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                 motion.getStepZ() * speed);
         PipeEventItem.Drop drop = new PipeEventItem.Drop(holder, this, ent);
         holder.fireEvent(drop);
-        if (ent.getItem().isEmpty() || ent.isRemoved()) {
-            return;
-        }
+        if (ent.getItem().isEmpty()) return true;
+        if (ent.isRemoved()) return false;
 
-        if (world.addFreshEntity(ent) && pipe instanceof Pipe runtimePipe) {
+        if (!world.addFreshEntity(ent)) return false;
+        if (pipe instanceof Pipe runtimePipe) {
             PipeItemTransitRuntime.fire(runtimePipe, ItemTransitPhase.EJECTED,
                 ent.getItem(), new ItemTransitData(Optional.empty(), Math.max(0.0, speed)),
                 side, motion, null);
         }
+        return true;
     }
 
     public boolean canInjectItems(Direction from) {
@@ -1074,7 +1076,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     private boolean finishControlledEvent(TravellingItem item, PipeItemTransitRuntime.Result action) {
         if (item.stack.isEmpty()) return true;
         if (action.eject() != null) {
-            dropItem(item.stack, action.eject(), action.eject(), item.speed);
+            if (!dropItem(item.stack, action.eject(), action.eject(), item.speed)) holdAtCentre(item, 20);
             return true;
         }
         if (action.delay() > 0) {
