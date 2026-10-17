@@ -185,8 +185,7 @@ public class BCLibEventDist {
             // during integrated-server login; the client queues those messages too, but these extra passes make
             // reconnecting to an already loaded marker network deterministic.
             MessageUtil.doDelayedServer(20, () -> MarkerCache.onPlayerJoinLevel(playerMP));
-            MessageUtil.doDelayedServer(5, () -> MessageManager.sendTo(
-                buildcraft.lib.net.MessageGuideRecipeDisplays.create(playerMP), playerMP));
+            MessageUtil.doDelayedServer(5, () -> buildcraft.lib.net.MessageGuideRecipeDisplays.sendAll(playerMP));
         }
     }
 
@@ -196,8 +195,7 @@ public class BCLibEventDist {
         // The existing delayed join sync waits until the client world exists. This branch is specifically for a
         // full datapack reload, where all connected players must replace their live Guide recipe preview index.
         if (event.getPlayer() == null) {
-            event.getRelevantPlayers().forEach(player -> MessageUtil.doDelayedServer(1, () -> MessageManager.sendTo(
-                buildcraft.lib.net.MessageGuideRecipeDisplays.create(player), player)));
+            event.getRelevantPlayers().forEach(player -> MessageUtil.doDelayedServer(1, () -> buildcraft.lib.net.MessageGuideRecipeDisplays.sendAll(player)));
         }
     }
 

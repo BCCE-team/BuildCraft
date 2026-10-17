@@ -17,11 +17,35 @@ public final class GuideRecipeDisplayCache {
     private static final AtomicLong REVISION = new AtomicLong();
     private static volatile boolean synchronised;
     private static volatile List<Entry> entries = List.of();
+    private static final List<Entry> pending = new ArrayList<>();
+    private static int nextPart;
+    private static int expectedParts;
 
     private GuideRecipeDisplayCache() {
     }
 
     public record Entry(Identifier recipeId, RecipeDisplayEntry display) {
+    }
+
+    public static synchronized void appendChunk(List<Entry> data, int index, int count) {
+        if (index == 0) {
+            pending.clear();
+            nextPart = 0;
+            expectedParts = count;
+        }
+        if (index != nextPart || expectedParts != count || pending.size() + data.size() > 32768) {
+            pending.clear();
+            nextPart = 0;
+            expectedParts = 0;
+            return;
+        }
+        pending.addAll(data);
+        nextPart++;
+        if (nextPart == count) {
+            replace(List.copyOf(pending));
+            pending.clear();
+            nextPart = expectedParts = 0;
+        }
     }
 
     public static void replace(List<Entry> newEntries) {
@@ -30,7 +54,9 @@ public final class GuideRecipeDisplayCache {
         REVISION.incrementAndGet();
     }
 
-    public static void clear() {
+    public static synchronized void clear() {
+        pending.clear();
+        nextPart = expectedParts = 0;
         entries = List.of();
         synchronised = false;
         REVISION.incrementAndGet();
