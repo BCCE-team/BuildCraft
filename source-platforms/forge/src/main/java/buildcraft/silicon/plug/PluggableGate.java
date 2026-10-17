@@ -275,6 +275,42 @@ public class PluggableGate extends PipePluggable implements MenuProvider{
 
         if (stored != null) {
 
+            // Check copied rules against the *destination* gate variant first.
+            // A higher-tier copier must never partially mutate a cheaper gate.
+            boolean compatible = true;
+            for (String key : stored.getAllKeys()) {
+                if (key.startsWith("trigger[") || key.startsWith("action[")) {
+                    int first = key.indexOf('[') + 1;
+                    int last = key.indexOf(']', first);
+                    try {
+                        int index = Integer.parseInt(key.substring(first, last));
+                        if (index < 0 || index >= logic.statements.length) compatible = false;
+                    } catch (RuntimeException malformedSlot) {
+                        compatible = false;
+                    }
+                }
+            }
+            if (compatible) {
+                try {
+                    GateLogic candidate = new GateLogic(this, logic.variant);
+                    candidate.readConfigData(stored.copy());
+                    for (int slot = 0; slot < logic.statements.length; slot++) {
+                        StatementPair pair = candidate.statements[slot];
+                        if (!logic.statements[slot].trigger.canSet(pair.trigger.get())
+                            || !logic.statements[slot].action.canSet(pair.action.get())) {
+                            compatible = false;
+                            break;
+                        }
+                    }
+                } catch (RuntimeException invalidCopy) {
+                    compatible = false;
+                }
+            }
+            if (!compatible) {
+                player.displayClientMessage(Component.translatable("chat.gateCopier.warning.load"), true);
+                return true;
+            }
+
             logic.readConfigData(stored.copy());
             // Pasting changes persisted pipe state, not just the in-memory gate.
             // Broadcast both the pluggable snapshot and the GUI statement slots.
