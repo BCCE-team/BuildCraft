@@ -607,7 +607,7 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
 
     private static ViewGroup<ItemStack> itemHandlerGroup(IItemHandler handler, int maxSize) {
         List<ItemStack> stacks = new ArrayList<>();
-        int limit = Math.min(handler.getSlots(), Math.max(1, maxSize) * 3);
+        int limit = handler.getSlots();
         for (int slot = 0; slot < limit; slot++) {
             ItemStack stack = handler.getStackInSlot(slot);
             if (!stack.isEmpty()) {
