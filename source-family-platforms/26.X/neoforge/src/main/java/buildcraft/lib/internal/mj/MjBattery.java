@@ -25,7 +25,7 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
         new buildcraft.lib.compat.transfer.TransferJournal<>(() -> microJoules, value -> microJoules = value, old -> {});
 
     public MjBattery(long capacity) {
-        this.capacity = capacity;
+        this.capacity = Math.max(0L, capacity);
     }
 
     public CompoundTag serializeNBT() {
@@ -35,7 +35,7 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
     }
 
     public void deserializeNBT(CompoundTag nbt) {
-        microJoules = NbtCompat.getLong(nbt, "stored");
+        microJoules = clampStored(NbtCompat.getLong(nbt, "stored"));
     }
 
     public CompoundTag serializeNBT(HolderLookup.Provider registries) {
@@ -51,13 +51,16 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
     }
 
     public void readFromBuffer(ByteBuf buffer) {
-        microJoules = buffer.readLong();
+        microJoules = clampStored(buffer.readLong());
     }
 
     public long addPower(long microJoulesToAdd, FluidAction simulate) {
         if (simulate == FluidAction.EXECUTE) {
             transferJournal.record();
-            this.microJoules += microJoulesToAdd;
+            if (microJoulesToAdd > 0) {
+                this.microJoules = microJoulesToAdd > Long.MAX_VALUE - this.microJoules
+                    ? Long.MAX_VALUE : this.microJoules + microJoulesToAdd;
+            }
         }
         return 0;
     }
@@ -138,18 +141,28 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
     }
 
     public void tick(Level world, Vec3 position) {
-        if (microJoules > capacity * 2) {
+        if (microJoules > safeOverfillLimit()) {
             losePower(world, position);
         }
     }
 
     protected void losePower(Level world, Vec3 position) {
-        long diff = microJoules - capacity * 2;
+        long diff = Math.max(0L, microJoules - safeOverfillLimit());
+        if (diff == 0) return;
         long lost = ceilDivide(diff, 32);
         microJoules -= lost;
         BuildCraftApi.service(BuildCraftServices.POWER_LOSS_EFFECTS).onPowerLost(
             new PowerLossContext(world, new BlockPos((int) Math.floor(position.x), (int) Math.floor(position.y), (int) Math.floor(position.z)), MjAmount.ofMicro(lost))
         );
+    }
+
+    /** Saturate the legacy double-capacity overfill allowance instead of overflowing long. */
+    private long safeOverfillLimit() {
+        return capacity > Long.MAX_VALUE / 2 ? Long.MAX_VALUE : capacity * 2;
+    }
+
+    private long clampStored(long value) {
+        return Math.max(0L, Math.min(value, safeOverfillLimit()));
     }
 
     private static long ceilDivide(long val, long by) {
