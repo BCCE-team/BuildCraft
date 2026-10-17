@@ -129,6 +129,7 @@ public class WorldSavedDataWireSystems extends SavedData {
 
     @SuppressWarnings("unchecked")
     private SignalPort<Boolean> getExternalPort(WireSystem.WireElement element, DyeColor color) {
+        if (!world.hasChunkAt(element.blockPos)) return null;
         BlockEntity source = world.getBlockEntity(element.blockPos);
         if (!(source instanceof IPipeHolder holder) || !(holder.getPipe() instanceof PipeView pipe)) return null;
         ResourceLocation channelId = BuildCraftSignalChannels.id(color);

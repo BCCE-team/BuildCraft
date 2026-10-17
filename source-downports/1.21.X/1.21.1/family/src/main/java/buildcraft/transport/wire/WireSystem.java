@@ -59,6 +59,7 @@ public final class WireSystem {
     /** Checks to see if the given holder could connect a wire across the specified side even if a matching wire wasn't
      * there. */
     public static boolean canWireConnect(IPipeHolder holder, Direction side) {
+        if (!holder.getPipeWorld().hasChunkAt(holder.getPipePos().relative(side))) return false;
         IPipe pipe = holder.getPipe();
         if (pipe == Pipe.EMPTY) {
             return false;
@@ -96,6 +97,7 @@ public final class WireSystem {
     }
 
     public static List<WireElement> getConnectedElementsOfElement(Level world, WireElement element) {
+        if (!world.hasChunkAt(element.blockPos)) return Collections.emptyList();
         if (element.type == WireElement.Type.WIRE_PART) {
             BlockEntity tile = world.getBlockEntity(element.blockPos);
             if (tile instanceof IPipeHolder) {
@@ -130,7 +132,8 @@ public final class WireSystem {
 
             if (!walked.contains(element)) {
                 if (!holdersCache.containsKey(element.blockPos)) {
-                    BlockEntity tile = wireSystems.world.getBlockEntity(element.blockPos);
+                    BlockEntity tile = wireSystems.world.hasChunkAt(element.blockPos)
+                        ? wireSystems.world.getBlockEntity(element.blockPos) : null;
                     IPipeHolder holder = null;
                     if (tile instanceof IPipeHolder) {
                         holder = (IPipeHolder) tile;
