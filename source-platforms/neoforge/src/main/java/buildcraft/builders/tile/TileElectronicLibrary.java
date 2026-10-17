@@ -93,6 +93,7 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
     private static final int MAX_UPLOAD_TOTAL_BYTES = 8 * 1024 * 1024;
     private static final int MAX_UPLOAD_PARTS = MAX_UPLOAD_TOTAL_BYTES / MAX_UPLOAD_PART_BYTES + 1;
     private static final int MAX_CONCURRENT_UPLOADS = 64;
+    private static final long UPLOAD_IDLE_TIMEOUT_TICKS = 20L * 60L;
     private static final long MAX_UPLOAD_EXPANDED_BYTES = 64L * 1024 * 1024;
     private static final long MAX_UPLOAD_NBT_DECODE_BUDGET = 20_000_000L;
 
@@ -158,6 +159,11 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
 
         progressDownLast = progressDown;
         progressUpLast = progressUp;
+        // Partial uploads have bounded memory but must not live indefinitely.
+        if (level.getGameTime() % 20 == 0) {
+            long now = level.getGameTime();
+            upSnapshotsParts.values().removeIf(upload -> now - upload.lastPartTick > UPLOAD_IDLE_TIMEOUT_TICKS);
+        }
 
         boolean canDownload = getSnapshotForDownload() != null && invDownOut.getStackInSlot(0).isEmpty();
         if (canDownload) {
@@ -388,8 +394,8 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
                         throw new DecoderException("Too many concurrent electronic-library uploads");
                     }
 
-                    UploadAccumulator upload = upSnapshotsParts.computeIfAbsent(pair, ignored -> new UploadAccumulator());
-                    upload.add(part);
+                    UploadAccumulator upload = upSnapshotsParts.computeIfAbsent(pair, ignored -> new UploadAccumulator(level.getGameTime()));
+                    upload.add(part, level.getGameTime());
                     if (!last) {
                         return;
                     }
@@ -427,8 +433,13 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
     private static final class UploadAccumulator {
         private final List<byte[]> parts = new ArrayList<>();
         private int totalBytes;
+        private long lastPartTick;
 
-        private void add(byte[] part) {
+        private UploadAccumulator(long now) {
+            this.lastPartTick = now;
+        }
+
+        private void add(byte[] part, long now) {
             if (parts.size() >= MAX_UPLOAD_PARTS) {
                 throw new DecoderException("Electronic-library upload has too many parts");
             }
@@ -437,6 +448,7 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
             }
             parts.add(part);
             totalBytes += part.length;
+            lastPartTick = now;
         }
 
         private byte[] join() {
