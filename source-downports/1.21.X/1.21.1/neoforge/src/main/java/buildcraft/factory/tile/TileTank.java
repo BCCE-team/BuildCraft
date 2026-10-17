@@ -308,7 +308,11 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
                 }
             }
             BlockEntity next = current.getNeighbourTile(awayFromBoundary);
-            current = next instanceof TileTank tank ? tank : null;
+            if (!(next instanceof TileTank neighbour)) break;
+            // A physically adjacent tank may belong to a different fluid column.
+            // Never let an incompatible disconnected segment veto the current column.
+            if (!fluidsCanShareColumn(current.tank.getFluid(), neighbour.tank.getFluid())) break;
+            current = neighbour;
         }
         return found;
     }
