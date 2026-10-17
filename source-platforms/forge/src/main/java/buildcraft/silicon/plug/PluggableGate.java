@@ -275,7 +275,15 @@ public class PluggableGate extends PipePluggable implements MenuProvider{
 
         if (stored != null) {
 
-            logic.readConfigData(stored);
+            logic.readConfigData(stored.copy());
+            // Pasting changes persisted pipe state, not just the in-memory gate.
+            // Broadcast both the pluggable snapshot and the GUI statement slots.
+            scheduleNetworkUpdate();
+            for (int slot = 0; slot < logic.statements.length; slot++) {
+                logic.sendStatementUpdate(false, slot);
+                logic.sendStatementUpdate(true, slot);
+            }
+            logic.sendResolveData();
             
            	player.displayClientMessage(Component.translatable("chat.gateCopier.gatePasted"), true);
 
