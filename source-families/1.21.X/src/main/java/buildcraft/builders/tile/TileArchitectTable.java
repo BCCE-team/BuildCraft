@@ -260,15 +260,22 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
     }
 
     private void scanMultipleBlocks() {
+        BlockPos lastScanned = null;
         for (int i = snapshotType.maxPerTick; i > 0; i--) {
-            scanSingleBlock();
+            lastScanned = scanSingleBlock();
             if (!scanning) {
                 break;
             }
         }
+        // One animation/update packet per tick instead of one per block.
+        if (lastScanned != null) {
+            BlockPos scanned = lastScanned;
+            createAndSendMessage(NET_SCAN, buffer -> MessageUtil.writeBlockPos(buffer, scanned));
+            sendNetworkUpdate(NET_RENDER_DATA);
+        }
     }
 
-    private void scanSingleBlock() {
+    private BlockPos scanSingleBlock() {
         BlockPos size = box.size();
         if (templateScannedBlocks == null || blueprintScannedData == null) {
             boxIterator = new BoxIterator(box, EnumAxisOrder.XZY.getMinToMaxOrder(), true);
@@ -292,10 +299,6 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
             blueprintScannedData[Snapshot.posToIndex(box.size(), schematicPos)] = index;
         }
 
-        createAndSendMessage(NET_SCAN, buffer -> MessageUtil.writeBlockPos(buffer, levelScanPos));
-
-        sendNetworkUpdate(NET_RENDER_DATA);
-
         // Move scanPos along
         boxIterator.advance();
 
@@ -303,6 +306,7 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
             scanning = false;
             boxIterator = null;
         }
+        return levelScanPos;
     }
 
     private ISchematicBlock readSchematicBlock(BlockPos levelScanPos) {
