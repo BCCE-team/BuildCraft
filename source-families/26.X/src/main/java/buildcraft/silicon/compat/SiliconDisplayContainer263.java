@@ -12,6 +12,8 @@ import net.minecraft.world.item.ItemStack;
 public final class SiliconDisplayContainer263 implements Container {
     private final int size;
     private final IntFunction<ItemStack> contents;
+    // Menu synchronization writes display-only copies here. Never mutate the backing provider.
+    private final ItemStack[] syncedContents;
 
     public SiliconDisplayContainer263(ItemProvider display) {
         this(display.getSlots(), display::getStackInSlot);
@@ -24,6 +26,7 @@ public final class SiliconDisplayContainer263 implements Container {
     private SiliconDisplayContainer263(int size, IntFunction<ItemStack> contents) {
         this.size = size;
         this.contents = contents;
+        this.syncedContents = new ItemStack[size];
     }
 
     public Slot slot(int index, int x, int y) {
@@ -49,15 +52,22 @@ public final class SiliconDisplayContainer263 implements Container {
 
     @Override public ItemStack getItem(int index) {
         if (index < 0 || index >= size) return ItemStack.EMPTY;
+        ItemStack synchronizedItem = syncedContents[index];
+        if (synchronizedItem != null) return synchronizedItem.copy();
         ItemStack item = contents.apply(index);
         return item == null ? ItemStack.EMPTY : item.copy();
     }
 
     @Override public ItemStack removeItem(int index, int amount) { return ItemStack.EMPTY; }
     @Override public ItemStack removeItemNoUpdate(int index) { return ItemStack.EMPTY; }
-    @Override public void setItem(int index, ItemStack stack) {}
+    @Override public void setItem(int index, ItemStack stack) {
+        if (index < 0 || index >= size) return;
+        syncedContents[index] = stack == null ? ItemStack.EMPTY : stack.copy();
+    }
     @Override public boolean canPlaceItem(int index, ItemStack stack) { return false; }
     @Override public void setChanged() {}
     @Override public boolean stillValid(Player player) { return true; }
-    @Override public void clearContent() {}
+    @Override public void clearContent() {
+        java.util.Arrays.fill(syncedContents, null);
+    }
 }
