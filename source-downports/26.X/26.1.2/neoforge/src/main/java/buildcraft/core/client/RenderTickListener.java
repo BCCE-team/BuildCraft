@@ -182,8 +182,12 @@ public final class RenderTickListener {
                 Item mainHandItem = mainHand.getItem();
                 Item offHandItem = offHand.getItem();
 
-                var mapLocation = BuildCraftApi.service(BuildCraftServices.MAP_LOCATIONS).read(mainHand);
-                if (mapLocation.isPresent()) {
+                // A blank map location must not shadow an offhand preview or marker connector.
+var mapLocation = BuildCraftApi.service(BuildCraftServices.MAP_LOCATIONS).read(mainHand);
+        if (mapLocation.isEmpty() || mapLocation.get().kind() == MapLocationKind.CLEAN) {
+            mapLocation = BuildCraftApi.service(BuildCraftServices.MAP_LOCATIONS).read(offHand);
+        }
+                if (mapLocation.isPresent() && mapLocation.get().kind() != MapLocationKind.CLEAN) {
                     renderMapLocation(poseStack, matrix, world, player, mapLocation.get());
                 } else if (mainHandItem == BCCoreItems.MARKER_CONNECTOR.get()
                     || offHandItem == BCCoreItems.MARKER_CONNECTOR.get()) {
