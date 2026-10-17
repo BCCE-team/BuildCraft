@@ -192,7 +192,17 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertIn('fluid == Fluids.WATER || (state.isSource() && isWater(state))', pump)
         self.assertIn('if (!level.hasChunkAt(neighbourPos)) {\n                continue;', pump)
         self.assertNotIn('if (!level.hasChunkAt(neighbourPos)) {\n                return false;', pump)
-        self.assertIn('&& isWater(drain.getFluid());', pump)
+        # FACT-13: a renewable pool must not make every connected water block infinite.
+        # The actual source block must be water, be a source, and be locally renewable.
+        self.assertRegex(
+            pump,
+            r'boolean keepSource = isInfiniteWaterSource\s*'
+            r'&& !BCCoreConfig\.pumpsConsumeWater\s*'
+            r'&& isWater\(drain\.getFluid\(\)\)\s*'
+            r'&& isWaterSource\(level\.getFluidState\(currentPos\)\)\s*'
+            r'&& isInfiniteWaterSourceAt\(currentPos\);',
+        )
+        self.assertIn('if (!keepSource) {\n                    actualDrain = BlockUtil.drainBlock(level, currentPos, true);', pump)
 
     def test_cross_target_safety_contracts_survive_modern_materialization(self):
         current = self.roots['1.21.11-neoforge'] / 'buildcraft'
@@ -225,6 +235,11 @@ class MinecraftBoundaries(unittest.TestCase):
             self.assertNotIn('if (!level.hasChunkAt(neighbourPos)) {\n                return false;', pump)
             self.assertIn('state.is(FluidTags.WATER)', pump)
             self.assertIn('isWaterSource(neighbour)', pump)
+            # Both loaders must preserve the exact-source guard even when a pool is renewable.
+            self.assertIn('boolean keepSource = isInfiniteWaterSource', pump)
+            self.assertIn('&& isWaterSource(level.getFluidState(currentPos))', pump)
+            self.assertIn('&& isInfiniteWaterSourceAt(currentPos);', pump)
+            self.assertIn('if (!keepSource) {\n                    actualDrain = BlockUtil.drainBlock(level, currentPos, true);', pump)
 
     def test_pump_infinite_water_fixture_stays_inside_empty3x3x3(self):
         suite = (

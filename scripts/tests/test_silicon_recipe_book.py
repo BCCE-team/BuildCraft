@@ -83,8 +83,26 @@ class SiliconRecipeBookSweep(unittest.TestCase):
             gui = self.java(target, "buildcraft/silicon/gui/GuiProgrammingTable.java")
 
             self.assertIn("OPTION_COUNT = WIDTH * HEIGHT", tile, target)
-            self.assertIn("options = new ArrayList<>(BCRoboticsBoards.robotEntries())", tile, target)
-            self.assertIn("options.sort", tile, target)
+            self.assertIn("private List<BoardEntry> cachedBoardCatalog = List.of();", tile, target)
+            # SI-20: avoid sorting the board registry on every tick, but rebuild
+            # the immutable option list whenever addons register different boards.
+            refresh_start = tile.index("private void refreshOptions()")
+            refresh_end = tile.index("public long getTarget()", refresh_start)
+            refresh = tile[refresh_start:refresh_end]
+            self.assertIn("BCRoboticsBoards.init();", refresh, target)
+            self.assertIn("if (!canProgramInput()) {\n            options = List.of();\n            return;\n        }", refresh, target)
+            self.assertIn("List<BoardEntry> catalog = List.copyOf(BCRoboticsBoards.robotEntries());", refresh, target)
+            self.assertIn("if (!catalog.equals(cachedBoardCatalog) || options.isEmpty())", refresh, target)
+            rebuild = refresh[refresh.index("if (!catalog.equals(cachedBoardCatalog) || options.isEmpty())"):]
+            self.assertIn("cachedBoardCatalog = catalog;", rebuild, target)
+            self.assertIn("List<BoardEntry> sorted = new ArrayList<>(catalog);", rebuild, target)
+            self.assertIn("sorted.sort((a, b) -> {", rebuild, target)
+            self.assertIn("Integer.compare(a.energyCost(), b.energyCost())", rebuild, target)
+            self.assertIn("a.id().compareTo(b.id())", rebuild, target)
+            self.assertIn("options = List.copyOf(sorted);\n        }", rebuild, target)
+            self.assertIn("if (selectedPage < 0 || selectedPage >= pageCount) selectedPage = 0;", refresh, target)
+            self.assertIn("selectedPage * OPTION_COUNT + selectedOption >= options.size()", refresh, target)
+            self.assertIn("refreshOptions();\n        return options;", tile, target)
             # The programming table displays one page at a time. An option is a slot
             # on the current page, while page-change messages use negative indices.
             self.assertIn("if (option <= -2)", tile, target)
