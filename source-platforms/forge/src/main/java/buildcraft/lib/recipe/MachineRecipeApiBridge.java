@@ -58,9 +58,25 @@ public final class MachineRecipeApiBridge {
         if (ingredient == null) return FluidStack.EMPTY;
         long amount = ingredient.amount().milliBuckets();
         if (amount <= 0 || amount > Integer.MAX_VALUE) return FluidStack.EMPTY;
-        return ingredient.representativeVariant()
-            .map(variant -> FuelApiBridge.stackOfVariant(variant, (int) amount))
-            .orElse(FluidStack.EMPTY);
+        if (ingredient.representativeVariant().isPresent()) {
+            return FuelApiBridge.stackOfVariant(ingredient.representativeVariant().get(), (int) amount);
+        }
+        // Programmatic FluidIngredient.matching() has no static preview. Try real
+        // registered fluid variants instead of always publishing an empty JEI slot.
+        for (net.minecraft.world.level.material.Fluid fluid : net.minecraft.core.registries.BuiltInRegistries.FLUID) {
+            if (fluid == net.minecraft.world.level.material.Fluids.EMPTY) continue;
+            var id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
+            if (id == null) continue;
+            var variant = buildcraft.api.v2.fluid.FluidVariant.of(id);
+            try {
+                if (!ingredient.matches(variant, FuelApiBridge.MATCH_CONTEXT)) continue;
+            } catch (RuntimeException invalidMatcher) {
+                continue;
+            }
+            FluidStack display = FuelApiBridge.stackOfVariant(variant, (int) amount);
+            if (display != null && !display.isEmpty()) return display;
+        }
+        return FluidStack.EMPTY;
     }
 
     public static FluidStack outputStack(FluidVolume volume) {
