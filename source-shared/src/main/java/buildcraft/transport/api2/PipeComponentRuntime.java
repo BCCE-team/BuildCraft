@@ -357,13 +357,14 @@ public final class PipeComponentRuntime {
     }
 
     public void writeChangedSync(FriendlyByteBuf buffer) {
-        writeSync(buffer, false, requested);
-        requested.clear();
+        // Keep channels whose capture failed dirty so they can be retried.
+        requested.removeAll(writeSync(buffer, false, requested));
     }
 
-    private void writeSync(FriendlyByteBuf buffer, boolean full, Collection<ResourceLocation> selected) {
+    private Set<ResourceLocation> writeSync(FriendlyByteBuf buffer, boolean full, Collection<ResourceLocation> selected) {
         if (client) throw new IllegalStateException("Cannot write client component snapshots");
         List<WireValue> values = new ArrayList<>();
+        Set<ResourceLocation> successfullyCaptured = new LinkedHashSet<>();
         for (ResourceLocation id : selected) {
             Channel<?> channel = channels.get(id);
             if (channel == null) continue;
@@ -373,6 +374,7 @@ public final class PipeComponentRuntime {
                     throw new IllegalArgumentException("Sync payload exceeds channel limit");
                 }
                 values.add(new WireValue(channel.componentId, id, data));
+                successfullyCaptured.add(id);
             } catch (RuntimeException ex) {
                 report("Cannot capture sync channel " + id, ex);
             }
@@ -382,6 +384,7 @@ public final class PipeComponentRuntime {
         } catch (IOException ex) {
             throw new IllegalStateException("Cannot encode pipe component sync", ex);
         }
+        return successfullyCaptured;
     }
 
     public void readSync(FriendlyByteBuf buffer) throws IOException {
