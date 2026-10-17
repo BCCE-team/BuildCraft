@@ -170,6 +170,12 @@ public final class RequestLedger {
             added.diagnostic = "fulfilled";
         }
         requests.put(added.id, added);
+        // Every public mutation must leave a state that can be saved. A failure
+        // to persist a perfectly legal request must never be discovered on world save.
+        if (!fitsPersistenceBudget()) {
+            requests.remove(added.id);
+            throw new IllegalStateException("request ledger persistence limit reached");
+        }
         changed();
         return view(added);
     }
@@ -249,6 +255,10 @@ public final class RequestLedger {
         if (until <= now) return Optional.empty();
         Promise promise = new Promise(token, request, actor, count, until, 0, PromisePhase.ACTIVE);
         promises.put(token, promise);
+        if (!fitsPersistenceBudget()) {
+            promises.remove(token);
+            return Optional.empty();
+        }
         changed();
         return Optional.of(view(promise));
     }
@@ -304,6 +314,12 @@ public final class RequestLedger {
         }
         int wanted = Math.min(offered.getCount(), promise.promised - promise.confirmed);
         if (wanted <= 0) return DeliveryResult.failure(DeliveryStatus.CLOSED, offered.getCount(), "promise_fulfilled");
+        // Receipt storage is part of the durable de-duplication contract. Never
+        // insert external items unless the acknowledgement can be persisted.
+        if (mode == OperationMode.EXECUTE && receipts.size() < MAX_RECEIPTS
+            && !hasPersistenceHeadroom(2 * Long.BYTES + 2 * Long.BYTES + Integer.BYTES)) {
+            return DeliveryResult.failure(DeliveryStatus.BLOCKED, offered.getCount(), "persistence_limit");
+        }
         ItemStack bounded = offered.copy();
         bounded.setCount(wanted);
         try {
@@ -424,6 +440,18 @@ public final class RequestLedger {
     }
 
     public long gameTime() { checkThread(); return gameTime; }
+
+    private boolean fitsPersistenceBudget() {
+        return hasPersistenceHeadroom(0);
+    }
+
+    private boolean hasPersistenceHeadroom(int additionalBytes) {
+        try {
+            return save().length <= MAX_DATA - additionalBytes;
+        } catch (IllegalStateException cannotSave) {
+            return false;
+        }
+    }
 
     /**
      * Encode only bounded accounting data. ItemMatcher is deliberately not serialized:
