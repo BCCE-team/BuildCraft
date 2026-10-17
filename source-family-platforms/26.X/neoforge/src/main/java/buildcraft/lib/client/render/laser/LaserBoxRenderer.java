@@ -49,6 +49,55 @@ public class LaserBoxRenderer {
         LaserRenderer_BC8.renderLaserBoxDynamic(pose, normal, Arrays.asList(box.laserData), bb);
     }
 
+    /** Draw only portions of the original volume outline backed by loaded client chunks.
+     * Do not move a box corner: that would invent a false boundary in an unloaded chunk.
+     * The per-edge scan is bounded by the viewing player's 16-nearest-chunk window.
+     */
+    public static void renderVisibleLaserBoxDynamic(Box box, LaserType type, Matrix4f pose,
+            Matrix3f normal, VertexConsumer bb, boolean center,
+            net.minecraft.client.multiplayer.ClientLevel level, BlockPos observer) {
+        if (box == null || box.min() == null || box.max() == null || level == null || observer == null) return;
+        makeLaserBox(box, type, center);
+        List<LaserData_BC8> visible = new ArrayList<>();
+        int viewerX = observer.getX() >> 4;
+        int viewerZ = observer.getZ() >> 4;
+        for (LaserData_BC8 edge : box.laserData) {
+            boolean variesX = Math.abs(edge.end.x - edge.start.x) > 1.0e-5;
+            boolean variesZ = Math.abs(edge.end.z - edge.start.z) > 1.0e-5;
+            if (!variesX && !variesZ) {
+                int cx = net.minecraft.util.Mth.floor(edge.start.x) >> 4;
+                int cz = net.minecraft.util.Mth.floor(edge.start.z) >> 4;
+                if (Math.abs((long) cx - viewerX) <= 16 && Math.abs((long) cz - viewerZ) <= 16
+                        && level.getChunkSource().getChunkNow(cx, cz) != null) visible.add(edge);
+                continue;
+            }
+            boolean alongX = variesX;
+            double start = alongX ? edge.start.x : edge.start.z;
+            double end = alongX ? edge.end.x : edge.end.z;
+            if (end <= start) continue;
+            int low = (int) Math.max((long) net.minecraft.util.Mth.floor(start) >> 4,
+                (long) (alongX ? viewerX : viewerZ) - 16);
+            int high = (int) Math.min((long) net.minecraft.util.Mth.floor(end) >> 4,
+                (long) (alongX ? viewerX : viewerZ) + 16);
+            int stationary = net.minecraft.util.Mth.floor(alongX ? edge.start.z : edge.start.x) >> 4;
+            int observerStationary = alongX ? viewerZ : viewerX;
+            if (Math.abs((long) stationary - observerStationary) > 16) continue;
+            for (int chunk = low; chunk <= high; chunk++) {
+                int cx = alongX ? chunk : stationary;
+                int cz = alongX ? stationary : chunk;
+                if (level.getChunkSource().getChunkNow(cx, cz) == null) continue;
+                double a = Math.max(start, chunk * 16.0);
+                double b = Math.min(end, (chunk + 1.0) * 16.0);
+                if (a >= b) continue;
+                visible.add(new LaserData_BC8(edge.laserType,
+                    edge.start.lerp(edge.end, (a - start) / (end - start)),
+                    edge.start.lerp(edge.end, (b - start) / (end - start)),
+                    edge.scale, edge.enableDiffuse, edge.doubleFace, edge.minBlockLight, edge.isOrgin));
+            }
+        }
+        if (!visible.isEmpty()) LaserRenderer_BC8.renderLaserBoxDynamic(pose, normal, visible, bb);
+    }
+
     private static void makeLaserBox(Box box, LaserType type, boolean center) {
         if (box == null || box.min() == null || box.max() == null) {
             return;

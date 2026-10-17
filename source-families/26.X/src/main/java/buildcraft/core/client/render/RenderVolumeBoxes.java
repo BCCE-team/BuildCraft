@@ -34,13 +34,7 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
         LaserRenderer_BC8.setupLaserRenderState();
         VertexConsumer bb = BCWorldGeometry.buffer(RenderCompat.solid());
         ClientVolumeBoxes.INSTANCE.volumeBoxes.forEach(volumeBox -> {
-            // Volume boxes are synchronized independently of client chunk lifetime. Keep the cached box so it can
-            // reappear intact after a render-distance unload, but never draw it while any chunk intersecting the
-            // box is absent from the client. Otherwise unfogged laser edges remain visible in the sky long after the
-            // terrain has unloaded.
-            if (!isBoxFullyLoaded(volumeBox)) {
-                return;
-            }
+            // Render loaded portions of the original edges without inventing a clipped box corner.
             LaserType type;
             if (volumeBox.isEditingBy(player)) {
                 type = BuildCraftLaserManager.MARKER_VOLUME_SIGNAL;
@@ -53,7 +47,8 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
                     .findFirst()
                     .orElse(BuildCraftLaserManager.MARKER_VOLUME_CONNECTED);
             }
-            LaserBoxRenderer.renderLaserBoxDynamic(volumeBox.box, type, pose.last().pose(), pose.last().normal(), bb, false);
+            LaserBoxRenderer.renderVisibleLaserBoxDynamic(volumeBox.box, type, pose.last().pose(),
+                pose.last().normal(), bb, false, Minecraft.getInstance().level, player.blockPosition());
 
         });
         // This consumer belongs to the extraction scope; its translucent layer is submitted after capture.
@@ -69,26 +64,20 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
 
     private static boolean isBoxFullyLoaded(buildcraft.core.marker.volume.VolumeBox volumeBox) {
         ClientLevel level = Minecraft.getInstance().level;
-        if (level == null || volumeBox == null || volumeBox.box == null
-            || volumeBox.box.min() == null || volumeBox.box.max() == null) {
-            return false;
-        }
-
+        Player player = Minecraft.getInstance().player;
+        if (level == null || player == null || volumeBox == null || volumeBox.box == null
+                || volumeBox.box.min() == null || volumeBox.box.max() == null) return false;
         BlockPos min = volumeBox.box.min();
         BlockPos max = volumeBox.box.max();
-        int minChunkX = Math.min(min.getX(), max.getX()) >> 4;
-        int maxChunkX = Math.max(min.getX(), max.getX()) >> 4;
-        int minChunkZ = Math.min(min.getZ(), max.getZ()) >> 4;
-        int maxChunkZ = Math.max(min.getZ(), max.getZ()) >> 4;
-
-        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
-            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-                if (level.getChunkSource().getChunkNow(chunkX, chunkZ) == null) {
-                    return false;
-                }
-            }
+        int px = player.getBlockX() >> 4;
+        int pz = player.getBlockZ() >> 4;
+        int[] xs = { min.getX() >> 4, max.getX() >> 4 };
+        int[] zs = { min.getZ() >> 4, max.getZ() >> 4 };
+        for (int x : xs) for (int z : zs) {
+            if (Math.abs((long) x - px) <= 16 && Math.abs((long) z - pz) <= 16
+                    && level.getChunkSource().getChunkNow(x, z) != null) return true;
         }
-        return true;
+        return false;
     }
 
 }
