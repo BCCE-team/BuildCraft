@@ -388,7 +388,26 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         if (outputId != null
                 && outputId.getNamespace().equals("buildcrafttransport")
                 && outputId.getPath().startsWith("wire/")) {
-            return new GroupedAssemblyKey(GroupedAssemblyKind.WIRE, null);
+            // Group only the original redstone + one dye recipe. Addon wire recipes
+            // can have entirely different inputs; grouping them invents ingredients.
+            Set<IngredientStack> wireInputs = recipe.getInputsFor(output);
+            if (wireInputs.size() != 2) return null;
+            int redstoneInputs = 0;
+            int dyeInputs = 0;
+            for (IngredientStack input : wireInputs) {
+                if (input.count != 1) return null;
+                if (input.ingredient.test(new ItemStack(Items.REDSTONE))) {
+                    redstoneInputs++;
+                } else {
+                    List<ItemStack> choices = expandIngredient(input);
+                    if (!choices.isEmpty() && choices.stream().allMatch(stack ->
+                            stack.getItem() instanceof net.minecraft.world.item.DyeItem)) {
+                        dyeInputs++;
+                    }
+                }
+            }
+            return redstoneInputs == 1 && dyeInputs == 1
+                    ? new GroupedAssemblyKey(GroupedAssemblyKind.WIRE, null) : null;
         }
 
         if (output.getItem() == BCSiliconItems.PLUG_GATE_ITEM.get()) {
