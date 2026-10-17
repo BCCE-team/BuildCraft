@@ -152,7 +152,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     /** Rotating X/Z column scan used to recover blocks placed into already-excavated quarry space. */
     private int miningColumnScanIndex;
     private long nextFrameWatchdogTick;
-    private static final int MINING_COLUMN_WATCHDOG_SCANS_PER_TICK = 256;
+    private static final int MINING_COLUMN_WATCHDOG_SCANS_PER_TICK = 32;
     private final Map<BlockPos, Long> deniedBreakUntil = new HashMap<>();
 
     private List<AABB> collisionBoxes = ImmutableList.of();
@@ -838,7 +838,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             }
         }
 
-        if (currentTask == null) {
+        if (currentTask == null && (boxIterator == null || !boxIterator.hasFinished() || gameTime % 5 == 0)) {
             rescanVisitedMiningColumns();
         }
 
