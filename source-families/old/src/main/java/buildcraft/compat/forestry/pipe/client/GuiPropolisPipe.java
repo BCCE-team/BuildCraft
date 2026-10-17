@@ -178,11 +178,12 @@ public final class GuiPropolisPipe extends GuiForestryTitled<ContainerPropolisPi
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
-        if (super.mouseClicked(mouseX, mouseY, mouseButton)) {
+        // The selector overlays this box; give the text field first refusal so it can gain focus.
+        if (searchField != null && searchField.mouseClicked(mouseX, mouseY, mouseButton)) {
             return true;
         }
-        if (searchField != null) {
-            searchField.mouseClicked(mouseX, mouseY, mouseButton);
+        if (super.mouseClicked(mouseX, mouseY, mouseButton)) {
+            return true;
         }
         Widget widget = widgetManager.getAtPosition(mouseX - leftPos, mouseY - topPos);
         if (widget == null) {
