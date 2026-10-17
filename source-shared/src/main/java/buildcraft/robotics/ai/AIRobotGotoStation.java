@@ -12,6 +12,7 @@ public class AIRobotGotoStation extends AIRobot {
     private BlockIndex stationIndex;
     private Direction stationSide;
     private boolean reservedStation;
+    private boolean restoreReservationAfterLoad;
 
     public AIRobotGotoStation(EntityRobotBase robot) {
         super(robot);
@@ -43,6 +44,21 @@ public class AIRobotGotoStation extends AIRobot {
             int targetY = station.y() + dy;
             int targetZ = station.z() + dz;
             startDelegateAI(new AIRobotGotoBlock(robot, targetX, targetY, targetZ, pathRangeTo(targetX, targetY, targetZ)));
+        } else {
+            setSuccess(false);
+            terminate();
+        }
+    }
+
+    @Override
+    public void preempt(AIRobot ai) {
+        if (!restoreReservationAfterLoad) return;
+        DockingStation station = getStation();
+        if (station == null) return; // Wait for station registry/chunk to load.
+        restoreReservationAfterLoad = false;
+        if (station == robot.getLinkedStation() || station == robot.getDockingStation()) return;
+        if (station.take(robot)) {
+            reservedStation = true;
         } else {
             setSuccess(false);
             terminate();
@@ -120,6 +136,7 @@ public class AIRobotGotoStation extends AIRobot {
 
     @Override
     public void loadSelfFromNBT(CompoundTag nbt) {
+        restoreReservationAfterLoad = true;
         if (nbt.contains("stationIndex")) {
             stationIndex = new BlockIndex(nbt.getCompound("stationIndex"));
             int side = nbt.getByte("stationSide");
