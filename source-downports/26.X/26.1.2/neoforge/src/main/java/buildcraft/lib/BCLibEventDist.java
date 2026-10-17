@@ -143,7 +143,8 @@ public class BCLibEventDist {
 
         private static void onDisconnectFromServer() {
             ItemStackUtil.setClientRegistryProvider(null);
-            MarkerCache.clearClientCaches();
+            MessageUtil.clearClientTasks();
+        MarkerCache.clearClientCaches();
             MessageMarkerClientHandler.clearQueuedMessages();
             buildcraft.lib.net.GuideRecipeDisplayCache.clear();
         }
@@ -202,6 +203,11 @@ public class BCLibEventDist {
 
     public static void onWorldUnload(BCEvents.LevelUnload event) {
         MarkerCache.onLevelUnload(event.getLevel());
+        if (event.getLevel() instanceof ServerLevel server
+            && server.dimension() == net.minecraft.world.level.Level.OVERWORLD) {
+            // The overworld is the server lifetime anchor; other dimensions may unload while it remains online.
+            MessageUtil.clearServerTasks();
+        }
         if (event.getLevel() instanceof ServerLevel) {
             FakePlayerProvider.INSTANCE.unloadWorld((ServerLevel) event.getLevel());
             buildcraft.lib.platform.chunk.BCChunkTickets.unloadWorld((ServerLevel) event.getLevel());
