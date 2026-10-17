@@ -424,14 +424,25 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         Level level = level();
         if (level != null) {
             BlockPos pos = new BlockPos(x(), y(), z());
+            RequestProvider selected = null;
+            int bestPriority = Integer.MIN_VALUE;
+            // Highest-priority request wins. Direction order remains the deterministic tie-breaker.
             for (Direction dir : Direction.values()) {
                 BlockPos neighbourPos = pos.relative(dir);
                 if (!level.isLoaded(neighbourPos)) continue;
                 BlockEntity neighbour = level.getBlockEntity(neighbourPos);
-                if (neighbour instanceof RequestProvider provider) {
-                    return provider;
+                if (neighbour instanceof RequestProvider provider && provider != this) {
+                    java.util.Collection<ItemRequest> requests = provider.requests();
+                    int priority = requests == null ? Integer.MIN_VALUE : requests.stream()
+                        .filter(java.util.Objects::nonNull).mapToInt(ItemRequest::priority)
+                        .max().orElse(Integer.MIN_VALUE);
+                    if (selected == null || priority > bestPriority) {
+                        selected = provider;
+                        bestPriority = priority;
+                    }
                 }
             }
+            if (selected != null) return selected;
         }
         return this;
     }
