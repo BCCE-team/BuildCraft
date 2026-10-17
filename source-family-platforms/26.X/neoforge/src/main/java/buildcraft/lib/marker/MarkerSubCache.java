@@ -56,24 +56,35 @@ public abstract class MarkerSubCache<C extends MarkerConnection<C>> {
     public void onPlayerJoinLevel(ServerPlayer player) {
         if (isServer) {// Sanity Check
             validateLoadedMarkers();
-            // Send ALL loaded markers
-            if (!tileCache.isEmpty()) {
-                MessageMarker message = new MessageMarker();
-                message.add = true;
-                message.connection = false;
-                message.cacheId = cacheId;
-                message.positions.addAll(tileCache.keySet());
-                MessageManager.sendTo(message, player);
-            }
-            // Send ALL connections.
+            // Full state is streamed in bounded chunks; a single large cache must never exceed
+            // the marker payload limit or prevent the player from joining.
+            sendBatchedToPlayer(player, false, tileCache.keySet());
             for (C connection : connectionToPos.keySet()) {
-                MessageMarker message = new MessageMarker();
-                message.add = true;
-                message.connection = true;
-                message.cacheId = cacheId;
-                message.positions.addAll(connection.getMarkerPositions());
-                MessageManager.sendTo(message, player);
+                sendBatchedToPlayer(player, true, connection.getMarkerPositions());
             }
+        }
+    }
+
+    private void sendBatchedToPlayer(ServerPlayer player, boolean connection,
+            java.util.Collection<BlockPos> positions) {
+        // Headroom for protocol flags and optional transport wrapping.
+        final int positionsPerMessage = 2048;
+        MessageMarker message = new MessageMarker();
+        message.add = true;
+        message.connection = connection;
+        message.cacheId = cacheId;
+        for (BlockPos pos : positions) {
+            message.positions.add(pos);
+            if (message.positions.size() == positionsPerMessage) {
+                MessageManager.sendTo(message, player);
+                message = new MessageMarker();
+                message.add = true;
+                message.connection = connection;
+                message.cacheId = cacheId;
+            }
+        }
+        if (!message.positions.isEmpty()) {
+            MessageManager.sendTo(message, player);
         }
     }
 

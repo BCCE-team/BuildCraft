@@ -171,10 +171,7 @@ public class BCLibEventDist {
             // Send a few sync passes because marker messages can otherwise arrive before the client world exists
             // during integrated-server login; the client queues those messages too, but these extra passes make
             // reconnecting to an already loaded marker network deterministic.
-            MessageUtil.doDelayedServer(1, () -> MarkerCache.onPlayerJoinLevel(playerMP));
-            MessageUtil.doDelayedServer(5, () -> MarkerCache.onPlayerJoinLevel(playerMP));
             MessageUtil.doDelayedServer(20, () -> MarkerCache.onPlayerJoinLevel(playerMP));
-            MessageUtil.doDelayedServer(60, () -> MarkerCache.onPlayerJoinLevel(playerMP));
             MessageUtil.doDelayedServer(5, () -> MessageManager.sendTo(
                 buildcraft.lib.net.MessageGuideRecipeDisplays.create(playerMP), playerMP));
         }
