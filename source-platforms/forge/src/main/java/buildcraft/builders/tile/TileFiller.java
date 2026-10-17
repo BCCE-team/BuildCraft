@@ -263,6 +263,12 @@ public class TileFiller extends TileBC_Neptune
             patternStatement.canInteract = !isLocked();
             return;
         }
+        // Addons and their volume boxes can be loaded after the Filler itself.
+        // Retry restoration, without discarding reserved items or saved work.
+        if ((pendingAddonVolumeBoxId != null || pendingBuilderNbt != null)
+            && level.getGameTime() % 20 == 0) {
+            restorePendingBuilder();
+        }
         battery.tick(level, worldPosition);
         if (--renderUpdateCooldown <= 0) {
             renderUpdateCooldown = RENDER_UPDATE_INTERVAL;
@@ -484,21 +490,33 @@ public class TileFiller extends TileBC_Neptune
     @Override
     public void onLoad() {
         super.onLoad();
-        if (level != null && pendingAddonVolumeBoxId != null && pendingAddonSlot != null) {
-            VolumeBox volumeBox = WorldSavedDataVolumeBoxes.get(level).getVolumeBoxFromId(pendingAddonVolumeBoxId);
-            addon = getFillerAddon(volumeBox, pendingAddonSlot);
-        }
-        pendingAddonVolumeBoxId = null;
-        pendingAddonSlot = null;
+        restorePendingBuilder();
+    }
 
-        // BuildingInfo must exist before SnapshotBuilder can restore/cancel saved tasks and refund
-        // their reserved items/MJ. Doing this in load() silently skipped the whole rollback path.
+    private void restorePendingBuilder() {
+        if (level == null || level.isClientSide) {
+            return;
+        }
+        if (pendingAddonVolumeBoxId != null && pendingAddonSlot != null) {
+            VolumeBox volumeBox = WorldSavedDataVolumeBoxes.get(level).getVolumeBoxFromId(pendingAddonVolumeBoxId);
+            if (volumeBox == null) {
+                return;
+            }
+            AddonFillerPlanner restoredAddon = getFillerAddon(volumeBox, pendingAddonSlot);
+            if (restoredAddon == null) {
+                return;
+            }
+            addon = restoredAddon;
+            pendingAddonVolumeBoxId = null;
+            pendingAddonSlot = null;
+        }
         updateBuildingInfo();
         if (pendingBuilderNbt != null) {
             TemplateBuilder activeBuilder = getBuilder();
-            if (activeBuilder != null) {
-                activeBuilder.deserializeNBT(pendingBuilderNbt);
+            if (activeBuilder == null) {
+                return;
             }
+            activeBuilder.deserializeNBT(pendingBuilderNbt);
             pendingBuilderNbt = null;
         }
     }
