@@ -576,6 +576,9 @@ public abstract class OilStructure {
                 level.setBlockEntity(spring);
             }
             spring.totalSources = count;
+            // World-generation placement does not call setPlacedBy(). Start the
+            // spring's recurring updates once the generated chunk is ticked.
+            world.scheduleTick(springPos, state.getBlock(), state.getValue(BlockSpring.SPRING_TYPE).tickRate);
             if (BCLib.DEV) {
                 BCLog.logger.info("[energy.gen.oil] Generated TileSpringOil as " + System.identityHashCode(tile));
             }
