@@ -11,6 +11,7 @@ import buildcraft.robotics.statements.ActionRobotFilter;
 import buildcraft.robotics.statements.ActionStationAcceptItems;
 import net.minecraft.core.Direction;
 import net.minecraft.world.Container;
+import net.minecraft.world.WorldlyContainer;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 
@@ -134,16 +135,26 @@ public class AIRobotUnload extends AIRobot {
         }
         Container container = station.getItemInput();
         if (container != null) {
-            return insertIntoContainer(container, stack, doAdd);
+            return insertIntoContainer(container, stack, doAdd, station.getItemInputSide());
         }
         return stack;
     }
 
-    private static ItemStack insertIntoContainer(Container container, ItemStack stack, boolean doAdd) {
+    private static boolean mayInsert(Container container, int slot, ItemStack stack, Direction side) {
+        if (!container.canPlaceItem(slot, stack)) return false;
+        if (!(container instanceof WorldlyContainer sided)) return true;
+        if (side == null || !sided.canPlaceItemThroughFace(slot, stack, side)) return false;
+        for (int allowed : sided.getSlotsForFace(side)) {
+            if (allowed == slot) return true;
+        }
+        return false;
+    }
+
+    private static ItemStack insertIntoContainer(Container container, ItemStack stack, boolean doAdd, Direction side) {
         ItemStack remaining = stack.copy();
         for (int i = 0; i < container.getContainerSize() && !remaining.isEmpty(); i++) {
             ItemStack existing = container.getItem(i);
-            if (!existing.isEmpty() && ItemStack.isSameItemSameTags(existing, remaining) && existing.isStackable()) {
+            if (!existing.isEmpty() && mayInsert(container, i, remaining, side) && ItemStack.isSameItemSameTags(existing, remaining) && existing.isStackable()) {
                 int limit = Math.min(existing.getMaxStackSize(), container.getMaxStackSize());
                 int move = Math.min(limit - existing.getCount(), remaining.getCount());
                 if (move > 0) {
@@ -156,7 +167,7 @@ public class AIRobotUnload extends AIRobot {
             }
         }
         for (int i = 0; i < container.getContainerSize() && !remaining.isEmpty(); i++) {
-            if (container.getItem(i).isEmpty() && container.canPlaceItem(i, remaining)) {
+            if (container.getItem(i).isEmpty() && mayInsert(container, i, remaining, side)) {
                 int move = Math.min(Math.min(remaining.getMaxStackSize(), container.getMaxStackSize()), remaining.getCount());
                 if (doAdd) {
                     ItemStack inserted = remaining.copy();
