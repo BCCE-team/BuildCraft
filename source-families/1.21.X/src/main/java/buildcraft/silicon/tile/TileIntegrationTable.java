@@ -76,6 +76,9 @@ public class TileIntegrationTable extends TileLaserTableBase implements MenuProv
     public final ItemProvider invOutput = new ItemProvider((i) -> getOutput(), 1);
     public RecipeMatch<IntegrationRecipeDefinition> recipe;
     private long lastRecipeGeneration = -1;
+    private long lastGuiTarget = Long.MIN_VALUE;
+    private String lastGuiRecipeId;
+    private ItemStack lastGuiOutput = ItemStack.EMPTY;
     /** Server-authoritative preview used when the client does not have the machine recipe definition. */
     private ItemStack syncedOutput = ItemStack.EMPTY;
 
@@ -165,6 +168,7 @@ public class TileIntegrationTable extends TileLaserTableBase implements MenuProv
         updateRecipe();
 
         long target = getTarget();
+        boolean completed = false;
         if (target > 0 && power >= target) {
             ItemStack output = getOutput();
             IntegrationRecipeDefinition definition = recipe.recipe();
@@ -178,10 +182,23 @@ public class TileIntegrationTable extends TileLaserTableBase implements MenuProv
                 }
                 invResult.setStackInSlot(0, result);
                 power -= target;
+                completed = true;
             }
         }
 
-        sendNetworkGuiUpdate(NET_GUI_DATA);
+        // Avoid broadcasting the full recipe, preview and inventory state every idle server tick.
+        // A changed recipe/preview/target and a completed craft still sync immediately.
+        String recipeId = recipe == null ? null : recipe.id().toString();
+        ItemStack preview = getOutput();
+        if (completed || target != lastGuiTarget
+            || !java.util.Objects.equals(recipeId, lastGuiRecipeId)
+            || !ItemStack.matches(preview, lastGuiOutput)
+            || (target > 0 && level.getGameTime() % 4 == 0)) {
+            sendNetworkGuiUpdate(NET_GUI_DATA);
+            lastGuiTarget = target;
+            lastGuiRecipeId = recipeId;
+            lastGuiOutput = preview.copy();
+        }
     }
 
     @Override

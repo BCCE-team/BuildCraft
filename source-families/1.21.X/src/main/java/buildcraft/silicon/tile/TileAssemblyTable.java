@@ -95,6 +95,8 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
 
     protected boolean isDirty = true;
     private long lastApiRecipeGeneration = -1;
+    /** Last advertised work target; progress packets are rate-limited while the recipe is unchanged. */
+    private long lastGuiTarget = Long.MIN_VALUE;
     private Object lastVanillaRecipeManager;
     private Object lastVanillaRecipeMap;
 
@@ -292,6 +294,7 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
 
 
         long target = getTarget();
+        boolean completed = false;
         if (target > 0) {
             AdvancementUtil.unlockAdvancement(GameProfileCompat.id(getOwner()), ADVANCEMENT);
             if (power >= target) {
@@ -300,11 +303,18 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
                     InventoryUtil.addToBestAcceptor(getLevel(), getBlockPos(), null, instruction.output.copy());
                     power -= target;
                     activateNextRecipe();
+                    completed = true;
                 } else {
                     isDirty = true;
                 }
             }
+
+        }
+        // Recipe discovery already sends an immediate packet on a change. During steady laser work only
+        // publish progress five times a second; always publish completed crafts and a changed/cleared target.
+        if (completed || target != lastGuiTarget || (target > 0 && level.getGameTime() % 4 == 0)) {
             sendNetworkGuiUpdate(NET_GUI_DATA);
+            lastGuiTarget = target;
         }
     }
 
