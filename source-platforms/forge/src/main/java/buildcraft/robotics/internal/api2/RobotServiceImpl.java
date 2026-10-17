@@ -391,6 +391,9 @@ public final class RobotServiceImpl implements RobotService {
                 FluidStack requested = stored.copy();
                 requested.setAmount(Math.min(limit, stored.getAmount()));
                 FluidStack drained = input.drain(requested, mode == OperationMode.SIMULATE);
+                // A matching tank that cannot actually drain must not hide later usable tanks.
+                if (drained == null || drained.isEmpty() || drained.getAmount() <= 0) continue;
+                if (!matcher.matches(FuelApiBridge.variantOf(drained), FuelApiBridge.MATCH_CONTEXT)) continue;
                 return FluidTransferResult.ofExtraction(maxAmount, FuelApiBridge.volumeOf(drained));
             }
             return FluidTransferResult.nothing(maxAmount);
