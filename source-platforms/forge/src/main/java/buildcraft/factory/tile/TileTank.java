@@ -412,7 +412,7 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
             if (total.isEmpty()) {
                 total = other.copy();
             } else if (FluidCompatRegistry.areEquivalent(total, other)) {
-                total.grow(other.getAmount());
+                total.setAmount((int) Math.min(Integer.MAX_VALUE, (long) total.getAmount() + other.getAmount()));
             }
         }
         return total;
@@ -425,11 +425,14 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
         }
 
         List<TileTank> tanks = getConnectedTanks();
-        int capacity = 0;
+        long capacity = 0;
         for (TileTank t : tanks) {
-            capacity += t.tank.getCapacity();
+            capacity += Math.max(0, t.tank.getCapacity());
+            if (capacity >= Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            }
         }
-        return capacity;
+        return (int) capacity;
     }
 
 	@Override
