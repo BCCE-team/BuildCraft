@@ -133,6 +133,7 @@ public class TileEngineCreative extends TileEngineBase_BC8 {
             if (!level.isClientSide) {
                 currentOutputIndex++;
                 currentOutputIndex %= outputs.length;
+                setChanged();
                 player.sendOverlayMessage(Component.translatable("chat.pipe.power.iron.mode", outputs[currentOutputIndex]));
                 sendNetworkUpdate(NET_RENDER_DATA);
             }
