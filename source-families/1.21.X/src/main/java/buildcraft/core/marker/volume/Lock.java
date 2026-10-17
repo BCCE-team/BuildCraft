@@ -136,7 +136,8 @@ public class Lock {
 
             @Override
             public boolean stillWorks(Level world) {
-                return world.getBlockState(pos).getBlock() == block;
+                // An unloaded chunk cannot invalidate a lock, and must not be loaded just to check it.
+                return pos != null && (!world.hasChunkAt(pos) || world.getBlockState(pos).getBlock() == block);
             }
         }
 
