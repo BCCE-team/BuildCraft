@@ -65,6 +65,26 @@ public class WorldSavedDataWireSystems extends SavedData {
     public final List<Player> changedPlayers = new ArrayList<>();
 
     private final Map<WireSystem.WireElement, List<WireSystem>> elementsToWireSystemsIndex = new HashMap<>();
+    /** Stable unique wire ids for the current topology, including 32-bit hash collisions. */
+    private final Map<WireSystem, Integer> syncIds = new HashMap<>();
+
+    private void rebuildSyncIds() {
+        syncIds.clear();
+        java.util.Set<Integer> occupied = new java.util.HashSet<>();
+        for (WireSystem system : wireSystems.keySet()) {
+            int candidate = system.getWiresHashCode();
+            while (!occupied.add(candidate)) {
+                candidate++; // probe around collisions; same id is used for graph and power packets
+            }
+            syncIds.put(system, candidate);
+        }
+    }
+
+    private int syncId(WireSystem system) {
+        if (syncIds.size() != wireSystems.size() || !syncIds.containsKey(system)) rebuildSyncIds();
+        return syncIds.get(system);
+    }
+
 
     public WorldSavedDataWireSystems() {}
 
@@ -197,12 +217,13 @@ public class WorldSavedDataWireSystems extends SavedData {
                 return newPowered;
             });
         }
+        if (structureChanged) rebuildSyncIds();
         //to debug
         if(!world.isClientSide() && (structureChanged || !changedSystems.isEmpty() || !changedPlayers.isEmpty()))
         ((ServerLevel)world).players().forEach(player -> {
             Map<Integer, WireSystem> changedWires = this.wireSystems.keySet().stream()
                     .filter(wireSystem -> (structureChanged || changedPlayers.contains(player)) && wireSystem.isPlayerWatching(player))
-                    .collect(Collectors.toMap(WireSystem::getWiresHashCode, Function.identity()));
+                    .collect(Collectors.toMap(this::syncId, Function.identity()));
             if(!changedWires.isEmpty()) {
                 MessageManager.sendTo(new MessageWireSystems(changedWires), player);
             }
@@ -211,7 +232,7 @@ public class WorldSavedDataWireSystems extends SavedData {
                             (structureChanged || changedSystems.contains(systemPower.getKey()) || changedPlayers.contains(player)) &&
                                     systemPower.getKey().isPlayerWatching(player)
                     )
-                    .map(systemPowered -> Pair.of(systemPowered.getKey().getWiresHashCode(), systemPowered.getValue()))
+                    .map(systemPowered -> Pair.of(syncId(systemPowered.getKey()), systemPowered.getValue()))
                     .collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
             if(!hashesPowered.isEmpty()) {
                 MessageManager.sendTo(new MessageWireSystemsPowered(hashesPowered), player);
@@ -240,6 +261,7 @@ public class WorldSavedDataWireSystems extends SavedData {
 
     private void readFromTag(CompoundTag nbt) {
         wireSystems.clear();
+        syncIds.clear();
         elementsToWireSystemsIndex.clear();
         ListTag entriesList = NbtCompat.getList(nbt, "entries");
         for (int i = 0; i < entriesList.size(); i++) {
