@@ -54,7 +54,10 @@ public class BoxIterator implements Iterator<BlockPos> {
         if (min == null || max == null || order == null) {
             return null;
         }
-        return new BoxIterator(min, max, invert, order, current);
+        BoxIterator restored = new BoxIterator(min, max, invert, order, current);
+        // Older saves omitted the cursor at completion. Preserve that sentinel.
+        if (NbtCompat.getBoolean(nbt, "finished") || !NbtCompat.getAllKeys(nbt).contains("current")) restored.current = null;
+        return restored;
     }
 
     public CompoundTag writeToNbt() {
@@ -63,6 +66,7 @@ public class BoxIterator implements Iterator<BlockPos> {
         nbt.putLong("max", max.asLong());
         nbt.putBoolean("invert", invert);
         nbt.put("order", order.writeNBT());
+        nbt.putBoolean("finished", current == null);
         if (current != null) {
             nbt.putLong("current", current.asLong());
         }
