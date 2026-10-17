@@ -375,9 +375,8 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
                 rotation = Rotation.NONE;
             }
             BlockPos buildBasePos = getCurrentBasePos();
-            if (!canRotate) {
-                buildBasePos = adjustBasePosIfOverlappingBuilder(buildBasePos, rotation);
-            }
+            // Rotating a blueprint must not allow its own placement/excavation to touch this Builder.
+            buildBasePos = adjustBasePosIfOverlappingBuilder(buildBasePos, rotation);
             if (snapshot.getType() == EnumSnapshotType.TEMPLATE) {
                 templateBuildingInfo = ((Template) snapshot).new BuildingInfo(buildBasePos, rotation);
             }
