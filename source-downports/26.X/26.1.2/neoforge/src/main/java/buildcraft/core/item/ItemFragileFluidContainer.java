@@ -31,6 +31,7 @@ import buildcraft.lib.compat.RegistryCompat;
 
 public class ItemFragileFluidContainer extends Item implements FluidDropProvider {
     public static final int MAX_FLUID_HELD = 500;
+    private static final int MAX_DROP_SHARDS = 64;
 
     public ItemFragileFluidContainer() {
         super(RegistryCompat.itemProperties(new Item.Properties()).stacksTo(1));
@@ -64,20 +65,21 @@ public class ItemFragileFluidContainer extends Item implements FluidDropProvider
             return;
         }
         int amount = fluid.getAmount();
-        if (amount >= MAX_FLUID_HELD) {
-            FluidStack fullShard = fluid.copy();
-            fullShard.setAmount(MAX_FLUID_HELD);
-            while (amount >= MAX_FLUID_HELD) {
-                ItemStack stack = new ItemStack(this);
-                setFluid(stack, fullShard);
-                amount -= MAX_FLUID_HELD;
-                toDrop.add(stack);
-            }
+        FluidStack fullShard = fluid.copyWithAmount(MAX_FLUID_HELD);
+        int emitted = 0;
+        while (amount >= MAX_FLUID_HELD && emitted < MAX_DROP_SHARDS - 1) {
+            ItemStack shard = new ItemStack(this);
+            setFluid(shard, fullShard);
+            toDrop.add(shard);
+            amount -= MAX_FLUID_HELD;
+            emitted++;
         }
         if (amount > 0) {
-            ItemStack stack = new ItemStack(this);
-            setFluid(stack, fluid.copyWithAmount(amount));
-            toDrop.add(stack);
+            // Preserve every last mB in one larger shard rather than spawning
+            // potentially millions of entities (or silently discarding fluid).
+            ItemStack remainder = new ItemStack(this);
+            setFluid(remainder, fluid.copyWithAmount(amount));
+            toDrop.add(remainder);
         }
     }
 
@@ -121,7 +123,9 @@ public class ItemFragileFluidContainer extends Item implements FluidDropProvider
         }
 
         public int getTankCapacity(int tank) {
-            return MAX_FLUID_HELD;
+            // Overflow shards may exceed the normal 500 mB drop size to keep
+            // the entity count bounded without losing their saved fluid.
+            return Math.max(MAX_FLUID_HELD, getFluid(container).getAmount());
         }
 
         public boolean isFluidValid(int tank, @NotNull FluidStack stack) {
