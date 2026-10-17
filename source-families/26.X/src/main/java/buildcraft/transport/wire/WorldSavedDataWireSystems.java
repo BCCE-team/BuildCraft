@@ -244,7 +244,11 @@ public class WorldSavedDataWireSystems extends SavedData {
         ListTag entriesList = NbtCompat.getList(nbt, "entries");
         for (int i = 0; i < entriesList.size(); i++) {
             CompoundTag entry = NbtCompat.getCompound(entriesList, i);
-            addWireSystem(new WireSystem(NbtCompat.getCompound(entry, "wireSystem")), NbtCompat.getBoolean(entry, "powered"));
+            try {
+                addWireSystem(new WireSystem(NbtCompat.getCompound(entry, "wireSystem")), NbtCompat.getBoolean(entry, "powered"));
+            } catch (RuntimeException invalidNetwork) {
+                BCLog.logger.warn("Skipping invalid saved wire network entry {}", i, invalidNetwork);
+            }
         }
         // A loaded network is authoritative persisted state, not a newly-built transient graph.
         structureChanged = false;

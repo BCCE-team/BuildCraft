@@ -235,7 +235,11 @@ public class WorldSavedDataWireSystems extends SavedData {
         ListTag entriesList = nbt.getList("entries", Tag.TAG_COMPOUND);
         for(int i = 0; i < entriesList.size(); i++) {
             CompoundTag entry = entriesList.getCompound(i);
-            wsds.addWireSystem(new WireSystem(entry.getCompound("wireSystem")), entry.getBoolean("powered"));
+            try {
+                wsds.addWireSystem(new WireSystem(entry.getCompound("wireSystem")), entry.getBoolean("powered"));
+            } catch (RuntimeException invalidNetwork) {
+                BCLog.logger.warn("Skipping invalid saved wire network entry {}", i, invalidNetwork);
+            }
         }
         return wsds;
     }

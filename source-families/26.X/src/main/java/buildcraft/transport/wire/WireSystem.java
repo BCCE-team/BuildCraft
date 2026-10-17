@@ -228,11 +228,22 @@ public final class WireSystem {
         return nbt;
     }
 
+    // Bound untrusted persisted network data before allocating/indexing it.
+    private static int checkedIndex(int value, int size, String property) {
+        if (value < 0 || value >= size) {
+            throw new IllegalArgumentException("Invalid wire " + property + ": " + value);
+        }
+        return value;
+    }
+
     public WireSystem(CompoundTag nbt) {
         ListTag elementsList = NbtCompat.getList(nbt, "elements");
+        if (elementsList.isEmpty() || elementsList.size() > 16_384) {
+            throw new IllegalArgumentException("Invalid wire network size: " + elementsList.size());
+        }
         //noinspection UnstableApiUsage
         elements = IntStream.range(0, elementsList.size()).mapToObj(i -> NbtCompat.getCompound(elementsList, i)).map(WireElement::new).collect(ImmutableList.toImmutableList());
-        color = DyeColor.byId(NbtCompat.getInt(nbt, "color"));
+        color = DyeColor.byId(checkedIndex(NbtCompat.getInt(nbt, "color"), DyeColor.values().length, "color"));
 
         this.cachedHashCode = this.computeHashCode();
         this.cachedWiresHashCode = this.computeCachedWiresHashCode();
@@ -290,10 +301,10 @@ public final class WireSystem {
         }
 
         public WireElement(FriendlyByteBuf buf) {
-            type = Type.values()[buf.readInt()];
+            type = Type.values()[checkedIndex(buf.readInt(), Type.values().length, "type")];
             blockPos = MessageUtil.readBlockPos(buf);
             if (type == Type.WIRE_PART) {
-                wirePart = EnumWirePart.VALUES[buf.readInt()];
+                wirePart = EnumWirePart.VALUES[checkedIndex(buf.readInt(), EnumWirePart.VALUES.length, "wirePart")];
                 this.emitterSide = null;
             } else if (type == Type.EMITTER_SIDE) {
                 this.wirePart = null;
@@ -305,18 +316,18 @@ public final class WireSystem {
         }
 
         public WireElement(CompoundTag nbt) {
-            type = Type.values()[NbtCompat.getInt(nbt, "type")];
+            type = Type.values()[checkedIndex(NbtCompat.getInt(nbt, "type"), Type.values().length, "type")];
             blockPos = NBTUtilBC.readBlockPos(NbtCompat.getIntArray(nbt, "blockPos"));
             if (blockPos == null) {
                 // Oh dear. We probably can't recover from this properly
                 throw new NullPointerException("Cannot read this Wire Systems from NBT!");
             }
             if (type == Type.WIRE_PART) {
-                wirePart = EnumWirePart.VALUES[NbtCompat.getInt(nbt, "wirePart")];
+                wirePart = EnumWirePart.VALUES[checkedIndex(NbtCompat.getInt(nbt, "wirePart"), EnumWirePart.VALUES.length, "wirePart")];
                 this.emitterSide = null;
             } else if (type == Type.EMITTER_SIDE) {
                 this.wirePart = null;
-                emitterSide = Direction.from3DDataValue(NbtCompat.getInt(nbt, "emitterSide"));
+                emitterSide = Direction.from3DDataValue(checkedIndex(NbtCompat.getInt(nbt, "emitterSide"), 6, "emitterSide"));
             } else {
                 this.wirePart = null;
                 this.emitterSide = null;
