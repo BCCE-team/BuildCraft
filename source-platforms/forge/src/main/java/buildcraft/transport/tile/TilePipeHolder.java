@@ -708,6 +708,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         redstoneValues = newRedstione;
         pipe.rotate(axis);
         if (level != null && !level.isClientSide) {
+            wireManager.getWireSystems().rebuildWireSystemsAround(this);
             markChunkDirty();
         }
 	}
