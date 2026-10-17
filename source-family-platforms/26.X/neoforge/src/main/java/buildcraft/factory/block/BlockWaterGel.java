@@ -6,6 +6,10 @@
 
 package buildcraft.factory.block;
 
+import buildcraft.lib.misc.AutomationPermissionUtil;
+import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.permission.WorldOperationKind;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -143,14 +147,24 @@ public class BlockWaterGel extends BlockBCBase_Neptune {
             Collections.shuffle(faces);
             int tries = 0;
 
-            while (openQueue.size() > 0 && changeable.size() < 3 && tries < 10_000) {
+            while (openQueue.size() > 0 && changeable.size() < 3 && tries < 512) {
                 BlockPos test = openQueue.removeFirst();
-
+                // Never wake unloaded terrain from a random tick's flood-fill search.
+                if (!world.hasChunkAt(test)) {
+                    tries++;
+                    continue;
+                }
                 BlockState testState = world.getBlockState(test);
                 boolean water = isWater(testState);
                 boolean aquaticPlant = canBreakAquaticPlant(testState);
                 boolean spreadable = water || aquaticPlant || canSpread(world, test);
-                if ((water && testState.getValue(LiquidBlock.LEVEL) == 0) || aquaticPlant) {
+                if (((water && testState.getValue(LiquidBlock.LEVEL) == 0) || aquaticPlant)
+                    && AutomationPermissionUtil.mayBlock(world, pos, test, null,
+                        AutomationPermissionUtil.SOURCE_WATER_GEL, WorldOperationKind.BLOCK_PLACE,
+                        OperationMode.SIMULATE)
+                    && (!aquaticPlant || AutomationPermissionUtil.mayBlock(world, pos, test, null,
+                        AutomationPermissionUtil.SOURCE_WATER_GEL, WorldOperationKind.BLOCK_BREAK,
+                        OperationMode.SIMULATE))) {
                     changeable.add(test);
                 }
                 if (spreadable) {
@@ -167,7 +181,15 @@ public class BlockWaterGel extends BlockBCBase_Neptune {
             final int time = next.spreading ? 200 : 400;
             if (changeable.size() == 3 || world.getRandom().nextDouble() < 0.5) {
                 for (BlockPos p : changeable) {
+                    if (!world.hasChunkAt(p)
+                        || !AutomationPermissionUtil.mayBlock(world, pos, p, null,
+                            AutomationPermissionUtil.SOURCE_WATER_GEL, WorldOperationKind.BLOCK_PLACE,
+                            OperationMode.EXECUTE)) continue;
                     BlockState replacedState = world.getBlockState(p);
+                    if (canBreakAquaticPlant(replacedState)
+                        && !AutomationPermissionUtil.mayBlock(world, pos, p, null,
+                            AutomationPermissionUtil.SOURCE_WATER_GEL, WorldOperationKind.BLOCK_BREAK,
+                            OperationMode.EXECUTE)) continue;
                     if (canBreakAquaticPlant(replacedState)) {
                         world.destroyBlock(p, true);
                     }
