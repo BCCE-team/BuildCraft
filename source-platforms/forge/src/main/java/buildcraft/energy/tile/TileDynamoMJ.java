@@ -198,7 +198,8 @@ public class TileDynamoMJ extends TileEngineBase_BC8 implements MenuProvider {
         if (maxFe <= 0) return;
 
         /* Preserve BC8 behavior: do not consume MJ if this pulse would fill or overflow the FE buffer. */
-        if ((long) currentFe + maxFe >= MAX_FE) return;
+        maxFe = Math.min(maxFe, Math.max(0, MAX_FE - currentFe));
+        if (maxFe <= 0) return;
 
         long cost = Math.multiplyExact((long) maxFe, ratio);
         if (mjBattery.extractPower(cost)) {

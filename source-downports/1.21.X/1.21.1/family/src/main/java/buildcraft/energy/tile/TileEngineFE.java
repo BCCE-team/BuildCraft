@@ -152,9 +152,10 @@ public class TileEngineFE extends TileEngineBase_BC8 implements MenuProvider {
         if (currentFe <= 0 || !isRedstonePowered) return;
         long ratio = BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjPerFe();
         if (ratio <= 0) return;
-        int consumedFe = Math.min(currentFe, getFeConsumptionRate());
+        long freeMj = Math.max(0L, getMaxPower() - power);
+        int consumedFe = (int) Math.min(Math.min((long) currentFe, getFeConsumptionRate()), freeMj / ratio);
+        if (consumedFe <= 0) return;
         long generatedMj = consumedFe * ratio;
-        if (power + generatedMj >= getMaxPower()) return;
         currentOutput = generatedMj;
         addPower(generatedMj);
         currentFe -= consumedFe;
