@@ -86,6 +86,8 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
     
     protected boolean isDirty = true;
     private long lastApiRecipeGeneration = -1;
+    private Object lastVanillaRecipeManager;
+    private Object lastVanillaRecipeMap;
 
     private static MachineRecipeService machineRecipes() {
         return BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES);
@@ -111,6 +113,21 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
 
     private void updateRecipes() {
         boolean changed = false;
+        // RecipeManager is replaced during /reload; client/server caches must discard obsolete instructions.
+        Object manager = level.getRecipeManager();
+        Object recipeMap = manager;
+        // On 1.21.11+ the recipeAccess recipe-map instance is the reload generation.
+        // The family-local source processor selects the applicable branch.
+        //? if >=1.21.11 {
+        recipeMap = ((net.minecraft.server.level.ServerLevel) level).recipeAccess().recipeMap();
+        //?}
+        if (lastVanillaRecipeManager != manager || lastVanillaRecipeMap != recipeMap) {
+            lastVanillaRecipeManager = manager;
+            lastVanillaRecipeMap = recipeMap;
+            changed |= recipesStates.entrySet().removeIf(entry ->
+                !(entry.getKey().recipe instanceof ApiAssemblyRecipeAdapter));
+            isDirty = true;
+        }
         long generation = machineRecipes().snapshot().generation().id();
         if (lastApiRecipeGeneration != generation) {
             lastApiRecipeGeneration = generation;

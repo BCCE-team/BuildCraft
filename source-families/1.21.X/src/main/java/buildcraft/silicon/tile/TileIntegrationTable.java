@@ -75,6 +75,7 @@ public class TileIntegrationTable extends TileLaserTableBase implements MenuProv
     );
     public final ItemProvider invOutput = new ItemProvider((i) -> getOutput(), 1);
     public RecipeMatch<IntegrationRecipeDefinition> recipe;
+    private long lastRecipeGeneration = -1;
     /** Server-authoritative preview used when the client does not have the machine recipe definition. */
     private ItemStack syncedOutput = ItemStack.EMPTY;
 
@@ -122,6 +123,12 @@ public class TileIntegrationTable extends TileLaserTableBase implements MenuProv
     }
 
     private void updateRecipe() {
+        long generation = recipeService().snapshot().generation().id();
+        if (lastRecipeGeneration != generation) {
+            lastRecipeGeneration = generation;
+            // Re-resolve against new datapacks/API2 snapshot, even if inputs did not change.
+            recipe = null;
+        }
         if (recipe != null) {
             IntegrationRecipeDefinition definition = recipe.recipe();
             ItemStack output = getOutput();
