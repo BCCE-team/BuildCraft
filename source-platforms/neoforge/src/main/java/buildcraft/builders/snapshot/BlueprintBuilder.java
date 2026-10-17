@@ -1025,6 +1025,7 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
             .collect(Collectors.toList());
         if (!toKill.isEmpty()) {
             if (!tile.getBattery().isFull()) {
+                level.getProfiler().pop();
                 return false;
             } else {
                 level.getProfiler().push("kill");
