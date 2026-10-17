@@ -4,6 +4,8 @@ import buildcraft.lib.internal.core.IStackFilter;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.robotics.internal.api2.RobotAutomationSupport;
+import buildcraft.api.v2.OperationMode;
 import buildcraft.robotics.statements.ActionRobotFilter;
 import buildcraft.robotics.statements.ActionStationProvideItems;
 import net.minecraft.core.Direction;
@@ -83,6 +85,8 @@ public class AIRobotLoad extends AIRobot {
         if (robot == null || station == null || filter == null) {
             return false;
         }
+        if (!RobotAutomationSupport.permitsInventory(robot, station, true,
+                doLoad ? OperationMode.EXECUTE : OperationMode.SIMULATE)) return false;
 
         Container container = station.getItemInput();
         if (container == null) {

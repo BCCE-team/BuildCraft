@@ -3,6 +3,8 @@ package buildcraft.robotics.ai;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.robotics.internal.api2.RobotAutomationSupport;
+import buildcraft.api.v2.OperationMode;
 import buildcraft.transport.internal.IInjectable;
 import buildcraft.lib.internal.statement.StatementSlot;
 import buildcraft.lib.inventory.filter.ArrayStackOrListFilter;
@@ -53,6 +55,8 @@ public class AIRobotUnload extends AIRobot {
 
     public static boolean unload(EntityRobotBase robot, DockingStation station, boolean doUnload, boolean requireAcceptAction) {
         if (robot == null || station == null) return false;
+        if (!RobotAutomationSupport.permitsInventory(robot, station, false,
+                doUnload ? OperationMode.EXECUTE : OperationMode.SIMULATE)) return false;
 
         for (int slot = 0; slot < robot.getContainerSize(); slot++) {
             ItemStack stack = robot.getItem(slot);
