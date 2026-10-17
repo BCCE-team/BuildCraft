@@ -75,7 +75,8 @@ public class StatementParameterItemStackExact implements IStatementParameter {
         if (object instanceof StatementParameterItemStackExact) {
             StatementParameterItemStackExact param = (StatementParameterItemStackExact) object;
 
-            return areItemsEqual(stack, param.stack);
+            return areItemsEqual(stack, param.stack)
+                && (stack == null ? param.stack == null : param.stack != null && stack.getCount() == param.stack.getCount());
         } else {
             return false;
         }
@@ -97,7 +98,7 @@ public class StatementParameterItemStackExact implements IStatementParameter {
 
     @Override
     public int hashCode() {
-        return Objects.hash(stack);
+        return stack == null ? 0 : Objects.hash(stack.getItem(), stack.getTag(), stack.getCount());
     }
 
     @Override
