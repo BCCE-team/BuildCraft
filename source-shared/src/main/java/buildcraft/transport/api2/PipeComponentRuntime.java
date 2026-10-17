@@ -400,14 +400,18 @@ public final class PipeComponentRuntime {
         if (frame.full) {
             for (Channel<?> channel : channels.values()) channel.lastReceived = null;
         }
+        boolean applied = true;
         for (Runnable operation : pending) {
             try {
                 operation.run();
             } catch (RuntimeException ex) {
+                applied = false;
                 report("Pipe component sync callback failed", ex);
             }
         }
-        incomingRevision = frame.revision;
+        // A partially failed frame must not suppress a retransmission of the
+        // same revision. Successful callbacks need to tolerate replay.
+        if (applied) incomingRevision = frame.revision;
     }
 
     private static final class Channel<T> {
