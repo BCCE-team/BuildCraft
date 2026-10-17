@@ -971,8 +971,9 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         List<ISchematicEntity> toSpawn = getBuildingInfo().entities.stream()
             .filter(schematicEntity ->
                 entitiesWithinBox.stream()
-                .noneMatch($ -> 
-                	$.distanceToSqr(schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos)))< MAX_ENTITY_DISTANCE
+                .noneMatch($ ->
+                    $.distanceToSqr(schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos))) < MAX_ENTITY_DISTANCE
+                        && isSameSchematicEntity(schematicEntity, $, level)
                 )
 /*                    .map(Entity::)
                     .map(schematicEntity.getPos().add(new Vec3(getBuildingInfo().offsetPos))::distanceTo)
@@ -1009,7 +1010,8 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
                     	entity.distanceToSqr(Vec3.atLowerCornerOf(
                     			getBuildingInfo().offsetPos)
                     			.add($.getPos()))
-                    			< MAX_ENTITY_DISTANCE)&&
+                            < MAX_ENTITY_DISTANCE
+                                && isSameSchematicEntity($, entity, level))&&
 /*                        .map(ISchematicEntity::getPos)
                         .map(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos)::add)
                         .map(entity::distanceToSqr)
@@ -1082,7 +1084,18 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
     private boolean isSchematicEntityPresent(ISchematicEntity schematicEntity, Level level) {
         Vec3 expected = schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos));
         return level.getEntitiesOfClass(Entity.class, getBuildingInfo().box.getBoundingBox(), Objects::nonNull).stream()
-            .anyMatch(entity -> entity.distanceToSqr(expected) < MAX_ENTITY_DISTANCE);
+            .anyMatch(entity -> entity.distanceToSqr(expected) < MAX_ENTITY_DISTANCE
+                && isSameSchematicEntity(schematicEntity, entity, level));
+    }
+
+    private static boolean isSameSchematicEntity(ISchematicEntity schematicEntity, Entity entity, Level level) {
+        if (schematicEntity instanceof SchematicEntityDefault standard) {
+            return standard.matchesEntityType(entity);
+        }
+        // For addon snapshot entities compare the owning schematic type, not just coordinates.
+        ISchematicEntity captured = SchematicEntityManager.getSchematicEntity(
+            new SchematicEntityContext(level, BlockPos.ZERO, entity));
+        return captured != null && captured.typeId().equals(schematicEntity.typeId());
     }
 
     private static boolean buildSchematicEntity(ISchematicEntity schematicEntity, Level level, BlockPos basePos) {

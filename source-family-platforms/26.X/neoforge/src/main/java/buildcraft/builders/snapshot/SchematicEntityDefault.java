@@ -92,6 +92,12 @@ public class SchematicEntityDefault implements ISchematicEntity {
         }
     }
 
+    /** An unrelated entity at the same coordinates cannot satisfy this Blueprint element. */
+    public boolean matchesEntityType(Entity entity) {
+        return entity != null && entityNbt != null
+            && EntityType.getKey(entity.getType()).toString().equals(NbtCompat.getString(entityNbt, "id"));
+    }
+
     public Vec3 getPos() {
         return pos;
     }
