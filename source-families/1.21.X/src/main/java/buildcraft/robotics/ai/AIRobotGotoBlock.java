@@ -71,6 +71,7 @@ public class AIRobotGotoBlock extends AIRobotGoto {
             loadedFromNBT = false;
         }
         if (path == null) {
+            if (robot.level().getGameTime() < nextRepathTick) return;
             path = findPath();
             if (path == null || path.isEmpty()) {
                 setSuccess(false);
@@ -98,6 +99,7 @@ public class AIRobotGotoBlock extends AIRobotGoto {
                     return;
                 }
                 path = null;
+                nextRepathTick = robot.level().getGameTime() + 20;
                 prevDistance = Double.MAX_VALUE;
             } else {
                 stuckTicks = notProgressing ? stuckTicks : 0;
@@ -139,6 +141,8 @@ public class AIRobotGotoBlock extends AIRobotGoto {
         }
     }
 
+    private long nextRepathTick;
+
     private LinkedList<BlockIndex> findPath() {
         BlockPos start = robot.blockPosition();
         BlockPos target = new BlockPos(finalX, finalY, finalZ);
@@ -165,7 +169,7 @@ public class AIRobotGotoBlock extends AIRobotGoto {
 
     private LinkedList<BlockIndex> findAStarPath(BlockPos start, BlockPos target, Level level) {
         int hardLimit = maxDistance > 0 ? Math.max(1, (int) Math.ceil(maxDistance)) : 256;
-        int maxVisited = Math.max(8192, Math.min(262144, hardLimit * hardLimit * 4));
+        int maxVisited = (int) Math.min(8192L, Math.max(512L, (long) hardLimit * 8L));
         PriorityQueue<PathNode> open = new PriorityQueue<>((a, b) -> {
             int score = Double.compare(a.score(), b.score());
             return score != 0 ? score : Long.compare(a.sequence(), b.sequence());
@@ -192,7 +196,7 @@ public class AIRobotGotoBlock extends AIRobotGoto {
             for (Direction dir : Direction.values()) {
                 BlockPos next = current.relative(dir);
                 if (closed.contains(next)) continue;
-                if (distanceSqr(next, start) > hardLimit * hardLimit) continue;
+                if (distanceSqr(next, start) > (long) hardLimit * hardLimit) continue;
                 if (!isSoft(level, next)) continue;
 
                 int newCost = currentCost + 1;
