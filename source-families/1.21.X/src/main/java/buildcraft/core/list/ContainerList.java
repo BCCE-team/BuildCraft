@@ -63,6 +63,7 @@ public class ContainerList extends MenuBC_Neptune {
     }
 
     private final InteractionHand hand;
+    private final ItemStack openedStack;
 
     public ContainerList(int containerId, Inventory playerInventory) {
         this(containerId, playerInventory, findListHand(playerInventory.player));
@@ -77,6 +78,7 @@ public class ContainerList extends MenuBC_Neptune {
     public ContainerList(int containerId, Inventory playerInventory, InteractionHand hand) {
         super(playerInventory, BCCore.LIST_MENU.get(), containerId);
         this.hand = hand;
+        this.openedStack = getListItemStack();
 
         lines = ListHandler.getLines(getListItemStack(), playerInventory.player.level().registryAccess());
 
@@ -94,7 +96,9 @@ public class ContainerList extends MenuBC_Neptune {
 
     @Override
 	public boolean stillValid(Player player) {
-        return !getListItemStack().isEmpty();
+        return player == playerInventory.player
+            && getListItemStack() == openedStack
+            && !openedStack.isEmpty();
     }
 
     private static InteractionHand findListHand(Player player) {
@@ -112,7 +116,8 @@ public class ContainerList extends MenuBC_Neptune {
     }
 
     void setStack(final int lineIndex, final int slotIndex, @Nonnull final ItemStack stack) {
-        if (lineIndex < 0 || lineIndex >= lines.length || slotIndex < 0 || slotIndex >= ListHandler.WIDTH) {
+        if (!stillValid(playerInventory.player)
+            || lineIndex < 0 || lineIndex >= lines.length || slotIndex < 0 || slotIndex >= ListHandler.WIDTH) {
             return;
         }
         lines[lineIndex].setStack(slotIndex, stack);
@@ -120,7 +125,8 @@ public class ContainerList extends MenuBC_Neptune {
     }
 
     public void switchButton(final int lineIndex, final int button) {
-        if (lineIndex < 0 || lineIndex >= lines.length || button < 0 || button >= 3) {
+        if (!stillValid(playerInventory.player)
+            || lineIndex < 0 || lineIndex >= lines.length || button < 0 || button >= 3) {
             return;
         }
         lines[lineIndex].toggleOption(button);
@@ -144,6 +150,7 @@ public class ContainerList extends MenuBC_Neptune {
     }
 
     public void setLabel(final String text) {
+        if (!stillValid(playerInventory.player)) return;
         String label = text.length() > 32 ? text.substring(0, 32) : text;
         BuildCraftApi.service(BuildCraftServices.ITEM_LABELS).setLabel(getListItemStack(), label, OperationMode.EXECUTE);
 
@@ -156,6 +163,7 @@ public class ContainerList extends MenuBC_Neptune {
     public void readMessage(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readMessage(id, buffer, side, ctx);
         if (side == BCNetworkSide.SERVER) {
+            if (!stillValid(playerInventory.player)) return;
             if (id == ID_BUTTON) {
                 int lineIndex = buffer.readUnsignedByte();
                 int button = buffer.readUnsignedByte();
