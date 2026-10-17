@@ -21,6 +21,7 @@ import buildcraft.core.item.ItemFragileFluidContainer;
 import buildcraft.lib.fluid.FluidCompatRegistry;
 import buildcraft.lib.fluid.Tank;
 import buildcraft.lib.fluid.TankManager;
+import buildcraft.lib.tile.TileBC_Neptune;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -236,6 +237,11 @@ public class FluidUtilBC {
 
     public static boolean onTankActivated(Player player, BlockPos pos, InteractionHand hand,
         IFluidHandler fluidHandler) {
+        // Bucket/item transfers must honour the same BuildCraft edit permission
+        // as the machine GUI. This also covers TankManager and multi-block tanks.
+        if (!player.level().hasChunkAt(pos)) return false;
+        BlockEntity edited = player.level().getBlockEntity(pos);
+        if (edited instanceof TileBC_Neptune bcTile && !bcTile.canPlayerEdit(player)) return true;
         ItemStack held = player.getItemInHand(hand);
         if (held.isEmpty()) {
             return false;
