@@ -246,6 +246,7 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
                 size /= snapshotType.maxPerTick;
                 deltaProgress.addDelta(0, size, 1);
                 deltaProgress.addDelta(size, size + 10, -1);
+                blueprintScannedPalette.clear();
                 scanning = true;
             }
         } else {
