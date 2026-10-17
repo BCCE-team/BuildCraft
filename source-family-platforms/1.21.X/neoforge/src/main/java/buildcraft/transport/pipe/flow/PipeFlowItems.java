@@ -99,7 +99,8 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             old -> pipe.getHolder().getPipeTile().setChanged());
 
     private record ItemTransferState(List<List<TravellingItem>> buckets,
-        java.util.Map<TravellingItem, ItemStack> stacks, ListTag pending, ListTag unreadable) {}
+        java.util.Map<TravellingItem, ItemStack> stacks, ListTag pending, ListTag unreadable,
+        LinkedHashSet<UUID> transferReceipts) {}
 
     private ItemTransferState captureItemTransfer() {
         List<List<TravellingItem>> buckets = new ArrayList<>();
@@ -109,7 +110,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             for (TravellingItem item : bucket) copies.put(item, item.stack.copy());
         }
         return new ItemTransferState(buckets, copies, pendingItems == null ? null : pendingItems.copy(),
-            unreadableItems.copy());
+            unreadableItems.copy(), new LinkedHashSet<>(acceptedTransferIds));
     }
 
     private void restoreItemTransfer(ItemTransferState saved) {
@@ -119,6 +120,9 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         pendingItems = saved.pending() == null ? null : saved.pending().copy();
         unreadableItems.clear();
         for (Tag tag : saved.unreadable()) unreadableItems.add(tag.copy());
+        // A rolled-back transfer is not delivered and must not be acknowledged as successful.
+        acceptedTransferIds.clear();
+        acceptedTransferIds.addAll(saved.transferReceipts());
     }
 
 
