@@ -7,6 +7,8 @@ package buildcraft.lib.block;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
+import net.minecraft.server.level.ServerLevel;
 
 import com.google.common.collect.ImmutableList;
 
@@ -55,6 +57,20 @@ public abstract class BlockBCTile_Neptune extends BlockBCBase_Neptune implements
             tileBC.onExplode(explosion);
         }
 	}
+
+    /** Modern explosion hook. The old onBlockExploded overload is no longer dispatched by vanilla. */
+    @Override
+    public void onExplosionHit(BlockState state, ServerLevel level, BlockPos pos,
+            Explosion explosion, BiConsumer<ItemStack, BlockPos> dropConsumer) {
+        BlockEntity tile = level.getBlockEntity(pos);
+        if (tile instanceof TileBC_Neptune tileBC) {
+            tileBC.onExplode(explosion);
+            tileBC.onRemove(true);
+        }
+        // Vanilla is responsible for loot, world removal, listeners and neighbour updates.
+        // Omitting it could leave a machine block in the world after an explosion.
+        super.onExplosionHit(state, level, pos, explosion, dropConsumer);
+    }
 
 	public void onBlockExploded(BlockState state, Level level, BlockPos pos, Explosion explosion) {
         BlockEntity tile = level.getBlockEntity(pos);
