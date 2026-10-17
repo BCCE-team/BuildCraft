@@ -132,6 +132,7 @@ def _resource_values(properties: dict[str, str], target: str) -> dict[str, str]:
         "buildcraft_version_range": _target_property(properties, target, "buildcraft.version_range"),
         "jei_version_range": _target_property(properties, target, "compat.jei.range"),
         "jade_version_range": _target_property(properties, target, "compat.jade.range"),
+        "create_version_range": properties.get(f"target.{target}.compat.create.range", "[0,)"),
         "ic2_version_range": _target_property(properties, target, "compat.ic2.range"),
         "forestry_version_range": _target_property(properties, target, "compat.forestry.range"),
         "pack_format": _target_property(properties, target, "pack.format"),

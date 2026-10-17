@@ -391,7 +391,8 @@ def resourceProperties = [
         resource_pack_format: requiredProperty('pack.resource_format'),
         data_pack_format: requiredProperty('pack.data_format'),
         jei_version_range: requiredProperty('compat.jei.range'),
-        jade_version_range: requiredProperty('compat.jade.range')
+        jade_version_range: requiredProperty('compat.jade.range'),
+        create_version_range: optionalProperty('compat.create.range') ?: '[0,)'
 ]
 
 tasks.named('processResources', ProcessResources) {
