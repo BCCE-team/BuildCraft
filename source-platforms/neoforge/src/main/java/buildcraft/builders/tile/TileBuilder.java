@@ -653,7 +653,11 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
         }
         if (side == BCNetworkSide.SERVER) {
             if (id == NET_CAN_EXCAVATE) {
-                canExcavate = buffer.readBoolean();
+                boolean selected = buffer.readBoolean();
+                if (selected != canExcavate) {
+                    canExcavate = selected;
+                    setChanged();
+                }
                 sendNetworkUpdate(NET_CAN_EXCAVATE);
             }
         }

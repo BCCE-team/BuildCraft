@@ -383,7 +383,11 @@ public class TileFiller extends TileBC_Neptune
         }
         if (side == BCNetworkSide.SERVER) {
             if (id == NET_CAN_EXCAVATE) {
-                canExcavate = buffer.readBoolean();
+                boolean selected = buffer.readBoolean();
+                if (selected != canExcavate) {
+                    canExcavate = selected;
+                    setChanged();
+                }
                 sendNetworkGuiUpdate(NET_CAN_EXCAVATE);
             }
         }
