@@ -85,6 +85,10 @@ public interface IContainerFilling {
                         (a, b) -> {
                         }
                     ).readFromBuffer(buffer);
+                    // Consume the inverted bit too, but reject all edits while the Filler is locked.
+                    buffer.readBoolean();
+                    sendData();
+                    return;
                 } else {
                     getPatternStatement().readFromBuffer(buffer);
                 }
