@@ -14,10 +14,9 @@ public final class EqualFlowMath {
      */
     public static int share(int pathAvailable, int perPathLimit, int pathCount, int totalAvailable) {
         if (pathAvailable <= 0 || perPathLimit <= 0 || pathCount <= 0 || totalAvailable <= 0) return 0;
-        float fraction = Math.min(perPathLimit * pathCount, totalAvailable)
-            / (float) perPathLimit / pathCount;
-        int amount = (int) (pathAvailable * fraction);
-        if (amount < 1) amount++;
-        return Math.min(pathAvailable, amount);
+        long aggregateLimit = (long) perPathLimit * pathCount;
+        double fraction = Math.min(aggregateLimit, (long) totalAvailable) / (double) aggregateLimit;
+        int amount = (int) Math.min((double) pathAvailable, pathAvailable * fraction);
+        return Math.min(pathAvailable, Math.max(1, amount));
     }
 }
