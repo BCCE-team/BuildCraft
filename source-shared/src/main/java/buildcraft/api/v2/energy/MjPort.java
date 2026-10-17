@@ -20,7 +20,9 @@ public interface MjPort {
         if (policy == MjTransferPolicy.PARTIAL) return insert(offered, mode);
         MjTransferResult simulated = insert(offered, OperationMode.SIMULATE);
         if (!simulated.completed()) return MjTransferResult.none(offered);
-        return mode == OperationMode.SIMULATE ? simulated : insert(offered, OperationMode.EXECUTE);
+        // A successful simulation is not an atomic reservation. Implementations
+        // with real transactional storage can override this policy method.
+        return mode == OperationMode.SIMULATE ? simulated : MjTransferResult.none(offered);
     }
 
     default MjTransferResult extract(MjAmount minimum, MjAmount maximum, OperationMode mode) {
@@ -30,6 +32,9 @@ public interface MjPort {
         if (minimum.compareTo(maximum) > 0) throw new IllegalArgumentException("minimum must be <= maximum");
         MjTransferResult simulated = extract(maximum, OperationMode.SIMULATE);
         if (simulated.transferred().compareTo(minimum) < 0) return MjTransferResult.none(maximum);
-        return mode == OperationMode.SIMULATE ? simulated : extract(maximum, OperationMode.EXECUTE);
+        // Partial execution after a successful simulation would break the minimum guarantee.
+        return mode == OperationMode.SIMULATE || minimum.isZero()
+            ? (mode == OperationMode.SIMULATE ? simulated : extract(maximum, mode))
+            : MjTransferResult.none(maximum);
     }
 }
