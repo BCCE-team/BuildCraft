@@ -915,13 +915,19 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
 
     private static List<ViewGroup<EnergyView.Data>> feEnergyGroups(TileBC_Neptune tile) {
         if (tile.getLevel() == null) return Collections.emptyList();
-        Set<EnergyHandler> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        // NeoForge wraps native FE storage for each capability lookup. Deduplicate
+        // the underlying BuildCraft energy endpoint, not the ephemeral export.
+        Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         long stored = 0L;
         long capacity = 0L;
         for (Direction side : nullableDirections()) {
             EnergyHandler energy = tile.getLevel().getCapability(
                 Capabilities.Energy.BLOCK, tile.getBlockPos(), side);
-            if (energy == null || !seen.add(energy)) continue;
+            if (energy == null) continue;
+            Object backing = tile.getCapability(MjCapabilities.CAP_RECEIVER, side);
+            if (backing == null) backing = tile.getCapability(buildcraft.lib.misc.CapUtil.CAP_FE, side);
+            if (backing == null) backing = energy;
+            if (!seen.add(backing)) continue;
             long max = Math.max(0L, energy.getCapacityAsLong());
             if (max <= 0L) continue;
             // Cap outputs are read-only. Side duplicates are deduplicated by handler identity.
