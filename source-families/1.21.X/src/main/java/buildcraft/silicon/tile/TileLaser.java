@@ -70,6 +70,7 @@ public class TileLaser extends TileBC_Neptune implements IDebuggable, GameEventL
     private final AverageLong avgPower = new AverageLong(100);
     private long averageClient;
     private long renderPower;
+    private long previouslyObservedStoredPower = -1L;
     private boolean lastSentBeamActive;
     private final MjBattery battery;
 
@@ -190,6 +191,7 @@ public class TileLaser extends TileBC_Neptune implements IDebuggable, GameEventL
         }
 
         // set target tile on server side
+        long averageBeforeTick = avgPower.getAverageLong();
         avgPower.tick();
 
         BlockPos previousTargetPos = targetPos;
@@ -245,7 +247,15 @@ public class TileLaser extends TileBC_Neptune implements IDebuggable, GameEventL
             lastSentBeamActive = beamActive;
         }
 
-        markChunkDirty();
+        // Idle ticks must not dirty the owning chunk. Persist only state that actually changes:
+        // target, transferred energy, rolling transfer average or externally supplied battery energy.
+        long storedPower = battery.getStored();
+        boolean batteryChanged = previouslyObservedStoredPower != storedPower;
+        previouslyObservedStoredPower = storedPower;
+        if (targetChanged || transferredPower > 0 || batteryChanged
+            || averageBeforeTick != avgPower.getAverageLong()) {
+            markChunkDirty();
+        }
     }
 
     @Override
