@@ -132,6 +132,14 @@ public class AIRobotFetchItem extends AIRobot {
         releaseTargetReservation();
     }
 
+    @Override
+    public void onUnload() {
+        // The Java entity can be unloaded without end() ever being called.
+        // UUID reservations must not block every other picker indefinitely.
+        releaseTargetReservation();
+        super.onUnload();
+    }
+
     private boolean restoreRuntimeContext() {
         refreshContextAfterLoad = false;
 

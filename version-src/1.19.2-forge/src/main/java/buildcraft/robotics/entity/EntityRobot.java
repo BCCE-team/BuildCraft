@@ -1459,6 +1459,7 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
 
     @Override
     public void onChunkUnload() {
+        if (!getCommandSenderWorld().isClientSide && mainAI != null) mainAI.onUnload();
         if (level instanceof ServerLevel && getActiveAI() instanceof ApiTaskAI task) {
             task.suspendForUnload();
         }
@@ -1468,6 +1469,7 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
 
     @Override
     public void remove(RemovalReason reason) {
+        if (!getCommandSenderWorld().isClientSide && mainAI != null) mainAI.onUnload();
         if (level instanceof ServerLevel && getActiveAI() instanceof ApiTaskAI task) {
             if (reason.shouldDestroy()) task.abort();
             else task.suspendForUnload();

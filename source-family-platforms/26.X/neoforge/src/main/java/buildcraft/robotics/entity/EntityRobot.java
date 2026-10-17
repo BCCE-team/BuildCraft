@@ -1450,6 +1450,7 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
     }
 
     public void onChunkUnload() {
+        if (!level().isClientSide() && mainAI != null) mainAI.onUnload();
         if (level() instanceof ServerLevel && getActiveAI() instanceof ApiTaskAI task) {
             task.suspendForUnload();
         }
@@ -1458,6 +1459,7 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
     }
 
     public void remove(RemovalReason reason) {
+        if (!level().isClientSide() && mainAI != null) mainAI.onUnload();
         if (level() instanceof ServerLevel && getActiveAI() instanceof ApiTaskAI task) {
             if (reason.shouldDestroy()) task.abort();
             else task.suspendForUnload();
