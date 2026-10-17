@@ -6,6 +6,8 @@
 
 package buildcraft.lib.net.cache;
 
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -25,6 +27,27 @@ import buildcraft.lib.net.BCPacketContext;
 public class MessageObjectCacheRequest {
 
     static final int MAX_IDS = 256;
+    /** Server-thread-only rate budget, per authenticated player (not per cache). */
+    private static final Map<net.minecraft.server.level.ServerPlayer, RequestBudget> REQUEST_BUDGETS = new WeakHashMap<>();
+    private static final class RequestBudget {
+        long tick;
+        int remaining;
+        RequestBudget(long tick) { this.tick = tick; this.remaining = 1024; }
+    }
+
+    private static boolean allowRequest(net.minecraft.server.level.ServerPlayer sender, int count) {
+        if (count <= 0 || count > MAX_IDS) return false;
+        long tick = sender.level().getGameTime();
+        RequestBudget budget = REQUEST_BUDGETS.computeIfAbsent(sender, p -> new RequestBudget(tick));
+        if (tick < budget.tick || tick - budget.tick >= 20) {
+            budget.tick = tick;
+            budget.remaining = 1024;
+        }
+        if (budget.remaining < count) return false;
+        budget.remaining -= count;
+        return true;
+    }
+
 
     private int cacheId;
 
@@ -72,6 +95,9 @@ public class MessageObjectCacheRequest {
             }
             if (!(context.player() instanceof ServerPlayer sender)) {
                 BCLog.logger.debug("Dropped object cache request without a server-side sender");
+                return;
+            }
+            if (!allowRequest(sender, message.ids.length)) {
                 return;
             }
             NetworkedObjectCache<?> cache = BuildCraftObjectCaches.CACHES.get(message.cacheId);
