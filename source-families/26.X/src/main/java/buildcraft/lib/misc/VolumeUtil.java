@@ -33,7 +33,7 @@ public class VolumeUtil {
             unknown.removeAll(allVisible);
             boolean visible = true;
             for (BlockPos p : unknown) {
-                if (world.isEmptyBlock(p)) {
+                if (world.isLoaded(p) && world.isEmptyBlock(p)) {
                     allVisible.add(p);
                 } else {
                     visible = false;

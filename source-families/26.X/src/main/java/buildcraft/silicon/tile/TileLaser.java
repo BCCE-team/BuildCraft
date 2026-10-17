@@ -192,7 +192,9 @@ public class TileLaser extends TileBC_Neptune implements IDebuggable, GameEventL
         avgPower.tick();
 
         BlockPos previousTargetPos = targetPos;
-        if (levelHasUpdated) {
+        // Chunk loads need not emit block-change game events. Rediscover targets periodically,
+        // staggered by laser position to avoid synchronised rescans across large builds.
+        if (levelHasUpdated || (level.getGameTime() + worldPosition.asLong()) % 100L == 0L) {
             findPossibleTargets();
             levelHasUpdated = false;
         }
