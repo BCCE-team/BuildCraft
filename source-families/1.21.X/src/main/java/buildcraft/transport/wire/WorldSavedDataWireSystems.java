@@ -197,18 +197,18 @@ public class WorldSavedDataWireSystems extends SavedData {
             });
         }
         //to debug
-        if(!world.isClientSide())
+        if(!world.isClientSide() && (structureChanged || !changedSystems.isEmpty() || !changedPlayers.isEmpty()))
         ((ServerLevel)world).players().forEach(player -> {
             Map<Integer, WireSystem> changedWires = this.wireSystems.keySet().stream()
-                    .filter(wireSystem -> wireSystem.isPlayerWatching(player) && (structureChanged || changedPlayers.contains(player)))
+                    .filter(wireSystem -> (structureChanged || changedPlayers.contains(player)) && wireSystem.isPlayerWatching(player))
                     .collect(Collectors.toMap(WireSystem::getWiresHashCode, Function.identity()));
             if(!changedWires.isEmpty()) {
                 MessageManager.sendTo(new MessageWireSystems(changedWires), player);
             }
             Map<Integer, Boolean> hashesPowered = this.wireSystems.entrySet().stream()
                     .filter(systemPower ->
-                            systemPower.getKey().isPlayerWatching(player) &&
-                                    (structureChanged || changedSystems.contains(systemPower.getKey()) || changedPlayers.contains(player))
+                            (structureChanged || changedSystems.contains(systemPower.getKey()) || changedPlayers.contains(player)) &&
+                                    systemPower.getKey().isPlayerWatching(player)
                     )
                     .map(systemPowered -> Pair.of(systemPowered.getKey().getWiresHashCode(), systemPowered.getValue()))
                     .collect(Collectors.toMap(Pair::getLeft, Pair::getRight));

@@ -134,7 +134,6 @@ public class BCTransportEventDist {
     public static synchronized void registerGameplayEvents() {
         if (gameplayEventsRegistered) return;
         gameplayEventsRegistered = true;
-        PlatformEvents.levelTick(BCEvents.Phase.START, BCTransportEventDist::onWorldTick);
         PlatformEvents.levelTick(BCEvents.Phase.END, BCTransportEventDist::onWorldTick);
         PlatformEvents.serverTick(BCEvents.Phase.START, BCTransportEventDist::onServerTick);
         PlatformEvents.serverTick(BCEvents.Phase.END, BCTransportEventDist::onServerTick);
