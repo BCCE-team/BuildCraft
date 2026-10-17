@@ -496,7 +496,9 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
             if (!level.hasChunkAt(path.thisPos)) {
                 return path.thisPos;
             }
-            if (BlockUtil.getFluidWithFlowing(level, path.thisPos) == Fluids.EMPTY) {
+            Fluid current = BlockUtil.getFluidWithFlowing(level, path.thisPos);
+            if (current == Fluids.EMPTY
+                || (scanFluid != Fluids.EMPTY && current.getFluidType() != scanFluid.getFluidType())) {
                 return path.thisPos;
             }
         } while ((path = path.parent) != null);
