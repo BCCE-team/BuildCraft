@@ -405,6 +405,12 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         }
 
         BlockPos blockPos = task.pos();
+        // Robots can return persisted tasks after the blueprint was replaced or moved.
+        // Never convert an obsolete world position into a snapshot-array index.
+        if (blockPos == null || !getBuildingInfo().box.contains(blockPos)) {
+            releaseRobotTask(robot, task);
+            return RobotBuildResult.FAILED;
+        }
         try {
             if (task.breakTask()) {
                 check(blockPos);
