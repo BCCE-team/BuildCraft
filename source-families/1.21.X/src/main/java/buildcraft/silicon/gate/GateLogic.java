@@ -59,12 +59,14 @@ import buildcraft.lib.statement.TriggerWrapper.TriggerWrapperInternal;
 import buildcraft.lib.statement.TriggerWrapper.TriggerWrapperInternalSided;
 import buildcraft.lib.tile.TileBC_Neptune;
 import buildcraft.silicon.plug.PluggableGate;
+import buildcraft.silicon.container.ContainerGate;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.server.level.ServerPlayer;
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
 import buildcraft.lib.compat.NbtCompat;
@@ -248,10 +250,43 @@ public class GateLogic implements IGate, IRedstoneStatementContainer, GateView, 
                     "Slot index out of range! (" + slot + ", must be within " + statements.length + ")");
             }
             StatementPair s = statements[slot];
-            (isAction ? s.action : s.trigger).readFromBuffer(buffer);
             if (side == BCNetworkSide.SERVER) {
+                ServerPlayer sender = ctx.getSender();
+                if (sender == null || !(sender.containerMenu instanceof ContainerGate menu)
+                    || menu.gate != this || !menu.stillValid(sender)) {
+                    throw new InvalidInputDataException("Player is not editing this gate");
+                }
+                if (isAction) {
+                    FullStatement<ActionWrapper> candidate = new FullStatement<>(s.action.type, s.action.maxParams, null);
+                    candidate.readFromBuffer(buffer);
+                    ActionWrapper value = candidate.get();
+                    if (!s.action.canSet(value) || (value != null && !menu.possibleActions.contains(value))) {
+                        throw new InvalidInputDataException("Action is not valid for this gate");
+                    }
+                    for (int i = 0; i < candidate.getParamCount(); i++) {
+                        if (candidate.get(i) != null && !candidate.canSet(i, candidate.get(i))) {
+                            throw new InvalidInputDataException("Invalid action parameter " + i);
+                        }
+                    }
+                    s.action.readFromNbt(candidate.writeToNbt());
+                } else {
+                    FullStatement<TriggerWrapper> candidate = new FullStatement<>(s.trigger.type, s.trigger.maxParams, null);
+                    candidate.readFromBuffer(buffer);
+                    TriggerWrapper value = candidate.get();
+                    if (!s.trigger.canSet(value) || (value != null && !menu.possibleTriggers.contains(value))) {
+                        throw new InvalidInputDataException("Trigger is not valid for this gate");
+                    }
+                    for (int i = 0; i < candidate.getParamCount(); i++) {
+                        if (candidate.get(i) != null && !candidate.canSet(i, candidate.get(i))) {
+                            throw new InvalidInputDataException("Invalid trigger parameter " + i);
+                        }
+                    }
+                    s.trigger.readFromNbt(candidate.writeToNbt());
+                }
                 markGateDirty();
                 sendStatementUpdate(isAction, slot);
+            } else {
+                (isAction ? s.action : s.trigger).readFromBuffer(buffer);
             }
             BCLog.d("rec "+(isAction ? s.action : s.trigger).writeToNbt());
             return;
