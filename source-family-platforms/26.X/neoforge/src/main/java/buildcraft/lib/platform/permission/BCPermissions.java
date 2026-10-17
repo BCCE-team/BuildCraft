@@ -39,6 +39,7 @@ public class BCPermissions {
     public static final Identifier SOURCE_PUMP = id("pump");
     public static final Identifier SOURCE_FLOOD_GATE = id("flood_gate");
     public static final Identifier SOURCE_MINING_WELL = id("mining_well");
+    public static final Identifier SOURCE_HEAT_EXCHANGE = id("heat_exchange");
     public static final Identifier SOURCE_STRIPES_PIPE = id("stripes_pipe");
 
     protected BCPermissions() {}

@@ -1,5 +1,9 @@
 package buildcraft.factory.tile;
 
+import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.permission.WorldOperationKind;
+import buildcraft.lib.misc.AutomationPermissionUtil;
+
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -490,6 +494,18 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             return;
         }
         Deque<TileHeatExchange> exchangers = findAdjacentExchangers();
+        // Validate the ENTIRE column before rotating a single section. Otherwise a
+        // protected adjacent machine can be silently reconfigured as a side effect.
+        for (TileHeatExchange exchange : exchangers) {
+            if (!level.hasChunkAt(exchange.getBlockPos())) return;
+            try {
+                if (!AutomationPermissionUtil.mayBlock(level, worldPosition, exchange.getBlockPos(),
+                        getOwner(), AutomationPermissionUtil.SOURCE_HEAT_EXCHANGE,
+                        WorldOperationKind.BLOCK_INTERACT, OperationMode.EXECUTE)) return;
+            } catch (RuntimeException denied) {
+                return;
+            }
+        }
         if (exchangers.size() == 1) {
             BlockState state = getBlockState();
             level.setBlock(
