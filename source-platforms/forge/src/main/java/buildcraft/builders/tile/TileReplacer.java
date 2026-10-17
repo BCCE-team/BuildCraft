@@ -70,6 +70,7 @@ public class TileReplacer extends TileBC_Neptune implements MenuProvider {
     );
 
     private int lastSkippedInputFingerprint;
+    private long nextRetryTick;
 
     public TileReplacer(BlockPos pos, BlockState state) {
         super(BCBuildersBlocks.REPLACER_TILE_BC8.get(), pos, state);
@@ -89,7 +90,7 @@ public class TileReplacer extends TileBC_Neptune implements MenuProvider {
         }
 
         int inputFingerprint = getInputFingerprint(snapshotStack, fromStack, toStack);
-        if (inputFingerprint == lastSkippedInputFingerprint) {
+        if (inputFingerprint == lastSkippedInputFingerprint || level.getGameTime() < nextRetryTick) {
             return;
         }
 
@@ -101,7 +102,8 @@ public class TileReplacer extends TileBC_Neptune implements MenuProvider {
 
         Snapshot snapshot = GlobalSavedDataSnapshots.getSnapshotForConstruction(level, header.key);
         if (!(snapshot instanceof Blueprint blueprint)) {
-            lastSkippedInputFingerprint = inputFingerprint;
+            // Library/server data may arrive after the Replacer. Retry without permanently blacklisting inputs.
+            nextRetryTick = level.getGameTime() + 40;
             return;
         }
 
@@ -145,7 +147,8 @@ public class TileReplacer extends TileBC_Neptune implements MenuProvider {
             lastSkippedInputFingerprint = inputFingerprint;
             BCLog.logger.warn("Invalid schematic in replacer at " + worldPosition + ": " + e.getMessage());
         } catch (RuntimeException e) {
-            lastSkippedInputFingerprint = inputFingerprint;
+            // Temporary IO/library errors must not permanently disable this input combination.
+            nextRetryTick = level.getGameTime() + 40;
             BCLog.logger.warn("Failed to replace blueprint blocks at " + worldPosition, e);
         }
     }
@@ -154,6 +157,7 @@ public class TileReplacer extends TileBC_Neptune implements MenuProvider {
     protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before, @Nonnull ItemStack after) {
         super.onSlotChange(handler, slot, before, after);
         lastSkippedInputFingerprint = 0;
+        nextRetryTick = 0;
     }
 
     private static boolean isUsedBlueprint(int slot, @Nonnull ItemStack stack) {
