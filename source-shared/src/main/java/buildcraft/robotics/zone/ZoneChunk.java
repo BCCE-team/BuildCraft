@@ -99,6 +99,7 @@ public class ZoneChunk {
     }
 
     public BlockPos getRandomBlockPos(Random rand) {
+        if (isEmpty()) return null;
         int x, z;
 
         if (fullSet) {
