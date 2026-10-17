@@ -1028,7 +1028,18 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
                 return false;
             } else {
                 level.getProfiler().push("kill");
-                toKill.forEach(Entity::kill);
+                for (Entity entity : toKill) {
+                    if (AutomationPermissionUtil.mayEntity(
+                        level, tile.getBuilderPos(), entity, tile.getOwner(), AutomationPermissionUtil.SOURCE_BUILDER,
+                        WorldOperationKind.ENTITY_ATTACK, OperationMode.EXECUTE
+                    )) {
+                        //? if >=1.21.11 {
+                        entity.kill((ServerLevel) level);
+                        //? } else {
+                        entity.kill();
+                        //? }
+                    }
+                }
                 level.getProfiler().pop();
             }
         }
