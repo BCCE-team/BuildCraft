@@ -119,12 +119,12 @@ public class WorldSavedDataVolumeBoxes extends SavedData {
         long now = serverLevel.getGameTime();
         int playerCount = serverLevel.players().size();
         boolean fullSync = lastSyncedState.isEmpty() || playerCount != lastPlayerCount
-            || lastFullSyncTick == Long.MIN_VALUE || now - lastFullSyncTick >= 100;
+            || lastFullSyncTick == Long.MIN_VALUE;
         if (fullSync) {
-            MessageManager.sendToDimension(new MessageVolumeBoxes(volumeBoxes), world.dimension());
+            MessageVolumeBoxes.sendSnapshotToDimension(volumeBoxes, world.dimension());
             lastFullSyncTick = now;
         } else if (!changed.isEmpty() || !removed.isEmpty()) {
-            MessageManager.sendToDimension(MessageVolumeBoxes.delta(changed, removed), world.dimension());
+            MessageVolumeBoxes.sendDeltaToDimension(changed, removed, world.dimension());
         }
 
         lastSyncedState.clear();

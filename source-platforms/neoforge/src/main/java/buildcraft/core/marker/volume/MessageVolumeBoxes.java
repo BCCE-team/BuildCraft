@@ -8,6 +8,9 @@ package buildcraft.core.marker.volume;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
+import buildcraft.lib.net.MessageManager;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.BiConsumer;
@@ -25,6 +28,8 @@ import buildcraft.lib.net.BCPacketContext;
 
 public class MessageVolumeBoxes {
     private static final int MAX_BOXES = 4096;
+    private static final int BATCH_BOXES = 128;
+    private static final int BATCH_BYTES = 512 * 1024;
     private static final int MAX_BOX_BYTES = 1024 * 1024;
 
     final boolean replaceAll;
@@ -80,12 +85,11 @@ public class MessageVolumeBoxes {
         this.replaceAll = replaceAll;
         this.removedIds = ImmutableList.copyOf(removedIds);
 
-        List<byte[]> encoded = new ArrayList<>(Math.min(volumeBoxes.size(), MAX_BOXES));
-        int count = 0;
+        if (volumeBoxes.size() > MAX_BOXES || removedIds.size() > MAX_BOXES) {
+            throw new IllegalArgumentException("Use batched synchronization for large Volume Box sets");
+        }
+        List<byte[]> encoded = new ArrayList<>(volumeBoxes.size());
         for (VolumeBox volumeBox : volumeBoxes) {
-            if (count++ >= MAX_BOXES) {
-                break;
-            }
             FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
             try {
                 volumeBox.toBytes(buffer);
@@ -101,6 +105,50 @@ public class MessageVolumeBoxes {
             }
         }
         this.buffers = ImmutableList.copyOf(encoded);
+    }
+
+    /** Send a complete index without losing boxes beyond the old 4096-entry protocol limit. */
+    public static void sendSnapshotToDimension(List<VolumeBox> boxes, ResourceKey<Level> dimension) {
+        sendBatched(boxes, List.of(), true, dimension);
+    }
+
+    public static void sendDeltaToDimension(List<VolumeBox> changed, List<UUID> removed,
+            ResourceKey<Level> dimension) {
+        sendBatched(changed, removed, false, dimension);
+    }
+
+    private static void sendBatched(List<VolumeBox> boxes, List<UUID> removed,
+            boolean snapshot, ResourceKey<Level> dimension) {
+        List<VolumeBox> batch = new ArrayList<>();
+        int used = 0;
+        boolean first = true;
+        for (VolumeBox box : boxes) {
+            FriendlyByteBuf tmp = new FriendlyByteBuf(Unpooled.buffer());
+            int size;
+            try {
+                box.toBytes(tmp);
+                size = tmp.readableBytes() + 5;
+            } finally {
+                tmp.release();
+            }
+            if (!batch.isEmpty() && (batch.size() >= BATCH_BOXES || used + size > BATCH_BYTES)) {
+                MessageManager.sendToDimension(new MessageVolumeBoxes(snapshot && first, batch, List.of()), dimension);
+                first = false;
+                batch.clear();
+                used = 0;
+            }
+            batch.add(box);
+            used += size;
+        }
+        if (!batch.isEmpty() || (snapshot && first)) {
+            MessageManager.sendToDimension(new MessageVolumeBoxes(snapshot && first, batch, List.of()), dimension);
+            first = false;
+        }
+        // Removal deltas are naturally small; splitting is still necessary for mass edits.
+        for (int offset = 0; offset < removed.size(); offset += BATCH_BOXES) {
+            MessageManager.sendToDimension(new MessageVolumeBoxes(false, List.of(),
+                removed.subList(offset, Math.min(offset + BATCH_BOXES, removed.size()))), dimension);
+        }
     }
 
     public static void toBytes(MessageVolumeBoxes msg, FriendlyByteBuf buf) {
