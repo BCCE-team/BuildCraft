@@ -5,6 +5,8 @@
 package buildcraft.silicon.gui;
 
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.List;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
@@ -72,8 +74,11 @@ public class GuiAssemblyTable extends GuiBC8<ContainerAssemblyTable> {
                     ).offset(mainGui.rootElement)
             );
         }
-        for (int i = 0; i < container.tile.recipesStates.size(); i++) {
-            EnumAssemblyRecipeState state = new ArrayList<>(container.tile.recipesStates.values()).get(i);
+        // Snapshot the entries once instead of copying the entire map for each slot.
+        List<Map.Entry<TileAssemblyTable.AssemblyInstruction, EnumAssemblyRecipeState>> entries
+            = new ArrayList<>(container.tile.recipesStates.entrySet());
+        for (int i = 0; i < Math.min(entries.size(), 12); i++) {
+            EnumAssemblyRecipeState state = entries.get(i).getValue();
             if (state == EnumAssemblyRecipeState.SAVED) {
                 ICON_SAVED.drawAt(getActiveGraphics(), getArea(i));
             }
@@ -95,9 +100,11 @@ public class GuiAssemblyTable extends GuiBC8<ContainerAssemblyTable> {
 	public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
         boolean flag = super.mouseClicked(mouseX, mouseY, mouseButton);
         if (mouseButton == 0) {
-            for (int i = 0; i < container.tile.recipesStates.size(); i++) {
-                TileAssemblyTable.AssemblyInstruction instruction = new ArrayList<>(container.tile.recipesStates.keySet()).get(i);
-                EnumAssemblyRecipeState state = new ArrayList<>(container.tile.recipesStates.values()).get(i);
+            List<Map.Entry<TileAssemblyTable.AssemblyInstruction, EnumAssemblyRecipeState>> entries
+                = new ArrayList<>(container.tile.recipesStates.entrySet());
+            for (int i = 0; i < Math.min(entries.size(), 12); i++) {
+                TileAssemblyTable.AssemblyInstruction instruction = entries.get(i).getKey();
+                EnumAssemblyRecipeState state = entries.get(i).getValue();
                 if (getArea(i).contains(mouseX, mouseY)) {
                     container.tile.sendRecipeStateToServer(
                             instruction,
