@@ -113,6 +113,15 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
     private int[] checkOrder;
     private int currentCheckIndex;
     private int unknownCheckResults = 0;
+    // Never traverse the complete blueprint on every server tick. Cursor scheduling spreads even
+    // enormous snapshots across bounded slices, while check() maintains exact remaining counts.
+    private static final int TASK_SCAN_BUDGET = 2048;
+    private int breakScanCursor;
+    private int placeScanCursor;
+    private int correctCheckResults;
+    private int pendingBreakResults;
+    private int pendingPlaceResults;
+
     public int leftToBreak = 0;
     public int leftToPlace = 0;
     private boolean renderWork = false;
@@ -377,6 +386,8 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
         checkResults = new byte[size];
         Arrays.fill(checkResults, CHECK_RESULT_UNKNOWN);
         unknownCheckResults = checkResults.length;
+        correctCheckResults = pendingBreakResults = pendingPlaceResults = 0;
+        breakScanCursor = placeScanCursor = 0;
         requiredCache = new byte[size];
         Arrays.fill(requiredCache, REQUIRED_UNKNOWN);
         breakOrder = buildingInfo.box.getBlocksInArea().stream()
@@ -424,6 +435,8 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
             Arrays.fill(requiredCache, REQUIRED_UNKNOWN);
             currentCheckIndex = 0;
             unknownCheckResults = checkResults.length;
+            correctCheckResults = pendingBreakResults = pendingPlaceResults = 0;
+            breakScanCursor = placeScanCursor = 0;
         }
         clearActiveTasks();
         resourcesChanged();
@@ -445,6 +458,8 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
         checkOrder = null;
         currentCheckIndex = 0;
         unknownCheckResults = 0;
+        correctCheckResults = pendingBreakResults = pendingPlaceResults = 0;
+        breakScanCursor = placeScanCursor = 0;
         leftToBreak = 0;
         leftToPlace = 0;
         renderWork = false;
@@ -536,11 +551,11 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
             Set<Integer> breakTasksIndexes = breakTasks.stream()
                 .map(breakTask -> posToIndex(breakTask.pos))
                 .collect(Collectors.toSet());
-            int[] blocks = Arrays.stream(breakOrder)
-                .filter(i -> checkResults[i] == CHECK_RESULT_TO_BREAK && !breakTasksIndexes.contains(i))
-                .toArray();
-            leftToBreak = blocks.length;
-            if (blocks.length != 0) {
+            int[] blocks = pendingSlice(breakOrder, breakScanCursor, CHECK_RESULT_TO_BREAK,
+                breakTasksIndexes);
+            breakScanCursor = advanceScanCursor(breakOrder, breakScanCursor);
+            leftToBreak = Math.max(0, pendingBreakResults - breakTasksIndexes.size());
+            if (pendingBreakResults != 0) {
                 isDone = false;
             }
             Arrays.stream(blocks)
@@ -567,12 +582,12 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
             Set<Integer> placeTasksIndexes = placeTasks.stream()
                 .map(placeTask -> posToIndex(placeTask.pos))
                 .collect(Collectors.toSet());
-            int[] blocks = Arrays.stream(placeOrder)
-                .filter(i -> checkResults[i] == CHECK_RESULT_TO_PLACE && !placeTasksIndexes.contains(i))
-                .toArray();
-            leftToPlace = blocks.length;
+            int[] blocks = pendingSlice(placeOrder, placeScanCursor, CHECK_RESULT_TO_PLACE,
+                placeTasksIndexes);
+            placeScanCursor = advanceScanCursor(placeOrder, placeScanCursor);
+            leftToPlace = Math.max(0, pendingPlaceResults - placeTasksIndexes.size());
             if (!tile.canExcavate() || (leftToBreak == 0 && breakTasks.isEmpty())) {
-                if (blocks.length != 0) {
+                if (pendingPlaceResults != 0) {
                     isDone = false;
                 }
                 Arrays.stream(blocks)
@@ -728,13 +743,27 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
 //        if(isDone)
         //	BCLog.d(getBuildingInfo().box+" : done");
   //      return isDone;
-        boolean isDone0 = true;
-        for(int i0 = 0; (i0 < checkResults.length)&&isDone0 ; i0++) {
-        	isDone0 = (checkResults[i0] == CHECK_RESULT_CORRECT);
-        }
-        return isDone0;
+        // A full scan here used to make every tick O(total blueprint volume).
+        return unknownCheckResults == 0 && correctCheckResults == checkResults.length;
     }
 
+
+    private static int advanceScanCursor(int[] order, int cursor) {
+        return order.length == 0 ? 0 : (int) (((long) cursor + TASK_SCAN_BUDGET) % order.length);
+    }
+
+    private int[] pendingSlice(int[] order, int cursor, byte wanted, Set<Integer> activeTasks) {
+        if (order.length == 0) return new int[0];
+        int[] pending = new int[Math.min(TASK_SCAN_BUDGET, order.length)];
+        int count = 0;
+        for (int step = 0; step < pending.length; step++) {
+            int idx = order[(int) (((long) cursor + step) % order.length)];
+            if (checkResults[idx] == wanted && !activeTasks.contains(idx)) {
+                pending[count++] = idx;
+            }
+        }
+        return Arrays.copyOf(pending, count);
+    }
 
     private long extractProgressPower(long target, long currentProgress, long maxPower,
                                       java.util.function.LongConsumer reservePower) {
@@ -799,6 +828,15 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
             } else {
                 checkResults[i] = CHECK_RESULT_TO_BREAK;
             }
+        }
+        byte current = checkResults[i];
+        if (prev != current) {
+            if (prev == CHECK_RESULT_CORRECT) correctCheckResults--;
+            if (prev == CHECK_RESULT_TO_BREAK) pendingBreakResults--;
+            if (prev == CHECK_RESULT_TO_PLACE) pendingPlaceResults--;
+            if (current == CHECK_RESULT_CORRECT) correctCheckResults++;
+            if (current == CHECK_RESULT_TO_BREAK) pendingBreakResults++;
+            if (current == CHECK_RESULT_TO_PLACE) pendingPlaceResults++;
         }
         if (prev == CHECK_RESULT_UNKNOWN && checkResults[i] != CHECK_RESULT_UNKNOWN && unknownCheckResults > 0) {
             unknownCheckResults--;
