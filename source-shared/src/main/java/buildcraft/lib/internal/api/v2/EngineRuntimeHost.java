@@ -8,6 +8,7 @@ import buildcraft.api.v2.energy.EnergyService;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.api.v2.energy.MjConnectionContext;
 import buildcraft.api.v2.energy.MjPort;
+import buildcraft.api.v2.energy.MjStorage;
 import buildcraft.api.v2.energy.MjPortDescriptor;
 import buildcraft.api.v2.energy.MjPortRole;
 import buildcraft.api.v2.energy.MjTransferResult;
@@ -327,6 +328,19 @@ final class EngineRuntimeHost extends MachineRuntimeHost implements EngineHost {
         return MjTransferResult.of(requested, MjAmount.ofMicro(accepted));
     }
 
+    private long refundOutput(long amount) {
+        if (amount <= 0) return 0;
+        MjAmount due = MjAmount.ofMicro(amount);
+        if (outputBuffer instanceof MjStorage storage) {
+            long restored = storage.refundExtracted(due).microMj();
+            if (restored == amount) return restored;
+            // Custom storage implementations may not support transactional refund.
+            amount -= restored;
+        }
+        return due.microMj() - amount
+            + outputBuffer.insert(MjAmount.ofMicro(amount), OperationMode.EXECUTE).transferred().microMj();
+    }
+
     @Override public MjTransferResult emit(Direction facing, MjAmount requested, OperationMode mode) {
         serverTick();
         Objects.requireNonNull(facing, "facing");
@@ -373,8 +387,7 @@ final class EngineRuntimeHost extends MachineRuntimeHost implements EngineHost {
         try {
             transferred = receiver.insert(MjAmount.ofMicro(extracted), OperationMode.EXECUTE).transferred().microMj();
         } catch (RuntimeException ex) {
-            long refund = outputBuffer.insert(MjAmount.ofMicro(extracted), OperationMode.EXECUTE)
-                .transferred().microMj();
+            long refund = refundOutput(extracted);
             if (refund != extracted) {
                 setWorkStatus(new WorkStatus(WorkState.ERROR, 0, "MJ refund failed"));
                 throw new IllegalStateException("Failed to restore MJ after receiver exception", ex);
@@ -383,8 +396,7 @@ final class EngineRuntimeHost extends MachineRuntimeHost implements EngineHost {
         }
         if (transferred > extracted) throw new IllegalStateException("Receiver over-accepted MJ");
         if (transferred < extracted) {
-            long refund = outputBuffer.insert(MjAmount.ofMicro(extracted - transferred), OperationMode.EXECUTE)
-                .transferred().microMj();
+            long refund = refundOutput(extracted - transferred);
             if (refund != extracted - transferred) {
                 setWorkStatus(new WorkStatus(WorkState.ERROR, 0, "MJ refund failed"));
                 throw new IllegalStateException("MJ receiver changed capacity during transfer");

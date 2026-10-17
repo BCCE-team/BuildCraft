@@ -19,6 +19,13 @@ public interface MjStorage extends MjPort {
         throw new UnsupportedOperationException("MJ storage does not support persistence");
     }
 
+    /**
+     * Restore MJ extracted from this storage but rejected by a transfer destination.
+     * This is a rollback, not an ordinary insertion and must not consume the insert rate budget.
+     * Custom storage implementations should override when they support atomic rollback.
+     */
+    default MjAmount refundExtracted(MjAmount extracted) { return MjAmount.ZERO; }
+
     /** Start the given logical tick and apply overcharge decay; returns the micro-MJ actually lost. */
     default MjAmount tick(long gameTime) { return MjAmount.ZERO; }
 }

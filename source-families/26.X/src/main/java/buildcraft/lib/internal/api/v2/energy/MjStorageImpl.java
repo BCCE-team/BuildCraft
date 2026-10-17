@@ -79,6 +79,16 @@ public final class MjStorageImpl implements MjStorage, MjDemandPort, MjPassivePo
     }
 
     @Override
+    public synchronized MjAmount refundExtracted(MjAmount amount) {
+        Objects.requireNonNull(amount, "amount");
+        long refund = Math.min(amount.microMj(), Math.min(extractedThisTick,
+            policy.maximumStored().microMj() - stored));
+        stored += refund;
+        extractedThisTick -= refund;
+        return MjAmount.ofMicro(refund);
+    }
+
+    @Override
     public synchronized MjStorageState snapshot() { return MjStorageState.fromMicroMj(stored); }
 
     @Override
