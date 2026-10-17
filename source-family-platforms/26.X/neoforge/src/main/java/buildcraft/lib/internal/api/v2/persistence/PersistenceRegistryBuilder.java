@@ -33,10 +33,20 @@ public final class PersistenceRegistryBuilder<T, P> {
         if (aliases.containsKey(id)) {
             throw new IllegalStateException("Persisted type id conflicts with an existing alias: " + id);
         }
+        // Validate the complete alias set before mutating the registry. A failed
+        // registration must never leave a half-registered persisted type behind.
+        Set<Identifier> pendingAliases = new LinkedHashSet<>();
+        for (Identifier alias : Objects.requireNonNull(type.aliases(), "type.aliases()")) {
+            Objects.requireNonNull(alias, "persisted alias");
+            if (alias.equals(id) || types.containsKey(alias) || aliases.containsKey(alias)
+                || !pendingAliases.add(alias)) {
+                throw new IllegalStateException("Conflicting persisted alias " + alias + " for type " + id);
+            }
+        }
         types.put(id, type);
         typeOwners.put(id, owner);
-        for (Identifier alias : type.aliases()) {
-            alias(alias, id, context);
+        for (Identifier alias : pendingAliases) {
+            aliases.put(alias, new AliasRecord(id, owner));
         }
         return this;
     }
