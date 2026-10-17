@@ -80,7 +80,7 @@ public class AverageLong {
             tickValue = 0;
             for (int i = 0; i < precise; i++) {
                 long val;
-                val = ints[i * 2];
+                val = Integer.toUnsignedLong(ints[i * 2]);
                 val |= (long) (ints[i * 2 + 1]) << 32;
                 averageRaw += val;
                 data[i] = val;
