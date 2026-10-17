@@ -116,6 +116,10 @@ public final class MjApi2PlatformBridge {
         public MjAmount requested() {
             if (!fe.canReceive()) return MjAmount.ZERO;
             long room = Math.max(0L, (long) fe.getMaxEnergyStored() - Math.max(0L, fe.getEnergyStored()));
+            if (room == 0 && fe.getMaxEnergyStored() == 0) {
+                // Generator endpoints need not expose a buffer; ask their actual receive contract.
+                room = Math.max(0, fe.receiveEnergy(1_000_000, true));
+            }
             long ratio = BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjPerFe();
             return MjAmount.ofMicro(room > Long.MAX_VALUE / ratio ? Long.MAX_VALUE : room * ratio);
         }
