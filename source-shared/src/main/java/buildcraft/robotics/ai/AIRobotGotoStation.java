@@ -107,6 +107,17 @@ public class AIRobotGotoStation extends AIRobot {
         return Math.max(32.0D, Math.sqrt(dx * dx + dy * dy + dz * dz) + 16.0D);
     }
 
+    @Override
+    public void end() {
+        DockingStation station = getStation();
+        if (!reservedStation && station != null && station != robot.getLinkedStation()
+            && station != robot.getDockingStation() && station.robotIdTaking() == robot.getRobotId()) {
+            // A persisted station can still hold our robot ID before preempt() restores the runtime reference.
+            reservedStation = station.take(robot);
+        }
+        releaseReservation(station);
+    }
+
     private void releaseReservation(DockingStation station) {
         if (reservedStation && station != null && station != robot.getLinkedStation() && robot.getDockingStation() != station) {
             station.release(robot);
