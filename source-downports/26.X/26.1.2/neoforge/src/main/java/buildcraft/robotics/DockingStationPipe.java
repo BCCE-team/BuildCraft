@@ -258,7 +258,9 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         Direction inputSide = getItemInputPipeSide();
         Level level = level();
         if (getPipe() == null || inputSide == null || level == null) return null;
-        BlockEntity neighbour = level.getBlockEntity(new net.minecraft.core.BlockPos(x(), y(), z()).relative(inputSide));
+        BlockPos neighbourPos = new BlockPos(x(), y(), z()).relative(inputSide);
+        if (!level.isLoaded(neighbourPos)) return null;
+        BlockEntity neighbour = level.getBlockEntity(neighbourPos);
         return getNeighbourItemContainer(neighbour);
     }
 
@@ -295,6 +297,7 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         Direction inputSide = getFluidInputPipeSide();
         if (getPipe() == null || inputSide == null || level() == null) return null;
         BlockPos neighbourPos = new BlockPos(x(), y(), z()).relative(inputSide);
+        if (!level().isLoaded(neighbourPos)) return null;
         return PlatformStorage.fluids(level(), neighbourPos, inputSide.getOpposite());
     }
 
@@ -396,7 +399,9 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         if (level != null) {
             BlockPos pos = new BlockPos(x(), y(), z());
             for (Direction dir : Direction.values()) {
-                BlockEntity neighbour = level.getBlockEntity(pos.relative(dir));
+                BlockPos neighbourPos = pos.relative(dir);
+                if (!level.isLoaded(neighbourPos)) continue;
+                BlockEntity neighbour = level.getBlockEntity(neighbourPos);
                 if (neighbour instanceof RequestProvider provider) {
                     return provider;
                 }
