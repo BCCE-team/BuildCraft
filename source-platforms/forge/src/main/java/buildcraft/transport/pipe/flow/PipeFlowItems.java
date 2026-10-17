@@ -219,6 +219,8 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
             return 0;
         }
 
+        // Do not resolve an adjacent BlockEntity if the neighbour chunk is absent.
+        if (!pipe.getHolder().getPipeWorld().isLoaded(pipe.getHolder().getPipePos().relative(from))) return 0;
         BlockEntity tile = pipe.getConnectedTile(from);
         IItemTransactor trans = ItemTransactorHelper.getTransactor(tile, from.getOpposite());
 

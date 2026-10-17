@@ -262,6 +262,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
 
         Level level = pipe.getHolder().getPipeWorld();
         BlockPos targetPos = pipe.getHolder().getPipePos().relative(from);
+        if (!level.isLoaded(targetPos)) return 0;
         BlockEntity tile = level.getBlockEntity(targetPos);
         IItemTransactor trans = ItemTransactorHelper.getTransactor(level, targetPos, from.getOpposite(), tile);
 
