@@ -48,10 +48,14 @@ public class MessageDebugResponse {
     public static final BiConsumer<MessageDebugResponse, Supplier<BCPacketContext>> HANDLER = (message, ctx) -> {
 		if (ctx.get().side() != BCNetworkSide.CLIENT)
     		return;
-        ClientDebuggables.SERVER_LEFT.clear();
-        ClientDebuggables.SERVER_LEFT.addAll(message.left);
-        ClientDebuggables.SERVER_RIGHT.clear();
-        ClientDebuggables.SERVER_RIGHT.addAll(message.right);
-        ctx.get().setPacketHandled(true);
+        // The transport may dispatch on a network thread. Debug overlays are client-owned state.
+        BCPacketContext context = ctx.get();
+        context.enqueueWork(() -> {
+            ClientDebuggables.SERVER_LEFT.clear();
+            ClientDebuggables.SERVER_LEFT.addAll(message.left);
+            ClientDebuggables.SERVER_RIGHT.clear();
+            ClientDebuggables.SERVER_RIGHT.addAll(message.right);
+        });
+        context.setPacketHandled(true);
     };
 }
