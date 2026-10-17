@@ -311,7 +311,8 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
 
         ItemStack stack = invSnapshot.getStackInSlot(0);
         if (stack.isEmpty()) {
-            needsRestartAfterLoad = false;
+            // The blueprint inventory can arrive after the block's saved state.
+            // Keep the pending work until we can actually restore the builder.
             snapshot = null;
             snapshotType = null;
             templateBuildingInfo = null;
@@ -329,12 +330,15 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
         updateBasePoses();
         reloadSnapshotFromItem(stack, false, true);
         SnapshotBuilder<?> restoredBuilder = getBuilder();
-        if (restoredBuilder != null) {
-            if (pendingBuilderState != null) {
-                restoredBuilder.deserializeNBT(pendingBuilderState);
-            } else {
-                restoredBuilder.forceRecheckCurrentTask();
-            }
+        if (restoredBuilder == null) {
+            // Do not lose reserved-resource state if the schematic isn't available yet.
+            needsRestartAfterLoad = true;
+            return;
+        }
+        if (pendingBuilderState != null) {
+            restoredBuilder.deserializeNBT(pendingBuilderState);
+        } else {
+            restoredBuilder.forceRecheckCurrentTask();
         }
         pendingBuilderState = null;
         sendNetworkUpdate(NET_SNAPSHOT_TYPE);
