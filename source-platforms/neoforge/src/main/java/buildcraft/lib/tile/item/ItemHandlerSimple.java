@@ -176,6 +176,7 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
     @Override
     @Nonnull
     public ItemStack extractItem(int slot, int amount, boolean simulate) {
+        if (amount <= 0) return StackUtil.EMPTY;
         if (badSlotIndex(slot)) return StackUtil.EMPTY;
         // You can ALWAYS extract. if you couldn't then you could never take out items from anywhere
         ItemStack current = stacks.get(slot);
