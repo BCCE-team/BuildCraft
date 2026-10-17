@@ -118,13 +118,9 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
 
     private void updateRecipes() {
         boolean changed = false;
-        // RecipeManager is replaced during /reload; client/server caches must discard obsolete instructions.
-        // On 1.21.11+ the recipe-map identity is the reload generation.
-        //? if >=1.21.11 {
-        Object manager = ((net.minecraft.server.level.ServerLevel) level).recipeAccess().recipeMap();
-        //?} else {
+        // The 1.21.1 downport uses the RecipeManager identity to detect datapack reloads.
+        // Stonecutter branches belong in family sources, never in frozen downports.
         Object manager = level.getRecipeManager();
-        //?}
         Object recipeMap = manager;
         if (lastVanillaRecipeManager != manager || lastVanillaRecipeMap != recipeMap) {
             lastVanillaRecipeManager = manager;
