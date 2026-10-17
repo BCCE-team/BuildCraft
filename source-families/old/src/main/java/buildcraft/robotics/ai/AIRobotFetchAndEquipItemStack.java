@@ -8,6 +8,12 @@ import buildcraft.robotics.IStationFilter;
 import buildcraft.lib.inventory.filter.AggregateFilter;
 import buildcraft.robotics.statements.ActionRobotFilterTool;
 import net.minecraft.world.Container;
+import net.minecraft.world.WorldlyContainer;
+import net.minecraft.core.Direction;
+import buildcraft.api.v2.OperationMode;
+import buildcraft.robotics.internal.api2.RobotAutomationSupport;
+import buildcraft.robotics.statements.ActionRobotFilter;
+import buildcraft.robotics.statements.ActionStationProvideItems;
 import net.minecraft.world.item.ItemStack;
 
 /** Fetches a matching stack from a station-side inventory and equips it as the robot held item. */
@@ -51,7 +57,7 @@ public class AIRobotFetchAndEquipItemStack extends AIRobot {
             return;
         }
         if (delay++ > FETCH_AND_EQUIP_DELAY_TICKS) {
-            ItemStack stack = takeMatching(robot.getDockingStation(), filter, maxStackSize, true);
+            ItemStack stack = takeMatching(robot, robot.getDockingStation(), filter, maxStackSize, true);
             if (!stack.isEmpty()) {
                 robot.setItemInUse(stack);
                 terminate();
@@ -71,20 +77,34 @@ public class AIRobotFetchAndEquipItemStack extends AIRobot {
     }
 
     private boolean canTakeSingle(DockingStation station, IStackFilter filter) {
-        return !takeMatching(station, filter, maxStackSize, false).isEmpty();
+        return !takeMatching(robot, station, filter, maxStackSize, false).isEmpty();
     }
 
-    private static ItemStack takeMatching(DockingStation station, IStackFilter filter, int maxCount, boolean doTake) {
-        if (station == null || filter == null) return ItemStack.EMPTY;
+    private static ItemStack takeMatching(EntityRobotBase robot, DockingStation station,
+                                          IStackFilter filter, int maxCount, boolean doTake) {
+        if (station == null || filter == null || !RobotAutomationSupport.permitsInventory(robot, station, true,
+                doTake ? OperationMode.EXECUTE : OperationMode.SIMULATE)) return ItemStack.EMPTY;
         Container inventory = station.getItemInput();
         if (inventory == null) return ItemStack.EMPTY;
 
         int remaining = Math.max(1, maxCount);
         ItemStack result = ItemStack.EMPTY;
 
+        Direction side = station.getItemInputSide();
         for (int slot = 0; slot < inventory.getContainerSize() && remaining > 0; slot++) {
             ItemStack stack = inventory.getItem(slot);
             if (stack.isEmpty() || !filter.matches(stack)) continue;
+            // Reuse the station's provide gate contract, not only the recipe filter.
+            if (!ActionStationProvideItems.canExtractItem(station, stack)
+                || !ActionRobotFilter.canInteractWithItem(station, filter, ActionStationProvideItems.class)) continue;
+            if (inventory instanceof WorldlyContainer sided) {
+                if (side == null || !sided.canTakeItemThroughFace(slot, stack, side)) continue;
+                boolean allowedSlot = false;
+                for (int allowed : sided.getSlotsForFace(side)) {
+                    if (allowed == slot) { allowedSlot = true; break; }
+                }
+                if (!allowedSlot) continue;
+            }
             // Check compatibility before extraction; skipping a mismatched
             // source after removeItem() would destroy the returned item.
             if (!result.isEmpty() && !ItemStack.isSameItemSameTags(result, stack)) continue;
