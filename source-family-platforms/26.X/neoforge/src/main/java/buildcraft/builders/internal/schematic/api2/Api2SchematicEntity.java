@@ -39,10 +39,10 @@ public final class Api2SchematicEntity implements ISchematicEntity {
     @Override public void init(SchematicEntityContext context) { }
     @Override public Vec3 getPos() { return adapter.relativePosition(element); }
     @Override public List<ItemStack> computeRequiredItems(Level level) {
-        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, AutomationActor.unknown(), OperationMode.SIMULATE)).items();
+        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, BlockPos.containing(getPos()), AutomationActor.unknown(), OperationMode.SIMULATE)).items();
     }
     @Override public List<FluidStack> computeRequiredFluids(Level level) {
-        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, AutomationActor.unknown(), OperationMode.SIMULATE)).fluids().stream()
+        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, BlockPos.containing(getPos()), AutomationActor.unknown(), OperationMode.SIMULATE)).fluids().stream()
             .map(FuelApiBridge::stackOf).filter(stack -> !stack.isEmpty()).collect(Collectors.toList());
     }
     @Override public ISchematicEntity getRotated(Rotation rotation) { return new Api2SchematicEntity(adapter.rotate(element, rotation), adapter); }
@@ -55,7 +55,7 @@ public final class Api2SchematicEntity implements ISchematicEntity {
     @Override public void deserializeNBT(CompoundTag nbt) { throw new UnsupportedOperationException("API2 snapshot wrappers are immutable"); }
 
     public boolean place(Level level, BlockPos basePos) {
-        SchematicResult result = adapter.place(element, new SchematicPlacementContext(level, basePos, basePos, AutomationActor.unknown(), OperationMode.EXECUTE));
+        SchematicResult result = adapter.place(element, new SchematicPlacementContext(level, basePos, basePos.offset(BlockPos.containing(getPos())), AutomationActor.unknown(), OperationMode.EXECUTE));
         return result.status() == SchematicResult.Status.SUCCESS;
     }
 
