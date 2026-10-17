@@ -66,9 +66,9 @@ public class VolumeBox {
             oldMax = NbtUtils.readBlockPos(nbt.getCompound("oldMax"));
         }
         NBTUtilBC.readCompoundList(nbt.get("addons")).forEach(addonsEntryTag -> {
-            Class<? extends Addon> addonClass =
-                AddonsRegistry.INSTANCE.getClassByName(new ResourceLocation(addonsEntryTag.getString("addonClass")));
             try {
+                Class<? extends Addon> addonClass =
+                    AddonsRegistry.INSTANCE.getClassByName(new ResourceLocation(addonsEntryTag.getString("addonClass")));
                 Addon addon = addonClass.getDeclaredConstructor().newInstance();
                 addon.volumeBox = this;
                 addon.readFromNBT(addonsEntryTag.getCompound("addonData"));
@@ -79,11 +79,17 @@ public class VolumeBox {
                 buildcraft.lib.internal.debug.BCLog.logger.warn("Failed to clone volume box stored snapshot", e);
             }
         });
-        NBTUtilBC.readCompoundList(nbt.get("locks")).map(lockTag -> {
-            Lock lock = new Lock();
-            lock.readFromNBT(lockTag);
-            return lock;
-        }).forEach(locks::add);
+        // One corrupt enum or target must not discard the other saved locks
+        // or abort loading the entire collection of Volume Boxes.
+        NBTUtilBC.readCompoundList(nbt.get("locks")).forEach(lockTag -> {
+            try {
+                Lock lock = new Lock();
+                lock.readFromNBT(lockTag);
+                if (lock.cause != null) locks.add(lock);
+            } catch (RuntimeException invalidLock) {
+                buildcraft.lib.internal.debug.BCLog.logger.warn("Skipped corrupt Volume Box lock", invalidLock);
+            }
+        });
     }
 
     public VolumeBox(Level world, FriendlyByteBuf buf) throws IOException {
