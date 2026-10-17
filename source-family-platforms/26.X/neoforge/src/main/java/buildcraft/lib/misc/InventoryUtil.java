@@ -77,8 +77,10 @@ public class InventoryUtil {
         Collections.addAll(toTry, Direction.values());
         Collections.shuffle(toTry);
         for (Direction face : toTry) {
-            BlockEntity tile = world.getBlockEntity(pos.offset(face.getUnitVec3i()));
-            IItemTransactor transactor = ItemTransactorHelper.getTransactor(tile, face.getOpposite());
+            BlockPos target = pos.relative(face);
+            if (!world.hasChunkAt(target)) continue;
+            BlockEntity tile = world.getBlockEntity(target);
+            IItemTransactor transactor = ItemTransactorHelper.getTransactor(world, target, face.getOpposite(), tile);
             stack = transactor.insert(stack, false, false);
             if (stack.isEmpty()) {
                 return StackUtil.EMPTY;
@@ -101,8 +103,9 @@ public class InventoryUtil {
         Collections.shuffle(toTry);
         for (Direction face : toTry) {
             if (face == ignore) continue;
-            BlockEntity tile = world.getBlockEntity(pos.offset(face.getUnitVec3i()));
-            IInjectable injectable = ItemTransactorHelper.getInjectable(tile, face.getOpposite());
+            BlockPos target = pos.relative(face);
+            if (!world.hasChunkAt(target)) continue;
+            IInjectable injectable = ItemTransactorHelper.getInjectable(world, target, face.getOpposite());
             stack = injectable.injectItem(stack, true, face.getOpposite(), null, 0);
             if (stack.isEmpty()) {
                 return StackUtil.EMPTY;
