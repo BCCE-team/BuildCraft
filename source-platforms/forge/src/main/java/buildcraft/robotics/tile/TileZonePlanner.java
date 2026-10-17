@@ -5,6 +5,12 @@ package buildcraft.robotics.tile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.UUID;
+import buildcraft.robotics.zone.ZoneTransferCodec;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 
 import javax.annotation.Nonnull;
 
@@ -50,7 +56,22 @@ import net.minecraftforge.network.NetworkHooks;
 
 public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, MenuProvider {
     public static final int MAX_MAP_NAME_LENGTH = 64;
+    private final Map<UUID, LayerSend> outboundLayers = new LinkedHashMap<>();
+    private final ZoneTransferCodec.Assembler inboundLayers = new ZoneTransferCodec.Assembler();
+    private int zoneRevision;
+    private int clientRevision = -1;
+
+    private static final class LayerSend {
+        int layer;
+        int offset;
+        byte[] content;
+        final int revision;
+        LayerSend(int revision) { this.revision = revision; }
+    }
+
     protected static final IdAllocator IDS = TileBC_Neptune.IDS.makeChild("zone_planner");
+    private static final int NET_ZONE_REQUEST = IDS.allocId("zone_layers_request");
+    private static final int NET_ZONE_PART = IDS.allocId("zone_layers_part");
 
     public static final int LAYER_COUNT = 16;
     public static final int RESOLUTION = 2048;
@@ -103,6 +124,8 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         if (level == null || level.isClientSide) {
             return;
         }
+        flushZoneSync();
+
 
         ItemStack input = inv.getStackInSlot(SLOT_INPUT_MAP);
         ItemStack output = inv.getStackInSlot(SLOT_OUTPUT_MAP);
@@ -162,6 +185,7 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         progress = 0;
         deltaProgress.setValue(0);
         setChanged();
+        zoneRevision++;
         sendNetworkUpdate(NET_RENDER_DATA);
     }
 
@@ -212,6 +236,7 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
             layers[index] = new ZonePlan(requested);
         }
         setChanged();
+        zoneRevision++;
         sendNetworkUpdate(NET_RENDER_DATA);
     }
 
@@ -231,25 +256,92 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         if (side == BCNetworkSide.SERVER && id == NET_RENDER_DATA) {
             buffer.writeUtf(mapName, MAX_MAP_NAME_LENGTH);
             buffer.writeByte(currentSelectedArea);
-            for (ZonePlan layer : layers) {
-                (layer == null ? new ZonePlan() : layer).writeToByteBuf(buffer);
-            }
+            buffer.writeInt(zoneRevision);
         }
     }
 
     @Override
     public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
+        if (side == BCNetworkSide.SERVER && id == NET_ZONE_REQUEST) {
+            int requestedRevision = buffer.readInt();
+            ServerPlayer player = ctx == null ? null : ctx.getSender();
+            if (player != null && requestedRevision == zoneRevision
+                    && player.distanceToSqr(worldPosition.getX() + 0.5,
+                        worldPosition.getY() + 0.5, worldPosition.getZ() + 0.5) <= 64 * 64) {
+                outboundLayers.put(player.getUUID(), new LayerSend(zoneRevision));
+            }
+        }
+        if (side == BCNetworkSide.CLIENT && id == NET_ZONE_PART) {
+            int revision = buffer.readInt();
+            int layerIndex = buffer.readUnsignedByte();
+            int total = buffer.readInt();
+            int offset = buffer.readInt();
+            byte[] bytes = buffer.readByteArray(ZoneTransferCodec.PART_BYTES);
+            if (revision == clientRevision) {
+                ZonePlan completed = inboundLayers.accept(revision, layerIndex, total, offset, bytes);
+                if (completed != null && layerIndex < layers.length) layers[layerIndex] = completed;
+            }
+        }
         if (side == BCNetworkSide.CLIENT && id == NET_RENDER_DATA) {
             mapName = buffer.readUtf(MAX_MAP_NAME_LENGTH);
             currentSelectedArea = buffer.readUnsignedByte();
-            for (int i = 0; i < layers.length; i++) {
-                layers[i].readFromByteBuf(buffer);
+            int newRevision = buffer.readInt();
+            if (clientRevision != newRevision) {
+                clientRevision = newRevision;
+                inboundLayers.reset();
+                if (level != null) {
+                    createAndSendMessage(NET_ZONE_REQUEST, out -> out.writeInt(newRevision));
+                }
             }
         }
     }
 
-    @Override
+    /** At most four 8 KiB payloads per server tick for all watching requesters. */
+    private void flushZoneSync() {
+        if (!(level instanceof ServerLevel server) || outboundLayers.isEmpty()) return;
+        int remaining = 4;
+        var iterator = outboundLayers.entrySet().iterator();
+        while (iterator.hasNext() && remaining > 0) {
+            var entry = iterator.next();
+            ServerPlayer player = server.getServer().getPlayerList().getPlayer(entry.getKey());
+            LayerSend send = entry.getValue();
+            if (player == null || player.distanceToSqr(worldPosition.getX() + 0.5,
+                    worldPosition.getY() + 0.5, worldPosition.getZ() + 0.5) > 64 * 64
+                    || send.revision != zoneRevision) {
+                iterator.remove();
+                continue;
+            }
+            if (send.layer >= layers.length) { iterator.remove(); continue; }
+            try {
+                if (send.content == null) send.content = ZoneTransferCodec.encode(layers[send.layer]);
+            } catch (RuntimeException invalidLayer) {
+                // Never emit a partial or oversized layer: the client keeps its previous valid plan.
+                iterator.remove();
+                continue;
+            }
+            byte[] part = ZoneTransferCodec.part(send.content, send.offset);
+            int layerIndex = send.layer;
+            int total = send.content.length;
+            int offset = send.offset;
+            createAndSendMessage(NET_ZONE_PART, player, out -> {
+                out.writeInt(send.revision);
+                out.writeByte(layerIndex);
+                out.writeInt(total);
+                out.writeInt(offset);
+                out.writeByteArray(part);
+            });
+            remaining--;
+            send.offset += part.length;
+            if (send.offset == total) {
+                send.layer++;
+                send.offset = 0;
+                send.content = null;
+                if (send.layer >= layers.length) iterator.remove();
+            }
+        }
+    }
+
     public void load(CompoundTag nbt) {
         super.load(nbt);
         progress = nbt.getInt("progress");

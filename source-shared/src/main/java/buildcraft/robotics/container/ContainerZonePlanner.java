@@ -15,6 +15,7 @@ import buildcraft.lib.tile.item.ItemHandlerSimple;
 import buildcraft.robotics.BCRoboticsGuis;
 import buildcraft.robotics.tile.TileZonePlanner;
 import buildcraft.robotics.zone.ZonePlan;
+import buildcraft.robotics.zone.ZoneTransferCodec;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerLevelAccess;
@@ -27,6 +28,12 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
     private static final int ID_SAVE_AREA = IDS.allocId("SAVE_AREA");
     private static final int ID_AREA_LOADED = IDS.allocId("AREA_LOADED");
     private static final int ID_SET_NAME = IDS.allocId("SET_NAME");
+    private static final int ID_SAVE_AREA_PART = IDS.allocId("SAVE_AREA_PART");
+    private static final int ID_AREA_LOADED_PART = IDS.allocId("AREA_LOADED_PART");
+    private final ZoneTransferCodec.Assembler incomingSave = new ZoneTransferCodec.Assembler();
+    private final ZoneTransferCodec.Assembler incomingLoad = new ZoneTransferCodec.Assembler();
+    private int transferSerial;
+
 
     private final ItemHandlerSimple fallbackInv;
 
@@ -84,10 +91,24 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
         if (tile != null) {
             tile.layers[index] = new ZonePlan(area);
         }
-        sendMessage(ID_SAVE_AREA, buffer -> {
-            buffer.writeByte(index);
-            area.writeToByteBuf(buffer);
-        });
+        sendAreaParts(ID_SAVE_AREA_PART, index, area);
+    }
+
+    /** Existing map layers can exceed the vanilla packet limit. Transfer them in <=8KiB parts. */
+    private void sendAreaParts(int messageId, int index, ZonePlan zone) {
+        byte[] payload = ZoneTransferCodec.encode(zone);
+        int serial = ++transferSerial;
+        for (int offset = 0; offset < payload.length; offset += ZoneTransferCodec.PART_BYTES) {
+            byte[] part = ZoneTransferCodec.part(payload, offset);
+            final int partOffset = offset;
+            sendMessage(messageId, buffer -> {
+                buffer.writeInt(serial);
+                buffer.writeByte(index);
+                buffer.writeInt(payload.length);
+                buffer.writeInt(partOffset);
+                buffer.writeByteArray(part);
+            });
+        }
     }
 
     public void sendNameToServer(String name) {
@@ -112,10 +133,7 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
                     "zone planner layer");
                 if (tile != null) {
                     ZonePlan area = tile.selectArea(index);
-                    sendMessage(ID_AREA_LOADED, out -> {
-                        out.writeByte(index);
-                        area.writeToByteBuf(out);
-                    });
+                    sendAreaParts(ID_AREA_LOADED_PART, index, area);
                 }
             } else if (id == ID_SAVE_AREA) {
                 int index = NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0, TileZonePlanner.LAYER_COUNT - 1,
@@ -125,13 +143,38 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
                     tile.selectArea(index);
                     tile.setArea(index, area);
                 }
+            } else if (id == ID_SAVE_AREA_PART) {
+                int serial = buffer.readInt();
+                int index = NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0,
+                    TileZonePlanner.LAYER_COUNT - 1, "zone planner uploaded layer");
+                int total = buffer.readInt();
+                int offset = buffer.readInt();
+                ZonePlan complete = incomingSave.accept(serial, index, total, offset,
+                    buffer.readByteArray(ZoneTransferCodec.PART_BYTES));
+                if (complete != null && tile != null) {
+                    tile.selectArea(index);
+                    tile.setArea(index, complete);
+                }
             } else if (id == ID_SET_NAME) {
                 if (tile != null) {
                     tile.setMapName(buffer.readUtf(TileZonePlanner.MAX_MAP_NAME_LENGTH));
                 }
             }
         } else if (side == BCNetworkSide.CLIENT) {
-            if (id == ID_AREA_LOADED) {
+            if (id == ID_AREA_LOADED_PART) {
+                int serial = buffer.readInt();
+                int index = NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0,
+                    TileZonePlanner.LAYER_COUNT - 1, "zone planner downloaded layer");
+                int total = buffer.readInt();
+                int offset = buffer.readInt();
+                ZonePlan complete = incomingLoad.accept(serial, index, total, offset,
+                    buffer.readByteArray(ZoneTransferCodec.PART_BYTES));
+                if (complete != null) {
+                    currentLayer = index;
+                    currentAreaSelection = complete;
+                    if (tile != null) tile.layers[index] = new ZonePlan(complete);
+                }
+            } else if (id == ID_AREA_LOADED) {
                 currentLayer = NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0, TileZonePlanner.LAYER_COUNT - 1,
                     "zone planner layer");
                 currentAreaSelection = new ZonePlan().readFromByteBuf(buffer);
