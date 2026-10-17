@@ -527,6 +527,14 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
         tile.getWorldBC().getProfiler().pop();
         tile.getWorldBC().getProfiler().pop();
 
+        // Disabling excavation must also invalidate already queued break tasks.
+        // They may have been restored from NBT or reserved while excavation was enabled.
+        if (!tile.canExcavate() && !breakTasks.isEmpty()) {
+            for (BreakTask breakTask : breakTasks) {
+                cancelBreakTask(breakTask);
+            }
+            breakTasks.clear();
+        }
         tile.getWorldBC().getProfiler().push("add tasks");
         tile.getWorldBC().getProfiler().push("break");
         if (tile.canExcavate()) {
