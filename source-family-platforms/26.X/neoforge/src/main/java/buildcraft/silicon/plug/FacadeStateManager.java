@@ -349,6 +349,9 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
                     BCLog.logger.info("[silicon.facade] Allowed block " + BuiltInRegistries.BLOCK.getKey(block));
                 }
             }
+            // A PASS from the block-level filter requires an independent decision
+            // for every state; an earlier accepted state must not authorize the next.
+            final boolean wholeBlockAllowed = result.getResult() == InteractionResult.SUCCESS;
             Map<BlockState, ItemStack> usedStates = new HashMap<>();
             Map<ItemStackKey, Map<Property<?>, Comparable<?>>> varyingProperties = new HashMap<>();
             int skippedStateCount = 0;
@@ -359,16 +362,16 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
                 // if (!checkedStates.add(state)) {
                 // continue;
                 // }
-                if (result.getResult() != InteractionResult.SUCCESS) {
-                    result = isValidFacadeState(state);
-                    if (result.getResult() == InteractionResult.SUCCESS) {
+                if (!wholeBlockAllowed) {
+                    InteractionResultHolder<String> stateResult = isValidFacadeState(state);
+                    if (stateResult.getResult() == InteractionResult.SUCCESS) {
                         if (DEBUG) {
                             BCLog.logger.info("[silicon.facade] Allowed state " + state);
                         }
                     } else {
                         if (DEBUG) {
                             BCLog.logger
-                                .info("[silicon.facade] Disallowed state " + state + " because " + result.getResult());
+                                .info("[silicon.facade] Disallowed state " + state + " because " + stateResult.getResult());
                         }
                         continue;
                     }
