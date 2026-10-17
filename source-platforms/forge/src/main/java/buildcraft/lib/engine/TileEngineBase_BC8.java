@@ -212,6 +212,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         manuallySelectedDirection = nbt.getBoolean("manualDirection");
         isRedstonePowered = nbt.getBoolean("isRedstonePowered");
         heat = nbt.getDouble("heat");
+        if (!Double.isFinite(heat)) heat = MIN_HEAT;
         power = nbt.getLong("power");
         progress = nbt.getFloat("progress");
         lastProgress = progress;
