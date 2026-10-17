@@ -253,9 +253,15 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
     public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
         if (id == NET_GUI_DATA || id == NET_SELECTED_OPTION) {
-            selectedOption = buffer.readVarInt();
-            selectedPage = buffer.readVarInt();
-            refreshOptions();
+            int incomingOption = buffer.readVarInt();
+            int incomingPage = buffer.readVarInt();
+            // This packet is a server-owned GUI snapshot. Players select a board
+            // through the validated menu action, not by writing arbitrary tile state.
+            if (side == BCNetworkSide.CLIENT) {
+                selectedOption = incomingOption;
+                selectedPage = incomingPage;
+                refreshOptions();
+            }
         }
     }
 
