@@ -53,23 +53,24 @@ public class ItemWaterGel extends Item {
             return new InteractionResultHolder<>(InteractionResult.FAIL, stack);
         }
         
+        // Check the actual server-side placement result before consuming the gel.
+        if (world.isClientSide) {
+            return new InteractionResultHolder<>(InteractionResult.SUCCESS, stack);
+        }
+        if (!world.mayInteract(player, ray.getBlockPos())
+            || !player.mayUseItemAt(ray.getBlockPos(), ray.getDirection(), stack)) {
+            return new InteractionResultHolder<>(InteractionResult.FAIL, stack);
+        }
+        if (!world.setBlockAndUpdate(ray.getBlockPos(),
+            BCFactoryBlocks.WATER_GEL.get().defaultBlockState().setValue(BlockWaterGel.PROP_STAGE, GelStage.SPREAD_0))) {
+            return new InteractionResultHolder<>(InteractionResult.FAIL, stack);
+        }
         if (!player.isCreative()) {
-            stack.setCount(stack.getCount() - 1);
+            stack.shrink(1);
         }
+        world.playSound(player, player.getX(), player.getY(), player.getZ(), SoundEvents.SNOWBALL_THROW,
+            SoundSource.NEUTRAL, 0.5F, 0.4F / (world.getRandom().nextFloat() * 0.4F + 0.8F));
 
-        // Same as ItemSnowball
-        world.playSound(player, player.getX(), player.getY(), player.getZ(), SoundEvents.SNOWBALL_THROW, SoundSource.NEUTRAL, 0.5F, 0.4F / (world.getRandom().nextFloat() * 0.4F + 0.8F));
-
-        if (!world.isClientSide) {
-            world.setBlockAndUpdate(ray.getBlockPos(), BCFactoryBlocks.WATER_GEL.get().defaultBlockState().setValue(BlockWaterGel.PROP_STAGE, GelStage.SPREAD_0));
-
-
-            // EntitySnowball entitysnowball = new EntitySnowball(world, player);
-            // entitysnowball.setHeadingFromThrower(player, player.rotationPitch, player.rotationYaw, 0.0F, 1.5F, 1.0F);
-            // world.spawnEntityInWorld(entitysnowball);
-        }
-
-        // player.addStat(StatList.getObjectUseStats(this));
         return new InteractionResultHolder<>(InteractionResult.SUCCESS, stack);
 	}
 
