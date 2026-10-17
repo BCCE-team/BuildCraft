@@ -150,6 +150,7 @@ class NbtSquishMapWriter {
             if (debug) log("\nByte Array dictionary size = " + byteArrays.size());
             writeVarInt(to, byteArrays.size());
             for (ByteArrayList ba : byteArrays) {
+                requireUnsignedShortSize(ba.size(), "byte array");
                 to.writeShort(ba.size());
                 for (byte b : ba) {
                     to.writeByte(b);
@@ -161,6 +162,7 @@ class NbtSquishMapWriter {
             if (debug) log("\nInt Array dictionary size = " + intArrays.size());
             writeVarInt(to, intArrays.size());
             for (IntArrayList ia : intArrays) {
+                requireUnsignedShortSize(ia.size(), "int array");
                 to.writeShort(ia.size());
                 for (int i : ia) {
                     to.writeInt(i);
@@ -176,6 +178,7 @@ class NbtSquishMapWriter {
                 String s = strings.get(i);
                 if (debug) log("\n   String " + i + " = " + s);
                 byte[] stringBytes = s.getBytes(StandardCharsets.UTF_8);
+                requireUnsignedShortSize(stringBytes.length, "string");
                 to.writeShort(stringBytes.length);
                 to.write(stringBytes);
             }
@@ -196,6 +199,13 @@ class NbtSquishMapWriter {
         }
 //        profiler.endSection();
 //        profiler.endSection();
+    }
+
+    /** The legacy wire format stores array and string sizes in unsigned 16-bit fields. */
+    private static void requireUnsignedShortSize(int size, String kind) throws IOException {
+        if (size < 0 || size > 0xffff) {
+            throw new IOException("Cannot encode " + kind + " of length " + size + " in legacy NBT format");
+        }
     }
 
     /** Similar to {@link FrienflyByteBuf#writeVarInt(int)} */
