@@ -21,6 +21,7 @@ from volume_box_lifecycle_fixture import execute
 from volume_box_render_fixture import execute as check_quad_vertices
 from planner_install_fixture import execute as check_installer
 from planner_menu_fixture import execute as check_menu
+from snapshot_sizing_fixture import execute as check_snapshot_sizing
 
 TARGETS=('1.19.2-forge','1.20.1-forge','1.21.1-neoforge','1.21.11-neoforge',
          '26.1.2-neoforge','26.2-neoforge','26.3-neoforge')
@@ -41,6 +42,10 @@ CLASSES={
 RECIPE_ID={'volume_box':'buildcraftcore:volume_box','filler_planner':'buildcraftbuilders:filler_planner'}
 
 class VolumeFillerGameplayTests(unittest.TestCase):
+    def test_snapshot_dimensions_respect_size_and_overflow_limits(self):
+        """Eight sizing bounds run against the actual Snapshot.getDataSize()."""
+        self.assertEqual(check_snapshot_sizing(), '8 Snapshot size bounds PASS')
+
     @classmethod
     def setUpClass(cls):
         cls.tmp=tempfile.TemporaryDirectory(prefix='volume-filler-effective-')
@@ -81,7 +86,11 @@ class VolumeFillerGameplayTests(unittest.TestCase):
                 event=self.java(target,'core/marker/volume/BCCoreVolumeBoxEvents.java')
                 self.assertIn('WorldSavedDataVolumeBoxes.get(server)',event)
                 self.assertIn('boxes.tick()',event)
-                self.assertIn('MessageVolumeBoxes(boxes.volumeBoxes)',event)
+                # Initial/full snapshots are throttled: a player-count change or
+                # periodic recovery triggers the dimension-scoped broadcast.
+                self.assertIn('MessageVolumeBoxes.sendSnapshotToDimension(boxes.volumeBoxes, server.dimension())', event)
+                self.assertIn('playerCount > 0 && !boxes.volumeBoxes.isEmpty()', event)
+                self.assertIn('previous == null || previous != playerCount || server.getGameTime() % 1200 == 0', event)
                 self.assertIn('ClientVolumeBoxes.INSTANCE.volumeBoxes.clear()',event)
 
     def test_block_vertex_lifecycle_java_stubs_old_and_new(self):

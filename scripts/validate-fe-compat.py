@@ -30,6 +30,35 @@ def require(path: str, *needles: str) -> None:
             fail(f"{path}: missing {needle!r}")
 
 
+def require_fe_engine_headroom(path: str) -> None:
+    """Check that FE is consumed only for MJ that fits in the engine buffer."""
+    data = text(path)
+    start = data.find("protected void burn()")
+    end = data.find("\n    }", start) if start >= 0 else -1
+    if start < 0 or end < 0:
+        fail(f"{path}: FE Engine burn() method missing")
+        return
+    burn = data[start:end]
+    # Check execution order, not the obsolete post-generation overflow guard.
+    # This allows filling the MJ buffer exactly without wasting accepted FE.
+    ordered = (
+        "if (ratio <= 0) return;",
+        "long freeMj = Math.max(0L, getMaxPower() - power);",
+        "int consumedFe = (int) Math.min(Math.min((long) currentFe, getFeConsumptionRate()), freeMj / ratio);",
+        "if (consumedFe <= 0) return;",
+        "long generatedMj = consumedFe * ratio;",
+        "addPower(generatedMj);",
+        "currentFe -= consumedFe;",
+    )
+    offset = 0
+    for token in ordered:
+        index = burn.find(token, offset)
+        if index < 0:
+            fail(f"{path}: FE Engine headroom guard missing or out of order: {token!r}")
+            return
+        offset = index + len(token)
+
+
 def require_file(path: str) -> None:
     if not resolve_source_path(path).is_file():
         fail(f"missing file: {path}")
@@ -181,7 +210,6 @@ for loader in ("forge", "neoforge"):
         "MjAmount.MICRO_MJ_PER_MJ * 4",
         "getMaxChainLength() { return 4; }",
         "protected void burn()",
-        "if (power + generatedMj >= getMaxPower()) return;",
         "case BLUE -> 0.04",
         "case GREEN -> 0.05",
         "case YELLOW -> 0.06",
@@ -225,6 +253,7 @@ for path in (
         "side -> side != currentDirection ? feStorage : null",
         "return side != currentDirection ? Optional.of(api2FeInputPort) : Optional.empty();",
     )
+    require_fe_engine_headroom(path)
 for path in (
     "source-platforms/forge/src/main/java/buildcraft/energy/tile/TileDynamoMJ.java",
     "source-platforms/neoforge/src/main/java/buildcraft/energy/tile/TileDynamoMJ.java",

@@ -195,9 +195,18 @@ class RobotBoardConformanceTest(unittest.TestCase):
    table=ROOT/f'source-{"platforms/forge" if family=="old" else "families/1.21.X"}/src/main/java/buildcraft/silicon/tile/TileProgrammingTable_Neptune.java'
    s=table.read_text()
    for expected in ('selectedPage * OPTION_COUNT + index','selectedPage * OPTION_COUNT + selectedOption',
-                    'buffer.writeVarInt(selectedPage)', 'selectedPage = buffer.readVarInt()', 'selectedPage = 0;',
+                    'buffer.writeVarInt(selectedPage)', 'selectedPage = 0;',
                     'public int pageCount()'):
     self.assertIn(expected,s)
+   # GUI packets carry server-owned snapshots: decode both fields on either side,
+   # but never allow a client packet to overwrite the server's board selection.
+   payload=s.split('public void readPayload(',1)[1].split('public void getDebugInfo(',1)[0]
+   self.assertRegex(payload, r'int incomingOption = buffer\.readVarInt\(\);\s*'
+                             r'int incomingPage = buffer\.readVarInt\(\);')
+   self.assertRegex(payload, r'if \(side == BCNetworkSide\.CLIENT\) \{\s*'
+                             r'selectedOption = incomingOption;\s*'
+                             r'selectedPage = incomingPage;\s*refreshOptions\(\);')
+   self.assertNotRegex(payload, r'selected(?:Option|Page)\s*=\s*buffer\.readVarInt\(\)')
   for file in ROOT.rglob('GuiProgrammingTable.java'):
    if 'build' not in file.parts:
     self.assertIn('container.sendSelectPage(',file.read_text(),str(file))

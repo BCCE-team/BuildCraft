@@ -158,7 +158,17 @@ def main() -> int:
         # Gate copier/persistent NBT paths must remain present after 1.21.11 optional-NBT rewrites.
         plug = src(new, "silicon/plug/PluggableGate.java")
         require('nbt.put("data", logic.writeToNbt());' in plug, "Placed gate no longer writes logic NBT")
-        require("logic.readConfigData(stored);" in plug, "Gate Copier paste path missing")
+        # SI-19: the copier validates the configuration on a temporary GateLogic before
+        # applying a defensive NBT copy. Checking the pre-fix un-copied call here
+        # falsely rejects the working, server-authoritative paste path.
+        paste = method(plug, "private boolean interactWithCopier(")
+        require("candidate.readConfigData(stored.copy());" in paste,
+                "Gate Copier compatibility preflight missing")
+        require("if (!compatible)" in paste and "logic.readConfigData(stored.copy());" in paste
+                and paste.index("if (!compatible)") < paste.index("logic.readConfigData(stored.copy());"),
+                "Gate Copier paste must validate before mutating the live gate")
+        require("scheduleNetworkUpdate();" in paste and "logic.sendResolveData();" in paste,
+                "Gate Copier paste is not persisted and synchronised")
         for key in ('"connections"', '"trigger["', '"action["'):
             require(key in logic, f"Gate NBT key path missing: {key}")
 

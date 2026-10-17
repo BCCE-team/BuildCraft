@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Compile and exercise the real combustion-engine burn() body with isolated Java doubles.
+"""Execute combustion-engine burn accounting against isolated Java doubles.
 
-This is a deterministic mechanics regression, not a Minecraft runtime/Gradle test.
+The real burn() method is copied without edits into a Java test harness. The
+Tank double deliberately returns defensive FluidStack copies, matching the
+production P2 storage contract. This is not a Minecraft runtime test.
 """
+from __future__ import annotations
+
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 ACTUAL = ROOT / 'source-family-platforms/26.X/neoforge/src/main/java/buildcraft/energy/tile/TileEngineIron_BC8.java'
-text = ACTUAL.read_text()
-start = text.index('    protected void burn() {')
-end = text.index('    public void updateHeatLevel()', start)
-body = text[start:end]
-assert 'burnTime = ticksPerMb - used;' in body
 
 HARNESS = r'''
 import java.util.*;
@@ -27,12 +27,24 @@ public class BurnHarness {
         boolean isEmpty() { return count <= 0; }
         int getAmount() { return count; }
         void setAmount(int amount) { count=amount; }
+        void shrink(int amount) { count = Math.max(0, count-amount); }
+        FluidStack copy() { return new FluidStack(name, count); }
     }
     static final class Tank {
         FluidStack fuel = FluidStack.EMPTY;
-        FluidStack getFluid() { return fuel; }
+        // The real Tank#getFluid returns a defensive view after the P2 fix.
+        FluidStack getFluid() { return fuel.copy(); }
         int getFluidAmount() { return fuel.getAmount(); }
-        void setFluid(FluidStack next) { fuel=next; }
+        void setFluid(FluidStack next) { fuel=next.copy(); }
+    }
+    static final class EnergyFluidResourceHandler {
+        static FluidStack drainInternal(Tank tank, int amount, BurnHarness engine) {
+            int drained = Math.min(Math.max(amount, 0), tank.getFluidAmount());
+            if (drained == 0) return FluidStack.EMPTY;
+            FluidStack extracted = new FluidStack(tank.fuel.name, drained);
+            tank.fuel.shrink(drained);
+            return extracted;
+        }
     }
     record Amount(double milliBuckets) {}
     record Residue(Amount amount) {}
@@ -114,13 +126,31 @@ BURN_BODY
     }
 }
 '''
-# The extracted text starts at the method declaration. Keep it verbatim in the harness.
-java = HARNESS.replace('    protected void burn() {\nBURN_BODY\n    }', body.rstrip())
-with tempfile.TemporaryDirectory(prefix='bcce-p1-engine-') as temporary:
-    path = Path(temporary)
-    (path/'BurnHarness.java').write_text(java)
-    result = subprocess.run(['javac','-d',str(path),str(path/'BurnHarness.java')],text=True,capture_output=True,timeout=25)
-    if result.returncode: raise AssertionError('Engine burn() did not compile in fixture:\n'+result.stderr)
-    executed = subprocess.run(['java','-cp',str(path),'BurnHarness'],text=True,capture_output=True,timeout=25)
-    if executed.returncode: raise AssertionError('Engine fuel accounting failed:\n'+executed.stdout+executed.stderr)
-    print(executed.stdout.strip())
+
+def execute() -> str:
+    if not shutil.which('javac') or not shutil.which('java'):
+        raise RuntimeError('Java toolchain required for burn accounting fixture')
+    text = ACTUAL.read_text(encoding='utf-8')
+    start = text.index('    protected void burn() {')
+    end = text.index('    public void updateHeatLevel()', start)
+    body = text[start:end]
+    if 'burnTime = ticksPerMb - used;' not in body:
+        raise AssertionError('No remainder of prepaid fractional fuel was recorded')
+    # Insert the exact production Java body, preserving its braces.
+    java = HARNESS.replace('    protected void burn() {\nBURN_BODY\n    }', body.rstrip())
+    with tempfile.TemporaryDirectory(prefix='bcce-engine-burn-') as temporary:
+        path = Path(temporary)
+        (path / 'BurnHarness.java').write_text(java, encoding='utf-8')
+        compiled = subprocess.run(
+            ['javac', '-d', str(path), str(path / 'BurnHarness.java')],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+        if compiled.returncode:
+            raise AssertionError('Production burn() failed in fixture:\n' + compiled.stderr)
+        executed = subprocess.run(
+            ['java', '-cp', str(path), 'BurnHarness'],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+        if executed.returncode:
+            raise AssertionError('Engine fuel accounting regression:\n' + executed.stdout + executed.stderr)
+        return executed.stdout.strip()

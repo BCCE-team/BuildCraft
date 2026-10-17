@@ -28,6 +28,30 @@ def forbid(rel, *tokens):
         if token in text:
             errors.append(f"{rel}: forbidden world/transport regression token {token!r}")
 
+
+def require_retryable_open_end(rel):
+    """Open-ended pipes eject forwards, but retain the payload if entity spawning fails."""
+    source = read(rel)
+    start = source.find("private void onItemReachEnd(TravellingItem item)")
+    open_end = source.find("if (!pipe.isConnected(item.side)) {", start) if start >= 0 else -1
+    transfer = source.find("int beforeTransferCount = excess.getCount();", open_end) if open_end >= 0 else -1
+    if open_end < 0 or transfer < 0:
+        errors.append(f"{rel}: missing open-end ejection branch before connected transfer")
+    else:
+        branch = source[open_end:transfer]
+        for guard in (
+            "if (!dropItem(excess, item.side, item.side, item.speed)) holdAtCentre(item, 20);",
+            "return;",
+        ):
+            if guard not in branch:
+                errors.append(f"{rel}: open-end ejection must preserve rejected item spawns: missing {guard!r}")
+    require(
+        rel,
+        "private boolean dropItem(ItemStack stack, Direction side, Direction motion, double speed)",
+        "if (ent.isRemoved()) return false;",
+        "if (!world.addFreshEntity(ent)) return false;",
+    )
+
 for family in ("old", "1.21.X"):
     stale_bulk = ROOT / f"source-families/{family}/src/main/java/buildcraft/lib/inventory/AbstractInvItemTransactor.java"
     if stale_bulk.exists():
@@ -119,7 +143,7 @@ for platform in ("forge", "neoforge"):
     require(
         f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
         "if (!pipe.isConnected(item.side)) {",
-        "dropItem(excess, item.side, item.side, item.speed);",
+        "if (!dropItem(excess, item.side, item.side, item.speed)) holdAtCentre(item, 20);",
         "boolean hasConnectedOutput = hasConnectedOutputOtherThan(reachCenter.from);",
         "boolean retryConnectedPipe = hasConnectedOutput",
         "private boolean hasConnectedOutputOtherThan(Direction from)",
@@ -150,11 +174,24 @@ for platform in ("forge", "neoforge"):
 require(
     "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
     "if (!pipe.isConnected(item.side)) {",
-    "dropItem(excess, item.side, item.side, item.speed);",
+    "if (!dropItem(excess, item.side, item.side, item.speed)) holdAtCentre(item, 20);",
     "boolean hasConnectedOutput = hasConnectedOutputOtherThan(reachCenter.from);",
     "boolean retryConnectedPipe = hasConnectedOutput",
     "private boolean hasConnectedOutputOtherThan(Direction from)",
 )
+
+# The open-end path must not reverse to the pipe centre when the face is open.
+# A cancelled entity spawn is different: retain the travelling payload and retry it.
+# Validate every source variant used by the seven maintained targets.
+for rel in (
+    "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+    "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+    "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+    "source-downports/26.X/26.1.2/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+    "source-downports/26.X/26.2/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+):
+    require_retryable_open_end(rel)
 
 # Natural oil uses an internal worldgen-only fluid whose flow is hard-bounded to five
 # block transitions from any natural source. This prevents long downhill terrain from

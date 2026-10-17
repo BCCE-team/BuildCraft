@@ -60,16 +60,45 @@ for rel, reverse_from, reverse_to in (
     require(rel, reverse_from, reverse_to)
     forbid(rel, '"cullface"')
 
-# Volume boxes are dimension-synchronized saved data, not chunk-owned marker cache entries. Keep the data cached,
-# but hide the entire laser box unless every chunk intersecting it is actually resident on the client.
-for family in ("old", "1.21.X"):
-    rel = f"source-families/{family}/src/main/java/buildcraft/core/client/render/RenderVolumeBoxes.java"
+# Saved Volume Boxes are dimension-wide; an unloaded distant chunk must not hide the
+# entire outline (CORE-22). Draw only the original edge segments in resident client chunks.
+# Addon previews still need a nearby resident corner to avoid ghost render outside loaded terrain.
+for rel in (
+    "source-families/old/src/main/java/buildcraft/core/client/render/RenderVolumeBoxes.java",
+    "source-families/1.21.X/src/main/java/buildcraft/core/client/render/RenderVolumeBoxes.java",
+    "source-families/26.X/src/main/java/buildcraft/core/client/render/RenderVolumeBoxes.java",
+    "source-downports/26.X/26.1.2/family/src/main/java/buildcraft/core/client/render/RenderVolumeBoxes.java",
+):
+    source = text(rel)
     require(
         rel,
-        "isBoxFullyLoaded(volumeBox)",
-        "level.getChunkSource().getChunkNow(chunkX, chunkZ) == null",
-        "int minChunkX",
-        "int maxChunkZ",
+        "LaserBoxRenderer.renderVisibleLaserBoxDynamic(volumeBox.box",
+        "if (!isBoxFullyLoaded(volumeBox)) return;",
+        "level.getChunkSource().getChunkNow(x, z) != null",
+        "Math.abs((long) x - px) <= 16",
+        "Math.abs((long) z - pz) <= 16",
+    )
+    # The laser outline must not be gated by addon-preview visibility.
+    outline_start = source.find("ClientVolumeBoxes.INSTANCE.volumeBoxes.forEach(")
+    edge_draw = source.find("LaserBoxRenderer.renderVisibleLaserBoxDynamic(", outline_start)
+    if outline_start < 0 or edge_draw < 0:
+        errors.append(f"{rel}: missing visible volume outline")
+    elif "isBoxFullyLoaded(volumeBox)" in source[outline_start:edge_draw]:
+        errors.append(f"{rel}: distant unloaded chunks must not hide the entire volume outline")
+
+# The edge renderer must test actual client residency and clip lines at chunk boundaries,
+# without inventing new corners or scanning every chunk in a huge volume.
+for family in ("old", "1.21.X", "26.X"):
+    require(
+        f"source-families/{family}/src/main/java/buildcraft/lib/client/render/laser/LaserBoxRenderer.java",
+        "public static void renderVisibleLaserBoxDynamic(",
+        "Math.abs((long) cx - viewerX) <= 16",
+        "Math.abs((long) stationary - observerStationary) > 16",
+        "level.getChunkSource().getChunkNow(cx, cz) == null",
+        "double a = Math.max(start, chunk * 16.0);",
+        "double b = Math.min(end, (chunk + 1.0) * 16.0);",
+        "visible.add(new LaserData_BC8(",
+        "if (!visible.isEmpty()) LaserRenderer_BC8.renderLaserBoxDynamic(",
     )
 
 # Marker/map-location rendering must distinguish an actually resident client chunk from cached server-side knowledge.
@@ -260,7 +289,7 @@ if errors:
     sys.exit(1)
 
 print("Render/Jade regression guards OK")
-print(" - saved volume boxes render only while all intersecting client chunks are resident")
+print(" - volume-box outlines clip to resident client chunks; addon previews require a nearby loaded corner")
 print(" - marker/map lasers use actual client chunk residency instead of hasChunkAt")
 print(" - engine redraw invalidates baked model data and immediately rebuilds facing-dependent geometry")
 print(" - Jade 1.21.11 multi-mod entrypoints are deduplicated and server/client providers remain separated")

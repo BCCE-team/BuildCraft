@@ -11,8 +11,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_machine_runtime import SOURCES, STUBS
+from combustion_burn_fixture import execute as check_paid_combustion_burn
 
 ENGINE_SOURCES = [
+    'buildcraft/api/v2/energy/MjStorage.java',
+    'buildcraft/api/v2/energy/MjStoragePolicy.java',
+    'buildcraft/api/v2/energy/MjStorageState.java',
     'buildcraft/api/v2/energy/MjPortDescriptor.java',
     'buildcraft/api/v2/energy/MjConnectionContext.java',
     'buildcraft/api/v2/energy/MjPortRole.java',
@@ -235,6 +239,10 @@ public class EngineRuntimeFixture {
 }'''
 
 class EngineRuntimeTests(unittest.TestCase):
+    def test_actual_combustion_burn_preserves_paid_fuel_credits(self):
+        """Five fuel-accounting cases using the real 26.X burn() method."""
+        self.assertEqual(check_paid_combustion_burn(), '5 combustion fuel invariants PASS')
+
     def test_compiled_host_and_independent_addon_engine(self):
         if not shutil.which('javac') or not shutil.which('java'):
             self.skipTest('Java tools unavailable')

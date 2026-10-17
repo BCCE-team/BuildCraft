@@ -147,7 +147,16 @@ class GuideBookFeatures(unittest.TestCase):
         self.assertIn("if (event.getPlayer() == null)", event)
         self.assertIn("event.getRelevantPlayers().forEach", event)
         self.assertIn("MessageUtil.doDelayedServer(1", event)
-        self.assertIn("MessageGuideRecipeDisplays.create(player)", event)
+        # A full reload must resend every recipe display using the packet-batched path.
+        # create(player) is limited to a small, single-packet index and fails on large packs.
+        self.assertIn("MessageGuideRecipeDisplays.sendAll(player)", event)
+        self.assertIn("MessageGuideRecipeDisplays.sendAll(playerMP)", event)
+        self.assertNotIn("MessageGuideRecipeDisplays.create(", event)
+        message = self.java("1.21.11-neoforge", "buildcraft/lib/net/MessageGuideRecipeDisplays.java")
+        self.assertIn("public static void sendAll(ServerPlayer player)", message)
+        self.assertIn("current.size() >= MAX_ENTRIES_PER_PACKET", message)
+        self.assertIn("bytes + estimated > MAX_PACKET_BYTES", message)
+        self.assertIn("MessageManager.sendTo(new MessageGuideRecipeDisplays(batches.get(i), i, batches.size()), player);", message)
 
         # The 1.21.1 downport keeps its native RecipeManager-backed guide path and must not acquire
         # the 1.21.11-only display-sync protocol just to implement the common UI hardening.

@@ -116,11 +116,14 @@ def validate_tick_cadence() -> None:
     value = require("1.20.1-forge", rel, "WorldSavedDataWireSystems.get(event.level()).tick();", "PipeItemMessageQueue.serverTick();")
     if "event.phase" in value:
         fail("1.20.1-forge: transport ticks must not filter START/END phases")
-    for target in NEWER:
+    for target in TARGETS:
         require(target, rel,
                 "onWorldTick(BCEvents.LevelTick event)", "onServerTick(BCEvents.ServerTick event)",
-                "PlatformEvents.levelTick(BCEvents.Phase.START", "PlatformEvents.levelTick(BCEvents.Phase.END",
+                "PlatformEvents.levelTick(BCEvents.Phase.END",
                 "PlatformEvents.serverTick(BCEvents.Phase.START", "PlatformEvents.serverTick(BCEvents.Phase.END")
+        # Wires must tick once per world tick, not at both START and END.
+        # The 1.19.2 reference and every maintained port register only END.
+        forbid(target, rel, "PlatformEvents.levelTick(BCEvents.Phase.START")
 
 
 def validate_java_invariants() -> None:
