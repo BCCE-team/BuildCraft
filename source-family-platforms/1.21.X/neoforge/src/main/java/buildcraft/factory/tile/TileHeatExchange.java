@@ -373,6 +373,7 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
     }
 
     public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
+        super.readPayload(id, buffer, side, ctx);
         if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 readPayload(NET_ID_CHANGE_SECTION, buffer, side, ctx);
@@ -397,6 +398,7 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
     }
 
     public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
+        super.writePayload(id, buffer, side);
 //    	BCLog.logger.debug("TileHeatExchange:send message at "+worldPosition+" "+checkNeighbours);
         if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
