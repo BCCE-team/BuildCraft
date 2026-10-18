@@ -293,7 +293,7 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
         queuePowerRefund(placeTask.reservedPower);
     }
 
-    private PlacementRollback capturePlacementRollback(BlockPos pos) {
+    protected final PlacementRollback capturePlacementRollback(BlockPos pos) {
         if (!(tile.getWorldBC() instanceof ServerLevel level)) {
             return null;
         }
@@ -303,7 +303,7 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
         );
     }
 
-    private boolean rollbackPlacement(PlacementRollback rollback, BlockPos pos) {
+    protected final boolean rollbackPlacement(PlacementRollback rollback, BlockPos pos) {
         if (rollback == null) {
             // SnapshotBuilder work is server-side; retain the legacy refund behaviour for non-server test worlds.
             return true;
@@ -312,7 +312,7 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
         return tile.getWorldBC().getBlockState(pos).equals(rollback.previousState);
     }
 
-    private static final class PlacementRollback {
+    protected static final class PlacementRollback {
         private final BlockSnapshot snapshot;
         private final BlockState previousState;
 

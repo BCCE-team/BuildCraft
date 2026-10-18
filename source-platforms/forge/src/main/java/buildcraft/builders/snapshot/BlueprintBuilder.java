@@ -470,16 +470,26 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
                 return RobotBuildResult.FAILED;
             }
             Player actor = getAutomationPlayer(robot, blockPos);
-            schematicBlock.build(tile.getWorldBC(), blockPos, actor);
-            // Commit material consumption from the robot only after the requested schematic state actually exists.
-            // A custom schematic handler may mutate the world before returning false, or return true without producing
-            // the requested state; the world postcondition is the transaction boundary.
-            boolean committed = isBlockCorrect(blockPos);
-            if (committed) {
-                consumeRobotRequirements(robot, task.requirements());
-                if (check(blockPos)) {
-                    afterChecks();
+            // Robot placement must be as transactional as the normal Builder. Some addon
+            // schematic handlers partially change blocks or block entities, then fail.
+            PlacementRollback rollback = capturePlacementRollback(blockPos);
+            boolean committed = false;
+            try {
+                schematicBlock.build(tile.getWorldBC(), blockPos, actor);
+                committed = isBlockCorrect(blockPos);
+            } catch (RuntimeException failure) {
+                BCLog.logger.warn("Robot schematic placement failed at {}", blockPos, failure);
+            } finally {
+                if (!committed && !rollbackPlacement(rollback, blockPos)) {
+                    BCLog.logger.error("Failed to restore original block after robot placement at {}", blockPos);
                 }
+            }
+            if (committed) {
+                // Requirements are paid only after the world postcondition succeeded.
+                consumeRobotRequirements(robot, task.requirements());
+            }
+            if (check(blockPos)) {
+                afterChecks();
             }
             return committed ? RobotBuildResult.COMMITTED : RobotBuildResult.FAILED;
         } finally {
