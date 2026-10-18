@@ -82,8 +82,28 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
         EnumPipePart.VALUES
     );
     public SortedMap<AssemblyInstruction, EnumAssemblyRecipeState> recipesStates = new TreeMap<>();
-    public final ItemProvider display = new ItemProvider((i) -> {
-        return i < recipesStates.size() ? new ArrayList<>(recipesStates.keySet()).get(i).output : ItemStack.EMPTY;}, 3 * 4);
+    /** Client-side only; the server continues validating recipe changes by instruction identity. */
+    private int displayPage;
+    private static final int DISPLAY_PAGE_SIZE = 12;
+
+    public int getDisplayPage() {
+        displayPage = Math.max(0, Math.min(displayPage, getDisplayPageCount() - 1));
+        return displayPage;
+    }
+
+    public int getDisplayPageCount() {
+        return Math.max(1, (recipesStates.size() + DISPLAY_PAGE_SIZE - 1) / DISPLAY_PAGE_SIZE);
+    }
+
+    public void setDisplayPage(int page) {
+        displayPage = Math.max(0, Math.min(page, getDisplayPageCount() - 1));
+    }
+
+    public final ItemProvider display = new ItemProvider((index) -> {
+        int offset = getDisplayPage() * DISPLAY_PAGE_SIZE + index;
+        return index >= 0 && index < DISPLAY_PAGE_SIZE && offset < recipesStates.size()
+                ? new ArrayList<>(recipesStates.keySet()).get(offset).output : ItemStack.EMPTY;
+    }, DISPLAY_PAGE_SIZE);
 
     private final List<PendingRecipeState> pendingRecipeStates = new ArrayList<>();
 
