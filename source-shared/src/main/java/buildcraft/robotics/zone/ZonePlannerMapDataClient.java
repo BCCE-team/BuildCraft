@@ -61,7 +61,13 @@ public class ZonePlannerMapDataClient extends ZonePlannerMapData {
             // server. Do not permanently fill the in-flight window.
             pending.removeIf(key -> {
                 long started = sentAtTick.getOrDefault(key, tick);
-                return tick < started || tick - started >= 200;
+                boolean expired = tick < started || tick - started >= 200;
+                // A lost/denied response must re-enter the bounded queue; otherwise no
+                // request is sent until the player manually refreshes the map.
+                if (expired && queued.size() < MAX_QUEUED && !isChunkAvailable(key)) {
+                    queued.add(key);
+                }
+                return expired;
             });
             sentAtTick.keySet().retainAll(pending);
         }
