@@ -19,6 +19,7 @@ CHECKS = (
     ("world/transport", CHECK_ROOT / "world_transport.py"),
     ("performance/rendering", CHECK_ROOT / "performance.py"),
     ("content/UI", CHECK_ROOT / "content.py"),
+    ("creative recipe coverage", CHECK_ROOT / "creative_recipe_coverage.py"),
     ("render/Jade", CHECK_ROOT / "render_jade.py"),
     ("sound feedback", CHECK_ROOT / "sound_feedback.py"),
     ("polish", CHECK_ROOT / "polish.py"),

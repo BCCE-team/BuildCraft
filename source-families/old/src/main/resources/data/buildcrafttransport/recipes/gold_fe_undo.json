@@ -1,0 +1,11 @@
+{
+  "type": "buildcrafttransport:pipe",
+  "mode": "downgrade",
+  "group": "buildcrafttransport:pipe_upgrades",
+  "from": {
+    "item": "buildcrafttransport:gold_fe"
+  },
+  "result": {
+    "item": "buildcrafttransport:gold_power"
+  }
+}

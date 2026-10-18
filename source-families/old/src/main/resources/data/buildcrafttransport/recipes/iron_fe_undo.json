@@ -1,0 +1,11 @@
+{
+  "type": "buildcrafttransport:pipe",
+  "mode": "downgrade",
+  "group": "buildcrafttransport:pipe_upgrades",
+  "from": {
+    "item": "buildcrafttransport:iron_fe"
+  },
+  "result": {
+    "item": "buildcrafttransport:iron_power"
+  }
+}
