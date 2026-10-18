@@ -86,7 +86,9 @@ public class RenderMarkerVolume implements BlockEntityRenderer<TileMarkerVolume>
          VolumeConnection volume = marker.getCurrentConnection();
          Set<Axis> taken = volume == null ? ImmutableSet.of() : volume.getConnectedAxis();
 
-         Vec3 start = VecUtil.add(VEC_HALF.add(VEC_HALF), BlockPos.ZERO);
+         // The PoseStack is already translated to the marker centre (+0.5).
+         // Starting at (1,1,1) shifts all six beams a full block.
+         Vec3 start = Vec3.ZERO;
          for (Direction face : Direction.values()) {
              if (taken.contains(face.getAxis())) {
                  continue;
