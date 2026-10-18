@@ -224,9 +224,11 @@ public final class WireSystem {
     public CompoundTag writeToNBT() {
         CompoundTag nbt = new CompoundTag();
         ListTag elementsList = new ListTag();
-        int counter = 0;
-        for(CompoundTag tag : elements.stream().map(WireElement::writeToNBT).toArray(CompoundTag[]::new))
-        	elementsList.addTag(counter, tag);
+        // Preserve the wire element order: ListTag.addTag(0, ...) reverses the list
+        // and changes its order-sensitive network hash after loading a save.
+        for (WireElement element : elements) {
+            elementsList.add(element.writeToNBT());
+        }
         nbt.put("elements", elementsList);
         nbt.putInt("color", color.getId());
         return nbt;
