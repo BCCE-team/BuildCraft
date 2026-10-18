@@ -38,7 +38,7 @@ import net.minecraftforge.network.NetworkHooks;
 public final class PipeBehaviourPropolis extends PipeBehaviour
         implements MenuProvider, ILocationProvider, IFilterLogic.INetworkHandler {
     private final PropolisFilterLogic filter;
-    private final LazyOptional<IFilterLogic> filterCapability;
+    private LazyOptional<IFilterLogic> filterCapability;
 
     public PipeBehaviourPropolis(IPipe pipe) {
         super(pipe);
@@ -51,6 +51,17 @@ public final class PipeBehaviourPropolis extends PipeBehaviour
         if (nbt.contains("filter")) {
             filter.read(nbt.getCompound("filter"));
         }
+    }
+
+    @Override
+    public void onCapabilitiesInvalidated() {
+        filterCapability.invalidate();
+    }
+
+    @Override
+    public void onCapabilitiesRestored() {
+        // Old references remain invalidated after a world/pipe replacement.
+        if (!filterCapability.isPresent()) filterCapability = LazyOptional.of(() -> filter);
     }
 
     public PropolisFilterLogic getFilter() {

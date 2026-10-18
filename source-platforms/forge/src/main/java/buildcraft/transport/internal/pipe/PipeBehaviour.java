@@ -81,6 +81,12 @@ public abstract class PipeBehaviour implements ICapabilityProvider {
 
 //    public void onEntityCollide(Entity entity) {}
 
+    /** Release any behaviour-owned LazyOptional when its pipe is replaced or unloaded. */
+    public void onCapabilitiesInvalidated() {}
+
+    /** Recreate capabilities on the same behaviour after an ordinary chunk reload. */
+    public void onCapabilitiesRestored() {}
+
     public void onTick() {}
 
     /** Returns true while behaviour-local runtime state needs periodic chunk persistence. */

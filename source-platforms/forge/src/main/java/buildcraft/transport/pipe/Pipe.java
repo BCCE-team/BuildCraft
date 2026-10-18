@@ -335,6 +335,7 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
     public void onLoad() {
         apiEnvironmentActive = true;
         markForUpdate();
+        behaviour.onCapabilitiesRestored();
         apiRuntime.onLoad();
     }
 
@@ -350,12 +351,14 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
 
     public void onChunkUnloaded() {
         apiEnvironmentActive = false;
+        behaviour.onCapabilitiesInvalidated();
         apiRuntime.onChunkUnloaded();
     }
 
     public void invalidateApiComponents() {
         apiEnvironmentActive = false;
         apiEnvironmentInvalidated = true;
+        behaviour.onCapabilitiesInvalidated();
         apiRuntime.invalidate();
     }
 
