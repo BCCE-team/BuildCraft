@@ -147,6 +147,11 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
 //            if(!level.isClientSide())
 //            BCLog.logger.debug("TileHeatExchange:close flag at "+worldPosition);
             Deque<TileHeatExchange> exchangers = findAdjacentExchangers();
+            if (exchangers == null) {
+                // A neighbour chunk is not loaded: postpone without dismantling and dropping tanks.
+                checkNeighbours = true;
+                return;
+            }
             if (level.isClientSide()) {
                 // Find the start + end sections and link them up
 //            	BCLog.logger.debug("TileHeatExchange:client tick for "+worldPosition);
@@ -320,7 +325,9 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
         Deque<TileHeatExchange> exchangers = new ArrayDeque<>();
         exchangers.add(this);
         for (int i = 1; i < 6; i++) {
-            BlockEntity neighbour = getLocalTile(worldPosition.offset(dirToStart.getUnitVec3i().multiply(i)));
+            BlockPos adjacentPos = worldPosition.offset(dirToStart.getUnitVec3i().multiply(i));
+            if (!level.hasChunkAt(adjacentPos)) return null;
+            BlockEntity neighbour = getLocalTile(adjacentPos);
             if (neighbour instanceof TileHeatExchange) {
                 TileHeatExchange other = (TileHeatExchange) neighbour;
                 if (other.getFacing() != thisFacing) {
@@ -332,7 +339,9 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             }
         }
         for (int i = 1; i < 6; i++) {
-            BlockEntity neighbour = getLocalTile(worldPosition.offset(dirToEnd.getUnitVec3i().multiply(i)));
+            BlockPos adjacentPos = worldPosition.offset(dirToEnd.getUnitVec3i().multiply(i));
+            if (!level.hasChunkAt(adjacentPos)) return null;
+            BlockEntity neighbour = getLocalTile(adjacentPos);
             if (neighbour instanceof TileHeatExchange) {
                 TileHeatExchange other = (TileHeatExchange) neighbour;
                 if (other.getFacing() != thisFacing) {
@@ -498,6 +507,7 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             return;
         }
         Deque<TileHeatExchange> exchangers = findAdjacentExchangers();
+        if (exchangers == null) return; // Never rotate only the loaded half of a multiblock.
         // Validate the ENTIRE column before rotating a single section. Otherwise a
         // protected adjacent machine can be silently reconfigured as a side effect.
         for (TileHeatExchange exchange : exchangers) {
