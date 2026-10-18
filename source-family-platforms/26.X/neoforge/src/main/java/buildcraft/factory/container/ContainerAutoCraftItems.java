@@ -18,7 +18,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ContainerLevelAccess;
-import buildcraft.lib.gui.ItemProvider;
+import net.neoforged.neoforge.items.IItemHandler;
 
 public class ContainerAutoCraftItems extends ContainerBCTile<TileAutoWorkbenchItems> {
     public static final int BUTTON_PREVIOUS_RECIPE = 0;
@@ -40,7 +40,7 @@ public class ContainerAutoCraftItems extends ContainerBCTile<TileAutoWorkbenchIt
 	}
 
     public ContainerAutoCraftItems(int containerId, Inventory player, IItemHandlerAdv invResult, IItemHandlerAdv invBlueprint, 
-    		IItemHandlerAdv invMaterialFilter, IItemHandlerAdv invMaterials, ItemProvider resultClient, ContainerLevelAccess access) {
+        IItemHandlerAdv invMaterialFilter, IItemHandlerAdv invMaterials, IItemHandler resultClient, ContainerLevelAccess access) {
         super(BCFactoryGuis.MENU_AUTOWORK_BENCH_ITEM.get(), player, containerId, access);
         blueprintInv = invBlueprint;
         materialInv = invMaterials;

@@ -106,8 +106,12 @@ class Factory26EffectiveContracts(unittest.TestCase):
         self.assertIn('StackChangeCallback updateCrafting',w)
         self.assertIn('crafting.onInventoryChange(handler)',w)
         self.assertIn('invMaterials.setCallback(updateCrafting)',w)
-        self.assertIn('ItemProvider resultClient',c)
-        self.assertNotIn('import net.neoforged.neoforge.items.IItemHandler;',c)
+        # FACT-03: 26.3 must back the preview with a synchronized, real item handler.
+        # The old dummy ItemProvider showed an empty slot until reopening the GUI.
+        self.assertIn('IItemHandler resultClient',c)
+        self.assertIn('import buildcraft.lib.compat.neoforge263.items.IItemHandler;',c)
+        self.assertIn('new ItemHandlerSimple(1), access',c)
+        self.assertNotIn('new ItemProvider(i -> ItemStack.EMPTY, 1)',c)
         self.assertIn('BUTTON_NEXT_RECIPE',c)
 
     def test_machine_renderers_remain_available(self):

@@ -152,10 +152,6 @@ def upgrade_minecraft_263_apis(text: str, *, minecraft: str, relative: str) -> s
         text = re.sub(r"event\.createReloadableRegistryObjects\(\s*new RegistrySetBuilder\(\)\.add\(RecipeProvider\.asBootstrap\((?:BCFactoryRecipesProvider|BCSiliconRecipesProvider)::new\)\)\s*\);",
                       "// 26.3: generated recipe data is shipped as resources; runtime excludes the datagen providers.", text)
 
-    if relative.endswith("/factory/container/ContainerAutoCraftItems.java"):
-        text = text.replace("new ItemHandlerSimple(1), access);",
-                            "new ItemProvider(slot -> net.minecraft.world.item.ItemStack.EMPTY, 1), access);")
-
     if relative.endswith("/builders/menu/ContainerBuilder.java"):
         text = text.replace("new ItemHandlerSimple(24), DataSlot.standalone()",
                             "new ItemProvider(slot -> net.minecraft.world.item.ItemStack.EMPTY, 24), DataSlot.standalone()")
