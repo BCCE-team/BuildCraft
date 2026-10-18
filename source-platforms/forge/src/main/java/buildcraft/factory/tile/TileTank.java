@@ -189,13 +189,27 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
         // Compact the whole column in one pass. Moving only each tank into its
         // immediate predecessor leaves newly transferred fluid stranded in the
         // middle tank until another rebalance happens (placement order 1,3,2).
+        // One source cursor across the entire column: do not revisit every empty source
+        // for each target tank (quadratic work on tall columns, even when nearly empty).
+        int sourceIndex = 1;
         for (int targetIndex = 0; targetIndex < tanks.size(); targetIndex++) {
             TileTank target = tanks.get(targetIndex);
-            for (int sourceIndex = targetIndex + 1; sourceIndex < tanks.size(); sourceIndex++) {
-                if (target.tank.getFluidAmount() >= target.tank.getCapacity()) {
-                    break;
+            sourceIndex = Math.max(sourceIndex, targetIndex + 1);
+            while (sourceIndex < tanks.size() && target.tank.getFluidAmount() < target.tank.getCapacity()) {
+                TileTank source = tanks.get(sourceIndex);
+                int before = source.tank.getFluidAmount();
+                if (before <= 0) {
+                    sourceIndex++;
+                    continue;
                 }
-                FluidUtilBC.move(tanks.get(sourceIndex).tank, target.tank);
+                FluidUtilBC.move(source.tank, target.tank);
+                // The source either emptied, or a handler refused the move. In both
+                // cases do not retry it endlessly for this compaction pass.
+                if (source.tank.getFluidAmount() <= 0 || source.tank.getFluidAmount() == before) {
+                    sourceIndex++;
+                }
+                // If the source still contains fluid while target is full, keep this
+                // source for the next target instead of restarting from the bottom.
             }
         }
     }
