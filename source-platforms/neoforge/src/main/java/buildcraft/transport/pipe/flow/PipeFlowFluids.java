@@ -200,10 +200,18 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             targetSide, currentFluid.copyWithAmount(amount), amount, target.capacity, simulate);
         if (amount == 0 || simulate) return amount;
         if (target.currentFluid.isEmpty()) target.setFluid(currentFluid.copy());
-        int inserted = to.fill(amount, FluidAction.EXECUTE);
+        int extracted = from.drainInternal(amount, true);
+        if (extracted <= 0) return 0;
+        int inserted = to.fill(extracted, FluidAction.EXECUTE);
+        if (inserted < extracted) {
+            // The target changed since capacity was calculated. Return any undelivered fluid.
+            int refunded = from.fill(extracted - inserted, FluidAction.EXECUTE);
+            if (refunded != extracted - inserted) {
+                BCLog.logger.error("Pipe transfer could not restore {} mB at {}", extracted - inserted - refunded,
+                    pipe.getHolder().getPipePos());
+            }
+        }
         if (inserted <= 0) return 0;
-        int extracted = from.drainInternal(inserted, true);
-        if (extracted != inserted) throw new IllegalStateException("Pipe fluid transfer lost its source reservation");
         from.ticksInDirection = COOLDOWN_OUTPUT;
         to.ticksInDirection = COOLDOWN_INPUT;
         if (lastApiTransferTick != sourceTick) apiSentThisTick = 0;
@@ -406,7 +414,17 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
                 String detail = "(Filter = " + StringUtilBC.fluidToString(filter);
                 detail += ",\nactually drained = " + StringUtilBC.fluidToString(drained) + ")";
                 detail += ",\nIFluidHandler = " + handler.getClass() + "(" + handler + ")";
-                throw new IllegalStateException("Drained fluid did not equal filter fluid!\n" + detail);
+                // A third-party fluid storage violated the filtered-drain contract.
+                // Attempt to return it instead of crashing the server or silently discarding it.
+                if (simulate.execute()) {
+                    int restored = handler.fill(drained, false);
+                    if (restored < drained.getAmount()) {
+                        BCLog.logger.error("Unable to restore {} mB from invalid fluid handler: {}",
+                            drained.getAmount() - restored, detail);
+                    }
+                }
+                BCLog.logger.warn("Ignoring invalid filtered fluid transfer: {}", detail);
+                return FluidStack.EMPTY;
             }
         }
         return drained;
@@ -822,22 +840,27 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             if (leaving > 0) {
                 int actuallyDrained = section.drainInternal(leaving, true);
                 if (actuallyDrained != leaving) {
-                    throw new IllegalStateException(
-                        "Couldn't drain " + leaving + " from " + part + ", only drained " + actuallyDrained
-                    );
+                    BCLog.logger.warn("Pipe {} drained {} of requested {} mB from {}",
+                        pipe.getHolder().getPipePos(), actuallyDrained, leaving, part);
                 }
                 if (actuallyDrained > 0) {
                     section.ticksInDirection = COOLDOWN_INPUT;
                 }
                 int entering = fluidEnteringCentre[i];
                 if (entering > 0) {
-                    int actuallyFilled = center.fill(entering, FluidAction.EXECUTE);
-                    if (actuallyFilled != entering) {
-                        throw new IllegalStateException(
-                            "Couldn't fill " + entering + " from " + part + ", only filled " + actuallyFilled
-                        );
+                    int moving = Math.min(entering, actuallyDrained);
+                    int actuallyFilled = center.fill(moving, FluidAction.EXECUTE);
+                    if (actuallyFilled < actuallyDrained) {
+                        // Restore units extracted from the side but rejected by the centre.
+                        int refunded = section.fill(actuallyDrained - actuallyFilled, FluidAction.EXECUTE);
+                        if (refunded != actuallyDrained - actuallyFilled) {
+                            BCLog.logger.error("Failed to restore {} mB in pipe {} after centre rejection",
+                                actuallyDrained - actuallyFilled - refunded, pipe.getHolder().getPipePos());
+                        }
                     }
                     moved += actuallyFilled;
+                } else if (actuallyDrained > 0) {
+                    section.fill(actuallyDrained, FluidAction.EXECUTE);
                 }
             }
         }
