@@ -24,6 +24,8 @@ import buildcraft.compat.CompatCapTransfromer;
 import buildcraft.lib.misc.BlockUtil;
 import buildcraft.lib.misc.CapUtil;
 import buildcraft.lib.platform.storage.FluidStorage;
+import buildcraft.lib.platform.storage.ItemStorage;
+import buildcraft.lib.platform.storage.ItemStorageContainer;
 import buildcraft.lib.platform.storage.PlatformStorage;
 import buildcraft.lib.platform.storage.StorageAdapters;
 import buildcraft.robotics.statements.ActionStationRequestItems;
@@ -278,7 +280,13 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         BlockPos neighbourPos = new BlockPos(x(), y(), z()).relative(inputSide);
         if (!level.isLoaded(neighbourPos)) return null;
         BlockEntity neighbour = level.getBlockEntity(neighbourPos);
-        return getNeighbourItemContainer(neighbour);
+        Container vanilla = getNeighbourItemContainer(neighbour);
+        if (vanilla != null) return vanilla;
+        if (neighbour == null) return null;
+        // Query the contacted face, not an unsided wrapper. Native-only addon machines
+        // expose extractable slots through IItemHandler without implementing Container.
+        ItemStorage storage = PlatformStorage.items(level, neighbourPos, inputSide.getOpposite());
+        return storage == null ? null : new ItemStorageContainer(storage, neighbour);
     }
 
     private static Container getNeighbourItemContainer(BlockEntity neighbour) {
