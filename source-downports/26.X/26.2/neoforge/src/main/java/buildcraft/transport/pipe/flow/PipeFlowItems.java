@@ -673,14 +673,10 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                 holder, this, reachCenter.colour, reachCenter.from, reachCenter.getStack()
             );
             holder.fireEvent(tryBounce);
-            boolean hasConnectedOutput = hasConnectedOutputOtherThan(reachCenter.from);
-            boolean retryConnectedPipe = hasConnectedOutput
-                && reachCenter.from != null
-                && pipe.isConnected(reachCenter.from)
-                && pipe.getConnectedType(reachCenter.from) == ConnectedType.PIPE;
-            if (tryBounce.canBounce || retryConnectedPipe) {
-                // Only retry through the incoming pipe when this pipe still has some other physical destination.
-                // A true dead-end must eject out of the open face, not reverse back through the pipe network.
+            // An unusable physical connection is not an eligible route. Implicitly bouncing
+            // into the previous pipe can ping-pong forever when its other exits are filtered.
+            // Only explicit bounce-capable pipe behaviours (e.g. Iron) may reverse the item.
+            if (tryBounce.canBounce && reachCenter.from != null && pipe.isConnected(reachCenter.from)) {
                 order = ImmutableList.of(EnumSet.of(reachCenter.from));
             } else {
                 if (!dropItem(item.stack, null, item.side.getOpposite(), item.speed)) holdAtCentre(item, 20);
