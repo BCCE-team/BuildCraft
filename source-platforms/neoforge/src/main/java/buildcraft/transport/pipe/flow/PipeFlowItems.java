@@ -205,6 +205,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                 buffer.writeEnum(item.side);
                 MessageUtil.writeEnumOrNull(buffer, item.colour);
                 buffer.writeShort(Math.min(65535, Math.max(0, item.timeToDest)));
+                buffer.writeBoolean(item.pausedAtCenter);
             }
         }
     }
@@ -228,6 +229,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
                     item.side = buffer.readEnum(Direction.class);
                     item.colour = MessageUtil.readEnumOrNull(buffer, DyeColor.class);
                     item.timeToDest = buffer.readUnsignedShort();
+                    item.pausedAtCenter = buffer.readBoolean();
                     scheduleClientItem(item, stackId);
                 }
             } else if (id == NET_CREATE_ITEM) {
@@ -259,6 +261,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         item.side = data.side;
         item.colour = data.colour;
         item.timeToDest = data.timeToDest;
+        item.pausedAtCenter = data.pausedAtCenter;
         scheduleClientItem(item, stackId);
     }
 
@@ -275,7 +278,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
          });*/
         PipeItemMessageQueue.appendTravellingItem(
             pipe.getHolder().getPipeWorld(), pipe.getHolder().getPipePos(), stackId, item.stack.getCount(),
-            item.toCenter, item.side, item.colour, item.timeToDest
+            item.toCenter, item.side, item.colour, item.timeToDest, item.pausedAtCenter
         );
     }
 
@@ -537,6 +540,10 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     private TravellingItem claimClientPredecessor(TravellingItem successor) {
         if (successor.clientStackId < 0) {
             return null;
+        }
+        if (successor.pausedAtCenter) {
+            // Hold inherits the incoming segment, but stays stationary once it reaches the center.
+            return claimClientPredecessorInThisFlow(successor.clientStackId, successor.colour, true, null);
         }
         if (!successor.toCenter) {
             // Center hand-off: incoming and outgoing segments live in the same PipeFlowItems.
@@ -1112,6 +1119,7 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     private void holdAtCentre(TravellingItem item, int ticks) {
         long now = pipe.getHolder().getPipeWorld().getGameTime();
         item.toCenter = true;
+        item.pausedAtCenter = true;
         item.tickStarted = now;
         item.timeToDest = ticks;
         item.tickFinished = now + ticks;

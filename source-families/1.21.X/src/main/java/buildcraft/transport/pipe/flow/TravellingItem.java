@@ -43,6 +43,8 @@ public class TravellingItem {
     ItemStack stack;
     int id = 0;
     boolean toCenter;
+    /** The item is waiting at pipe center, not moving there a second time. */
+    boolean pausedAtCenter;
     /** Stable owner token for a transfer until the item is consumed. Null for ordinary untracked items. */
     UUID apiTransitId;
     ItemTransitPayload apiTransitPayload = ItemTransitPayload.EMPTY;
@@ -112,6 +114,7 @@ public class TravellingItem {
         int c = nbt.getByte("colour");
         this.colour = c == 0 ? null : DyeColor.byId(c - 1);
         this.toCenter = nbt.getBoolean("toCenter");
+        this.pausedAtCenter = nbt.getBoolean("pausedAtCenter");
         this.speed = nbt.getDouble("speed");
         if (!Double.isFinite(speed) || speed < 0.001) {
             // Just to make sure that we don't have an invalid speed
@@ -173,6 +176,7 @@ public class TravellingItem {
         nbt.put("stack", ItemStackUtil.saveOptional(stack, registries));
         nbt.putByte("colour", (byte) (colour == null ? 0 : colour.getId() + 1));
         nbt.putBoolean("toCenter", toCenter);
+        nbt.putBoolean("pausedAtCenter", pausedAtCenter);
         nbt.putDouble("speed", speed);
         nbt.putInt("tickStarted", (int) (tickStarted - tickNow));
         nbt.putInt("tickFinished", (int) (tickFinished - tickNow));
@@ -207,6 +211,7 @@ public class TravellingItem {
     }
 
     public void genTimings(long now, double distance) {
+        pausedAtCenter = false;
         tickStarted = now;
         timeToDest = Math.max(1, Math.min(MAX_TRANSIT_TICKS, (int) Math.ceil(distance / speed)));
         tickFinished = now + timeToDest;
@@ -254,6 +259,7 @@ public class TravellingItem {
     }
 
     public Vec3 getRenderPosition(BlockPos pos, long tick, float partialTicks, PipeFlowItems flow) {
+        if (pausedAtCenter) return Vec3.ZERO;
         long diff = tickFinished - tickStarted;
         long afterTick = tick - tickStarted;
 
