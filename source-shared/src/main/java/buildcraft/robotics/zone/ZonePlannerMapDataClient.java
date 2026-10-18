@@ -24,10 +24,23 @@ public class ZonePlannerMapDataClient extends ZonePlannerMapData {
     private static final int MAX_QUEUED = 4096;
     private final Set<ZonePlannerMapChunkKey> pending = new HashSet<>();
     private final Map<ZonePlannerMapChunkKey, Long> sentAtTick = new HashMap<>();
+    private final Map<ZonePlannerMapChunkKey, Long> unavailableAtTick = new HashMap<>();
+    private static final long NEGATIVE_REFRESH_TICKS = 40L;
     private final Set<ZonePlannerMapChunkKey> queued = new LinkedHashSet<>();
     private long lastSentTick = Long.MIN_VALUE;
     private int requestsThisTick;
     private long revision;
+
+    @Override
+    protected boolean mayReuseChunk(Level world, ZonePlannerMapChunkKey key, ZonePlannerMapChunk cached) {
+        if (cached.isAvailable() || world == null) return true;
+        long now = world.getGameTime();
+        long since = unavailableAtTick.getOrDefault(key, now);
+        if (now >= since && now - since < NEGATIVE_REFRESH_TICKS) return true;
+        unavailableAtTick.remove(key);
+        // Query again after a short negative TTL, so chunks loaded later do not remain gray for two minutes.
+        return false;
+    }
 
     @Override
     public ZonePlannerMapChunk loadChunk(Level world, ZonePlannerMapChunkKey key) {
@@ -74,6 +87,7 @@ public class ZonePlannerMapDataClient extends ZonePlannerMapData {
     public void clearCache() {
         pending.clear();
         sentAtTick.clear();
+        unavailableAtTick.clear();
         queued.clear();
         lastSentTick = Long.MIN_VALUE;
         requestsThisTick = 0;
@@ -86,6 +100,8 @@ public class ZonePlannerMapDataClient extends ZonePlannerMapData {
         sentAtTick.remove(key);
         queued.remove(key);
         data.put(key, zonePlannerMapChunk);
+        if (zonePlannerMapChunk.isAvailable()) unavailableAtTick.remove(key);
+        else unavailableAtTick.put(key, lastSentTick);
         revision++;
     }
 

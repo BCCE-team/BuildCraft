@@ -21,10 +21,16 @@ public abstract class ZonePlannerMapData {
     /** Use {@link #getChunk(World, ZonePlannerMapChunkKey)} for a cached version */
     protected abstract ZonePlannerMapChunk loadChunk(Level world, ZonePlannerMapChunkKey key);
 
+    /** Lets the client refresh negative entries without invalidating the entire map cache. */
+    protected boolean mayReuseChunk(Level world, ZonePlannerMapChunkKey key, ZonePlannerMapChunk cached) {
+        return true;
+    }
+
     public final ZonePlannerMapChunk getChunk(Level world, ZonePlannerMapChunkKey key) {
         ZonePlannerMapChunk cached = data.getIfPresent(key);
         if (cached != null) {
-            return cached;
+            if (mayReuseChunk(world, key, cached)) return cached;
+            data.invalidate(key);
         }
         ZonePlannerMapChunk zonePlannerMapChunk = loadChunk(world, key);
         if (zonePlannerMapChunk != null) {
