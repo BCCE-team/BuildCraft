@@ -78,6 +78,8 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
     /** Maximum client-only hand-off bridge while waiting for an authoritative successor segment. */
     private static final int CLIENT_PREDICTION_TICKS = 4;
     public static final int NET_CREATE_ITEM = 2;
+    private static final int MAX_INITIAL_ITEMS = 2048;
+
 
     private final ItemTransportProfile itemTransportProfile = requireItemProfile();
     private final DelayedList<TravellingItem> items = new DelayedList<>();
@@ -180,13 +182,55 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         return nbt;
     }
 
+    @Override
+    public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
+        if (id != NET_ID_FULL_STATE || side != BCNetworkSide.SERVER) return;
+        // Pipe creation/full-state messages must include in-flight item segments.
+        // Never grow an initial payload without bounds when many item entities are stacked.
+        int sent = 0;
+        for (List<TravellingItem> bucket : items.getAllElements()) {
+            for (TravellingItem item : bucket) {
+                if (!item.isPhantom && !item.stack.isEmpty() && sent < MAX_INITIAL_ITEMS) sent++;
+            }
+        }
+        buffer.writeVarInt(sent);
+        int written = 0;
+        for (List<TravellingItem> bucket : items.getAllElements()) {
+            for (TravellingItem item : bucket) {
+                if (item.isPhantom || item.stack.isEmpty()) continue;
+                if (written++ >= sent) return;
+                buffer.writeInt(BuildCraftObjectCaches.storeItemStack(item.stack));
+                buffer.writeShort(Math.min(65535, item.stack.getCount()));
+                buffer.writeBoolean(item.toCenter);
+                buffer.writeEnum(item.side);
+                MessageUtil.writeEnumOrNull(buffer, item.colour);
+                buffer.writeShort(Math.min(65535, Math.max(0, item.timeToDest)));
+            }
+        }
+    }
+
     // Network
 
     @Override
     public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide msgSide) throws IOException {
 //    	BCLog.d("rece");
         if (msgSide == BCNetworkSide.CLIENT) {
-            if (id == NET_CREATE_ITEM) {
+            if (id == NET_ID_FULL_STATE) {
+                int count = buffer.readVarInt();
+                if (count < 0 || count > MAX_INITIAL_ITEMS) {
+                    throw new IOException("Invalid initial travelling item count: " + count);
+                }
+                for (int i = 0; i < count; i++) {
+                    int stackId = buffer.readInt();
+                    Supplier<ItemStack> link = BuildCraftObjectCaches.retrieveItemStack(stackId);
+                    TravellingItem item = new TravellingItem(link, buffer.readUnsignedShort());
+                    item.toCenter = buffer.readBoolean();
+                    item.side = buffer.readEnum(Direction.class);
+                    item.colour = MessageUtil.readEnumOrNull(buffer, DyeColor.class);
+                    item.timeToDest = buffer.readUnsignedShort();
+                    scheduleClientItem(item, stackId);
+                }
+            } else if (id == NET_CREATE_ITEM) {
                 int stackId = buffer.readInt();
                 Supplier<ItemStack> link = BuildCraftObjectCaches.retrieveItemStack(stackId);
                 int count = buffer.readUnsignedShort();
