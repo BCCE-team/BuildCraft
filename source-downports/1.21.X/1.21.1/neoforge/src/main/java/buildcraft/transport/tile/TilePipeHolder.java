@@ -532,7 +532,12 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
             	if (buffer.readBoolean()) {
-                    if (pipe != Pipe.EMPTY) pipe.invalidateApiComponents();
+                    if (pipe != Pipe.EMPTY) {
+                        pipe.invalidateApiComponents();
+                        eventBus.unregisterHandler(pipe.behaviour);
+                        eventBus.unregisterHandler(pipe.flow);
+                        eventBus.unregisterHandler(FilterEventHandler.class);
+                    }
                     pipe = new Pipe(this, buffer, ctx);
                     eventBus.registerHandler(pipe.behaviour);
                     eventBus.registerHandler(pipe.flow);
@@ -543,6 +548,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
                     pipe.invalidateApiComponents();
                     eventBus.unregisterHandler(pipe.behaviour);
                     eventBus.unregisterHandler(pipe.flow);
+                    eventBus.unregisterHandler(FilterEventHandler.class);
                     pipe = Pipe.EMPTY;
                 }
                 for (Direction face : Direction.values()) {
