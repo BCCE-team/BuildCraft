@@ -40,18 +40,23 @@ public final class MjApi2PlatformBridge {
         public Optional<MjPort> port(Level level, BlockPos pos, Direction side) {
             if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             Endpoint endpoint = endpoint(level, pos, side);
-            if (!endpoint.isEmpty()) return Optional.of(endpoint);
+            // Connector-only or extract-only MJ capability is not an energy receiver.
+            // Prefer a real MJ receiver, otherwise fall through to a receiving FE port.
+            if (!endpoint.isEmpty() && endpoint.canInsert()) return Optional.of(endpoint);
             FeEndpoint fe = feEndpoint(level, pos, side);
-            return fe == null ? Optional.empty() : Optional.of(fe);
+            if (fe != null && fe.canInsert()) return Optional.of(fe);
+            return endpoint.isEmpty() ? Optional.ofNullable(fe) : Optional.of(endpoint);
         }
 
         @Override
         public Optional<MjPortDescriptor> descriptor(Level level, BlockPos pos, Direction side) {
             if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             Endpoint endpoint = endpoint(level, pos, side);
-            if (!endpoint.isEmpty()) return Optional.of(endpoint.descriptor());
+            if (!endpoint.isEmpty() && endpoint.canInsert()) return Optional.of(endpoint.descriptor());
             FeEndpoint fe = feEndpoint(level, pos, side);
-            return fe == null ? Optional.empty() : Optional.of(fe.descriptor());
+            if (fe != null && fe.canInsert()) return Optional.of(fe.descriptor());
+            return endpoint.isEmpty() ? Optional.ofNullable(fe).map(FeEndpoint::descriptor)
+                : Optional.of(endpoint.descriptor());
         }
 
         @Override

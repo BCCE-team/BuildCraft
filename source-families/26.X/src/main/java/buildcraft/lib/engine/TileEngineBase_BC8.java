@@ -344,7 +344,8 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     protected boolean isFacingReceiver(Direction dir) {
-        return getPortToPower(dir) != null;
+        MjPort receiver = getPortToPower(dir);
+        return receiver != null && receiver.canInsert();
     }
 
     protected final boolean canChain() {
