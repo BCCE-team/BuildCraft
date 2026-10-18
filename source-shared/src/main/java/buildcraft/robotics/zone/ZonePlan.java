@@ -61,6 +61,8 @@ public class ZonePlan implements IZone {
 
         if (!chunkMapping.containsKey(chunkId)) {
             if (val) {
+                // Never construct a locally valid plan that the network codec cannot send.
+                if (chunkMapping.size() >= MAX_SERIALIZED_CHUNKS) return;
                 property = new ZoneChunk();
                 chunkMapping.put(chunkId, property);
             } else {
@@ -137,6 +139,7 @@ public class ZonePlan implements IZone {
     public void readFromNBT(CompoundTag nbt) {
         chunkMapping.clear();
         NBTUtilBC.readCompoundList(nbt.get("chunkMapping"))
+                .limit(MAX_SERIALIZED_CHUNKS)
                 .forEach(zoneChunkTag -> {
                     ZoneChunk chunk = new ZoneChunk();
                     chunk.readFromNBT(zoneChunkTag);
