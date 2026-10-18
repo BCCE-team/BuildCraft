@@ -4,6 +4,7 @@ package buildcraft.core.client;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
 
@@ -56,6 +57,39 @@ public final class RenderTickListener {
     private static final String DIFF_START = ChatFormatting.RED + "" + ChatFormatting.BOLD + "!" + ChatFormatting.RESET;
     private static final String DIFF_HEADER_FORMATTING = ChatFormatting.AQUA + "" + ChatFormatting.BOLD;
     private static final Box LAST_RENDERED_MAP_LOC = new Box();
+    // Client-render-only memoization. MapLocationService.read constructs a ZonePlan from
+    // NBT; doing this twice per rendered frame is very expensive for large maps.
+    private static ClientLevel cachedMapWorld;
+    private static ItemStack cachedMainMap = ItemStack.EMPTY;
+    private static ItemStack cachedOffMap = ItemStack.EMPTY;
+    private static Optional<MapLocationView> cachedMainView = Optional.empty();
+    private static Optional<MapLocationView> cachedOffView = Optional.empty();
+
+    private static Optional<MapLocationView> readHeldMap(ItemStack stack, boolean primary, ClientLevel world) {
+        if (cachedMapWorld != world) {
+            cachedMapWorld = world;
+            cachedMainMap = ItemStack.EMPTY;
+            cachedOffMap = ItemStack.EMPTY;
+            cachedMainView = Optional.empty();
+            cachedOffView = Optional.empty();
+        }
+        ItemStack previous = primary ? cachedMainMap : cachedOffMap;
+        if (ItemStack.matches(previous, stack)) {
+            return primary ? cachedMainView : cachedOffView;
+        }
+        // Keep a frozen stack snapshot. ItemStack.matches checks the complete tag/component
+        // contents, so in-place map edits and dimension changes cannot reuse stale previews.
+        Optional<MapLocationView> view = BuildCraftApi.service(BuildCraftServices.MAP_LOCATIONS).read(stack);
+        if (primary) {
+            cachedMainMap = stack.copy();
+            cachedMainView = view;
+        } else {
+            cachedOffMap = stack.copy();
+            cachedOffView = view;
+        }
+        return view;
+    }
+
     private static final double MAP_LOCATION_RENDER_DISTANCE_SQ = 128.0 * 128.0;
     private static final int MAX_ZONE_RENDER_EDGES = 4096;
 
@@ -184,9 +218,9 @@ public final class RenderTickListener {
                 Item offHandItem = offHand.getItem();
 
                 // A blank map location must not shadow an offhand preview or marker connector.
-var mapLocation = BuildCraftApi.service(BuildCraftServices.MAP_LOCATIONS).read(mainHand);
+var mapLocation = readHeldMap(mainHand, true, world);
         if (mapLocation.isEmpty() || mapLocation.get().kind() == MapLocationKind.CLEAN) {
-            mapLocation = BuildCraftApi.service(BuildCraftServices.MAP_LOCATIONS).read(offHand);
+            mapLocation = readHeldMap(offHand, false, world);
         }
                 if (mapLocation.isPresent() && mapLocation.get().kind() != MapLocationKind.CLEAN) {
                     renderMapLocation(poseStack, matrix, world, player, mapLocation.get());
