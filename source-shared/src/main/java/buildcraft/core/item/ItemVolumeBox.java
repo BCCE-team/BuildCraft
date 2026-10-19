@@ -39,7 +39,6 @@ public class ItemVolumeBox extends Item {
             return InteractionResult.FAIL;
         }
         boxes.addVolumeBox(position);
-        boxes.setDirty();
         return InteractionResult.SUCCESS;
     }
 

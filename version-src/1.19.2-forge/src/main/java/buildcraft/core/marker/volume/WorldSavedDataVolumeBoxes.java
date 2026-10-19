@@ -63,6 +63,7 @@ public class WorldSavedDataVolumeBoxes extends SavedData {
 
     public void addVolumeBox(BlockPos pos) {
         volumeBoxes.add(new VolumeBox(world, pos));
+        setDirty();
     }
 
     public VolumeBox getVolumeBoxFromId(UUID id) {
