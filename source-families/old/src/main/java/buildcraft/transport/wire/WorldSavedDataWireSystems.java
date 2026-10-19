@@ -208,8 +208,8 @@ public class WorldSavedDataWireSystems extends SavedData {
             Map<Integer, WireSystem> changedWires = this.wireSystems.keySet().stream()
                     .filter(wireSystem -> (structureChanged || changedPlayers.contains(player)) && wireSystem.isPlayerWatching(player))
                     .collect(Collectors.toMap(this::syncId, Function.identity()));
-            if(!changedWires.isEmpty()) {
-                MessageManager.sendTo(new MessageWireSystems(changedWires), player);
+            if (structureChanged || changedPlayers.contains(player)) {
+                MessageWireSystems.sendSnapshot(changedWires, player);
             }
             Map<Integer, Boolean> hashesPowered = this.wireSystems.entrySet().stream()
                     .filter(systemPower ->
