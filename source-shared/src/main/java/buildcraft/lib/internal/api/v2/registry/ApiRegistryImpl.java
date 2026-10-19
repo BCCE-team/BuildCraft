@@ -33,7 +33,7 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(context, "context");
         String owner = Objects.requireNonNull(context.owner(), "context.owner()");
-        if (owner.isBlank()) throw new IllegalArgumentException("registration owner must not be blank");
+        checkNamespace(id, owner);
         if (entries.containsKey(id) || aliases.containsKey(id)) {
             throw new IllegalStateException("Duplicate registry id or alias: " + id);
         }
@@ -47,7 +47,7 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
         Objects.requireNonNull(canonicalId, "canonicalId");
         Objects.requireNonNull(context, "context");
         String owner = Objects.requireNonNull(context.owner(), "context.owner()");
-        if (owner.isBlank()) throw new IllegalArgumentException("registration owner must not be blank");
+        checkNamespace(alias, owner);
         if (alias.equals(canonicalId)) throw new IllegalArgumentException("alias must differ from canonicalId");
         if (entries.containsKey(alias) || aliases.containsKey(alias)) {
             throw new IllegalStateException("Duplicate registry id or alias: " + alias);
@@ -121,6 +121,16 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
         if (frozen) return;
         validateFreeze();
         frozen = true;
+    }
+
+    /** Preserve legacy no-context registration; explicit addon owners must match their namespace. */
+    private static void checkNamespace(ResourceLocation id, String owner) {
+        if (owner.isBlank()) throw new IllegalArgumentException("registration owner must not be blank");
+        String namespace = id.getNamespace();
+        if (!namespace.equals(owner) && !"unknown".equals(owner)
+            && !("buildcraft".equals(owner) && namespace.startsWith("buildcraft"))) {
+            throw new IllegalArgumentException("Owner " + owner + " cannot register identifier " + id);
+        }
     }
 
     private void ensureMutable() {
