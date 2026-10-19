@@ -126,10 +126,11 @@ public class BuildCraftJeiPlugin implements IModPlugin {
 
     private static RegistryAccess registryAccess() {
         Level level = Minecraft.getInstance().level;
-        if (level == null) {
-            throw new IllegalStateException("JEI recipe rendering requires an active client level");
-        }
-        return level.registryAccess();
+        if (level != null) return level.registryAccess();
+        // JEI can build recipe categories before a world is connected. Registered items
+        // and facade previews must not crash client startup in that lifecycle phase.
+        var connection = Minecraft.getInstance().getConnection();
+        return connection == null ? RegistryAccess.EMPTY : connection.registryAccess();
     }
 
     public static final IRecipeType<AssemblyJeiRecipe> ASSEMBLY = IRecipeType.create("buildcraftsilicon", "assembly", AssemblyJeiRecipe.class);
