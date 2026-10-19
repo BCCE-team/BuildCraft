@@ -415,9 +415,8 @@ public abstract class OilStructure {
         }
 
         public static PatternTerrainHeight create(BlockPos.MutableBlockPos start, ReplaceType replaceType, boolean[][] pattern,
-            int depth) {
-            int minY = OilGenerator.bottomY;
-            int maxY = minY + OilGenerator.worldHeight - 1;
+            int depth, int minY, int worldHeight) {
+            int maxY = minY + worldHeight - 1;
             int maxX = start.getX() + Math.max(0, pattern.length - 1);
             int maxZ = start.getZ() + (pattern.length == 0 ? 0 : Math.max(0, pattern[0].length - 1));
             BlockPos min = new BlockPos(start.getX(), minY, start.getZ());
@@ -479,16 +478,15 @@ public abstract class OilStructure {
         public final int height;
         private int count = 0;
 
-        public Spout(BlockPos start, ReplaceType replaceType, int radius, int height) {
-            super(createBox(start), replaceType);
+        public Spout(BlockPos start, ReplaceType replaceType, int radius, int height, int maxY) {
+            super(createBox(start, maxY), replaceType);
             this.start = start;
             this.radius = radius;
             this.height = height;
         }
 
-        private static Box createBox(BlockPos start) {
-            // Only a block 1 x level.getHeight()(default 384) x 1 -- that way we area only called once.
-            int maxY = OilGenerator.bottomY + OilGenerator.worldHeight - 1;
+        private static Box createBox(BlockPos start, int maxY) {
+            // Resolve height from the generating world, not a mutable global dimension.
             return new Box(start, VecUtil.replaceValue(start, Axis.Y, maxY));
         }
 

@@ -41,19 +41,14 @@ public class OilGenerator {
     public static final boolean DEBUG_OILGEN_BASIC = BCDebugging.shouldDebugLog("energy.oilgen");
     public static final boolean DEBUG_OILGEN_ALL = BCDebugging.shouldDebugComplex("energy.oilgen");
 
-    private static final LoadingCache<Long, List<OilStructure>> structureCache
-        = CacheBuilder.newBuilder().expireAfterAccess(20, TimeUnit.SECONDS).build(CacheLoader.from(OilGenerator::genCache));
+    /** A bounded cache with the world and configuration in each key: one dimension cannot poison another. */
+    private record CacheKey(WorldGenLevel world, int cx, int cz, OilFeatureConfiguration settings) {}
 
-    private static OilFeatureConfiguration config;
+    private static final LoadingCache<CacheKey, List<OilStructure>> structureCache
+        = CacheBuilder.newBuilder().maximumSize(8192).expireAfterAccess(20, TimeUnit.SECONDS)
+            .build(CacheLoader.from(key -> getStructures(key.world(), key.cx(), key.cz(), false, key.settings())));
 
-    static double xOffset = -1;
-    static double zOffset = -1;
-
-    private static WorldGenLevel level;
-
-    public static int worldHeight = -1;//384
-    public static int seaLevel = -1;//63
-    public static int bottomY = -1;//-64
+    private static volatile OilFeatureConfiguration config;
 
     private enum GenType {
         LARGE,
@@ -69,34 +64,32 @@ public class OilGenerator {
         }
     }
 
-    private static List<OilStructure> genCache(long key){
-        return getStructures(level, (int)(key&0xFFFFFFFFL), (int)((key>>32)&0xFFFFFFFFL), false);
-    }
-
     public static List<OilStructure> getStructures(WorldGenLevel world, int cx, int cz) {
-        if (level != world) {
-            structureCache.invalidateAll();
-            level = world;
-            Random rand = new Random(world.getSeed());
-            int OFFSET_RANGE = 500000;
-            OilGenerator.xOffset = rand.nextInt(OFFSET_RANGE) - (OFFSET_RANGE / 2);
-            OilGenerator.zOffset = rand.nextInt(OFFSET_RANGE) - (OFFSET_RANGE / 2);
-            ServerLevel serverLevel = world.getLevel();
-            worldHeight = serverLevel.getHeight();
-            seaLevel = serverLevel.getSeaLevel();
-            bottomY = serverLevel.getMinBuildHeight();
-        }
-        return structureCache.getUnchecked((((long) (cz)) << 32) | (cx & 0xFFFFFFFFL));
+        return structureCache.getUnchecked(new CacheKey(world, cx, cz, config));
     }
 
-    public static synchronized void clearCache() {
+    public static void clearCache() {
         structureCache.invalidateAll();
-        level = null;
     }
 
     /*this will not use the cache, only use for testing*/
     protected static List<OilStructure> getStructures(WorldGenLevel world, int cx, int cz, boolean log) {
-        if (!BCEnergyConfig.enableOilGeneration || config == null) {
+        return getStructures(world, cx, cz, log, config);
+    }
+
+    private static List<OilStructure> getStructures(WorldGenLevel world, int cx, int cz, boolean log,
+            OilFeatureConfiguration configuration) {
+        // All geometry and noise offsets are derived from this request's world.
+        // No globally shared dimension state can be overwritten by concurrent worldgen threads.
+        Random offsetRandom = new Random(world.getSeed());
+        int offsetRange = 500000;
+        double xOffset = offsetRandom.nextInt(offsetRange) - offsetRange / 2;
+        double zOffset = offsetRandom.nextInt(offsetRange) - offsetRange / 2;
+        ServerLevel serverLevel = world.getLevel();
+        int seaLevel = serverLevel.getSeaLevel();
+        int bottomY = serverLevel.getMinBuildHeight();
+        int worldHeight = serverLevel.getHeight();
+        if (!BCEnergyConfig.enableOilGeneration || configuration == null) {
             return ImmutableList.of();
         }
         Random rand = RandUtil.createRandomForChunk(world, cx, cz, MAGIC_GEN_NUMBER);
@@ -121,7 +114,7 @@ public class OilGenerator {
             return ImmutableList.of();
         }
         ResourceLocation key = biomeKey.get();
-        boolean isExcludedBiome = !BCEnergyConfig.isBiomeAllowed(key) || config.excludedBiomes().contains(key);
+        boolean isExcludedBiome = !BCEnergyConfig.isBiomeAllowed(key) || configuration.excludedBiomes().contains(key);
         if (isExcludedBiome/* == BCEnergyConfig.excludedBiomesIsBlackList*/) {
             if (DEBUG_OILGEN_BASIC & log){//log) {
                 BCLog.logger.info(
@@ -133,12 +126,12 @@ public class OilGenerator {
         }
 
 
-        boolean oilBiome = config.surfaceDepositBiomes().contains(key);
+        boolean oilBiome = configuration.surfaceDepositBiomes().contains(key);
 
         double bonus = oilBiome ? 3.0 : 1.0;
-        bonus *= config.oilWellGenerationRate();
+        bonus *= configuration.oilWellGenerationRate();
 
-        Optional<ExcessiveBiome> excessiveBiome = config.excessiveBiomes().stream().filter((a) -> a.biome().equals(key)).findAny();
+        Optional<ExcessiveBiome> excessiveBiome = configuration.excessiveBiomes().stream().filter((a) -> a.biome().equals(key)).findAny();
         if(excessiveBiome.isPresent()){
             ExcessiveBiome excessiveBiome0 = excessiveBiome.get();
             double d0 = SimplexNoise.noise((x + xOffset)*excessiveBiome0.noiseScale(), (z + zOffset)*excessiveBiome0.noiseScale());
@@ -147,7 +140,7 @@ public class OilGenerator {
                 BCLog.d("gen many oil "+ x + ", "+ z);
             }
         }
-        GenSetting genSetting = config.genSetting();
+        GenSetting genSetting = configuration.genSetting();
         final GenType type;
         if (rand.nextDouble() * 100 <=  genSetting.largeOilGenProb() * bonus) {
             // 0.04%
@@ -187,7 +180,7 @@ public class OilGenerator {
             lakeRadius = 2;
             tendrilRadius = 5 + rand.nextInt(10);
         }
-        structures.add(createTendril(new BlockPos(x, seaLevel -1, z), lakeRadius, tendrilRadius, rand));
+        structures.add(createTendril(new BlockPos(x, seaLevel -1, z), lakeRadius, tendrilRadius, rand, bottomY, worldHeight));
 
         if (type != GenType.LAKE) {
             // Generate a spherical cave deposit
@@ -226,7 +219,7 @@ public class OilGenerator {
                     }
                     height = minHeight + rand.nextInt(maxHeight - minHeight + 1);
                 }
-                structures.add(createSpout(new BlockPos(x, wellY, z), height, radius));
+                structures.add(createSpout(new BlockPos(x, wellY, z), height, radius, bottomY + worldHeight - 1));
             }
 
             // Anchor the spring to the configured world bottom and derive tube length from relative Y distance,
@@ -248,8 +241,8 @@ public class OilGenerator {
         return world.dimensionType().effectsLocation().toString();
     }
 
-    private static OilStructure createSpout(BlockPos start, int height, int radius) {
-        return new OilStructure.Spout(start, ReplaceType.ALWAYS, radius, height);
+    private static OilStructure createSpout(BlockPos start, int height, int radius, int topY) {
+        return new OilStructure.Spout(start, ReplaceType.ALWAYS, radius, height, topY);
     }
 
     public static OilStructure createTubeY(BlockPos base, int height, int radius) {
@@ -277,7 +270,7 @@ public class OilGenerator {
         return new GenByPredicate(box, ReplaceType.ALWAYS, tester);
     }
 
-    public static OilStructure createTendril(BlockPos center, int lakeRadius, int radius, Random rand) {
+    public static OilStructure createTendril(BlockPos center, int lakeRadius, int radius, Random rand, int minY, int height) {
         BlockPos.MutableBlockPos start = center.mutable().move(-radius, 0, -radius);
         int diameter = radius * 2 + 1;
         boolean[][] pattern = new boolean[diameter][diameter];
@@ -312,7 +305,7 @@ public class OilGenerator {
         }
 
         int depth = rand.nextDouble() < 0.5 ? 1 : 2;
-        return OilStructure.PatternTerrainHeight.create(start, ReplaceType.IS_FOR_LAKE, pattern, depth);
+        return OilStructure.PatternTerrainHeight.create(start, ReplaceType.IS_FOR_LAKE, pattern, depth, minY, height);
     }
 
     private static void fillPatternIfProba(Random rand, float proba, int x, int z, boolean[][] pattern) {
