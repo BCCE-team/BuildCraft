@@ -19,6 +19,8 @@ public class AverageInt {
     public void clear() {
         this.data = new int[precise];
         this.pos = 0;
+        this.averageRaw = 0;
+        this.tickValue = 0;
     }
 
     public double getAverage() {
