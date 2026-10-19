@@ -518,14 +518,14 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
         tile.getWorldBC().getProfiler().push("scan");
         int checksThisTick = unknownCheckResults > 0 ? getFastChecksPerTick() : getChecksPerTick();
         for (int i = 0; i < checksThisTick; i++) {
-            if (check(indexToPos(currentCheckIndex))) {
+            if (check(indexToPos(checkOrder[currentCheckIndex]))) {
                 checkResultsChanged = true;
             }
             currentCheckIndex = (currentCheckIndex + 1) % checkOrder.length;
         }
         
         int checkIndex0 = (currentCheckIndex + 1) % checkOrder.length;
-        boolean isDone = checkResults[checkIndex0] != CHECK_RESULT_UNKNOWN; //FIXED add uncheckResult check
+        boolean isDone = checkResults[checkOrder[checkIndex0]] != CHECK_RESULT_UNKNOWN; //FIXED add uncheckResult check
         
         tile.getWorldBC().getProfiler().pop();
 
