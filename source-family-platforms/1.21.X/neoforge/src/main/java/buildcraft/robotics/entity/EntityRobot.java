@@ -1542,14 +1542,16 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
     }
 
     public void setMainStation(DockingStation station) {
-        if (linkedStation != null && linkedStation != station) {
-            linkedStation.unsafeRelease(this);
-        }
+        // Stage the destination coordinates before releasing the previous home link.
+        // A malformed/unloaded station must not leave the robot bound to nowhere.
+        BlockIndex newStationIndex = station == null ? null : copyIndex(station.index());
+        if (station != null && newStationIndex == null) return;
+        DockingStation previous = linkedStation;
         linkedStation = station;
         if (station != null) {
             mainStationReleasedManually = false;
             station.setLevel(level());
-            linkedStationIndex = copyIndex(station.index());
+            linkedStationIndex = newStationIndex;
             linkedStationSide = station.side();
             rememberMainStation(linkedStationIndex, linkedStationSide);
         } else {
@@ -1557,6 +1559,9 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
             // stranded robot should return so it can be found and automatically reconnect when the dock reappears.
             linkedStationIndex = null;
             linkedStationSide = null;
+        }
+        if (previous != null && previous != station) {
+            previous.unsafeRelease(this);
         }
     }
 
