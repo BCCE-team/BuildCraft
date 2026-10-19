@@ -86,6 +86,33 @@ public class AIRobotSearchStackRequest extends AIRobot {
         return null;
     }
 
+    /** Check the actual matcher, not merely the first advisory example supplied by an addon. */
+    private ItemStack selectMatchingStack(ItemRequest definition) {
+        for (ItemStack example : definition.matcher().examples()) {
+            if (acceptsRequest(definition, example)) return example.copy();
+        }
+        // Some composed predicates have no examples at all. Inspect the registered items
+        // for a compatible non-empty representative, bounded per request to avoid abuse.
+        int scanned = 0;
+        for (var item : net.minecraft.core.registries.BuiltInRegistries.ITEM) {
+            if (++scanned > 8192) break;
+            ItemStack candidate = new ItemStack(item);
+            if (acceptsRequest(definition, candidate)) return candidate;
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private boolean acceptsRequest(ItemRequest definition, ItemStack candidate) {
+        if (candidate == null || candidate.isEmpty() || isBlacklisted(candidate) || !filter.matches(candidate)) {
+            return false;
+        }
+        try {
+            return definition.matcher().matches(candidate);
+        } catch (RuntimeException invalidMatcher) {
+            return false;
+        }
+    }
+
     private Collection<StackRequest> getAvailableRequests(DockingStation station) {
         List<StackRequest> result = new ArrayList<>();
         if (station == null) {
@@ -97,15 +124,15 @@ public class AIRobotSearchStackRequest extends AIRobot {
             return result;
         }
 
-        for (ItemRequest definition : provider.requests()) {
-            ItemStack stack = definition.matcher().examples().stream()
-                .filter(example -> example != null && !example.isEmpty())
-                .findFirst()
-                .map(ItemStack::copy)
-                .orElse(ItemStack.EMPTY);
-            if (stack.isEmpty()) {
-                continue;
-            }
+        if (provider.requests() == null) return result;
+        List<ItemRequest> ordered = provider.requests().stream()
+            .filter(java.util.Objects::nonNull)
+            .sorted(java.util.Comparator.comparingInt(ItemRequest::priority).reversed()
+                .thenComparing(definition -> definition.id().toString()))
+            .toList();
+        for (ItemRequest definition : ordered) {
+            ItemStack stack = selectMatchingStack(definition);
+            if (stack.isEmpty()) continue;
             int requestedCount = Math.max(definition.minimum(), Math.min(definition.maximum(), stack.getMaxStackSize()));
             stack.setCount(Math.max(1, requestedCount));
 
