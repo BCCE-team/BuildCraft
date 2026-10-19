@@ -124,6 +124,15 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 	private static final Identifier ADVANCEMENT_LOGIC_TRANSPORTATION = Identifier.parse(
 			"buildcrafttransport:logic_transportation");
 
+    /** Dynamic block light emitted by fluid actually present in the BuildCraft pipe. */
+    public int getLightEmission(BlockState state, BlockGetter level, BlockPos pos) {
+        BlockEntity entity = level.getBlockEntity(pos);
+        if (!(entity instanceof TilePipeHolder holder)) return 0;
+        Pipe pipe = holder.getPipe();
+        if (pipe == null || !(pipe.getFlow() instanceof buildcraft.transport.pipe.flow.PipeFlowFluids flow)) return 0;
+        return flow.getEmittedFluidLight();
+    }
+
 	public BlockPipeHolder() {
 		super(RegistryCompat.blockProperties(BlockBehaviour.Properties.of()).mapColor(MapColor.STONE).sound(SoundType.METAL).strength(0.25f)
 				.explosionResistance(3.0f).noOcclusion());

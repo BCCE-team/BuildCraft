@@ -117,6 +117,8 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
 
     private final Map<EnumPipePart, Section> sections = new EnumMap<>(EnumPipePart.class);
     private FluidStack currentFluid = FluidStack.EMPTY;
+    // Server-side block-light cache. Fluid brightness can change without replacing the pipe block.
+    private int lastEmittedLight = -1;
     private int currentDelay;
     private final buildcraft.lib.compat.transfer.TransferJournal<FluidTransferState> transferJournal =
         new buildcraft.lib.compat.transfer.TransferJournal<>(this::captureFluidTransfer, this::restoreFluidTransfer,
@@ -591,6 +593,17 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
 
     // Internal logic
 
+    /** Dynamic luminous-fluid light, with no glow when all pipe sections are empty. */
+    public int getEmittedFluidLight() {
+        if (currentFluid.isEmpty()) return 0;
+        for (Section section : sections.values()) {
+            if (section.amount > 0) {
+                return Math.max(0, Math.min(15, currentFluid.getFluid().getFluidType().getLightLevel()));
+            }
+        }
+        return 0;
+    }
+
     private void setFluid(FluidStack fluid) {
         transferJournal.record();
         currentFluid = FluidCompatRegistry.canonicalize(fluid);
@@ -657,6 +670,16 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
                 } else if (section.ticksInDirection < 0) {
                     section.ticksInDirection++;
                 }
+            }
+        }
+
+        // Recompute block light only when fluid volume crosses zero or the liquid type
+        // changes brightness. The light engine must run on the owning server level.
+        int emittedLight = getEmittedFluidLight();
+        if (emittedLight != lastEmittedLight) {
+            lastEmittedLight = emittedLight;
+            if (world.hasChunkAt(pipe.getHolder().getPipePos())) {
+                world.getChunkSource().getLightEngine().checkBlock(pipe.getHolder().getPipePos());
             }
         }
 
