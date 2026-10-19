@@ -931,10 +931,14 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             long max = Math.max(0L, energy.getCapacityAsLong());
             if (max <= 0L) continue;
             // Cap outputs are read-only. Side duplicates are deduplicated by handler identity.
-            capacity += max;
-            stored += Math.max(0L, Math.min(max, energy.getAmountAsLong()));
+            // Many independent FE endpoints can exceed signed long when summed.
+            // Saturate each value instead of wrapping to a negative HUD reading.
+            long boundedStored = Math.max(0L, Math.min(max, energy.getAmountAsLong()));
+            capacity = capacity > Long.MAX_VALUE - max ? Long.MAX_VALUE : capacity + max;
+            stored = stored > Long.MAX_VALUE - boundedStored ? Long.MAX_VALUE : stored + boundedStored;
         }
         if (capacity <= 0L) return Collections.emptyList();
+        stored = Math.min(stored, capacity);
         ViewGroup<EnergyView.Data> group = new ViewGroup<>(List.of(JadeViewData.energy(stored, capacity)));
         group.id = "fe";
         group.getExtraData().putString("Unit", "FE");
