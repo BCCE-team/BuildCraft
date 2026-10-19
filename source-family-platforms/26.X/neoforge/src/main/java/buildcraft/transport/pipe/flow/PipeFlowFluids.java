@@ -436,9 +436,21 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             return FAILED_EXTRACT;
         }
         if (!simulate) transferJournal.record();
-        FluidStack toAdd = extractor.extract(millibuckets, currentFluid, fluidHandler);
-        if (toAdd.isEmpty() || toAdd.getAmount() <= 0) {
+        FluidStack toAdd;
+        try {
+            toAdd = extractor.extract(millibuckets, currentFluid, fluidHandler);
+        } catch (RuntimeException rejectedByHandler) {
+            BCLog.logger.warn("Fluid handler rejected pipe extraction at {}", pipe.getHolder().getPipePos(), rejectedByHandler);
             return FAILED_EXTRACT;
+        }
+        if (toAdd == null || toAdd.isEmpty() || toAdd.getAmount() <= 0) {
+            return FAILED_EXTRACT;
+        }
+        // Third-party handlers can return more than the requested amount. Put the
+        // overage back rather than overflowing a pipe section or duplicating a fluid.
+        if (toAdd.getAmount() > millibuckets) {
+            if (!simulate) restoreUnexpectedFluid(fluidHandler, toAdd.copyWithAmount(toAdd.getAmount() - millibuckets));
+            toAdd = toAdd.copyWithAmount(millibuckets);
         }
         millibuckets = toAdd.getAmount();
         if (currentFluid.isEmpty() && !simulate) {
@@ -451,13 +463,32 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             section.ticksInDirection = COOLDOWN_INPUT;
         }
         if (reallyFilled != millibuckets) {
+            if (!simulate && reallyFilled < millibuckets) {
+                restoreUnexpectedFluid(fluidHandler, toAdd.copyWithAmount(millibuckets - reallyFilled));
+                toAdd = toAdd.copyWithAmount(Math.max(0, reallyFilled));
+            }
             BCLog.logger.warn(
                 "[tryExtractFluidAdv] Filled "
                 + reallyFilled + " != extracted " + millibuckets //
                 + " (handler = " + fluidHandler.getClass() + ") @" + pipe.getHolder().getPipePos()
             );
         }
-        return new InteractionResultHolder<>(InteractionResult.SUCCESS, toAdd);
+        return reallyFilled > 0
+            ? new InteractionResultHolder<>(InteractionResult.SUCCESS, toAdd) : FAILED_EXTRACT;
+    }
+
+    /** Best effort recovery after a broken external fluid handler violates its transfer contract. */
+    private static void restoreUnexpectedFluid(FluidStorage<FluidStack> handler, FluidStack amount) {
+        if (amount == null || amount.isEmpty()) return;
+        try {
+            int accepted = handler.fill(amount, false);
+            if (accepted < amount.getAmount()) {
+                BCLog.logger.error("External fluid handler rejected {} mB during transfer recovery",
+                    amount.getAmount() - Math.max(0, accepted));
+            }
+        } catch (RuntimeException refusedRefund) {
+            BCLog.logger.error("External fluid handler failed to restore {} mB", amount.getAmount(), refusedRefund);
+        }
     }
 
     private static FluidStack extractSimple(int millibuckets, FluidStack filter, FluidStorage<FluidStack> handler,
@@ -476,11 +507,7 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
                 // A third-party fluid storage violated the filtered-drain contract.
                 // Attempt to return it instead of crashing the server or silently discarding it.
                 if (simulate.execute()) {
-                    int restored = handler.fill(drained, false);
-                    if (restored < drained.getAmount()) {
-                        BCLog.logger.error("Unable to restore {} mB from invalid fluid handler: {}",
-                            drained.getAmount() - restored, detail);
-                    }
+                    restoreUnexpectedFluid(handler, drained);
                 }
                 BCLog.logger.warn("Ignoring invalid filtered fluid transfer: {}", detail);
                 return FluidStack.EMPTY;
