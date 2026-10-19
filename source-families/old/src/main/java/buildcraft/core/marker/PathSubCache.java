@@ -148,8 +148,9 @@ public class PathSubCache extends MarkerSubCache<PathConnection> {
                 for (BlockPos p : positions) {
                     PathConnection existing = this.getConnection(p);
                     if (existing != null) {
+                        // removeMarker already refreshes end removals, and handles
+                        // middle removals by destroying the old connection.
                         existing.removeMarker(p);
-                        refreshConnection(existing);
                     }
                 }
             }
