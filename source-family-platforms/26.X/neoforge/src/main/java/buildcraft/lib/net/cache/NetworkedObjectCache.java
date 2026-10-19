@@ -43,6 +43,7 @@ public abstract class NetworkedObjectCache<T> {
     private static final int MAX_SERVER_ENTRIES = 65_536;
     private static final int MAX_CLIENT_ENTRIES = 65_536;
     private static final int MAX_REQUEST_BATCHES_PER_TICK = 4;
+    private static final int MAX_RETRY_DELAY_TICKS = 20 * 60;
 
     static final boolean DEBUG_LOG = BCDebugging.shouldDebugLog("lib.net.cache");
     static final boolean DEBUG_CPLX = BCDebugging.shouldDebugComplex("lib.net.cache");
@@ -67,6 +68,8 @@ public abstract class NetworkedObjectCache<T> {
     private final Int2ObjectMap<Link> clientObjects = new Int2ObjectOpenHashMap<>();
     /** The list of all links that are currently unknown. */
     private final Queue<Link> clientUnknowns = new LinkedList<>();
+    /** Monotonic only within the current connection; all unresolved IDs have bounded retries. */
+    private long clientTick;
     /** Insertion order for bounded eviction of resolved client cache entries. */
     private final Queue<Integer> clientInsertionOrder = new LinkedList<>();
 
@@ -158,6 +161,8 @@ public abstract class NetworkedObjectCache<T> {
 
         /** The stored, cached value. */
         T actual;
+        long nextRequestTick;
+        int retryAttempts;
 
         /** The id of this value. */
         final int id;
@@ -303,14 +308,15 @@ public abstract class NetworkedObjectCache<T> {
     }
 
     /** Used by {@link MessageObjectCacheRequest#HANDLER} to write the actual object out. */
-    void writeObjectServer(int id, FriendlyByteBuf buffer) {
+    boolean writeObjectServer(int id, FriendlyByteBuf buffer) {
         T obj = serverIdToObject.get(id);
         if (obj == null) {
             // The ID fell outside the bounded retention window. Sending the default keeps the protocol valid; active
             // objects are announced again with a fresh ID when they are next synchronized.
-            obj = getDefaultObject();
+            return false;
         }
         writeObject(obj, buffer);
+        return true;
     }
 
     /** Used by {@link MessageObjectCacheResponse#HANDLER} to read an object in.
@@ -318,9 +324,17 @@ public abstract class NetworkedObjectCache<T> {
      * @param id
      * @param buffer
      * @throws IOException */
+    void missingObjectClient(int id) {
+        Link link = clientRetrieve(id);
+        if (link.actual != null) return;
+        // Keep the link unresolved, with a bounded backoff. The caller may still hold this Link.
+        link.nextRequestTick = Math.max(link.nextRequestTick, clientTick + 20);
+    }
+
     void readObjectClient(int id, FriendlyByteBuf buffer) throws IOException {
         Link link = clientRetrieve(id);
         link.actual = readObject(buffer);
+        link.retryAttempts = 0;
         if (DEBUG_CPLX) {
             T read = link.actual;
             String toString;
@@ -340,24 +354,36 @@ public abstract class NetworkedObjectCache<T> {
     }
 
     void onClientWorldTick() {
-        int batches = 0;
-        while (!clientUnknowns.isEmpty() && batches++ < MAX_REQUEST_BATCHES_PER_TICK) {
-            int count = Math.min(clientUnknowns.size(), MessageObjectCacheRequest.MAX_IDS);
-            int[] ids = new int[count];
-            for (int i = 0; i < count; i++) {
-                ids[i] = clientUnknowns.remove().id;
+        clientTick++;
+        // Scan at most the queue's initial size. Every unresolved link returns to the
+        // tail until it resolves, so missing responses and packet loss cannot strand it.
+        int remaining = clientUnknowns.size();
+        int budget = MAX_REQUEST_BATCHES_PER_TICK * MessageObjectCacheRequest.MAX_IDS;
+        int[] ids = new int[MessageObjectCacheRequest.MAX_IDS];
+        int count = 0;
+        while (remaining-- > 0 && budget > 0 && !clientUnknowns.isEmpty()) {
+            Link link = clientUnknowns.remove();
+            if (link.hasBeenReceived() || clientObjects.get(link.id) != link) continue;
+            clientUnknowns.add(link);
+            if (clientTick < link.nextRequestTick) continue;
+            ids[count++] = link.id;
+            budget--;
+            long delay = Math.min(MAX_RETRY_DELAY_TICKS, 5L << Math.min(9, link.retryAttempts++));
+            link.nextRequestTick = clientTick + delay;
+            if (count == ids.length) {
+                MessageManager.sendToServer(new MessageObjectCacheRequest(this, Arrays.copyOf(ids, count)));
+                count = 0;
             }
-            if (DEBUG_CPLX) {
-                BCLog.logger
-                    .info("[lib.net.cache] The cache " + getNameAndId() + " requests ID's " + Arrays.toString(ids));
-            }
-            MessageManager.sendToServer(new MessageObjectCacheRequest(this, ids));
+        }
+        if (count > 0) {
+            MessageManager.sendToServer(new MessageObjectCacheRequest(this, Arrays.copyOf(ids, count)));
         }
     }
 
     void onClientJoinServer() {
         clientObjects.clear();
         clientUnknowns.clear();
+        clientTick = 0;
         clientInsertionOrder.clear();
     }
 }

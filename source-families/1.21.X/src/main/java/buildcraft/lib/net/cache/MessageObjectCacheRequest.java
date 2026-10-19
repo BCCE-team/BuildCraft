@@ -109,8 +109,9 @@ public class MessageObjectCacheRequest {
                 int totalBytes = 0;
                 for (int i = 0; i < values.length; i++) {
                     int id = message.ids[i];
-                    cache.writeObjectServer(id, buffer);
-                    int valueSize = buffer.readableBytes();
+                    boolean found = cache.writeObjectServer(id, buffer);
+                    // Each value has one presence byte: a valid encoded value may itself be empty.
+                    int valueSize = found ? buffer.readableBytes() + 1 : 1;
                     if (valueSize > MessageObjectCacheResponse.MAX_VALUE_SIZE) {
                         throw new IllegalStateException("Object cache value is too large: " + valueSize);
                     }
@@ -119,7 +120,8 @@ public class MessageObjectCacheRequest {
                         throw new IllegalStateException("Object cache response is too large: " + totalBytes);
                     }
                     values[i] = new byte[valueSize];
-                    buffer.readBytes(values[i]);
+                    values[i][0] = (byte) (found ? 1 : 0);
+                    if (found) buffer.readBytes(values[i], 1, valueSize - 1);
                     buffer.clear();
                 }
                 MessageManager.sendTo(new MessageObjectCacheResponse(message.cacheId, message.ids, values), sender);

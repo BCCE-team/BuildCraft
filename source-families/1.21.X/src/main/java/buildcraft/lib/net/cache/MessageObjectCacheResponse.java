@@ -105,7 +105,12 @@ public class MessageObjectCacheResponse {
                     RegistryFriendlyByteBuf payloadBuffer =
                         new RegistryFriendlyByteBuf(Unpooled.copiedBuffer(payload), connection.registryAccess());
                     try {
-                        cache.readObjectClient(id, payloadBuffer);
+                        if (payload.length == 0 || payload[0] == 0) cache.missingObjectClient(id);
+                        else {
+                            if (payload[0] != 1) throw new DecoderException("Invalid cache entry presence flag");
+                            payloadBuffer.readByte();
+                            cache.readObjectClient(id, payloadBuffer);
+                        }
                     } finally {
                         payloadBuffer.release();
                     }

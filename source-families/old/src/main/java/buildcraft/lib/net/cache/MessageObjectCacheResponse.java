@@ -98,7 +98,12 @@ public class MessageObjectCacheResponse {
                     byte[] payload = message.values[i];
                     FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.wrappedBuffer(payload));
                     try {
-                        cache.readObjectClient(id, buffer);
+                        if (payload.length == 0 || payload[0] == 0) cache.missingObjectClient(id);
+                        else {
+                            if (payload[0] != 1) throw new DecoderException("Invalid cache entry presence flag");
+                            buffer.readByte();
+                            cache.readObjectClient(id, buffer);
+                        }
                     } finally {
                         buffer.release();
                     }
