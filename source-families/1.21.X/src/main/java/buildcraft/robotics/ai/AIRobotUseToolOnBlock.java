@@ -88,12 +88,9 @@ public class AIRobotUseToolOnBlock extends AIRobot {
         boolean used = BlockUtil.useItemOnBlock(serverLevel, player, held, pos, Direction.UP);
         if (!used) {
             setSuccess(false);
-            if (!before.isDamageableItem()) {
-                BlockUtil.dropItem(serverLevel, robot.blockPosition(), 6000, before);
-                robot.setItemInUse(ItemStack.EMPTY);
-            } else {
-                robot.setItemInUse(held);
-            }
+            // A failed use must not eject an undamageable tool. Keep the tool equipped,
+            // preserving any item-specific state changes returned by the handler.
+            robot.setItemInUse(held.isEmpty() ? before : held);
             terminate();
             return;
         }
