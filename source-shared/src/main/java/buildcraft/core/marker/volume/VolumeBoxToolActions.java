@@ -2,6 +2,15 @@
 package buildcraft.core.marker.volume;
 
 import java.util.Optional;
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.permission.AutomationActor;
+import buildcraft.api.v2.permission.PermissionVerdict;
+import buildcraft.api.v2.permission.WorldOperationContext;
+import buildcraft.api.v2.permission.WorldOperationKind;
+import buildcraft.api.v2.permission.WorldOperationTarget;
+import net.minecraft.resources.ResourceLocation;
 import org.apache.commons.lang3.tuple.Pair;
 import buildcraft.lib.misc.PositionUtil;
 import buildcraft.lib.misc.VecUtil;
@@ -19,6 +28,25 @@ import net.minecraft.world.phys.Vec3;
 public final class VolumeBoxToolActions {
     private VolumeBoxToolActions() {}
 
+    private static final ResourceLocation PERMISSION_REASON =
+        java.util.Objects.requireNonNull(ResourceLocation.tryParse("buildcraft:volume_box_edit"));
+
+    /** Every editor entry point, including creation by the Volume Box item, shares one gate. */
+    public static boolean mayEdit(Level level, Player player, BlockPos pos) {
+        if (player == null || pos == null || !level.hasChunkAt(pos)) return false;
+        if (level.isClientSide) return false;
+        try {
+            return BuildCraftApi.service(BuildCraftServices.PERMISSIONS).decide(new WorldOperationContext(
+                AutomationActor.player(player.getUUID(), player.getName().getString()),
+                level, pos, WorldOperationTarget.block(pos), WorldOperationKind.BLOCK_INTERACT,
+                OperationMode.EXECUTE, PERMISSION_REASON
+            )).verdict() != PermissionVerdict.DENY;
+        } catch (RuntimeException faultyProvider) {
+            // A broken permission integration must never silently authorize world edits.
+            return false;
+        }
+    }
+
     public static InteractionResult use(Level level, Player player) {
         if (level.isClientSide) return InteractionResult.PASS;
         WorldSavedDataVolumeBoxes data = WorldSavedDataVolumeBoxes.get(level);
@@ -27,6 +55,7 @@ public final class VolumeBoxToolActions {
         // Complete the active operation first, independent of where the player is looking.
         // Previously an addon at the cursor hijacked confirm/cancel, leaving an edit stuck.
         if (editing != null) {
+            if (!mayEdit(level, player, editing.box.min()) || !mayEdit(level, player, editing.box.max())) return InteractionResult.FAIL;
             if (player.isCrouching()) editing.cancelEditing();
             else editing.confirmEditing();
             data.setDirty();
@@ -41,6 +70,7 @@ public final class VolumeBoxToolActions {
         if (addonBox != null && slot != null && !addonBox.isEditing()) {
             Addon addon = addonBox.addons.get(slot);
             if (addon != null) {
+                if (!mayEdit(level, player, addonBox.box.min())) return InteractionResult.FAIL;
                 if (addonBox.getLockTargetsStream().anyMatch(target ->
                     target instanceof Lock.Target.TargetAddon locked && locked.slot == slot)) {
                     return InteractionResult.FAIL;
@@ -70,7 +100,8 @@ public final class VolumeBoxToolActions {
                 }
             }
             if (nearest == null) return InteractionResult.FAIL;
-            if (isLocked(nearest)) return InteractionResult.FAIL;
+            if (isLocked(nearest) || !mayEdit(level, player, nearest.box.min())
+                || !mayEdit(level, player, nearest.box.max())) return InteractionResult.FAIL;
             nearest.addons.values().forEach(Addon::onRemoved);
             data.volumeBoxes.remove(nearest);
             data.setDirty();
@@ -92,6 +123,8 @@ public final class VolumeBoxToolActions {
             }
         }
         if (selected == null) return InteractionResult.FAIL;
+        if (!mayEdit(level, player, selectedCorner) || !mayEdit(level, player, selected.box.min())
+            || !mayEdit(level, player, selected.box.max())) return InteractionResult.FAIL;
         BlockPos min = selected.box.min();
         BlockPos max = selected.box.max();
         BlockPos held = min;

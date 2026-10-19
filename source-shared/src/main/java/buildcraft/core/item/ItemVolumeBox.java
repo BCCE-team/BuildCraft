@@ -34,7 +34,10 @@ public class ItemVolumeBox extends Item {
         if (level.isClientSide) return InteractionResult.PASS;
         BlockPos position = ctx.getClickedPos().relative(ctx.getClickedFace());
         WorldSavedDataVolumeBoxes boxes = WorldSavedDataVolumeBoxes.get(level);
-        if (boxes.getVolumeBoxAt(position) != null) return InteractionResult.FAIL;
+        if (boxes.getVolumeBoxAt(position) != null
+            || !buildcraft.core.marker.volume.VolumeBoxToolActions.mayEdit(level, ctx.getPlayer(), position)) {
+            return InteractionResult.FAIL;
+        }
         boxes.addVolumeBox(position);
         boxes.setDirty();
         return InteractionResult.SUCCESS;
