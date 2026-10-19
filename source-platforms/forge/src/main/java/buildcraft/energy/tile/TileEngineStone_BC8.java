@@ -139,6 +139,9 @@ public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvi
     @Override
     protected void engineUpdate() {
         super.engineUpdate();
+        // The previously produced MJ/t must not remain visible after fuel runs out
+        // or the engine enters an overheat state.
+        currentOutput = 0;
         if (burnTime > 0) {
             burnTime--;
             if (getPowerStage() != EnumPowerStage.OVERHEAT) {
