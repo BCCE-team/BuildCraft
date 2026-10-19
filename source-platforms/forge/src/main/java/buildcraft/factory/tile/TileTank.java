@@ -114,7 +114,9 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
     public int getComparatorLevel() {
         int amount = tank.getFluidAmount();
         int cap = tank.getCapacity();
-        return amount * 14 / cap + (amount > 0 ? 1 : 0);
+        if (amount <= 0 || cap <= 0) return 0;
+        // Integer multiplication overflow used to turn near-full large tanks into a weak signal.
+        return Math.min(15, 1 + (int) Math.min(14L, (long) amount * 14L / cap));
     }
 
     /**
