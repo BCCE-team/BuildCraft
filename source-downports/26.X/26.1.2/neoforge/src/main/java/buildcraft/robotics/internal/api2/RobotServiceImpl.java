@@ -209,9 +209,17 @@ public final class RobotServiceImpl implements RobotService {
 
         private final class Control implements RobotControl {
             public boolean moveTo(BlockPos target, OperationMode mode) {
-                if (target == null || !robot.isAlive()) return false;
+                if (target == null || mode == null || !robot.isAlive()
+                    || !(robot.level() instanceof ServerLevel serverLevel)) return false;
+                if (serverLevel.isOutsideBuildHeight(target) || !serverLevel.getWorldBorder().isWithinBounds(target)) {
+                    return false;
+                }
                 if (mode == OperationMode.EXECUTE) {
-                    robot.setMainAIOverride(new AIRobotGotoBlock(robot, target.getX(), target.getY(), target.getZ()));
+                    try {
+                        robot.setMainAIOverride(new AIRobotGotoBlock(robot, target.getX(), target.getY(), target.getZ()));
+                    } catch (RuntimeException rejectedCommand) {
+                        return false;
+                    }
                 }
                 return true;
             }
