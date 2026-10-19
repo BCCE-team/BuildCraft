@@ -145,6 +145,11 @@ public class BuildCraftJeiPlugin implements IModPlugin {
     private static List<RecipeHolder<AssemblyRecipeBasic>> publishedAssemblySource = List.of();
     private static List<AssemblyJeiRecipe> publishedAssemblyRecipes = List.of();
     private static long publishedAssemblyApiGeneration = -1;
+    private static List<ProgrammingRecipeView> publishedProgramming = List.of();
+    private static List<IntegrationRecipeView> publishedIntegration = List.of();
+    private static List<DistillationRecipeDefinition> publishedDistillation = List.of();
+    private static List<HeatExchangeRecipeView> publishedHeatExchange = List.of();
+    private static List<CombustionFuelRecipeView> publishedFuels = List.of();
 
     public Identifier getPluginUid() {
         return UID;
@@ -235,19 +240,22 @@ public class BuildCraftJeiPlugin implements IModPlugin {
             programming.add(new ProgrammingRecipeView(board));
             integration.add(new IntegrationRecipeView(board));
         }
+        publishedProgramming = List.copyOf(programming);
         registration.addRecipes(PROGRAMMING, programming);
+        publishedIntegration = List.copyOf(integration);
         registration.addRecipes(INTEGRATION, integration);
 
         MachineRecipeService machineRecipes = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES);
-        registration.addRecipes(DISTILLATION, machineRecipes.recipes(DistillationRecipeDefinition.class).stream()
-                .map(match -> match.recipe())
-                .toList());
+        publishedDistillation = machineRecipes.recipes(DistillationRecipeDefinition.class).stream()
+                .map(match -> match.recipe()).toList();
+        registration.addRecipes(DISTILLATION, publishedDistillation);
 
         List<HeatExchangeRecipeView> heatExchange = machineRecipes.recipes(HeatExchangeRecipeDefinition.class).stream()
                 .map(match -> match.recipe())
                 .filter(recipe -> !recipe.output().isEmpty())
                 .map(HeatExchangeRecipeView::new)
                 .toList();
+        publishedHeatExchange = List.copyOf(heatExchange);
         registration.addRecipes(HEAT_EXCHANGE, heatExchange);
 
         EnergyFluidService energyFluids = BuildCraftApi.service(BuildCraftServices.ENERGY_FLUIDS);
@@ -256,6 +264,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
                 .filter(fuel -> !fuelDisplayVariants(fuel).isEmpty())
                 .map(CombustionFuelRecipeView::new)
                 .toList();
+        publishedFuels = List.copyOf(fuels);
         registration.addRecipes(COMBUSTION_FUEL, fuels);
     }
 
@@ -329,8 +338,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         if (runtime == null) return;
         List<RecipeHolder<AssemblyRecipeBasic>> source = BCSiliconRecipeSync.Client.assemblyRecipes();
         long generation = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).snapshot().generation().id();
-        if (source.equals(publishedAssemblySource) && publishedAssemblyApiGeneration == generation) return;
-
+        if (!(source.equals(publishedAssemblySource) && publishedAssemblyApiGeneration == generation)) {
         List<AssemblyJeiRecipe> updated = collectAssemblyRecipes(source);
         // JEI has no removeRecipes API. Hide stale pages, then publish the new
         // set so a datapack reload (including an empty list) never shows old recipes.
@@ -343,6 +351,46 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         publishedAssemblySource = source;
         publishedAssemblyRecipes = updated;
         publishedAssemblyApiGeneration = generation;
+        }
+        refreshOtherRecipes(runtime);
+    }
+
+    /** Reconcile every API-backed JEI category after recipe or datapack sync. */
+    private static void refreshOtherRecipes(IJeiRuntime runtime) {
+        BCRoboticsBoards.init();
+        List<ProgrammingRecipeView> programming = new ArrayList<>();
+        List<IntegrationRecipeView> integration = new ArrayList<>();
+        for (BoardEntry board : getSortedProgrammingBoards()) {
+            programming.add(new ProgrammingRecipeView(board));
+            integration.add(new IntegrationRecipeView(board));
+        }
+        reconcile(runtime, PROGRAMMING, publishedProgramming, programming);
+        reconcile(runtime, INTEGRATION, publishedIntegration, integration);
+        publishedProgramming = List.copyOf(programming);
+        publishedIntegration = List.copyOf(integration);
+
+        MachineRecipeService recipes = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES);
+        List<DistillationRecipeDefinition> distillation = recipes.recipes(DistillationRecipeDefinition.class)
+            .stream().map(match -> match.recipe()).toList();
+        List<HeatExchangeRecipeView> heat = recipes.recipes(HeatExchangeRecipeDefinition.class).stream()
+            .map(match -> match.recipe()).filter(r -> !r.output().isEmpty())
+            .map(HeatExchangeRecipeView::new).toList();
+        List<CombustionFuelRecipeView> fuels = BuildCraftApi.service(BuildCraftServices.ENERGY_FLUIDS)
+            .fuels().stream().map(match -> match.profile())
+            .filter(f -> !fuelDisplayVariants(f).isEmpty())
+            .map(CombustionFuelRecipeView::new).toList();
+        reconcile(runtime, DISTILLATION, publishedDistillation, distillation);
+        reconcile(runtime, HEAT_EXCHANGE, publishedHeatExchange, heat);
+        reconcile(runtime, COMBUSTION_FUEL, publishedFuels, fuels);
+        publishedDistillation = List.copyOf(distillation);
+        publishedHeatExchange = List.copyOf(heat);
+        publishedFuels = List.copyOf(fuels);
+    }
+
+    private static <T> void reconcile(IJeiRuntime runtime, IRecipeType<T> type, List<T> previous, List<T> next) {
+        if (previous.equals(next)) return;
+        if (!previous.isEmpty()) runtime.getRecipeManager().hideRecipes(type, previous);
+        if (!next.isEmpty()) runtime.getRecipeManager().addRecipes(type, next);
     }
 
     @Override
@@ -352,6 +400,11 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         publishedAssemblySource = List.of();
         publishedAssemblyRecipes = List.of();
         publishedAssemblyApiGeneration = -1;
+        publishedProgramming = List.of();
+        publishedIntegration = List.of();
+        publishedDistillation = List.of();
+        publishedHeatExchange = List.of();
+        publishedFuels = List.of();
         GROUPED_ASSEMBLY_RECIPES.clear();
     }
 

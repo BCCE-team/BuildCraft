@@ -709,6 +709,12 @@ public class TestMain{
                     start = code.index(signature)
                     end = code.index('\n    }', start) + len('\n    }')
                     return code[start:end]
+                # The Assembly runtime probe intentionally models only the Assembly category.
+                # The implementation must still reconcile every newly synced JEI category.
+                self.assertIn('private static void refreshOtherRecipes(IJeiRuntime runtime)', code)
+                for category in ('PROGRAMMING', 'INTEGRATION', 'DISTILLATION',
+                                 'HEAT_EXCHANGE', 'COMBUSTION_FUEL'):
+                    self.assertIn('reconcile(runtime, ' + category + ',', code)
                 available = method('public void onRuntimeAvailable(IJeiRuntime runtime)')
                 refresh = method('private static void refreshAssemblyRecipes()')
                 unavailable = method('public void onRuntimeUnavailable()')
@@ -757,6 +763,14 @@ public class JeiRuntimeProbe {
   private static List<RecipeHolder<AssemblyRecipeBasic>> publishedAssemblySource=List.of();
   private static List<AssemblyJeiRecipe> publishedAssemblyRecipes=List.of();
   private static long publishedAssemblyApiGeneration=-1;
+  private static List<Object> publishedProgramming=List.of();
+  private static List<Object> publishedIntegration=List.of();
+  private static List<Object> publishedDistillation=List.of();
+  private static List<Object> publishedHeatExchange=List.of();
+  private static List<Object> publishedFuels=List.of();
+  // The Assembly-only probe intentionally supplies a no-op for unrelated JEI recipe types.
+  // Their production reconciliation contract is asserted against the real source above.
+  private static void refreshOtherRecipes(IJeiRuntime runtime) {}
   static List<AssemblyJeiRecipe> collectAssemblyRecipes(List<RecipeHolder<AssemblyRecipeBasic>> source){
     List<AssemblyJeiRecipe> views=new ArrayList<>();
     for(var recipe:source)views.add(new AssemblyJeiRecipe(recipe.id(),recipe.value()));
