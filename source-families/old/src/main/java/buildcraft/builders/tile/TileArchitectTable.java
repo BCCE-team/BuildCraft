@@ -242,8 +242,12 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
                 snapshotType = ItemSnapshot.EnumItemSnapshotType.getFromStack(
                     invSnapshotIn.getStackInSlot(0)
                 ).snapshotType;
-                int size = box.size().getX() * box.size().getY() * box.size().getZ();
-                size /= snapshotType.maxPerTick;
+                // Snapshot validates its allocation, but the UI progress estimate must
+                // independently avoid int overflow for extreme bounding boxes.
+                double volume = (double) Math.max(0, box.size().getX())
+                    * Math.max(0, box.size().getY()) * Math.max(0, box.size().getZ());
+                double estimatedTicks = Math.ceil(volume / Math.max(1, snapshotType.maxPerTick));
+                int size = (int) Math.max(1.0D, Math.min(Integer.MAX_VALUE - 10.0D, estimatedTicks));
                 deltaProgress.addDelta(0, size, 1);
                 deltaProgress.addDelta(size, size + 10, -1);
                 blueprintScannedPalette.clear();
