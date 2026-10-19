@@ -62,6 +62,11 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
         private Level level;
         private final Map<Long, EntityRobotBase> robots = new HashMap<>();
         private final Set<Long> unloadedRobotIds = new HashSet<>();
+        // A restored reservation has no proof its robot entity still exists. Give
+        // chunks time to load before reclaiming orphaned claims after a restart.
+        private static final long RESTORED_LEASE_GRACE_TICKS = 20L * 60L * 10L;
+        private final Map<Long, Long> restoredLeaseDeadlines = new HashMap<>();
+        private boolean restoredLeasesInitialized;
         private final Map<ResourceId, Long> resources = new HashMap<>();
         private final Map<StationKey, DockingStation> stations = new LinkedHashMap<>();
         private long nextRobotId = 1;
@@ -88,6 +93,13 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
 
         private void setLevel(@Nullable Level level) {
             this.level = level;
+            if (level != null && !level.isClientSide && !restoredLeasesInitialized) {
+                restoredLeasesInitialized = true;
+                long deadline = level.getGameTime() + RESTORED_LEASE_GRACE_TICKS;
+                for (Long robotId : unloadedRobotIds) {
+                    restoredLeaseDeadlines.put(robotId, deadline);
+                }
+            }
             for (DockingStation station : stations.values()) {
                 station.setLevel(level);
             }
@@ -115,6 +127,7 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
 
             robots.put(robot.getRobotId(), robot);
             unloadedRobotIds.remove(robot.getRobotId());
+            restoredLeaseDeadlines.remove(robot.getRobotId());
             registryMarkDirty();
         }
 
@@ -123,6 +136,7 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
             if (robot != null) {
                 releaseResources(robot, true, false);
                 unloadedRobotIds.remove(robot.getRobotId());
+                restoredLeaseDeadlines.remove(robot.getRobotId());
                 robots.remove(robot.getRobotId());
                 registryMarkDirty();
             }
@@ -134,6 +148,9 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
                 // Keep generic block/task reservations while the entity is temporarily absent because its chunk
                 // unloaded. The same robot will reclaim the live entity slot when its chunk loads again.
                 unloadedRobotIds.add(robot.getRobotId());
+                // Runtime chunk unload is not evidence of a dead robot: its lease
+                // must survive until the same entity's chunk is loaded again.
+                restoredLeaseDeadlines.remove(robot.getRobotId());
                 releaseStations(robot, false, true);
                 robots.remove(robot.getRobotId());
                 registryMarkDirty();
@@ -163,6 +180,10 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
             }
 
             // Station and generic work reservations intentionally survive temporary robot entity unloads.
+            // Only claims resurrected from a save without a returning robot expire.
+            if (expireOrphanedRestoredLease(robotId)) {
+                return EntityRobotBase.NULL_ROBOT_ID;
+            }
             if (resourceId instanceof StationResourceId) {
                 return robotId;
             }
@@ -183,6 +204,23 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
         }
 
         @Override
+        private boolean expireOrphanedRestoredLease(long robotId) {
+            Long deadline = restoredLeaseDeadlines.get(robotId);
+            if (deadline == null || level == null || level.getGameTime() < deadline || robots.containsKey(robotId)) {
+                return false;
+            }
+            restoredLeaseDeadlines.remove(robotId);
+            unloadedRobotIds.remove(robotId);
+            resources.entrySet().removeIf(entry -> entry.getValue() == robotId);
+            for (DockingStation station : stations.values()) {
+                if (station != null && station.linkedId() == robotId) {
+                    station.forceRelease();
+                }
+            }
+            registryMarkDirty();
+            return true;
+        }
+
         public EntityRobotBase robotTaking(ResourceId resourceId) {
             long robotId = robotIdTaking(resourceId);
             return robotId == EntityRobotBase.NULL_ROBOT_ID ? null : robots.get(robotId);
@@ -362,6 +400,8 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
         public void readFromNBT(CompoundTag nbt) {
             robots.clear();
             unloadedRobotIds.clear();
+            restoredLeaseDeadlines.clear();
+            restoredLeasesInitialized = false;
             resources.clear();
             stations.clear();
 
@@ -403,6 +443,7 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
                     putStation(station);
                     if (station.linkedId() != EntityRobotBase.NULL_ROBOT_ID) {
                         resources.put(new StationResourceId(station), station.linkedId());
+                        unloadedRobotIds.add(station.linkedId());
                     }
                 } catch (ReflectiveOperationException exception) {
                     buildcraft.lib.internal.debug.BCLog.logger.warn("Failed to load robot docking station from NBT", exception);
