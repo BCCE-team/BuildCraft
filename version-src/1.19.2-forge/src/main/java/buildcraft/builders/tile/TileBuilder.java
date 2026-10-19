@@ -198,7 +198,9 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     	}
     	@Override
     	public boolean handleGameEvent(ServerLevel level, Message msg) {
-    		return blueprint.handleGameEvent(level, msg) || template.handleGameEvent(level, msg);
+			boolean blueprintChanged = blueprint.handleGameEvent(level, msg);
+            boolean templateChanged = template.handleGameEvent(level, msg);
+            return blueprintChanged || templateChanged;
     	}
     };
 

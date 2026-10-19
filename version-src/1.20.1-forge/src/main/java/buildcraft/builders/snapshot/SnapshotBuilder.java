@@ -80,12 +80,14 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
     	@Override
         public boolean handleGameEvent(ServerLevel level, GameEvent event, GameEvent.Context context, Vec3 pos) {
             if (event == GameEvent.BLOCK_PLACE || event == GameEvent.BLOCK_DESTROY) {
-                if (tile.getBuilder() == SnapshotBuilder.this && getBuildingInfo() != null && getBuildingInfo().box.contains(pos)) {
+                if (tile.getBuilder() == SnapshotBuilder.this && isInitialized()
+                    && getBuildingInfo() != null && getBuildingInfo().box.contains(pos)) {
                     if (check(BlockPos.containing(pos))) {
                         afterChecks();
+                        return true;
                     }
                 }
-                return true;
+                return false;
     		}
     		return false;
     	}
@@ -161,6 +163,11 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
         return placeOrder;
     }
 
+    /**
+     * The BlockBuilder block already registers TileBuilder.worldEventListener via its
+     * getListener hook. Never double-register this child with an individual chunk:
+     * the parent forwards each change to both snapshot builders.
+     */
     public void validate() {
     	Level level = tile.getWorldBC();
         if (!level.isClientSide) {

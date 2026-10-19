@@ -198,8 +198,11 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     	}
     	@Override
         public boolean handleGameEvent(ServerLevel level, Holder<GameEvent> event, GameEvent.Context context, Vec3 sourcePos) {
-            return blueprint.handleGameEvent(level, event, context, sourcePos)
-                || template.handleGameEvent(level, event, context, sourcePos);
+            // Both listeners must receive the event; short-circuiting leaves
+            // a Template Builder blind whenever the Blueprint listener responds first.
+            boolean blueprintChanged = blueprint.handleGameEvent(level, event, context, sourcePos);
+            boolean templateChanged = template.handleGameEvent(level, event, context, sourcePos);
+            return blueprintChanged || templateChanged;
     	}
     };
 
