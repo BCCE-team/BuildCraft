@@ -8,6 +8,8 @@ package buildcraft.transport.wire;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,8 +30,11 @@ public class MessageWireSystems {
     private static final int MAX_SYSTEMS = 64;
     private static final int MAX_ELEMENTS_PER_PACKET = 16384;
     private static final int MAX_ELEMENTS_PER_SYSTEM = 16384;
+    private static final int MAX_ELEMENTS_PER_FRAGMENT = 4096;
 
     private Map<Integer, WireSystem> wireSystems = new LinkedHashMap<>();
+    /** IDs that continue a wire started on an earlier snapshot page. */
+    private Set<Integer> continuingSystems = new HashSet<>();
     private boolean firstPage = true;
     private boolean lastPage = true;
 
@@ -46,33 +51,49 @@ public class MessageWireSystems {
         this(wireSystems, true, true);
     }
 
-    private MessageWireSystems(Map<Integer, WireSystem> wireSystems, boolean firstPage, boolean lastPage) {
+    private MessageWireSystems(Map<Integer, WireSystem> wireSystems, Set<Integer> continuing,
+            boolean firstPage, boolean lastPage) {
         this.wireSystems = new LinkedHashMap<>(wireSystems);
+        this.continuingSystems = new HashSet<>(continuing);
         this.firstPage = firstPage;
         this.lastPage = lastPage;
     }
 
-    /** Break the complete visible network map into bounded, ordered snapshot frames. */
+    private MessageWireSystems(Map<Integer, WireSystem> wireSystems, boolean firstPage, boolean lastPage) {
+        this(wireSystems, Set.of(), firstPage, lastPage);
+    }
+
+    /** Stream all wire parts, including systems longer than the old 16,384-part limit. */
     public static void sendSnapshot(Map<Integer, WireSystem> systems, Player player) {
         Map<Integer, WireSystem> page = new LinkedHashMap<>();
+        Set<Integer> continuing = new HashSet<>();
         int partCount = 0;
         boolean first = true;
         for (Map.Entry<Integer, WireSystem> entry : systems.entrySet()) {
-            int parts = (int) entry.getValue().elements.stream()
+            List<WireSystem.WireElement> wires = entry.getValue().elements.stream()
                 .filter(element -> element.type == WireSystem.WireElement.Type.WIRE_PART)
-                .limit(MAX_ELEMENTS_PER_SYSTEM).count();
-            if (!page.isEmpty() && (page.size() >= MAX_SYSTEMS
-                || partCount + parts > MAX_ELEMENTS_PER_PACKET)) {
-                MessageManager.sendTo(new MessageWireSystems(page, first, false), player);
-                first = false;
-                page = new LinkedHashMap<>();
-                partCount = 0;
-            }
-            page.put(entry.getKey(), entry.getValue());
-            partCount += parts;
+                .collect(Collectors.toList());
+            int offset = 0;
+            do {
+                int end = Math.min(wires.size(), offset + MAX_ELEMENTS_PER_FRAGMENT);
+                int count = end - offset;
+                // Repeated IDs must be sent in different frames so each is assembled in order.
+                if (!page.isEmpty() && (page.containsKey(entry.getKey()) || page.size() >= MAX_SYSTEMS
+                    || partCount + count > MAX_ELEMENTS_PER_PACKET)) {
+                    MessageManager.sendTo(new MessageWireSystems(page, continuing, first, false), player);
+                    first = false;
+                    page = new LinkedHashMap<>();
+                    continuing = new HashSet<>();
+                    partCount = 0;
+                }
+                page.put(entry.getKey(), new WireSystem(ImmutableList.copyOf(wires.subList(offset, end)), null));
+                if (offset > 0) continuing.add(entry.getKey());
+                partCount += count;
+                offset = end;
+            } while (offset < wires.size());
         }
-        // Even an empty snapshot must clear networks no longer visible to this player.
-        MessageManager.sendTo(new MessageWireSystems(page, first, true), player);
+        // Empty snapshots still revoke all no-longer-visible wire networks.
+        MessageManager.sendTo(new MessageWireSystems(page, continuing, first, true), player);
     }
 
     public static void toBytes(MessageWireSystems msg, FriendlyByteBuf buf) {
@@ -85,10 +106,13 @@ public class MessageWireSystems {
         pb.writeInt(msg.wireSystems.size());
         msg.wireSystems.forEach((wiresHashCode, wireSystem) -> {
             pb.writeInt(wiresHashCode);
+            pb.writeBoolean(msg.continuingSystems.contains(wiresHashCode));
             List<WireSystem.WireElement> elements = wireSystem.elements.stream()
                     .filter(element -> element.type == WireSystem.WireElement.Type.WIRE_PART)
-                    .limit(MAX_ELEMENTS_PER_SYSTEM)
                     .collect(Collectors.toList());
+            if (elements.size() > MAX_ELEMENTS_PER_FRAGMENT) {
+                throw new IllegalStateException("Wire fragment exceeds packet budget: " + elements.size());
+            }
             pb.writeInt(elements.size());
             elements.forEach(element -> element.toBytes(pb));
         });
@@ -105,6 +129,7 @@ public class MessageWireSystems {
         }
         for (int i = 0; i < count; i++) {
             int wiresHashCode = pb.readInt();
+            if (pb.readBoolean()) continuingSystems.add(wiresHashCode);
             int localCount = pb.readInt();
             if (localCount < 0 || localCount > MAX_ELEMENTS_PER_SYSTEM) {
                 throw new DecoderException("Invalid wire element count: " + localCount);
@@ -127,7 +152,24 @@ public class MessageWireSystems {
                 receivingSnapshot = true;
             }
             if (!receivingSnapshot) return; // Never publish pages received without the start frame.
-            incomingSnapshot.putAll(message.wireSystems);
+            for (Map.Entry<Integer, WireSystem> chunk : message.wireSystems.entrySet()) {
+                int id = chunk.getKey();
+                WireSystem previous = incomingSnapshot.get(id);
+                if (message.continuingSystems.contains(id)) {
+                    if (previous == null) {
+                        // A continuation without its beginning is not a usable network snapshot.
+                        incomingSnapshot.clear();
+                        receivingSnapshot = false;
+                        return;
+                    }
+                    ImmutableList.Builder<WireSystem.WireElement> merged = ImmutableList.builder();
+                    merged.addAll(previous.elements);
+                    merged.addAll(chunk.getValue().elements);
+                    incomingSnapshot.put(id, new WireSystem(merged.build(), null));
+                } else {
+                    incomingSnapshot.put(id, chunk.getValue());
+                }
+            }
             if (message.lastPage) {
                 ClientWireSystems.INSTANCE.wireSystems.clear();
                 ClientWireSystems.INSTANCE.wireSystems.putAll(incomingSnapshot);
