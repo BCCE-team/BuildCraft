@@ -378,22 +378,26 @@ def validate_language_policy(props: dict[str, str]) -> None:
 
 
 def validate_guide_resources() -> None:
+    # GuiGuide resolves buildcraft:guide/gui/* directly on every target. The
+    # older copies under buildcraftlib:textures/gui/guide are not addressed by
+    # the runtime and must not silently reappear after an asset cleanup.
     names = {
-        "cover.png", "icons.png", "left_page.png", "left_page_back.png",
-        "left_page_first.png", "note.png", "right_page.png", "right_page_back.png",
-        "right_page_last.png",
+        "icons.png", "left_page.png", "left_page_back.png",
+        "left_page_first.png", "note.png", "right_page.png",
+        "right_page_back.png", "right_page_last.png",
     }
-    shared = ROOT / "source-shared/src/main/resources/assets/buildcraftlib/textures/gui/guide"
-    missing = sorted(name for name in names if not (shared / name).is_file())
+    live = ROOT / "source-shared/src/main/resources/assets/buildcraft/guide/gui"
+    missing = sorted(name for name in names if not (live / name).is_file())
     if missing:
-        fail(f"shared guide textures incomplete: {missing}")
+        fail(f"canonical buildcraft:guide/gui textures incomplete: {missing}")
     for base in (
+        ROOT / "source-shared/src/main/resources/assets/buildcraftlib/textures/gui/guide",
         ROOT / "source-families/1.21.X/src/main/resources/assets/buildcraftlib/textures/gui/guide",
         ROOT / "version-src/1.20.1-forge/src/main/resources/assets/buildcraftlib/textures/gui/guide",
     ):
         leftovers = [p.name for p in base.glob("*.png")] if base.is_dir() else []
         if leftovers:
-            fail(f"redundant modern guide texture remains in {base.relative_to(ROOT)}: {leftovers[0]}")
+            fail(f"unused legacy guide texture remains in {base.relative_to(ROOT)}: {leftovers[0]}")
 
 
 def validate_quartz_sprite_paths() -> None:

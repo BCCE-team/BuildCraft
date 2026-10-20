@@ -134,13 +134,9 @@ class ResourcePipeline(unittest.TestCase):
                 self.assertEqual(1, sum(
                     source.get('resource') == sprite
                     for source in atlas['sources'] if isinstance(source, dict)))
-                item_atlas = self.read_json(ver, 'assets/minecraft/atlases/items.json')
-                self.assertNotIn(sprite, {
-                    source.get('resource') for source in item_atlas['sources']
-                    if isinstance(source, dict)
-                })
-                # Legacy item mask can remain as an unused asset; the items atlas
-                # above is the authoritative check that it cannot be rendered.
+                # The obsolete atlas extension had only two unregistered bucket sprites.
+                # Removing it does not remove the vanilla items atlas or modern bucket models.
+                self.assertFalse((self.roots[ver] / 'assets/minecraft/atlases/items.json').exists())
                 texture = self.roots[ver] / 'assets/buildcraftenergy/textures/block/mask/bucket_surface.png'
                 self.assertTrue(texture.is_file())
                 for family in (
@@ -500,25 +496,53 @@ class ResourceReload26Regression(unittest.TestCase):
                     ns, tex = particle.split(':', 1)
                     self.assertTrue((FLUID_RELOAD_ASSETS / ns / 'textures' / (tex + '.png')).is_file(), particle)
 
-    def test_no_legacy_bucket_texture_is_missing_from_item_atlas(self):
-        ids = ('buildcraftenergy:items/bucket_fuel', 'buildcraftenergy:items/bucket_red_plasma')
-        for version in ('1.21.11', '26.2', '26.3'):
-            target = version + '-neoforge'
-            props = load_properties()
-            layout = target_layout(target, props)
-            if version == '1.21.11':
-                src = FLUID_RELOAD_ROOT / 'resource-src/1.21.X/1.21.11/assets/minecraft/atlases/items.json'
-            else:
-                src = resolve_effective_source(layout, props,
+    def test_obsolete_bucket_models_and_plasma_are_absent(self):
+        # 1.21.11+/26.X buckets are registered as oil/cool_bucket etc.
+        # The old standalone bucketfuel/bucketoil/bucketredplasma IDs never
+        # existed as actual registered items. Their atlas override is unnecessary.
+        from source_layout import resolve_effective_source, target_layout
+
+        retired_names = ("bucketfuel", "bucketoil", "bucketredplasma", "glob_oil")
+        for name in retired_names:
+            src = FLUID_RELOAD_ASSETS / "buildcraftenergy/models/item" / (name + ".json")
+            self.assertFalse(src.exists(), name)
+        for name in ("bucket_fuel", "oil_bucket", "bucket_red_plasma", "glob_oil"):
+            src = FLUID_RELOAD_ASSETS / "buildcraftenergy/textures/items" / (name + ".png")
+            self.assertFalse(src.exists(), name)
+        for name in ("redplasma_still", "redplasma_flow"):
+            src = FLUID_RELOAD_ASSETS / "buildcraftenergy/textures/blocks/fluids" / (name + ".png")
+            self.assertFalse(src.exists(), name)
+            self.assertFalse(Path(str(src) + ".mcmeta").exists(), name)
+
+        props = load_properties()
+        for target in ('1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge'):
+            with self.subTest(target=target):
+                # Vanilla's item atlas is retained by Minecraft, but this mod
+                # must not overlay it with its two unregistered bucket sprites.
+                src = resolve_effective_source(target_layout(target, props), props,
                     'src/main/resources/assets/minecraft/atlases/items.json')
-            self.assertIsNotNone(src, target)
-            self.assertTrue(src.is_file())
-            resources = json.loads(src.read_text(encoding='utf-8'))['sources']
-            for rid in ids:
-                with self.subTest(target=target, sprite=rid):
-                    self.assertIn({'type': 'minecraft:single', 'resource': rid}, resources)
-                    ns, tex = rid.split(':', 1)
-                    self.assertTrue((FLUID_RELOAD_ASSETS / ns / 'textures' / (tex + '.png')).exists())
+                self.assertIsNone(src)
+                # Check that the real modern bucket remains selectable.
+                bucket = resolve_effective_source(target_layout(target, props), props,
+                    'src/main/resources/assets/buildcraftenergy/items/oil/cool_bucket.json')
+                if target == '1.21.11-neoforge':
+                    # This generation synthesizes bucket item descriptors;
+                    # ResourcePipeline validates the materialized 1.21.11 copy.
+                    self.assertIsNone(bucket)
+                    continue
+                self.assertIsNotNone(bucket)
+                oil = json.loads(bucket.read_text(encoding='utf-8'))
+                self.assertEqual('neoforge:fluid_container', oil['model']['type'])
+                self.assertEqual('buildcraftenergy:oil', oil['model']['fluid'])
+
+        atlas_src = resolve_effective_source(
+            target_layout('1.21.11-neoforge', props), props,
+            'src/main/resources/assets/minecraft/atlases/blocks.json')
+        self.assertIsNotNone(atlas_src)
+        atlas = json.loads(atlas_src.read_text(encoding='utf-8'))
+        self.assertTrue(all('redplasma' not in json.dumps(sprite).lower()
+                            and 'bucket_fuel' not in json.dumps(sprite)
+                            for sprite in atlas['sources']))
 
     def test_architect_keeps_six_different_faces(self):
         for suffix in ('architect_on', 'architect_off'):
@@ -529,8 +553,7 @@ class ResourceReload26Regression(unittest.TestCase):
     def test_builder_base_depends_only_on_facing(self):
         paths = (
             FLUID_RELOAD_ROOT / 'source-families/old/src/main/resources/assets/buildcraftbuilders/blockstates/builder.json',
-            FLUID_RELOAD_ROOT / 'source-families/1.21.X/src/main/resources/assets/buildcraftbuilders/blockstates/builder.json',
-            FLUID_RELOAD_ROOT / 'source-shared/src/main/resources/assets/buildcraftbuilders/blockstates/builder2.json')
+            FLUID_RELOAD_ROOT / 'source-families/1.21.X/src/main/resources/assets/buildcraftbuilders/blockstates/builder.json')
         for src in paths:
             data = json.loads(src.read_text())
             self.assertEqual(4, sum(1 for part in data['multipart'] if part['apply']['model'].endswith('/main')))
@@ -546,7 +569,7 @@ class ResourceReload26Regression(unittest.TestCase):
     def test_sprite_dimensions_match_animation_metadata_and_mip_level(self):
         p = FLUID_RELOAD_ASSETS / 'buildcraftfactory/textures/blocks/plain_pipe/end.png'
         self.assertEqual((16,16), self.png_dimensions(p))
-        for name in ('oil_still','redplasma_still','fuel_still'):
+        for name in ('oil_still','fuel_still'):
             p = FLUID_RELOAD_ASSETS / 'buildcraftenergy/textures/blocks/fluids' / (name + '.png')
             meta = json.loads(Path(str(p) + '.mcmeta').read_text())['animation']['frames']
             indices = [f if isinstance(f, int) else f['index'] for f in meta]
