@@ -74,6 +74,7 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
         if (microJoulesToAdd <= 0 || capacity <= 0 || isFull()) {
             return microJoulesToAdd;
         }
+        // Keep the checked API within advertised capacity; legacy addPower retains overfill semantics.
         long free = capacity - Math.max(0L, microJoules);
         long accepted = Math.min(microJoulesToAdd, free);
         addPower(accepted, simulate);

@@ -70,11 +70,13 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
      * @param microJoulesToAdd The power to add.
      * @return The excess power. */
     public long addPowerChecking(long microJoulesToAdd, FluidAction simulate) {
-        if (isFull()) {
-            return microJoulesToAdd;
-        } else {
-            return addPower(microJoulesToAdd, simulate);
-        }
+        if (microJoulesToAdd <= 0) return microJoulesToAdd;
+        // Unlike legacy addPower (which intentionally permits heat-producing overfill), the checked
+        // insertion contract must never accept beyond the advertised storage capacity.
+        long free = Math.max(0L, capacity - microJoules);
+        long accepted = Math.min(microJoulesToAdd, free);
+        if (accepted > 0) addPower(accepted, simulate);
+        return microJoulesToAdd - accepted;
     }
 
     public long extractAll() {
