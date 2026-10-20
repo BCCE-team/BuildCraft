@@ -195,11 +195,27 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             appendPipe(root, tile, accessor.showDetails());
             appendLaserTable(root, tile);
             appendZonePlanner(root, tile);
+            // Preserve fluid names in privacy mode: only quantities are hidden.
+            appendFluidNamesWithoutAmounts(root, tile);
 
             if (!root.isEmpty()) {
                 data.put(DATA_ROOT, root);
             }
         }
+    }
+
+    private static void appendFluidNamesWithoutAmounts(CompoundTag root, TileBC_Neptune tile) {
+        if (!BCLibConfig.hideFluidValues) return;
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
+        for (Tank tank : tile.tankManager) {
+            var fluid = tank.getFluid();
+            if (fluid != null && !fluid.isEmpty()) {
+                String name = buildcraft.lib.compat.FluidCompat.getDisplayName(fluid).getString();
+                if (!name.isBlank()) names.add(name);
+            }
+            if (names.size() >= 8) break;
+        }
+        if (!names.isEmpty()) root.putString("FluidNames", String.join(", ", names));
     }
 
     private enum BlockProvider implements IBlockComponentProvider {
@@ -234,6 +250,9 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             }
             if (root.contains("LaserTable")) {
                 appendLaserTooltip(tooltip, NbtCompat.getCompound(root, "LaserTable"));
+            }
+            if (root.contains("FluidNames")) {
+                tooltip.add(line("fluid", Component.literal(NbtCompat.getString(root, "FluidNames")).withStyle(BCTextFormat.WHITE)));
             }
             if (root.contains("ZonePlanner")) {
                 appendZonePlannerTooltip(tooltip, NbtCompat.getCompound(root, "ZonePlanner"));
