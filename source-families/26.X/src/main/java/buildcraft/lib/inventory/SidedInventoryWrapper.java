@@ -15,6 +15,9 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.item.ItemStack;
 
 public final class SidedInventoryWrapper extends AbstractInvItemTransactor {
+    @Override
+    public Object backingIdentity() { return sided; }
+
     private final ISidedInventory sided;
     private final InventoryWrapper normal;
     private final Direction face;

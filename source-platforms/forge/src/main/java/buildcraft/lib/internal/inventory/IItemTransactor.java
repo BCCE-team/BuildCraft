@@ -12,6 +12,10 @@ import net.minecraftforge.common.capabilities.AutoRegisterCapability;
 /** A simple way to define something that deals with item insertion and extraction, without caring about slots. */
 @AutoRegisterCapability
 public interface IItemTransactor {
+    /** Identity of the physical backing inventory, independent of wrappers and sided views.
+     * Wrappers of the same storage should return the same object. Custom integrations can override. */
+    default Object backingIdentity() { return this; }
+
     /** @param stack The stack to insert. Must not be null!
      * @param allOrNone If true then either the entire stack will be used or none of it.
      * @param simulate If true then the in-world state of this will not be changed.

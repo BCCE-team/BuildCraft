@@ -177,7 +177,7 @@ public class ItemTransactorHelper {
      * @param maxItems The maximum number of items to move.
      * @return The number of items moved. */
     public static int move(IItemTransactor src, IItemTransactor dst, IStackFilter filter, int maxItems) {
-        if (src == null || dst == null || src == dst || maxItems <= 0) return 0;
+        if (src == null || dst == null || src.backingIdentity() == dst.backingIdentity() || maxItems <= 0) return 0;
         int moved = 0;
         IStackFilter rFilter = dst::canPartiallyAccept;
         if (filter != null) {
@@ -202,7 +202,7 @@ public class ItemTransactorHelper {
     /** Similar to {@link #move(IItemTransactor, IItemTransactor, IStackFilter, int)}, but will only attempt to extract
      * and insert once, which means that you can simulate the move safely. */
     public static int moveSingle(IItemTransactor src, IItemTransactor dst, IStackFilter filter, int maxItems, boolean simulateSrc, boolean simulateDst) {
-        if (src == null || dst == null || src == dst || maxItems <= 0) return 0;
+        if (src == null || dst == null || src.backingIdentity() == dst.backingIdentity() || maxItems <= 0) return 0;
         IStackFilter rFilter = dst::canPartiallyAccept;
         if (filter != null) {
             rFilter = rFilter.and(filter);

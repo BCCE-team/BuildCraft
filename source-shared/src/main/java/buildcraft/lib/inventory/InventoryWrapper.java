@@ -15,6 +15,9 @@ import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
 
 public final class InventoryWrapper extends AbstractInvItemTransactor {
+    @Override
+    public Object backingIdentity() { return Container; }
+
     private final Container Container;
 
     public InventoryWrapper(Container Container) {
