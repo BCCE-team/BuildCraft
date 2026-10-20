@@ -60,9 +60,7 @@ public class OilGenFeature extends Feature<OilFeatureConfiguration>{
 
         // OilGenerator still mirrors BC8's short-lived shared cache. Worldgen may run dimensions in parallel, so
         // protect the complete cache/config transaction instead of allowing one worker to replace another's world.
-        synchronized (OilGenerator.class) {
-            return placeLocked(world, chunkX, chunkZ, pfc.config());
-        }
+        return placeLocked(world, chunkX, chunkZ, pfc.config());
     }
 
 
@@ -92,7 +90,6 @@ public class OilGenFeature extends Feature<OilFeatureConfiguration>{
     }
 
     private boolean placeLocked(WorldGenLevel world, int chunkX, int chunkZ, OilFeatureConfiguration configuration) {
-        OilGenerator.config = configuration;
 
 /*        if (world.getLevelType() == LevelType.FLAT) {
             if (DEBUG_OILGEN_BASIC) {
@@ -114,7 +111,7 @@ public class OilGenFeature extends Feature<OilFeatureConfiguration>{
                 int cx = chunkX + cdx;
                 int cz = chunkZ + cdz;
 //                world.getProfiler().startSection("scan");
-                List<OilStructure> structures = OilGenerator.getStructures(world, cx, cz/*, cdx == 0 && cdz == 0*/);
+                List<OilStructure> structures = OilGenerator.getStructures(world, cx, cz, configuration);
                 OilStructure.Spring spring = null;
 //                world.getProfiler().endStartSection("gen");
                 for (OilStructure struct : structures) {

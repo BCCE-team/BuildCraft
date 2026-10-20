@@ -64,8 +64,15 @@ public class OilGenerator {
         }
     }
 
+    /** Explicit per-feature configuration: worldgen threads never communicate through global config state. */
+    public static List<OilStructure> getStructures(WorldGenLevel world, int cx, int cz,
+            OilFeatureConfiguration settings) {
+        return structureCache.getUnchecked(new CacheKey(world, cx, cz, settings));
+    }
+
+    /** Legacy callers only; the placed feature always supplies its own immutable settings. */
     public static List<OilStructure> getStructures(WorldGenLevel world, int cx, int cz) {
-        return structureCache.getUnchecked(new CacheKey(world, cx, cz, config));
+        return getStructures(world, cx, cz, config);
     }
 
     public static void clearCache() {

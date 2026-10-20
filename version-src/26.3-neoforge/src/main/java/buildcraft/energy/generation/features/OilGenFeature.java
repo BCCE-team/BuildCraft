@@ -64,9 +64,7 @@ public final class OilGenFeature implements Feature {
         ChunkPos chunkPos = new ChunkPos(origin.getX() >> 4, origin.getZ() >> 4);
         // OilGenerator uses a short-lived shared cache. Worldgen may run dimensions in parallel,
         // so protect the complete world/config/cache transaction.
-        synchronized (OilGenerator.class) {
-            return placeLocked(world, chunkPos.x(), chunkPos.z(), configuration);
-        }
+        return placeLocked(world, chunkPos.x(), chunkPos.z(), configuration);
     }
 
 
@@ -93,7 +91,6 @@ public final class OilGenFeature implements Feature {
 
     private boolean placeLocked(WorldGenLevel world, int chunkX, int chunkZ,
             OilFeatureConfiguration configuration) {
-        OilGenerator.setConfiguration(configuration);
         int count = 0;
         BlockPos min = new BlockPos(chunkX << 4, world.getMinBuildHeight(), chunkZ << 4);
         BlockPos max = new BlockPos((chunkX << 4) + 15, world.getMaxBuildHeight() - 1,
@@ -102,7 +99,7 @@ public final class OilGenFeature implements Feature {
 
         for (int cdx = -MAX_CHUNK_RADIUS; cdx <= MAX_CHUNK_RADIUS; cdx++) {
             for (int cdz = -MAX_CHUNK_RADIUS; cdz <= MAX_CHUNK_RADIUS; cdz++) {
-                List<OilStructure> structures = OilGenerator.getStructures(world, chunkX + cdx, chunkZ + cdz);
+                List<OilStructure> structures = OilGenerator.getStructures(world, chunkX + cdx, chunkZ + cdz, configuration);
                 OilStructure.Spring spring = null;
                 for (OilStructure structure : structures) {
                     structure.generate(world, box);
