@@ -10,6 +10,9 @@ import javax.annotation.Nonnull;
 
 import buildcraft.lib.internal.mj.IMjConnector;
 import buildcraft.core.BCCoreBlocks;
+import buildcraft.lib.misc.AdvancementUtil;
+import net.minecraft.resources.ResourceLocation;
+
 import buildcraft.lib.engine.EngineConnector;
 import buildcraft.lib.engine.TileEngineBase_BC8;
 
@@ -18,7 +21,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
 public class TileEngineRedstone_BC8 extends TileEngineBase_BC8 {
-//    private static final ResourceLocation ADVANCEMENT = new ResourceLocation("buildcraftcore:free_power");
+    private static final ResourceLocation ADVANCEMENT = new ResourceLocation("buildcraftcore:free_power");
     private boolean givenAdvancement = false;
 
     public TileEngineRedstone_BC8(BlockPos pos, BlockState state) {
@@ -45,8 +48,9 @@ public class TileEngineRedstone_BC8 extends TileEngineBase_BC8 {
                 if (getHeatLevel() < 0.8) {
                     heat += 4;
                 }
-                if (isPumping && !givenAdvancement) {
-//                    givenAdvancement = AdvancementUtil.unlockAdvancement(this.getOwner().getId(), ADVANCEMENT);
+                if (isPumping && !givenAdvancement && getOwner() != null && !level.isClientSide) {
+                    // Retry while the owner is offline rather than marking the achievement as granted.
+                    givenAdvancement = AdvancementUtil.unlockAdvancement(getOwner().getId(), ADVANCEMENT);
                 }
             }
         } else {
