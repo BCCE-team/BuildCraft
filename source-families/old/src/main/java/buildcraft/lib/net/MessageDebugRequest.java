@@ -12,6 +12,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import buildcraft.lib.internal.tiles.IDebuggable;
+import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.item.ItemDebugger;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -70,8 +71,14 @@ public class MessageDebugRequest {
 			if (tile instanceof IDebuggable) {
 				List<String> left = new ArrayList<>();
 				List<String> right = new ArrayList<>();
-				((IDebuggable) tile).getDebugInfo(left, right, message.side);
-				MessageManager.sendTo(new MessageDebugResponse(left, right), player);
+                try {
+                    ((IDebuggable) tile).getDebugInfo(left, right, message.side);
+                    MessageManager.sendTo(new MessageDebugResponse(left, right), player);
+                } catch (RuntimeException e) {
+                    // A broken addon-provided IDebuggable must not fail the packet task or leave the HUD stale.
+                    BCLog.logger.warn("Failed to collect BuildCraft debug information at {}", message.pos, e);
+                    MessageManager.sendTo(new MessageDebugResponse(), player);
+                }
 			}
 		});
 		ctx.get().setPacketHandled(true);
