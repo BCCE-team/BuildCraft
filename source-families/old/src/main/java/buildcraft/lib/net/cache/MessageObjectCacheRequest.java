@@ -30,7 +30,8 @@ public class MessageObjectCacheRequest {
     private static final class RequestBudget {
         long tick;
         int remaining;
-        RequestBudget(long tick) { this.tick = tick; this.remaining = 1024; }
+        int remainingBytes;
+        RequestBudget(long tick) { this.tick = tick; this.remaining = 1024; this.remainingBytes = 2 * 1024 * 1024; }
     }
 
     private static boolean allowRequest(net.minecraft.server.level.ServerPlayer sender, int count) {
@@ -40,12 +41,22 @@ public class MessageObjectCacheRequest {
         if (tick < budget.tick || tick - budget.tick >= 20) {
             budget.tick = tick;
             budget.remaining = 1024;
+            budget.remainingBytes = 2 * 1024 * 1024;
         }
         if (budget.remaining < count) return false;
         budget.remaining -= count;
         return true;
     }
 
+
+    /** Bound serialized response traffic per authenticated connection as well as request count.
+     * Prevents one player from requesting the maximum 2 MiB payload four times per budget window. */
+    private static boolean chargeSerializedBytes(net.minecraft.server.level.ServerPlayer sender, int bytes) {
+        RequestBudget budget = REQUEST_BUDGETS.get(sender);
+        if (budget == null || bytes < 0 || bytes > budget.remainingBytes) return false;
+        budget.remainingBytes -= bytes;
+        return true;
+    }
 
     private int cacheId;
 
