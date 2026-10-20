@@ -47,7 +47,7 @@ import buildcraft.lib.net.BCPacketContext;
 import buildcraft.lib.compat.RenderCompat;
 
 public class RobotStationPluggable extends PipePluggable implements IDockingStationProvider, IMjReceiver, IMjReadable {
-    /** Robot battery receiver limit: at most 100 robot-energy units per tick = 1 MJ/t. */
+    /** Robot charging is limited to 20 MJ per tick; the robot may accept less based on free battery capacity. */
     private static final long MAX_CHARGE_PER_TICK = 20 * MjAmount.MICRO_MJ_PER_MJ;
 
     public enum RobotStationState {
