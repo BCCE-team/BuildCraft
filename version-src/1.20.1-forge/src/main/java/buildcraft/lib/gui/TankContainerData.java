@@ -16,7 +16,8 @@ import net.minecraftforge.fluids.FluidStack;
 public class TankContainerData implements ContainerData{
 	
 	/** Each logical 32-bit field uses two 16-bit ContainerData slots. */
-    public static final int LEN = 10;
+    /** Five scalar ints plus component-preserving server and render variant IDs. */
+    public static final int LEN = 14;
 	protected final Tank[] tanks ;
 	protected final int count;
 	
@@ -37,6 +38,8 @@ public class TankContainerData implements ContainerData{
 			case 2 -> BuiltInRegistries.FLUID.getId(tanks[p/LEN].getFluidForRender().getRawFluid());
 			case 3 -> tanks[p/LEN].getFluidForRender().getAmount();
 			case 4 -> tanks[p/LEN].getCapacity();
+            case 5 -> cacheVariant(tanks[p/LEN].getFluidInTank(0));
+            case 6 -> cacheVariant(tanks[p/LEN].getFluidForRender());
 			default -> 0;
         };
         return ((p & 1) == 0 ? value : value >>> 16) & 0xFFFF;
@@ -67,12 +70,42 @@ public class TankContainerData implements ContainerData{
         return (data.get(lowWordIndex) & 0xFFFF) | ((data.get(lowWordIndex + 1) & 0xFFFF) << 16);
     }
 
+
+    private static int cacheVariant(FluidStack fluid) {
+        return fluid == null || fluid.isEmpty() ? -1
+            : buildcraft.lib.net.cache.BuildCraftObjectCaches.CACHE_FLUIDS.server().store(fluid);
+    }
+
+    /** Resolve full NBT/Data Components using the already-bounded object cache.
+     * Original fluid-ID display stays available until the async cache request completes. */
+    private static FluidStack readVariant(ContainerData data, int point, int cacheOffset,
+                                          int typeOffset, int amountOffset) {
+        int amount = Math.max(0, getPacked(data, point + amountOffset));
+        if (amount == 0) return FluidStack.EMPTY;
+        int expectedId = getPacked(data, point + typeOffset);
+        if (data.getCount() - point >= LEN) {
+            int cacheId = getPacked(data, point + cacheOffset);
+            if (cacheId >= 0) {
+                var link = buildcraft.lib.net.cache.BuildCraftObjectCaches.CACHE_FLUIDS.client().retrieve(cacheId);
+                if (link.hasBeenReceived()) {
+                    FluidStack full = link.get();
+                    if (full != null && !full.isEmpty() && BuiltInRegistries.FLUID.getId(full.getFluid()) == expectedId) {
+                        FluidStack result = full.copy();
+                        result.setAmount(amount);
+                        return result;
+                    }
+                }
+            }
+        }
+        return new FluidStack(BuiltInRegistries.FLUID.byId(expectedId), amount);
+    }
+
 	public static FluidStack getFluidStack(ContainerData data, int point) {
-		return new FluidStack(BuiltInRegistries.FLUID.byId(getPacked(data, point + 0)), getPacked(data, point + 2));
+        return readVariant(data, point, 10, 0, 2);
 	}
 	
 	public static FluidStack getRenderFluidStack(ContainerData data, int point) {
-		return new FluidStack(BuiltInRegistries.FLUID.byId(getPacked(data, point + 4)), getPacked(data, point + 6));
+        return readVariant(data, point, 12, 4, 6);
 	}
 	
 	public static Fluid getFluidType(ContainerData data, int point) {
@@ -101,13 +134,12 @@ public class TankContainerData implements ContainerData{
 	        public void refresh() {
 	            clear();
 	            int amount = getPacked(data, point + 2);
-	            FluidStack fluidStack = BuiltInRegistries.FLUID.byId(getPacked(data, point + 4)) == Fluids.EMPTY ? FluidStack.EMPTY
-	            		: new FluidStack(BuiltInRegistries.FLUID.byId(getPacked(data, point + 4)), getPacked(data, point + 6));;
+	            FluidStack fluidStack = getRenderFluidStack(data, point);
 	            if (fluidStack != FluidStack.EMPTY && amount > 0) {
 	                add(fluidStack.getDisplayName());
 	            }
 	            add(LocaleUtil.localizeFluidStaticAmount(amount, getPacked(data, point + 8)).setStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
-	            FluidStack serverFluid = new FluidStack(BuiltInRegistries.FLUID.byId(getPacked(data, point + 0)), getPacked(data, point + 2));
+	            FluidStack serverFluid = getFluidStack(data, point);
 	            if (serverFluid != FluidStack.EMPTY && serverFluid.getAmount() > 0) {
 	                add(Component.translatable("tooltip.buildcraftlib.fluid.server_side_on_client").setStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
 	                add(serverFluid.getDisplayName());

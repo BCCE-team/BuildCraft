@@ -64,8 +64,19 @@ public class TankComponent extends AbstractComponent{
 		int amount = Math.max(0, TankContainerData.getPacked(data, offset + 2));
 		if (this.fluidCache != null && amount > 0 && capacity > 0) {
 			int filled = Math.min(ys, Math.max(1, (int) ((long) ys * amount / capacity)));
-			FluidRenderer.drawFluidForGui(this.fluidCache, leftpos + x, toppos + y + ys,
+			boolean richRendered = false;
+            if (data != null && data.getCount() - offset >= TankContainerData.LEN) {
+                var rich = TankContainerData.getRenderFluidStack(data, offset);
+                if (rich != null && !rich.isEmpty()) {
+                    FluidRenderer.drawFluidForGui(rich, leftpos + x, toppos + y + ys,
 				leftpos + x + xs, toppos + y + ys - filled, guiGraphics);
+                    richRendered = true;
+                }
+            }
+            if (!richRendered) {
+                FluidRenderer.drawFluidForGui(this.fluidCache, leftpos + x, toppos + y + ys,
+				leftpos + x + xs, toppos + y + ys - filled, guiGraphics);
+            }
 		}
 	}
 
