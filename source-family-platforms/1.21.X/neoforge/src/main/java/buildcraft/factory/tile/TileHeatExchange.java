@@ -44,7 +44,6 @@ import buildcraft.lib.tile.TileBC_Neptune;
 import buildcraft.lib.platform.storage.FluidStorage;
 import buildcraft.lib.platform.storage.PlatformStorage;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.server.level.ParticleStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -1011,13 +1010,14 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             double z = from.z;
 
             Vec3 motion = VecUtil.scale(vecDir, 0.4);
-            Minecraft mc = Minecraft.getInstance();
-            ParticleStatus particleType = mc.options.particles().get();
+            // Run on the client level without linking the common block entity class to
+            // net.minecraft.client.Minecraft (dedicated servers load this class too).
+            // ClientLevel handles particle graphics settings when particles are submitted.
             Level w = getTile().getLevel();
-            if (particleType == ParticleStatus.MINIMAL || w == null) {
+            if (w == null || !w.isClientSide()) {
                 return;
             }
-            int particleCount = particleType == ParticleStatus.ALL ? 5 : 2;
+            int particleCount = 2;
             for (int i = 0; i < particleCount; i++) {
                 double dx = motion.x + (Math.random() - 0.5) * 0.1;
                 double dy = motion.y + (Math.random() - 0.5) * 0.1;
