@@ -29,6 +29,41 @@ def forbid(rel, *tokens):
             errors.append(f"{rel}: forbidden world/transport regression token {token!r}")
 
 
+def require_explicit_bounce_or_ejection(rel):
+    """A filtered/invalid route must not silently bounce into the ingress pipe.
+
+    When no route survives SideCheck, only a pipe behaviour explicitly granting
+    TryBounce may redirect the stack backwards. Otherwise eject into the world;
+    a rejected entity spawn remains owned by the flow for a later attempt.
+    """
+    source = read(rel)
+    centre = source.find("private void onItemReachCenter(TravellingItem item)")
+    no_route = source.find("if (order.isEmpty()) {", centre) if centre >= 0 else -1
+    next_step = source.find("PipeEventItem.ItemEntry entry =", no_route) if no_route >= 0 else -1
+    if centre < 0 or no_route < 0 or next_step < 0:
+        errors.append(f"{rel}: no-route routing branch is missing")
+        return
+    branch = source[no_route:next_step]
+    required_in_order = (
+        "PipeEventItem.TryBounce tryBounce = new PipeEventItem.TryBounce(",
+        "holder.fireEvent(tryBounce);",
+        "if (tryBounce.canBounce && reachCenter.from != null && pipe.isConnected(reachCenter.from)) {",
+        "order = ImmutableList.of(EnumSet.of(reachCenter.from));",
+        "} else {",
+        "if (!dropItem(item.stack, null, item.side.getOpposite(), item.speed)) holdAtCentre(item, 20);",
+        "return;",
+    )
+    position = 0
+    for token in required_in_order:
+        found = branch.find(token, position)
+        if found < 0:
+            errors.append(f"{rel}: missing ordered fallback guard {token!r}")
+            break
+        position = found + len(token)
+    if "retryConnectedPipe" in branch or "hasConnectedOutput =" in branch:
+        errors.append(f"{rel}: unconditional connected-output bounce reintroduced")
+
+
 def require_retryable_open_end(rel):
     """Open-ended pipes eject forwards, but retain the payload if entity spawning fails."""
     source = read(rel)
@@ -144,9 +179,6 @@ for platform in ("forge", "neoforge"):
         f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
         "if (!pipe.isConnected(item.side)) {",
         "if (!dropItem(excess, item.side, item.side, item.speed)) holdAtCentre(item, 20);",
-        "boolean hasConnectedOutput = hasConnectedOutputOtherThan(reachCenter.from);",
-        "boolean retryConnectedPipe = hasConnectedOutput",
-        "private boolean hasConnectedOutputOtherThan(Direction from)",
     )
     require(
         f"source-platforms/{platform}/src/main/java/buildcraft/energy/BCEnergyConfig.java",
@@ -175,9 +207,6 @@ require(
     "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
     "if (!pipe.isConnected(item.side)) {",
     "if (!dropItem(excess, item.side, item.side, item.speed)) holdAtCentre(item, 20);",
-    "boolean hasConnectedOutput = hasConnectedOutputOtherThan(reachCenter.from);",
-    "boolean retryConnectedPipe = hasConnectedOutput",
-    "private boolean hasConnectedOutputOtherThan(Direction from)",
 )
 
 # The open-end path must not reverse to the pipe centre when the face is open.
@@ -192,6 +221,7 @@ for rel in (
     "source-downports/26.X/26.2/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
 ):
     require_retryable_open_end(rel)
+    require_explicit_bounce_or_ejection(rel)
 
 # Natural oil uses an internal worldgen-only fluid whose flow is hard-bounded to five
 # block transitions from any natural source. This prevents long downhill terrain from

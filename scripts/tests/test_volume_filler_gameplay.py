@@ -7,6 +7,7 @@ uses typed doubles; it does not replace full NeoForge/Forge compile or in-game t
 from __future__ import annotations
 
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -31,6 +32,7 @@ CLASSES={
  'core/item/ItemMarkerConnector.java','core/marker/volume/AddonQuadRenderer.java',
  'core/marker/volume/AddonDefaultRenderer.java', 'core/marker/volume/IFastAddonRenderer.java',
  'core/marker/volume/BCCoreVolumeBoxEvents.java','core/marker/volume/VolumeBoxToolActions.java',
+ 'core/marker/volume/WorldSavedDataVolumeBoxes.java',
  'core/marker/volume/EnumAddonSlot.java','core/marker/volume/ItemAddon.java',
  'core/client/render/RenderVolumeBoxes.java',
  'builders/BCBuildersItems.java','builders/BCBuildersGuis.java','builders/BCBuildersClientGuis.java',
@@ -153,7 +155,16 @@ class VolumeFillerGameplayTests(unittest.TestCase):
                 connector=self.java(target,'core/item/ItemMarkerConnector.java')
                 tool=self.java(target,'core/marker/volume/VolumeBoxToolActions.java')
                 self.assertIn('boxes.addVolumeBox(position)',item)
-                self.assertIn('boxes.setDirty()',item)
+                # addVolumeBox is responsible for marking saved data dirty. A second
+                # setDirty in the item is redundant and was intentionally removed.
+                saved=self.java(target,'core/marker/volume/WorldSavedDataVolumeBoxes.java')
+                method=re.search(r'\bvoid\s+addVolumeBox\s*\(\s*BlockPos\s+pos\s*\)\s*\{([^{}]*)\}',saved)
+                self.assertIsNotNone(method, 'addVolumeBox must be implemented on all targets')
+                body=method.group(1)
+                self.assertIn('volumeBoxes.add(',body)
+                self.assertEqual(body.count('setDirty();'),1, 'addVolumeBox must mark saved data dirty exactly once')
+                self.assertLess(body.index('volumeBoxes.add('),body.index('setDirty();'))
+                self.assertNotIn('boxes.setDirty()',item)
                 self.assertNotIn('VolumeBoxToolActions.use(',item)
                 self.assertNotIn('InteractionResult use(Level',item)
                 self.assertNotIn('InteractionResultHolder<ItemStack> use(Level',item)

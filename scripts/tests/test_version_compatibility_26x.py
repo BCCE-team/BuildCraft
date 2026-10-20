@@ -512,12 +512,19 @@ class MinecraftApiConformance263(unittest.TestCase):
             ("lib/internal/mj/IMjReceiver.java", "Enum<?> action"),
             ("lib/internal/mj/MjBattery.java", "Enum<?> action"),
             ("robotics/boards/BoardRobotFarmer.java", "ItemTags.HOES"),
-            ("factory/container/ContainerAutoCraftItems.java", "new ItemProvider(slot ->"),
+            ("factory/container/ContainerAutoCraftItems.java", "new ItemHandlerSimple(1), access"),
             ("builders/menu/ContainerBuilder.java", "new ItemProvider(slot ->"),
         )
         for rel, token in checks:
             with self.subTest(rel=rel):
                 self.assertIn(token, self.get_source(rel))
+
+        # FACT-03: the client's result preview must be a mutable, synchronized slot.
+        # ItemProvider is display-only and cannot accept server-to-client slot updates.
+        preview_menu = self.get_source("factory/container/ContainerAutoCraftItems.java")
+        self.assertIn("IItemHandler resultClient", preview_menu)
+        self.assertIn("new SlotDisplay(resultClient, 0, 93, 27)", preview_menu)
+        self.assertNotIn("new ItemProvider(slot ->", preview_menu)
 
     def test_remaining_native_api_contracts(self):
         pipe = self.get_source("transport/block/BlockPipeHolder.java")

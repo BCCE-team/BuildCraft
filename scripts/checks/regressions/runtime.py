@@ -202,7 +202,10 @@ def validate_engine_pipe_handshake() -> None:
             "level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, worldPosition);",
             "level.neighborChanged(worldPosition.relative(current), sourceBlock, worldPosition);",
             "protected boolean isFacingReceiver(Direction dir)",
-            "return getPortToPower(dir) != null;",
+            # The API2 port must actually accept MJ; mere presence is not enough
+            # (a chain may expose a non-inserting or output-only endpoint).
+            "MjPort receiver = getPortToPower(dir);",
+            "return receiver != null && receiver.canInsert();",
         ):
             require(text, needle, rel)
     shared_block = read("source-shared/src/main/java/buildcraft/lib/engine/BlockEngineBase_BC8.java")

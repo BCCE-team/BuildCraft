@@ -1,6 +1,7 @@
 """Executable Java contract check of canonical Marker Connector VolumeBox interaction.
 
-The substitutes model ray/box hits and the saved-data editing/lock lifecycle; this is not Minecraft.
+The substitutes model ray/box hits, saved-data editing/locks, and API v2
+permission verdicts; this is not Minecraft.
 """
 from __future__ import annotations
 
@@ -14,6 +15,77 @@ public record BlockPos(int x,int y,int z) {public int getX(){return x;}public in
 ''',
 'net/minecraft/core/Direction':'''package net.minecraft.core;
 public enum Direction {NORTH; public enum Axis {X,Y,Z;}}
+''',
+'net/minecraft/resources/ResourceLocation':'''package net.minecraft.resources;
+public record ResourceLocation(String id) {
+ public static ResourceLocation tryParse(String id){return id==null||!id.contains(":")?null:new ResourceLocation(id);}
+}
+''',
+'net/minecraft/network/chat/Component':'''package net.minecraft.network.chat;
+public record Component(String text) {public String getString(){return text;}}
+''',
+'buildcraft/api/v2/OperationMode':'''package buildcraft.api.v2;
+public enum OperationMode {SIMULATE,EXECUTE;}
+''',
+'buildcraft/api/v2/service/ServiceKey':'''package buildcraft.api.v2.service;
+public final class ServiceKey<T> {}
+''',
+'buildcraft/api/v2/permission/PermissionVerdict':'''package buildcraft.api.v2.permission;
+public enum PermissionVerdict {ALLOW,DENY,PASS;}
+''',
+'buildcraft/api/v2/permission/PermissionDecision':'''package buildcraft.api.v2.permission;
+public record PermissionDecision(PermissionVerdict verdict) {}
+''',
+'buildcraft/api/v2/permission/AutomationActor':'''package buildcraft.api.v2.permission;
+import java.util.UUID;
+public record AutomationActor(UUID id,String name) {
+ public static AutomationActor player(UUID id,String name){return new AutomationActor(id,name);}
+}
+''',
+'buildcraft/api/v2/permission/WorldOperationKind':'''package buildcraft.api.v2.permission;
+public enum WorldOperationKind {BLOCK_INTERACT;}
+''',
+'buildcraft/api/v2/permission/WorldOperationTarget':'''package buildcraft.api.v2.permission;
+import net.minecraft.core.BlockPos;
+public record WorldOperationTarget(BlockPos pos) {
+ public static WorldOperationTarget block(BlockPos pos){return new WorldOperationTarget(pos);}
+}
+''',
+'buildcraft/api/v2/permission/WorldOperationContext':'''package buildcraft.api.v2.permission;
+import buildcraft.api.v2.OperationMode;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.Level;
+public record WorldOperationContext(AutomationActor actor,Level level,BlockPos origin,
+ WorldOperationTarget target,WorldOperationKind operation,OperationMode mode,ResourceLocation reason) {}
+''',
+'buildcraft/api/v2/permission/PermissionServiceRegistry':'''package buildcraft.api.v2.permission;
+public class PermissionServiceRegistry {
+ public static boolean deny,broken;
+ public static int calls;
+ public static WorldOperationContext last;
+ public PermissionDecision decide(WorldOperationContext context){
+  calls++;last=context;
+  if(broken)throw new IllegalStateException("Injected permission provider failure");
+  return new PermissionDecision(deny?PermissionVerdict.DENY:PermissionVerdict.PASS);
+ }
+}
+''',
+'buildcraft/api/v2/BuildCraftServices':'''package buildcraft.api.v2;
+import buildcraft.api.v2.service.ServiceKey;
+import buildcraft.api.v2.permission.PermissionServiceRegistry;
+public final class BuildCraftServices {
+ public static final ServiceKey<PermissionServiceRegistry> PERMISSIONS=new ServiceKey<>();
+}
+''',
+'buildcraft/api/v2/BuildCraftApi':'''package buildcraft.api.v2;
+import buildcraft.api.v2.permission.PermissionServiceRegistry;
+import buildcraft.api.v2.service.ServiceKey;
+public final class BuildCraftApi {
+ public static final PermissionServiceRegistry PERMISSIONS=new PermissionServiceRegistry();
+ @SuppressWarnings("unchecked")
+ public static <T> T service(ServiceKey<T> key){return (T)PERMISSIONS;}
+}
 ''',
 'net/minecraft/world/InteractionResult':'''package net.minecraft.world;
 public enum InteractionResult {PASS,SUCCESS,FAIL;}
@@ -35,11 +107,20 @@ public record AABB(double minX,double minY,double minZ,double maxX,double maxY,d
  }}
 ''',
 'net/minecraft/world/level/Level':'''package net.minecraft.world.level;
-public class Level {public boolean isClientSide;public Level(boolean client){isClientSide=client;}}
+public class Level {
+ public boolean isClientSide,chunkLoaded=true;
+ public Level(boolean client){isClientSide=client;}
+ public boolean hasChunkAt(net.minecraft.core.BlockPos pos){return chunkLoaded;}
+}
 ''',
 'net/minecraft/world/entity/player/Player':'''package net.minecraft.world.entity.player;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.network.chat.Component;
+import java.util.UUID;
 public class Player {
+ public final UUID id=UUID.fromString("00000000-0000-0000-0000-000000000020");
+ public UUID getUUID(){return id;}
+ public Component getName(){return new Component("VolumeTester");}
  public boolean crouch;public Vec3 eye=new Vec3(.5,.5,.5),look=new Vec3(1,0,0);
  public boolean isCrouching(){return crouch;}public Vec3 getEyePosition(){return eye;}public Vec3 getLookAngle(){return look;}}
 ''',
@@ -110,12 +191,41 @@ public static Pair<VolumeBox,EnumAddonSlot> getSelectingVolumeBoxAndSlot(Player 
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.core.BlockPos;
+import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.permission.*;
 public final class Harness {
  static int tests;
  static void ok(boolean c){tests++;if(!c)throw new AssertionError("failed "+tests);}
  public static void main(String[] args){
  var level=new Level(false);var player=new Player();var data=WorldSavedDataVolumeBoxes.DATA;
  var box=new VolumeBox();data.volumeBoxes.add(box);int dirty=data.dirty;
+ // Permission gate is server-only and fail-closed. Check it independently of editing.
+ var pos=new BlockPos(3,0,0);
+ ok(!VolumeBoxToolActions.mayEdit(level,null,pos));
+ ok(!VolumeBoxToolActions.mayEdit(level,player,null));
+ ok(!VolumeBoxToolActions.mayEdit(new Level(true),player,pos));
+ level.chunkLoaded=false;
+ ok(!VolumeBoxToolActions.mayEdit(level,player,pos));
+ level.chunkLoaded=true;
+ PermissionServiceRegistry.deny=true;
+ ok(!VolumeBoxToolActions.mayEdit(level,player,pos));
+ ok(VolumeBoxToolActions.use(level,player)==InteractionResult.FAIL);
+ ok(!box.isEditing());ok(data.dirty==dirty);
+ PermissionServiceRegistry.deny=false;PermissionServiceRegistry.broken=true;
+ ok(!VolumeBoxToolActions.mayEdit(level,player,pos));
+ ok(VolumeBoxToolActions.use(level,player)==InteractionResult.FAIL);
+ ok(!box.isEditing());ok(data.dirty==dirty);
+ PermissionServiceRegistry.broken=false;
+ ok(VolumeBoxToolActions.mayEdit(level,player,pos));
+ var context=PermissionServiceRegistry.last;
+ ok(context.origin().equals(pos));
+ ok(context.target().pos().equals(pos));
+ ok(context.operation()==WorldOperationKind.BLOCK_INTERACT);
+ ok(context.mode()==OperationMode.EXECUTE);
+ ok("buildcraft:volume_box_edit".equals(context.reason().id()));
+ ok(context.actor().id().equals(player.id));
+ ok("VolumeTester".equals(context.actor().name()));
  ok(VolumeBoxToolActions.use(new Level(true),player)==InteractionResult.PASS);
  ok(data.dirty==dirty);
  ok(VolumeBoxToolActions.use(level,player)==InteractionResult.SUCCESS);
