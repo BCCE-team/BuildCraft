@@ -931,8 +931,13 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
                 Capabilities.Energy.BLOCK, tile.getBlockPos(), side);
             if (energy == null) continue;
             Object backing = tile.getCapability(MjCapabilities.CAP_RECEIVER, side);
+            if (backing == null) backing = tile.getCapability(MjCapabilities.CAP_READABLE, side);
             if (backing == null) backing = tile.getCapability(buildcraft.lib.misc.CapUtil.CAP_FE, side);
-            if (backing == null) backing = energy;
+            // The NeoForge EnergyHandler export itself is a fresh wrapper for some
+            // providers, and identity-checking it counts the same buffer six times.
+            // If no stable backing is exposed, conservatively count this tile once.
+            // Independent storages should expose distinct native endpoints.
+            if (backing == null) backing = tile;
             if (!seen.add(backing)) continue;
             long max = Math.max(0L, energy.getCapacityAsLong());
             if (max <= 0L) continue;
