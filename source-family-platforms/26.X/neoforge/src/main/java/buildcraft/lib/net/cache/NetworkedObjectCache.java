@@ -9,6 +9,8 @@ package buildcraft.lib.net.cache;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.LinkedHashSet;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Supplier;
@@ -62,7 +64,9 @@ public abstract class NetworkedObjectCache<T> {
 
     /** The ID for the next stored object. IDs are never reused, even after an entry is evicted. */
     private int serverCurrentId = 0;
-    private final Queue<Integer> serverInsertionOrder = new LinkedList<>();
+    /** Access-order retention: active objects must not lose their ID just because
+     * other textures or item NBT variants briefly filled the bounded cache. */
+    private final LinkedHashSet<Integer> serverInsertionOrder = new LinkedHashSet<>();
 
     /** The list of cached client-side objects. */
     private final Int2ObjectMap<Link> clientObjects = new Int2ObjectOpenHashMap<>();
@@ -208,6 +212,7 @@ public abstract class NetworkedObjectCache<T> {
     private int serverStore(T object) {
         int current = serverObjectToId.getInt(object);
         if (current >= 0) {
+            touchServerId(current);
             return current;
         }
 
@@ -231,12 +236,19 @@ public abstract class NetworkedObjectCache<T> {
         return id;
     }
 
+    private void touchServerId(int id) {
+        if (id >= 0 && serverIdToObject.containsKey(id)) {
+            serverInsertionOrder.remove(id);
+            serverInsertionOrder.add(id);
+        }
+    }
+
     private void evictOldServerEntries() {
         while (serverIdToObject.size() > MAX_SERVER_ENTRIES) {
-            Integer oldestId = serverInsertionOrder.poll();
-            if (oldestId == null) {
-                return;
-            }
+            Iterator<Integer> iterator = serverInsertionOrder.iterator();
+            if (!iterator.hasNext()) return;
+            Integer oldestId = iterator.next();
+            iterator.remove();
             T removed = serverIdToObject.remove(oldestId.intValue());
             if (removed != null && serverObjectToId.getInt(removed) == oldestId.intValue()) {
                 serverObjectToId.removeInt(removed);
@@ -253,7 +265,9 @@ public abstract class NetworkedObjectCache<T> {
      * @param object
      * @return */
     private int serverGetId(T object) {
-        return serverObjectToId.getInt(object);
+        int id = serverObjectToId.getInt(object);
+        touchServerId(id);
+        return id;
     }
 
     /** Retrieves a link to the specified ID. CLIENT SIDE.
