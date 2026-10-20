@@ -56,7 +56,7 @@ public class TriggerRedstoneInput extends BCStatement implements ITriggerInterna
     public boolean isTriggerActive(IStatementContainer container, IStatementParameter[] parameters) {
         if (container instanceof IRedstoneStatementContainer) {
             int level = ((IRedstoneStatementContainer) container).getRedstoneInput(null);
-            if (parameters.length > 0 && parameters[0] instanceof StatementParamGateSideOnly
+            if (parameters != null && parameters.length > 0 && parameters[0] instanceof StatementParamGateSideOnly
                 && ((StatementParamGateSideOnly) parameters[0]).isSpecific
                 && container instanceof ISidedStatementContainer) {
                 level = ((IRedstoneStatementContainer) container)
