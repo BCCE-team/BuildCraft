@@ -9,6 +9,7 @@ Minecraft/NeoForge dependencies.
 from __future__ import annotations
 
 import sys
+import tomllib
 import tempfile
 import unittest
 from pathlib import Path
@@ -73,6 +74,30 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
                 self.assertIn("import net.minecraft.ChatFormatting;", source)
                 self.assertIn('"FluidNames")).withStyle(ChatFormatting.WHITE)', source)
                 self.assertNotIn("BCTextFormat", source)
+
+    def test_121_metadata_preprocesses_to_valid_toml(self):
+        # The 1.21.1-only Create dependency block must not leave Java-style //
+        # comments in TOML, which would crash NeoForge before mods initialize.
+        metadata = ROOT / "source-platforms/neoforge/src/main/resources/META-INF/neoforge.mods.toml"
+        props = load_properties()
+        for target in ("1.21.1-neoforge", "1.21.11-neoforge", "26.1.2-neoforge",
+                       "26.2-neoforge", "26.3-neoforge"):
+            with self.subTest(target=target):
+                layout = target_layout(target, props)
+                materialized = Path(self.tmp.name) / target / "META-INF/neoforge.mods.toml"
+                _materialize_text_file(
+                    metadata, materialized,
+                    logical_relative="src/main/resources/META-INF/neoforge.mods.toml",
+                    minecraft=props[f"target.{target}.deps.minecraft"],
+                    family=layout.family, platform=layout.platform, preprocess=True,
+                )
+                text = materialized.read_text(encoding="utf-8")
+                parsed = tomllib.loads(text)
+                self.assertIn("buildcraftrobotics", [m["modId"] for m in parsed["mods"]])
+                create_deps = [d for d in parsed["dependencies"]["buildcraftcompat"]
+                               if d["modId"] == "create"]
+                self.assertEqual(len(create_deps), 1 if target.startswith("1.21.1-") else 0)
+                self.assertEqual(bool(parsed.get("mixins")), not target.startswith("1.21.1-"))
 
     def test_26x_jade_retains_its_native_formatting(self):
         name = "compat/jade/BuildCraftJadePlugin.java"

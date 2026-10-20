@@ -109,7 +109,7 @@ public final class RoboticsApi2Bootstrap {
                 persistence,
                 RobotServiceImpl::acquireBlockResource
             ),
-            () -> "buildcraftrobotics"
+            () -> "buildcraft"
         );
     }
 
@@ -136,7 +136,7 @@ public final class RoboticsApi2Bootstrap {
         buildcraft.api.v2.registry.ApiRegistry<DockPortType<?>> registry, DockPortType<T> type
     ) {
         if (registry.get(type.id()) == null) {
-            registry.register(type.id(), type, () -> "buildcraftrobotics");
+            registry.register(type.id(), type, () -> "buildcraft");
         }
     }
 
@@ -150,7 +150,7 @@ public final class RoboticsApi2Bootstrap {
                 : entry.energyCost() <= 8_000 ? 1
                 : entry.energyCost() <= 32_000 ? 2
                 : entry.energyCost() <= 64_000 ? 3 : 4;
-            registry.register(id, new RobotBoardType(id, tier, Set.of()), () -> "buildcraftrobotics");
+            registry.register(id, new RobotBoardType(id, tier, Set.of()), () -> "buildcraft");
         }
     }
 
@@ -159,17 +159,17 @@ public final class RoboticsApi2Bootstrap {
         if (registry.get(AutomationKinds.BREAK_BLOCK) == null) {
             registry.register(AutomationKinds.BREAK_BLOCK,
                 new AutomationActionType<>(AutomationKinds.BREAK_BLOCK, BreakBlockRequest.class, RoboticsApi2Bootstrap::breakBlock),
-                () -> "buildcraftrobotics");
+                () -> "buildcraft");
         }
         if (registry.get(AutomationKinds.PLACE_BLOCK) == null) {
             registry.register(AutomationKinds.PLACE_BLOCK,
                 new AutomationActionType<>(AutomationKinds.PLACE_BLOCK, PlaceBlockRequest.class, RoboticsApi2Bootstrap::placeBlock),
-                () -> "buildcraftrobotics");
+                () -> "buildcraft");
         }
         if (registry.get(AutomationKinds.USE_ITEM) == null) {
             registry.register(AutomationKinds.USE_ITEM,
                 new AutomationActionType<>(AutomationKinds.USE_ITEM, UseItemRequest.class, RoboticsApi2Bootstrap::useItem),
-                () -> "buildcraftrobotics");
+                () -> "buildcraft");
         }
     }
 

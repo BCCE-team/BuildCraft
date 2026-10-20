@@ -182,6 +182,56 @@ class RobotBoardConformanceTest(unittest.TestCase):
     run=subprocess.run(['java','-cp',str(tmp/family),'check.Check'],capture_output=True,text=True,timeout=25)
     self.assertEqual(run.returncode,0,f'{family}: {run.stdout}\n{run.stderr}')
 
+ def test_builtin_registry_namespaces_enforced_at_bootstrap(self):
+  # The real API2 registry rejects foreign owner/ID pairs. BuildCraft's built-in
+  # robotics IDs intentionally use buildcraft:, not buildcraftrobotics:.
+  bootstrap=(ROBOTICS_API/'buildcraft/robotics/internal/api2/RoboticsApi2Bootstrap.java').read_text()
+  self.assertNotIn('() -> "buildcraftrobotics"',bootstrap)
+  self.assertEqual(bootstrap.count('() -> "buildcraft"'),6)
+  for required in ('BlockRobotResource.TYPE','BuildCraftDockPorts.ITEMS',
+                   'BuildCraftRobotBoards.id(entry.key())', 'AutomationKinds.BREAK_BLOCK'):
+   self.assertIn(required,bootstrap)
+  if not shutil.which('javac') or not shutil.which('java'):self.skipTest('Java toolchain absent')
+  probe='''package check;
+ import buildcraft.lib.internal.api.v2.registry.ApiRegistryImpl;
+ import net.minecraft.resources.ResourceLocation;
+ public class NamespaceProbe {
+   static void ok(boolean value){if(!value)throw new AssertionError();}
+   static ResourceLocation id(String value){return ResourceLocation.tryParse(value);}
+   public static void main(String[] args){
+     var registry=new ApiRegistryImpl<String>();
+     registry.register(id("buildcraft:block_resource"),"built-in robot resource",()->"buildcraft");
+     registry.register(id("buildcraft:robot_board/picker"),"built-in board",()->"buildcraft");
+     registry.register(id("fixture:custom_resource"),"addon resource",()->"fixture");
+     ok(registry.get(id("buildcraft:block_resource")).equals("built-in robot resource"));
+     ok(registry.entry(id("buildcraft:block_resource")).orElseThrow().owner().equals("buildcraft"));
+     try {
+       registry.register(id("buildcraft:unauthorized"),"hijack",()->"fixture");
+       throw new AssertionError("foreign owner accepted");
+     } catch(IllegalArgumentException expected) {}
+     ok(registry.get(id("buildcraft:unauthorized"))==null);
+     registry.validateFreeze();registry.freeze();
+     ok(registry.entries().size()==3);
+   }
+ }
+'''
+  with tempfile.TemporaryDirectory(prefix='bcce-robotics-namespace-') as tmpname:
+   tmp=Path(tmpname)
+   java=tmp/'check/NamespaceProbe.java';java.parent.mkdir(parents=True,exist_ok=True);java.write_text(probe)
+   location=tmp/'net/minecraft/resources/ResourceLocation.java'
+   location.parent.mkdir(parents=True,exist_ok=True)
+   location.write_text(ROBOTICS_STUBS['net/minecraft/resources/ResourceLocation.java'])
+   real=[ROBOTICS_API/'buildcraft/api/v2/registry/ApiRegistry.java',
+         ROBOTICS_API/'buildcraft/api/v2/registry/RegistrationContext.java',
+         ROBOTICS_API/'buildcraft/api/v2/registry/RegistryEntry.java',
+         ROBOTICS_API/'buildcraft/lib/internal/api/v2/registry/ApiRegistryImpl.java']
+   compile=subprocess.run(['javac','-d',str(tmp),str(java),str(location),*(str(f) for f in real)],
+                          capture_output=True,text=True,timeout=30)
+   self.assertEqual(compile.returncode,0,compile.stderr)
+   run=subprocess.run(['java','-cp',str(tmp),'check.NamespaceProbe'],
+                      capture_output=True,text=True,timeout=20)
+   self.assertEqual(run.returncode,0,run.stderr)
+
  def test_production_wiring_and_no_internal_addon_surface(self):
   registrations=(ROBOTICS_API/'buildcraft/api/v2/BuildCraftRegistries.java').read_text()
   self.assertIn('ROBOT_BOARD_PROGRAMS = key(',registrations)
