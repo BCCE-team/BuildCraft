@@ -44,16 +44,22 @@ public final class MessageManager {
     public static final String PROTOCOL_VERSION = BuildCraftTarget.NETWORK_PROTOCOL;
     private static final int MAX_MESSAGE_CLASS_NAME = 256;
 
-    private static final CustomPacketPayload.Type<BuildCraftPayload> TYPE =
-        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("buildcraftlib", "messages"));
+    // Separate protocol types allow packet direction to be established before
+    // any message-specific decoder runs on untrusted network input.
+    private static final CustomPacketPayload.Type<BuildCraftPayload> CLIENTBOUND_TYPE =
+        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("buildcraftlib", "messages_to_client"));
+    private static final CustomPacketPayload.Type<BuildCraftPayload> SERVERBOUND_TYPE =
+        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("buildcraftlib", "messages_to_server"));
 
     private static final Map<IBuildCraftMod, PerModHandler> MOD_HANDLERS =
         new TreeMap<>(MessageManager::compareMods);
     private static final Map<Class<?>, PerMessageInfo<?>> MESSAGE_HANDLERS = new ConcurrentHashMap<>();
     private static final Map<String, PerMessageInfo<?>> MESSAGE_HANDLERS_BY_NAME = new ConcurrentHashMap<>();
 
-    private static final StreamCodec<RegistryFriendlyByteBuf, BuildCraftPayload> STREAM_CODEC =
-        StreamCodec.of(MessageManager::encodePayload, MessageManager::decodePayload);
+    private static final StreamCodec<RegistryFriendlyByteBuf, BuildCraftPayload> CLIENTBOUND_CODEC =
+        StreamCodec.of(MessageManager::encodePayload, MessageManager::decodeClientboundPayload);
+    private static final StreamCodec<RegistryFriendlyByteBuf, BuildCraftPayload> SERVERBOUND_CODEC =
+        StreamCodec.of(MessageManager::encodePayload, MessageManager::decodeServerboundPayload);
 
     private MessageManager() {
     }
@@ -93,9 +99,9 @@ public final class MessageManager {
         }
     }
 
-    public record BuildCraftPayload(Object message) implements CustomPacketPayload {
+    public record BuildCraftPayload(Object message, boolean clientbound) implements CustomPacketPayload {
         public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
+            return clientbound ? CLIENTBOUND_TYPE : SERVERBOUND_TYPE;
         }
     }
 
@@ -188,8 +194,9 @@ public final class MessageManager {
 
     /** Registers BuildCraft's envelope payload on the NeoForge mod event bus. */
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        event.registrar(PROTOCOL_VERSION)
-            .playBidirectional(TYPE, STREAM_CODEC, MessageManager::handlePayload, MessageManager::handlePayload);
+        var registrar = event.registrar(PROTOCOL_VERSION);
+        registrar.playToClient(CLIENTBOUND_TYPE, CLIENTBOUND_CODEC, MessageManager::handlePayload);
+        registrar.playToServer(SERVERBOUND_TYPE, SERVERBOUND_CODEC, MessageManager::handlePayload);
     }
 
     /** Kept for the existing module lifecycle; registration itself happens in RegisterPayloadHandlersEvent. */
@@ -213,21 +220,38 @@ public final class MessageManager {
         info.encoder.accept(message, buffer);
     }
 
-    private static BuildCraftPayload decodePayload(RegistryFriendlyByteBuf buffer) {
+    private static BuildCraftPayload decodeClientboundPayload(RegistryFriendlyByteBuf buffer) {
+        return decodePayload(buffer, true);
+    }
+
+    private static BuildCraftPayload decodeServerboundPayload(RegistryFriendlyByteBuf buffer) {
+        return decodePayload(buffer, false);
+    }
+
+    private static BuildCraftPayload decodePayload(RegistryFriendlyByteBuf buffer, boolean clientbound) {
         String className = buffer.readUtf(MAX_MESSAGE_CLASS_NAME);
         PerMessageInfo<?> info = MESSAGE_HANDLERS_BY_NAME.get(className);
         if (info == null) {
             throw new DecoderException("Received unregistered BuildCraft message class " + className);
         }
+        // A client cannot force parsing of a client-only message: validate the
+        // directional registration BEFORE running the potentially expensive decoder.
+        if (clientbound ? info.clientHandler == null : info.serverHandler == null) {
+            throw new DecoderException("BuildCraft message not registered in this direction: " + className);
+        }
         Object decoded = info.decoder.apply(buffer);
         NetworkSecurity.requireFullyRead(buffer, className);
-        return new BuildCraftPayload(decoded);
+        return new BuildCraftPayload(decoded, clientbound);
     }
 
     private static void handlePayload(BuildCraftPayload payload, IPayloadContext context) {
         Object message = payload.message();
         PerMessageInfo<Object> info = getInfo(message);
         boolean clientbound = context.flow() == PacketFlow.CLIENTBOUND;
+        if (payload.clientbound() != clientbound) {
+            BCLog.logger.debug("[lib.messages] Rejected {} with mismatched payload direction", info.messageClass.getName());
+            return;
+        }
         BiConsumer<Object, Supplier<BCPacketContext>> handler =
             clientbound ? info.clientHandler : info.serverHandler;
 
@@ -264,28 +288,28 @@ public final class MessageManager {
         return (PerMessageInfo<Object>) info;
     }
 
-    private static BuildCraftPayload payload(Object message) {
+    private static BuildCraftPayload payload(Object message, boolean clientbound) {
         getInfo(message);
-        return new BuildCraftPayload(message);
+        return new BuildCraftPayload(message, clientbound);
     }
 
     public static void sendToAll(Object message) {
-        PacketDistributor.sendToAllPlayers(payload(message));
+        PacketDistributor.sendToAllPlayers(payload(message, true));
     }
 
     public static void sendTo(Object message, ServerPlayer player) {
-        PacketDistributor.sendToPlayer(player, payload(message));
+        PacketDistributor.sendToPlayer(player, payload(message, true));
     }
 
     public static void sendToServer(Object message) {
-        ClientPacketDistributor.sendToServer(payload(message));
+        ClientPacketDistributor.sendToServer(payload(message, false));
     }
 
     public static void sendToAllWatching(Object message, LevelChunk levelChunk) {
         if (!(levelChunk.getLevel() instanceof ServerLevel serverLevel)) {
             throw new IllegalStateException("Cannot send a clientbound payload from a client level");
         }
-        PacketDistributor.sendToPlayersTrackingChunk(serverLevel, levelChunk.getPos(), payload(message));
+        PacketDistributor.sendToPlayersTrackingChunk(serverLevel, levelChunk.getPos(), payload(message, true));
     }
 
     public static void sendToDimension(Object message, ResourceKey<Level> dimensionId) {
@@ -295,7 +319,7 @@ public final class MessageManager {
         }
         ServerLevel level = server.getLevel(dimensionId);
         if (level != null) {
-            PacketDistributor.sendToPlayersInDimension(level, payload(message));
+            PacketDistributor.sendToPlayersInDimension(level, payload(message, true));
         }
     }
 }
