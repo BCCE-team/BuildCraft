@@ -66,8 +66,17 @@ def main() -> int:
         # C2S is the essential commit path for gate statements and connection buttons.
         messages = src(new, "lib/net/MessageManager.java")
         require(
-            "ClientPacketDistributor.sendToServer(payload(message));" in messages,
+            "ClientPacketDistributor.sendToServer(payload(message, false));" in messages,
             "1.21.11 BuildCraft client->server payload delivery is not wired",
+        )
+        require(
+            "PacketDistributor.sendToPlayer(player, payload(message, true));" in messages,
+            "1.21.11 BuildCraft server->client payload delivery has the wrong direction",
+        )
+        require(
+            "registrar.playToClient(CLIENTBOUND_TYPE, CLIENTBOUND_CODEC" in messages
+            and "registrar.playToServer(SERVERBOUND_TYPE, SERVERBOUND_CODEC" in messages,
+            "1.21.11 native packet registration must validate direction before decoding",
         )
 
         # Native MouseButtonEvent modifier state must survive the legacy 1.21.1 GUI bridge.

@@ -376,14 +376,43 @@ def validate_persistence_and_reload_invariants() -> None:
                 "rollbackPlacement(rollback, placeTask.pos)",
                 "keeping reservations consumed",
                 "if (!isBlockCorrect(placeTask.pos))")
-        require(target, blueprint_rel,
+        blueprint = require(target, blueprint_rel,
                 "rollbackReservation(reserved, drained)",
                 "refundReservedItem",
                 "if (!tile.needMeterial() || placeTask.items == null)",
                 "FluidAction.SIMULATE",
                 "FluidAction.EXECUTE",
-                "boolean committed = isBlockCorrect(blockPos)",
                 "isSchematicEntityPresent(schematicEntity, level)")
+        # A robot schematic can mutate the world and then fail. The postcondition must be
+        # checked *after* build(), and failed placements must restore the original block.
+        # The previous guard required a pre-rollback implementation's exact declaration
+        # (boolean committed = isBlockCorrect(blockPos)), rejecting the safer implementation.
+        begin = blueprint.find("public RobotBuildResult buildRobotTaskResult(")
+        end = blueprint.find("private boolean hasRobotRequirements(", begin) if begin >= 0 else -1
+        if begin < 0 or end < 0:
+            fail(f"{target}: robot blueprint task implementation is missing")
+        else:
+            robot_placement = blueprint[begin:end]
+            expected_order = (
+                "PlacementRollback rollback = capturePlacementRollback(blockPos);",
+                "boolean committed = false;",
+                "try {",
+                "schematicBlock.build(tile.getWorldBC(), blockPos, actor);",
+                "committed = isBlockCorrect(blockPos);",
+                "} catch (RuntimeException failure) {",
+                "} finally {",
+                "if (!committed && !rollbackPlacement(rollback, blockPos)) {",
+                "if (committed) {",
+                "consumeRobotRequirements(robot, task.requirements());",
+                "return committed ? RobotBuildResult.COMMITTED : RobotBuildResult.FAILED;",
+            )
+            cursor = 0
+            for fragment in expected_order:
+                found = robot_placement.find(fragment, cursor)
+                if found < 0:
+                    fail(f"{target}: robot blueprint placement lost its postcondition/rollback guard: {fragment!r}")
+                    break
+                cursor = found + len(fragment)
         require(target, template_rel,
                 "!tile.getInvResources().extract(PLACEABLE_BLOCK_FILTER, 1, 1, true).isEmpty()",
                 "!tile.needMeterial()",
@@ -546,13 +575,35 @@ def validate_worldgen_resources() -> None:
                 fail(f"{target}: genOilInEveryModBiomes must stay false in {relative}")
 
 
+def advancement_id(data_root: Path, path: Path) -> str:
+    """Normalize the 1.19/1.20 ``recipes`` and 1.21 ``recipe`` directories."""
+    relative = path.relative_to(data_root)
+    namespace, _directory, *parts = relative.parts
+    if parts and parts[0] == "recipes":
+        parts[0] = "recipe"
+    return f"{namespace}:{Path(*parts).with_suffix('').as_posix()}"
+
+
 def validate_advancements() -> None:
+    legacy_root = TARGETS["1.19.2-forge"] / "src/main/resources/data"
+    legacy_files = sorted(legacy_root.glob("*/advancements/**/*.json"))
+    legacy_ids = {advancement_id(legacy_root, path) for path in legacy_files}
+    if len(legacy_files) != 192:
+        fail(f"1.19.2-forge: expected 192 advancements, found {len(legacy_files)}")
+
     for target in ("1.21.1-neoforge",):
         data = TARGETS[target] / "src/main/resources/data"
         all_files = sorted(data.glob("*/advancement/**/*.json"))
         recipe_files = sorted(data.glob("*/advancement/recipe/**/*.json"))
-        if len(all_files) != 191:
-            fail(f"{target}: expected 191 advancements, found {len(all_files)}")
+        if len(all_files) != 192:
+            fail(f"{target}: expected 192 advancements, found {len(all_files)}")
+        current_ids = {advancement_id(data, path) for path in all_files}
+        if current_ids != legacy_ids:
+            fail(f"{target}: advancement IDs differ from 1.19.2; "
+                 f"missing={sorted(legacy_ids - current_ids)[:8]}, "
+                 f"extra={sorted(current_ids - legacy_ids)[:8]}")
+        if "buildcraftcore:free_power" not in current_ids:
+            fail(f"{target}: restored Redstone Engine free_power advancement is missing")
         if len(recipe_files) != 147:
             fail(f"{target}: expected 147 recipe advancements, found {len(recipe_files)}")
         recipe_ids = set(recipe_inventory(target))
@@ -1435,7 +1486,7 @@ def main() -> None:
 
     print(
         "Behavior parity OK: 2 newer targets locked to the 1.19.2 reference; "
-        "228/227 recipes, 31 loot tables and 191 advancements validated"
+        "228/227 recipes, 31 loot tables and 192 advancements validated"
     )
 
 
