@@ -292,10 +292,25 @@ var mapLocation = readHeldMap(mainHand, true, world);
 
     private static void renderMapPathSegment(PoseStack poseStack, Matrix4f matrix, Player player,
         BlockPos start, BlockPos end) {
-        if (start.equals(end) || !isNearPlayer(start, player) && !isNearPlayer(end, player)) return;
+        if (start.equals(end)) return;
+        // Clip against the actual viewing sphere, not its two endpoints. A path crossing the viewer
+        // can have both endpoints thousands of blocks away. Also bound the geometry sent to the renderer.
+        Vec3 a = VecUtil.convertCenter(start);
+        Vec3 direction = VecUtil.convertCenter(end).subtract(a);
+        Vec3 relative = a.subtract(player.position());
+        double lengthSquared = direction.lengthSqr();
+        if (lengthSquared < 1.0E-12) return;
+        double projection = -relative.dot(direction) / lengthSquared;
+        double nearestSquared = relative.lengthSqr() - projection * projection * lengthSquared;
+        if (nearestSquared > MAP_LOCATION_RENDER_DISTANCE_SQ) return;
+        double halfWindow = Math.sqrt(Math.max(0.0, MAP_LOCATION_RENDER_DISTANCE_SQ - nearestSquared)
+            / lengthSquared);
+        double from = Math.max(0.0, projection - halfWindow);
+        double to = Math.min(1.0, projection + halfWindow);
+        if (from >= to) return;
         LaserRenderer_BC8.renderLaserStatic(poseStack, matrix, new LaserData_BC8(
             BuildCraftLaserManager.STRIPES_WRITE_DIRECTION,
-            VecUtil.convertCenter(start), VecUtil.convertCenter(end), 1 / 16.0
+            a.add(direction.scale(from)), a.add(direction.scale(to)), 1 / 16.0
         ));
     }
 
