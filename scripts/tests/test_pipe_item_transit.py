@@ -285,5 +285,30 @@ class ItemTransitTest(unittest.TestCase):
                 self.assertIn(fragment,text,f'{target}: {fragment}')
 
 
+    def test_transient_pipe_handoff_retries_once_without_reversing(self) -> None:
+        from sys import path as sys_path
+        sys_path.insert(0, str(ROOT / 'scripts'))
+        from source_layout import load_properties, target_ids, target_layout, resolve_effective_source
+        props = load_properties()
+        for target in target_ids(props):
+            with self.subTest(target=target):
+                path = resolve_effective_source(target_layout(target, props), props,
+                    Path('src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java'))
+                self.assertIsNotNone(path)
+                source = path.read_text(encoding='utf-8')
+                retry = source.index('if (pipe.isConnected(item.side) && pipe.getConnectedType(item.side) == ConnectedType.PIPE')
+                fallback = source.index('item.toCenter = true;', retry)
+                self.assertLess(retry, fallback)
+                block = source[retry:fallback]
+                self.assertIn('!item.tried.contains(item.side)', block)
+                self.assertIn('item.tried.add(item.side);', block)
+                self.assertIn('item.tickFinished = now + 1;', block)
+                self.assertIn('scheduleTravellingItem(item);', block)
+                self.assertIn('holder.getPipeTile().setChanged();', block)
+                self.assertNotIn('sendItemDataToClient(item);', block)
+                self.assertIn('return;', block)
+                self.assertIn('item.tried.add(item.side);', source[fallback - 120:fallback])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -22,6 +22,7 @@ FILES={
  'engine':'src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java',
  'engine_block':'src/main/java/buildcraft/lib/engine/BlockEngineBase_BC8.java',
  'quarry':'src/main/java/buildcraft/builders/client/render/RenderQuarry.java',
+ 'quarry_tile':'src/main/java/buildcraft/builders/tile/TileQuarry.java',
 }
 
 class DynamoAndQuarryAllTargets(unittest.TestCase):
@@ -155,6 +156,20 @@ class DynamoAndQuarryAllTargets(unittest.TestCase):
 
 
 
+
+    def test_quarry_watchdog_discards_stale_iterator_bounds(self):
+        for version in TARGETS:
+            with self.subTest(version=version):
+                tile=self.text(version,'quarry_tile')
+                method=tile.split('private void rescanVisitedMiningColumns() {',1)[1]
+                method=method.split('private boolean canIgnoreInFrameBox(',1)[0]
+                guard=method.index('if (!boxIterator.contains(candidate)) {')
+                visited=method.index('boolean visited = boxIterator.hasFinished()')
+                move=method.index('boxIterator.moveTo(candidate);')
+                self.assertLess(guard,visited)
+                self.assertLess(visited,move)
+                self.assertIn('boxIterator = createBoxIterator();',method[guard:visited])
+                self.assertIn('if (!boxIterator.contains(candidate)) {\n                    continue;',method[guard:visited])
 
     def test_java_syntax_on_every_target(self):
         for version in TARGETS:

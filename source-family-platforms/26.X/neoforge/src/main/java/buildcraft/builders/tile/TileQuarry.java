@@ -557,6 +557,15 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             if (candidate.getY() < miningBox.min().getY()) {
                 continue;
             }
+            // The quarry's mining bounds can change after an iterator was created or
+            // restored (for example, while the frame is still being established).
+            // A stale iterator must not be rewound to an out-of-bounds world position.
+            if (!boxIterator.contains(candidate)) {
+                boxIterator = createBoxIterator();
+                if (!boxIterator.contains(candidate)) {
+                    continue;
+                }
+            }
             boolean visited = boxIterator.hasFinished() || boxIterator.hasVisited(candidate);
             if (!visited || !canMine(candidate) || !canMoveDownTo(candidate)) {
                 continue;

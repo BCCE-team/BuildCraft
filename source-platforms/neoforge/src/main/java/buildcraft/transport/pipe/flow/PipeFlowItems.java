@@ -833,10 +833,31 @@ public final class PipeFlowItems extends PipeFlow implements IFlowItems {
         if (excess.isEmpty()) {
             return;
         }
+        item.stack = excess;
         fireTransit(ItemTransitPhase.REJECTED, item, item.side);
+        if (item.stack.isEmpty()) return;
+        // A neighbouring pipe may reject this hand-off for only a single tick (for example,
+        // when an addon cancels its first TryInsert). Retry once at this boundary rather
+        // than immediately sending the item to the centre, where both its previous pipe
+        // and the rejected output are excluded and it would be ejected into the world.
+        // The tried-side set doubles as a persistent one-retry latch. A second rejection
+        // follows the usual alternative-route/ejection path, so permanently blocked
+        // connections cannot create an endless retry loop or reverse the item upstream.
+        if (pipe.isConnected(item.side) && pipe.getConnectedType(item.side) == ConnectedType.PIPE
+            && !item.tried.contains(item.side)) {
+            item.tried.add(item.side);
+            long now = holder.getPipeWorld().getGameTime();
+            item.tickFinished = now + 1;
+            item.timeToDest = (int) Math.min(TravellingItem.MAX_TRANSIT_TICKS,
+                Math.max(1L, item.tickFinished - item.tickStarted));
+            // Keep toCenter=false and do not emit a new client segment: the item waits
+            // at the exit for one tick instead of visually rewinding into the pipe.
+            scheduleTravellingItem(item);
+            holder.getPipeTile().setChanged();
+            return;
+        }
         item.tried.add(item.side);
         item.toCenter = true;
-        item.stack = excess;
         item.genTimings(holder.getPipeWorld().getGameTime(), getPipeLength(item.side));
         scheduleTravellingItem(item);
         sendItemDataToClient(item);
