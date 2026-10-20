@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockAndTintGetter;
@@ -35,14 +36,20 @@ public final class Api2SchematicEntity implements ISchematicEntity {
     public SnapshotElement element() { return element; }
     public EntitySchematicAdapter adapter() { return adapter; }
 
+    /** Equivalent to BlockPos.containing(Vec3) on both 1.19.2 and 1.20.1. */
+    private BlockPos relativeBlockPos() {
+        Vec3 pos = getPos();
+        return new BlockPos(Mth.floor(pos.x), Mth.floor(pos.y), Mth.floor(pos.z));
+    }
+
     @Override public ResourceLocation typeId() { return element.typeId(); }
     @Override public void init(SchematicEntityContext context) { }
     @Override public Vec3 getPos() { return adapter.relativePosition(element); }
     @Override public List<ItemStack> computeRequiredItems(Level level) {
-        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, BlockPos.containing(getPos()), AutomationActor.unknown(), OperationMode.SIMULATE)).items();
+        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, relativeBlockPos(), AutomationActor.unknown(), OperationMode.SIMULATE)).items();
     }
     @Override public List<FluidStack> computeRequiredFluids(Level level) {
-        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, BlockPos.containing(getPos()), AutomationActor.unknown(), OperationMode.SIMULATE)).fluids().stream()
+        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, relativeBlockPos(), AutomationActor.unknown(), OperationMode.SIMULATE)).fluids().stream()
             .map(FuelApiBridge::stackOf).filter(stack -> !stack.isEmpty()).collect(Collectors.toList());
     }
     @Override public ISchematicEntity getRotated(Rotation rotation) { return new Api2SchematicEntity(adapter.rotate(element, rotation), adapter); }
@@ -55,7 +62,7 @@ public final class Api2SchematicEntity implements ISchematicEntity {
     @Override public void deserializeNBT(CompoundTag nbt) { throw new UnsupportedOperationException("API2 snapshot wrappers are immutable"); }
 
     public boolean place(Level level, BlockPos basePos) {
-        SchematicResult result = adapter.place(element, new SchematicPlacementContext(level, basePos, basePos.offset(BlockPos.containing(getPos())), AutomationActor.unknown(), OperationMode.EXECUTE));
+        SchematicResult result = adapter.place(element, new SchematicPlacementContext(level, basePos, basePos.offset(relativeBlockPos()), AutomationActor.unknown(), OperationMode.EXECUTE));
         return result.status() == SchematicResult.Status.SUCCESS;
     }
 

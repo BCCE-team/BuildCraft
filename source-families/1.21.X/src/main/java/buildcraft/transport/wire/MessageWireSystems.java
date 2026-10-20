@@ -24,6 +24,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import buildcraft.lib.net.BCPacketContext;
 import buildcraft.lib.net.MessageManager;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.server.level.ServerPlayer;
 
 public class MessageWireSystems {
     // Keep individual wire packets bounded; a full snapshot can span any number of frames.
@@ -65,6 +66,8 @@ public class MessageWireSystems {
 
     /** Stream all wire parts, including systems longer than the old 16,384-part limit. */
     public static void sendSnapshot(Map<Integer, WireSystem> systems, Player player) {
+        // This is a server-to-client snapshot; the network sender requires ServerPlayer.
+        if (!(player instanceof ServerPlayer serverPlayer)) return;
         Map<Integer, WireSystem> page = new LinkedHashMap<>();
         Set<Integer> continuing = new HashSet<>();
         int partCount = 0;
@@ -80,7 +83,7 @@ public class MessageWireSystems {
                 // Repeated IDs must be sent in different frames so each is assembled in order.
                 if (!page.isEmpty() && (page.containsKey(entry.getKey()) || page.size() >= MAX_SYSTEMS
                     || partCount + count > MAX_ELEMENTS_PER_PACKET)) {
-                    MessageManager.sendTo(new MessageWireSystems(page, continuing, first, false), player);
+                    MessageManager.sendTo(new MessageWireSystems(page, continuing, first, false), serverPlayer);
                     first = false;
                     page = new LinkedHashMap<>();
                     continuing = new HashSet<>();
@@ -93,7 +96,7 @@ public class MessageWireSystems {
             } while (offset < wires.size());
         }
         // Empty snapshots still revoke all no-longer-visible wire networks.
-        MessageManager.sendTo(new MessageWireSystems(page, continuing, first, true), player);
+        MessageManager.sendTo(new MessageWireSystems(page, continuing, first, true), serverPlayer);
     }
 
     public static void toBytes(MessageWireSystems msg, FriendlyByteBuf buf) {

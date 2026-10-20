@@ -54,6 +54,8 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Verify independent API2 addon JAR conformance", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_external_addon_conformance.py", "-v")),
     ("Verify independent API extension contracts", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_api_*.py", "-v")),
     ("Validate API2 module contracts", (sys.executable, "scripts/validate-api2-modules.py")),
+    ("Test legacy Forge compiler compatibility", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_old_compile_regressions.py", "-v")),
+    ("Test NeoForge compiler compatibility", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_neoforge_compiler_compat.py", "-v")),
     ("Validate repository cleanliness", (sys.executable, "scripts/validate-repository-cleanliness.py")),
     ("Validate cross-version gameplay parity", (sys.executable, "scripts/validate-behavior-parity.py")),
     ("Validate 1.21.11 parity", (sys.executable, "scripts/validate-1.21.11-parity.py")),

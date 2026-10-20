@@ -63,9 +63,9 @@ public final class MachineRecipeApiBridge {
         }
         // Programmatic FluidIngredient.matching() has no static preview. Try real
         // registered fluid variants instead of always publishing an empty JEI slot.
-        for (net.minecraft.world.level.material.Fluid fluid : net.minecraft.core.registries.BuiltInRegistries.FLUID) {
+        for (net.minecraft.world.level.material.Fluid fluid : net.minecraftforge.registries.ForgeRegistries.FLUIDS.getValues()) {
             if (fluid == net.minecraft.world.level.material.Fluids.EMPTY) continue;
-            var id = net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(fluid);
+            var id = net.minecraftforge.registries.ForgeRegistries.FLUIDS.getKey(fluid);
             if (id == null) continue;
             var variant = buildcraft.api.v2.fluid.FluidVariant.of(id);
             try {

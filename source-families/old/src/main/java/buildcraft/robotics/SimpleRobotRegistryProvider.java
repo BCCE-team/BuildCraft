@@ -203,7 +203,6 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
             return robotId;
         }
 
-        @Override
         private boolean expireOrphanedRestoredLease(long robotId) {
             Long deadline = restoredLeaseDeadlines.get(robotId);
             if (deadline == null || level == null || level.getGameTime() < deadline || robots.containsKey(robotId)) {

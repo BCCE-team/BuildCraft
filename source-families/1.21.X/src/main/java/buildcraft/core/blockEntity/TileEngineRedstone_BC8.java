@@ -12,7 +12,9 @@ import buildcraft.lib.internal.mj.IMjConnector;
 import buildcraft.core.BCCoreBlocks;
 import buildcraft.lib.misc.AdvancementUtil;
 import net.minecraft.resources.ResourceLocation;
+//? if >=1.21.11 {
 import buildcraft.lib.compat.GameProfileCompat;
+//? }
 
 import buildcraft.lib.engine.EngineConnector;
 import buildcraft.lib.engine.TileEngineBase_BC8;
@@ -51,7 +53,11 @@ public class TileEngineRedstone_BC8 extends TileEngineBase_BC8 {
                 }
                 if (isPumping && !givenAdvancement && getOwner() != null && !level.isClientSide) {
                     // Retry while the owner is offline rather than marking the achievement as granted.
+                    //? if >=1.21.11 {
                     givenAdvancement = AdvancementUtil.unlockAdvancement(GameProfileCompat.id(getOwner()), ADVANCEMENT);
+                    //? } else {
+                    givenAdvancement = AdvancementUtil.unlockAdvancement(getOwner().getId(), ADVANCEMENT);
+                    //? }
                 }
             }
         } else {

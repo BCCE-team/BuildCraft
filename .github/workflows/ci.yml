@@ -96,6 +96,12 @@ jobs:
       - name: Validate API2 module contracts
         run: python scripts/validate-api2-modules.py
 
+      - name: Test legacy Forge compiler compatibility
+        run: python -m unittest discover -s scripts/tests -p test_old_compile_regressions.py -v
+
+      - name: Test NeoForge compiler compatibility
+        run: python -m unittest discover -s scripts/tests -p test_neoforge_compiler_compat.py -v
+
       - name: Validate repository cleanliness
         run: python scripts/validate-repository-cleanliness.py
 

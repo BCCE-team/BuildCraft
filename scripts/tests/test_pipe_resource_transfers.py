@@ -130,7 +130,10 @@ public class BuildCraftApi {
     'buildcraft/lib/internal/debug/BCLog.java': '''package buildcraft.lib.internal.debug;
 public class BCLog {
     public static final Log logger=new Log();
-    public static class Log { public void warn(String message,Object... args) {} }
+    public static class Log {
+        public void warn(String message,Object... args) {}
+        public void error(String message,Object... args) {}
+    }
 }''',
     'buildcraft/api/v2/pipe/PipeView.java': '''package buildcraft.api.v2.pipe;
 public interface PipeView {}''',
@@ -157,7 +160,10 @@ public class Pipe implements PipeView {
     public List<PipeComponent> components() { return listeners; }
     public void markChanged() { dirty++; }
     public BlockPos position() { return new BlockPos(0,0,0); }
-    public record Holder(Level world) { public Level getPipeWorld() { return world; } }
+    public record Holder(Level world) {
+        public Level getPipeWorld() { return world; }
+        public BlockPos getPipePos() { return new BlockPos(0,0,0); }
+    }
 }''',
     'buildcraft/transport/tile/TilePipeHolder.java': '''package buildcraft.transport.tile;
 import buildcraft.transport.pipe.Pipe;
@@ -217,6 +223,7 @@ def native_flow_stubs(flow_base=FLOW_BASE):
 import buildcraft.transport.pipe.Pipe;
 import buildcraft.api.v2.fluid.*;
 import buildcraft.lib.fluid.FuelApiBridge;
+import buildcraft.lib.internal.debug.BCLog;
 import net.minecraft.core.Direction;
 import java.util.*;
 public class PipeFlowFluids {
@@ -240,6 +247,10 @@ public class PipeFlowFluids {
     }
     public int quantity(Direction side) { return sections.get(EnumPipePart.fromFacing(side)).amount; }
     private void setFluid(FluidStack fluid) { currentFluid=fluid; }
+    // The extracted transfer method may record snapshots in the real NeoForge journal.
+    // Standalone tests do not open native Transaction scopes, so record() is a no-op here.
+    private final Journal transferJournal=new Journal();
+    static class Journal { void record() {} }
     class Section {
         int amount,incomingTotalCache,incomingThisTick,ticksInDirection;
         int getMaxFilled() { return Math.min(capacity-amount,transferPerTick-incomingThisTick); }

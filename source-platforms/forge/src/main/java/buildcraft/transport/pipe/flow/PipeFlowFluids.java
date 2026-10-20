@@ -378,8 +378,8 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         // Third-party handlers can return more than the requested amount. Put the
         // overage back rather than overflowing a pipe section or duplicating a fluid.
         if (toAdd.getAmount() > millibuckets) {
-            if (!simulate) restoreUnexpectedFluid(fluidHandler, toAdd.copyWithAmount(toAdd.getAmount() - millibuckets));
-            toAdd = toAdd.copyWithAmount(millibuckets);
+            if (!simulate) restoreUnexpectedFluid(fluidHandler, copyWithAmount(toAdd, toAdd.getAmount() - millibuckets));
+            toAdd = copyWithAmount(toAdd, millibuckets);
         }
         millibuckets = toAdd.getAmount();
         if (currentFluid.isEmpty() && !simulate) {
@@ -393,8 +393,8 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         }
         if (reallyFilled != millibuckets) {
             if (!simulate && reallyFilled < millibuckets) {
-                restoreUnexpectedFluid(fluidHandler, toAdd.copyWithAmount(millibuckets - reallyFilled));
-                toAdd = toAdd.copyWithAmount(Math.max(0, reallyFilled));
+                restoreUnexpectedFluid(fluidHandler, copyWithAmount(toAdd, millibuckets - reallyFilled));
+                toAdd = copyWithAmount(toAdd, Math.max(0, reallyFilled));
             }
             BCLog.logger.warn(
                 "[tryExtractFluidAdv] Filled "
@@ -404,6 +404,15 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         }
         return reallyFilled > 0
             ? new InteractionResultHolder<>(InteractionResult.SUCCESS, toAdd) : FAILED_EXTRACT;
+    }
+
+    /** Return a defensive fluid copy with a bounded amount on 1.19.2 and 1.20.1 Forge.
+     * The stack copy keeps any existing fluid NBT, matching modern copyWithAmount().
+     */
+    private static FluidStack copyWithAmount(FluidStack original, int millibuckets) {
+        FluidStack copied = original.copy();
+        copied.setAmount(Math.max(0, millibuckets));
+        return copied;
     }
 
     /** Best effort recovery after a broken external fluid handler violates its transfer contract. */

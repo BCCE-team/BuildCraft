@@ -240,7 +240,7 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
                 appendLaserTooltip(tooltip, root.getCompound("LaserTable"));
             }
             if (root.contains("FluidNames")) {
-                tooltip.add(line("fluid", Component.literal(root.getString("FluidNames")).withStyle(BCTextFormat.WHITE)));
+                tooltip.add(line("fluid", Component.literal(root.getString("FluidNames")).withStyle(ChatFormatting.WHITE)));
             }
             if (root.contains("ZonePlanner")) {
                 appendZonePlannerTooltip(tooltip, root.getCompound("ZonePlanner"));

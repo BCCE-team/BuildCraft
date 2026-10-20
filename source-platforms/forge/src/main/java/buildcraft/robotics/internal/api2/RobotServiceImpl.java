@@ -229,7 +229,7 @@ public final class RobotServiceImpl implements RobotService {
             @Override
             public boolean moveTo(BlockPos target, OperationMode mode) {
                 if (target == null || mode == null || !robot.isAlive()
-                    || !(robot.level() instanceof ServerLevel serverLevel)) return false;
+                    || !(level(robot) instanceof ServerLevel serverLevel)) return false;
                 if (serverLevel.isOutsideBuildHeight(target) || !serverLevel.getWorldBorder().isWithinBounds(target)) {
                     return false;
                 }
