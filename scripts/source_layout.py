@@ -195,6 +195,8 @@ def resolve_effective_source(
         raise ValueError(f"{layout.target}: missing deps.minecraft")
     rel = relative_path.as_posix()
     for layer in reversed(layout.layers):
+        if layout._excluded_from_layer(layer, relative_path):
+            continue
         candidate = layer / relative_path
         if candidate.is_file() and _source_enabled_for_target(
             candidate, rel, minecraft=minecraft, family=layout.family, platform=layout.platform

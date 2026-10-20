@@ -169,12 +169,12 @@ def statements_put(root, name, data):
 
 class StatementConformanceTest(unittest.TestCase):
     def test_scoped_production_wiring(self):
-        for family in ("old", "1.21.X", "26.X", "26.X/neoforge"):
+        for family in ("old", "1.21.X", "26.X"):
             location=("source-family-platforms" if family.endswith("/neoforge") else "source-families")
             manager=(ROOT/location/f"{family}/src/main/java/buildcraft/lib/internal/statement/StatementManager.java").read_text()
             for hook in ("nativeExternalTriggers", "nativeExternalActions", "nativeInternalSidedTriggers", "nativeInternalSidedActions"):
                 self.assertIn("StatementApi2Bridge."+hook,manager, (family,hook))
-        for where in ("source-shared", "source-families/26.X", "source-family-platforms/26.X/neoforge"):
+        for where in ("source-shared", "source-families/26.X"):
             bridge=(ROOT/where/"src/main/java/buildcraft/lib/internal/statement/api2/StatementApi2Bridge.java").read_text()
             for cls in ("NativeExternalTriggerAdapter", "NativeExternalActionAdapter", "NativeSidedTriggerAdapter", "NativeSidedActionAdapter"):
                 self.assertIn(cls,bridge)

@@ -225,7 +225,7 @@ class EnergyConformanceTest(unittest.TestCase):
             host_file = energy_write(root,"host-src/buildcraft/lib/internal/api/v2/EnergyConformanceHost.java",ENERGY_HOST)
             for family, base in (
                 ("legacy", "source-shared/src/main/java/buildcraft/lib/internal/api/v2"),
-                ("26.x", "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/internal/api/v2"),
+                ("26.x", "source-families/26.X/src/main/java/buildcraft/lib/internal/api/v2"),
             ):
                 with self.subTest(family=family):
                     backend = [ROOT/base/"EnergyServiceImpl.java",

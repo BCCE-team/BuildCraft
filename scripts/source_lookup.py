@@ -29,7 +29,7 @@ def _representative_target(kind: str, name: str) -> str | None:
     if kind == "platform":
         return {"forge": "1.20.1-forge", "neoforge": "1.21.1-neoforge"}.get(name)
     if kind == "family":
-        return {"old": "1.20.1-forge", "1.21.X": "1.21.1-neoforge"}.get(name)
+        return {"old": "1.20.1-forge", "1.21.X": "1.21.1-neoforge", "26.X": "26.3-neoforge"}.get(name)
     return None
 
 
@@ -66,6 +66,7 @@ def resolve_source_path(rel: str | Path) -> Path:
             candidates = {
                 ("old", "forge"): "1.20.1-forge",
                 ("1.21.X", "neoforge"): "1.21.1-neoforge",
+                ("26.X", "neoforge"): "26.3-neoforge",
             }
             target = candidates.get((family, platform))
 

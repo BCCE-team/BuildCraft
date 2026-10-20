@@ -82,7 +82,7 @@ class LaserReceiverConformanceTest(unittest.TestCase):
   base=ROOT/'source-shared/src/main/java'
   addon=ROOT/'addon-fixture/src/main/java/dev/bcce/apifixture/CustomLaserTargetFixtureAddon.java'
   self.assertNotIn('buildcraft.lib.',addon.read_text())
-  for family in ('source-shared','source-families/26.X','source-family-platforms/26.X/neoforge'):
+  for family in ('source-shared','source-families/26.X'):
    with self.subTest(family=family),tempfile.TemporaryDirectory(prefix='laser-receiver-') as d:
     temp=Path(d)
     for name,source in LASER_STUBS.items():
@@ -161,7 +161,6 @@ class NativeMachineConformanceTest(unittest.TestCase):
     ('source-platforms/forge','forge'),
     ('source-platforms/neoforge','neo'),
     ('source-families/26.X','neo'),
-    ('source-family-platforms/26.X/neoforge','neo'),
   )
   for family,platform in targets:
    with self.subTest(family=family),tempfile.TemporaryDirectory(prefix='machine-bridge-') as d:

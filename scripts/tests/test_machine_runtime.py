@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import sys
 import subprocess
 import tempfile
 import unittest
@@ -301,14 +302,40 @@ class MachineHostTests(unittest.TestCase):
             executed=subprocess.run(['java','-cp',str(root/'classes'),'buildcraft.lib.internal.api.v2.MachineRuntimeFixture'],capture_output=True,text=True,timeout=30)
             self.assertEqual(executed.returncode,0,executed.stderr+'\n'+executed.stdout)
 
+    def test_promoted_26x_sources_resolve_to_effective_owner(self):
+        scripts_dir = str(ROOT / 'scripts')
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        from source_lookup import resolve_source_path, resolve_target_source
+        from source_layout import effective_source_files, load_properties, target_layout, resolve_effective_source
+
+        logical = 'src/main/java/buildcraft/lib/internal/api/v2/MachineServiceImpl.java'
+        former = 'source-family-platforms/26.X/neoforge/' + logical
+        resolved = resolve_source_path(former)
+        self.assertEqual(ROOT / 'source-families/26.X' / logical, resolved)
+        self.assertIn('MachineHostProvider', resolved.read_text())
+
+        props = load_properties()
+        for target in ('26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge'):
+            layout = target_layout(target, props)
+            selected = effective_source_files(layout, props, 'src/main/java/buildcraft/lib')
+            for name in (logical, 'src/main/java/buildcraft/lib/compat/ItemNameKeys121111.java'):
+                with self.subTest(target=target, logical=name):
+                    self.assertEqual(selected.get(name), resolve_effective_source(layout, props, name))
+            self.assertEqual(selected[logical], resolve_target_source(target, logical))
+
     def test_gate_bindings_and_multitarget_sources(self):
         for family in ('old','1.21.X'):
             files=ROOT/f'source-families/{family}/src/main/java/buildcraft/core/statements'
             self.assertIn('MachineControlMode.valueOf(mode.name())',(files/'ActionMachineControl.java').read_text())
             self.assertIn('BuildCraftServices.MACHINES',(files/'TriggerMachine.java').read_text())
-        impls=[ROOT/'source-shared/src/main/java/buildcraft/lib/internal/api/v2/MachineServiceImpl.java',
-            ROOT/'source-families/26.X/src/main/java/buildcraft/lib/internal/api/v2/MachineServiceImpl.java',
-            ROOT/'source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/internal/api/v2/MachineServiceImpl.java']
+        scripts_dir = str(ROOT / 'scripts')
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        from source_lookup import resolve_target_source
+        impls=[ROOT/'source-shared/src/main/java/buildcraft/lib/internal/api/v2/MachineServiceImpl.java']
+        impls.extend(resolve_target_source(target, 'src/main/java/buildcraft/lib/internal/api/v2/MachineServiceImpl.java')
+                     for target in ('26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge'))
         for impl in impls:
             src=impl.read_text()
             self.assertIn('MachineHostProvider',src)

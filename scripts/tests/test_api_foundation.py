@@ -602,8 +602,11 @@ class WorldConformanceTest(unittest.TestCase):
         self.assertEqual(4,len(updated),[str(p) for p in updated])
         interaction=(WORLD_SRC/"buildcraft/lib/internal/api/v2/BlockInteractionServiceImpl.java").read_text()
         self.assertIn("WorldEventKind.BLOCK_INTERACT",interaction)
-        worldrules=list(ROOT.glob("source-*/**/buildcraft/lib/internal/api/v2/WorldRuleServiceImpl.java"))
-        self.assertEqual(3,sum("WorldEventKind.BEFORE_BLOCK_PLACE" in p.read_text() for p in worldrules))
+        from source_lookup import resolve_target_source
+        worldrules = [resolve_target_source(target, "src/main/java/buildcraft/lib/internal/api/v2/WorldRuleServiceImpl.java")
+                      for target in ("1.20.1-forge", "1.21.11-neoforge", "26.3-neoforge")]
+        self.assertTrue(all("WorldEventKind.BEFORE_BLOCK_PLACE" in path.read_text()
+                            for path in worldrules), [str(path) for path in worldrules])
         for source in list((WORLD_SRC/"buildcraft/api/v2/world").glob("*.java"))+list((WORLD_SRC/"buildcraft/api/v2/event").glob("*.java")):
             contents=source.read_text()
             self.assertNotIn("import net.minecraftforge",contents)
