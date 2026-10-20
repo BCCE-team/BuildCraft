@@ -15,7 +15,8 @@ import net.minecraftforge.fluids.FluidStack;
 
 public class TankContainerData implements ContainerData{
 	
-	public static final int LEN = 5;
+	/** Each logical 32-bit field uses two 16-bit ContainerData slots. */
+    public static final int LEN = 10;
 	protected final Tank[] tanks ;
 	protected final int count;
 	
@@ -30,14 +31,15 @@ public class TankContainerData implements ContainerData{
 			BCLog.logger.error("TankContainer.get: %d index out of range : %d",p , count*LEN);
 			return 0;
 		}
-		return switch (p%LEN) {
+        int value = switch ((p % LEN) / 2) {
 			case 0 -> BuiltInRegistries.FLUID.getId(tanks[p/LEN].getFluidType());
 			case 1 -> tanks[p/LEN].getFluidAmount();
 			case 2 -> BuiltInRegistries.FLUID.getId(tanks[p/LEN].getFluidForRender().getRawFluid());
 			case 3 -> tanks[p/LEN].getFluidForRender().getAmount();
 			case 4 -> tanks[p/LEN].getCapacity();
 			default -> 0;
-		};
+        };
+        return ((p & 1) == 0 ? value : value >>> 16) & 0xFFFF;
 		 
 	}
 
@@ -60,32 +62,37 @@ public class TankContainerData implements ContainerData{
 		return BuiltInRegistries.FLUID.byId(id);
 	}
 	
+    /** Undo vanilla DataSlot's signed 16-bit transport without assuming a particular loader. */
+    public static int getPacked(ContainerData data, int lowWordIndex) {
+        return (data.get(lowWordIndex) & 0xFFFF) | ((data.get(lowWordIndex + 1) & 0xFFFF) << 16);
+    }
+
 	public static FluidStack getFluidStack(ContainerData data, int point) {
-		return new FluidStack(BuiltInRegistries.FLUID.byId(data.get(point + 0)), data.get(point + 1));
+		return new FluidStack(BuiltInRegistries.FLUID.byId(getPacked(data, point + 0)), getPacked(data, point + 2));
 	}
 	
 	public static FluidStack getRenderFluidStack(ContainerData data, int point) {
-		return new FluidStack(BuiltInRegistries.FLUID.byId(data.get(point + 2)), data.get(point + 3));
+		return new FluidStack(BuiltInRegistries.FLUID.byId(getPacked(data, point + 4)), getPacked(data, point + 6));
 	}
 	
 	public static Fluid getFluidType(ContainerData data, int point) {
-		return BuiltInRegistries.FLUID.byId(data.get(point + 0));
+		return BuiltInRegistries.FLUID.byId(getPacked(data, point + 0));
 	}
 	
-	public static short getFluidAmount(ContainerData data, int point) {
-		return (short) data.get(point + 1);
+	public static int getFluidAmount(ContainerData data, int point) {
+		return getPacked(data, point + 2);
 	}
 	
 	public static Fluid getRenderFluidId(ContainerData data, int point) {
-		return BuiltInRegistries.FLUID.byId(data.get(point + 2));
+		return BuiltInRegistries.FLUID.byId(getPacked(data, point + 4));
 	}
 	
-	public static short getRenderFluidAmount(ContainerData data, int point) {
-		return (short) data.get(point + 3);
+	public static int getRenderFluidAmount(ContainerData data, int point) {
+		return getPacked(data, point + 6);
 	}
 	
-	public static short getTankCapacity(ContainerData data, int point) {
-		return (short) data.get(point + 4);
+	public static int getTankCapacity(ContainerData data, int point) {
+		return getPacked(data, point + 8);
 	}
 	
 	public static ToolTip getTankToopTip(ContainerData data, int point) {
@@ -93,18 +100,18 @@ public class TankContainerData implements ContainerData{
 	        @Override
 	        public void refresh() {
 	            clear();
-	            int amount = data.get(point + 1);
-	            FluidStack fluidStack = BuiltInRegistries.FLUID.byId(data.get(point + 2)) == Fluids.EMPTY ? FluidStack.EMPTY
-	            		: new FluidStack(BuiltInRegistries.FLUID.byId(data.get(point + 2)), data.get(point + 3));;
+	            int amount = getPacked(data, point + 2);
+	            FluidStack fluidStack = BuiltInRegistries.FLUID.byId(getPacked(data, point + 4)) == Fluids.EMPTY ? FluidStack.EMPTY
+	            		: new FluidStack(BuiltInRegistries.FLUID.byId(getPacked(data, point + 4)), getPacked(data, point + 6));;
 	            if (fluidStack != FluidStack.EMPTY && amount > 0) {
 	                add(fluidStack.getDisplayName());
 	            }
-	            add(LocaleUtil.localizeFluidStaticAmount(amount, data.get(point + 4)).setStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
-	            FluidStack serverFluid = new FluidStack(BuiltInRegistries.FLUID.byId(data.get(point + 0)), data.get(point + 1));
+	            add(LocaleUtil.localizeFluidStaticAmount(amount, getPacked(data, point + 8)).setStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+	            FluidStack serverFluid = new FluidStack(BuiltInRegistries.FLUID.byId(getPacked(data, point + 0)), getPacked(data, point + 2));
 	            if (serverFluid != FluidStack.EMPTY && serverFluid.getAmount() > 0) {
 	                add(Component.translatable("tooltip.buildcraftlib.fluid.server_side_on_client").setStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
 	                add(serverFluid.getDisplayName());
-	                add(LocaleUtil.localizeFluidStaticAmount(serverFluid.getAmount(), data.get(point + 4)));
+	                add(LocaleUtil.localizeFluidStaticAmount(serverFluid.getAmount(), getPacked(data, point + 8)));
 	            }
 	        }
 	    };
