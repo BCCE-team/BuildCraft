@@ -103,28 +103,93 @@ class LocalCIError(RuntimeError):
     pass
 
 
+def slug(value: str) -> str:
+    value = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip()).strip("-")
+    return value or "step"
+
+
+def step_key(name: str) -> str:
+    """Stable command-line selectors derived from the actual CI step labels."""
+    return slug(name).lower()
+
+
+# Preserve the ergonomic selector in the documented example; the canonical
+# stage is named "Validate API v2 boundary" in GitHub Actions.
+STEP_ALIASES = {
+    "validate-api-boundary": "validate-api-v2-boundary",
+}
+
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument(
         "--validate-only",
         action="store_true",
-        help="Run only repository validators/AutoTests and skip target builds/GameTests.",
+        help="Run repository validators/AutoTests only (no target build or GameTests).",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Write/print the exact local execution plan without running commands.",
+        help="Write/print the execution plan without running any steps.",
     )
     parser.add_argument(
         "--run-id",
         help="Override the logs/ci-local run directory name (default: local timestamp).",
     )
+    parser.add_argument(
+        "--list-steps",
+        action="store_true",
+        help="List every supported starting stage and its --from selector, then exit.",
+    )
+    start = parser.add_mutually_exclusive_group()
+    start.add_argument(
+        "--from", dest="start_from", metavar="STEP",
+        help="Start at this validator or target, inclusive; skip every earlier stage.",
+    )
+    for name, _ in VALIDATE_STEPS:
+        key = step_key(name)
+        start.add_argument(
+            f"--{key}", dest="start_from", action="store_const", const=key,
+            help=argparse.SUPPRESS,
+        )
+    for alias, canonical in STEP_ALIASES.items():
+        start.add_argument(
+            f"--{alias}", dest="start_from", action="store_const", const=canonical,
+            help=argparse.SUPPRESS,
+        )
     return parser.parse_args()
 
 
-def slug(value: str) -> str:
-    value = re.sub(r"[^A-Za-z0-9._-]+", "-", value.strip()).strip("-")
-    return value or "step"
+def list_starting_stages() -> str:
+    lines = [
+        "Available CI starting stages (use --from <selector> or the validator flag):",
+        "",
+        "Validators / AutoTests (in execution order):",
+    ]
+    for index, (name, _) in enumerate(VALIDATE_STEPS, 1):
+        lines.append(f"  {index:02d}. --{step_key(name)}  |  {name}")
+    lines.extend(("", "Target builds / GameTests (begin with build, then continue):"))
+    for index, (target, _, _) in enumerate(TARGETS, 1):
+        lines.append(f"  {index:02d}. --from {target}")
+    lines.extend(("", "Alias: --validate-api-boundary starts at 'Validate API v2 boundary'."))
+    return "\n".join(lines)
+
+
+def resolve_start(selector: str | None) -> tuple[str, int]:
+    """Return ('validate' or 'target', zero-based index) for the first run step."""
+    if selector is None:
+        return "validate", 0
+    requested = STEP_ALIASES.get(step_key(selector), step_key(selector))
+    for index, (name, _) in enumerate(VALIDATE_STEPS):
+        if requested == step_key(name):
+            return "validate", index
+    for index, (target, _, _) in enumerate(TARGETS):
+        if requested == step_key(target):
+            return "target", index
+    raise LocalCIError(
+        f"Unknown CI starting step: {selector!r}. "
+        "Run .\\run-ci-local.ps1 --list-steps to see valid selectors."
+    )
 
 
 def workflow_alignment_check() -> None:
@@ -462,8 +527,10 @@ def environment_with_java(base: dict[str, str], java_home: Path) -> dict[str, st
     return env
 
 
-def require_local_test_jdks(jdks: dict[int, Path], installations: dict[int, list[Path]]) -> None:
-    missing = [major for major in (17, 21, 25) if major not in jdks]
+def require_local_test_jdks(
+    jdks: dict[int, Path], installations: dict[int, list[Path]], required: Iterable[int] = (17, 21, 25)
+) -> None:
+    missing = [major for major in sorted(set(required)) if major not in jdks]
     if not missing:
         return
     majors = ", ".join(str(major) for major in missing)
@@ -584,25 +651,49 @@ def clear_forgegradle_dependency_caches() -> None:
                 shutil.rmtree(path, ignore_errors=True)
 
 
-def write_plan(run_dir: Path, validate_only: bool) -> None:
-    lines = ["BuildCraft local test plan", "", "AutoTests / validators:"]
-    lines.extend(f"  - {name}" for name, _ in VALIDATE_STEPS)
+def write_plan(
+    run_dir: Path, validate_only: bool, start: tuple[str, int]
+) -> None:
+    start_kind, start_index = start
+    validate_start = start_index if start_kind == "validate" else len(VALIDATE_STEPS)
+    target_start = start_index if start_kind == "target" else 0
+    lines = ["BuildCraft local test plan"]
+    if start != ("validate", 0):
+        label = (VALIDATE_STEPS[start_index][0] if start_kind == "validate"
+                 else TARGETS[start_index][0])
+        lines.append(f"Starting at: {label} (earlier stages SKIPPED, not passed)")
+    lines.extend(("", "AutoTests / validators:"))
+    for index, (name, _) in enumerate(VALIDATE_STEPS):
+        prefix = "  - [SKIP] " if index < validate_start else "  - "
+        lines.append(prefix + name)
     if not validate_only:
         lines.append("Target tests:")
-        for target, generation, java in TARGETS:
-            lines.append(f"  - {target} ({generation}, Java {java}): build + AutoTests -> GameTests -> artifacts")
+        for index, (target, generation, java) in enumerate(TARGETS):
+            prefix = "  - [SKIP] " if index < target_start else "  - "
+            lines.append(f"{prefix}{target} ({generation}, Java {java}): build + AutoTests -> GameTests -> artifacts")
     (run_dir / "plan.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
 
+
 def main() -> int:
     args = parse_args()
+    if args.list_steps:
+        print(list_starting_stages())
+        return 0
+
+    start = resolve_start(args.start_from)
+    start_kind, start_index = start
+    if args.validate_only and start_kind == "target":
+        raise LocalCIError("--validate-only cannot start at a target build; choose a validator instead.")
+    validate_start = start_index if start_kind == "validate" else len(VALIDATE_STEPS)
+    target_start = start_index if start_kind == "target" else 0
     os.chdir(ROOT)
     workflow_alignment_check()
 
     run_id = args.run_id or dt.datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
     run_dir = LOG_ROOT / slug(run_id)
     run_dir.mkdir(parents=True, exist_ok=True)
-    write_plan(run_dir, args.validate_only)
+    write_plan(run_dir, args.validate_only, start)
     (LOG_ROOT / "latest.txt").write_text(str(run_dir.relative_to(ROOT)) + "\n", encoding="utf-8")
 
     if args.dry_run:
@@ -612,28 +703,24 @@ def main() -> int:
     if sys.version_info < (3, 11):
         raise LocalCIError(f"Python 3.11+ is required; running {sys.version.split()[0]}")
 
+    required_jdks: set[int] = set()
+    if validate_start < len(VALIDATE_STEPS):
+        required_jdks.add(21)
+    if not args.validate_only:
+        required_jdks.update(java for _, _, java in TARGETS[target_start:])
+
     installations = discover_java_installations()
     jdks: dict[int, Path] = {}
-    for major in (17, 21, 25):
+    for major in sorted(required_jdks):
         found = discover_jdk(major, installations)
         if found is not None:
             jdks[major] = found
 
     print("\nJava runtime discovery:")
     print(format_java_diagnostics(installations))
-    for major in (17, 21, 25):
-        if major in jdks:
-            print(f"Selected Java {major}: {jdks[major]}")
-
-    if 21 not in jdks:
-        raise LocalCIError(
-            "Java 21 is required for the validate job, but the local runner could not locate it. "
-            "This does not mean Java is absent from the machine.\n"
-            + format_java_diagnostics(installations)
-            + "\nIf Java 21 lives in a custom location, set JAVA_HOME_21_X64 to that runtime home."
-        )
-    if not args.validate_only:
-        require_local_test_jdks(jdks, installations)
+    for major in sorted(jdks):
+        print(f"Selected Java {major}: {jdks[major]}")
+    require_local_test_jdks(jdks, installations, required_jdks)
 
     base_env = dict(os.environ)
     # GitHub Actions runs on Linux, where Python's default text encoding is UTF-8.
@@ -647,18 +734,20 @@ def main() -> int:
     base_env["GRADLE_OPTS"] = "-Dorg.gradle.daemon=false -Dfile.encoding=UTF-8"
     for major, home in jdks.items():
         base_env[f"JAVA_HOME_{major}_X64"] = str(home)
-    validation_env = environment_with_java(base_env, jdks[21])
+    validation_env = environment_with_java(base_env, jdks[21]) if 21 in jdks else base_env
 
     summary: dict[str, object] = {
         "run_id": run_id,
         "workflow": str(WORKFLOW.relative_to(ROOT)),
         "validate_only": args.validate_only,
+        "start_from": (VALIDATE_STEPS[start_index][0] if start_kind == "validate"
+                       else TARGETS[start_index][0]),
         "started": dt.datetime.now().astimezone().isoformat(),
         "steps": [],
     }
     step_number = 0
 
-    def record(name: str, status: int, log: Path | None, *, skipped: bool = False) -> None:
+    def record(name: str, status: int | None, log: Path | None, *, skipped: bool = False) -> None:
         cast_steps = summary["steps"]
         assert isinstance(cast_steps, list)
         cast_steps.append({
@@ -669,9 +758,13 @@ def main() -> int:
         })
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
-    # GitHub validate job, exact declared step order.
-    for name, command in VALIDATE_STEPS:
+    # GitHub validate job, exact declared step order. Skipped steps are not
+    # launched and never count as passing tests in the JSON summary.
+    for index, (name, command) in enumerate(VALIDATE_STEPS):
         step_number += 1
+        if index < validate_start:
+            record(name, None, None, skipped=True)
+            continue
         if command == ("__ARCHITECTURE__",):
             actual = [
                 sys.executable,
@@ -700,10 +793,11 @@ def main() -> int:
             print(f"Logs: {run_dir.relative_to(ROOT)}")
             return status
 
-    validate_destination = run_dir / "artifacts" / "validate"
-    validate_copied = copy_artifact_patterns(validate_artifact_patterns(), validate_destination)
-    if validate_copied:
-        print(f"Collected {validate_copied} validate artifact file(s) -> {validate_destination.relative_to(ROOT)}")
+    if validate_start < len(VALIDATE_STEPS):
+        validate_destination = run_dir / "artifacts" / "validate"
+        validate_copied = copy_artifact_patterns(validate_artifact_patterns(), validate_destination)
+        if validate_copied:
+            print(f"Collected {validate_copied} validate artifact file(s) -> {validate_destination.relative_to(ROOT)}")
 
     if args.validate_only:
         summary["finished"] = dt.datetime.now().astimezone().isoformat()
@@ -713,7 +807,16 @@ def main() -> int:
         return 0
 
     # Target matrix. Local runs stop at AutoTests/build + GameTests; runtime client/server smoke stays in GitHub CI.
-    for target, generation, java in TARGETS:
+    for target_index, (target, generation, java) in enumerate(TARGETS):
+        if target_index < target_start:
+            if target == "1.20.1-forge":
+                step_number += 1
+                record(f"Validate Forge 1.20.1 target invariants [{target}]", None, None, skipped=True)
+            step_number += 1
+            record(f"Run AutoTests and build target [{target}]", None, None, skipped=True)
+            step_number += 1
+            record(f"Run GameTests [{target}]", None, None, skipped=True)
+            continue
         target_env = environment_with_java(base_env, jdks[java])
         target_env["BUILD_GENERATION"] = generation
         target_env["STONECUTTER_TARGET"] = target

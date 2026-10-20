@@ -1,16 +1,20 @@
-param(
-    [switch]$ValidateOnly,
-    [switch]$DryRun,
-    [string]$RunId = ""
-)
-
+# Pass CLI selectors through verbatim, including --validate-api-boundary.
+# Keep legacy PowerShell spellings for the pre-existing switches.
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path $PSScriptRoot).Path
 
 $runnerArgs = @()
-if ($ValidateOnly) { $runnerArgs += "--validate-only" }
-if ($DryRun) { $runnerArgs += "--dry-run" }
-if ($RunId) { $runnerArgs += @("--run-id", $RunId) }
+foreach ($argument in $args) {
+    $token = [string]$argument
+    switch -Regex ($token) {
+        '^(?i:-ValidateOnly)$' { $runnerArgs += "--validate-only"; continue }
+        '^(?i:-DryRun)$' { $runnerArgs += "--dry-run"; continue }
+        '^(?i:-RunId)$' { $runnerArgs += "--run-id"; continue }
+        '^(?i:-From)$' { $runnerArgs += "--from"; continue }
+        '^(?i:-ListSteps)$' { $runnerArgs += "--list-steps"; continue }
+        default { $runnerArgs += $token }
+    }
+}
 
 # Local validation, AutoTests and GameTests run natively on Windows via gradlew.bat.
 # Client and dedicated-server smoke tests are GitHub CI-only.
