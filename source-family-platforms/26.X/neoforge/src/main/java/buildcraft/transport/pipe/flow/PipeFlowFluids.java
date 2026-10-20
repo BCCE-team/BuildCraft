@@ -131,18 +131,23 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             old -> pipe.getHolder().getPipeTile().setChanged());
 
     private record FluidSectionState(int amount, int time, int[] incoming, int incomingTotal, int direction) {}
-    private record FluidTransferState(FluidStack fluid, int delay, Map<EnumPipePart, FluidSectionState> sections) {}
+    private record FluidTransferState(FluidStack fluid, int delay, Map<EnumPipePart, FluidSectionState> sections,
+        long lastSendTick, int sent, long lastReceiveTick, int received) {}
 
     private FluidTransferState captureFluidTransfer() {
         Map<EnumPipePart, FluidSectionState> states = new EnumMap<>(EnumPipePart.class);
         sections.forEach((part, s) -> states.put(part,
             new FluidSectionState(s.amount, s.currentTime, s.incoming.clone(), s.incomingTotalCache, s.ticksInDirection)));
-        return new FluidTransferState(currentFluid.copy(), currentDelay, states);
+        return new FluidTransferState(currentFluid.copy(), currentDelay, states, lastApiTransferTick, apiSentThisTick, lastApiReceiveTick, apiReceivedThisTick);
     }
 
     private void restoreFluidTransfer(FluidTransferState saved) {
         currentFluid = saved.fluid().copy();
         currentDelay = saved.delay();
+        lastApiTransferTick = saved.lastSendTick();
+        apiSentThisTick = saved.sent();
+        lastApiReceiveTick = saved.lastReceiveTick();
+        apiReceivedThisTick = saved.received();
         saved.sections().forEach((part, state) -> {
             Section s = sections.get(part);
             s.amount = state.amount(); s.currentTime = state.time(); s.incoming = state.incoming().clone();
@@ -234,6 +239,9 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         amount = target.apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.PIPE_TRANSFER,
             targetSide, currentFluid.copyWithAmount(amount), amount, target.capacity, simulate);
         if (amount == 0 || simulate) return amount;
+        // Snapshot both pipes before changing fluid, cooldowns or per-tick bandwidth.
+        transferJournal.record();
+        target.transferJournal.record();
         if (target.currentFluid.isEmpty()) target.setFluid(currentFluid.copy());
         int extracted = from.drainInternal(amount, true);
         if (extracted <= 0) return 0;

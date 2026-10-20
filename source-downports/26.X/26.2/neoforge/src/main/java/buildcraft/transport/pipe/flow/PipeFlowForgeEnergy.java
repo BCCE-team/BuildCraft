@@ -75,16 +75,21 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
             old -> pipe.getHolder().getPipeTile().setChanged());
 
     private record PowerSectionState(int powerQuery, int nextPowerQuery, int internalPower, int internalNextPower, int debugPowerInput, int debugPowerOutput) {}
-    private record PowerTransferState(long time, EnumMap<Direction, PowerSectionState> states) {}
+    private record PowerTransferState(long time, EnumMap<Direction, PowerSectionState> states,
+        long lastSendTick, int sent, long lastReceiveTick, int received) {}
 
     private PowerTransferState capturePowerTransfer() {
         EnumMap<Direction, PowerSectionState> states = new EnumMap<>(Direction.class);
         sections.forEach((face, s) -> states.put(face, new PowerSectionState(s.powerQuery, s.nextPowerQuery, s.internalPower, s.internalNextPower, s.debugPowerInput, s.debugPowerOutput)));
-        return new PowerTransferState(currentWorldTime, states);
+        return new PowerTransferState(currentWorldTime, states, lastApiSendTick, apiSentThisTick, lastApiReceiveTick, apiReceivedThisTick);
     }
 
     private void restorePowerTransfer(PowerTransferState state) {
         currentWorldTime = state.time();
+        lastApiSendTick = state.lastSendTick();
+        apiSentThisTick = state.sent();
+        lastApiReceiveTick = state.lastReceiveTick();
+        apiReceivedThisTick = state.received();
         state.states().forEach((face, value) -> {
             Section s = sections.get(face);
             s.powerQuery = value.powerQuery(); s.nextPowerQuery = value.nextPowerQuery(); s.internalPower = value.internalPower(); s.internalNextPower = value.internalNextPower(); s.debugPowerInput = value.debugPowerInput(); s.debugPowerOutput = value.debugPowerOutput();
@@ -277,12 +282,13 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         int taken = Math.max(0, Math.min(requested, Math.min(available, budget)));
         taken = apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.EXTRACT, side, taken, simulate);
         if (!simulate && taken > 0) {
+            // Journal the pre-transfer buffers AND quotas before any tick advancement.
+            transferJournal.record();
             step();
             section.internalPower -= taken;
             if (lastApiSendTick != now) apiSentThisTick = 0;
             lastApiSendTick = now;
             apiSentThisTick += taken;
-            transferJournal.record();
         }
         return taken;
     }
@@ -310,6 +316,8 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         accepted = target.apiPowerLimit(buildcraft.api.v2.pipe.PowerMovementPhase.PIPE_TRANSFER,
             targetSide, accepted, simulate);
         if (accepted == 0 || simulate) return accepted;
+        transferJournal.record();
+        target.transferJournal.record();
         step();
         target.step();
         from.internalPower -= accepted;
@@ -320,8 +328,6 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
         if (target.lastApiReceiveTick != targetTick) target.apiReceivedThisTick = 0;
         target.lastApiReceiveTick = targetTick;
         target.apiReceivedThisTick += accepted;
-        transferJournal.record();
-        target.transferJournal.record();
         return accepted;
     }
 
