@@ -641,11 +641,17 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             if (matching != null) {
                 long combined = (long) matching.getCount() + stack.getCount();
                 matching.setCount((int) Math.min(Integer.MAX_VALUE, combined));
-            } else if (compacted.size() < limit) {
+            } else if (compacted.size() < 1024) {
                 compacted.add(stack.copy());
             }
         }
-        return new ViewGroup<>(compacted);
+        // A HUD can show only 9 (or 54 expanded) distinct stacks at once.
+        // Rotate through bounded pages instead of permanently hiding every later slot.
+        if (compacted.size() <= limit) return new ViewGroup<>(compacted);
+        int pageCount = (compacted.size() + limit - 1) / limit;
+        int page = (int) Math.floorMod(System.currentTimeMillis() / 4000L, pageCount);
+        int first = page * limit;
+        return new ViewGroup<>(new ArrayList<>(compacted.subList(first, Math.min(compacted.size(), first + limit))));
     }
 
     private static ViewGroup<ItemStack> itemHandlerGroup(IItemHandler handler, int maxSize) {
