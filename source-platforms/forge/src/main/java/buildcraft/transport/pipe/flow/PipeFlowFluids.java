@@ -709,7 +709,21 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
                     FluidStack fluidToPush = new FluidStack(currentFluid, maxDrain);
 
                     if (fluidToPush.getAmount() > 0) {
-                        int filled = fluidHandler.fill(fluidToPush, false);
+                        int filled;
+                        try {
+                            filled = fluidHandler.fill(fluidToPush, false);
+                        } catch (RuntimeException rejectedByHandler) {
+                            // Untrusted external capabilities must never crash the pipe's server tick.
+                            // Leave the local fluid untouched when insertion fails.
+                            BCLog.logger.warn("External fluid handler failed during pipe output at {}",
+                                pipe.getHolder().getPipePos(), rejectedByHandler);
+                            continue;
+                        }
+                        if (filled < 0 || filled > fluidToPush.getAmount()) {
+                            BCLog.logger.warn("External fluid handler returned invalid inserted amount {} of {} at {}",
+                                filled, fluidToPush.getAmount(), pipe.getHolder().getPipePos());
+                            filled = Math.max(0, Math.min(fluidToPush.getAmount(), filled));
+                        }
                         if (filled > 0) {
                             section.drainInternal(filled, true);
                             section.ticksInDirection = COOLDOWN_OUTPUT;
