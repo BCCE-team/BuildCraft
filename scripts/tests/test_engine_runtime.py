@@ -263,13 +263,27 @@ class EngineRuntimeTests(unittest.TestCase):
             self.assertEqual(outcome.returncode,0,outcome.stderr+'\n'+outcome.stdout)
 
     def test_shared_source_and_builtin_engine_order_preserved(self):
-        from pathlib import Path
-        for native in ('source-platforms/forge','source-platforms/neoforge','source-family-platforms/26.X/neoforge'):
-            base=ROOT/native/'src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java'
-            self.assertIn('getPistonSpeed()',base.read_text())
-            self.assertIn('isPulsedPowerReceiver',base.read_text())
-        for runtime in ('source-shared','source-families/26.X','source-family-platforms/26.X/neoforge'):
-            file=ROOT/runtime/'src/main/java/buildcraft/lib/internal/api/v2/BuildCraftApiRuntime.java'
-            self.assertIn('BuildCraftServices.ENGINES',file.read_text())
+        # Source consolidation may promote an implementation to a different layer.
+        # Check the actual Java emitted for every target, not its former disk path.
+        scripts_dir = str(ROOT / 'scripts')
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        from source_lookup import read_materialized_java
+
+        engine = 'src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java'
+        runtime = 'src/main/java/buildcraft/lib/internal/api/v2/BuildCraftApiRuntime.java'
+        targets = (
+            '1.19.2-forge', '1.20.1-forge',
+            '1.21.1-neoforge', '1.21.11-neoforge',
+            '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge',
+        )
+        for target in targets:
+            with self.subTest(target=target, source='TileEngineBase_BC8'):
+                source = read_materialized_java(target, engine)
+                self.assertIn('getPistonSpeed()', source)
+                self.assertIn('isPulsedPowerReceiver', source)
+            with self.subTest(target=target, source='BuildCraftApiRuntime'):
+                source = read_materialized_java(target, runtime)
+                self.assertIn('BuildCraftServices.ENGINES', source)
 
 if __name__=='__main__': unittest.main()

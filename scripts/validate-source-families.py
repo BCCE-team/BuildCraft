@@ -218,7 +218,8 @@ def validate_condition_policy(roots: list[Path], overlays: list[Path]) -> tuple[
     permitted: set[Path] = set()
     for name in merged:
         rel = Path(name)
-        if rel.is_absolute() or ".." in rel.parts or not str(rel).startswith("buildcraft/lib/") or rel.suffix != ".java":
+        # Path.__str__ uses backslashes on Windows, so compare components, not a slash-prefixed string.
+        if rel.is_absolute() or ".." in rel.parts or rel.parts[:2] != ("buildcraft", "lib") or rel.suffix != ".java":
             fail(f"unsafe or non-library path in 26.X Java consolidation manifest: {name}")
         source, retired = root / rel, overlay_root / rel
         if not source.is_file() or retired.exists():
