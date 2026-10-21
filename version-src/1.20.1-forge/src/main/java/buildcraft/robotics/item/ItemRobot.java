@@ -77,7 +77,7 @@ public class ItemRobot extends Item implements ICreativeTabItemProvider {
         BoardEntry board = BCRoboticsBoards.getRobotBoard(stack);
         if (board != BCRoboticsBoards.EMPTY) {
             String legacyKey = board.legacyLangKey();
-            tooltip.add(board.displayName().withStyle(ChatFormatting.BOLD));
+            tooltip.add(board.displayName().copy().withStyle(ChatFormatting.BOLD));
             tooltip.add(Component.translatable("buildcraft." + legacyKey + ".desc").withStyle(ChatFormatting.GRAY));
             if (board.isInDev()) {
                 tooltip.add(Component.translatable("tooltip.buildcraftrobotics.in_dev").withStyle(ChatFormatting.RED));

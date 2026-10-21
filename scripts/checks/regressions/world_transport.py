@@ -285,10 +285,25 @@ require(
     "buildcraftenergy:fluids/oil/cool",
 )
 
+# Worldgen oil shares the canonical (cool) oil display name. The old
+# spout-specific block and fluid translations were deliberately deduplicated;
+# requiring them here would reject the valid canonical localization contract.
 require(
     "source-shared/src/main/resources/assets/buildcraft/lang/en_us.json",
-    '"fluid_type.buildcraftenergy.spout_oil": "Oil (§bCool§r)"',
-    '"block.buildcraftenergy.spout_oil": "Oil (§bCool§r)"',
+    '"fluid_type.buildcraftenergy.oil": "Oil (§bCool§r)"',
+)
+forbid(
+    "source-shared/src/main/resources/assets/buildcraft/lang/en_us.json",
+    '"fluid_type.buildcraftenergy.spout_oil":',
+    '"block.buildcraftenergy.spout_oil":',
+)
+# In Minecraft 1.21.11+ the block description getter is final. The registered
+# spout block must therefore inherit the canonical oil key through properties.
+# Stonecutter excludes the overrideDescription call on older targets, where the
+# liquid block still delegates to its registered fluid type.
+require(
+    "source-platforms/neoforge/src/main/java/buildcraft/energy/BCEnergyFluids.java",
+    '.overrideDescription("fluid_type.buildcraftenergy.oil")',
 )
 
 # Double-chest automation must use the exact same 54-slot ordering as the vanilla chest menu.

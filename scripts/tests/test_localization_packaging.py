@@ -68,7 +68,7 @@ class ExternalLocalizationPackagingTest(unittest.TestCase):
 
     def test_stage_only_buildcraft_non_english_resources(self):
         self.run_stage(source=self.source)
-        staged = sorted(str(path.relative_to(self.output)) for path in self.output.rglob("*.json"))
+        staged = sorted(path.relative_to(self.output).as_posix() for path in self.output.rglob("*.json"))
         self.assertEqual(staged, [
             "assets/buildcraft/guide/text/ru_ru.json",
             "assets/buildcraft/lang/ru_ru.json",

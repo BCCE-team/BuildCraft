@@ -62,7 +62,7 @@ public class ItemRedstoneBoard extends Item implements ICreativeTabItemProvider 
         BoardEntry board = BCRoboticsBoards.getBoard(stack);
         if (board != BCRoboticsBoards.EMPTY) {
             String legacyKey = board.legacyLangKey();
-            tooltip.accept(board.displayName().withStyle(ChatFormatting.BOLD));
+            tooltip.accept(board.displayName().copy().withStyle(ChatFormatting.BOLD));
             tooltip.accept(Component.translatable("buildcraft." + legacyKey + ".desc").withStyle(ChatFormatting.GRAY));
             if (board.isInDev()) {
                 tooltip.accept(Component.translatable("tooltip.buildcraftrobotics.in_dev").withStyle(ChatFormatting.RED));

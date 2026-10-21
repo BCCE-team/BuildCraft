@@ -200,6 +200,9 @@ public final class BCEnergyFluids {
         BCRegistryEntry<LiquidBlock> block = BCEnergyBlocks.BLOCKS.register(fullName, () -> new BCLiquidBlock(
             source.get(),
             BlockBehaviour.Properties.of()
+//? if >=1.21.11 {
+                .overrideDescription("fluid_type.buildcraftenergy." + fullName)
+//? }
                 .mapColor(MapColor.COLOR_BLACK)
                 .replaceable()
                 .noCollission()
@@ -234,6 +237,9 @@ public final class BCEnergyFluids {
         SPOUT_OIL_BLOCK = BCEnergyBlocks.BLOCKS.register("spout_oil", () -> new BCLiquidBlock(
             source.get(),
             BlockBehaviour.Properties.of()
+//? if >=1.21.11 {
+                .overrideDescription("fluid_type.buildcraftenergy.oil")
+//? }
                 .mapColor(MapColor.COLOR_BLACK)
                 .replaceable()
                 .noCollission()

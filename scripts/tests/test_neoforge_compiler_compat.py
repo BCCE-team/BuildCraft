@@ -99,6 +99,25 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
                 self.assertEqual(len(create_deps), 1 if target.startswith("1.21.1-") else 0)
                 self.assertEqual(bool(parsed.get("mixins")), not target.startswith("1.21.1-"))
 
+    def test_moddev_gametest_metadata_is_staged_and_cleaned(self):
+        # FML 10+ discovers the dev mod from classes/java/main first. Only
+        # GameTests mirror the processed mod metadata into that directory;
+        # normal production JAR builds must not receive another metadata copy.
+        gradle = (ROOT / 'build-logic/loaders/neoforge-target.gradle').read_text(encoding='utf-8')
+        for snippet in (
+            "if (gameTestRunRequested && minecraftVersion != '1.21.1')",
+            "layout.buildDirectory.file('resources/main/META-INF/neoforge.mods.toml')",
+            "layout.buildDirectory.file('classes/java/main/META-INF/neoforge.mods.toml')",
+            "dependsOn tasks.named('compileJava'), tasks.named('processResources')",
+            "tasks.register('prepareGameTestModMetadata', Copy)",
+            "tasks.register('cleanGameTestModMetadata', Delete)",
+            "tasks.named('runGameTestServer')",
+            "dependsOn prepareGameTestModMetadata",
+            "finalizedBy cleanGameTestModMetadata",
+        ):
+            with self.subTest(guard=snippet):
+                self.assertIn(snippet, gradle)
+
     def test_26x_jade_retains_its_native_formatting(self):
         name = "compat/jade/BuildCraftJadePlugin.java"
         for target in ("26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"):

@@ -289,6 +289,38 @@ neoForge {
     }
 }
 
+// In NeoForge 1.21.11+ the FML dev locator reports classes/java/main as the
+// primary path of the exploded BuildCraft mod, with resources/main as another
+// root. GameTest needs the processed mod metadata at that primary path too.
+// Mirror ONLY the expanded TOML for this run, then always clean it up: a
+// persistent duplicate in the compiled output would otherwise contaminate
+// later production JARs (which already contain the resources/main copy).
+if (gameTestRunRequested && minecraftVersion != '1.21.1') {
+    def processedGameTestMetadata = layout.buildDirectory.file('resources/main/META-INF/neoforge.mods.toml')
+    def classGameTestMetadata = layout.buildDirectory.file('classes/java/main/META-INF/neoforge.mods.toml')
+    def prepareGameTestModMetadata = tasks.register('prepareGameTestModMetadata', Copy) {
+        dependsOn tasks.named('compileJava'), tasks.named('processResources')
+        from(processedGameTestMetadata)
+        into(layout.buildDirectory.dir('classes/java/main/META-INF'))
+        doFirst {
+            def metadata = processedGameTestMetadata.get().asFile
+            if (!metadata.isFile()) {
+                throw new GradleException("Missing processed NeoForge mod metadata for GameTests: ${metadata}")
+            }
+            if (metadata.getText('UTF-8').contains('${')) {
+                throw new GradleException("Unexpanded NeoForge mod metadata for GameTests: ${metadata}")
+            }
+        }
+    }
+    def cleanGameTestModMetadata = tasks.register('cleanGameTestModMetadata', Delete) {
+        delete classGameTestMetadata
+    }
+    tasks.named('runGameTestServer') {
+        dependsOn prepareGameTestModMetadata
+        finalizedBy cleanGameTestModMetadata
+    }
+}
+
 tasks.matching { it.name == 'runData' }.configureEach {
     dependsOn prepareEffectiveSource
     doFirst {
