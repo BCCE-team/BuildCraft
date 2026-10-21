@@ -33,7 +33,11 @@ public class VolumeUtil {
             unknown.removeAll(allVisible);
             boolean visible = true;
             for (BlockPos p : unknown) {
+//? if neoforge {
+                if (world.isEmptyBlock(p)) {
+//? } else {
                 if (world.isLoaded(p) && world.isEmptyBlock(p)) {
+//?}
                     allVisible.add(p);
                 } else {
                     visible = false;

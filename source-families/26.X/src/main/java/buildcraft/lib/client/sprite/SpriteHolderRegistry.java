@@ -10,22 +10,38 @@ import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.internal.core.render.ISprite;
 import buildcraft.lib.misc.SpriteUtil;
+//? if neoforge && (>=26.2) {
+//? } else {
 import com.mojang.blaze3d.opengl.GlStateManager;
+//?}
 import net.minecraft.client.Minecraft;
+//? if neoforge && (>=26.2) {
+import net.minecraft.data.AtlasIds;
+//? } else {
+//?}
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.inventory.InventoryMenu;
+//? if neoforge && (>=26.2) {
+//? } else {
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
+//?}
 
+//? if neoforge && (>=26.2) {
+//? } else {
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
+//?}
 import java.io.IOException;
+//? if neoforge && (>=26.2) {
+//? } else {
 import java.nio.IntBuffer;
+//?}
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -87,6 +103,15 @@ public final class SpriteHolderRegistry {
     }
 
     public static void exportTextureMap() {
+//? if neoforge && (>=26.2) {
+        if (!DEBUG) return;
+        Minecraft client = Minecraft.getInstance();
+        TextureAtlas atlas = client.getAtlasManager().getAtlasOrThrow(AtlasIds.BLOCKS);
+        try {
+            atlas.dumpContents(atlas.location(), client.gameDirectory.toPath());
+        } catch (IOException error) {
+            BCLog.logger.warn("Unable to export BuildCraft texture atlas", error);
+//? } else {
         if (!DEBUG) {
             return;
         }
@@ -113,6 +138,7 @@ public final class SpriteHolderRegistry {
             } catch (IOException io) {
                 BCLog.logger.warn("Unable to export BuildCraft texture atlas", io);
             }
+//?}
         }
     }
 

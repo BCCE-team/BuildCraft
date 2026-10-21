@@ -18,7 +18,11 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
 
 import buildcraft.lib.tile.TileMarker;
+//? if neoforge && (>=26.2) {
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
+//? } else {
 import net.minecraft.ChatFormatting;
+//?}
 import net.minecraft.core.BlockPos;
 
 public abstract class MarkerConnection<C extends MarkerConnection<C>> {
@@ -46,17 +50,37 @@ public abstract class MarkerConnection<C extends MarkerConnection<C>> {
             TileMarker<C> marker = subCache.getMarker(pos);
             String s = "  " + pos + " [";
             if (marker == null) {
+//? if neoforge && (>=26.2) {
+                s += BCTextFormat.RED + "U";
+//? } else {
                 s += ChatFormatting.RED + "U";
+//?}
             } else {
+//? if neoforge && (>=26.2) {
+                s += BCTextFormat.GREEN + "L";
+//? } else {
                 s += ChatFormatting.GREEN + "L";
+//?}
             }
             if (pos.equals(caller)) {
+//? if neoforge && (>=26.2) {
+                s += BCTextFormat.BLACK + "S";
+//? } else {
                 s += ChatFormatting.BLACK + "S";
+//?}
             } else {
+//? if neoforge && (>=26.2) {
+                s += BCTextFormat.AQUA + "C";
+//? } else {
                 s += ChatFormatting.AQUA + "C";
+//?}
             }
             s += getTypeInfo(pos, marker);
+//? if neoforge && (>=26.2) {
+            s += BCTextFormat.RESET + "]";
+//? } else {
             s += ChatFormatting.RESET + "]";
+//?}
             left.add(s);
         }
     }

@@ -15,13 +15,22 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
+//? if mc_26_x {
+import buildcraft.lib.compat.NbtCompat;
+import buildcraft.lib.compat.ItemCompat;
+//? } else {
+//?}
 
 /** Compatibility helpers for the Minecraft 1.20.5+ ItemStack data-component API. */
 public final class ItemStackUtil {
@@ -84,7 +93,11 @@ public final class ItemStackUtil {
         return getActiveRegistryProvider();
     }
 
+//? if mc_26_x {
+    /** Registry access required by RegistryFriendlyByteBuf. */
+//? } else {
     /** Registry access required by RegistryFriendlyByteBuf in Minecraft 1.21.1. */
+//?}
     @Nonnull
     public static RegistryAccess getActiveRegistryAccess() {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
@@ -121,21 +134,35 @@ public final class ItemStackUtil {
         }
 
         CompoundTag normalized = normalizeLegacyNbt(tag);
+//? if mc_26_x {
+        if (!NbtCompat.contains(normalized, "id", Tag.TAG_STRING)) {
+//? } else {
         if (!normalized.contains("id", Tag.TAG_STRING)) {
+//?}
             // Empty statement parameters legitimately contain only their BuildCraft "kind".
             // Feeding those compounds to ItemStack's codec logs an error and can abort gate sync.
             return ItemStack.EMPTY;
         }
 
+//? if mc_26_x {
+        String idString = NbtCompat.getString(normalized, "id");
+        Identifier id = Identifier.tryParse(idString);
+        int count = NbtCompat.contains(normalized, "count", 99) ? NbtCompat.getInt(normalized, "count") : 1;
+//? } else {
         String idString = normalized.getString("id");
         ResourceLocation id = ResourceLocation.tryParse(idString);
         int count = normalized.contains("count", Tag.TAG_ANY_NUMERIC) ? normalized.getInt("count") : 1;
+//?}
         if (id == null || count <= 0 || "minecraft:air".equals(idString)) {
             return ItemStack.EMPTY;
         }
 
         try {
+//? if mc_26_x {
+            ItemStack parsed = ItemCompat.parseOptional(registries, normalized);
+//? } else {
             ItemStack parsed = ItemStack.parseOptional(registries, normalized);
+//?}
             if (!parsed.isEmpty()) {
                 return parsed;
             }
@@ -144,7 +171,11 @@ public final class ItemStackUtil {
             // legacy tag as custom data instead of causing the whole block entity to fail.
         }
 
+//? if mc_26_x {
+        Item item = BuiltInRegistries.ITEM.get(id).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR);
+//? } else {
         Item item = BuiltInRegistries.ITEM.get(id);
+//?}
         if (item == null || item == Items.AIR) {
             return ItemStack.EMPTY;
         }
@@ -153,49 +184,88 @@ public final class ItemStackUtil {
         if (!legacyData.isEmpty()) {
             setCustomData(fallback, legacyData);
         }
+//? if mc_26_x {
+        if (NbtCompat.contains(legacyData, "Damage", 99)) {
+            fallback.set(DataComponents.DAMAGE, Math.max(0, NbtCompat.getInt(legacyData, "Damage")));
+//? } else {
         if (legacyData.contains("Damage", Tag.TAG_ANY_NUMERIC)) {
             fallback.set(DataComponents.DAMAGE, Math.max(0, legacyData.getInt("Damage")));
+//?}
         }
         return fallback;
     }
 
     /**
      * Converts the pre-1.20.5 ItemStack representation ({@code Count}/{@code tag})
+//? if mc_26_x {
+     * into the native component-based representation.
+//? } else {
      * into the representation accepted by Minecraft 1.21.1.
+//?}
      */
     @Nonnull
     public static CompoundTag normalizeLegacyNbt(@Nonnull CompoundTag source) {
+//? if mc_26_x {
+        if (!NbtCompat.contains(source, "id", Tag.TAG_STRING) && NbtCompat.contains(source, "stack", Tag.TAG_COMPOUND)) {
+            return normalizeLegacyNbt(NbtCompat.getCompound(source, "stack"));
+//? } else {
         if (!source.contains("id", Tag.TAG_STRING) && source.contains("stack", Tag.TAG_COMPOUND)) {
             return normalizeLegacyNbt(source.getCompound("stack"));
+//?}
         }
 
         CompoundTag normalized = source.copy();
+//? if mc_26_x {
+        if (!NbtCompat.contains(normalized, "id", Tag.TAG_STRING)) {
+            if (NbtCompat.contains(normalized, "Item", Tag.TAG_STRING)) {
+                normalized.putString("id", NbtCompat.getString(normalized, "Item"));
+            } else if (NbtCompat.contains(normalized, "item", Tag.TAG_STRING)) {
+                normalized.putString("id", NbtCompat.getString(normalized, "item"));
+//? } else {
         if (!normalized.contains("id", Tag.TAG_STRING)) {
             if (normalized.contains("Item", Tag.TAG_STRING)) {
                 normalized.putString("id", normalized.getString("Item"));
             } else if (normalized.contains("item", Tag.TAG_STRING)) {
                 normalized.putString("id", normalized.getString("item"));
+//?}
             }
         }
+//? if mc_26_x {
+        if (!NbtCompat.contains(normalized, "count", 99)) {
+            if (NbtCompat.contains(normalized, "Count", 99)) {
+                normalized.putInt("count", NbtCompat.getInt(normalized, "Count"));
+            } else if (NbtCompat.contains(normalized, "id", Tag.TAG_STRING)) {
+//? } else {
         if (!normalized.contains("count", Tag.TAG_ANY_NUMERIC)) {
             if (normalized.contains("Count", Tag.TAG_ANY_NUMERIC)) {
                 normalized.putInt("count", normalized.getInt("Count"));
             } else if (normalized.contains("id", Tag.TAG_STRING)) {
+//?}
                 normalized.putInt("count", 1);
             }
         }
 
         CompoundTag legacyData = getLegacyCustomData(source);
         if (!legacyData.isEmpty()) {
+//? if mc_26_x {
+            CompoundTag components = NbtCompat.contains(normalized, "components", Tag.TAG_COMPOUND)
+                ? NbtCompat.getCompound(normalized, "components").copy()
+//? } else {
             CompoundTag components = normalized.contains("components", Tag.TAG_COMPOUND)
                 ? normalized.getCompound("components").copy()
+//?}
                 : new CompoundTag();
             if (!components.contains("minecraft:custom_data")) {
                 components.put("minecraft:custom_data", legacyData.copy());
             }
             if (!components.contains("minecraft:damage")
+//? if mc_26_x {
+                && NbtCompat.contains(legacyData, "Damage", 99)) {
+                components.putInt("minecraft:damage", Math.max(0, NbtCompat.getInt(legacyData, "Damage")));
+//? } else {
                 && legacyData.contains("Damage", Tag.TAG_ANY_NUMERIC)) {
                 components.putInt("minecraft:damage", Math.max(0, legacyData.getInt("Damage")));
+//?}
             }
             normalized.put("components", components);
         }
@@ -204,18 +274,32 @@ public final class ItemStackUtil {
 
     @Nonnull
     private static CompoundTag getLegacyCustomData(@Nonnull CompoundTag source) {
+//? if mc_26_x {
+        if (NbtCompat.contains(source, "tag", Tag.TAG_COMPOUND)) {
+            return NbtCompat.getCompound(source, "tag").copy();
+//? } else {
         if (source.contains("tag", Tag.TAG_COMPOUND)) {
             return source.getCompound("tag").copy();
+//?}
         }
+//? if mc_26_x {
+        if (NbtCompat.contains(source, "Tag", Tag.TAG_COMPOUND)) {
+            return NbtCompat.getCompound(source, "Tag").copy();
+//? } else {
         if (source.contains("Tag", Tag.TAG_COMPOUND)) {
             return source.getCompound("Tag").copy();
+//?}
         }
         return new CompoundTag();
     }
 
     @Nonnull
     public static CompoundTag saveOptional(@Nonnull ItemStack stack, @Nonnull HolderLookup.Provider registries) {
+//? if mc_26_x {
+        Tag tag = ItemCompat.saveOptional(stack, registries);
+//? } else {
         Tag tag = stack.saveOptional(registries);
+//?}
         return tag instanceof CompoundTag compound ? compound : new CompoundTag();
     }
 

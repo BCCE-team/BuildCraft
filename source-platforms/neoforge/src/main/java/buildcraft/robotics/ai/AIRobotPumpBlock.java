@@ -12,9 +12,16 @@ import buildcraft.lib.misc.BlockUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x && (>=26.3) {
+import net.neoforged.neoforge.transfer.fluid.FluidUtil;
+import buildcraft.robotics.compat.RobotFluidResourceHandler263;
+import buildcraft.transport.internal.pipe.FluidAction;
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
 import net.neoforged.neoforge.fluids.FluidUtil;
 import net.neoforged.neoforge.fluids.capability.templates.FluidTank;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 
 /** Pumps one source fluid block into the robot's internal tank, matching the classic BuildCraft pump robot cadence. */
 public class AIRobotPumpBlock extends AIRobot {
@@ -31,7 +38,10 @@ public class AIRobotPumpBlock extends AIRobot {
         this.blockToPump = blockToPump;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void start() {
         if (blockToPump == null) {
             setSuccess(false);
@@ -42,7 +52,10 @@ public class AIRobotPumpBlock extends AIRobot {
         robot.setItemActive(true);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void update() {
         if (blockToPump == null) {
             setSuccess(false);
@@ -113,32 +126,53 @@ public class AIRobotPumpBlock extends AIRobot {
         if (fluid.isEmpty()) {
             return true;
         }
+//? if mc_26_x && (>=26.3) {
+        FluidStack placed = FluidUtil.tryPlaceFluid(
+                RobotFluidResourceHandler263.forRollback(fluid), null, robot.level(), pos, true, null);
+        return !placed.isEmpty() && placed.getAmount() == fluid.getAmount();
+//? } else {
         FluidTank rollbackTank = new FluidTank(fluid.getAmount());
         rollbackTank.setFluid(fluid.copy());
         return FluidUtil.tryPlaceFluid(null, robot.level(), null, pos, rollbackTank, fluid.copy());
+//?}
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void end() {
         robot.setItemActive(false);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public int getEnergyCost() {
         return 5;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean success() {
         return pumped > 0;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean canLoadFromNBT() {
         return true;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void writeSelfToNBT(CompoundTag nbt) {
         if (blockToPump != null) {
             CompoundTag tag = new CompoundTag();
@@ -149,12 +183,24 @@ public class AIRobotPumpBlock extends AIRobot {
         nbt.putInt("pumped", pumped);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void loadSelfFromNBT(CompoundTag nbt) {
         if (nbt.contains("blockToPump")) {
+//? if mc_26_x && (>=26.3) {
+            blockToPump = new BlockIndex(NbtCompat.getCompound(nbt, "blockToPump"));
+//? } else {
             blockToPump = new BlockIndex(nbt.getCompound("blockToPump"));
+//?}
         }
+//? if mc_26_x && (>=26.3) {
+        waited = NbtCompat.getLong(nbt, "waited");
+        pumped = NbtCompat.getInt(nbt, "pumped");
+//? } else {
         waited = nbt.getLong("waited");
         pumped = nbt.getInt("pumped");
+//?}
     }
 }

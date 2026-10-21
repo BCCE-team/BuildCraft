@@ -247,7 +247,8 @@ class EnergyConformanceTest(unittest.TestCase):
         ]
         for path in paths:
             with self.subTest(path=path):
-                text=(ROOT/path).read_text(encoding="utf-8")
+                from source_lookup import resolve_source_path
+                text=resolve_source_path(path).read_text(encoding="utf-8")
                 self.assertIn("implements MjDemandPort, MjPassivePort",text)
                 self.assertIn("provider.extractPower(minimum.microMj(), maximum.microMj()",text)
                 self.assertIn("feToMicroMjClamped",text)
@@ -258,7 +259,8 @@ class EnergyConformanceTest(unittest.TestCase):
             "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/internal/api/v2/platform/PlatformApi2Bootstrap.java",
         ):
             with self.subTest(path=path):
-                text=(ROOT/path).read_text(encoding="utf-8")
+                from source_lookup import resolve_source_path
+                text=resolve_source_path(path).read_text(encoding="utf-8")
                 self.assertIn("implements SlottedItemPort",text)
                 self.assertIn("IItemHandlerFiltered",text)
                 self.assertIn("ItemStack.matches(normalized, test)",text)
@@ -269,7 +271,8 @@ class EnergyConformanceTest(unittest.TestCase):
             "source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/fluid/FuelApiBridge.java",
         ):
             with self.subTest(path=path):
-                text=(ROOT/path).read_text(encoding="utf-8")
+                from source_lookup import resolve_source_path
+                text=resolve_source_path(path).read_text(encoding="utf-8")
                 fragment=text.split("private static FluidStack stackOfVariantWithComponents",1)[1].split("public static FluidStack stackOf(",1)[0]
                 self.assertIn("return FluidStack.EMPTY;",fragment)
                 self.assertNotIn("return new FluidStack(fluid, amount);\n        } catch",fragment)

@@ -53,7 +53,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import buildcraft.lib.net.BCNetworkSide;
+//? if mc_26_x && (>=26.3) {
+//? } else {
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
+//?}
 import buildcraft.lib.net.BCPacketContext;
 
 public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, MenuProvider {
@@ -99,12 +102,26 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
 
     public TileZonePlanner(BlockPos pos, BlockState state) {
         super(BCRoboticsBlocks.ZONE_PLANNER_TILE.get(), pos, state);
+//? if mc_26_x && (>=26.3) {
+        inv.setCallback((handler, slot, before, after) -> {
+            if (level != null && !level.isClientSide() && slot == SLOT_IMPORT_MAP) {
+                importMap(after);
+            }
+            if (level != null) {
+                itemManager.callback.onStackChange(handler, slot, before, after);
+            }
+        });
+//? } else {
+//?}
         for (int i = 0; i < layers.length; i++) {
             layers[i] = new ZonePlan();
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public IdAllocator getIdAllocator() {
         return IDS;
     }
@@ -120,10 +137,17 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         };
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void update() {
         deltaManager.tick();
+//? if mc_26_x && (>=26.3) {
+        if (level == null || level.isClientSide()) {
+//? } else {
         if (level == null || level.isClientSide) {
+//?}
             return;
         }
         flushZoneSync();
@@ -191,6 +215,8 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         sendNetworkUpdate(NET_RENDER_DATA);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
     protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before,
             @Nonnull ItemStack after) {
@@ -202,6 +228,7 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         }
     }
 
+//?}
     private void importMap(ItemStack stack) {
         if (stack.isEmpty()) {
             return;
@@ -252,7 +279,10 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         setChanged();
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
         if (side == BCNetworkSide.SERVER && id == NET_RENDER_DATA) {
@@ -262,7 +292,10 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
         if (side == BCNetworkSide.SERVER && id == NET_ZONE_REQUEST) {
@@ -364,7 +397,10 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     protected void writeData(BCValueOutput bcData) {
         CompoundTag nbt = bcData.tag();
         super.writeData(bcData);
@@ -378,25 +414,41 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public InteractionResult onActivated(Player player, InteractionHand hand, BlockHitResult hit) {
+//? if mc_26_x && (>=26.3) {
+        if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
+//? } else {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+//?}
             serverPlayer.openMenu(this, buffer -> buffer.writeBlockPos(worldPosition));
         }
         return InteractionResult.SUCCESS;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public AbstractContainerMenu createMenu(int id, Inventory inventory, Player player) {
         return new ContainerZonePlanner(id, inventory, this, ContainerLevelAccess.create(level, worldPosition));
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public Component getDisplayName() {
         return Component.translatable(getBlockState().getBlock().getDescriptionId());
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void getDebugInfo(List<String> left, List<String> right, Direction side) {
         left.add("progress = " + progress);
         left.add("selected_area = " + currentSelectedArea);

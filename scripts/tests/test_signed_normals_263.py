@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from source_config import load_properties, target_layout
 from source_layout import resolve_effective_source
+from source_lookup import read_materialized_java
 
 MUTABLE_VERTEX = 'src/main/java/buildcraft/lib/client/model/MutableVertex.java'
 PIPE_NATIVE = 'src/main/java/buildcraft/transport/client/model/ModelPipeNative2612.java'
@@ -31,8 +32,8 @@ class SignedNormal263Test(unittest.TestCase):
 
     def test_signed_decode_is_263_only(self):
         current = self.source('26.3', MUTABLE_VERTEX)
-        self.assertIn('source-family-platforms/26.X/neoforge/', current.as_posix())
-        text = current.read_text(encoding='utf-8')
+        self.assertIn('source-families/26.X/', current.as_posix())
+        text = read_materialized_java('26.3-neoforge', MUTABLE_VERTEX)
         self.assertIn('normal_x = (byte) combined / 127.0F;', text)
         self.assertIn('normal_y = (byte) (combined >>> 8) / 127.0F;', text)
         self.assertIn('normal_z = (byte) (combined >>> 16) / 127.0F;', text)
@@ -40,14 +41,15 @@ class SignedNormal263Test(unittest.TestCase):
             with self.subTest(version=older):
                 downport = self.source(older, MUTABLE_VERTEX)
                 self.assertIn(f'source-downports/26.X/{older}/neoforge/', downport.as_posix())
-                self.assertNotIn('normal_x = (byte) combined / 127.0F;', downport.read_text(encoding='utf-8'))
+                self.assertNotIn('normal_x = (byte) combined / 127.0F;',
+                                 read_materialized_java(f'{older}-neoforge', MUTABLE_VERTEX))
 
     @unittest.skipUnless(shutil.which('java') and shutil.which('javac'), 'JDK required')
     def test_real_java_roundtrip_preserves_all_six_face_directions(self):
         # Extract the PRODUCTION packing, unpacking, and face-direction methods,
         # not copies of their formulas, so a future regression fails immediately.
-        vertex = self.source('26.3', MUTABLE_VERTEX).read_text(encoding='utf-8')
-        native = self.source('26.3', PIPE_NATIVE).read_text(encoding='utf-8')
+        vertex = read_materialized_java('26.3-neoforge', MUTABLE_VERTEX)
+        native = read_materialized_java('26.3-neoforge', PIPE_NATIVE)
         decode = vertex[vertex.index('    public MutableVertex normali(int combined) {'):
                         vertex.index('    public MutableVertex invertNormal()', vertex.index('    public MutableVertex normali(int combined) {'))]
         pack = vertex[vertex.index('    public int normalToPackedInt() {'):

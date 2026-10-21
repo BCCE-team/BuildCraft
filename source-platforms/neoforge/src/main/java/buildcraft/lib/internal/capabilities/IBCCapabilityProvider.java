@@ -9,7 +9,11 @@ import net.neoforged.neoforge.capabilities.BlockCapability;
  * Internal BuildCraft capability provider used by composed objects such as pipe flows,
  * pipe behaviours and block entities.
  *
+//? if mc_26_x {
+ * <p>NeoForge registers block capability providers through
+//? } else {
  * <p>NeoForge 1.21.1 registers block capability providers through
+//?}
  * {@code RegisterCapabilitiesEvent}; this interface only provides the common lookup
  * contract used by BuildCraft's internal delegation.</p>
  */

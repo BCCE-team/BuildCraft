@@ -27,7 +27,10 @@ public class ItemHandlerFiltered extends ItemHandlerSimple implements IItemHandl
         });
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public int getSlotLimit(int slot) {
         if (emptyIsAnything || !getFilter(slot).isEmpty()) {
             return super.getSlotLimit(slot);
@@ -36,7 +39,10 @@ public class ItemHandlerFiltered extends ItemHandlerSimple implements IItemHandl
         }
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public ItemStack getFilter(int slot) {
         ItemStack current = getStackInSlot(slot);
         if (!current.isEmpty()) {

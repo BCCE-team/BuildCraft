@@ -17,7 +17,11 @@ import java.util.EnumSet;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import net.neoforged.neoforge.capabilities.Capabilities;
@@ -25,7 +29,11 @@ import net.neoforged.neoforge.energy.IEnergyStorage;
 
 /** NeoForge capability compatibility lives in Lib; addons only see EnergyService/MjPort. */
 public final class MjApi2PlatformBridge {
+//? if mc_26_x {
+    private static final Identifier NETWORK_ID = Identifier.fromNamespaceAndPath("buildcraft", "mj");
+//? } else {
     private static final ResourceLocation NETWORK_ID = ResourceLocation.fromNamespaceAndPath("buildcraft", "mj");
+//?}
     private static final MjRuntimeLookup.Backend BACKEND = new Backend();
     private static final MjAmount UNKNOWN_RATE = MjAmount.ofMicro(Long.MAX_VALUE);
 
@@ -36,7 +44,10 @@ public final class MjApi2PlatformBridge {
     }
 
     private static final class Backend implements MjRuntimeLookup.Backend {
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public Optional<MjPort> port(Level level, BlockPos pos, Direction side) {
             if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             Endpoint endpoint = endpoint(level, pos, side);
@@ -48,7 +59,10 @@ public final class MjApi2PlatformBridge {
             return endpoint.isEmpty() ? Optional.ofNullable(fe) : Optional.of(endpoint);
         }
 
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public Optional<MjPortDescriptor> descriptor(Level level, BlockPos pos, Direction side) {
             if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             Endpoint endpoint = endpoint(level, pos, side);
@@ -59,7 +73,10 @@ public final class MjApi2PlatformBridge {
                 : Optional.of(endpoint.descriptor());
         }
 
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public boolean canConnect(MjConnectionContext context) {
             BlockPos remotePos = context.position().relative(context.side());
             if (!context.level().hasChunkAt(context.position()) || !context.level().hasChunkAt(remotePos)) return false;
@@ -90,7 +107,10 @@ public final class MjApi2PlatformBridge {
         private final IEnergyStorage fe;
         private FeEndpoint(IEnergyStorage fe) { this.fe = fe; }
 
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public MjTransferResult insert(MjAmount offered, OperationMode mode) {
             if (!fe.canReceive() || offered.isZero()) return MjTransferResult.none(offered);
             long ratio = BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjPerFe();
@@ -101,7 +121,10 @@ public final class MjApi2PlatformBridge {
             return MjTransferResult.of(offered, MjAmount.ofMicro((long) Math.max(0, accepted) * ratio));
         }
 
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public MjTransferResult extract(MjAmount requested, OperationMode mode) {
             if (!fe.canExtract() || requested.isZero()) return MjTransferResult.none(requested);
             long ratio = BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjPerFe();
@@ -112,10 +135,17 @@ public final class MjApi2PlatformBridge {
             return MjTransferResult.of(requested, MjAmount.ofMicro((long) Math.max(0, extracted) * ratio));
         }
 
+//? if mc_26_x {
+        public MjAmount stored() { return MjAmount.ofMicro(BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMjClamped(Math.max(0, fe.getEnergyStored()))); }
+        public MjAmount capacity() { return MjAmount.ofMicro(BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMjClamped(Math.max(0, fe.getMaxEnergyStored()))); }
+        public boolean canInsert() { return fe.canReceive(); }
+        public boolean canExtract() { return fe.canExtract(); }
+//? } else {
         @Override public MjAmount stored() { return MjAmount.ofMicro(BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMjClamped(Math.max(0, fe.getEnergyStored()))); }
         @Override public MjAmount capacity() { return MjAmount.ofMicro(BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMjClamped(Math.max(0, fe.getMaxEnergyStored()))); }
         @Override public boolean canInsert() { return fe.canReceive(); }
         @Override public boolean canExtract() { return fe.canExtract(); }
+//?}
 
         @Override
         public MjAmount requested() {
@@ -182,7 +212,10 @@ public final class MjApi2PlatformBridge {
             return connector == null && receiver == null && redstone == null && readable == null && provider == null;
         }
 
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public MjTransferResult insert(MjAmount offered, OperationMode mode) {
             IMjReceiver receiving = receiver != null ? receiver : redstone;
             if (receiving == null || !receiving.canReceive() || offered.isZero()) return MjTransferResult.none(offered);
@@ -191,7 +224,10 @@ public final class MjApi2PlatformBridge {
             return MjTransferResult.of(offered, MjAmount.ofMicro(offered.microMj() - remainder));
         }
 
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public MjTransferResult extract(MjAmount requested, OperationMode mode) {
             return extract(MjAmount.ZERO, requested, mode);
         }
@@ -214,11 +250,21 @@ public final class MjApi2PlatformBridge {
                 : Math.max(0L, receiving.getPowerRequested()));
         }
 
+//? if mc_26_x {
+        public MjAmount stored() { return MjAmount.ofMicro(readable == null ? 0L : Math.max(0L, readable.getStored())); }
+        public MjAmount capacity() { return MjAmount.ofMicro(readable == null ? 0L : Math.max(0L, readable.getCapacity())); }
+        public boolean canInsert() { return (receiver != null ? receiver : redstone) != null
+//? } else {
         @Override public MjAmount stored() { return MjAmount.ofMicro(readable == null ? 0L : Math.max(0L, readable.getStored())); }
         @Override public MjAmount capacity() { return MjAmount.ofMicro(readable == null ? 0L : Math.max(0L, readable.getCapacity())); }
         @Override public boolean canInsert() { return (receiver != null ? receiver : redstone) != null
+//?}
             && (receiver != null ? receiver : redstone).canReceive(); }
+//? if mc_26_x {
+        public boolean canExtract() { return provider != null; }
+//? } else {
         @Override public boolean canExtract() { return provider != null; }
+//?}
 
         private MjPortDescriptor descriptor() {
             EnumSet<MjPortRole> roles = EnumSet.noneOf(MjPortRole.class);

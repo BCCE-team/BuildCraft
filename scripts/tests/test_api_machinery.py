@@ -8,6 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from source_lookup import read_materialized_java
+
 import shutil
 import subprocess
 import tempfile
@@ -194,9 +196,11 @@ class NativeMachineConformanceTest(unittest.TestCase):
    'source-platforms/forge','source-platforms/neoforge','source-families/26.X',
    'source-family-platforms/26.X/neoforge'
   )
-  for family in targets:
-   text=(ROOT/family/'src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java').read_text()
-   with self.subTest(family=family):
+  logical = 'src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java'
+  for family, target in zip(targets, ('1.20.1-forge', '1.21.1-neoforge',
+                                      '26.2-neoforge', '26.3-neoforge')):
+   text=read_materialized_java(target, logical)
+   with self.subTest(family=family, target=target):
     self.assertIn('Optional<HeatPort> heatPort()',text)
     self.assertIn('canSetTemperature() { return false; }',text)
     self.assertIn('new HeatProfile(MIN_HEAT, IDEAL_HEAT, MAX_HEAT)',text)

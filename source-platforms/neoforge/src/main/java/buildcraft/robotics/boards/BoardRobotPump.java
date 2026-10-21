@@ -19,7 +19,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.transport.internal.pipe.FluidAction;
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 
 public class BoardRobotPump extends RedstoneBoardRobot {
     private BlockIndex blockFound;
@@ -29,12 +34,18 @@ public class BoardRobotPump extends RedstoneBoardRobot {
         super(robot);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public RedstoneBoardRobotNBT getNBTHandler() {
         return BCRoboticsBoards.getByKey("pump").nbt();
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void update() {
         if (isTankFull()) {
             startDelegateAI(new AIRobotGotoStationAndUnloadFluids(robot));
@@ -45,7 +56,10 @@ public class BoardRobotPump extends RedstoneBoardRobot {
         startDelegateAI(new AIRobotSearchAndGotoBlock(robot, false, this::matchesPumpTarget));
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void delegateAIEnded(AIRobot ai) {
         if (ai instanceof AIRobotSearchAndGotoBlock search) {
             if (search.success()) {
@@ -71,7 +85,10 @@ public class BoardRobotPump extends RedstoneBoardRobot {
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void end() {
         releaseBlockFound();
     }
@@ -124,12 +141,18 @@ public class BoardRobotPump extends RedstoneBoardRobot {
         return fluidFilter == null || fluidFilter.matches(fluid);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean canLoadFromNBT() {
         return true;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void writeSelfToNBT(CompoundTag nbt) {
         if (blockFound != null) {
             CompoundTag tag = new CompoundTag();
@@ -138,10 +161,17 @@ public class BoardRobotPump extends RedstoneBoardRobot {
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void loadSelfFromNBT(CompoundTag nbt) {
         if (nbt.contains("blockFound")) {
+//? if mc_26_x && (>=26.3) {
+            blockFound = new BlockIndex(NbtCompat.getCompound(nbt, "blockFound"));
+//? } else {
             blockFound = new BlockIndex(nbt.getCompound("blockFound"));
+//?}
         }
     }
 }

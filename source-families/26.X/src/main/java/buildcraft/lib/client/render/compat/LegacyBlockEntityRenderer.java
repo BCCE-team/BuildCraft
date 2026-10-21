@@ -7,7 +7,11 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 
 import buildcraft.lib.client.render.laser.LegacyLaserBlockEntityRenderer;
 import buildcraft.lib.compat.RenderCompat;
+//? if neoforge && (>=26.3) {
+import buildcraft.lib.compat.minecraft.render.BCVertexBuffers;
+//? } else {
 import net.minecraft.client.renderer.MultiBufferSource;
+//?}
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
@@ -53,6 +57,11 @@ public interface LegacyBlockEntityRenderer<T extends BlockEntity>
             return this;
         }
 
+//? if neoforge && (>=26.3) {
+        public VertexConsumer setUv3(float u, float v) { return this; }
+
+//? } else {
+//?}
         public VertexConsumer setNormal(float x, float y, float z) {
             return this;
         }
@@ -62,7 +71,11 @@ public interface LegacyBlockEntityRenderer<T extends BlockEntity>
         }
     };
 
+//? if neoforge && (>=26.3) {
+    void render(T blockEntity, float partialTicks, PoseStack poseStack, BCVertexBuffers bufferSource,
+//? } else {
     void render(T blockEntity, float partialTicks, PoseStack poseStack, MultiBufferSource bufferSource,
+//?}
         int combinedLight, int combinedOverlay);
 
     default LegacyRenderState<T> createRenderState() {
@@ -74,11 +87,33 @@ public interface LegacyBlockEntityRenderer<T extends BlockEntity>
         BlockEntityRenderState.extractBase(blockEntity, renderState, crumblingOverlay);
         renderState.blockEntity = blockEntity;
         renderState.partialTick = partialTick;
+//? if neoforge && (>=26.3) {
+        renderState.layers = java.util.List.of();
+        if (blockEntity.getLevel() == null || blockEntity.isRemoved()
+            || !(this instanceof LegacyLaserBlockEntityRenderer<?> raw)) return;
+        @SuppressWarnings("unchecked")
+        LegacyLaserBlockEntityRenderer<T> lasers = (LegacyLaserBlockEntityRenderer<T>) raw;
+        CapturedBlockEntityRenderer.RecordingBuffers buffers = new CapturedBlockEntityRenderer.RecordingBuffers();
+        BCVertexBuffers filtered = type -> type.equals(RenderCompat.cutout()) || type.equals(RenderCompat.solid())
+            ? buffers.getBuffer(type) : DISCARDING_VERTEX_CONSUMER;
+        try (BCWorldGeometry.Scope ignored = BCWorldGeometry.bind(buffers)) {
+            lasers.renderLasers(blockEntity, partialTick, new PoseStack(), filtered,
+                renderState.lightCoords, OverlayTexture.NO_OVERLAY);
+        }
+        renderState.layers = buffers.finish();
+//? } else {
+//?}
     }
 
+//? if neoforge && (>=26.3) {
+//? } else {
     @SuppressWarnings("unchecked")
+//?}
     default void submit(LegacyRenderState<T> renderState, PoseStack poseStack, SubmitNodeCollector collector,
         CameraRenderState cameraState) {
+//? if neoforge && (>=26.3) {
+        BCWorldGeometry.submit(renderState.layers, poseStack, collector);
+//? } else {
         if (renderState.blockEntity == null || !(this instanceof LegacyLaserBlockEntityRenderer<?> rawLaserRenderer)) {
             return;
         }
@@ -101,6 +136,7 @@ public interface LegacyBlockEntityRenderer<T extends BlockEntity>
             laserRenderer.renderLasers(renderState.blockEntity, renderState.partialTick, legacyPose, filteredBuffers,
                 renderState.lightCoords, OverlayTexture.NO_OVERLAY);
         });
+//?}
     }
 
     default boolean shouldRenderOffScreen() {
@@ -108,6 +144,10 @@ public interface LegacyBlockEntityRenderer<T extends BlockEntity>
     }
 
     final class LegacyRenderState<T extends BlockEntity> extends BlockEntityRenderState {
+//? if neoforge && (>=26.3) {
+        private java.util.List<CapturedBlockEntityRenderer.Layer> layers = java.util.List.of();
+//? } else {
+//?}
         private T blockEntity;
         private float partialTick;
 

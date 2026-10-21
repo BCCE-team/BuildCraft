@@ -12,6 +12,7 @@ ROOT=Path(__file__).resolve().parents[2]
 sys.path[:0]=[str(ROOT/'scripts'),str(ROOT/'scripts/tests')]
 from source_config import load_properties,target_layout
 from source_layout import effective_source_files,_materialize_text_file,resolve_effective_source
+from source_lookup import read_materialized_java
 from minecraft_compat_fixture import parse_sources
 from silicon_26_fixture import execute
 
@@ -348,13 +349,16 @@ class Assembly263PreviewTests(unittest.TestCase):
         self.assertIsNotNone(selected_263)
         self.assertIsNotNone(selected_262)
         self.assertIsNotNone(selected_2612)
-        self.assertIn('source-family-platforms/26.X/neoforge', selected_263.as_posix())
-        self.assertNotEqual(selected_263, selected_262)
-        self.assertNotEqual(selected_263, selected_2612)
-        java = selected_263.read_text(encoding='utf-8')
+        self.assertIn('source-platforms/neoforge/', selected_263.as_posix())
+        # Consolidated sources intentionally share one physical Java file, but
+        # Stonecutter must still emit distinct 26.3 and earlier menu semantics.
+        self.assertEqual(selected_263, selected_262)
+        self.assertEqual(selected_263, selected_2612)
+        java = read_materialized_java('26.3-neoforge', ASSEMBLY_PREVIEW_LOGICAL)
         self.assertIn('tile != null ? tile.display : display', java)
-        for selected in (selected_262, selected_2612):
-            self.assertNotIn('tile != null ? tile.display : display', selected.read_text(encoding='utf-8'))
+        for target in ('26.2-neoforge', '26.1.2-neoforge'):
+            self.assertNotIn('tile != null ? tile.display : display',
+                             read_materialized_java(target, ASSEMBLY_PREVIEW_LOGICAL))
 
     def test_actual_menu_tracks_post_open_synced_previews(self):
         menu = self.selected('26.3-neoforge', ASSEMBLY_PREVIEW_LOGICAL)
@@ -373,7 +377,7 @@ class Assembly263PreviewTests(unittest.TestCase):
             for logical, java in ((ASSEMBLY_PREVIEW_LOGICAL, menu), (ASSEMBLY_PREVIEW_DISPLAY, display)):
                 target = root / logical.removeprefix('src/main/java/')
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(java.read_bytes())
+                target.write_text(read_materialized_java('26.3-neoforge', logical), encoding='utf-8')
                 sources.append(str(target))
             compiled = subprocess.run(['javac', '--release', '21', '-encoding', 'UTF-8',
                 '-d', str(classes), *sources], capture_output=True, text=True, timeout=50)
@@ -413,10 +417,7 @@ class AssemblyRegistryBootstrap(unittest.TestCase):
         props = load_properties()
         cls.sources = {}
         for target in ASSEMBLY_BOOTSTRAP_TARGETS:
-            file = resolve_effective_source(target_layout(target, props), props, ASSEMBLY_BOOTSTRAP_RECIPE_PATH)
-            if file is None:
-                raise AssertionError(f'{target}: no effective AssemblyRecipe.java')
-            cls.sources[target] = file.read_text(encoding='utf-8')
+            cls.sources[target] = read_materialized_java(target, ASSEMBLY_BOOTSTRAP_RECIPE_PATH)
 
     def test_all_26x_targets_defer_itemstack_creation_until_after_registry_load(self):
         for target, source in self.sources.items():

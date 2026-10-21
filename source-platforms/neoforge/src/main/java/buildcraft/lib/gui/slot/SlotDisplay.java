@@ -23,27 +23,42 @@ public class SlotDisplay extends SlotItemHandler {
         //this.getter = getter;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
 	public boolean mayPlace(ItemStack p_40231_) {
 		return false;
 	}
 
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public boolean mayPickup(Player p_40228_) {
 		return false;
 	}
 
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public ItemStack safeTake(int p_150648_, int p_150649_, Player p_150650_) {
 		return ItemStack.EMPTY;
 	}
 
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public void set(ItemStack p_40240_) {
 		super.set(p_40240_);
 	}
 
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public boolean allowModification(Player p_150652_) {
 		return false;
 	}
@@ -53,17 +68,26 @@ public class SlotDisplay extends SlotItemHandler {
 		return getter.apply(getSlotIndex()).copy();
 	}*/
 
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public ItemStack remove(int p_40227_) {
 		return getItem();
 	}
 
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public int getMaxStackSize(ItemStack p_40238_) {
 		return getItem().getCount();
 	}
 	
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public int getMaxStackSize() {
 		return getItem().getCount();
 	}

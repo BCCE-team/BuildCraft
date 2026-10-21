@@ -8,6 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from source_lookup import resolve_source_path
+
 import re
 import shutil
 import subprocess
@@ -237,7 +239,7 @@ class RobotBoardConformanceTest(unittest.TestCase):
   self.assertIn('ROBOT_BOARD_PROGRAMS = key(',registrations)
   self.assertIn('robotBoardProgram(RobotBoardProgram', (ROBOTICS_API/'buildcraft/api/v2/content/ContentRegistrar.java').read_text())
   for place in ('source-shared','source-families/26.X','source-family-platforms/26.X/neoforge'):
-   runtime=ROOT/place/'src/main/java/buildcraft/lib/internal/api/v2/BuildCraftApiRuntime.java'
+   runtime=resolve_source_path(Path(place)/'src/main/java/buildcraft/lib/internal/api/v2/BuildCraftApiRuntime.java')
    self.assertIn('registerRegistry(BuildCraftRegistries.ROBOT_BOARD_PROGRAMS)',runtime.read_text())
   main=(ROBOTICS_API/'buildcraft/robotics/ai/AIRobotMain.java').read_text()
   self.assertIn('board.createWorkAI()',main)

@@ -123,7 +123,11 @@ public final class BCChunkTickets {
     private static Set<ChunkPos> getChunksToLoad(BlockEntity owner, IChunkLoadingTile loadingTile) {
         Set<ChunkPos> requested = loadingTile.getChunksToLoad();
         Set<ChunkPos> chunks = new HashSet<>(requested == null ? Collections.emptySet() : requested);
+//? if neoforge {
+        chunks.add(new ChunkPos(owner.getBlockPos().getX() >> 4, owner.getBlockPos().getZ() >> 4));
+//? } else {
         chunks.add(new ChunkPos(owner.getBlockPos()));
+//?}
         return chunks;
     }
 

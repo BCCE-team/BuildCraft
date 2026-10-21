@@ -26,7 +26,10 @@ public class SlotBase extends ItemHandlerCopySlot {
         return true;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean mayPlace(@Nonnull ItemStack stack) {
         return itemHandler.canSet(handlerIndex, stack);
     }

@@ -10,6 +10,10 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+//? if neoforge {
+import net.minecraft.server.level.ServerLevel;
+//? } else {
+//?}
 
 public class ChunkUtil {
 
@@ -18,7 +22,11 @@ public class ChunkUtil {
     }
 
     public static LevelChunk getChunk(Level Level, ChunkPos pos, boolean force) {
+//? if neoforge {
+        return getChunk(Level, pos.x(), pos.z(), force);
+//? } else {
         return getChunk(Level, pos.x, pos.z, force);
+//?}
     }
 
     public static LevelChunk getChunk(Level level, int x, int z, boolean force) {

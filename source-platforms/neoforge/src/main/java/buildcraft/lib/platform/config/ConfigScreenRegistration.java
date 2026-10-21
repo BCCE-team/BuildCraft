@@ -9,7 +9,11 @@ public final class ConfigScreenRegistration {
     private ConfigScreenRegistration() {}
 
     public static void register(ModContainer container) {
+//? if mc_26_x {
+        if (FMLEnvironment.getDist() == Dist.CLIENT) {
+//? } else {
         if (FMLEnvironment.dist == Dist.CLIENT) {
+//?}
             Client.register(container);
         }
     }

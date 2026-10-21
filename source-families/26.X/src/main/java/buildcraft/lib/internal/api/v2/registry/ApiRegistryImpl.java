@@ -43,11 +43,34 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
         Objects.requireNonNull(alias, "alias");
         Objects.requireNonNull(canonicalId, "canonicalId");
         Objects.requireNonNull(context, "context");
+//? if neoforge {
+        String owner = Objects.requireNonNull(context.owner(), "context.owner()");
+        checkNamespace(alias, owner);
+//? } else {
         checkNamespace(alias, Objects.requireNonNull(context.owner(), "context.owner()"));
+//?}
         if (alias.equals(canonicalId)) throw new IllegalArgumentException("alias must differ from canonicalId");
+//? if neoforge {
+        if (entries.containsKey(alias) || aliases.containsKey(alias)) {
+//? } else {
         if (entries.containsKey(alias) || aliases.putIfAbsent(alias, canonicalId) != null) {
+//?}
             throw new IllegalStateException("Duplicate registry id or alias: " + alias);
         }
+//? if neoforge {
+        // Refuse a cycle at registration time; keep forward references legal until freeze.
+        Identifier current = canonicalId;
+        Set<Identifier> visited = new LinkedHashSet<>();
+        while (aliases.containsKey(current)) {
+            if (!visited.add(current) || current.equals(alias)) {
+                throw new IllegalArgumentException("Registry alias cycle involving " + alias);
+            }
+            current = aliases.get(current);
+        }
+        if (current.equals(alias)) throw new IllegalArgumentException("Registry alias cycle involving " + alias);
+        aliases.put(alias, canonicalId);
+//? } else {
+//?}
     }
 
     public T get(Identifier id) {
@@ -86,7 +109,12 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
 
     public boolean frozen() { return frozen; }
 
+//? if neoforge {
+    /** Validation is side-effect-free so the runtime can preflight all registries. */
+    public void validateFreeze() {
+//? } else {
     public void freeze() {
+//?}
         if (frozen) return;
         for (Identifier alias : aliases.keySet()) {
             Identifier canonical = canonicalId(alias);
@@ -94,6 +122,14 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
                 throw new IllegalStateException("Registry alias " + alias + " targets missing id " + canonical);
             }
         }
+//? if neoforge {
+    }
+
+    public void freeze() {
+        if (frozen) return;
+        validateFreeze();
+//? } else {
+//?}
         frozen = true;
     }
 

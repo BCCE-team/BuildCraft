@@ -6,21 +6,30 @@
 
 package buildcraft.lib.misc;
 
+//? if neoforge && (>=26.2) {
+//? } else {
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+//?}
 import java.util.List;
+//? if neoforge && (>=26.2) {
+//? } else {
 import java.util.Set;
+//?}
 
 import javax.annotation.Nullable;
 
+//? if neoforge && (>=26.2) {
+//? } else {
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
+//?}
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.color.block.BlockTintSource;
@@ -30,6 +39,8 @@ import net.minecraft.world.level.block.Block;
 import buildcraft.lib.compat.RenderCompat;
 
 public class RenderUtil {
+//? if neoforge && (>=26.2) {
+//? } else {
 
     private static final ThreadLocal<TessellatorQueue> threadLocalTessellators;
     private static final MethodHandle HANDLE_IS_BUFFER_DRAWING;
@@ -60,6 +71,7 @@ public class RenderUtil {
             throw new Error("Failed to obtain forge's batch buffer!", roe);
         }
     }
+//?}
 
     public static void registerBlockColour(@Nullable Block block, BlockTintSource colour) {
         if (block != null) {
@@ -100,6 +112,8 @@ public class RenderUtil {
         return (a << 24) | (b << 16) | (g << 8) | r;
     }
 
+//? if neoforge && (>=26.2) {
+//? } else {
     /** @return The first unused {@link Tesselator} for the current thread that uses the given vertex format. (Unused =
      *         {@link #isDrawing(BufferBuilder)} returns false). */
     public static AutoTessellator getThreadLocalUnusedTessellator() {
@@ -163,4 +177,5 @@ public class RenderUtil {
             queue.tessellatorInUse[index] = false;
         }
     }
+//?}
 }

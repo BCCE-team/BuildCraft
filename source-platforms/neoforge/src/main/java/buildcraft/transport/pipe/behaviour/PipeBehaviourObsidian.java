@@ -38,7 +38,11 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.capabilities.BlockCapability;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 
 public class PipeBehaviourObsidian extends PipeBehaviour implements IMjRedstoneReceiver {
     private static final long POWER_PER_ITEM = MjAmount.MICRO_MJ_PER_MJ / 2;
@@ -62,13 +66,19 @@ public class PipeBehaviourObsidian extends PipeBehaviour implements IMjRedstoneR
         toWaitTicks = DROP_GAP;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public CompoundTag writeToNbt() {
         CompoundTag nbt = super.writeToNbt();
         return nbt;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void onTick() {
         if (pipe.getHolder().getPipeWorld().isClientSide()) {
             return;
@@ -81,12 +91,18 @@ public class PipeBehaviourObsidian extends PipeBehaviour implements IMjRedstoneR
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean canConnect(Direction face, PipeBehaviour other) {
         return !(other instanceof PipeBehaviourObsidian);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void onEntityCollide(Entity entity) {
         if (pipe.getHolder().getPipeWorld().isClientSide()) {
             return;
@@ -187,18 +203,27 @@ public class PipeBehaviourObsidian extends PipeBehaviour implements IMjRedstoneR
 
     // IMjRedstoneReceiver
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean canConnect(@Nonnull IMjConnector other) {
         return true;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public long getPowerRequested() {
         final long power = 512 * MjAmount.MICRO_MJ_PER_MJ;
         return power - receivePower(power, FluidAction.SIMULATE);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public long receivePower(long microJoules, FluidAction simulate) {
         // Demand/FE simulation may be queried on the logical client. Entity inventory extraction remains server-only.
         if (pipe.getHolder().getPipeWorld().isClientSide()) {
@@ -228,7 +253,10 @@ public class PipeBehaviourObsidian extends PipeBehaviour implements IMjRedstoneR
         return Math.max(0L, microJoules - MjAmount.MICRO_MJ_PER_MJ);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     @Nullable
     public <T> T getCapability(
         BlockCapability<T, Direction> capability, @Nullable Direction facing

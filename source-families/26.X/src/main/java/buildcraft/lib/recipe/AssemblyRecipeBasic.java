@@ -50,6 +50,13 @@ public abstract class AssemblyRecipeBasic implements Recipe<RecipeInput>, Compar
     }
 
     public ItemStack assemble(RecipeInput input, HolderLookup.Provider registries) {
+//? if neoforge {
+        return assemble(input);
+    }
+
+    public ItemStack assemble(RecipeInput input) {
+//? } else {
+//?}
         Set<ItemStack> outputs = getOutputs(new RecipeInputItemHandler(input));
         return outputs.isEmpty() ? ItemStack.EMPTY : outputs.iterator().next().copy();
     }
@@ -90,7 +97,11 @@ public abstract class AssemblyRecipeBasic implements Recipe<RecipeInput>, Compar
     }
 
     public RecipeType<? extends Recipe<RecipeInput>> getType() {
+//? if neoforge {
+        return (RecipeType<? extends Recipe<RecipeInput>>) (RecipeType<?>) BCSiliconRecipes.ASSEMBLY_TYPE.get();
+//? } else {
         return BCSiliconRecipes.ASSEMBLY_TYPE.get();
+//?}
     }
 
 

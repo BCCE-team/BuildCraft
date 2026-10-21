@@ -130,7 +130,11 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
                 r.stripes.sendItem(r.stack.copy(), r.dir);
                 return;
             }
+//? if mc_26_x {
+            retractDir = possible.get(Mth.nextInt(w.getRandom(), 0, possible.size() - 1));
+//? } else {
             retractDir = possible.get(Mth.nextInt(w.random, 0, possible.size() - 1));
+//?}
         }
         BlockPos p = r.pos.offset(retractDir.getNormal());
 

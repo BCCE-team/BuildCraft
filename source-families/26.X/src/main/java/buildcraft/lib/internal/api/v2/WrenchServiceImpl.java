@@ -21,7 +21,11 @@ final class WrenchServiceImpl implements WrenchService {
                 if (adapter.recognizes(stack)) return true;
             } catch (RuntimeException ignored) { }
         }
+//? if neoforge {
+        return BCLibConfig.useWrenchTag && stack.typeHolder().tags().anyMatch(tag ->
+//? } else {
         return BCLibConfig.useWrenchTag && stack.getTags().anyMatch(tag ->
+//?}
             WRENCH_TAG_NAMESPACE.equals(tag.location().getNamespace())
                 && WRENCH_TAG_PATH.equals(tag.location().getPath()));
     }

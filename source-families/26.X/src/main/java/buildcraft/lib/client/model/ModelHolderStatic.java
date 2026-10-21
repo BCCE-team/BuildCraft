@@ -21,8 +21,13 @@ import com.google.gson.JsonParser;
 
 import buildcraft.lib.internal.debug.BCLog;
 import net.minecraft.client.Minecraft;
+//? if neoforge && (>=26.3) {
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.resources.model.geometry.QuadCollection;
+//? } else {
 import buildcraft.lib.compat.mc2612.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.resources.model.QuadCollection;
+//?}
 import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.resources.Identifier;
@@ -148,8 +153,16 @@ public class ModelHolderStatic extends ModelHolder {
 
     /** Converts a native immutable quad into the legacy BuildCraft quad representation. */
     private static MutableQuad fromNativeQuad(BakedQuad source) {
+//? if neoforge && (>=26.3) {
+        MutableQuad quad = new MutableQuad(
+            source.materialInfo().tintIndex(), source.direction(), source.materialInfo().shadeDirectionOverride() == null
+        );
+        quad.setSprite(source.materialInfo().sprite());
+        quad.setShadeDirectionOverride(source.materialInfo().shadeDirectionOverride());
+//? } else {
         MutableQuad quad = new MutableQuad(source.tintIndex(), source.direction(), source.shade());
         quad.setSprite(source.sprite());
+//?}
 
         Direction direction = source.direction();
         Vec3i normal = direction == null ? null : direction.getUnitVec3i();

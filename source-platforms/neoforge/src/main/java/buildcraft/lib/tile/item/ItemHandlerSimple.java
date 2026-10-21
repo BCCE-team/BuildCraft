@@ -25,8 +25,16 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
+//? if mc_26_x {
+import buildcraft.lib.compat.neoforge2612.common.util.INBTSerializable;
+//? } else {
 import net.neoforged.neoforge.common.util.INBTSerializable;
+//?}
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
+//? if mc_26_x {
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
 public class ItemHandlerSimple extends AbstractInvItemTransactor
     implements IItemHandlerModifiable, IItemHandlerAdv, INBTSerializable<CompoundTag> {
@@ -36,13 +44,45 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
 
     @Nullable
     private StackChangeCallback callback;
+//? if mc_26_x {
+
+//? } else {
     
+//?}
 
     // Actual item stacks used
     public final NonNullList<ItemStack> stacks;
 
     // Transactor speedup (small)
     private int firstUsed = Integer.MAX_VALUE;
+//? if mc_26_x {
+
+    private final buildcraft.lib.compat.transfer.TransferJournal<TransferState> transferJournal =
+        new buildcraft.lib.compat.transfer.TransferJournal<>(this::captureTransferState, this::restoreTransferState,
+            this::commitTransferState);
+
+    private record TransferState(java.util.List<ItemStack> stacks, int firstUsed) {}
+
+    private TransferState captureTransferState() {
+        return new TransferState(stacks.stream().map(ItemStack::copy).toList(), firstUsed);
+    }
+
+    private void restoreTransferState(TransferState state) {
+        for (int i = 0; i < stacks.size(); i++) stacks.set(i, state.stacks().get(i).copy());
+        firstUsed = state.firstUsed();
+    }
+
+    private void commitTransferState(TransferState state) {
+        if (callback == null) return;
+        for (int i = 0; i < stacks.size(); i++) {
+            ItemStack before = state.stacks().get(i);
+            if (!ItemStack.matches(before, stacks.get(i))) {
+                callback.onStackChange(this, i, before, stacks.get(i));
+            }
+        }
+    }
+//? } else {
+//?}
 
     public ItemHandlerSimple(int size) {
         this(size, (slot, stack) -> true, StackInsertionFunction.getDefaultInserter(), null);
@@ -74,7 +114,11 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
         this.inserter = insertor;
         return this;
     }
+//? if mc_26_x {
+
+//? } else {
     
+//?}
 
     public ItemHandlerSimple setLimitedInsertor(int maxStackSize) {
         setInsertor(StackInsertionFunction.getInsertionFunction(maxStackSize));
@@ -85,7 +129,10 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
         this.callback = callback;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public CompoundTag serializeNBT(HolderLookup.Provider registries) {
         CompoundTag nbt = new CompoundTag();
         ListTag list = new ListTag();
@@ -96,18 +143,32 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
         return nbt;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void deserializeNBT(HolderLookup.Provider registries, CompoundTag nbt) {
+//? if mc_26_x {
+        ListTag list = NbtCompat.getList(nbt, "items");
+//? } else {
         ListTag list = nbt.getList("items", Tag.TAG_COMPOUND);
+//?}
         for (int i = 0; i < list.size() && i < getSlots(); i++) {
+//? if mc_26_x {
+            setStackInternal(i, ItemStackUtil.parseOptional(registries, NbtCompat.getCompound(list, i)));
+//? } else {
             setStackInternal(i, ItemStackUtil.parseOptional(registries, list.getCompound(i)));
+//?}
         }
         for (int i = list.size(); i < getSlots(); i++) {
             setStackInternal(i, ItemStack.EMPTY);
         }
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public int getSlots() {
         return stacks.size();
     }
@@ -116,20 +177,29 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
         return slot < 0 || slot >= stacks.size();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     protected boolean isEmpty(int slot) {
         if (badSlotIndex(slot)) return true;
         return stacks.get(slot).isEmpty();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     @Nonnull
     public ItemStack getStackInSlot(int slot) {
         if (badSlotIndex(slot)) return ItemStack.EMPTY;
         return asValid(stacks.get(slot));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     @Nonnull
     public ItemStack insertItem(int slot, @Nonnull ItemStack stack, boolean simulate) {
         if (badSlotIndex(slot)) {
@@ -157,7 +227,11 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
                 throw new ReportedException(report);
             } else if (!simulate) {
                 setStackInternal(slot, result.toSet);
+//? if mc_26_x {
+                if (callback != null && !buildcraft.lib.compat.transfer.TransferJournal.active()) {
+//? } else {
                 if (callback != null) {
+//?}
                     callback.onStackChange(this, slot, current, result.toSet);
                 }
             }
@@ -167,13 +241,19 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
         }
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     @Nonnull
     protected ItemStack insert(int slot, @Nonnull ItemStack stack, boolean simulate) {
         return insertItem(slot, stack, simulate);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     @Nonnull
     public ItemStack extractItem(int slot, int amount, boolean simulate) {
         if (amount <= 0) return StackUtil.EMPTY;
@@ -186,7 +266,11 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
                 return asValid(current.copy());
             }
             setStackInternal(slot, StackUtil.EMPTY);
+//? if mc_26_x {
+            if (callback != null && !buildcraft.lib.compat.transfer.TransferJournal.active()) {
+//? } else {
             if (callback != null) {
+//?}
                 callback.onStackChange(this, slot, current, StackUtil.EMPTY);
             }
             // no need to copy as we no longer have it
@@ -198,7 +282,11 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
             if (!simulate) {
                 if (current.getCount() <= 0) current = StackUtil.EMPTY;
                 setStackInternal(slot, current);
+//? if mc_26_x {
+                if (callback != null && !buildcraft.lib.compat.transfer.TransferJournal.active()) {
+//? } else {
                 if (callback != null) {
+//?}
                     callback.onStackChange(this, slot, before, current);
                 }
             }
@@ -206,7 +294,10 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
         }
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     @Nonnull
     protected ItemStack extract(int slot, IStackFilter filter, int min, int max, boolean simulate) {
         if (badSlotIndex(slot)) return StackUtil.EMPTY;
@@ -220,11 +311,19 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
                 ItemStack copy = current.copy();
                 return copy.split(max);
             }
+//? if mc_26_x {
+            transferJournal.record();
+//? } else {
+//?}
             ItemStack split = current.split(max);
             if (current.getCount() <= 0) {
                 stacks.set(slot, StackUtil.EMPTY);
             }
+//? if mc_26_x {
+            if (callback != null && !buildcraft.lib.compat.transfer.TransferJournal.active()) {
+//? } else {
             if (callback != null) {
+//?}
                 callback.onStackChange(this, slot, before, stacks.get(slot));
             }
             return split;
@@ -232,7 +331,10 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
         return StackUtil.EMPTY;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void setStackInSlot(int slot, @Nonnull ItemStack stack) {
         if (badSlotIndex(slot)) {
             // Its safe to throw here
@@ -240,12 +342,19 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
         }
         ItemStack before = stacks.get(slot);
         setStackInternal(slot, stack);
+//? if mc_26_x {
+        if (callback != null && !buildcraft.lib.compat.transfer.TransferJournal.active()) {
+//? } else {
         if (callback != null) {
+//?}
             callback.onStackChange(this, slot, before, asValid(stack));
         }
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public final boolean canSet(int slot, @Nonnull ItemStack stack) {
         ItemStack copied = asValid(stack);
         if (copied.isEmpty()) {
@@ -255,6 +364,10 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
     }
 
     private void setStackInternal(int slot, @Nonnull ItemStack stack) {
+//? if mc_26_x {
+        transferJournal.record();
+//? } else {
+//?}
         stacks.set(slot, asValid(stack));
         // Transactor calc
         if (stack.isEmpty() && firstUsed == slot) {
@@ -272,26 +385,47 @@ public class ItemHandlerSimple extends AbstractInvItemTransactor
         }
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public int getSlotLimit(int slot) {
         return 64;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public String toString() {
         return "ItemHandlerSimple " + stacks;
     }
 
+//? if mc_26_x {
+    public boolean isItemValid(int slot, @NotNull ItemStack stack) {
+        return this.checker.canSet(slot, stack);
+    }
+//? } else {
 	@Override
 	public boolean isItemValid(int slot, @NotNull ItemStack stack) {
 		return this.checker.canSet(slot, stack);
 	}
+//?}
 
+//? if mc_26_x {
+    public boolean isEmpty() {
+        for(ItemStack item : stacks)
+            if(!item.isEmpty())
+                return false;
+        return true;
+    }
+//? } else {
 	public boolean isEmpty() {
 		for(ItemStack item : stacks) 
 			if(!item.isEmpty()) 
 				return false;
 		return true;
 	}
+//?}
 
 }

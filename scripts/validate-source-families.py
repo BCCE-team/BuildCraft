@@ -205,6 +205,43 @@ def validate_source_selector_policy(
 
 
 def validate_condition_policy(roots: list[Path], overlays: list[Path]) -> tuple[int, int]:
+    # A deliberately scoped exception to the loader-layer rule: canonical 26.X
+    # library Java may carry small NeoForge-specific branches when this replaces
+    # an audited full-file copy from source-family-platforms/26.X/neoforge.
+    # The manifest is a strict allowlist, not permission for new loader forks.
+    manifest = json.loads((ROOT / "scripts/source-consolidations-26x.json").read_text(encoding="utf-8"))
+    root = ROOT / manifest["canonical_root"]
+    overlay_root = ROOT / manifest["retired_overlay_root"]
+    merged = manifest["merged_java_paths"]
+    if not merged or merged != sorted(set(merged)):
+        fail("26.X Java consolidation manifest must contain sorted, unique paths")
+    permitted: set[Path] = set()
+    for name in merged:
+        rel = Path(name)
+        if rel.is_absolute() or ".." in rel.parts or not str(rel).startswith("buildcraft/lib/") or rel.suffix != ".java":
+            fail(f"unsafe or non-library path in 26.X Java consolidation manifest: {name}")
+        source, retired = root / rel, overlay_root / rel
+        if not source.is_file() or retired.exists():
+            fail(f"26.X Java consolidation owner/overlay mismatch: {name}")
+        if "//? if neoforge" not in source.read_text(encoding="utf-8"):
+            fail(f"26.X Java consolidation missing conditional branch: {name}")
+        permitted.add(source)
+
+    platform_root = ROOT / manifest["neoforge_platform_root"]
+    platform_merges = manifest["merged_platform_java_paths"]
+    if not platform_merges or platform_merges != sorted(set(platform_merges)) or set(platform_merges) & set(merged):
+        fail("26.X platform Java consolidations must contain sorted, unique, disjoint paths")
+    for name in platform_merges:
+        rel = Path(name)
+        if rel.is_absolute() or ".." in rel.parts or rel.suffix != ".java":
+            fail(f"unsafe platform path in 26.X Java consolidation manifest: {name}")
+        source, retired = platform_root / rel, overlay_root / rel
+        if not source.is_file() or retired.exists():
+            fail(f"26.X NeoForge platform consolidation owner/overlay mismatch: {name}")
+        if "//? if mc_26_x" not in source.read_text(encoding="utf-8"):
+            fail(f"26.X NeoForge platform consolidation missing conditional branch: {name}")
+        permitted.add(source)
+
     files = 0
     blocks = 0
     for root in roots:
@@ -215,7 +252,7 @@ def validate_condition_policy(roots: list[Path], overlays: list[Path]) -> tuple[
                 continue
             files += 1
             blocks += count
-            if count > 4:
+            if count > 4 and path not in permitted:
                 warn(
                     f"{path.relative_to(ROOT)} has {count} inline version branches; "
                     "concentrate repeated version cliffs in compat or explicit downports"
@@ -223,6 +260,13 @@ def validate_condition_policy(roots: list[Path], overlays: list[Path]) -> tuple[
             for line in text.splitlines():
                 if re.match(r"^[ \t]*(?://\?|/\*\?)[ \t]*(?:if|}[ \t]*else[ \t]+if)\b", line):
                     if re.search(r"\b(?:forge|neoforge|fabric)\b", line):
+                        # The only permitted loader predicate is a conditional
+                        # NeoForge delta from the explicit 26.X consolidation
+                        # allowlist, optionally gated by its original native
+                        # version selector (>=26.2 or >=26.3).
+                        condition = re.sub(r"^.*?(?://\?|/\*\?)\s*(?:if|}\s*else\s+if)\s+", "", line).split("{")[0].strip()
+                        if path in permitted and re.fullmatch(r"neoforge(?:\s*&&\s*\(>=26\.(?:2|3)\))?", condition):
+                            continue
                         fail(
                             f"loader condition in maintained source {path.relative_to(ROOT)}; "
                             "loader selection belongs in platform/family-platform ownership"

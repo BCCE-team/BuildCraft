@@ -37,6 +37,10 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidUtil;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//? if mc_26_x {
+import buildcraft.lib.misc.CapUtil;
+//? } else {
+//?}
 
 public class FluidUtilBC {
 
@@ -256,7 +260,11 @@ public class FluidUtilBC {
         if (!fluidContainer) {
             return false;
         }
+//? if mc_26_x {
+        if (player.level().isClientSide()) {
+//? } else {
         if (player.level().isClientSide) {
+//?}
             return true;
         }
 

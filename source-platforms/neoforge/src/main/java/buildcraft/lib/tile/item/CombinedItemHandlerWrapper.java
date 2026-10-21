@@ -16,7 +16,10 @@ public class CombinedItemHandlerWrapper extends CombinedInvWrapper implements II
         super(itemHandler);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public ItemStack getFilter(int slot) {
         int index = getIndexForSlot(slot);
         IItemHandlerModifiable handler = getHandlerFromIndex(index);

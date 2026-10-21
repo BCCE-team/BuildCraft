@@ -12,8 +12,12 @@ import buildcraft.robotics.statements.ActionRobotFilter;
 import buildcraft.robotics.statements.ActionStationAcceptFluids;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 
 public class AIRobotUnloadFluids extends AIRobot {
     private static final int FLUID_UNLOAD_INITIAL_DELAY_TICKS = 10;
@@ -32,7 +36,10 @@ public class AIRobotUnloadFluids extends AIRobot {
         this.requireAcceptAction = requireAcceptAction;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void update() {
         waitedCycles++;
         if (waitedCycles <= FLUID_UNLOAD_INITIAL_DELAY_TICKS) {
@@ -131,7 +138,10 @@ public class AIRobotUnloadFluids extends AIRobot {
         return station.getFluidOutput() != null;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public int getEnergyCost() {
         return 10;
     }

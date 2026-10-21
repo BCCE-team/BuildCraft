@@ -121,7 +121,15 @@ public final class BlockUtil {
     /** Places as the supplied actor and rolls back when NeoForge's place hook is cancelled. */
     public static boolean placeBlock(Level level, BlockPos pos, BlockState state, @Nullable Player actor,
                                      Direction placedAgainst, int flags) {
+//? if neoforge {
+        boolean placed = PlatformWorldActions.placeBlock(level, pos, state, actor, placedAgainst, flags);
+        if (placed && level instanceof ServerLevel) {
+            SoundUtil.playBlockPlace(level, pos, state);
+        }
+        return placed;
+//? } else {
         return PlatformWorldActions.placeBlock(level, pos, state, actor, placedAgainst, flags);
+//?}
     }
 
     public static boolean harvestBlock(ServerLevel world, BlockPos pos, @Nonnull ItemStack tool, GameProfile owner) {
@@ -145,6 +153,10 @@ public final class BlockUtil {
                 tool.mineBlock(world, state, pos, fakePlayer);
             }
             state.getBlock().playerDestroy(world, fakePlayer, pos, state, blockEntity, tool);
+//? if neoforge {
+            SoundUtil.playBlockBreak(world, pos, state);
+//? } else {
+//?}
             return true;
         });
     }
@@ -155,7 +167,15 @@ public final class BlockUtil {
                 return false;
             }
 
+//? if neoforge {
+            BlockState state = world.getBlockState(pos);
+            if (!world.destroyBlock(pos, true)) {
+                return false;
+            }
+            SoundUtil.playBlockBreak(world, pos, state);
+//? } else {
             world.destroyBlock(pos, true);
+//?}
             return true;
         });
     }
@@ -188,10 +208,19 @@ public final class BlockUtil {
             return false;
         }
 
+//? if neoforge {
+        BlockState state = world.getBlockState(pos);
+        if (!state.isAir() && !world.isClientSide() && world.getGameRules().get(GameRules.BLOCK_DROPS)) {
+//? } else {
         if (!world.getBlockState(pos).isAir() && !world.isClientSide() && world.getGameRules().get(GameRules.BLOCK_DROPS)) {
+//?}
             drops.addAll(getItemStackFromBlock(world, pos, owner));
         }
         world.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
+//? if neoforge {
+        SoundUtil.playBlockBreak(world, pos, state);
+//? } else {
+//?}
         return true;
     }
 

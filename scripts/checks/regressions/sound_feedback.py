@@ -4,6 +4,33 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[3]
+SCRIPT_DIR = ROOT / "scripts"
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+from source_lookup import resolve_source_path, resolve_target_source
+from source_preprocessor import preprocess_text, strip_source_condition
+from source_config import load_properties, target_layout
+
+PROPS = load_properties()
+
+
+def effective_text(target: str, logical: str) -> str:
+    """Inspect the active source branch, never inactive Stonecutter alternatives."""
+    path = resolve_target_source(target, logical)
+    if not path.is_file():
+        errors.append(f"{target}: missing effective {logical}")
+        return ""
+    source, _selector = strip_source_condition(path.read_text(encoding="utf-8", errors="ignore"))
+    if "//?" in source or "/*?" in source:
+        layout = target_layout(target, PROPS)
+        source = preprocess_text(
+            source,
+            minecraft=PROPS[f"target.{target}.deps.minecraft"],
+            family=layout.family,
+            platform=layout.platform,
+            source=str(path.relative_to(ROOT)),
+        )
+    return source
 
 VARIANTS = (
     "source-platforms/forge/src/main/java/buildcraft/lib/misc/BlockUtil.java",
@@ -27,7 +54,7 @@ REQUIRED = (
 
 errors = []
 for rel in VARIANTS:
-    path = ROOT / rel
+    path = resolve_source_path(rel)
     if not path.is_file():
         errors.append(f"missing {rel}")
         continue
@@ -37,7 +64,7 @@ for rel in VARIANTS:
             errors.append(f"{rel}: missing automated sound feedback {token!r}")
 
 for rel in STRIPES_VARIANTS:
-    path = ROOT / rel
+    path = resolve_source_path(rel)
     if not path.is_file():
         errors.append(f"missing {rel}")
         continue
@@ -54,11 +81,6 @@ print("Automated block place/break sound feedback guards OK")
 # BC8 sound parity. BuildCraft 8 did not ship a custom sounds.json/OGG bank: its audible identity came from
 # vanilla SoundEvents, per-block SoundType, fluid action sounds, and world event 2001 for robot breaking.
 # Validate the effective source selected by every maintained target so overlays/downports cannot silently regress it.
-SCRIPT_DIR = ROOT / "scripts"
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-from source_lookup import resolve_target_source
-
 TARGETS = (
     "1.19.2-forge",
     "1.20.1-forge",
@@ -71,22 +93,14 @@ TARGETS = (
 
 
 def require_effective(target: str, logical: str, *tokens: str) -> None:
-    path = resolve_target_source(target, logical)
-    if not path.is_file():
-        errors.append(f"{target}: missing effective {logical}")
-        return
-    content = path.read_text(encoding="utf-8", errors="ignore")
+    content = effective_text(target, logical)
     for token in tokens:
         if token not in content:
             errors.append(f"{target}: {logical} missing original sound parity token {token!r}")
 
 
 def forbid_effective(target: str, logical: str, *tokens: str) -> None:
-    path = resolve_target_source(target, logical)
-    if not path.is_file():
-        errors.append(f"{target}: missing effective {logical}")
-        return
-    content = path.read_text(encoding="utf-8", errors="ignore")
+    content = effective_text(target, logical)
     for token in tokens:
         if token in content:
             errors.append(f"{target}: {logical} retains non-original sound token {token!r}")

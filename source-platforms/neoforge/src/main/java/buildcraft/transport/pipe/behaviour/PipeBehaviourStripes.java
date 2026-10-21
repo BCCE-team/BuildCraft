@@ -54,10 +54,18 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.Rotation;
 import net.neoforged.neoforge.capabilities.BlockCapability;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 import buildcraft.lib.net.BCNetworkSide;
 import net.neoforged.fml.util.thread.SidedThreadGroups;
 import buildcraft.lib.net.BCPacketContext;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
 public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput, IMjRedstoneReceiver {
     private final MjBattery battery = new MjBattery(256 * MjAmount.MICRO_MJ_PER_MJ);
@@ -76,12 +84,25 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
 
     public PipeBehaviourStripes(IPipe pipe, CompoundTag nbt) {
         super(pipe, nbt);
+//? if mc_26_x && (>=26.3) {
+        battery.deserializeNBT(NbtCompat.getCompound(nbt, "battery"));
+//? } else {
         battery.deserializeNBT(nbt.getCompound("battery"));
+//?}
         setDirection(NBTUtilBC.readEnum(nbt.get("direction"), Direction.class));
+//? if mc_26_x && (>=26.3) {
+        progress = Math.max(0L, NbtCompat.getLong(nbt, "progress"));
+//? } else {
         progress = Math.max(0L, nbt.getLong("progress"));
+//?}
         if (progress > 0 && nbt.contains("progressTarget") && nbt.contains("progressState")) {
+//? if mc_26_x && (>=26.3) {
+            progressTarget = BlockPos.of(NbtCompat.getLong(nbt, "progressTarget"));
+            progressStateKey = NbtCompat.getString(nbt, "progressState");
+//? } else {
             progressTarget = BlockPos.of(nbt.getLong("progressTarget"));
             progressStateKey = nbt.getString("progressState");
+//?}
         } else {
             progress = 0;
             progressTarget = null;
@@ -89,7 +110,10 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public CompoundTag writeToNbt() {
         CompoundTag nbt = super.writeToNbt();
         nbt.put("battery", battery.serializeNBT());
@@ -102,13 +126,19 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
         return nbt;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(buffer, side, ctx);
         direction = MessageUtil.readEnumOrNull(buffer, Direction.class);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(buffer, side);
         MessageUtil.writeEnumOrNull(buffer, direction);
@@ -173,34 +203,52 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
 
     // IMjRedstoneReceiver
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean canConnect(@Nonnull IMjConnector other) {
         return true;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public long getPowerRequested() {
         return battery.getCapacity() - battery.getStored();
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public long receivePower(long microJoules, FluidAction simulate) {
         return battery.addPowerChecking(microJoules, simulate);
     }
 
     // Stripes
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean requiresPeriodicSave() {
         return progress > 0;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean canConnect(Direction face, PipeBehaviour other) {
         return !(other instanceof PipeBehaviourStripes);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void onTick() {
         Level world = pipe.getHolder().getPipeWorld();
         if (world.isClientSide()) {
@@ -315,7 +363,11 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
         ServerPlayer player = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer((ServerLevel) world, holder.getOwner(), pos);
         player.getInventory().clearContent();;
         // set the main hand of the fake player to the stack
+//? if mc_26_x && (>=26.3) {
+        player.getInventory().setItem(player.getInventory().getSelectedSlot(), event.getStack());
+//? } else {
         player.getInventory().setItem(player.getInventory().selected, event.getStack());
+//?}
         if (StripesRegistry.INSTANCE.handleItem(world, pos, direction, event.getStack(), player, this)) {
             event.setStack(StackUtil.EMPTY);
             for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
@@ -327,12 +379,18 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void dropItem(@Nonnull ItemStack stack, Direction direction) {
         InventoryUtil.drop(pipe.getHolder().getPipeWorld(), pipe.getHolder().getPipePos(), stack);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean sendItem(@Nonnull ItemStack stack, Direction from) {
         PipeFlow flow = pipe.getFlow();
         if (flow instanceof IFlowItems) {
@@ -343,7 +401,10 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     @Nullable
     @SuppressWarnings("unchecked")
     public <T> T getCapability(
@@ -357,7 +418,10 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
         return super.getCapability(capability, facing);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
 	@Override
+//?}
 	public void rotate(Rotation rot) {
 		if(direction == null || direction.ordinal() <2) {
 			return;

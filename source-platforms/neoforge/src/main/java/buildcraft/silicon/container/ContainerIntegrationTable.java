@@ -6,7 +6,11 @@ package buildcraft.silicon.container;
 
 import buildcraft.lib.gui.ContainerBCTile;
 import buildcraft.lib.gui.slot.SlotBase;
+//? if mc_26_x && (>=26.3) {
+
+//? } else {
 import buildcraft.lib.gui.slot.SlotDisplay;
+//?}
 import buildcraft.lib.gui.slot.SlotOutput;
 import buildcraft.lib.tile.item.IItemHandlerAdv;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
@@ -15,7 +19,12 @@ import buildcraft.silicon.tile.TileIntegrationTable;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerLevelAccess;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.lib.gui.ItemProvider;
+import buildcraft.silicon.compat.SiliconDisplayContainer263;
+//? } else {
 import net.neoforged.neoforge.items.IItemHandler;
+//?}
 
 public class ContainerIntegrationTable extends ContainerBCTile<TileIntegrationTable> {
     public static final int[] SLOT_X = { 44, 44, 69, 69, 69, 44, 19, 19, 19 };
@@ -23,11 +32,19 @@ public class ContainerIntegrationTable extends ContainerBCTile<TileIntegrationTa
 
     public ContainerIntegrationTable(int containerId, Inventory playerInventory, FriendlyByteBuf buf) {
         this(containerId, playerInventory, new ItemHandlerSimple(1), new ItemHandlerSimple(8),
+//? if mc_26_x && (>=26.3) {
+                new ItemProvider(index -> net.minecraft.world.item.ItemStack.EMPTY, 1), new ItemHandlerSimple(1), createLevelAccess(playerInventory, buf));
+//? } else {
                 new ItemHandlerSimple(1), new ItemHandlerSimple(1), createLevelAccess(playerInventory, buf));
+//?}
     }
 
     public ContainerIntegrationTable(int containerId, Inventory playerInventory, IItemHandlerAdv invTarget,
+//? if mc_26_x && (>=26.3) {
+            IItemHandlerAdv invToIntegrate, ItemProvider invOutput, IItemHandlerAdv invResult, ContainerLevelAccess access) {
+//? } else {
             IItemHandlerAdv invToIntegrate, IItemHandler invOutput, IItemHandlerAdv invResult, ContainerLevelAccess access) {
+//?}
         super(BCSiliconGuis.MENU_INTEGRATION_TABLE.get(), playerInventory, containerId, access);
 
         addSlot(new SlotBase(invTarget, 0, SLOT_X[0], SLOT_Y[0]));
@@ -35,7 +52,11 @@ public class ContainerIntegrationTable extends ContainerBCTile<TileIntegrationTa
             addSlot(new SlotBase(invToIntegrate, i - 1, SLOT_X[i], SLOT_Y[i]));
         }
 
+//? if mc_26_x && (>=26.3) {
+        addSlot(new SiliconDisplayContainer263(invOutput).slot(0, 101, 36));
+//? } else {
         addSlot(new SlotDisplay(invOutput, 0, 101, 36));
+//?}
         addSlot(new SlotOutput(invResult, 0, 138, 49));
 
         addFullPlayerInventory(109);

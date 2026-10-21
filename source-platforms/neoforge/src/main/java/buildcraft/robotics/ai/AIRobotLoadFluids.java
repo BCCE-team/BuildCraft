@@ -11,8 +11,12 @@ import buildcraft.robotics.statements.ActionRobotFilter;
 import buildcraft.robotics.statements.ActionStationProvideFluids;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 
 public class AIRobotLoadFluids extends AIRobot {
     private static final int FLUID_LOAD_DELAY_TICKS = 10;
@@ -29,7 +33,10 @@ public class AIRobotLoadFluids extends AIRobot {
         setSuccess(false);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void update() {
         if (filter == null) {
             setSuccess(false);
@@ -107,7 +114,10 @@ public class AIRobotLoadFluids extends AIRobot {
         return filled;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public int getEnergyCost() {
         return 8;
     }

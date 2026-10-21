@@ -219,7 +219,11 @@ public class MessageUtil {
 
     public static BlockState readBlockState(FriendlyByteBuf buf) {
         Identifier id = buf.readIdentifier();
+//? if neoforge {
+        Block block = BuiltInRegistries.BLOCK.get(id).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR);
+//? } else {
         Block block = BuiltInRegistries.BLOCK.get(id).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR);
+//?}
         if (block == null) {
             block = Blocks.AIR;
         }

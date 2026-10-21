@@ -32,7 +32,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.lib.misc.InteractionResultHolder;
+//? } else {
 import net.minecraft.world.InteractionResultHolder;
+//?}
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -42,11 +46,24 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x && (>=26.3) {
+import net.neoforged.neoforge.transfer.fluid.FluidUtil;
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.FluidUtil;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 import buildcraft.lib.net.BCNetworkSide;
+//? if mc_26_x && (>=26.3) {
+
+//? } else {
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
+//?}
 import buildcraft.lib.net.BCPacketContext;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
 public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuProvider{
 
@@ -81,11 +98,17 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
     	}
     };
     protected DataSlot filterData = new DataSlot() {
+//? if mc_26_x && (>=26.3) {
+//? } else {
 		@Override
+//?}
 		public int get() {
 			return !filterValid?currentFilter:currentFilter+128;
 		}
+//? if mc_26_x && (>=26.3) {
+//? } else {
 		@Override
+//?}
 		public void set(int p_39402_) {}
     };
 
@@ -95,13 +118,22 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
 
     public PipeBehaviourWoodDiamond(IPipe pipe, CompoundTag nbt) {
         super(pipe, nbt);
+//? if mc_26_x && (>=26.3) {
+        filters.deserializeNBT(TilePipeHolder.getRegistryAccess(pipe), NbtCompat.getCompound(nbt, "filters"));
+        filterMode = FilterMode.get(NbtCompat.getByte(nbt, "mode"));
+        currentFilter = NbtCompat.getByte(nbt, "currentFilter") % filters.getSlots();
+//? } else {
         filters.deserializeNBT(TilePipeHolder.getRegistryAccess(pipe), nbt.getCompound("filters"));
         filterMode = FilterMode.get(nbt.getByte("mode"));
         currentFilter = nbt.getByte("currentFilter") % filters.getSlots();
+//?}
         filterValid = !filters.extract(StackFilter.ALL, 1, 1, true).isEmpty();
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public CompoundTag writeToNbt() {
         CompoundTag nbt = super.writeToNbt();
         nbt.put("filters", filters.serializeNBT(TilePipeHolder.getRegistryAccess(pipe)));
@@ -110,7 +142,10 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
         return nbt;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(buffer, side, ctx);
         if (side == BCNetworkSide.CLIENT) {
@@ -120,7 +155,10 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(buffer, side);
         if (side == BCNetworkSide.SERVER) {
@@ -130,7 +168,10 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean onPipeActivate(Player player, BlockHitResult trace, Level level,
         EnumPipePart part) {
         if (EntityUtil.getWrenchHand(player) != null) {
@@ -148,7 +189,11 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
         return true;
     }
     
+//? if mc_26_x && (>=26.3) {
+    private void onSlotChanged(Object itemHandler, int slot, ItemStack before, ItemStack after) {
+//? } else {
     private void onSlotChanged(IItemHandlerModifiable itemHandler, int slot, ItemStack before, ItemStack after) {
+//?}
         if (!after.isEmpty()) {
             if (!filterValid) {
                 currentFilter = slot;
@@ -179,7 +224,10 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     protected int extractItems(IFlowItems flow, Direction dir, int count, FluidAction simulate) {
         if (filters.getStackInSlot(currentFilter).isEmpty()) {
             advanceFilter();
@@ -191,7 +239,10 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
         return extracted;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     protected FluidStack extractFluid(IFlowFluid flow, Direction dir, int millibuckets, FluidAction simulate) {
         if (filterMode != FilterMode.ROUND_ROBIN && filters.getStackInSlot(currentFilter).isEmpty()) {
             advanceFilter();
@@ -221,7 +272,11 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
                     if (stack.isEmpty()) {
                         continue;
                     }
+//? if mc_26_x && (>=26.3) {
+                    FluidStack target = FluidUtil.getFirstStackContained(stack);
+//? } else {
                     FluidStack target = FluidUtil.getFluidContained(stack).orElse(FluidStack.EMPTY);
+//?}
                     if (target.isEmpty() || target.getAmount() <= 0) {
                         continue;
                     }
@@ -245,7 +300,11 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
                 for (int offset = 0; offset < slots; offset++) {
                     int filterIndex = (currentFilter + offset) % slots;
                     ItemStack stack = filters.getStackInSlot(filterIndex);
+//? if mc_26_x && (>=26.3) {
+                    FluidStack target = stack.isEmpty() ? FluidStack.EMPTY : FluidUtil.getFirstStackContained(stack);
+//? } else {
                     FluidStack target = stack.isEmpty() ? FluidStack.EMPTY : FluidUtil.getFluidContained(stack).orElse(FluidStack.EMPTY);
+//?}
                     if (target.isEmpty()) continue;
 
                     FluidStack roundRobinResult = flow.tryExtractFluid(millibuckets, dir, target, simulate);
@@ -268,7 +327,11 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
         do {
             currentFilter = (currentFilter + 1) % filters.getSlots();
             ItemStack candidate = filters.getStackInSlot(currentFilter);
+//? if mc_26_x && (>=26.3) {
+            if (!candidate.isEmpty() && !FluidUtil.getFirstStackContained(candidate).isEmpty()) {
+//? } else {
             if (!candidate.isEmpty() && FluidUtil.getFluidContained(candidate).filter(stack -> !stack.isEmpty()).isPresent()) {
+//?}
                 filterValid = true;
                 break;
             }
@@ -299,12 +362,18 @@ public class PipeBehaviourWoodDiamond extends PipeBehaviourWood implements MenuP
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
 	@Override
+//?}
 	public AbstractContainerMenu createMenu(int id, Inventory inventory, Player player) {
 		return new ContainerDiamondWoodPipe(id, inventory, filters, this);
 	}
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
 	@Override
+//?}
 	public Component getDisplayName() {
 		return Component.translatable(pipe.getDefinition().identifier.toLanguageKey());
 	}

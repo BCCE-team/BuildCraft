@@ -29,7 +29,11 @@ import buildcraft.lib.misc.StackUtil;
 import buildcraft.lib.net.cache.BuildCraftObjectCaches;
 import buildcraft.lib.net.cache.NetworkedFluidStackCache;
 import buildcraft.lib.tile.TileBC_Neptune;
+//? if neoforge && (>=26.2) {
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
+//? } else {
 import net.minecraft.ChatFormatting;
+//?}
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -182,10 +186,18 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
         if (fluidStack != FluidStack.EMPTY && amount > 0) {
             toolTip.add(FluidCompat.getDisplayName(fluidStack));
         }
+//? if neoforge && (>=26.2) {
+        toolTip.add(LocaleUtil.localizeFluidStaticAmount(amount, getCapacity()).setStyle(Style.EMPTY.withColor(BCTextFormat.GRAY.getColor())));
+//? } else {
         toolTip.add(LocaleUtil.localizeFluidStaticAmount(amount, getCapacity()).setStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+//?}
         FluidStack serverFluid = getFluid();
         if (serverFluid != null && serverFluid.getAmount() > 0) {
+//? if neoforge && (>=26.2) {
+            toolTip.add(Component.translatable("tooltip.buildcraftlib.fluid.server_side_on_client").setStyle(Style.EMPTY.withColor(BCTextFormat.RED.getColor())));
+//? } else {
             toolTip.add(Component.translatable("tooltip.buildcraftlib.fluid.server_side_on_client").setStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
+//?}
             toolTip.add(FluidCompat.getDisplayName(serverFluid));
             toolTip.add(LocaleUtil.localizeFluidStaticAmount(serverFluid.getAmount(), getCapacity()));
         }
@@ -360,12 +372,18 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
         if (held.isEmpty()) {
             return;
         }
+//? if neoforge && (>=26.2) {
+//? } else {
         FluidStack before = getFluid().copy();
+//?}
         ItemStack stack = transferStackToTank(player, held);
         menu.setCarried(stack);
         menu.broadcastFullState();
         player.inventoryMenu.broadcastFullState();
+//? if neoforge && (>=26.2) {
+//? } else {
         playCommittedGuiTransferSound(player, before);
+//?}
     }
 
     public void onGuiClicked(MenuBC_Neptune container) {
@@ -374,11 +392,16 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
         if (held.isEmpty()) {
             return;
         }
+//? if neoforge && (>=26.2) {
+//? } else {
         FluidStack before = getFluid().copy();
+//?}
         ItemStack stack = transferStackToTank(player, held);
         container.setCarried(stack);
         container.broadcastFullState();
         player.inventoryMenu.broadcastFullState();
+//? if neoforge && (>=26.2) {
+//? } else {
         playCommittedGuiTransferSound(player, before);
     }
 
@@ -395,6 +418,7 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
                 player.level(), player.blockPosition(), copyFluidForSound(before, beforeAmount - afterAmount)
             );
         }
+//?}
     }
 
     private static FluidStack copyFluidForSound(FluidStack source, int amount) {
@@ -435,6 +459,12 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
                         "We seem to be buggy! (accepted = " + accepted + ", reallyAccepted = " + reallyAccepted + ")");
                 }
                 stack.shrink(1);
+//? if neoforge && (>=26.2) {
+                SoundUtil.playBucketEmpty(
+                    player.level(), player.blockPosition(), copyFluidForSound(result.fluidStack, reallyAccepted)
+                );
+//? } else {
+//?}
                 if (isSurvival) {
                     if (stack.isEmpty()) {
                         return result.itemStack.copy();
@@ -462,6 +492,10 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
                 throw new IllegalStateException("Somehow drained differently than expected! ( drained = "
                     + drained + ", filled = " + filled + ", reallyDrained = " + reallyDrained + " )");
             }
+//? if neoforge && (>=26.2) {
+            SoundUtil.playBucketFill(player.level(), player.blockPosition(), reallyDrained);
+//? } else {
+//?}
             if (original.getCount() == 1) {
                 return fluidHandler.getContainer();
             } else {

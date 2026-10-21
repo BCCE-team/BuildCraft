@@ -28,6 +28,14 @@ public enum BCAdvDebugging {
         INSTANCE.targetClient = target;
     }
 
+//? if neoforge {
+//? if >=26.2 {
+    public static IAdvDebugTarget getClientDebugTarget() {
+        return INSTANCE.targetClient;
+    }
+//? }
+//? } else {
+//?}
     public void onServerPostTick() {
         if (target != null) {
             if (!target.doesExistInWorld()) {

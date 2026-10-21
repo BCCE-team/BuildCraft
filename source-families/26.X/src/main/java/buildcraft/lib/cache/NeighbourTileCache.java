@@ -85,11 +85,23 @@ public class NeighbourTileCache implements ITileCache {
         }
         BlockPos offsetPos = lastSeenTilePos.offset(offset.getUnitVec3i());
 
+//? if neoforge {
+        // In particular, never load the neighbouring chunk just to populate a cache.
+        Level level = tile.getLevel();
+        if (level == null || !level.isLoaded(offsetPos)) {
+            cachedTiles.remove(offset);
+            return new TileCacheRet(null);
+        }
+        LevelChunk chunk = ChunkUtil.getChunk(level, offsetPos, false);
+        if (chunk == null) {
+            return new TileCacheRet(null);
+//? } else {
         LevelChunk chunk;
         if (tile instanceof TileBC_Neptune) {
             chunk = ((TileBC_Neptune) tile).getLevel().getChunkAt(offsetPos);
         } else {
             chunk = ChunkUtil.getChunk(tile.getLevel(), offsetPos, true);
+//?}
         }
         BlockState state = chunk.getBlockState(offsetPos);
         if (!(state.getBlock() instanceof EntityBlock)) {

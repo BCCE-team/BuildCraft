@@ -40,7 +40,12 @@ public interface IChunkLoadingTile {
         BlockPos pos = ((BlockEntity) this).getBlockPos();
         Set<ChunkPos> chunkPoses = new HashSet<>(4);
         for (Direction face : Direction.Plane.HORIZONTAL) {
+//? if neoforge {
+            BlockPos neighbour = pos.offset(face.getUnitVec3i());
+            chunkPoses.add(new ChunkPos(neighbour.getX() >> 4, neighbour.getZ() >> 4));
+//? } else {
             chunkPoses.add(new ChunkPos(pos.offset(face.getUnitVec3i())));
+//?}
         }
         return chunkPoses;
     }

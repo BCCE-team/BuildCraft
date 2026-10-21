@@ -21,7 +21,10 @@ public class SimpleFluidFilter implements IFluidFilter {
         }
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean matches(FluidStack fluid) {
         if (fluidChecked != null) {
             return FluidCompatRegistry.areEquivalent(fluidChecked, fluid);

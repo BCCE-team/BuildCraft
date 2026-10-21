@@ -16,7 +16,11 @@ public final class BCLibItems {
     public static final BCDeferredRegister<Item> ITEMS = BCDeferredRegister.create("minecraft:item", BCLib.MODID);
 
     public static final BCRegistryEntry<ItemGuide> GUIDE = RegistryCompat.registerItem(ITEMS, "guide",
+//? if neoforge {
+        () -> new ItemGuide(RegistryCompat.itemProperties(RegistryCompat.itemProperties(RegistryCompat.itemProperties(new Item.Properties()))).stacksTo(1).overrideDescription("item.buildcraft.guide.name"))
+//? } else {
         () -> new ItemGuide(RegistryCompat.itemProperties(RegistryCompat.itemProperties(new Item.Properties())).stacksTo(1).overrideDescription("item.buildcraft.guide.name"))
+//?}
     );
 
     private BCLibItems() {

@@ -26,13 +26,22 @@ public final class MjToFeAutoConverter implements IMjReceiver, IMjReadable {
         return createReceiver(StorageAdapters.fromNativeEnergy(fe));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean canConnect(IMjConnector other) { return true; }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean canReceive() { return fe.canReceive() && BuildCraftApi.service(BuildCraftServices.ENERGY).automaticFeConversionEnabled(); }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public long getPowerRequested() {
         if (!canReceive()) return 0;
         // Simulation works for bufferless FE machines too; maxStored - stored does not.
@@ -43,7 +52,10 @@ public final class MjToFeAutoConverter implements IMjReceiver, IMjReadable {
         return BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMj(requestedFe);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public long receivePower(long microJoules, FluidAction action) {
         if (!canReceive() || microJoules <= 0) return microJoules;
         long ratio = BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjPerFe();
@@ -60,9 +72,15 @@ public final class MjToFeAutoConverter implements IMjReceiver, IMjReadable {
         return Math.max(0, Math.min(offered, accepted));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public long getStored() { return BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMj(Math.max(0, fe.getEnergyStored())); }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public long getCapacity() { return BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().feToMicroMj(Math.max(0, fe.getMaxEnergyStored())); }
 }

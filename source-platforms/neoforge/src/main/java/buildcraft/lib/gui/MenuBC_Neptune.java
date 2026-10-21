@@ -35,7 +35,11 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+//? if mc_26_x {
+import net.minecraft.world.inventory.ContainerInput;
+//? } else {
 import net.minecraft.world.inventory.ClickType;
+//?}
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
@@ -98,8 +102,12 @@ public abstract class MenuBC_Neptune extends AbstractContainerMenu {
     }
 
     @Nullable
+//? if mc_26_x {
+    public void clicked(int slotId, int dragType, ContainerInput clickType, Player player) {
+//? } else {
     @Override
     public void clicked(int slotId, int dragType, ClickType clickType, Player player) {
+//?}
         if (player != null && player.isSpectator()) {
             return;
         }
@@ -109,7 +117,10 @@ public abstract class MenuBC_Neptune extends AbstractContainerMenu {
         super.clicked(slotId, dragType, clickType, player);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public ItemStack quickMoveStack(Player playerIn, int index) {
         return BCMenuUtil.quickMoveStack(this, playerIn, index);
     }
@@ -142,14 +153,22 @@ public abstract class MenuBC_Neptune extends AbstractContainerMenu {
     }
 
     public final void sendMessage(int id) {
+//? if mc_26_x {
+        BCNetworkSide side = playerInventory.player.level().isClientSide() ? BCNetworkSide.CLIENT : BCNetworkSide.SERVER;
+//? } else {
         BCNetworkSide side = playerInventory.player.level().isClientSide ? BCNetworkSide.CLIENT : BCNetworkSide.SERVER;
+//?}
         sendMessage(id, (buffer) -> writeMessage(id, buffer, side));
     }
 
     public final void sendMessage(int id, IPayloadWriter writer) {
         FriendlyByteBuf payload = MessageUtil.write(writer);
         MessageContainer message = new MessageContainer(containerId, id, payload);
+//? if mc_26_x {
+        if (playerInventory.player.level().isClientSide()) {
+//? } else {
         if (playerInventory.player.level().isClientSide) {
+//?}
             MessageManager.sendToServer(message);
         } else if (playerInventory.player instanceof ServerPlayer serverPlayer) {
             MessageManager.sendTo(message, serverPlayer);

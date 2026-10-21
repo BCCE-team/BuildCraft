@@ -12,14 +12,27 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+//? if mc_26_x {
+import buildcraft.lib.compat.neoforge2612.common.util.INBTSerializable;
+//? } else {
 import net.neoforged.neoforge.common.util.INBTSerializable;
+//?}
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//? if mc_26_x {
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
 /** Provides a basic implementation of a simple battery. Note that you should call {@link #tick(Level, BlockPos)} or
  * {@link #tick(Level, Vec3)} every tick to allow for losing excess power. */
 public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.v2.energy.MjStorage {
     private final long capacity;
     private long microJoules = 0;
+//? if mc_26_x {
+    private final buildcraft.lib.compat.transfer.TransferJournal<Long> transferJournal =
+        new buildcraft.lib.compat.transfer.TransferJournal<>(() -> microJoules, value -> microJoules = value, old -> {});
+//? } else {
+//?}
 
     public MjBattery(long capacity) {
         this.capacity = Math.max(0L, capacity);
@@ -32,15 +45,25 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
     }
 
     public void deserializeNBT(CompoundTag nbt) {
+//? if mc_26_x {
+        microJoules = clampStored(NbtCompat.getLong(nbt, "stored"));
+//? } else {
         microJoules = clampStored(nbt.getLong("stored"));
+//?}
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public CompoundTag serializeNBT(HolderLookup.Provider registries) {
         return serializeNBT();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void deserializeNBT(HolderLookup.Provider registries, CompoundTag nbt) {
         deserializeNBT(nbt);
     }
@@ -55,6 +78,10 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
 
     public long addPower(long microJoulesToAdd, FluidAction simulate) {
         if (simulate == FluidAction.EXECUTE) {
+//? if mc_26_x {
+            transferJournal.record();
+//? } else {
+//?}
             if (microJoulesToAdd > 0) {
                 this.microJoules = microJoulesToAdd > Long.MAX_VALUE - this.microJoules
                     ? Long.MAX_VALUE : this.microJoules + microJoulesToAdd;
@@ -64,7 +91,11 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
     }
 
     /** Attempts to add power, but only if this is not already full.
+//? if mc_26_x {
+     *
+//? } else {
      * 
+//?}
      * @param microJoulesToAdd The power to add.
      * @return The excess power. */
     public long addPowerChecking(long microJoulesToAdd, FluidAction simulate) {
@@ -83,7 +114,11 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
     }
 
     /** Attempts to extract exactly the given amount of power.
+//? if mc_26_x {
+     *
+//? } else {
      * 
+//?}
      * @param power The amount of power to extract.
      * @return True if the power was removed, false if not. */
     public boolean extractPower(long power) {
@@ -95,32 +130,52 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
         if (min < 0 || max < 0 || min > max) return 0;
         if (microJoules < min) return 0;
         long extracting = Math.min(microJoules, max);
+//? if mc_26_x {
+        transferJournal.record();
+//? } else {
+//?}
         microJoules -= extracting;
         return extracting;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public MjTransferResult insert(MjAmount offered, OperationMode mode) {
         long remainder = addPowerChecking(offered.microMj(), mode == OperationMode.EXECUTE ? FluidAction.EXECUTE : FluidAction.SIMULATE);
         remainder = Math.max(0L, Math.min(offered.microMj(), remainder));
         return MjTransferResult.of(offered, MjAmount.ofMicro(offered.microMj() - remainder));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public MjTransferResult extract(MjAmount requested, OperationMode mode) {
         long moved = Math.min(microJoules, requested.microMj());
         if (mode == OperationMode.EXECUTE && moved > 0) {
+//? if mc_26_x {
+            transferJournal.record();
+//? } else {
+//?}
             microJoules -= moved;
         }
         return MjTransferResult.of(requested, MjAmount.ofMicro(moved));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public MjAmount stored() {
         return MjAmount.ofMicro(Math.max(0L, microJoules));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public MjAmount capacity() {
         return MjAmount.ofMicro(Math.max(0L, capacity));
     }

@@ -10,6 +10,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from source_config import load_properties, target_layout  # noqa: E402
 from transforms.java_compat import upgrade_symbols  # noqa: E402
+from source_lookup import resolve_source_path  # noqa: E402
+from source_preprocessor import preprocess_text, strip_source_condition  # noqa: E402
 
 TARGET = "26.1.2-neoforge"
 TARGETS = ROOT / "build-config/targets.properties"
@@ -26,10 +28,29 @@ def fail(message: str) -> None:
     raise AssertionError(f"{TARGET}: {message}")
 
 
-def require(path: Path, *fragments: str) -> None:
-    if not path.is_file():
+def source_text(path: Path) -> str:
+    """Inspect the former 26.X NeoForge view, even if it was consolidated.
+
+    Compatibility contracts here audit the canonical latest NeoForge source
+    before 26.1.2 API downporting. A retired physical override is now emitted
+    by a guarded canonical source, so preprocess its 26.3 branch first.
+    """
+    if path.is_file():
+        return path.read_text(encoding="utf-8")
+    actual = resolve_source_path(path.relative_to(ROOT))
+    if not actual.is_file():
         fail(f"missing {path.relative_to(ROOT)}")
-    text = path.read_text(encoding="utf-8")
+    content, _selector = strip_source_condition(actual.read_text(encoding="utf-8"))
+    if "//?" in content or "/*?" in content:
+        content = preprocess_text(
+            content, minecraft="26.3", family="26.X", platform="neoforge",
+            source=str(actual.relative_to(ROOT)),
+        )
+    return content
+
+
+def require(path: Path, *fragments: str) -> None:
+    text = source_text(path)
     for fragment in fragments:
         if fragment not in text:
             fail(f"{path.relative_to(ROOT)} is missing {fragment!r}")
@@ -84,7 +105,7 @@ def main() -> int:
     ):
         if relative not in effective:
             fail(f"enabled integration is missing: {relative}")
-    build_text = LOADER_BUILD.read_text(encoding="utf-8")
+    build_text = source_text(LOADER_BUILD)
     for integration in ("create", "forestry", "ic2"):
         if props.get(f"target.{TARGET}.compat.{integration}.enabled") != "false":
             fail(f"{integration} integration should be explicitly disabled in target metadata")
@@ -114,7 +135,7 @@ def main() -> int:
     )
     for path, required, forbidden in compat_cases:
         generated = upgrade_symbols(
-            path.read_text(encoding="utf-8"),
+            source_text(path),
             minecraft="26.1.2",
             relative=path.relative_to(ROOT).as_posix(),
         )
@@ -127,7 +148,7 @@ def main() -> int:
 
     container = PLATFORM / "buildcraft/lib/compat/minecraft/gui/BCContainerScreen.java"
     generated = upgrade_symbols(
-        container.read_text(encoding="utf-8"),
+        source_text(container),
         minecraft="26.1.2",
         relative=container.relative_to(ROOT).as_posix(),
     )
@@ -175,7 +196,7 @@ def main() -> int:
     )
     fluid_cache = PLATFORM / "buildcraft/lib/net/cache/NetworkedFluidStackCache.java"
     require(fluid_cache, "super(() -> new FluidStack(Fluids.WATER, FLUID_AMOUNT))")
-    if "super(new FluidStack(" in fluid_cache.read_text(encoding="utf-8"):
+    if "super(new FluidStack(" in source_text(fluid_cache):
         fail("fluid cache eagerly creates a FluidStack during mod construction")
     energy_client = PLATFORM / "buildcraft/energy/BCEnergyClientProxy.java"
     require(
@@ -185,7 +206,7 @@ def main() -> int:
         "FluidTintSources.constant(type.getFluidTintColor())",
         "event.register(model, source, source.getFlowing())",
     )
-    energy_client_text = energy_client.read_text(encoding="utf-8")
+    energy_client_text = source_text(energy_client)
     if "RegisterFluidModelsEvent" not in energy_client_text:
         fail("BuildCraft fluids are not registered in the 26.1 FluidStateModelSet")
 
@@ -195,10 +216,10 @@ def main() -> int:
         "BuiltInRegistries.FLUID.getKey(fluid)",
         "private record FluidRecipeValue",
     )
-    if "new FluidStack(" in energy_recipes.read_text(encoding="utf-8"):
+    if "new FluidStack(" in source_text(energy_recipes):
         fail("energy built-in recipes create FluidStacks before default components are bound")
     silicon = MODERN_PLATFORM / "buildcraft/silicon/BCSilicon.java"
-    silicon_text = silicon.read_text(encoding="utf-8")
+    silicon_text = source_text(silicon)
     common_start = silicon_text.index("public static void commonSetup")
     post_start = silicon_text.index("public static void postInit")
     level_start = silicon_text.index("private static void onLevelLoad")
@@ -233,7 +254,7 @@ def main() -> int:
             "iconFactory = item::getDefaultInstance;",
             "ItemStack stack = iconFactory.get();",
         )
-        creative_tab_text = creative_tabs.read_text(encoding="utf-8")
+        creative_tab_text = source_text(creative_tabs)
         if "private ItemStack icon = new ItemStack(" in creative_tab_text:
             fail("creative-tab descriptor eagerly creates an ItemStack during mod construction")
         if "setItem(item.getDefaultInstance())" in creative_tab_text:
@@ -241,7 +262,7 @@ def main() -> int:
         if "setItemStack(name, item.getDefaultInstance())" in creative_tab_text:
             fail("named creative-tab item selection eagerly creates an ItemStack during common setup")
     pipe_recipe = FAMILY / "buildcraft/transport/recipe/PipeRecipe.java"
-    pipe_recipe_text = pipe_recipe.read_text(encoding="utf-8")
+    pipe_recipe_text = source_text(pipe_recipe)
     require(
         pipe_recipe,
         "private static final Codec<Result> RESULT_CODEC",
@@ -255,7 +276,7 @@ def main() -> int:
         FAMILY / "buildcraft/lib/recipe/AssemblyRecipe.java",
         PLATFORM / "buildcraft/lib/recipe/AssemblyRecipe.java",
     ):
-        assembly_text = assembly_recipe.read_text(encoding="utf-8")
+        assembly_text = source_text(assembly_recipe)
         require(
             assembly_recipe,
             "Codec<LegacyResult> LEGACY_RESULT_CODEC",
@@ -291,7 +312,7 @@ def main() -> int:
         PLATFORM / "buildcraft/lib/recipe/LegacyStrictNbtIngredient.java",
     ):
         require(strict_nbt, "private volatile ItemStack displayStack;", "private ItemStack displayStack()")
-        constructor = strict_nbt.read_text(encoding="utf-8").split("private LegacyStrictNbtIngredient", 1)[1].split("private ItemStack displayStack()", 1)[0]
+        constructor = source_text(strict_nbt).split("private LegacyStrictNbtIngredient", 1)[1].split("private ItemStack displayStack()", 1)[0]
         if "new ItemStack(" in constructor:
             fail(f"strict-NBT ingredient eagerly creates an ItemStack during recipe decode: {strict_nbt.relative_to(ROOT)}")
 
@@ -302,7 +323,7 @@ def main() -> int:
         "MapCodec.unit(INSTANCE)",
         "StreamCodec.unit(INSTANCE)",
     )
-    gate_recipe_text = gate_recipe.read_text(encoding="utf-8")
+    gate_recipe_text = source_text(gate_recipe)
     if "MapCodec.unit(new GateLogicChangeRecipe())" in gate_recipe_text or "StreamCodec.unit(new GateLogicChangeRecipe())" in gate_recipe_text:
         fail("gate logic recipe JSON and network codecs use different unit instances")
 
@@ -315,15 +336,15 @@ def main() -> int:
         "BakedColors.of(argb(quad.vertex_0), argb(quad.vertex_1), argb(quad.vertex_2), argb(quad.vertex_3))",
         "convertPluggables(legacyPlugTranslucent, true)",
     )
-    pipe_native_text = pipe_native.read_text(encoding="utf-8")
+    pipe_native_text = source_text(pipe_native)
     if "PluggableFacade.isGlass(" in pipe_native_text:
         fail("26.1 native pipe model still excludes glass facades from terrain translucent rendering")
     silicon_models_26_1_2 = FAMILY / "buildcraft/silicon/BCSiliconModels.java"
-    silicon_models_26_1_2_text = silicon_models_26_1_2.read_text(encoding="utf-8")
+    silicon_models_26_1_2_text = source_text(silicon_models_26_1_2)
     if "registerRenderer(PluggableFacade.class, PlugFacadeRenderer.INSTANCE)" in silicon_models_26_1_2_text:
         fail("26.1 still renders glass facades through the dynamic pluggable pass")
     pipe_colours = FAMILY / "buildcraft/transport/BCTransportModels.java"
-    if "event.register(PipeBlockColours.INSTANCE" in pipe_colours.read_text(encoding="utf-8"):
+    if "event.register(PipeBlockColours.INSTANCE" in source_text(pipe_colours):
         fail("26.1 pipe block still registers a fixed tint-source list instead of dynamic facade tints")
     require(
         PLATFORM / "buildcraft/transport/block/BlockPipeHolderClientExtensions2612.java",
@@ -337,7 +358,7 @@ def main() -> int:
         facade_pluggable,
         "FacadeTintClient2612.getBlockColor(states.phasedStates[activeState], holder, tintIndex)",
     )
-    facade_pluggable_text = facade_pluggable.read_text(encoding="utf-8")
+    facade_pluggable_text = source_text(facade_pluggable)
     for client_only in ("BlockTintSource", "ClientLevel", "colorInWorld("):
         if client_only in facade_pluggable_text:
             fail(f"26.1 common facade pluggable still directly references client-only tint API {client_only!r}")
@@ -349,7 +370,7 @@ def main() -> int:
         "return tintSource.color(state.stateInfo.state);",
     )
     require(PLATFORM / "buildcraft/silicon/client/model/NativePluggableItemModels2612.java", "NativeItemModelBuilder")
-    native_plugs = (PLATFORM / "buildcraft/silicon/client/model/NativePluggableItemModels2612.java").read_text(encoding="utf-8")
+    native_plugs = source_text(PLATFORM / "buildcraft/silicon/client/model/NativePluggableItemModels2612.java")
     for forbidden in ("PLUG_LIGHT_SENSOR_ITEM", "PLUG_TIMER_ITEM"):
         if forbidden in native_plugs:
             fail(f"26.1 native plug model still eagerly overrides {forbidden}")
@@ -371,7 +392,7 @@ def main() -> int:
         if required not in native_plugs:
             fail(f"26.1 solid facade item backing is missing {required!r}")
 
-    engine_tile_text = engine_tile.read_text(encoding="utf-8")
+    engine_tile_text = source_text(engine_tile)
     pulse_start = engine_tile_text.index("private boolean isPulsedPowerReceiver")
     pulse_end = engine_tile_text.index("public MjPort getPortToPower", pulse_start)
     pulse_body = engine_tile_text[pulse_start:pulse_end]
@@ -386,7 +407,7 @@ def main() -> int:
         fail("26.1 pulse-role lookup still requires a BlockEntity at the final positional MJ endpoint")
 
     renderer = FAMILY / "buildcraft/core/client/render/RenderEngine_BC8.java"
-    renderer_text = renderer.read_text(encoding="utf-8")
+    renderer_text = source_text(renderer)
     moving_start = renderer_text.index("private static void renderMovingHeadCaps")
     moving_end = renderer_text.index("private static void renderDynamoMovingHead", moving_start)
     moving_body = renderer_text[moving_start:moving_end]
@@ -431,11 +452,11 @@ def main() -> int:
     )
     dynamo_model = ROOT / "resource-src/26.X/26.1.2/assets/buildcraftenergy/models/block/mj_dynamo.json"
     require(dynamo_model, '"particle": "buildcraftenergy:blocks/mj_dynamo/back"')
-    dynamo_text = dynamo_model.read_text(encoding="utf-8")
+    dynamo_text = source_text(dynamo_model)
     if '"parent"' in dynamo_text or '"elements"' in dynamo_text:
         fail("26.1 MJ Dynamo block model still contains geometry rendered again by the BER")
     marker_connector = ROOT / "source-families/1.21.X/src/main/java/buildcraft/core/item/ItemMarkerConnector.java"
-    marker_text = marker_connector.read_text(encoding="utf-8")
+    marker_text = source_text(marker_connector)
     use_start = marker_text.index("public InteractionResult use(Level world, Player player, InteractionHand hand)")
     use_end = marker_text.index("private static <S extends MarkerSubCache", use_start)
     use_body = marker_text[use_start:use_end]
@@ -466,7 +487,7 @@ def main() -> int:
         "debuggable.getClientDebugInfo(extraLeft, extraRight, face)",
         "displayer.addLine(line)",
     )
-    if "mc.cameraEntity" in debug_listener.read_text(encoding="utf-8"):
+    if "mc.cameraEntity" in source_text(debug_listener):
         fail("26.1 debug overlay still accesses the removed Minecraft.cameraEntity field")
 
     require(FAMILY / "buildcraft/core/marker/VolumeSubCache.java", "SavedDataCompat.migrateLegacyFlatFile")

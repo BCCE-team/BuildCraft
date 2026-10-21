@@ -17,21 +17,35 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.cache.RemovalNotification;
+//? if neoforge && (>=26.3) {
+//? } else {
 import com.mojang.blaze3d.systems.RenderSystem;
+//?}
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+//? if neoforge && (>=26.3) {
+import com.mojang.renderpearl.api.vertex.VertexFormat;
+//? } else {
 import com.mojang.blaze3d.vertex.VertexFormat;
+//?}
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 
 import net.minecraft.client.Minecraft;
+//? if neoforge && (>=26.3) {
+//? } else {
 import net.minecraft.client.renderer.GameRenderer;
+//?}
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
 import buildcraft.lib.compat.RenderCompat;
+//? if neoforge && (>=26.3) {
+import buildcraft.lib.client.render.compat.BCWorldGeometry;
+//? } else {
+//?}
 public class LaserRenderer_BC8 {
     private static final LoadingCache<LaserData_BC8, LaserCompiledList> COMPILED_STATIC_LASERS;
     private static final LoadingCache<LaserData_BC8, LaserCompiledBuffer> COMPILED_STATIC_CPU_LASERS;
@@ -75,8 +89,12 @@ public class LaserRenderer_BC8 {
     public static void clearModels() {
         COMPILED_LASER_TYPES.clear();
 
+//? if neoforge && (>=26.3) {
+        // Both static caches contain atlas-dependent CPU geometry.
+//? } else {
         // Static lasers own GPU vertex buffers. invalidateAll() followed by cleanUp()
         // invokes the removal listener immediately, which closes those VBOs.
+//?}
         COMPILED_STATIC_LASERS.invalidateAll();
         COMPILED_STATIC_LASERS.cleanUp();
         COMPILED_STATIC_CPU_LASERS.invalidateAll();
@@ -89,17 +107,24 @@ public class LaserRenderer_BC8 {
         COMPILED_DYNAMIC_BOXES.cleanUp();
     }
 
+//? if neoforge && (>=26.3) {
+    /** Selects the block-atlas material; draw state is carried by the submitted RenderType. */
+//? } else {
     /**
      * Marker/path lasers are rendered from RenderLevelStageEvent or custom block-entity buffers instead of the normal
      * chunk model path. Optimized renderers such as Rubidium can leave a different GL state active for those hooks,
      * so make the state explicit before drawing BuildCraft laser VBOs/immediate buffers.
      */
+//?}
     public static void setupLaserRenderState() {
+//? if neoforge && (>=26.3) {
+//? } else {
         RenderCompat.enableDepthTest();
         RenderCompat.depthMask(true);
         RenderCompat.disableBlend();
         RenderCompat.disableCull();
         RenderCompat.setShader(null);
+//?}
         RenderCompat.setShaderTexture(0, net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_BLOCKS);
         RenderCompat.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
@@ -158,7 +183,11 @@ public class LaserRenderer_BC8 {
         int max = 0;
         int count = 0;
         int sum = 0;
+//? if neoforge && (>=26.3) {
+		boolean ao = Minecraft.getInstance().options.ambientOcclusion().get();
+//? } else {
 		boolean ao = Minecraft.useAmbientOcclusion();
+//?}
 
         double xn = (x % 1 + 1) % 1;
         double yn = (y % 1 + 1) % 1;
@@ -195,21 +224,36 @@ public class LaserRenderer_BC8 {
     }
 
     public static void renderLaserStatic(PoseStack pose, Matrix4f matrix, LaserData_BC8 data) {
+//? if neoforge && (>=26.3) {
+//? } else {
         // The current renderer does not expose the old direct VertexBuffer/shader drawing path. Keep static/world lasers on the
         // same CPU vertex format as dynamic lasers and append them to the live level BufferSource instead. The caller
         // flushes this layer once after its world-last batch, avoiding one GPU submission per marker edge.
+//?}
         LaserCompiledBuffer compiled = COMPILED_STATIC_CPU_LASERS.getUnchecked(data);
+//? if neoforge && (>=26.3) {
+        compiled.render(pose.last().pose(), pose.last().normal(), BCWorldGeometry.buffer(RenderCompat.cutout()));
+//? } else {
         net.minecraft.client.renderer.MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
         net.minecraft.client.renderer.rendertype.RenderType renderType = buildcraft.lib.compat.RenderCompat.cutout();
         VertexConsumer buffer = buffers.getBuffer(renderType);
         compiled.render(pose.last().pose(), pose.last().normal(), buffer);
+//?}
     }
 
+//? if neoforge && (>=26.3) {
+    /** Completes recorded vertices; the feature renderer uploads the resulting frame once. */
+//? } else {
     /** Flushes the shared static laser layer after a detached/world-last render batch. */
+//?}
     public static void flushStaticLasers() {
+//? if neoforge && (>=26.3) {
+        BCWorldGeometry.flush();
+//? } else {
         net.minecraft.client.renderer.MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
         buffers.endBatch(buildcraft.lib.compat.RenderCompat.cutout());
         buffers.endBatch(buildcraft.lib.compat.RenderCompat.solid());
+//?}
     }
 
     /** Assumes the buffer uses {@link DefaultVertexFormats#BLOCK} */

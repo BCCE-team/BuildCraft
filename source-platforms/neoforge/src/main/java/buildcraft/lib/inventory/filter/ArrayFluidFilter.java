@@ -44,7 +44,10 @@ public class ArrayFluidFilter implements IFluidFilter {
         return false;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean matches(FluidStack fluid) {
         for (FluidStack filter : fluids) {
             if (filter != null && FluidCompatRegistry.areEquivalent(filter, fluid)) {

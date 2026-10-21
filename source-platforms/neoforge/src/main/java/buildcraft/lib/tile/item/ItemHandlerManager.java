@@ -33,9 +33,17 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.capabilities.BlockCapability;
+//? if mc_26_x {
+import buildcraft.lib.compat.neoforge2612.common.util.INBTSerializable;
+//? } else {
 import net.neoforged.neoforge.common.util.INBTSerializable;
+//?}
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
+//? if mc_26_x {
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
 public class ItemHandlerManager implements IBCCapabilityProvider, INBTSerializable<CompoundTag> {
     public enum EnumAccess {
@@ -132,7 +140,10 @@ public class ItemHandlerManager implements IBCCapabilityProvider, INBTSerializab
         return wrapper == null || wrapper.combined == null ? null : StorageAdapters.fromNativeItems(wrapper.combined);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     @Nullable
     @SuppressWarnings("unchecked")
     public <T> T getCapability(BlockCapability<T, Direction> capability, @Nullable Direction facing) {
@@ -143,7 +154,10 @@ public class ItemHandlerManager implements IBCCapabilityProvider, INBTSerializab
         return null;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public CompoundTag serializeNBT(HolderLookup.Provider registries) {
         CompoundTag nbt = new CompoundTag();
         for (Entry<String, INBTSerializable<CompoundTag>> entry : handlers.entrySet()) {
@@ -153,11 +167,18 @@ public class ItemHandlerManager implements IBCCapabilityProvider, INBTSerializab
         return nbt;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void deserializeNBT(HolderLookup.Provider registries, CompoundTag nbt) {
         for (Entry<String, INBTSerializable<CompoundTag>> entry : handlers.entrySet()) {
             String key = entry.getKey();
+//? if mc_26_x {
+            entry.getValue().deserializeNBT(registries, NbtCompat.getCompound(nbt, key));
+//? } else {
             entry.getValue().deserializeNBT(registries, nbt.getCompound(key));
+//?}
         }
     }
 

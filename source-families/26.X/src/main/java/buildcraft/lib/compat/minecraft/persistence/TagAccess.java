@@ -19,7 +19,11 @@ final class TagAccess {
     static short getShort(CompoundTag tag, String key) { return NbtCompat.getShort(tag, key); }
     static int getInt(CompoundTag tag, String key) { return NbtCompat.getInt(tag, key); }
     static long getLong(CompoundTag tag, String key) { return NbtCompat.getLong(tag, key); }
+//? if neoforge {
+    static float getFloat(CompoundTag tag, String key) { return NbtCompat.getFloat(tag, key); }
+//? } else {
     static float getFloat(CompoundTag tag, String key) { return NbtCompat.getFloat(NbtCompat, tag, key); }
+//?}
     static double getDouble(CompoundTag tag, String key) { return NbtCompat.getDouble(tag, key); }
     static String getString(CompoundTag tag, String key) { return NbtCompat.getString(tag, key); }
     static byte[] getByteArray(CompoundTag tag, String key) { return NbtCompat.getByteArray(tag, key); }

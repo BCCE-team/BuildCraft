@@ -179,7 +179,11 @@ public class BlockWaterGel extends BlockBCBase_Neptune {
                 tries++;
             }
             final int time = next.spreading ? 200 : 400;
+//? if mc_26_x {
+            if (changeable.size() == 3 || world.getRandom().nextDouble() < 0.5) {
+//? } else {
             if (changeable.size() == 3 || world.random.nextDouble() < 0.5) {
+//?}
                 for (BlockPos p : changeable) {
                     if (!world.hasChunkAt(p)
                         || !AutomationPermissionUtil.mayBlock(world, pos, p, null,

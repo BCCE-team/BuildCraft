@@ -45,7 +45,11 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NumericTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
+//? if mc_26_x && (>=26.3) {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
@@ -53,22 +57,46 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
+//? if mc_26_x && (>=26.3) {
+import net.neoforged.neoforge.transfer.fluid.FluidUtil;
+import buildcraft.factory.compat.FactoryTankResourceHandler263;
+//? } else {
 import net.neoforged.neoforge.fluids.FluidUtil;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.lib.compat.GameProfileCompat;
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
 public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
     private static final Vec3i[] SEARCH_NORMAL = new Vec3i[] { //
+//? if mc_26_x && (>=26.3) {
+        Direction.DOWN.getUnitVec3i(), Direction.NORTH.getUnitVec3i(), Direction.SOUTH.getUnitVec3i(), //
+        Direction.WEST.getUnitVec3i(), Direction.EAST.getUnitVec3i() //
+//? } else {
         Direction.DOWN.getNormal(), Direction.NORTH.getNormal(), Direction.SOUTH.getNormal(), //
         Direction.WEST.getNormal(), Direction.EAST.getNormal() //
+//?}
     };
     private static final Vec3i[] SEARCH_GASEOUS = new Vec3i[] { //
+//? if mc_26_x && (>=26.3) {
+        Direction.UP.getUnitVec3i(), Direction.NORTH.getUnitVec3i(), Direction.SOUTH.getUnitVec3i(), //
+        Direction.WEST.getUnitVec3i(), Direction.EAST.getUnitVec3i() //
+//? } else {
         Direction.UP.getNormal(), Direction.NORTH.getNormal(), Direction.SOUTH.getNormal(), //
         Direction.WEST.getNormal(), Direction.EAST.getNormal() //
+//?}
     };
 
+//? if mc_26_x && (>=26.3) {
+    private static final Identifier ADVANCEMENT_FLOOD_SINGLE = Identifier.parse("buildcraftfactory:flooding_the_world");
+//? } else {
     private static final ResourceLocation ADVANCEMENT_FLOOD_SINGLE = ResourceLocation.parse("buildcraftfactory:flooding_the_world");
+//?}
 
     private static final int[] REBUILD_DELAYS = { 16, 32, 64, 128, 256 };
     private static final int MAX_FILL_TARGETS = 4096;
@@ -231,9 +259,16 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
 
     // ITickable
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void update() {
+//? if mc_26_x && (>=26.3) {
+        if (level.isClientSide()) {
+//? } else {
         if (level.isClientSide) {
+//?}
             return;
         }
 
@@ -245,7 +280,12 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
         continueQueueBuild();
         if (tick % 16 == 0) {
             if (!tank.isEmpty() && !queue.isEmpty()) {
+//? if mc_26_x && (>=26.3) {
+                FluidStack fluid = tank.getFluid().copyWithAmount(
+                    Math.min(FluidType.BUCKET_VOLUME, tank.getFluidAmount()));
+//? } else {
                 FluidStack fluid = tank.drain(FluidType.BUCKET_VOLUME, FluidAction.SIMULATE);
+//?}
                 if (fluid != null && fluid.getAmount() >= FluidType.BUCKET_VOLUME) {
                     BlockPos currentPos = queue.removeLast();
                     if (hasOpenPathTo(currentPos) && canFill(currentPos)) {
@@ -256,11 +296,23 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
                             return;
                         }
                         var actor = FakePlayerProvider.INSTANCE.getFakePlayer((ServerLevel) level, getOwner(), currentPos);
+//? if mc_26_x && (>=26.3) {
+                        if (!FluidUtil.tryPlaceFluid(
+                            new FactoryTankResourceHandler263(tank), actor, level, currentPos, true, null
+                        ).isEmpty()) {
+                            AdvancementUtil.unlockAdvancement(GameProfileCompat.id(getOwner()), ADVANCEMENT_FLOOD_SINGLE);
+//? } else {
                         if (FluidUtil.tryPlaceFluid(actor, level, null, currentPos, tank, fluid)) {
                             AdvancementUtil.unlockAdvancement(getOwner().getId(), ADVANCEMENT_FLOOD_SINGLE);
+//?}
                             for (Direction side : Direction.values()) {
+//? if mc_26_x && (>=26.3) {
+                                level.neighborChanged(getBlockState(), currentPos.offset(side.getUnitVec3i()), BCFactoryBlocks.FLOOD_GATE_BLOCK.get(),
+                                    null, false);
+//? } else {
                                 level.neighborChanged(getBlockState(), currentPos.offset(side.getNormal()), BCFactoryBlocks.FLOOD_GATE_BLOCK.get(),
                                     currentPos, false);
+//?}
                             }
                             delayIndex = 0;
                             tick = 0;
@@ -281,7 +333,10 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
 
     // NBT
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     protected void writeData(BCValueOutput bcData) {
         super.writeData(bcData);
         byte b = 0;
@@ -293,13 +348,20 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
         bcData.writeByte("openLogicalSides", b);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     protected void readData(BCValueInput bcData) {
         CompoundTag nbt = bcData.tag();
         super.readData(bcData);
         Tag open = nbt.get("openLogicalSides");
         if (open instanceof NumericTag) {
+//? if mc_26_x && (>=26.3) {
+            byte sides = NbtCompat.getByte((NumericTag) open);
+//? } else {
             byte sides = ((NumericTag) open).getAsByte();
+//?}
             for (Direction face : Direction.values()) {
                 if (((sides >> face.get3DDataValue()) & 1) == 1) {
                     openSides.add(face);
@@ -323,7 +385,10 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
 
     // Networking
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
         if (side == BCNetworkSide.SERVER) {
@@ -334,7 +399,10 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
         if (side == BCNetworkSide.CLIENT) {
@@ -350,14 +418,20 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
         }
     }
     
+//? if mc_26_x && (>=26.3) {
+//? } else {
 	@Override
+//?}
 	public void addDrops(NonNullList<ItemStack> toDrop, int fortune) {
 		super.addDrops(toDrop, fortune);
 	}
 
     // IDebuggable
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void getDebugInfo(List<String> left, List<String> right, Direction side) {
         left.add("fluid = " + tank.getDebugString());
         left.add("open sides = " + openSides.stream().map(Enum::name).collect(Collectors.joining(", ")));

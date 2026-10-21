@@ -66,7 +66,11 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceKey;
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.biome.Biome;
@@ -75,13 +79,22 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraft.nbt.TagParser;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.minecraft.core.registries.BuiltInRegistries;
+//? if mc_26_x {
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
 public class JsonUtil {
 
     public static final JsonDeserializer<FluidStack> FLUID_STACK_DESERIALIZER = (json, type, ctx) -> {
         if (json.isJsonPrimitive() && json.getAsJsonPrimitive().isString()) {
+//? if mc_26_x {
+            String name = NbtCompat.getString(json);
+            Fluid fluid = BuiltInRegistries.FLUID.get(Identifier.parse(name)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.material.Fluids.EMPTY);
+//? } else {
             String name = json.getAsString();
             Fluid fluid = BuiltInRegistries.FLUID.get(ResourceLocation.parse(name));
+//?}
             if (fluid == null) {
                 throw failAndListFluids(name);
             } else {
@@ -92,7 +105,11 @@ public class JsonUtil {
             String id = obj.get("id").getAsString();
             if(id == null) 
             	BCLog.logger.error("key 'id' is null!");
+//? if mc_26_x {
+            Fluid fluid = BuiltInRegistries.FLUID.get(Identifier.parse(id)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.material.Fluids.EMPTY);
+//? } else {
             Fluid fluid = BuiltInRegistries.FLUID.get(ResourceLocation.parse(id));
+//?}
             if (fluid == null) {
                 throw failAndListFluids(id);
             }
@@ -108,11 +125,20 @@ public class JsonUtil {
                     String serialized = obj.get("components").isJsonPrimitive()
                         ? obj.get("components").getAsString()
                         : obj.get("components").toString();
+//? if mc_26_x {
+                    encoded.put("components", NbtCompat.parseTag(serialized));
+//? } else {
                     encoded.put("components", TagParser.parseTag(serialized));
+//?}
                 } else if (obj.has("data") || obj.has("nbt")) {
                     JsonElement raw = obj.has("data") ? obj.get("data") : obj.get("nbt");
+//? if mc_26_x {
+                    String serialized = raw.isJsonPrimitive() ? NbtCompat.getString(raw) : raw.toString();
+                    CompoundTag customData = NbtCompat.parseTag(serialized);
+//? } else {
                     String serialized = raw.isJsonPrimitive() ? raw.getAsString() : raw.toString();
                     CompoundTag customData = TagParser.parseTag(serialized);
+//?}
                     CompoundTag components = new CompoundTag();
                     components.put("minecraft:custom_data", customData);
                     encoded.put("components", components);
@@ -131,34 +157,63 @@ public class JsonUtil {
     };
 
     private static JsonSyntaxException failAndListFluids(String name) {
+//? if mc_26_x {
+        Set<Identifier> knownFluids = BuiltInRegistries.FLUID.keySet();
+//? } else {
         Set<ResourceLocation> knownFluids = BuiltInRegistries.FLUID.keySet();
+//?}
         String msg = "Unknown fluid '" + name + "'.";
         msg += "\nKnown types:";
+//? if mc_26_x {
+        for (Identifier known : new TreeSet<>(knownFluids)) 
+//? } else {
         for (ResourceLocation known : new TreeSet<>(knownFluids)) 
+//?}
             msg += "\n   " + known;
         throw new JsonSyntaxException(msg);
     }
 
     public static final JsonDeserializer<ItemStack> ITEM_STACK_DESERIALIZER = (json, type, ctx) -> {
         if (json.isJsonPrimitive() && json.getAsJsonPrimitive().isString()) {
+//? if mc_26_x {
+            String name = NbtCompat.getString(json);
+            Identifier id = Identifier.parse(name);
+//? } else {
             String name = json.getAsString();
             ResourceLocation id = ResourceLocation.parse(name);
+//?}
             if (!BuiltInRegistries.ITEM.containsKey(id)) {
                 throw new JsonSyntaxException("Unknown item '" + name + "'");
             } else {
+//? if mc_26_x {
+                return new ItemStack(BuiltInRegistries.ITEM.get(id).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR));
+//? } else {
                 return new ItemStack(BuiltInRegistries.ITEM.get(id));
+//?}
             }
         } else if (json.isJsonObject()) {
             JsonObject obj = json.getAsJsonObject();
             String id = obj.get("id").getAsString();
+//? if mc_26_x {
+            Identifier loc = Identifier.parse(id);
+//? } else {
             ResourceLocation loc = ResourceLocation.parse(id);
+//?}
             if (!BuiltInRegistries.ITEM.containsKey(loc)) {
                 throw new JsonSyntaxException("Unknown item '" + id + "'");
             }
+//? if mc_26_x {
+            Item item = BuiltInRegistries.ITEM.get(loc).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR);
+//? } else {
             Item item = BuiltInRegistries.ITEM.get(loc);
+//?}
             int count = 1;
             if (obj.has("count")) {
+//? if mc_26_x {
+                count = obj.get("count").getAsInt();
+//? } else {
                 count = JsonUtil.getInt(obj, "count");
+//?}
             }
             CompoundTag data = null;
             if (obj.has("data")) {
@@ -166,13 +221,21 @@ public class JsonUtil {
                     ? obj.get("data").getAsString()
                     : obj.get("data").toString();
                 try {
+//? if mc_26_x {
+                    data = NbtCompat.parseTag(serializedData);
+//? } else {
                     data = TagParser.parseTag(serializedData);
+//?}
                 } catch (CommandSyntaxException e) {
                     throw new JsonSyntaxException("Invalid item data tag for '" + id + "': " + serializedData, e);
                 }
             } else if (obj.has("meta")) {
                 BCLog.logger.warn("[lib.recipe] Found deprecated item 'meta' tag inside of " + json);
+//? if mc_26_x {
+//                meta = NbtCompat.getInt(JsonUtil, obj, "meta");
+//? } else {
 //                meta = JsonUtil.getInt(obj, "meta");
+//?}
             }
             ItemStack stack = new ItemStack(item, count);
             if(data != null) 
@@ -252,7 +315,11 @@ public class JsonUtil {
         if (!element.isJsonPrimitive()) {
             throw new JsonSyntaxException("Needed a primitive, but got " + element);
         }
+//? if mc_26_x {
+        return NbtCompat.getString(element);
+//? } else {
         return element.getAsString();
+//?}
     }
 
     public static String[] getAsStringArray(JsonElement elem) {
@@ -298,15 +365,24 @@ public class JsonUtil {
         }
     }
 
+//? if mc_26_x {
+    public static Identifier getIdentifier(JsonObject obj, String sub) {
+        Identifier ident = getIdentifier(obj, sub, null);
+//? } else {
     public static ResourceLocation getIdentifier(JsonObject obj, String sub) {
         ResourceLocation ident = getIdentifier(obj, sub, null);
+//?}
         if (ident == null) {
             throw new JsonSyntaxException("Expected to find '" + sub + "' as a string, but found nothing!");
         }
         return ident;
     }
 
+//? if mc_26_x {
+    public static Identifier getIdentifier(JsonObject obj, String sub, Identifier _default) {
+//? } else {
     public static ResourceLocation getIdentifier(JsonObject obj, String sub, ResourceLocation _default) {
+//?}
         if (!obj.has(sub)) {
             return _default;
         }
@@ -317,7 +393,11 @@ public class JsonUtil {
         }
         String domain = str.substring(0, index);
         String path = str.substring(index + 1);
+//? if mc_26_x {
+        return Identifier.fromNamespaceAndPath(domain, path);
+//? } else {
         return ResourceLocation.fromNamespaceAndPath(domain, path);
+//?}
     }
 
     public static int getInt(JsonObject obj, String string) {
@@ -337,7 +417,11 @@ public class JsonUtil {
         }
         if (prim.isString()) {
             try {
+//? if mc_26_x {
+                INodeLong exp = GenericExpressionCompiler.compileExpressionLong(NbtCompat.getString(prim));
+//? } else {
                 INodeLong exp = GenericExpressionCompiler.compileExpressionLong(prim.getAsString());
+//?}
                 return (int) exp.evaluate();
             } catch (InvalidExpressionException iee) {
                 throw new JsonSyntaxException("Expected an int or an expression, but got '" + prim + "'", iee);
@@ -384,7 +468,11 @@ public class JsonUtil {
         for (Entry<String, JsonElement> key : obj.entrySet()) {
             JsonElement value = key.getValue();
             if (value.isJsonPrimitive()) {
+//? if mc_26_x {
+                map.put(key.getKey(), NbtCompat.getString(value));
+//? } else {
                 map.put(key.getKey(), value.getAsString());
+//?}
             } else {
                 throw new JsonSyntaxException("Expected a string, but got '" + value + "'");
             }
@@ -430,7 +518,11 @@ public class JsonUtil {
             if (!in.isJsonPrimitive() || !in.getAsJsonPrimitive().isString()) {
                 throw new JsonSyntaxException("Expected a string, but got '" + in + "'");
             }
+//? if mc_26_x {
+            String target = NbtCompat.getString(in);
+//? } else {
             String target = in.getAsString();
+//?}
             JsonObject toInline = inlineMap.get(target);
             if (toInline == null) {
                 throw new JsonSyntaxException("Didn't find the inline " + target);
@@ -458,11 +550,17 @@ public class JsonUtil {
 
     public static GsonBuilder registerNbtSerializersDeserializers(GsonBuilder gsonBuilder) {
         return gsonBuilder.registerTypeAdapterFactory(new TypeAdapterFactory() {
+//? if mc_26_x {
+//? } else {
             @Override
+//?}
             public <T> TypeAdapter<T> create(Gson gson, TypeToken<T> type) {
                 return type.getRawType() == Tag.class ? new TypeAdapter<T>() {
                     @SuppressWarnings("unchecked")
+//? if mc_26_x {
+//? } else {
 					@Override
+//?}
                     public void write(JsonWriter out, T value) throws IOException {
                         // noinspection unchecked, RedundantCast
                         Streams.write(((JsonSerializer<T>) (JsonSerializer<Tag>) (src, typeOfSrc, context) -> {
@@ -496,19 +594,28 @@ public class JsonUtil {
                                     throw new IllegalArgumentException(src.toString());
                             }
                         }).serialize(value, type.getType(), new JsonSerializationContext() {
+//? if mc_26_x {
+//? } else {
                             @Override
+//?}
                             public JsonElement serialize(Object src) {
                                 return gson.toJsonTree(src);
                             }
 
+//? if mc_26_x {
+//? } else {
                             @Override
+//?}
                             public JsonElement serialize(Object src, Type typeOfSrc) {
                                 return gson.toJsonTree(src, typeOfSrc);
                             }
                         }), out);
                     }
 
+//? if mc_26_x {
+//? } else {
                     @Override
+//?}
                     public T read(JsonReader in) throws IOException {
                         return ((JsonDeserializer<T>) (json, typeOfT, context) -> {
                             if (json.isJsonNull()) {
@@ -544,32 +651,56 @@ public class JsonUtil {
                 } : null;
             }
         }).registerTypeAdapter(ByteTag.class,
+//? if mc_26_x {
+            (JsonSerializer<ByteTag>) (src, typeOfSrc, context) -> new JsonPrimitive(NbtCompat.getByte(src)))
+//? } else {
             (JsonSerializer<ByteTag>) (src, typeOfSrc, context) -> new JsonPrimitive(src.getAsByte()))
+//?}
             .registerTypeAdapter(ByteTag.class,
                 (JsonDeserializer<
                     ByteTag>) (json, typeOfT, context) -> ByteTag.valueOf(json.getAsJsonPrimitive().getAsByte()))
             .registerTypeAdapter(ShortTag.class,
+//? if mc_26_x {
+                (JsonSerializer<ShortTag>) (src, typeOfSrc, context) -> new JsonPrimitive(NbtCompat.getShort(src)))
+//? } else {
                 (JsonSerializer<ShortTag>) (src, typeOfSrc, context) -> new JsonPrimitive(src.getAsShort()))
+//?}
             .registerTypeAdapter(ShortTag.class,
                 (JsonDeserializer<
                     ShortTag>) (json, typeOfT, context) -> ShortTag.valueOf(json.getAsJsonPrimitive().getAsShort()))
             .registerTypeAdapter(IntTag.class,
+//? if mc_26_x {
+                (JsonSerializer<IntTag>) (src, typeOfSrc, context) -> new JsonPrimitive(NbtCompat.getInt(src)))
+//? } else {
                 (JsonSerializer<IntTag>) (src, typeOfSrc, context) -> new JsonPrimitive(src.getAsInt()))
+//?}
             .registerTypeAdapter(IntTag.class,
                 (JsonDeserializer<
                     IntTag>) (json, typeOfT, context) -> IntTag.valueOf(json.getAsJsonPrimitive().getAsInt()))
             .registerTypeAdapter(LongTag.class,
+//? if mc_26_x {
+                (JsonSerializer<LongTag>) (src, typeOfSrc, context) -> new JsonPrimitive(NbtCompat.getLong(src)))
+//? } else {
                 (JsonSerializer<LongTag>) (src, typeOfSrc, context) -> new JsonPrimitive(src.getAsLong()))
+//?}
             .registerTypeAdapter(LongTag.class,
                 (JsonDeserializer<
                     LongTag>) (json, typeOfT, context) -> LongTag.valueOf(json.getAsJsonPrimitive().getAsLong()))
             .registerTypeAdapter(FloatTag.class,
+//? if mc_26_x {
+                (JsonSerializer<FloatTag>) (src, typeOfSrc, context) -> new JsonPrimitive(NbtCompat.getFloat(src)))
+//? } else {
                 (JsonSerializer<FloatTag>) (src, typeOfSrc, context) -> new JsonPrimitive(src.getAsFloat()))
+//?}
             .registerTypeAdapter(FloatTag.class,
                 (JsonDeserializer<
                     FloatTag>) (json, typeOfT, context) -> FloatTag.valueOf(json.getAsJsonPrimitive().getAsFloat()))
             .registerTypeAdapter(DoubleTag.class,
+//? if mc_26_x {
+                (JsonSerializer<DoubleTag>) (src, typeOfSrc, context) -> new JsonPrimitive(NbtCompat.getDouble(src)))
+//? } else {
                 (JsonSerializer<DoubleTag>) (src, typeOfSrc, context) -> new JsonPrimitive(src.getAsDouble()))
+//?}
             .registerTypeAdapter(DoubleTag.class,
                 (JsonDeserializer<DoubleTag>) (json, typeOfT,
                     context) -> DoubleTag.valueOf(json.getAsJsonPrimitive().getAsDouble()))
@@ -605,7 +736,11 @@ public class JsonUtil {
                 return nbtTagList;
             }).registerTypeAdapter(CompoundTag.class, (JsonSerializer<CompoundTag>) (src, typeOfSrc, context) -> {
                 JsonObject jsonObject = new JsonObject();
+//? if mc_26_x {
+                for (String key : NbtCompat.getAllKeys(src)) {
+//? } else {
                 for (String key : src.getAllKeys()) {
+//?}
                     jsonObject.add(key, context.serialize(src.get(key), Tag.class));
                 }
                 return jsonObject;

@@ -3,7 +3,11 @@ package buildcraft.lib.client.sprite;
 
 import javax.annotation.Nullable;
 import org.joml.Matrix3x2f;
+//? if neoforge && (>=26.3) {
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+//? } else {
 import com.mojang.blaze3d.pipeline.RenderPipeline;
+//?}
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import buildcraft.lib.compat.RenderCompat;
 import buildcraft.lib.internal.core.render.ISprite;

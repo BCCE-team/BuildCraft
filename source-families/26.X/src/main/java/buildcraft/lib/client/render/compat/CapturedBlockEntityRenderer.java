@@ -12,7 +12,11 @@ import javax.annotation.Nullable;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+//? if neoforge && (>=26.3) {
+import buildcraft.lib.compat.minecraft.render.BCVertexBuffers;
+//? } else {
 import net.minecraft.client.renderer.MultiBufferSource;
+//?}
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
@@ -34,7 +38,11 @@ import net.minecraft.world.phys.Vec3;
 public interface CapturedBlockEntityRenderer<T extends BlockEntity>
     extends BlockEntityRenderer<T, CapturedBlockEntityRenderer.GeometryState> {
 
+//? if neoforge && (>=26.3) {
+    void renderLegacy(T tile, float partialTick, PoseStack pose, BCVertexBuffers buffers, int light, int overlay);
+//? } else {
     void renderLegacy(T tile, float partialTick, PoseStack pose, MultiBufferSource buffers, int light, int overlay);
+//?}
 
     default GeometryState createRenderState() {
         return new GeometryState();
@@ -48,11 +56,20 @@ public interface CapturedBlockEntityRenderer<T extends BlockEntity>
             return;
         }
         RecordingBuffers buffers = new RecordingBuffers();
+//? if neoforge && (>=26.3) {
+        try (BCWorldGeometry.Scope ignored = BCWorldGeometry.bind(buffers)) {
+            renderLegacy(tile, partialTick, new PoseStack(), buffers, state.lightCoords, OverlayTexture.NO_OVERLAY);
+        }
+//? } else {
         renderLegacy(tile, partialTick, new PoseStack(), buffers, state.lightCoords, OverlayTexture.NO_OVERLAY);
+//?}
         state.layers = buffers.finish();
     }
 
     default void submit(GeometryState state, PoseStack pose, SubmitNodeCollector collector, CameraRenderState camera) {
+//? if neoforge && (>=26.3) {
+        BCWorldGeometry.submit(state.layers, pose, collector);
+//? } else {
         for (Layer layer : state.layers) {
             collector.submitCustomGeometry(pose, layer.type(), (transform, target) -> {
                 for (Vertex vertex : layer.vertices()) {
@@ -60,12 +77,19 @@ public interface CapturedBlockEntityRenderer<T extends BlockEntity>
                 }
             });
         }
+//?}
     }
 
     final class GeometryState extends BlockEntityRenderState {
         private List<Layer> layers = List.of();
     }
 
+//? if neoforge && (>=26.3) {
+    record Layer(RenderType type, List<Vertex> vertices) {
+        public Layer {
+            java.util.Objects.requireNonNull(type);
+            vertices = List.copyOf(vertices);
+//? } else {
     record Layer(RenderType type, List<Vertex> vertices) {}
 
     record Vertex(float x, float y, float z, int r, int g, int b, int a, float u, float v,
@@ -74,17 +98,39 @@ public interface CapturedBlockEntityRenderer<T extends BlockEntity>
             target.addVertex(pose.pose(), x, y, z).setColor(r, g, b, a).setUv(u, v)
                 .setUv1(overlayU, overlayV).setUv2(lightU, lightV).setNormal(pose, nx, ny, nz)
                 .setLineWidth(width);
+//?}
         }
     }
 
+//? if neoforge && (>=26.3) {
+    record Vertex(float x, float y, float z, int r, int g, int b, int a, float u, float v,
+        int overlayU, int overlayV, int lightU, int lightV, float nx, float ny, float nz, float width, float decalU, float decalV) {
+        public void emit(PoseStack.Pose pose, VertexConsumer target) {
+            target.addVertex(pose.pose(), x, y, z).setColor(r, g, b, a).setUv(u, v)
+                .setUv1(overlayU, overlayV).setUv2(lightU, lightV).setNormal(pose, nx, ny, nz)
+                .setLineWidth(width).setUv3(decalU, decalV);
+        }
+    }
+
+    final class RecordingBuffers implements BCVertexBuffers {
+//? } else {
     final class RecordingBuffers implements MultiBufferSource {
+//?}
         private final Map<RenderType, RecordingConsumer> layers = new LinkedHashMap<>();
 
         public VertexConsumer getBuffer(RenderType type) {
             return layers.computeIfAbsent(type, ignored -> new RecordingConsumer());
         }
 
+//? if neoforge && (>=26.3) {
+        public void endVertices() {
+            layers.values().forEach(RecordingConsumer::endVertex);
+        }
+
+        public List<Layer> finish() {
+//? } else {
         List<Layer> finish() {
+//?}
             List<Layer> result = new ArrayList<>();
             layers.forEach((type, consumer) -> {
                 consumer.endVertex();
@@ -99,13 +145,21 @@ public interface CapturedBlockEntityRenderer<T extends BlockEntity>
     final class RecordingConsumer implements VertexConsumer {
         private final List<Vertex> vertices = new ArrayList<>();
         private boolean active;
+//? if neoforge && (>=26.3) {
+        private float x, y, z, u, v, nx, ny, nz, width, decalU, decalV;
+//? } else {
         private float x, y, z, u, v, nx, ny, nz, width;
+//?}
         private int r, g, b, a, overlayU, overlayV, lightU, lightV;
 
         private void endVertex() {
             if (active) {
                 vertices.add(new Vertex(x, y, z, r, g, b, a, u, v, overlayU, overlayV, lightU, lightV,
+//? if neoforge && (>=26.3) {
+                    nx, ny, nz, width, decalU, decalV));
+//? } else {
                     nx, ny, nz, width));
+//?}
                 active = false;
             }
         }
@@ -114,7 +168,11 @@ public interface CapturedBlockEntityRenderer<T extends BlockEntity>
             endVertex();
             this.x = x; this.y = y; this.z = z;
             r = g = b = a = 255;
+//? if neoforge && (>=26.3) {
+            u = v = nx = nz = decalU = decalV = 0; ny = 1; width = 1;
+//? } else {
             u = v = nx = nz = 0; ny = 1; width = 1;
+//?}
             overlayU = overlayV = lightU = lightV = 0;
             active = true;
             return this;
@@ -128,6 +186,10 @@ public interface CapturedBlockEntityRenderer<T extends BlockEntity>
         public VertexConsumer setUv(float u, float v) { this.u = u; this.v = v; return this; }
         public VertexConsumer setUv1(int u, int v) { overlayU = u; overlayV = v; return this; }
         public VertexConsumer setUv2(int u, int v) { lightU = u; lightV = v; return this; }
+//? if neoforge && (>=26.3) {
+        public VertexConsumer setUv3(float u, float v) { decalU = u; decalV = v; return this; }
+//? } else {
+//?}
         public VertexConsumer setNormal(float x, float y, float z) { nx = x; ny = y; nz = z; return this; }
         public VertexConsumer setLineWidth(float width) { this.width = width; return this; }
     }

@@ -105,7 +105,11 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     @Override
     public void onLoad() {
         super.onLoad();
+//? if mc_26_x {
+        offset = level.getRandom().nextInt(10);
+//? } else {
         offset = level.random.nextInt(10);
+//?}
     }
 
     @Override

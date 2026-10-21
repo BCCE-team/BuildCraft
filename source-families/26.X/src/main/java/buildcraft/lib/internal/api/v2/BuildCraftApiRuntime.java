@@ -14,6 +14,10 @@ import buildcraft.api.v2.machine.BuiltInMachineProperties;
 import buildcraft.api.v2.machine.MachineProperty;
 import buildcraft.api.v2.registry.RegistryKey;
 import buildcraft.lib.internal.api.v2.registry.ApiRegistryImpl;
+//? if neoforge {
+import buildcraft.lib.internal.api.v2.reload.DefinitionReloadServiceImpl;
+//? } else {
+//?}
 import buildcraft.api.v2.service.ServiceKey;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,12 +35,25 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     private final ApiFeatureSet features = ApiFeatureSet.of(List.of(
         new ApiFeature(BuildCraftFeatures.REGISTRIES, 1),
         new ApiFeature(BuildCraftFeatures.PERSISTENCE, 1),
+//? if neoforge {
+        new ApiFeature(BuildCraftFeatures.RELOAD, 2),
+//? } else {
         new ApiFeature(BuildCraftFeatures.RELOAD, 1),
+//?}
         new ApiFeature(BuildCraftFeatures.TRANSFER, 1),
         new ApiFeature(BuildCraftFeatures.PERMISSIONS, 1),
+//? if neoforge {
+        new ApiFeature(BuildCraftFeatures.WORLD_CONTEXT, 1),
+        new ApiFeature(BuildCraftFeatures.WORLD_EVENTS, 1),
+//? } else {
+//?}
         new ApiFeature(BuildCraftFeatures.ENERGY, 1),
         new ApiFeature(BuildCraftFeatures.DATA_DOMAINS, 1),
+//? if neoforge {
+        new ApiFeature(BuildCraftFeatures.PIPES, 2),
+//? } else {
         new ApiFeature(BuildCraftFeatures.PIPES, 1),
+//?}
         new ApiFeature(BuildCraftFeatures.PIPE_FLUID_MOVEMENT, 1),
         new ApiFeature(BuildCraftFeatures.PIPE_POWER_MOVEMENT, 1),
         new ApiFeature(BuildCraftFeatures.PIPE_ENDPOINTS, 1),
@@ -44,12 +61,25 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         new ApiFeature(BuildCraftFeatures.STATEMENTS, 1),
         new ApiFeature(BuildCraftFeatures.SIGNALS, 1),
         new ApiFeature(BuildCraftFeatures.AUTOMATION, 1),
+//? if neoforge {
+        new ApiFeature(BuildCraftFeatures.ROBOTS, 2),
+//? } else {
         new ApiFeature(BuildCraftFeatures.ROBOTS, 1),
+//?}
         new ApiFeature(BuildCraftFeatures.ROBOT_BOARD_PROGRAMS, 1),
+//? if neoforge {
+        new ApiFeature(BuildCraftFeatures.LOGISTICS, 1),
+//? } else {
+//?}
         new ApiFeature(BuildCraftFeatures.SCHEMATICS, 1),
         new ApiFeature(BuildCraftFeatures.LIBRARY_FORMATS, 1),
+//? if neoforge {
+        new ApiFeature(BuildCraftFeatures.MACHINES, 2),
+        new ApiFeature(BuildCraftFeatures.CLIENT_PRESENTATION, 2),
+//? } else {
         new ApiFeature(BuildCraftFeatures.MACHINES, 1),
         new ApiFeature(BuildCraftFeatures.CLIENT_PRESENTATION, 1),
+//?}
         new ApiFeature(BuildCraftFeatures.CONTENT_EXTENSION, 1),
         new ApiFeature(BuildCraftFeatures.GUIDE, 1),
         new ApiFeature(BuildCraftFeatures.FACADE_PHASES, 1),
@@ -70,6 +100,11 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     private final FacadeRuleRegistryImpl facadeRules = new FacadeRuleRegistryImpl();
     private final WorldPropertyServiceImpl worldProperties = new WorldPropertyServiceImpl();
     private final WorldRuleServiceImpl worldRules = new WorldRuleServiceImpl();
+//? if neoforge {
+    private final WorldAccessServiceImpl worldAccess = new WorldAccessServiceImpl();
+    private final WorldEventServiceImpl worldEvents = new WorldEventServiceImpl();
+//? } else {
+//?}
     private final ApiDiagnosticsImpl diagnostics = new ApiDiagnosticsImpl();
     private final GuideServiceImpl guide = new GuideServiceImpl();
     private final WorldgenServiceImpl worldgen = new WorldgenServiceImpl();
@@ -83,6 +118,10 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     private final AutomationServiceImpl automation = new AutomationServiceImpl();
     private final ActorServiceImpl actors = new ActorServiceImpl();
     private final ModuleServiceImpl modules = new ModuleServiceImpl();
+//? if neoforge {
+    private final DefinitionReloadServiceImpl definitionReload = new DefinitionReloadServiceImpl();
+//? } else {
+//?}
     private final WrenchServiceImpl wrenches = new WrenchServiceImpl();
     private final BlockInteractionServiceImpl blockInteractions = new BlockInteractionServiceImpl();
     private final DebugServiceImpl debugViews = new DebugServiceImpl();
@@ -104,6 +143,11 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         services.put(BuildCraftServices.FACADE_RULES, facadeRules);
         services.put(BuildCraftServices.WORLD_PROPERTIES, worldProperties);
         services.put(BuildCraftServices.WORLD_RULES, worldRules);
+//? if neoforge {
+        services.put(BuildCraftServices.WORLD_ACCESS, worldAccess);
+        services.put(BuildCraftServices.WORLD_EVENTS, worldEvents);
+//? } else {
+//?}
         services.put(BuildCraftServices.DIAGNOSTICS, diagnostics);
         services.put(BuildCraftServices.GUIDE, guide);
         services.put(BuildCraftServices.WORLDGEN, worldgen);
@@ -117,6 +161,10 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         services.put(BuildCraftServices.AUTOMATION, automation);
         services.put(BuildCraftServices.ACTORS, actors);
         services.put(BuildCraftServices.MODULES, modules);
+//? if neoforge {
+        services.put(BuildCraftServices.DEFINITION_RELOAD, definitionReload);
+//? } else {
+//?}
         services.put(BuildCraftServices.WRENCHES, wrenches);
         services.put(BuildCraftServices.BLOCK_INTERACTIONS, blockInteractions);
         services.put(BuildCraftServices.DEBUG_VIEWS, debugViews);
@@ -172,6 +220,11 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         registerRegistry(BuildCraftRegistries.PAINT_HANDLERS);
         registerRegistry(BuildCraftRegistries.WRENCH_ADAPTERS);
         registerRegistry(BuildCraftRegistries.CLIENT_PRESENTATIONS);
+//? if neoforge {
+        registerRegistry(BuildCraftRegistries.DYNAMIC_PRESENTATIONS);
+        registerRegistry(BuildCraftRegistries.MENU_PRESENTATIONS);
+//? } else {
+//?}
         registerRegistry(BuildCraftRegistries.PIPE_PRESENTATIONS);
         registerRegistry(BuildCraftRegistries.STATEMENT_PRESENTATIONS);
         registerRegistry(BuildCraftRegistries.PARAMETER_PRESENTATIONS);
@@ -241,7 +294,19 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
             throw new IllegalStateException("API lifecycle phase skipped: " + lifecycle + " -> " + next);
         }
         if (next == ApiLifecycle.FROZEN) {
+//? if neoforge {
+            // Preflight every registry and external module before committing any freeze state.
+            for (ApiRegistryImpl<?> registry : registries.values()) registry.validateFreeze();
+            modules.validateFreeze();
+//? } else {
+//?}
             for (ApiRegistryImpl<?> registry : registries.values()) registry.freeze();
+//? if neoforge {
+            modules.freeze();
+            definitionReload.freeze();
+            worldEvents.freeze();
+//? } else {
+//?}
         }
         lifecycle = next;
     }

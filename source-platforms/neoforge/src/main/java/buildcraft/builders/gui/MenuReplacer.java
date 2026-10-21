@@ -6,6 +6,12 @@ import javax.annotation.Nullable;
 
 import buildcraft.builders.BCBuildersBlocks;
 import buildcraft.builders.BCBuildersGuis;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.builders.compat.BuildersItemContainer263;
+import buildcraft.lib.tile.item.ItemHandlerSimple;
+import net.minecraft.world.Container;
+//? } else {
+//?}
 import buildcraft.builders.item.ItemSchematicSingle;
 import buildcraft.builders.item.ItemSnapshot;
 import buildcraft.builders.tile.TileReplacer;
@@ -19,9 +25,12 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
+//? if mc_26_x && (>=26.3) {
+//? } else {
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
 import net.neoforged.neoforge.items.SlotItemHandler;
+//?}
 
 public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
 
@@ -32,6 +41,10 @@ public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
     private static final int HOTBAR_END = HOTBAR_START + 9;
 
     protected final ContainerLevelAccess access;
+//? if mc_26_x && (>=26.3) {
+    private final BuildersItemContainer263 machineInventory;
+//? } else {
+//?}
     @Nullable
     public final TileReplacer tile;
 
@@ -39,24 +52,46 @@ public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
         this(
             containerId,
             playerInventory,
+//? if mc_26_x && (>=26.3) {
+            new ItemHandlerSimple(1),
+            new ItemHandlerSimple(1),
+            new ItemHandlerSimple(1),
+//? } else {
             new ItemStackHandler(1),
             new ItemStackHandler(1),
             new ItemStackHandler(1),
+//?}
             createLevelAccess(playerInventory, buf)
         );
     }
 
     public MenuReplacer(int containerId, Inventory playerInventory) {
+//? if mc_26_x && (>=26.3) {
+        this(containerId, playerInventory, new ItemHandlerSimple(1), new ItemHandlerSimple(1), new ItemHandlerSimple(1), ContainerLevelAccess.NULL);
+//? } else {
         this(containerId, playerInventory, new ItemStackHandler(1), new ItemStackHandler(1), new ItemStackHandler(1), ContainerLevelAccess.NULL);
+//?}
     }
 
+//? if mc_26_x && (>=26.3) {
+    public MenuReplacer(int containerId, Inventory playerInventory, ItemHandlerSimple snapshot, ItemHandlerSimple from, ItemHandlerSimple to, ContainerLevelAccess access) {
+//? } else {
     public MenuReplacer(int containerId, Inventory playerInventory, IItemHandler snapshot, IItemHandler from, IItemHandler to, ContainerLevelAccess access) {
+//?}
         super(playerInventory, BCBuildersGuis.MENU_REPLACER.get(), containerId);
         this.access = access;
+//? if mc_26_x && (>=26.3) {
+        this.machineInventory = new BuildersItemContainer263(snapshot, from, to);
+//? } else {
+//?}
         this.tile = access.evaluate((level, pos) -> {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof TileReplacer replacer) {
+//? if mc_26_x && (>=26.3) {
+                if (!level.isClientSide()) {
+//? } else {
                 if (!level.isClientSide) {
+//?}
                     replacer.onPlayerOpen(playerInventory.player);
                 }
                 return replacer;
@@ -65,9 +100,15 @@ public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
         }, null);
 
         // BC8 layout: blueprint preview at the top, source/target schematic slots near the bottom, then player inventory.
+//? if mc_26_x && (>=26.3) {
+        this.addSlot(filteredSlot(machineInventory, 0, 8, 115, MenuReplacer::isUsedBlueprint));
+        this.addSlot(filteredSlot(machineInventory, 1, 8, 137, ItemSchematicSingle::isValidUsed));
+        this.addSlot(filteredSlot(machineInventory, 2, 56, 137, ItemSchematicSingle::isValidUsed));
+//? } else {
         this.addSlot(filteredSlot(snapshot, 0, 8, 115, MenuReplacer::isUsedBlueprint));
         this.addSlot(filteredSlot(from, 0, 8, 137, ItemSchematicSingle::isValidUsed));
         this.addSlot(filteredSlot(to, 0, 56, 137, ItemSchematicSingle::isValidUsed));
+//?}
 
         for (int row = 0; row < 3; ++row) {
             for (int col = 0; col < 9; ++col) {
@@ -80,19 +121,30 @@ public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+    private static Slot filteredSlot(Container handler, int index, int x, int y, Predicate<ItemStack> filter) {
+        return new Slot(handler, index, x, y) {
+//? } else {
     private static SlotItemHandler filteredSlot(IItemHandler handler, int index, int x, int y, Predicate<ItemStack> filter) {
         return new SlotItemHandler(handler, index, x, y) {
             @Override
+//?}
             public boolean mayPlace(ItemStack stack) {
                 return filter.test(stack) && super.mayPlace(stack);
             }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
             @Override
+//?}
             public int getMaxStackSize() {
                 return 1;
             }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
             @Override
+//?}
             public int getMaxStackSize(ItemStack stack) {
                 return 1;
             }
@@ -104,7 +156,10 @@ public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
             ItemSnapshot.EnumItemSnapshotType.getFromStack(stack) == ItemSnapshot.EnumItemSnapshotType.BLUEPRINT_USED;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void removed(Player player) {
         super.removed(player);
         if (tile != null) {
@@ -112,7 +167,10 @@ public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void broadcastChanges() {
         super.broadcastChanges();
         if (tile != null) {
@@ -120,7 +178,10 @@ public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public ItemStack quickMoveStack(Player player, int index) {
         ItemStack original = ItemStack.EMPTY;
         Slot slot = this.slots.get(index);
@@ -165,7 +226,10 @@ public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
         return original;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean stillValid(Player player) {
         if (tile != null) {
             return tile.canInteractWith(player);
@@ -173,7 +237,10 @@ public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
         return buildcraft.lib.gui.BCMenuUtil.stillValidBlock(this.access, player, BCBuildersBlocks.REPLACER.get());
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public TileBC_Neptune getBCTile() {
         return tile;
     }

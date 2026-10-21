@@ -8,12 +8,13 @@ representative target instead of pinning the previous physical owner.
 from __future__ import annotations
 
 from pathlib import Path
+import tempfile
 import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 from source_config import load_properties, target_layout
-from source_layout import resolve_effective_source
+from source_layout import _materialize_text_file, resolve_effective_source
 
 _PROPS = None
 
@@ -102,3 +103,31 @@ def resolve_target_source(target: str, logical: str | Path) -> Path:
 
 def read_source(rel: str | Path, *, encoding: str = "utf-8") -> str:
     return resolve_source_path(rel).read_text(encoding=encoding)
+
+
+def read_materialized_java(target: str, logical: str | Path) -> str:
+    """Read exactly the Java source emitted by Stonecutter for one target.
+
+    A maintained source can contain alternative Minecraft/loader branches. Java
+    fixtures and assertions must inspect the *selected* branch rather than raw
+    source text, especially after consolidating formerly separate Java files.
+    """
+    logical_s = Path(logical).as_posix()
+    if not logical_s.startswith("src/main/java/") or not logical_s.endswith(".java"):
+        raise ValueError(f"Expected src/main/java/...java, got {logical_s!r}")
+    props = _props()
+    layout = target_layout(target, props)
+    source = resolve_effective_source(layout, props, logical_s)
+    if source is None:
+        raise FileNotFoundError(f"{target}: no effective Java source for {logical_s}")
+    downports = (layout.family_downport_root, layout.family_platform_downport_root)
+    native = any(source.is_relative_to(root) for root in downports if root is not None)
+    with tempfile.TemporaryDirectory(prefix="bcce-selected-java-") as directory:
+        result = Path(directory) / logical_s
+        _materialize_text_file(
+            source, result, logical_relative=logical_s,
+            minecraft=props[f"target.{target}.deps.minecraft"],
+            family=layout.family, platform=layout.platform,
+            preprocess=True, native_source=native,
+        )
+        return result.read_text(encoding="utf-8")

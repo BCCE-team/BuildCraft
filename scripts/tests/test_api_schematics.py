@@ -8,6 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from source_lookup import resolve_source_path
+
 import shutil
 import subprocess
 import tempfile
@@ -271,7 +273,9 @@ class TemplatePlacementConformanceTest(unittest.TestCase):
   features=(TEMPLATES_API/'buildcraft/api/v2/BuildCraftFeatures.java').read_text()
   self.assertIn('LIBRARY_FORMATS = id("library_formats")',features)
   for location in ('source-shared','source-families/26.X','source-family-platforms/26.X/neoforge'):
-   runtime=(ROOT/f'{location}/src/main/java/buildcraft/lib/internal/api/v2/BuildCraftApiRuntime.java').read_text()
+   runtime=resolve_source_path(
+    f'{location}/src/main/java/buildcraft/lib/internal/api/v2/BuildCraftApiRuntime.java'
+   ).read_text()
    self.assertIn('new ApiFeature(BuildCraftFeatures.LIBRARY_FORMATS, 1)',runtime)
 
 

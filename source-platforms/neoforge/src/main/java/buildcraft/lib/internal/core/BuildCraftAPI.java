@@ -6,7 +6,11 @@ package buildcraft.lib.internal.core;
 
 import java.util.Optional;
 
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.ModLoadingContext;
@@ -23,12 +27,21 @@ public final class BuildCraftAPI {
         return "UNKNOWN VERSION";
     }
 
+//? if mc_26_x {
+    public static Identifier nameToResourceLocation(String name) {
+        if (name.indexOf(':') > 0) return Identifier.parse(name);
+//? } else {
     public static ResourceLocation nameToResourceLocation(String name) {
         if (name.indexOf(':') > 0) return ResourceLocation.parse(name);
+//?}
         ModContainer modContainer = ModLoadingContext.get().getActiveContainer();
         if (modContainer == null) {
             throw new IllegalStateException("Illegal recipe name " + name + ". Provide domain id to register it correctly.");
         }
+//? if mc_26_x {
+        return Identifier.fromNamespaceAndPath(modContainer.getModId(), name);
+//? } else {
         return ResourceLocation.fromNamespaceAndPath(modContainer.getModId(), name);
+//?}
     }
 }

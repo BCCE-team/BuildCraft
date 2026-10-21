@@ -16,9 +16,18 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+//? if neoforge && (>=26.3) {
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+//? } else {
 import net.minecraft.client.renderer.MultiBufferSource;
+//?}
 import net.minecraft.client.renderer.RenderPipelines;
+//? if neoforge && (>=26.3) {
+//? } else {
 import net.minecraft.client.renderer.entity.ItemRenderer;
+//?}
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -129,6 +138,17 @@ public final class RenderCompat {
         return BCGuiInput.key(target, keyCode, scanCode, modifiers);
     }
 
+//? if neoforge && (>=26.3) {
+    public static boolean mouseClicked(Object target, MouseButtonEvent event, boolean doubleClick) {
+        return target instanceof GuiEventListener widget && widget.mouseClicked(event, doubleClick);
+    }
+
+    public static boolean keyPressed(Object target, KeyEvent event) {
+        return target instanceof GuiEventListener widget && widget.keyPressed(event);
+    }
+
+//? } else {
+//?}
     public static void renderTooltip(GuiGraphicsExtractor graphics, Font font, ItemStack stack, int mouseX, int mouseY) {
         BCGuiTooltip.item(graphics, font, stack, mouseX, mouseY);
     }
@@ -137,20 +157,35 @@ public final class RenderCompat {
         blit(graphics, texture, x, y, u, v, width, height, 256, 256);
     }
 
+//? if neoforge && (>=26.3) {
+//? } else {
     public static ItemRenderer itemRenderer() {
         return Minecraft.getInstance().getItemRenderer();
     }
 
+//?}
     public static RenderType solid() {
+//? if neoforge && (>=26.3) {
+        return RenderTypes.solidMovingBlock();
+//? } else {
         return BCRenderCompat.solid();
+//?}
     }
 
     public static RenderType cutout() {
+//? if neoforge && (>=26.3) {
+        return RenderTypes.cutoutMovingBlock();
+//? } else {
         return BCRenderCompat.cutout();
+//?}
     }
 
     public static RenderType translucent() {
+//? if neoforge && (>=26.3) {
+        return RenderTypes.translucentMovingBlock();
+//? } else {
         return BCRenderCompat.translucent();
+//?}
     }
 
     public static RenderType entityCutout(Identifier texture) {
@@ -208,6 +243,19 @@ public final class RenderCompat {
         BCGraphics.blit(graphics, texture, x, y, u, v, width, height, sourceWidth, sourceHeight, texWidth, texHeight);
     }
 
+//? if neoforge && (>=26.3) {
+    /**
+     * Retains source tinting while routing directly to the 26.1.2 extraction-stage GUI command.
+     * This is intentionally a thin facade: {@link GuiGraphicsExtractor} owns the queued render state.
+     */
+    public static void blit(GuiGraphicsExtractor graphics, com.mojang.renderpearl.api.pipeline.RenderPipeline pipeline,
+        Identifier texture, int x, int y, float u, float v, int width, int height, int sourceWidth, int sourceHeight,
+        int texWidth, int texHeight, int colour) {
+        graphics.blit(pipeline, texture, x, y, u, v, width, height, sourceWidth, sourceHeight, texWidth, texHeight, colour);
+    }
+
+//? } else {
+//?}
     public static void setShader(Object shader) {
     }
 

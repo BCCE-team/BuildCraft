@@ -35,9 +35,15 @@ public abstract class ContainerScreenBase<T extends AbstractContainerMenu> exten
         return TEXTURE_BASE;
     }
 
+//? if neoforge {
+    public void extractContents(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+        renderBg(guiGraphics, partialTick, mouseX, mouseY);
+        super.extractContents(guiGraphics, mouseX, mouseY, partialTick);
+//? } else {
     public void render(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(guiGraphics, mouseX, mouseY, partialTick);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
+//?}
         for (int i = 0; i < size; i++) {
             components[i].render(guiGraphics, mouseX, mouseY, partialTick, this);
         }
@@ -102,10 +108,18 @@ public abstract class ContainerScreenBase<T extends AbstractContainerMenu> exten
         super.onClose();
     }
 
+//? if neoforge {
+    protected void extractTooltip(GuiGraphicsExtractor guiGraphics, int x, int y) {
+//? } else {
     protected void renderTooltip(GuiGraphicsExtractor guiGraphics, int x, int y) {
+//?}
         for (int i = 0; i < size; i++) {
             components[i].renderTooltip(guiGraphics, x, y);
         }
+//? if neoforge {
+        super.extractTooltip(guiGraphics, x, y);
+//? } else {
         super.renderTooltip(guiGraphics, x, y);
+//?}
     }
 }

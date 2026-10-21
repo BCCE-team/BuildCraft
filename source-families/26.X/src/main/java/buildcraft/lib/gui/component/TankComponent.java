@@ -9,7 +9,11 @@ import buildcraft.lib.client.render.fluid.FluidRenderer;
 import buildcraft.lib.gui.ContainerScreenBase;
 import buildcraft.lib.gui.TankContainerData;
 import buildcraft.lib.misc.LocaleUtil;
+//? if neoforge && (>=26.2) {
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
+//? } else {
 import net.minecraft.ChatFormatting;
+//?}
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.material.Fluid;
@@ -114,7 +118,11 @@ public class TankComponent extends AbstractComponent{
         if (amount > 0 && fluid != null) {
         	toolTip.add(fluid.getFluidType().getDescription());
         }
+//? if neoforge && (>=26.2) {
+        toolTip.add((LocaleUtil.localizeFluidStaticAmount(amount, capacity)).withStyle(BCTextFormat.GRAY));
+//? } else {
         toolTip.add((LocaleUtil.localizeFluidStaticAmount(amount, capacity)).withStyle(ChatFormatting.GRAY));
+//?}
         return toolTip ;
     }
 

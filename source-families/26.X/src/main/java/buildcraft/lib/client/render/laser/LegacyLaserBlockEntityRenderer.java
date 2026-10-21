@@ -7,7 +7,11 @@ package buildcraft.lib.client.render.laser;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
+//? if neoforge && (>=26.2) {
+import buildcraft.lib.compat.minecraft.render.BCVertexBuffers;
+//? } else {
 import net.minecraft.client.renderer.MultiBufferSource;
+//?}
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
@@ -18,6 +22,10 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * accidentally replaying unrelated item/model rendering from the same block entity.</p>
  */
 public interface LegacyLaserBlockEntityRenderer<T extends BlockEntity> {
+//? if neoforge && (>=26.2) {
+    void renderLasers(T blockEntity, float partialTicks, PoseStack poseStack, BCVertexBuffers bufferSource,
+//? } else {
     void renderLasers(T blockEntity, float partialTicks, PoseStack poseStack, MultiBufferSource bufferSource,
+//?}
         int combinedLight, int combinedOverlay);
 }

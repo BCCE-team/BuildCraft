@@ -7,10 +7,19 @@ import buildcraft.lib.internal.core.IFluidHandlerAdv;
 import buildcraft.transport.internal.pluggable.PipePluggable;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionResult;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.lib.misc.InteractionResultHolder;
+//? } else {
 import net.minecraft.world.InteractionResultHolder;
+//?}
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x && (>=26.3) {
+
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 
 public interface IFlowFluid {
     /** @deprecated use the version below with a simulate paramater. */
@@ -34,13 +43,21 @@ public interface IFlowFluid {
     }
 
     /** Advanced version of {@link #tryExtractFluid(int, Direction, FluidStack, boolean)}. Note that this only works for
+//? if mc_26_x && (>=26.3) {
+     * instances of external fluid handler that ALSO extends {@link IFluidHandlerAdv}
+//? } else {
      * instances of {@link IFluidHandler} that ALSO extends {@link IFluidHandlerAdv}
+//?}
      * 
      * @param millibuckets
      * @param from
      * @param filter A filter to try and match fluids.
      * @return The fluidstack extracted and inserted into the pipe. If {@link InteractionResultHolder#getResult()} equals
+//? if mc_26_x && (>=26.3) {
+     *         {@link InteractionResult#PASS} then it means that the external fluid handler didn't implement
+//? } else {
      *         {@link InteractionResult#PASS} then it means that the {@link IFluidHandler} didn't implement
+//?}
      *         {@link IFluidHandlerAdv} and you should call the basic version, if you can. */
     InteractionResultHolder<FluidStack> tryExtractFluidAdv(int millibuckets, Direction from, IFluidFilter filter, FluidAction simulate);
 

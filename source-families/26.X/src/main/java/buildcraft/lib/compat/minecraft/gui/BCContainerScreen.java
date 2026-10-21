@@ -14,34 +14,61 @@ public abstract class BCContainerScreen<T extends AbstractContainerMenu> extends
         super(menu, inventory, title);
     }
 
+//? if neoforge && (>=26.3) {
+    protected BCContainerScreen(T menu, Inventory inventory, Component title, int imageWidth, int imageHeight) {
+        super(menu, inventory, title, imageWidth, imageHeight);
+    }
+
+//? } else {
+//?}
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
+//? if neoforge && (>=26.3) {
+            return mouseClicked(event.x(), event.y(), BCGuiInput.legacyButton(event.button())) || super.mouseClicked(event, doubleClick);
+//? } else {
             return mouseClicked(event.x(), event.y(), event.button()) || super.mouseClicked(event, doubleClick);
+//?}
         }
     }
 
     public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
+//? if neoforge && (>=26.3) {
+            return mouseDragged(event.x(), event.y(), BCGuiInput.legacyButton(event.button()), dragX, dragY)
+//? } else {
             return mouseDragged(event.x(), event.y(), event.button(), dragX, dragY)
+//?}
                 || super.mouseDragged(event, dragX, dragY);
         }
     }
 
     public boolean mouseReleased(MouseButtonEvent event) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
+//? if neoforge && (>=26.3) {
+            return mouseReleased(event.x(), event.y(), BCGuiInput.legacyButton(event.button())) || super.mouseReleased(event);
+//? } else {
             return mouseReleased(event.x(), event.y(), event.button()) || super.mouseReleased(event);
+//?}
         }
     }
 
     public boolean keyPressed(KeyEvent event) {
         try (BCInputState.Scope ignored = BCInputState.pushShift(event.hasShiftDown())) {
+//? if neoforge && (>=26.3) {
+            return keyPressed(event.key(), event.keycode(), event.modifiers()) || super.keyPressed(event);
+//? } else {
             return keyPressed(event.key(), event.scancode(), event.modifiers()) || super.keyPressed(event);
+//?}
         }
     }
 
     public boolean charTyped(CharacterEvent event) {
         return (event.codepoint() <= Character.MAX_VALUE
+//? if neoforge && (>=26.3) {
+            && charTyped((char) event.codepoint(), 0)) || super.charTyped(event);
+//? } else {
             && charTyped((char) event.codepoint(), event.modifiers())) || super.charTyped(event);
+//?}
     }
 
     // Stable internal callbacks. Only this boundary constructs or consumes native event records.

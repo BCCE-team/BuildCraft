@@ -51,7 +51,10 @@ import net.minecraft.world.phys.HitResult;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.client.event.ModelEvent.BakingCompleted;
 import net.neoforged.neoforge.client.event.ModelEvent.RegisterStandalone;
+//? if neoforge && (>=26.2) {
+//? } else {
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+//?}
 import net.neoforged.neoforge.client.event.TextureAtlasStitchedEvent;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -119,6 +122,8 @@ public class BCLibEventDist {
 
     @EventBusSubscriber(modid = BCLib.MODID, value = Dist.CLIENT)
     public static class ClientGame {
+//? if neoforge && (>=26.2) {
+//? } else {
         @SubscribeEvent
         public static void renderWorldLast(RenderLevelStageEvent.AfterTranslucentBlocks event) {
             Minecraft mc = Minecraft.getInstance();
@@ -132,6 +137,7 @@ public class BCLibEventDist {
             DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
         }
 
+//?}
         private static void onConnectToServer() {
             Minecraft mc = Minecraft.getInstance();
             ItemStackUtil.setClientRegistryProvider(mc.level == null ? null : mc.level.registryAccess());

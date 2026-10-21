@@ -190,7 +190,11 @@ public class NbtSquishMap {
             throw new IndexOutOfBoundsException(index + " was less than 0!");
         }
         if (index < bytes.size()) {
+//? if neoforge {
+            return ByteTag.valueOf(bytes.get(index));
+//? } else {
             return ByteTag.valueOf(NbtCompat.getByte(bytes, index));
+//?}
         }
         index -= bytes.size();
 
@@ -200,22 +204,38 @@ public class NbtSquishMap {
         index -= shorts.size();
 
         if (index < ints.size()) {
+//? if neoforge {
+            return IntTag.valueOf(ints.get(index));
+//? } else {
             return IntTag.valueOf(NbtCompat.getInt(ints, index));
+//?}
         }
         index -= ints.size();
 
         if (index < longs.size()) {
+//? if neoforge {
+            return LongTag.valueOf(longs.get(index));
+//? } else {
             return LongTag.valueOf(NbtCompat.getLong(longs, index));
+//?}
         }
         index -= longs.size();
 
         if (index < floats.size()) {
+//? if neoforge {
+            return FloatTag.valueOf(floats.get(index));
+//? } else {
             return FloatTag.valueOf(NbtCompat.getFloat(floats, index));
+//?}
         }
         index -= floats.size();
 
         if (index < doubles.size()) {
+//? if neoforge {
+            return DoubleTag.valueOf(doubles.get(index));
+//? } else {
             return DoubleTag.valueOf(NbtCompat.getDouble(doubles, index));
+//?}
         }
         index -= doubles.size();
 

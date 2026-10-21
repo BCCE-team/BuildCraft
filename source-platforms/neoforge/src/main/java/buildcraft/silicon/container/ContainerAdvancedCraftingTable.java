@@ -8,7 +8,11 @@ package buildcraft.silicon.container;
 
 import buildcraft.lib.gui.ContainerBCTile;
 import buildcraft.lib.gui.slot.SlotBase;
+//? if mc_26_x && (>=26.3) {
+
+//? } else {
 import buildcraft.lib.gui.slot.SlotDisplay;
+//?}
 import buildcraft.lib.gui.slot.SlotOutput;
 import buildcraft.lib.gui.slot.SlotPhantom;
 import buildcraft.lib.tile.item.IItemHandlerAdv;
@@ -19,7 +23,12 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ContainerLevelAccess;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.lib.gui.ItemProvider;
+import buildcraft.silicon.compat.SiliconDisplayContainer263;
+//? } else {
 import net.neoforged.neoforge.items.IItemHandler;
+//?}
 
 public class ContainerAdvancedCraftingTable extends ContainerBCTile<TileAdvancedCraftingTable> {
     public static final int BUTTON_PREVIOUS_RECIPE = 0;
@@ -34,12 +43,20 @@ public class ContainerAdvancedCraftingTable extends ContainerBCTile<TileAdvanced
     }
 
     public ContainerAdvancedCraftingTable(int containerId, Inventory playerInventory, IItemHandlerAdv invMaterials,
+//? if mc_26_x && (>=26.3) {
+            IItemHandlerAdv invResults, IItemHandlerAdv invBlueprint, ItemHandlerSimple clientResult, ContainerLevelAccess access) {
+//? } else {
             IItemHandlerAdv invResults, IItemHandlerAdv invBlueprint, IItemHandler clientResult, ContainerLevelAccess access) {
+//?}
         super(BCSiliconGuis.MENU_AD_CRAFTING_TABLE.get(), playerInventory, containerId, access);
         blueprintInv = invBlueprint;
         materialInv = invMaterials;
 
+//? if mc_26_x && (>=26.3) {
+        addSlot(new SiliconDisplayContainer263(clientResult).slot(0, 127, 33));
+//? } else {
         addSlot(new SlotDisplay(clientResult, 0, 127, 33));
+//?}
 
         for(int y = 0; y < 3; y++) {
             for(int x = 0; x < 3; x++) {
@@ -61,7 +78,10 @@ public class ContainerAdvancedCraftingTable extends ContainerBCTile<TileAdvanced
         addFullPlayerInventory(153);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean clickMenuButton(Player player, int id) {
         if (player.isSpectator() || tile == null) {
             return false;

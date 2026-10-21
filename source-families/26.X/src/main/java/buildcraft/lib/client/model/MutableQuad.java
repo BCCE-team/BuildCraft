@@ -19,8 +19,11 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.world.phys.Vec3;
 
+//? if neoforge && (>=26.3) {
+//? } else {
 import buildcraft.lib.misc.DirectionCompat;
 
+//?}
 /** Holds all of the information necessary to make a {@link BakedQuad}. This provides a variety of methods to quickly
  * set or get different elements. This currently holds 4 {@link MutableVertex}. */
 public class MutableQuad {
@@ -36,6 +39,10 @@ public class MutableQuad {
     private int tintIndex = -1;
     private Direction face = null;
     private boolean shade = false;
+//? if neoforge && (>=26.3) {
+    private Direction shadeDirectionOverride = Direction.UP;
+//? } else {
+//?}
     private TextureAtlasSprite sprite = null;
 
     public MutableQuad() {}
@@ -48,6 +55,10 @@ public class MutableQuad {
         this.tintIndex = tintIndex;
         this.face = face;
         this.shade = shade;
+//? if neoforge && (>=26.3) {
+        this.shadeDirectionOverride = shade ? null : Direction.UP;
+//? } else {
+//?}
     }
     
     public MutableQuad(BakedQuad from) {
@@ -62,6 +73,10 @@ public class MutableQuad {
         tintIndex = from.tintIndex;
         face = from.face;
         shade = from.shade;
+//? if neoforge && (>=26.3) {
+        shadeDirectionOverride = from.shadeDirectionOverride;
+//? } else {
+//?}
         sprite = from.sprite;
         vertex_0.copyFrom(from.vertex_0);
         vertex_1.copyFrom(from.vertex_1);
@@ -90,6 +105,20 @@ public class MutableQuad {
 
     public void setShade(boolean shade) {
         this.shade = shade;
+//? if neoforge && (>=26.3) {
+        this.shadeDirectionOverride = shade ? null : Direction.UP;
+    }
+
+    /** Null shades from the geometric face; an explicit direction overrides that face. */
+    public Direction getShadeDirectionOverride() {
+        return shadeDirectionOverride;
+    }
+
+    public void setShadeDirectionOverride(Direction direction) {
+        shadeDirectionOverride = direction;
+        shade = direction != Direction.UP;
+//? } else {
+//?}
     }
 
     public boolean isShade() {
@@ -186,7 +215,11 @@ public class MutableQuad {
         tintIndex = quad.getTintIndex();
         face = quad.getDirection();
         sprite = quad.getSprite();
+//? if neoforge && (>=26.3) {
+        setShade(quad.isShade());
+//? } else {
         shade = quad.isShade();
+//?}
 
         int[] data = quad.getVertices();
         int stride = data.length / 4;
@@ -203,7 +236,11 @@ public class MutableQuad {
         tintIndex = quad.getTintIndex();
         face = quad.getDirection();
         sprite = quad.getSprite();
+//? if neoforge && (>=26.3) {
+        setShade(quad.isShade());
+//? } else {
         shade = quad.isShade();
+//?}
 
         int[] data = quad.getVertices();
         int stride = data.length / 4;
@@ -445,6 +482,17 @@ public class MutableQuad {
      * returns true. Also sets {@link #isShade()} to false. */
     public MutableQuad multShade() {
         if (isShade()) {
+//? if neoforge && (>=26.3) {
+            Direction override = shadeDirectionOverride;
+            if (override != null) {
+                Vec3i normal = override.getUnitVec3i();
+                float multiplier = diffuseLight(normal.getX(), normal.getY(), normal.getZ());
+                for (MutableVertex vertex : vertexs) vertex.multColourd(multiplier);
+                setShade(false);
+                return this;
+            }
+//? } else {
+//?}
             setShade(false);
             vertex_0.multShade();
             vertex_1.multShade();
@@ -692,10 +740,19 @@ public class MutableQuad {
         return this;
     }
 
+//? if neoforge && (>=26.3) {
+    /** Rotates a face label the same way {@link #rotate(Direction, Direction, float, float, float)} rotates geometry,
+     * by rotating a probe quad whose vertices sit one block step from the origin along the face. Without this a
+     * rotated quad keeps its old culling and shading direction, so baked pluggables look different (or get culled) per
+     * viewing direction. */
+//? } else {
     /** Keep the culling/shading face synchronized with the rotated vertex positions.
      * The lookup table mirrors the existing geometry rotation (including its roll for
      * same-axis flips), rather than guessing from the destination direction alone. */
+//?}
     private static Direction rotateFace(Direction face, Direction from, Direction to) {
+//? if neoforge && (>=26.3) {
+//? } else {
         return ROTATED_FACES[(from.ordinal() * 6 + to.ordinal()) * 6 + face.ordinal()];
     }
 
@@ -715,13 +772,18 @@ public class MutableQuad {
     /** Probe the actual rotation path with an unlabeled unit vector.
      * Keeping the probe unlabeled avoids recursive table initialization. */
     private static Direction probeRotatedFace(Direction face, Direction from, Direction to) {
+//?}
         MutableQuad probe = new MutableQuad();
         for (MutableVertex vertex : probe.vertexs) {
             vertex.positionf(face.getStepX(), face.getStepY(), face.getStepZ());
         }
         probe.rotate(from, to, 0, 0, 0);
         MutableVertex moved = probe.vertex_0;
+//? if neoforge && (>=26.3) {
+        return Direction.getApproximateNearest(moved.position_x, moved.position_y, moved.position_z);
+//? } else {
         return DirectionCompat.nearest(moved.position_x, moved.position_y, moved.position_z);
+//?}
     }
 
     public MutableQuad rotateX_90(float scale) {

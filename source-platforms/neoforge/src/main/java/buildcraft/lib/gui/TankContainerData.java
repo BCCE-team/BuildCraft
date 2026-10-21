@@ -4,7 +4,11 @@ import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.fluid.Tank;
 import buildcraft.lib.gui.elem.ToolTip;
 import buildcraft.lib.misc.LocaleUtil;
+//? if mc_26_x && (>=26.2) {
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
+//? } else {
 import net.minecraft.ChatFormatting;
+//?}
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
@@ -12,6 +16,10 @@ import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x && (>=26.2) {
+import buildcraft.lib.compat.FluidCompat;
+//? } else {
+//?}
 
 public class TankContainerData implements ContainerData{
 	
@@ -26,7 +34,10 @@ public class TankContainerData implements ContainerData{
 		this.count = tanks.length;
 	}
 
+//? if mc_26_x && (>=26.2) {
+//? } else {
 	@Override
+//?}
 	public int get(int p) {
 		if(p >= LEN*count||p<0) {
 			BCLog.logger.error("TankContainer.get: %d index out of range : %d",p , count*LEN);
@@ -46,13 +57,19 @@ public class TankContainerData implements ContainerData{
 		 
 	}
 
+//? if mc_26_x && (>=26.2) {
+//? } else {
 	@Override
+//?}
 	public void set(int index, int info) {
 /*		if(playerId != 0xFFFF&&(index <size*2 && index >= 0&&(index&1)==0))
 			tanks[index/2].onGuiClicked(playerId);*/
 	}
 
+//? if mc_26_x && (>=26.2) {
+//? } else {
 	@Override
+//?}
 	public int getCount() {
 		return count*LEN;
 	}
@@ -130,19 +147,35 @@ public class TankContainerData implements ContainerData{
 	
 	public static ToolTip getTankToopTip(ContainerData data, int point) {
 		return new ToolTip() {
+//? if mc_26_x && (>=26.2) {
+//? } else {
 	        @Override
+//?}
 	        public void refresh() {
 	            clear();
 	            int amount = getPacked(data, point + 2);
 	            FluidStack fluidStack = getRenderFluidStack(data, point);
 	            if (fluidStack != FluidStack.EMPTY && amount > 0) {
+//? if mc_26_x && (>=26.2) {
+	                add(FluidCompat.getDisplayName(fluidStack));
+//? } else {
 	                add(fluidStack.getDisplayName());
+//?}
 	            }
+//? if mc_26_x && (>=26.2) {
+	            add(LocaleUtil.localizeFluidStaticAmount(amount, getPacked(data, point + 8)).setStyle(Style.EMPTY.withColor(BCTextFormat.GRAY.getColor())));
+//? } else {
 	            add(LocaleUtil.localizeFluidStaticAmount(amount, getPacked(data, point + 8)).setStyle(Style.EMPTY.withColor(ChatFormatting.GRAY)));
+//?}
 	            FluidStack serverFluid = getFluidStack(data, point);
 	            if (serverFluid != FluidStack.EMPTY && serverFluid.getAmount() > 0) {
+//? if mc_26_x && (>=26.2) {
+	                add(Component.translatable("tooltip.buildcraftlib.fluid.server_side_on_client").setStyle(Style.EMPTY.withColor(BCTextFormat.RED.getColor())));
+	                add(FluidCompat.getDisplayName(serverFluid));
+//? } else {
 	                add(Component.translatable("tooltip.buildcraftlib.fluid.server_side_on_client").setStyle(Style.EMPTY.withColor(ChatFormatting.RED)));
 	                add(serverFluid.getDisplayName());
+//?}
 	                add(LocaleUtil.localizeFluidStaticAmount(serverFluid.getAmount(), getPacked(data, point + 8)));
 	            }
 	        }

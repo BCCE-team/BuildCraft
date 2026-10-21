@@ -12,7 +12,11 @@ import buildcraft.lib.platform.events.PlatformEvents;
 import buildcraft.lib.platform.events.BCEvents;
 import buildcraft.transport.internal.pipe.PipeApiClient;
 import buildcraft.transport.client.PipeRegistryClient;
+//? if mc_26_x {
+import buildcraft.transport.client.model.ModelPipeNative2612;
+//? } else {
 import buildcraft.transport.client.model.ModelPipe;
+//?}
 import buildcraft.transport.client.model.PipeBaseModelGenStandard;
 import buildcraft.transport.client.model.PipeModelCacheAll;
 import buildcraft.transport.client.render.PipeFlowRendererFE;
@@ -67,7 +71,11 @@ public class BCTransportEventDist {
         }
 
         @SubscribeEvent
+//? if mc_26_x {
+        public static void onBlockColor(RegisterColorHandlersEvent.BlockTintSources event) {
+//? } else {
         public static void onBlockColor(RegisterColorHandlersEvent.Block event) {
+//?}
             BCTransportModels.onBlockColor(PlatformClientRegistration.blockColours(event));
         }
 
@@ -99,7 +107,11 @@ public class BCTransportEventDist {
 
         private static void clearAtlasDependentPipeCaches() {
             PipeModelCacheAll.clearModels();
+//? if mc_26_x {
+            ModelPipeNative2612.clearTextureCache();
+//? } else {
             ModelPipe.clearTextureCache();
+//?}
             PipeFlowRendererPower.clearTextureCache();
             PipeFlowRendererFE.clearTextureCache();
         }

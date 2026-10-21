@@ -234,7 +234,11 @@ public class StackUtil {
         }
 
         if (checkTag) {
+//? if mc_26_x {
+            return base.typeHolder().tags().anyMatch(comparison::is);
+//? } else {
             return base.getTags().anyMatch(base::is);
+//?}
         }
 
         return false;

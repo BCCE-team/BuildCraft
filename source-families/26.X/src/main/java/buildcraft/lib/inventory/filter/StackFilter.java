@@ -24,7 +24,11 @@ public enum StackFilter implements IStackFilter {
     },
     FUEL {
         public boolean matches(@Nonnull ItemStack stack) {
+//? if neoforge && (>=26.2) {
+            return ItemCompat.isFuel(stack);
+//? } else {
             return ItemCompat.getBurnTime(stack) > 0;
+//?}
         }
     };
 

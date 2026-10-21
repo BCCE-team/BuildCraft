@@ -13,7 +13,11 @@ import buildcraft.lib.internal.core.render.ISprite;
 import buildcraft.lib.misc.ItemStackUtil;
 import com.google.common.collect.ImmutableList;
 
+//? if neoforge && (>=26.2) {
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
+//? } else {
 import net.minecraft.ChatFormatting;
+//?}
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
@@ -128,9 +132,17 @@ public class StatementParameterItemStack implements IStatementParameter {
         }
         List<Component> tooltip = stack.getTooltipLines(Item.TooltipContext.EMPTY, null, TooltipFlag.Default.NORMAL);
         if (!tooltip.isEmpty()) {
+//? if neoforge && (>=26.2) {
+            tooltip.set(0, MutableComponent.create(tooltip.get(0).getContents()).withStyle(style -> style.withColor(stack.getRarity().color())));
+//? } else {
             tooltip.set(0, MutableComponent.create(tooltip.get(0).getContents()).withStyle(stack.getRarity().color()));
+//?}
             for (int i = 1; i < tooltip.size(); i++) {
+//? if neoforge && (>=26.2) {
+                tooltip.set(i, MutableComponent.create(tooltip.get(i).getContents()).withStyle(BCTextFormat.GRAY));
+//? } else {
                 tooltip.set(i, MutableComponent.create(tooltip.get(i).getContents()).withStyle(ChatFormatting.GRAY));
+//?}
             }
         }
         return tooltip;

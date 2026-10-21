@@ -11,6 +11,10 @@ import net.minecraft.core.Direction;
 import net.neoforged.neoforge.capabilities.BlockCapability;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.energy.IEnergyStorage;
+//? if mc_26_x {
+import buildcraft.lib.misc.CapUtil;
+//? } else {
+//?}
 
 /** Provides a quick way to expose all MJ interfaces implemented by one connector. */
 public class MjCapabilityHelper implements IBCCapabilityProvider {
@@ -41,7 +45,10 @@ public class MjCapabilityHelper implements IBCCapabilityProvider {
         this.feReceiver = mj instanceof IMjReceiver value ? new MjReceiverEnergyStorage(value) : null;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     @Nullable
     @SuppressWarnings("unchecked")
     public <T> T getCapability(BlockCapability<T, Direction> capability, @Nullable Direction facing) {
@@ -60,7 +67,11 @@ public class MjCapabilityHelper implements IBCCapabilityProvider {
         if (capability == MjCapabilities.CAP_PASSIVE_PROVIDER) {
             return (T) provider;
         }
+//? if mc_26_x {
+        if (capability == CapUtil.CAP_FE && BuildCraftApi.service(BuildCraftServices.ENERGY).automaticFeConversionEnabled()) {
+//? } else {
         if (capability == Capabilities.EnergyStorage.BLOCK && BuildCraftApi.service(BuildCraftServices.ENERGY).automaticFeConversionEnabled()) {
+//?}
             return (T) feReceiver;
         }
         return null;

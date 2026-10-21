@@ -56,7 +56,13 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
         Codec.STRING.optionalFieldOf("group", "").forGetter(AssemblyRecipe::getGroup),
         Ingredient.CODEC.listOf().fieldOf("ingredients").forGetter(AssemblyRecipe::ingredientList),
         Codec.INT.listOf().fieldOf("ingredient_counts").forGetter(AssemblyRecipe::ingredientCountList),
+//? if neoforge {
+        // When encoding a freshly decoded recipe, keep its raw result until item components are bound.
+        LEGACY_RESULT_CODEC.fieldOf("result").forGetter(recipe -> recipe.deferredResult != null
+            ? recipe.deferredResult : LegacyResult.fromStack(recipe.resultTemplate().create())),
+//? } else {
         LEGACY_RESULT_CODEC.fieldOf("result").forGetter(recipe -> LegacyResult.fromStack(recipe.output.create())),
+//?}
         Codec.LONG.fieldOf("MJ").forGetter(recipe -> recipe.requiredMicroJoules)
     ).apply(instance, AssemblyRecipe::fromCodec));
 
@@ -65,7 +71,15 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
 
     final long requiredMicroJoules;
     final ImmutableSet<IngredientStack> requiredStacks;
+//? if neoforge {
+    // Registry codecs run before item data-component defaults are bound. Never create
+    // an ItemStack while decoding the legacy result; materialize it on first use.
+    private final ItemStackTemplate eagerOutput;
+    private final LegacyResult deferredResult;
+    private volatile ItemStackTemplate materializedOutput;
+//? } else {
     final ItemStackTemplate output;
+//?}
     final String group;
 
     public AssemblyRecipe(Identifier name, long requiredMicroJoules,
@@ -75,11 +89,49 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
 
     private AssemblyRecipe(Identifier name, long requiredMicroJoules,
         ImmutableSet<IngredientStack> requiredStacks, ItemStackTemplate output, String group) {
+//? if neoforge {
+        this(name, requiredMicroJoules, requiredStacks, output, null, group);
+    }
+
+    private AssemblyRecipe(Identifier name, long requiredMicroJoules,
+        ImmutableSet<IngredientStack> requiredStacks, ItemStackTemplate output,
+        LegacyResult deferredResult, String group) {
+        if ((output == null) == (deferredResult == null)) {
+            throw new IllegalArgumentException("An assembly result must be either ready or deferred");
+        }
+//? } else {
+//?}
         this.requiredMicroJoules = requiredMicroJoules;
         this.requiredStacks = ImmutableSet.copyOf(requiredStacks);
+//? if neoforge {
+        this.eagerOutput = output;
+        this.deferredResult = deferredResult;
+//? } else {
         this.output = output;
+//?}
         this.name = name;
         this.group = group == null ? "" : group;
+//? if neoforge {
+    }
+
+    private ItemStackTemplate resultTemplate() {
+        if (eagerOutput != null) {
+            return eagerOutput;
+        }
+        ItemStackTemplate resolved = materializedOutput;
+        if (resolved == null) {
+            synchronized (this) {
+                resolved = materializedOutput;
+                if (resolved == null) {
+                    // This is called after registry bootstrap, unlike fromCodec().
+                    resolved = deferredResult.template();
+                    materializedOutput = resolved;
+                }
+            }
+        }
+        return resolved;
+//? } else {
+//?}
     }
 
     public AssemblyRecipe(String name, long requiredMicroJoules,
@@ -98,7 +150,11 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
 
     public Set<ItemStack> getOutputs(IItemHandlerModifiable inputs) {
         return hasRequiredInputs(inputs)
+//? if neoforge {
+            ? ImmutableSet.of(resultTemplate().create())
+//? } else {
             ? ImmutableSet.of(output.create())
+//?}
             : ImmutableSet.of();
     }
 
@@ -145,7 +201,11 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
     }
 
     public ItemStack assemble(RecipeInput input, HolderLookup.Provider registries) {
+//? if neoforge {
+        return hasRequiredInputs(input) ? resultTemplate().create() : ItemStack.EMPTY;
+//? } else {
         return hasRequiredInputs(input) ? output.create() : ItemStack.EMPTY;
+//?}
     }
 
     public boolean canCraftInDimensions(int width, int height) {
@@ -153,7 +213,11 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
     }
 
     public ItemStack getResultItem(HolderLookup.Provider registries) {
+//? if neoforge {
+        return resultTemplate().create();
+//? } else {
         return output.create();
+//?}
     }
 
     public NonNullList<Ingredient> getIngredients() {
@@ -171,7 +235,12 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
     }
 
     public Set<ItemStack> getOutputPreviews() {
+//? if neoforge {
+        // Preserve the real output and its data components for JEI previews.
+        return ImmutableSet.of(resultTemplate().create());
+//? } else {
         return ImmutableSet.of();
+//?}
     }
 
     public List<RecipeDisplay> display() {
@@ -183,7 +252,11 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
         }
         return List.of(new ShapelessCraftingRecipeDisplay(
             ingredients,
+//? if neoforge {
+            new SlotDisplay.ItemStackSlotDisplay(resultTemplate()),
+//? } else {
             new SlotDisplay.ItemStackSlotDisplay(output),
+//?}
             new SlotDisplay.ItemSlotDisplay(BCSiliconItems.ASSEMBLY_TABLE_ITEM.get())
         ));
     }
@@ -194,6 +267,17 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
 
     public String getGroup() {
         return group;
+//? if neoforge {
+    }
+
+    public String group() {
+        return group;
+    }
+
+    public boolean showNotification() {
+        return true;
+//? } else {
+//?}
     }
 
     public RecipeSerializer<? extends Recipe<RecipeInput>> getSerializer() {
@@ -247,7 +331,13 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
         private ItemStackTemplate template() {
             CompoundTag tag = parseLegacyTag();
             DataComponentPatch.Builder patch = DataComponentPatch.builder();
+//? if neoforge {
+            // Legacy Damage is an item variant id for non-damageable items such as
+            // coloured/filtered lenses, not durability. Keep it in CUSTOM_DATA.
+            if (NbtCompat.contains(tag, "Damage", 99) && new ItemStack(item).isDamageableItem()) {
+//? } else {
             if (NbtCompat.contains(tag, "Damage", 99)) {
+//?}
                 patch.set(DataComponents.DAMAGE, Math.max(0, NbtCompat.getInt(tag, "Damage")));
                 tag.remove("Damage");
             }
@@ -293,7 +383,12 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
             }
             stacks.add(new IngredientStack(ingredients.get(index), count));
         }
+//? if neoforge {
+        // Parsing registries on 26.X happens before ItemStack defaults/components are bound.
+        return new AssemblyRecipe(id, requiredMicroJoules, ImmutableSet.copyOf(stacks), null, result, group);
+//? } else {
         return new AssemblyRecipe(id, requiredMicroJoules, ImmutableSet.copyOf(stacks), result.template(), group);
+//?}
     }
 
     private static AssemblyRecipe readFromNetwork(RegistryFriendlyByteBuf buffer) {
@@ -319,7 +414,11 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
             Ingredient.CONTENTS_STREAM_CODEC.encode(buffer, stack.ingredient);
             buffer.writeVarInt(stack.count);
         }
+//? if neoforge {
+        ItemStack.STREAM_CODEC.encode(buffer, resultTemplate().create());
+//? } else {
         ItemStack.STREAM_CODEC.encode(buffer, output.create());
+//?}
         buffer.writeLong(requiredMicroJoules);
     }
 

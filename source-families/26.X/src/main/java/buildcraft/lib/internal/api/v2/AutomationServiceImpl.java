@@ -17,6 +17,19 @@ final class AutomationServiceImpl implements AutomationService {
         if (!type.requestType().isInstance(request)) {
             return new AutomationResult(AutomationResult.Status.FAILED, 0, "wrong_request_type:" + request.kind());
         }
+//? if neoforge {
+        try {
+            AutomationResult result = type.handler().execute(request);
+            // Broken third-party callbacks must never crash robot AI or turn into PASS.
+            return result == null
+                ? new AutomationResult(AutomationResult.Status.FAILED, 0, "null_handler_result")
+                : result;
+        } catch (RuntimeException ex) {
+            buildcraft.lib.internal.debug.BCLog.logger.warn("Automation handler {} failed", request.kind(), ex);
+            return new AutomationResult(AutomationResult.Status.FAILED, 0, "handler_exception");
+        }
+//? } else {
         return type.handler().execute(request);
+//?}
     }
 }

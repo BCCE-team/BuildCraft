@@ -25,7 +25,11 @@ import buildcraft.lib.net.MessageManager;
 import buildcraft.lib.net.BuildCraftTarget;
 import buildcraft.lib.net.cache.BuildCraftObjectCaches;
 import buildcraft.lib.recipe.BCLibIngredientTypes;
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.neoforged.neoforge.data.event.GatherDataEvent;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -50,7 +54,11 @@ public class BCLib {
             Object current = loader.getMethod("getCurrent").invoke(null);
             return (Boolean) current.getClass().getMethod("isProduction").invoke(current);
         } catch (ReflectiveOperationException exception) {
+//? if mc_26_x {
+            // The public FMLLoader environment field is authoritative for this loader API.
+//? } else {
             // 1.21.1 provides FMLLoader but not getCurrent(); its public environment field is authoritative.
+//?}
         }
         try {
             Class<?> environment = Class.forName("net.neoforged.fml.loading.FMLEnvironment");
@@ -102,7 +110,11 @@ public class BCLib {
         BCLibIngredientTypes.register(modEventBus);
         BCLibRegistries.fmlPreInit();
         BuildCraftApi.registry(BuildCraftRegistries.FLUID_ITEM_ADAPTERS).register(
+//? if mc_26_x {
+                Identifier.tryParse("buildcraft:neoforge_fluid_container"),
+//? } else {
                 ResourceLocation.tryParse("buildcraft:neoforge_fluid_container"),
+//?}
                 new NeoForgeFluidItemAdapter()
         );
         StatementManager.setRegistryProvider(ItemStackUtil::requireActiveRegistryProvider);
@@ -119,6 +131,8 @@ public class BCLib {
 
     }
 
+//? if mc_26_x {
+//? } else {
     public void gatherData(GatherDataEvent event) {
         var output = event.getGenerator().getPackOutput();
         var lookupProvider = event.getLookupProvider();
@@ -126,6 +140,7 @@ public class BCLib {
         event.getGenerator().addProvider(event.includeServer(), new BCTagsProvider.BlockTag(output, lookupProvider, existingFiles));
         event.getGenerator().addProvider(event.includeServer(), new BCTagsProvider.FluidTag(output, lookupProvider, existingFiles));
     }
+//?}
 
     public void init(final FMLCommonSetupEvent event) {
         BCLibRegistries.fmlInit();

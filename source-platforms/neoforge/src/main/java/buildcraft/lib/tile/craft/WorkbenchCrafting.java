@@ -1,9 +1,16 @@
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
+//? if mc_26_x && (>=26.3) {
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+//? } else {
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/
+//?}
  */
+//? if mc_26_x && (>=26.3) {
+//? } else {
 
+//?}
 package buildcraft.lib.tile.craft;
 
 import java.util.ArrayList;
@@ -21,34 +28,79 @@ import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
+//? if mc_26_x && (>=26.3) {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.entity.player.Player;
+//? if mc_26_x && (>=26.3) {
+//? } else {
 import net.minecraft.world.entity.player.StackedContents;
+//?}
 import net.minecraft.world.inventory.AbstractContainerMenu;
+//? if mc_26_x && (>=26.3) {
+//? } else {
 import net.minecraft.world.inventory.CraftingContainer;
+//?}
 import net.minecraft.world.inventory.TransientCraftingContainer;
+//? if mc_26_x && (>=26.3) {
+//? } else {
 import net.minecraft.world.inventory.RecipeBookMenu;
 import net.minecraft.world.inventory.RecipeBookType;
 import net.minecraft.world.inventory.Slot;
+//?}
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.CraftingRecipe;
+//? if mc_26_x && (>=26.3) {
+//? } else {
 import net.minecraft.world.item.crafting.Ingredient;
+//?}
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
+//? if mc_26_x && (>=26.3) {
+import net.minecraft.world.item.crafting.RecipeManager;
+//? } else {
 import net.minecraft.world.item.crafting.RecipeType;
+//?}
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.items.IItemHandler;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
+//? if mc_26_x && (>=26.3) {
+/**
+ * BuildCraft phantom-blueprint workbench backed by recipe displays.
+ *
+ * <p>Uses the BuildCraft workbench gameplay model with the current recipe-display APIs, including
+ * recipe discovery and crafting for Auto Workbenches and the Advanced Crafting Table.</p>
+ */
+//? } else {
+//?}
 public class WorkbenchCrafting extends TransientCraftingContainer {
+//? if mc_26_x && (>=26.3) {
+//? } else {
     enum EnumRecipeType {
         INGREDIENTS,
         EXACT_STACKS;
     }
     
+//?}
     public static final AbstractContainerMenu CONTAINER_EVENT_HANDLER = new AbstractContainerMenu(null, -1) {
+//? if mc_26_x && (>=26.3) {
+        public ItemStack quickMoveStack(Player player, int index) {
+            return ItemStack.EMPTY;
+        }
+
+        public boolean stillValid(Player player) {
+            return false;
+        }
+//? } else {
 		@Override
 		public ItemStack quickMoveStack(Player p_38941_, int p_38942_) {
 			return ItemStack.EMPTY;
@@ -58,6 +110,7 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
 			return false;
 		}
     	
+//?}
     };
 
     private final BlockEntity tile;
@@ -65,18 +118,41 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
     private final ItemHandlerSimple invMaterials;
     private final ItemHandlerSimple invResult;
     private final ItemHandlerSimple invAssumedResult = new ItemHandlerSimple(1);
+//? if mc_26_x && (>=26.3) {
+
+//? } else {
+//?}
     private boolean isBlueprintDirty = true;
     private boolean areMaterialsDirty = true;
     private boolean cachedHasRequirements = false;
+//? if mc_26_x && (>=26.3) {
+
+//? } else {
+//?}
     private final List<CraftingRecipe> matchingRecipes = new ArrayList<>();
+//? if mc_26_x && (>=26.3) {
+    private final List<Identifier> matchingRecipeIds = new ArrayList<>();
+//? } else {
     private final List<ResourceLocation> matchingRecipeIds = new ArrayList<>();
+//?}
     @Nullable
+//? if mc_26_x && (>=26.3) {
+    private Identifier selectedRecipeId;
+//? } else {
     private ResourceLocation selectedRecipeId;
+//?}
     private int selectedRecipeIndex = -1;
+//? if mc_26_x && (>=26.3) {
+
+    private final int blueprintSize;
+    private final int materialsSize;
+    private final int resultSize;
+//? } else {
     
     private final int BPsize;
     private final int MTsize;
     private final int REsize;
+//?}
     private final int craftTableSize;
     private final int width;
     private final int height;
@@ -84,30 +160,65 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
     @Nullable
     private CraftingRecipe currentRecipe;
     private ItemStack assumedResult = ItemStack.EMPTY;
+//? if mc_26_x && (>=26.3) {
+//? } else {
 //    protected final RecipeBookMenu<WorkbenchCrafting> menu = new InnerRecipeBookMenu();
 
     private EnumRecipeType recipeType = null;
+//?}
 
     public WorkbenchCrafting(int width, int height, TileBC_Neptune tile, ItemHandlerSimple invBlueprint,
         ItemHandlerSimple invMaterials, ItemHandlerSimple invResult) {
         super(CONTAINER_EVENT_HANDLER, width, height);
         this.tile = tile;
         this.invBlueprint = invBlueprint;
+//? if mc_26_x && (>=26.3) {
+        this.blueprintSize = invBlueprint.getSlots();
+        this.materialsSize = invMaterials.getSlots();
+        this.resultSize = invResult.getSlots();
+        this.craftTableSize = width * height;
+//? } else {
         this.BPsize = invBlueprint.getSlots();
         this.MTsize = invMaterials.getSlots();
         this.REsize = invResult.getSlots();
         this.craftTableSize = width * height;//super.getContainerSize();
+//?}
         if (invBlueprint.getSlots() < craftTableSize) {
+//? if mc_26_x && (>=26.3) {
+            throw new IllegalArgumentException("Passed blueprint has a smaller size than width * height! (expected "
+                + craftTableSize + ", got " + invBlueprint.getSlots() + ")");
+//? } else {
             throw new IllegalArgumentException("Passed blueprint has a smaller size than width * height! ( expected "
                 + getContainerSize() + ", got " + invBlueprint.getSlots() + ")");
+//?}
         }
         this.invMaterials = invMaterials;
         this.invResult = invResult;
+//? if mc_26_x && (>=26.3) {
+        this.width = width;
+        this.height = height;
+//? } else {
 		this.width = width;
 		this.height = height;
         
+//?}
     }
 
+//? if mc_26_x && (>=26.3) {
+    public ItemStack getItem(int index) {
+        if (index < craftTableSize) {
+            return isBlueprintDirty ? invBlueprint.getStackInSlot(index) : super.getItem(index);
+        }
+        int[] result = new int[1];
+        ItemHandlerSimple inv = pickInv(index, result);
+        if (inv != null) {
+            return inv.getStackInSlot(result[0]);
+        }
+        if (index == craftTableSize + blueprintSize + materialsSize + resultSize) {
+            return invAssumedResult.getStackInSlot(0);
+        }
+        return ItemStack.EMPTY;
+//? } else {
     
     @Override
 	public ItemStack getItem(int index) {
@@ -149,18 +260,56 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
     		 return invResult;
     	 }
     	 return null;
+//?}
     }
 
+//? if mc_26_x && (>=26.3) {
+    public void setItem(int index, ItemStack item) {
+        if (index < craftTableSize) {
+            super.setItem(index, item);
+            return;
+        }
+        int[] result = new int[1];
+        ItemHandlerSimple inv = pickInv(index, result);
+        if (inv != null) {
+            inv.setStackInSlot(result[0], item);
+        }
+    }
+//? } else {
 	@Override
 	public int getContainerSize() {
 		return craftTableSize;
+//?}
 
+//? if mc_26_x && (>=26.3) {
+    private ItemHandlerSimple pickInv(int index, int[] result) {
+        if (index < craftTableSize + blueprintSize) {
+            result[0] = index - craftTableSize;
+            return invBlueprint;
+        }
+        if (index < craftTableSize + blueprintSize + materialsSize) {
+            result[0] = index - craftTableSize - blueprintSize;
+            return invMaterials;
+        }
+        if (index < craftTableSize + blueprintSize + materialsSize + resultSize) {
+            result[0] = index - craftTableSize - blueprintSize - materialsSize;
+            return invResult;
+        }
+        return null;
+    }
+//? } else {
 	}
 	
 	public int getSlotSize() {
 		return BPsize + MTsize + REsize;
 	}
+//?}
 
+//? if mc_26_x && (>=26.3) {
+    public int getContainerSize() {
+        return craftTableSize;
+    }
+//? } else {
 	@Override
 	public ItemStack removeItemNoUpdate(int index) {
     	if(index < craftTableSize) {
@@ -172,7 +321,33 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
     		return ContainerHelper.takeItem(inv.stacks, result[0]);
 		return ItemStack.EMPTY;
 	}
+//?}
 
+//? if mc_26_x && (>=26.3) {
+    public int getSlotSize() {
+        return blueprintSize + materialsSize + resultSize;
+    }
+
+    public ItemStack removeItemNoUpdate(int index) {
+        if (index < craftTableSize) {
+            return super.removeItemNoUpdate(index);
+        }
+        int[] result = new int[1];
+        ItemHandlerSimple inv = pickInv(index, result);
+        return inv == null ? ItemStack.EMPTY : ContainerHelper.takeItem(inv.stacks, result[0]);
+    }
+
+    public ItemStack removeItem(int index, int count) {
+        if (index < craftTableSize) {
+            return super.removeItem(index, count);
+        }
+        int[] result = new int[1];
+        ItemHandlerSimple inv = pickInv(index, result);
+        return inv == null ? ItemStack.EMPTY : ContainerHelper.removeItem(inv.stacks, result[0], count);
+    }
+
+    public ItemStack getAssumedResult() {
+//? } else {
 	@Override
 	public ItemStack removeItem(int index, int num) {
     	if(index < craftTableSize) {
@@ -186,6 +361,7 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
 	}
 	
 	public ItemStack getAssumedResult() {
+//?}
         return assumedResult;
     }
 
@@ -198,7 +374,12 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
     }
 
     public boolean selectRecipe(int delta) {
+//? if mc_26_x && (>=26.3) {
+        Level world = tile.getLevel();
+        if (world == null || matchingRecipes.size() <= 1 || delta == 0) {
+//? } else {
         if (matchingRecipes.size() <= 1 || delta == 0) {
+//?}
             return false;
         }
         int base = selectedRecipeIndex < 0 ? 0 : selectedRecipeIndex;
@@ -206,7 +387,11 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         if (next == base) {
             return false;
         }
+//? if mc_26_x && (>=26.3) {
+        applySelectedRecipe(next, world);
+//? } else {
         applySelectedRecipe(next, tile.getLevel());
+//?}
         return true;
     }
 
@@ -220,16 +405,45 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
 
     public void readSelection(CompoundTag nbt) {
         selectedRecipeId = nbt.contains("selectedCraftingRecipe")
+//? if mc_26_x && (>=26.3) {
+            ? Identifier.tryParse(NbtCompat.getString(nbt, "selectedCraftingRecipe"))
+//? } else {
             ? ResourceLocation.tryParse(nbt.getString("selectedCraftingRecipe"))
+//?}
             : null;
         selectedRecipeIndex = -1;
         isBlueprintDirty = true;
+//? if mc_26_x && (>=26.3) {
+    }
+
+    private CraftingInput blueprintInput() {
+        TransientCraftingContainer grid = new TransientCraftingContainer(CONTAINER_EVENT_HANDLER, width, height);
+        for (int slot = 0; slot < craftTableSize; slot++) {
+            grid.setItem(slot, invBlueprint.getStackInSlot(slot).copy());
+        }
+        return grid.asCraftInput();
+    }
+
+    private void clearRecipeState() {
+        currentRecipe = null;
+        assumedResult = ItemStack.EMPTY;
+        selectedRecipeIndex = -1;
+        invAssumedResult.setStackInSlot(0, ItemStack.EMPTY);
+        cachedHasRequirements = false;
+//? } else {
+//?}
     }
 
     private void rebuildMatchingRecipes(Level world) {
         matchingRecipes.clear();
         matchingRecipeIds.clear();
 
+//? if mc_26_x && (>=26.3) {
+        CraftingInput input = blueprintInput();
+        if (!(world.recipeAccess() instanceof RecipeManager recipeManager)) {
+            clearRecipeState();
+            return;
+//? } else {
         // TransientCraftingContainer#asCraftInput() reads its internal crafting grid directly,
         // while this workbench keeps the blueprint in a separate phantom inventory. Build a
         // temporary crafting grid from the blueprint so recipe lookup sees the intended pattern
@@ -237,23 +451,39 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         TransientCraftingContainer blueprintGrid = new TransientCraftingContainer(CONTAINER_EVENT_HANDLER, width, height);
         for (int slot = 0; slot < craftTableSize; slot++) {
             blueprintGrid.setItem(slot, invBlueprint.getStackInSlot(slot).copy());
+//?}
         }
+//? if mc_26_x && (>=26.3) {
+
+        for (RecipeHolder<?> holder : recipeManager.recipeMap().values()) {
+            Recipe<?> raw = holder.value();
+            if (raw instanceof CraftingRecipe recipe && recipe.matches(input, world)) {
+//? } else {
         CraftingInput input = blueprintGrid.asCraftInput();
         for (RecipeHolder<CraftingRecipe> holder : world.getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING)) {
             CraftingRecipe recipe = holder.value();
             if (recipe.matches(input, world)) {
+//?}
                 matchingRecipes.add(recipe);
+//? if mc_26_x && (>=26.3) {
+                matchingRecipeIds.add(holder.id().identifier());
+//? } else {
                 matchingRecipeIds.add(holder.id());
+//?}
             }
         }
 
         if (matchingRecipes.isEmpty()) {
+//? if mc_26_x && (>=26.3) {
+            clearRecipeState();
+//? } else {
             currentRecipe = null;
             assumedResult = ItemStack.EMPTY;
             recipeType = null;
             selectedRecipeIndex = -1;
             invAssumedResult.setStackInSlot(0, ItemStack.EMPTY);
             cachedHasRequirements = false;
+//?}
             return;
         }
 
@@ -271,10 +501,18 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         selectedRecipeIndex = index;
         currentRecipe = matchingRecipes.get(index);
         selectedRecipeId = matchingRecipeIds.get(index);
+//? if mc_26_x && (>=26.3) {
+        CraftingInput input = blueprintInput();
+        assumedResult = currentRecipe.matches(input, world)
+            ? currentRecipe.assemble(input)
+            : ItemStack.EMPTY;
+        invAssumedResult.setStackInSlot(0, assumedResult.copy());
+//? } else {
         assumedResult = currentRecipe.getResultItem(world.registryAccess());
         NonNullList<Ingredient> ingredients = currentRecipe.getIngredients();
         recipeType = ingredients.isEmpty() ? EnumRecipeType.EXACT_STACKS : EnumRecipeType.INGREDIENTS;
         invAssumedResult.setStackInSlot(0, assumedResult);
+//?}
         areMaterialsDirty = true;
     }
 
@@ -286,10 +524,20 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+    /** @return true if the cached recipe selection changed. */
+//? } else {
     /** @return True if anything changed, false otherwise */
+//?}
     public boolean tick() {
+//? if mc_26_x && (>=26.3) {
+        Level world = tile.getLevel();
+        if (world == null) return false;
+        if (world.isClientSide()) {
+//? } else {
     	Level world = tile.getLevel();
     	if (world.isClientSide) {
+//?}
             throw new IllegalStateException("Never call this on the client side!");
         }
         if (isBlueprintDirty) {
@@ -300,10 +548,17 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         return false;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     /** @return True if {@link #craft()} might return true, or false if {@link #craft()} will definitely return
      *         false. */
+//?}
     public boolean canCraft() {
+//? if mc_26_x && (>=26.3) {
+        if (currentRecipe == null || isBlueprintDirty || assumedResult.isEmpty()) {
+//? } else {
         if (currentRecipe == null || isBlueprintDirty) {
+//?}
             return false;
         }
         if (!invResult.canFullyAccept(assumedResult)) {
@@ -311,6 +566,9 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         }
         if (areMaterialsDirty) {
             areMaterialsDirty = false;
+//? if mc_26_x && (>=26.3) {
+            cachedHasRequirements = hasExactStacks();
+//? } else {
             switch (recipeType) {
                 case INGREDIENTS:
                 case EXACT_STACKS: {
@@ -321,20 +579,31 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
                     throw new IllegalStateException("Unknown recipe type " + recipeType);
                 }
             }
+//?}
         }
         return cachedHasRequirements;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     /** Attempts to craft a single item. Assumes that {@link #canCraft()} has been called in the same tick, without any
      * modifications happening to the
      * 
      * @return True if the crafting happened, false otherwise. *
      * @throws IllegalStateException if {@link #canCraft()} hasn't been called before, or something changed in the
      *             meantime. */
+//?}
     public boolean craft() throws IllegalStateException {
+//? if mc_26_x && (>=26.3) {
+        if (isBlueprintDirty || currentRecipe == null) {
+//? } else {
         if (isBlueprintDirty) {
+//?}
             return false;
         }
+//? if mc_26_x && (>=26.3) {
+        return craftExact();
+//? } else {
 
         switch (recipeType) {
             case INGREDIENTS:
@@ -345,12 +614,18 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
                 throw new IllegalStateException("Unknown recipe type " + recipeType);
             }
         }
+//?}
     }
 
     private boolean hasExactStacks() {
         Object2IntMap<ItemStackKey> required = new Object2IntArrayMap<>(craftTableSize);
+//? if mc_26_x && (>=26.3) {
+        for (int slot = 0; slot < craftTableSize; slot++) {
+            ItemStack req = invBlueprint.getStackInSlot(slot);
+//? } else {
         for (int s = 0; s < craftTableSize; s++) {
             ItemStack req = invBlueprint.getStackInSlot(s);
+//?}
             if (!req.isEmpty()) {
                 int count = req.getCount();
                 if (count != 1) {
@@ -358,7 +633,11 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
                     req.setCount(1);
                 }
                 ItemStackKey key = new ItemStackKey(req);
+//? if mc_26_x && (>=26.3) {
+                required.merge(key, count, Integer::sum);
+//? } else {
                 required.merge(key, count, (a, b) -> a + b);
+//?}
             }
         }
         for (Object2IntMap.Entry<ItemStackKey> entry : required.object2IntEntrySet()) {
@@ -372,8 +651,18 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         return !required.isEmpty();
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     /** Implementation of {@link #craft()}, assuming nothing about the current recipe. */
+//?}
     private boolean craftExact() {
+//? if mc_26_x && (>=26.3) {
+        Level world = tile.getLevel();
+        if (world == null || currentRecipe == null) return false;
+        BlockPos pos = tile.getBlockPos();
+
+        // Never overwrite a transient crafting slot unless every previous item was returned.
+//? } else {
         // 4 steps:
         // - Move everything out of this inventory (Just to check: state correction operation)
         // - Attempt to move every exact item from invMaterials to this inventory
@@ -383,46 +672,82 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
     	BlockPos pos = tile.getBlockPos();
         // Step 1. Never overwrite a transient slot unless every previous
         // crafting-grid item was returned to material storage successfully.
+//?}
         if (!clearInventory()) {
             return false;
         }
 
+//? if mc_26_x && (>=26.3) {
+        for (int slot = 0; slot < craftTableSize; slot++) {
+            ItemStack blueprint = invBlueprint.getStackInSlot(slot);
+            if (!blueprint.isEmpty()) {
+                ItemStack stack = invMaterials.extract(new ArrayStackFilter(blueprint), 1, 1, false);
+//? } else {
         // Step 2
         for (int s = 0; s < craftTableSize; s++) {
             ItemStack bpt = invBlueprint.getStackInSlot(s);
             if (!bpt.isEmpty()) {
                 ItemStack stack = invMaterials.extract(new ArrayStackFilter(bpt), 1, 1, false);
+//?}
                 if (stack.isEmpty()) {
                     clearInventory();
                     return false;
                 }
+//? if mc_26_x && (>=26.3) {
+                super.setItem(slot, stack);
+//? } else {
                 super.setItem(s, stack);
+//?}
             }
         }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
         // Step 3
         // Some recipes (for example vanilla fireworks) require calling
         // matches before calling getCraftingResult, as they store the
         // result of matches for getCraftingResult and getResult.
+//?}
         CraftingInput craftingInput = asCraftInput();
         if (!currentRecipe.matches(craftingInput, world)) {
             clearInventory();
             return false;
         }
+//? if mc_26_x && (>=26.3) {
+
+        ItemStack result = currentRecipe.assemble(craftingInput);
+//? } else {
         ItemStack result = currentRecipe.assemble(craftingInput, world.registryAccess());
+//?}
         if (result.isEmpty()) {
+//? if mc_26_x && (>=26.3) {
+//? } else {
             // what?
+//?}
             clearInventory();
             return false;
         }
+//? if mc_26_x && (>=26.3) {
+
+//? } else {
+//?}
         ItemStack leftover = invResult.insert(result, false, false);
         if (!leftover.isEmpty()) {
             InventoryUtil.addToBestAcceptor(world, pos, null, leftover);
         }
+//? if mc_26_x && (>=26.3) {
+
+//? } else {
+//?}
         NonNullList<ItemStack> remainingStacks = currentRecipe.getRemainingItems(craftingInput);
 
+//? if mc_26_x && (>=26.3) {
+        // asCraftInput() trims empty outer rows and columns. Map the recipe-local
+        // remaining-item coordinates back onto the physical workbench grid.
+//? } else {
         // CraftingInput trims empty rows and columns. Map the trimmed remaining-item
         // coordinates back onto the physical workbench grid before consuming inputs.
+//?}
         int minX = width;
         int minY = height;
         for (int slot = 0; slot < craftTableSize; slot++) {
@@ -432,13 +757,26 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
             }
         }
 
+//? if mc_26_x && (>=26.3) {
+        for (int slot = 0; slot < remainingStacks.size(); slot++) {
+            int inputX = slot % craftingInput.width();
+            int inputY = slot / craftingInput.width();
+//? } else {
         for (int s = 0; s < remainingStacks.size(); s++) {
             int inputX = s % craftingInput.width();
             int inputY = s / craftingInput.width();
+//?}
             int gridSlot = (minY + inputY) * width + minX + inputX;
+//? if mc_26_x && (>=26.3) {
+//? } else {
 
+//?}
             ItemStack inSlot = super.getItem(gridSlot);
+//? if mc_26_x && (>=26.3) {
+            ItemStack remaining = remainingStacks.get(slot);
+//? } else {
             ItemStack remaining = remainingStacks.get(s);
+//?}
 
             if (!inSlot.isEmpty()) {
                 super.removeItem(gridSlot, 1);
@@ -452,10 +790,16 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
             }
         }
 
+//? if mc_26_x && (>=26.3) {
+        // Return any recipe leftovers still present in the transient grid to material storage.
+        for (int slot = 0; slot < craftTableSize; slot++) {
+            ItemStack inSlot = super.removeItemNoUpdate(slot);
+//? } else {
         // Step 4
         // Some ingredients really need to be removed (like empty buckets)
         for (int s = 0; s < craftTableSize; s++) {
             ItemStack inSlot = super.removeItemNoUpdate(s);
+//?}
             if (!inSlot.isEmpty()) {
                 leftover = invMaterials.insert(inSlot, false, false);
                 if (!leftover.isEmpty()) {
@@ -463,16 +807,37 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
                 }
             }
         }
+//? if mc_26_x && (>=26.3) {
+
+        areMaterialsDirty = true;
+//? } else {
+//?}
         return true;
     }
 
+//? if mc_26_x && (>=26.3) {
+    /** @return true if this transient crafting grid is now clear. */
+//? } else {
     /** @return True if this inventory is now clear, false otherwise. */
+//?}
     private boolean clearInventory() {
+//? if mc_26_x && (>=26.3) {
+        for (int slot = 0; slot < craftTableSize; slot++) {
+            ItemStack inSlot = super.getItem(slot);
+//? } else {
         for (int s = 0; s < craftTableSize; s++) {
             ItemStack inSlot = super.getItem(s);
+//?}
             if (!inSlot.isEmpty()) {
                 ItemStack leftover = invMaterials.insert(inSlot, false, false);
+//? if mc_26_x && (>=26.3) {
+                int inserted = inSlot.getCount() - (leftover.isEmpty() ? 0 : leftover.getCount());
+                if (inserted > 0) {
+                    super.removeItem(slot, inserted);
+                }
+//? } else {
                 removeItem(s, inSlot.getCount() - (leftover.isEmpty() ? 0 : leftover.getCount()));
+//?}
                 if (!leftover.isEmpty()) {
                     return false;
                 }
@@ -480,11 +845,16 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         }
         return true;
     }
+//? if mc_26_x && (>=26.3) {
+//? } else {
     
     public RecipeBookMenu<CraftingInput, CraftingRecipe> getCraftingMenu(AbstractContainerMenu menu, IItemHandler materials) {
         return new InnerRecipeBookMenu(menu, materials);
     }
+//?}
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     protected class InnerRecipeBookMenu extends RecipeBookMenu<CraftingInput, CraftingRecipe> {
         public final AbstractContainerMenu menu;
         private final IItemHandler recipeBookMaterials;
@@ -576,4 +946,5 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
 		
 		
     }
+//?}
 }

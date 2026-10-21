@@ -20,22 +20,34 @@ public interface IFluidHandlerAdv extends IFluidHandler, FilteredFluidStorage<Fl
     @Nullable
     FluidStack drain(IFluidFilter filter, int maxDrain, FluidAction doDrain);
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     default int fill(FluidStack fluid, boolean simulate) {
         return fill(fluid, simulate ? FluidAction.SIMULATE : FluidAction.EXECUTE);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     default FluidStack drain(FluidStack fluid, boolean simulate) {
         return drain(fluid, simulate ? FluidAction.SIMULATE : FluidAction.EXECUTE);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     default FluidStack drain(int amount, boolean simulate) {
         return drain(amount, simulate ? FluidAction.SIMULATE : FluidAction.EXECUTE);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     default FluidStack drain(Predicate<FluidStack> filter, int amount, boolean simulate) {
         return drain((IFluidFilter) filter::test, amount,
             simulate ? FluidAction.SIMULATE : FluidAction.EXECUTE);

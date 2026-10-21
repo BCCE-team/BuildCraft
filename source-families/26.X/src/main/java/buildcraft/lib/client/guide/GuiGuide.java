@@ -26,7 +26,11 @@ import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
+//? if neoforge && (>=26.3) {
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
+//? } else {
 import net.minecraft.ChatFormatting;
+//?}
 import net.minecraft.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.input.CharacterEvent;
@@ -220,7 +224,11 @@ public final class GuiGuide extends Screen {
     }
 
     public static void open(ItemStack guideStack, InteractionHand hand) {
+//? if neoforge && (>=26.3) {
+        Minecraft.getInstance().gui.setScreen(new GuiGuide(guideStack, hand));
+//? } else {
         Minecraft.getInstance().setScreen(new GuiGuide(guideStack, hand));
+//?}
     }
 
     protected void init() {
@@ -547,13 +555,21 @@ public final class GuiGuide extends Screen {
             boolean visible = view == View.CONTENTS && isContentsEntryPage(leftPage);
             searchBox.setVisible(visible);
             if (!visible && searchBox.isFocused()) {
+//? if neoforge && (>=26.3) {
+                searchBox.setFocused(false);
+//? } else {
                 // EditBox#setFocused(boolean) is protected in 1.19.2. Clicking outside the widget clears focus.
                 RenderCompat.mouseClicked(searchBox, new MouseButtonEvent(-1, -1, new MouseButtonInfo(0, 0)), false);
+//?}
             }
         }
     }
 
+//? if neoforge && (>=26.3) {
+    public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+//? } else {
     public void render(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+//?}
         hoveredStack = null;
         hoveredText = null;
         clickRegions.clear();
@@ -665,7 +681,11 @@ public final class GuiGuide extends Screen {
         int visible = Math.max(0, to - from);
         int blockHeight = (visible + 1) * perLineHeight;
         int y = top + PAGE_TEXT_TOP + (PAGE_TEXT_HEIGHT - blockHeight) / 2;
+//? if neoforge && (>=26.3) {
+        Component heading = Component.translatable("buildcraft.guide.contents.loaded_modules").withStyle(BCTextFormat.BOLD);
+//? } else {
         Component heading = Component.translatable("buildcraft.guide.contents.loaded_modules").withStyle(ChatFormatting.BOLD);
+//?}
         drawCentred(guiGraphics, heading, pageX, y, PAGE_TEXT_WIDTH, 0x17120E);
         y += perLineHeight;
         for (int index = from; index < to; index++) {
@@ -697,7 +717,11 @@ public final class GuiGuide extends Screen {
             renderSortButtons(guiGraphics, mouseX, mouseY);
         }
         if (searchBox != null) {
+//? if neoforge && (>=26.3) {
+            searchBox.extractRenderState(guiGraphics, mouseX, mouseY, 0);
+//? } else {
             searchBox.render(guiGraphics, mouseX, mouseY, 0);
+//?}
             if (realSearchResultCount >= 0) {
                 String count = BCLibConfig.maxGuideSearchCount + "/" + realSearchResultCount;
                 int countX = pageX + 107;
@@ -713,7 +737,11 @@ public final class GuiGuide extends Screen {
                     updateSearchVisibility();
                     persistGuideState();
                 }
+//? if neoforge && (>=26.3) {
+                RenderCompat.mouseClicked(searchBox, new MouseButtonEvent(searchX + 1, searchY + 1, new MouseButtonInfo(buildcraft.lib.compat.minecraft.gui.BCGuiInput.nativeButton(0), 0)), false);
+//? } else {
                 RenderCompat.mouseClicked(searchBox, new MouseButtonEvent(searchX + 1, searchY + 1, new MouseButtonInfo(0, 0)), false);
+//?}
             }));
         }
     }
@@ -744,14 +772,22 @@ public final class GuiGuide extends Screen {
         switch (line.kind) {
             case CHAPTER: {
                 drawTintedNineSlice(guiGraphics, CHAPTER_BAR, x + 7, y - 4, PAGE_TEXT_WIDTH - 24, 16, line.colour);
+//? if neoforge && (>=26.3) {
+                Component text = line.component.copy().withStyle(BCTextFormat.UNDERLINE);
+//? } else {
                 Component text = line.component.copy().withStyle(ChatFormatting.UNDERLINE);
+//?}
                 drawOverflowText(guiGraphics, text, x + 16, y, PAGE_TEXT_WIDTH - 34, TEXT_COLOUR,
                     HorizontalAlignment.LEFT, line.component.getString().hashCode());
                 break;
             }
             case SUBHEADING: {
                 int textX = x + 32;
+//? if neoforge && (>=26.3) {
+                Component text = line.component.copy().withStyle(BCTextFormat.UNDERLINE);
+//? } else {
                 Component text = line.component.copy().withStyle(ChatFormatting.UNDERLINE);
+//?}
                 drawOverflowText(guiGraphics, text, textX, y, PAGE_TEXT_WIDTH - 32, TEXT_COLOUR,
                     HorizontalAlignment.LEFT, line.component.getString().hashCode());
                 break;
@@ -783,7 +819,11 @@ public final class GuiGuide extends Screen {
 
     private void renderEntryIcon(GuiGraphicsExtractor guiGraphics, GuideContent.Entry entry, int x, int y, int mouseX, int mouseY) {
         if (!entry.stack.isEmpty()) {
+//? if neoforge && (>=26.3) {
+            guiGraphics.item(entry.stack, x, y);
+//? } else {
             guiGraphics.renderItem(entry.stack, x, y);
+//?}
             if (isInside(mouseX, mouseY, x, y, 16, 16)) hoveredStack = entry.stack;
             return;
         }
@@ -842,7 +882,11 @@ public final class GuiGuide extends Screen {
             int x = left - textWidth - extension + 5;
             drawTintedNineSlice(guiGraphics, CHAPTER_TAB_LEFT, x - 6, y - 4,
                 textWidth + 12 + extension, 16, tab.colour);
+//? if neoforge && (>=26.3) {
+            drawOverflowText(guiGraphics, Component.literal(tab.label).withStyle(BCTextFormat.UNDERLINE),
+//? } else {
             drawOverflowText(guiGraphics, Component.literal(tab.label).withStyle(ChatFormatting.UNDERLINE),
+//?}
                 x, y, textWidth, TEXT_COLOUR, HorizontalAlignment.LEFT, tab.key.hashCode());
             clickRegions.add(new ClickRegion(left - textWidth - 5 - extension, y - 4,
                 textWidth + 16 + extension, 16, () -> {
@@ -1010,7 +1054,11 @@ public final class GuiGuide extends Screen {
         int x = left - textWidth - extension + 5;
         drawTintedNineSlice(guiGraphics, CHAPTER_TAB_LEFT, x - 6, y - 4,
             textWidth + 12 + extension, 16, colour);
+//? if neoforge && (>=26.3) {
+        drawOverflowText(guiGraphics, Component.literal(rawLabel).withStyle(BCTextFormat.UNDERLINE),
+//? } else {
         drawOverflowText(guiGraphics, Component.literal(rawLabel).withStyle(ChatFormatting.UNDERLINE),
+//?}
             x, y, textWidth, TEXT_COLOUR, HorizontalAlignment.LEFT, rawLabel.hashCode());
         clickRegions.add(new ClickRegion(left - textWidth - 5 - extension, y - 4,
             textWidth + 16 + extension, 16, action));
@@ -1068,7 +1116,11 @@ public final class GuiGuide extends Screen {
         boolean hovered = isInside(mouseX, mouseY, x, y, PAGE_TEXT_WIDTH, 19);
         if (hovered) guiGraphics.fill(x, y, x + PAGE_TEXT_WIDTH, y + 19, HOVER_COLOUR);
         if (element.stack != null && !element.stack.isEmpty()) {
+//? if neoforge && (>=26.3) {
+            guiGraphics.item(element.stack, x + 1, y + 1);
+//? } else {
             guiGraphics.renderItem(element.stack, x + 1, y + 1);
+//?}
             if (isInside(mouseX, mouseY, x + 1, y + 1, 16, 16)) hoveredStack = element.stack;
         }
         String title = element.component == null ? element.target : element.component.getString();
@@ -1086,7 +1138,11 @@ public final class GuiGuide extends Screen {
             float scale = Math.max(1.0F, Math.min(element.width, element.height) / 16.0F);
             RenderCompat.pose(guiGraphics).translate(x + (element.width - 16 * scale) / 2.0F, y);
             RenderCompat.pose(guiGraphics).scale(scale, scale);
+//? if neoforge && (>=26.3) {
+            guiGraphics.item(element.stack, 0, 0);
+//? } else {
             guiGraphics.renderItem(element.stack, 0, 0);
+//?}
             RenderCompat.pose(guiGraphics).popMatrix();
             int itemX = x + Math.round((element.width - 16 * scale) / 2.0F);
             int itemWidth = Math.max(16, Math.round(16 * scale));
@@ -1230,7 +1286,11 @@ public final class GuiGuide extends Screen {
         void addChapter(Component component, int level) {
             int safeLevel = Math.max(0, level);
             int indent = Math.min(20, safeLevel * 7);
+//? if neoforge && (>=26.3) {
+            Component styled = component.copy().withStyle(BCTextFormat.UNDERLINE);
+//? } else {
             Component styled = component.copy().withStyle(ChatFormatting.UNDERLINE);
+//?}
             List<FormattedCharSequence> lines = font.split(styled, PAGE_TEXT_WIDTH - 24 - indent);
             if (lines.isEmpty()) lines = List.of(Component.empty().getVisualOrderText());
             int blockHeight = Math.max(16, lines.size() * 11 + 6);
@@ -1601,7 +1661,11 @@ public final class GuiGuide extends Screen {
 
     private void renderRecipeStack(GuiGraphicsExtractor guiGraphics, ItemStack stack, int x, int y, int mouseX, int mouseY) {
         if (stack.isEmpty()) return;
+//? if neoforge && (>=26.3) {
+        guiGraphics.item(stack, x, y);
+//? } else {
         guiGraphics.renderItem(stack, x, y);
+//?}
         guiGraphics.itemDecorations(font, stack, x, y);
         registerStackInteraction(stack, x, y, 16, 16, mouseX, mouseY);
     }
@@ -1736,7 +1800,11 @@ public final class GuiGuide extends Screen {
     }
 
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+//? if neoforge && (>=26.3) {
+        if (mouseClicked(event.x(), event.y(), buildcraft.lib.compat.minecraft.gui.BCGuiInput.legacyButton(event.button()))) {
+//? } else {
         if (mouseClicked(event.x(), event.y(), event.button())) {
+//?}
             return true;
         }
         return false;
@@ -1744,7 +1812,11 @@ public final class GuiGuide extends Screen {
 
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
+//? if neoforge && (>=26.3) {
+            if (searchBox != null && searchBox.visible && RenderCompat.mouseClicked(searchBox, new MouseButtonEvent(mouseX, mouseY, new MouseButtonInfo(buildcraft.lib.compat.minecraft.gui.BCGuiInput.nativeButton(button), 0)), false)) {
+//? } else {
             if (searchBox != null && searchBox.visible && RenderCompat.mouseClicked(searchBox, new MouseButtonEvent(mouseX, mouseY, new MouseButtonInfo(button, 0)), false)) {
+//?}
                 return true;
             }
             for (int index = clickRegions.size() - 1; index >= 0; index--) {
@@ -1777,7 +1849,11 @@ public final class GuiGuide extends Screen {
             onClose();
             return true;
         }
+//? if neoforge && (>=26.3) {
+        if (keyPressed(event.key(), event.keycode(), event.modifiers())) {
+//? } else {
         if (keyPressed(event.key(), event.scancode(), event.modifiers())) {
+//?}
             return true;
         }
         return super.keyPressed(event);
@@ -1789,15 +1865,27 @@ public final class GuiGuide extends Screen {
             onClose();
             return true;
         }
+//? if neoforge && (>=26.3) {
+        if (keyCode == InputConstants.KEY_LEFT) {
+//? } else {
         if (keyCode == 263) {
+//?}
             changeSpread(-1);
             return true;
         }
+//? if neoforge && (>=26.3) {
+        if (keyCode == InputConstants.KEY_RIGHT) {
+//? } else {
         if (keyCode == 262) {
+//?}
             changeSpread(1);
             return true;
         }
+//? if neoforge && (>=26.3) {
+        if (keyCode == InputConstants.KEY_BACKSPACE && view == View.DOCUMENT) {
+//? } else {
         if (keyCode == 259 && view == View.DOCUMENT) {
+//?}
             goBack();
             return true;
         }
@@ -1806,7 +1894,11 @@ public final class GuiGuide extends Screen {
 
     public boolean charTyped(CharacterEvent event) {
         if (event.codepoint() <= Character.MAX_VALUE
+//? if neoforge && (>=26.3) {
+            && charTyped((char) event.codepoint(), 0)) {
+//? } else {
             && charTyped((char) event.codepoint(), event.modifiers())) {
+//?}
             return true;
         }
         return super.charTyped(event);
@@ -1814,13 +1906,21 @@ public final class GuiGuide extends Screen {
 
     public boolean charTyped(char codePoint, int modifiers) {
         if (searchBox != null && searchBox.visible
+//? if neoforge && (>=26.3) {
+            && searchBox.charTyped(new CharacterEvent(codePoint))) {
+//? } else {
             && searchBox.charTyped(new CharacterEvent(codePoint, modifiers))) {
+//?}
             return true;
         }
         return false;
     }
 
     public void removed() {
+//? if neoforge && (>=26.3) {
+        if (searchBox != null) searchBox.setFocused(false);
+//? } else {
+//?}
         persistGuideState();
         super.removed();
     }

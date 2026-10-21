@@ -23,7 +23,10 @@ public class BCTagsProvider {
 			super(output, lookupProvider, BCLib.MODID, existingFileHelper);
 		}
 
+//? if mc_26_x {
+//? } else {
 		@Override
+//?}
 		protected void addTags(HolderLookup.Provider lookupProvider) {
 			tag(BlockTags.MINEABLE_WITH_PICKAXE).add(BCCoreBlocks.ENGINE_BC8.get())
 			.add(BCFactoryBlocks.AUTO_BENCH_BLOCK.get())
@@ -48,7 +51,10 @@ public class BCTagsProvider {
 			super(output, lookupProvider, BCEnergy.MODID, existingFileHelper);
 		}
 
+//? if mc_26_x {
+//? } else {
 		@Override
+//?}
 		protected void addTags(HolderLookup.Provider lookupProvider) {
 			if(BCEnergyFluids.crudeOil[0] != null) {
 			tag(BCEnergyFluids.IS_OIL)

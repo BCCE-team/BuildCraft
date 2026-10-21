@@ -25,7 +25,13 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x {
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.lib.fluid.FuelApiBridge;
+//? } else {
 import net.neoforged.neoforge.fluids.FluidUtil;
+//?}
 
 public class TriggerFluidContainer extends BCStatement implements ITriggerExternal {
     public State state;
@@ -38,22 +44,34 @@ public class TriggerFluidContainer extends BCStatement implements ITriggerExtern
         this.state = state;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public SpriteHolder getSprite() {
         return BCCoreSprites.TRIGGER_FLUID.get(state);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public int maxParameters() {
         return state == State.CONTAINS || state == State.SPACE ? 1 : 0;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public Component getDescription() {
         return Component.translatable("gate.trigger.fluid." + state.name().toLowerCase(Locale.ROOT));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean isTriggerActive(BlockEntity tile, Direction side, IStatementContainer statementContainer, IStatementParameter[] parameters) {
         FluidStorage<FluidStack> handler = PlatformStorage.fluids(
             tile.getLevel(), tile.getBlockPos(), side.getOpposite());
@@ -62,7 +80,11 @@ public class TriggerFluidContainer extends BCStatement implements ITriggerExtern
             FluidStack searchedFluid = FluidStack.EMPTY;
 
             if (parameters != null && parameters.length >= 1 && parameters[0] != null && !parameters[0].getItemStack().isEmpty()) {
+//? if mc_26_x {
+                searchedFluid = FuelApiBridge.stackOf(BuildCraftApi.service(BuildCraftServices.FLUID_ITEMS).fluid(parameters[0].getItemStack()));
+//? } else {
                 searchedFluid = FluidUtil.getFluidContained(parameters[0].getItemStack()).orElse(searchedFluid);
+//?}
             }
 
             if (!searchedFluid.isEmpty()) {
@@ -118,12 +140,18 @@ public class TriggerFluidContainer extends BCStatement implements ITriggerExtern
         return false;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public IStatementParameter createParameter(int index) {
         return new StatementParameterItemStack();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public IStatement[] getPossible() {
         return BCCoreStatements.TRIGGER_FLUID_ALL;
     }

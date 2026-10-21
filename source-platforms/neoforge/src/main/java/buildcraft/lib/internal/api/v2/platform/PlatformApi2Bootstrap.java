@@ -47,14 +47,23 @@ public final class PlatformApi2Bootstrap {
 
     private enum Services implements PlatformServices {
         INSTANCE;
+//? if mc_26_x {
+        public Optional<ItemTransfer> itemTransfer() { return Optional.of(ItemTransferImpl.INSTANCE); }
+        public Optional<FluidTransfer> fluidTransfer() { return Optional.of(FluidTransferImpl.INSTANCE); }
+        public Optional<EnergyTransfer> energyTransfer() { return Optional.of(EnergyTransferImpl.INSTANCE); }
+//? } else {
         @Override public Optional<ItemTransfer> itemTransfer() { return Optional.of(ItemTransferImpl.INSTANCE); }
         @Override public Optional<FluidTransfer> fluidTransfer() { return Optional.of(FluidTransferImpl.INSTANCE); }
         @Override public Optional<EnergyTransfer> energyTransfer() { return Optional.of(EnergyTransferImpl.INSTANCE); }
+//?}
     }
 
     private enum ItemTransferImpl implements ItemTransfer {
         INSTANCE;
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public Optional<ItemPort> find(Level level, BlockPos pos, Direction side) {
             if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             IItemHandler handler = CapUtil.getItemHandler(level, pos, side);
@@ -64,7 +73,10 @@ public final class PlatformApi2Bootstrap {
 
     private enum FluidTransferImpl implements FluidTransfer {
         INSTANCE;
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public Optional<FluidPort> find(Level level, BlockPos pos, Direction side) {
             if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             IFluidHandler handler = CapUtil.getFluidHandler(level, pos, side);
@@ -74,7 +86,10 @@ public final class PlatformApi2Bootstrap {
 
     private enum EnergyTransferImpl implements EnergyTransfer {
         INSTANCE;
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public Optional<ExternalEnergyPort> find(Level level, BlockPos pos, Direction side) {
             if (level == null || pos == null || !level.hasChunkAt(pos)) return Optional.empty();
             IEnergyStorage storage = CapUtil.getEnergyStorage(level, pos, side);
@@ -83,7 +98,10 @@ public final class PlatformApi2Bootstrap {
     }
 
     private record NeoForgeItemPort(IItemHandler handler) implements SlottedItemPort {
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public ItemTransferResult insert(ItemStack offered, OperationMode mode) {
             java.util.Objects.requireNonNull(mode, "mode");
             if (offered == null || offered.isEmpty()) return ItemTransferResult.nothing(offered == null ? 0 : offered.getCount());
@@ -129,7 +147,10 @@ public final class PlatformApi2Bootstrap {
     }
 
     private record NeoForgeFluidPort(IFluidHandler handler) implements FluidPort {
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public FluidTransferResult insert(FluidVolume offered, OperationMode mode) {
             java.util.Objects.requireNonNull(mode, "mode");
             if (offered == null || offered.isEmpty()) return FluidTransferResult.nothing(offered == null ? FluidAmount.ZERO : offered.amount());
@@ -143,7 +164,10 @@ public final class PlatformApi2Bootstrap {
             return FluidTransferResult.ofInsertion(offered, FluidAmount.of(Math.min(portion.amount().milliBuckets(), Math.max(0L, accepted))));
         }
 
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public FluidTransferResult extract(FluidMatcher matcher, FluidAmount maxAmount, OperationMode mode) {
             java.util.Objects.requireNonNull(mode, "mode");
             if (matcher == null || maxAmount == null || maxAmount.isZero()) {
@@ -175,19 +199,34 @@ public final class PlatformApi2Bootstrap {
     }
 
     private record NeoForgeEnergyPort(IEnergyStorage storage) implements ExternalEnergyPort {
+//? if mc_26_x {
+        public long insert(long offered, OperationMode mode) {
+//? } else {
         @Override public long insert(long offered, OperationMode mode) {
+//?}
             java.util.Objects.requireNonNull(mode, "mode");
             int request = (int) Math.min(Integer.MAX_VALUE, Math.max(0L, offered));
             return storage.receiveEnergy(request, mode == OperationMode.SIMULATE);
         }
+//? if mc_26_x {
+        public long extract(long requested, OperationMode mode) {
+//? } else {
         @Override public long extract(long requested, OperationMode mode) {
+//?}
             java.util.Objects.requireNonNull(mode, "mode");
             int request = (int) Math.min(Integer.MAX_VALUE, Math.max(0L, requested));
             return storage.extractEnergy(request, mode == OperationMode.SIMULATE);
         }
+//? if mc_26_x {
+        public long stored() { return storage.getEnergyStored(); }
+        public long capacity() { return storage.getMaxEnergyStored(); }
+        public boolean canInsert() { return storage.canReceive(); }
+        public boolean canExtract() { return storage.canExtract(); }
+//? } else {
         @Override public long stored() { return storage.getEnergyStored(); }
         @Override public long capacity() { return storage.getMaxEnergyStored(); }
         @Override public boolean canInsert() { return storage.canReceive(); }
         @Override public boolean canExtract() { return storage.canExtract(); }
+//?}
     }
 }

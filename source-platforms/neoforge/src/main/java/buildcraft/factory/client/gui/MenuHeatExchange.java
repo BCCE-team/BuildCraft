@@ -20,8 +20,11 @@ import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
+//? if mc_26_x && (>=26.3) {
+//? } else {
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
+//?}
 
 public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
 
@@ -34,16 +37,28 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
     public final TileHeatExchange tile;
 
     public MenuHeatExchange(int containerId, Inventory playerInventory, FriendlyByteBuf buf) {
+//? if mc_26_x && (>=26.3) {
+        this(containerId, playerInventory, new SimpleContainerData(TANK_DATA_COUNT), DataSlot.standalone(), createLevelAccess(playerInventory, buf));
+//? } else {
         this(containerId, playerInventory, new ItemStackHandler(TANK_COUNT),
             new SimpleContainerData(TANK_DATA_COUNT), DataSlot.standalone(), createLevelAccess(playerInventory, buf));
+//?}
     }
 
     public MenuHeatExchange(int containerId, Inventory playerInventory) {
+//? if mc_26_x && (>=26.3) {
+        this(containerId, playerInventory, new SimpleContainerData(TANK_DATA_COUNT), DataSlot.standalone(), ContainerLevelAccess.NULL);
+//? } else {
         this(containerId, playerInventory, new ItemStackHandler(TANK_COUNT),
             new SimpleContainerData(TANK_DATA_COUNT), DataSlot.standalone(), ContainerLevelAccess.NULL);
+//?}
     }
 
+//? if mc_26_x && (>=26.3) {
+    public MenuHeatExchange(int containerId, Inventory playerInventory,
+//? } else {
     public MenuHeatExchange(int containerId, Inventory playerInventory, IItemHandler item,
+//?}
         ContainerData tank, DataSlot bg, ContainerLevelAccess access) {
         super(playerInventory, BCFactoryGuis.MENU_HEAT_EXCHANGE.get(), containerId);
         this.access = access;
@@ -51,7 +66,11 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
         this.tile = access.evaluate((level, pos) -> {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof TileHeatExchange heatExchange) {
+//? if mc_26_x && (>=26.3) {
+                if (!level.isClientSide()) {
+//? } else {
                 if (!level.isClientSide) {
+//?}
                     heatExchange.onPlayerOpen(playerInventory.player);
                 }
                 return heatExchange;
@@ -71,12 +90,18 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
         addDataSlots(tank);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public ItemStack quickMoveStack(Player player, int index) {
         return buildcraft.lib.gui.BCMenuUtil.quickMoveStack(this, player, index);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void removed(Player player) {
         super.removed(player);
         if (tile != null) {
@@ -84,7 +109,10 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void broadcastChanges() {
         super.broadcastChanges();
         if (tile != null && stillValid(playerInventory.player)) {
@@ -92,14 +120,21 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean stillValid(Player player) {
         if (tile != null) {
             if (!tile.canInteractWith(player)) return false;
             // The server passed this exact TankContainerData on opening. A structure rebuild
             // creates another instance; closing this menu avoids displaying or editing dead tanks.
             return access.evaluate((level, pos) -> {
+//? if mc_26_x && (>=26.3) {
+                if (level.isClientSide()) return true; // Client menu data is a local synchronisation mirror.
+//? } else {
                 if (level.isClientSide) return true; // Client menu data is a local synchronisation mirror.
+//?}
                 return level.hasChunkAt(pos) && level.getBlockEntity(pos) == tile
                     && tile.getGuiTankData() == data;
             }).orElse(false);
@@ -107,7 +142,10 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
         return buildcraft.lib.gui.BCMenuUtil.stillValidBlock(this.access, player, BCFactoryBlocks.HEATEXCHANGE_BLOCK.get());
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean clickMenuButton(Player player, int index) {
         if (player == null || player.isSpectator() || index < 0 || index >= TANK_DATA_COUNT
             || !stillValid(player)) return false;
@@ -123,7 +161,10 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
         }).orElse(false);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public TileBC_Neptune getBCTile() {
         return tile;
     }

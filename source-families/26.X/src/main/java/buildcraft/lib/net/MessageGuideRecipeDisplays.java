@@ -93,7 +93,11 @@ public final class MessageGuideRecipeDisplays {
     public static MessageGuideRecipeDisplays create(ServerPlayer player) {
         RecipeManager manager = ((net.minecraft.server.level.ServerLevel) player.level()).getServer().getRecipeManager();
         List<GuideRecipeDisplayCache.Entry> displays = new ArrayList<>();
+//? if neoforge && (>=26.3) {
+        for (RecipeHolder<?> recipe : manager.recipeMap().values()) {
+//? } else {
         for (RecipeHolder<?> recipe : manager.getRecipes()) {
+//?}
             if (recipe.value().getType() != RecipeType.CRAFTING
                 && recipe.value().getType() != BCSiliconRecipes.ASSEMBLY_TYPE.get()) {
                 continue;
@@ -114,7 +118,11 @@ public final class MessageGuideRecipeDisplays {
     public static void sendAll(ServerPlayer player) {
         RecipeManager manager = ((net.minecraft.server.level.ServerLevel) player.level()).getServer().getRecipeManager();
         List<GuideRecipeDisplayCache.Entry> displays = new ArrayList<>();
+//? if neoforge && (>=26.3) {
+        for (RecipeHolder<?> recipe : manager.recipeMap().values()) {
+//? } else {
         for (RecipeHolder<?> recipe : manager.getRecipes()) {
+//?}
             if (recipe.value().getType() != RecipeType.CRAFTING
                 && recipe.value().getType() != BCSiliconRecipes.ASSEMBLY_TYPE.get()) continue;
             Identifier recipeId = recipe.id().identifier();

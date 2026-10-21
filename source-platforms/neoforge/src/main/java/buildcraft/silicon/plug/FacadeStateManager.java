@@ -32,7 +32,15 @@ import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.BCLib;
 import buildcraft.api.v2.facade.FacadePhase;
+//? if mc_26_x {
+import buildcraft.api.v2.facade.FacadePhase;
+//? } else {
+//?}
 import buildcraft.api.v2.facade.FacadeMaterial;
+//? if mc_26_x {
+import buildcraft.silicon.BCSiliconItems;
+//? } else {
+//?}
 import buildcraft.silicon.BCSiliconItems;
 import buildcraft.api.v2.facade.FacadeMaterialAdapter;
 import buildcraft.api.v2.facade.FacadeStateResult;
@@ -46,11 +54,19 @@ import buildcraft.lib.world.SingleBlockAccess;
 import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.tags.BlockTags;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.InteractionResult;
+//? if mc_26_x {
+import buildcraft.lib.misc.InteractionResultHolder;
+//? } else {
 import net.minecraft.world.InteractionResultHolder;
+//?}
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -67,6 +83,10 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.neoforged.fml.InterModComms.IMCMessage;
 import net.minecraft.core.registries.BuiltInRegistries;
+//? if mc_26_x {
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
 public enum FacadeStateManager implements FacadeMaterialAdapter {
     INSTANCE;
@@ -82,6 +102,10 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
     public static final SortedMap<BlockState, FacadeBlockStateInfo> validFacadeStates;
     public static final Map<ItemStackKey, List<FacadeBlockStateInfo>> stackFacades;
     public static FacadeBlockStateInfo defaultState, previewState;
+//? if mc_26_x {
+    private static volatile boolean initialized;
+//? } else {
+//?}
 
     private static final AtomicLong NEXT_RULE_ID = new AtomicLong();
 
@@ -93,6 +117,11 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
     static {
         validFacadeStates = new TreeMap<>(BlockUtil.blockStateComparator());
         stackFacades = new HashMap<>();
+//? if mc_26_x {
+        defaultState = new FacadeBlockStateInfo(Blocks.AIR.defaultBlockState(), StackUtil.EMPTY, ImmutableSet.of());
+        previewState = defaultState;
+//? } else {
+//?}
     }
 
     public static FacadeBlockStateInfo getInfoForBlock(Block block) {
@@ -107,11 +136,19 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         String id = getImcMethod(message);
         String sender = getImcSender(message);
         if (IMC_FACADE_DISABLE.equals(id)) {
+//? if mc_26_x {
+            Identifier loc = getImcResourceLocation(message);
+//? } else {
             ResourceLocation loc = getImcResourceLocation(message);
+//?}
             if (loc == null) {
                 return;
             }
+//? if mc_26_x {
+            Block block = BuiltInRegistries.BLOCK.get(loc).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR);
+//? } else {
             Block block = BuiltInRegistries.BLOCK.get(loc);
+//?}
             if (block == null || block == Blocks.AIR) {
                 return;
             }
@@ -121,18 +158,31 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
             if (nbt == null) {
                 return;
             }
+//? if mc_26_x {
+            String regName = NbtCompat.getString(nbt, NBT_CUSTOM_BLOCK_REG_KEY);
+            ItemStack stack = ItemStackUtil.parseOptional(ItemStackUtil.requireActiveRegistryProvider(), NbtCompat.getCompound(nbt, NBT_CUSTOM_ITEM_STACK));
+//? } else {
             String regName = nbt.getString(NBT_CUSTOM_BLOCK_REG_KEY);
             ItemStack stack = ItemStackUtil.parseOptional(ItemStackUtil.requireActiveRegistryProvider(), nbt.getCompound(NBT_CUSTOM_ITEM_STACK));
+//?}
             if (regName.isEmpty() || stack.isEmpty()) {
                 return;
             }
+//? if mc_26_x {
+            Block block = BuiltInRegistries.BLOCK.get(Identifier.parse(regName)).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.level.block.Blocks.AIR);
+//? } else {
             Block block = BuiltInRegistries.BLOCK.get(ResourceLocation.parse(regName));
+//?}
             if (block == null || block == Blocks.AIR) {
                 return;
             }
             BlockState state = block.defaultBlockState();
             if (nbt.contains(NBT_CUSTOM_BLOCK_META)) {
+//? if mc_26_x {
+                int legacyMeta = NbtCompat.getInt(nbt, NBT_CUSTOM_BLOCK_META);
+//? } else {
                 int legacyMeta = nbt.getInt(NBT_CUSTOM_BLOCK_META);
+//?}
                 BlockState legacy = Block.stateById(legacyMeta);
                 if (legacy.getBlock() == block) {
                     state = legacy;
@@ -160,11 +210,23 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         return "unknown";
     }
 
+//? if mc_26_x {
+    private static Identifier getImcResourceLocation(IMCMessage message) {
+//? } else {
     private static ResourceLocation getImcResourceLocation(IMCMessage message) {
+//?}
         Object value = invokeNoArg(message, "getResourceLocationValue");
+//? if mc_26_x {
+        if (value instanceof Identifier rl) return rl;
+//? } else {
         if (value instanceof ResourceLocation rl) return rl;
+//?}
         value = invokeNoArg(message, "resourceLocationValue");
+//? if mc_26_x {
+        if (value instanceof Identifier rl) return rl;
+//? } else {
         if (value instanceof ResourceLocation rl) return rl;
+//?}
         return null;
     }
 
@@ -285,13 +347,44 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
     }
 
     public static void init() {
+//? if mc_26_x {
+        if (initialized) {
+            return;
+        }
+        synchronized (FacadeStateManager.class) {
+            if (initialized) {
+                return;
+            }
+            validFacadeStates.clear();
+            stackFacades.clear();
+            previewState = defaultState;
+//? } else {
         defaultState = new FacadeBlockStateInfo(Blocks.AIR.defaultBlockState(), StackUtil.EMPTY, ImmutableSet.of());
+//?}
 
+//? if mc_26_x {
+            for (Block block : BuiltInRegistries.BLOCK) {
+                scanBlock(block);
+            }
+
+            previewState = validFacadeStates.getOrDefault(Blocks.BRICKS.defaultBlockState(), defaultState);
+            initialized = true;
+//? } else {
         for (Block block : BuiltInRegistries.BLOCK) {
             scanBlock(block);
+//?}
         }
+//? if mc_26_x {
+    }
+//? } else {
+//?}
 
+//? if mc_26_x {
+    public static boolean isInitialized() {
+        return initialized;
+//? } else {
         previewState = validFacadeStates.getOrDefault(Blocks.BRICKS.defaultBlockState(), defaultState);
+//?}
     }
 
     private static void scanBlock(Block block) {
@@ -372,13 +465,30 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
                 usedStates.put(state, requiredStack);
                 ItemStackKey stackKey = new ItemStackKey(requiredStack);
                 Map<Property<?>, Comparable<?>> vars = varyingProperties.get(stackKey);
+//? if mc_26_x {
+                List<Property.Value<?>> stateValues = state.getValues().toList();
+//? } else {
+//?}
                 if (vars == null) {
+//? if mc_26_x {
+                    vars = new HashMap<>();
+                    for (Property.Value<?> value : stateValues) {
+                        vars.put(value.property(), value.value());
+                    }
+//? } else {
                     vars = new HashMap<>(state.getValues());
+//?}
                     varyingProperties.put(stackKey, vars);
                 } else {
+//? if mc_26_x {
+                    for (Property.Value<?> propertyValue : stateValues) {
+                        Property<?> prop = propertyValue.property();
+                        Comparable<?> value = propertyValue.value();
+//? } else {
                     for (Entry<Property<?>, Comparable<?>> entry : state.getValues().entrySet()) {
                         Property<?> prop = entry.getKey();
                         Comparable<?> value = entry.getValue();
+//?}
                         if (vars.get(prop) != value) {
                             vars.put(prop, null);
                         }
@@ -459,7 +569,11 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
                 }
             }
             if (skippedStateCount > 0) {
+//? if mc_26_x {
+                Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
+//? } else {
                 ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(block);
+//?}
                 String summary = "[silicon.facade] Skipped " + skippedStateCount + " invalid facade state(s) for "
                     + blockId + "; first failed state: " + firstSkippedState;
                 if (DEBUG) {
@@ -469,7 +583,11 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
                 }
             }
         } catch (RuntimeException e) {
+//? if mc_26_x {
+            Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
+//? } else {
             ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(block);
+//?}
             String summary = "[silicon.facade] Skipping " + blockId + " after "
                 + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage());
             if (DEBUG) {
@@ -481,7 +599,11 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
     }
 
     private static boolean isUserBlacklistedFacadeBlock(Block block) {
+//? if mc_26_x {
+        Identifier key = BuiltInRegistries.BLOCK.getKey(block);
+//? } else {
         ResourceLocation key = BuiltInRegistries.BLOCK.getKey(block);
+//?}
         if (key == null) {
             return false;
         }
@@ -613,6 +735,10 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
     @Override
     public Optional<ItemStack> createPhased(List<FacadePhase> phases, boolean hollow) {
         if (phases == null || phases.isEmpty() || phases.size() > 17) return Optional.empty();
+//? if mc_26_x {
+        init();
+//? } else {
+//?}
         FacadePhasedState[] result = new FacadePhasedState[phases.size()];
         Set<DyeColor> colours = new HashSet<>();
         boolean uncoloured = false;
@@ -631,14 +757,20 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         return Optional.of(BCSiliconItems.PLUG_FACADE_ITEM.get().createItemStack(new FacadeInstance(result, hollow)));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public Optional<FacadeStateResult> fromState(BlockState state) {
         if (state == null) return Optional.empty();
         FacadeBlockStateInfo info = validFacadeStates.get(state);
         return info == null ? Optional.empty() : Optional.of(toApiResult(info));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public Optional<FacadeStateResult> fromStack(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return Optional.empty();
         ItemStack normalized = stack.copy();
@@ -666,8 +798,13 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         );
     }
 
+//? if mc_26_x {
+    private static Identifier legacyRuleId(String kind, long sequence) {
+        return java.util.Objects.requireNonNull(Identifier.tryParse(
+//? } else {
     private static ResourceLocation legacyRuleId(String kind, long sequence) {
         return java.util.Objects.requireNonNull(ResourceLocation.tryParse(
+//?}
             "buildcraft:legacy_facade/" + kind + "/" + String.format(java.util.Locale.ROOT, "%010d", sequence)
         ));
     }

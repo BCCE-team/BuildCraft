@@ -8,6 +8,14 @@ import buildcraft.api.v2.event.WorldEventContext;
 import buildcraft.api.v2.event.WorldEventDecision;
 import buildcraft.api.v2.event.WorldEventKind;
 import buildcraft.api.v2.permission.AutomationActor;
+//? if neoforge {
+import buildcraft.api.v2.permission.WorldOperationContext;
+import buildcraft.api.v2.permission.WorldOperationTarget;
+import buildcraft.api.v2.permission.WorldOperationKind;
+import buildcraft.api.v2.permission.PermissionVerdict;
+import net.minecraft.resources.ResourceLocation;
+//? } else {
+//?}
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -63,10 +71,29 @@ final class BlockInteractionServiceImpl implements BlockInteractionService {
         return paintResult(legacy);
     }
 
+//? if neoforge {
+    private static final ResourceLocation INTERACTION_REASON = java.util.Objects.requireNonNull(ResourceLocation.tryParse("buildcraft:block_interaction"));
+
+//? } else {
+//?}
     private static boolean denied(Level level, BlockPos pos, BlockState state,
             AutomationActor actor, OperationMode mode) {
         // Client prediction remains unchanged; registered listeners execute only on the server.
         if (level.isClientSide()) return false;
+//? if neoforge {
+        // Addon permissions may exist without a corresponding world-event listener.
+        if (!level.hasChunkAt(pos)) return true;
+        try {
+            if (BuildCraftApi.service(BuildCraftServices.PERMISSIONS).decide(new WorldOperationContext(
+                actor, level, pos, WorldOperationTarget.block(pos),
+                WorldOperationKind.BLOCK_INTERACT, mode, INTERACTION_REASON)).verdict() == PermissionVerdict.DENY) {
+                return true;
+            }
+        } catch (RuntimeException invalidPermissionProvider) {
+            return true;
+        }
+//? } else {
+//?}
         return BuildCraftApi.service(BuildCraftServices.WORLD_EVENTS).dispatch(new WorldEventContext(
             WorldEventKind.BLOCK_INTERACT, level, pos, actor, Optional.of(state), Optional.empty(), mode))
             == WorldEventDecision.DENY;

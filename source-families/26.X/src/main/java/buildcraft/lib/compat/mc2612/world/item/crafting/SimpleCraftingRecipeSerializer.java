@@ -9,7 +9,11 @@ import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 
 /** Compatibility copy of the pre-1.21.11 simple custom recipe serializer. */
+//? if neoforge {
+public class SimpleCraftingRecipeSerializer<T extends CraftingRecipe> {
+//? } else {
 public class SimpleCraftingRecipeSerializer<T extends CraftingRecipe> implements RecipeSerializer<T> {
+//?}
     @FunctionalInterface
     public interface Factory<T extends CraftingRecipe> {
         T create(CraftingBookCategory category);
@@ -35,4 +39,11 @@ public class SimpleCraftingRecipeSerializer<T extends CraftingRecipe> implements
     public StreamCodec<RegistryFriendlyByteBuf, T> streamCodec() {
         return streamCodec;
     }
+//? if neoforge {
+
+    public RecipeSerializer<T> serializer() {
+        return new RecipeSerializer<>(codec, streamCodec);
+    }
+//? } else {
+//?}
 }

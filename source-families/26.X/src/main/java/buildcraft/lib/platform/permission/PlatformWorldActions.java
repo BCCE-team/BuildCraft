@@ -10,7 +10,11 @@ import buildcraft.lib.misc.FakePlayerProvider;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.common.util.BlockSnapshot;
 import net.neoforged.neoforge.event.EventHooks;
+//? if neoforge {
+import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
+//? } else {
 import net.neoforged.neoforge.event.level.BlockEvent.BreakEvent;
+//?}
 
 /** Native protection events and canceled-placement snapshot rollback. No internal owner-only restriction. */
 public final class PlatformWorldActions {
@@ -19,7 +23,11 @@ public final class PlatformWorldActions {
         if (actor == null || world.getBlockState(pos).isAir()) {
             return false;
         }
+//? if neoforge {
+        BreakBlockEvent breakEvent = new BreakBlockEvent(world, pos, world.getBlockState(pos), actor);
+//? } else {
         BreakEvent breakEvent = new BreakEvent(world, pos, world.getBlockState(pos), actor);
+//?}
         NeoForge.EVENT_BUS.post(breakEvent);
         return !breakEvent.isCanceled();
     }

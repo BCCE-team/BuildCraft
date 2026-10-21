@@ -8,9 +8,20 @@ import buildcraft.lib.client.model.MutableVertex;
 import buildcraft.lib.misc.SpriteUtil;
 import net.minecraft.client.model.geom.builders.UVPair;
 import net.minecraft.client.multiplayer.ClientLevel;
+//? if neoforge && (>=26.3) {
+//? } else {
 import buildcraft.lib.compat.mc2612.client.renderer.block.model.BakedQuad;
+//?}
 import net.minecraft.client.resources.model.cuboid.ItemTransforms;
+//? if neoforge && (>=26.3) {
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.resources.model.geometry.QuadCollection;
+import net.minecraft.client.resources.model.sprite.Material;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import net.minecraft.client.renderer.item.CuboidItemModelWrapper;
+//? } else {
 import net.minecraft.client.renderer.item.BlockModelWrapper;
+//?}
 import net.minecraft.client.renderer.item.ItemModel;
 import net.minecraft.client.renderer.item.ItemModelResolver;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
@@ -23,6 +34,10 @@ import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.model.quad.BakedColors;
 import net.neoforged.neoforge.client.model.quad.BakedNormals;
+//? if neoforge && (>=26.3) {
+import org.joml.Matrix4f;
+//? } else {
+//?}
 
 /** Converts BCCE geometry to native item layers without losing per-vertex colour or normals. */
 public final class NativeItemModelBuilder {
@@ -37,7 +52,11 @@ public final class NativeItemModelBuilder {
 
         List<BakedQuad> nativeQuads = new ArrayList<>(mutable.size());
         for (MutableQuad quad : mutable) {
+//? if neoforge && (>=26.3) {
+            BakedQuad baked = toNative(quad, renderType);
+//? } else {
             BakedQuad baked = toNative(quad);
+//?}
             if (baked != null) {
                 nativeQuads.add(baked);
             }
@@ -46,15 +65,35 @@ public final class NativeItemModelBuilder {
             return EmptyItemModel.INSTANCE;
         }
 
+//? if neoforge && (>=26.3) {
+        TextureAtlasSprite particle = nativeQuads.get(0).materialInfo().sprite();
+//? } else {
         TextureAtlasSprite particle = nativeQuads.get(0).sprite();
+//?}
         if (particle == null) {
             particle = SpriteUtil.missingSprite();
         }
+//? if neoforge && (>=26.3) {
+        ChunkSectionLayer layer = renderType.hasBlending()
+            ? ChunkSectionLayer.TRANSLUCENT
+            : ChunkSectionLayer.CUTOUT;
+        ModelRenderProperties properties = new ModelRenderProperties(
+            usesBlockLight, new Material.Baked(particle, layer.translucent()), transforms
+        );
+        QuadCollection.Builder quads = new QuadCollection.Builder();
+        nativeQuads.forEach(quads::addUnculledFace);
+        return new CuboidItemModelWrapper(List.of(), quads.build(), properties, new Matrix4f());
+//? } else {
         ModelRenderProperties properties = new ModelRenderProperties(usesBlockLight, particle, transforms);
         return new BlockModelWrapper(List.of(), nativeQuads, properties, ignored -> renderType);
+//?}
     }
 
+//? if neoforge && (>=26.3) {
+    private static BakedQuad toNative(MutableQuad quad, RenderType renderType) {
+//? } else {
     private static BakedQuad toNative(MutableQuad quad) {
+//?}
         if (quad == null || quad.getSprite() == null) {
             return null;
         }
@@ -66,6 +105,20 @@ public final class NativeItemModelBuilder {
         MutableVertex v2 = itemQuad.vertex_2;
         MutableVertex v3 = itemQuad.vertex_3;
         Direction face = actualFace(itemQuad);
+//? if neoforge && (>=26.3) {
+        ChunkSectionLayer layer = renderType.hasBlending()
+            ? ChunkSectionLayer.TRANSLUCENT
+            : ChunkSectionLayer.CUTOUT;
+        Direction shadeOverride = itemQuad.getShadeDirectionOverride();
+        BakedQuad.MaterialInfo defaults = BakedQuad.MaterialInfo.of(
+            new Material.Baked(itemQuad.getSprite(), layer.translucent()), itemQuad.getSprite().transparency(),
+            itemQuad.getTint(), shadeOverride, lightEmission(itemQuad), true);
+        BakedQuad.MaterialInfo material = new BakedQuad.MaterialInfo(
+            itemQuad.getSprite(), layer, renderType, defaults.itemGlintRenderType(), defaults.itemGlintSpecialRenderType(),
+            itemQuad.getTint(), shadeOverride, lightEmission(itemQuad), true
+        );
+//? } else {
+//?}
 
         return new BakedQuad(
             position(v0),
@@ -76,8 +129,19 @@ public final class NativeItemModelBuilder {
             UVPair.pack(v1.tex_u, v1.tex_v),
             UVPair.pack(v2.tex_u, v2.tex_v),
             UVPair.pack(v3.tex_u, v3.tex_v),
+//? if neoforge && (>=26.3) {
+//? } else {
             itemQuad.getTint(),
+//?}
             face,
+//? if neoforge && (>=26.3) {
+            material,
+            new BakedNormals.PerVertex(
+                packNormal(v0.normal_x, v0.normal_y, v0.normal_z),
+                packNormal(v1.normal_x, v1.normal_y, v1.normal_z),
+                packNormal(v2.normal_x, v2.normal_y, v2.normal_z),
+                packNormal(v3.normal_x, v3.normal_y, v3.normal_z)
+//? } else {
             itemQuad.getSprite(),
             itemQuad.isShade(),
             lightEmission(itemQuad),
@@ -86,10 +150,24 @@ public final class NativeItemModelBuilder {
                 BakedNormals.pack(v1.normal_x, v1.normal_y, v1.normal_z),
                 BakedNormals.pack(v2.normal_x, v2.normal_y, v2.normal_z),
                 BakedNormals.pack(v3.normal_x, v3.normal_y, v3.normal_z)
+//?}
             ),
+//? if neoforge && (>=26.3) {
+            new BakedColors.PerVertex(argb(v0), argb(v1), argb(v2), argb(v3))
+//? } else {
             BakedColors.of(argb(v0), argb(v1), argb(v2), argb(v3)),
             false
+//?}
         );
+//? if neoforge && (>=26.3) {
+    }
+
+    private static int packNormal(float x, float y, float z) {
+        return (((byte) Math.round(x * 127.0F)) & 0xFF)
+            | ((((byte) Math.round(y * 127.0F)) & 0xFF) << 8)
+            | ((((byte) Math.round(z * 127.0F)) & 0xFF) << 16);
+//? } else {
+//?}
     }
 
     private static Vector3f position(MutableVertex vertex) {

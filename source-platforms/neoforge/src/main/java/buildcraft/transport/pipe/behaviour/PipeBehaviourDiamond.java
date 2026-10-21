@@ -20,7 +20,11 @@ import buildcraft.transport.container.ContainerDiamondPipe;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+//? if mc_26_x && (>=26.3) {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
@@ -30,12 +34,22 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.phys.BlockHitResult;
+//? if mc_26_x && (>=26.3) {
+
+import buildcraft.lib.compat.GameProfileCompat;
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
+//?}
 
 public abstract class PipeBehaviourDiamond extends PipeBehaviour implements MenuProvider{
 
     public static final int FILTERS_PER_SIDE = 9;
+//? if mc_26_x && (>=26.3) {
+    public static final Identifier ADVANCEMENT_NEED_LIST =
+//? } else {
     public static final ResourceLocation ADVANCEMENT_NEED_LIST =
+//?}
         BCModules.TRANSPORT.createLocation("too_many_pipe_filters");
 
     public final ItemHandlerSimple filters = new ItemHandlerSimple(FILTERS_PER_SIDE * 6, this::onFilterSlotChange);
@@ -46,17 +60,28 @@ public abstract class PipeBehaviourDiamond extends PipeBehaviour implements Menu
 
     public PipeBehaviourDiamond(IPipe pipe, CompoundTag nbt) {
         super(pipe, nbt);
+//? if mc_26_x && (>=26.3) {
+        filters.deserializeNBT(TilePipeHolder.getRegistryAccess(pipe), NbtCompat.getCompound(nbt, "filters"));
+//? } else {
         filters.deserializeNBT(TilePipeHolder.getRegistryAccess(pipe), nbt.getCompound("filters"));
+//?}
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public CompoundTag writeToNbt() {
         CompoundTag nbt = super.writeToNbt();
         nbt.put("filters", filters.serializeNBT(TilePipeHolder.getRegistryAccess(pipe)));
         return nbt;
     }
 
+//? if mc_26_x && (>=26.3) {
+    protected void onFilterSlotChange(Object itemHandler, int slot, ItemStack before, ItemStack after) {
+//? } else {
     protected void onFilterSlotChange(IItemHandlerModifiable itemHandler, int slot, ItemStack before, ItemStack after) {
+//?}
         if (pipe.getHolder().getPipeWorld().isClientSide()) {
             return;
         }
@@ -69,7 +94,11 @@ public abstract class PipeBehaviourDiamond extends PipeBehaviour implements Menu
             }
         }
         if (count >= FILTERS_PER_SIDE - 2) {
+//? if mc_26_x && (>=26.3) {
+            AdvancementUtil.unlockAdvancement(GameProfileCompat.id(pipe.getHolder().getOwner()), ADVANCEMENT_NEED_LIST);
+//? } else {
             AdvancementUtil.unlockAdvancement(pipe.getHolder().getOwner().getId(), ADVANCEMENT_NEED_LIST);
+//?}
         }
     }
 
@@ -78,7 +107,10 @@ public abstract class PipeBehaviourDiamond extends PipeBehaviour implements Menu
         return face == null ? 0 : face.ordinal() + 1;
     }
     
+//? if mc_26_x && (>=26.3) {
+//? } else {
 	@Override
+//?}
 	public int[] getTextureUVs(Direction face) {
 		switch(face) {
 		case UP:
@@ -97,7 +129,10 @@ public abstract class PipeBehaviourDiamond extends PipeBehaviour implements Menu
 		return super.getTextureUVs(face);
 	}
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean onPipeActivate(Player player, BlockHitResult trace, Level level,
         EnumPipePart part) {
         if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
@@ -106,17 +141,26 @@ public abstract class PipeBehaviourDiamond extends PipeBehaviour implements Menu
         return true;
     }
     
+//? if mc_26_x && (>=26.3) {
+//? } else {
 	@Override
+//?}
 	public AbstractContainerMenu createMenu(int id, Inventory inventory, Player player) {
 		return new ContainerDiamondPipe(id, inventory, filters, this);
 	}
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
 	@Override
+//?}
 	public Component getDisplayName() {
 		return Component.translatable(pipe.getDefinition().identifier.toLanguageKey());
 	}
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
 	@Override
+//?}
 	public void rotate(Rotation rot) {
 		List<ItemStack> copy = List.copyOf(filters.stacks);
 		filters.stacks.clear();

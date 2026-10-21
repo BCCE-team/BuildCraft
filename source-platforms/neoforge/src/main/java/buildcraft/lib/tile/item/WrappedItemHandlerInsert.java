@@ -19,7 +19,10 @@ public class WrappedItemHandlerInsert extends DelegateItemHandler {
         super(delegate);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     @Nonnull
     public ItemStack extractItem(int slot, int amount, boolean simulate) {
         return StackUtil.EMPTY;

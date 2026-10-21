@@ -650,10 +650,17 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             return null;
         }
         Set<ChunkPos> chunkPoses = new HashSet<>();
+//? if mc_26_x {
+        ChunkPos minChunkPos = new ChunkPos(frameBox.min().getX() >> 4, frameBox.min().getZ() >> 4);
+        ChunkPos maxChunkPos = new ChunkPos(frameBox.max().getX() >> 4, frameBox.max().getZ() >> 4);
+        for (int x = minChunkPos.x(); x <= maxChunkPos.x(); x++) {
+            for (int z = minChunkPos.z(); z <= maxChunkPos.z(); z++) {
+//? } else {
         ChunkPos minChunkPos = new ChunkPos(frameBox.min());
         ChunkPos maxChunkPos = new ChunkPos(frameBox.max());
         for (int x = minChunkPos.x; x <= maxChunkPos.x; x++) {
             for (int z = minChunkPos.z; z <= maxChunkPos.z; z++) {
+//?}
                 chunkPoses.add(new ChunkPos(x, z));
             }
         }

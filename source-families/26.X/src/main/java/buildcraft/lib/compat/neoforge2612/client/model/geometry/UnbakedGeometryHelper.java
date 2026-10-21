@@ -6,7 +6,11 @@ import java.util.function.Function;
 
 import buildcraft.lib.compat.mc2612.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+//? if neoforge {
+import net.minecraft.client.renderer.block.dispatch.ModelState;
+//? } else {
 import net.minecraft.client.resources.model.ModelState;
+//?}
 
 public final class UnbakedGeometryHelper {
     private UnbakedGeometryHelper() {}

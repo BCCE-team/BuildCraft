@@ -47,7 +47,11 @@ public class ListMatchHandlerOreDictionary extends ListMatchHandlerBackend {
     }
 
     private static List<TagKey<Item>> getTags(ItemStack stack) {
+//? if neoforge {
+        return stack.typeHolder().tags().collect(Collectors.toList());
+//? } else {
         return stack.getTags().collect(Collectors.toList());
+//?}
     }
 
     private static TagParts getParts(TagKey<Item> tag) {

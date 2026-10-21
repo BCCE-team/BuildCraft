@@ -30,7 +30,11 @@ public class FluidSmoother implements IDebuggable {
             if (world == null) {
                 return;
             }
+//? if mc_26_x {
+            data = world.isClientSide() ? new _Client() : new _Server();
+//? } else {
             data = world.isClientSide ? new _Client() : new _Server();
+//?}
         }
         data.tick(world);
     }
@@ -58,7 +62,11 @@ public class FluidSmoother implements IDebuggable {
     }
 
     public void resetSmoothing(Level world) {
+//? if mc_26_x {
+        if (data == null && world.isClientSide()) {
+//? } else {
         if (data == null && world.isClientSide) {
+//?}
             data = new _Client();
         }
         if (data instanceof _Client) {
@@ -103,7 +111,10 @@ public class FluidSmoother implements IDebuggable {
         return tank.getCapacity();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void getDebugInfo(List<String> left, List<String> right, Direction side) {
         if (data != null) {
             data.getDebugInfo(left, right, side);
@@ -135,7 +146,10 @@ public class FluidSmoother implements IDebuggable {
         private FluidStack sentFluid = FluidStack.EMPTY;
         private final SafeTimeTracker tracker = new SafeTimeTracker(BCCoreConfig.networkUpdateRate, 4);
 
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         void tick(Level world) {
             FluidStack fluid = tank.getFluid();
             boolean hasFluid = fluid != null && !fluid.isEmpty();
@@ -171,7 +185,10 @@ public class FluidSmoother implements IDebuggable {
             }
         }
 
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public void getDebugInfo(List<String> left, List<String> right, Direction side) {
             String contents = (tank.getFluid() != null) ? "Something" : "Nothing";
             left.add("current = " + tank.getFluidAmount() + " of " + contents);
@@ -185,7 +202,10 @@ public class FluidSmoother implements IDebuggable {
         long lastMessage, lastMessageMinus1;
         NetworkedFluidStackCache.Link link;
 
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         void tick(Level world) {
             amountLast = amount;
             if (amount != target) {
@@ -216,7 +236,10 @@ public class FluidSmoother implements IDebuggable {
             lastMessageMinus1 -= 1;
         }
 
+//? if mc_26_x {
+//? } else {
         @Override
+//?}
         public void getDebugInfo(List<String> left, List<String> right, Direction side) {
             left.add("shown = " + amount + ", target = " + target);
             left.add("lastMsg = " + lastMessage + ", lastMsg-1 = " + lastMessageMinus1 + ", diff = "

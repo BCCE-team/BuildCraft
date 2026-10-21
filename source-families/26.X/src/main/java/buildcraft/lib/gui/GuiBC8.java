@@ -19,12 +19,18 @@ import buildcraft.lib.gui.pos.IGuiArea;
 import buildcraft.lib.gui.statement.GuiElementStatementParam;
 import buildcraft.lib.misc.GuiUtil;
 import buildcraft.lib.tile.TileBC_Neptune;
+//? if neoforge && (>=26.2) {
+//? } else {
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import buildcraft.lib.compat.mc2612.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+//?}
 import com.mojang.blaze3d.vertex.PoseStack;
+//? if neoforge && (>=26.2) {
+//? } else {
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
+//?}
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Renderable;
@@ -33,7 +39,10 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+//? if neoforge && (>=26.2) {
+//? } else {
 import org.joml.Matrix4f;
+//?}
 
 import java.util.List;
 import java.util.function.Function;
@@ -51,21 +60,52 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
     }
 
     public GuiBC8(C container, Function<GuiBC8<?>, BuildCraftGui> constructor, Inventory inventory, Component title) {
+//? if neoforge && (>=26.2) {
+        this(container, constructor, inventory, title, 176, 166);
+    }
+
+    protected GuiBC8(C container, Inventory inventory, Component title, int imageWidth, int imageHeight) {
+        this(container, gui -> new BuildCraftGui(gui, BuildCraftGui.createWindowedArea(gui)), inventory, title,
+            imageWidth, imageHeight);
+    }
+
+    protected GuiBC8(C container, Function<GuiBC8<?>, BuildCraftGui> constructor, Inventory inventory, Component title,
+        int imageWidth, int imageHeight) {
+        super(container, inventory, title, imageWidth, imageHeight);
+//? } else {
         super(container, inventory, title);
+//?}
         this.container = container;
         this.mainGui = constructor.apply(this);
         standardLedgerInit();
     }
 
     public GuiBC8(C container, Identifier jsonGuiDef, Inventory inventory, Component title) {
+//? if neoforge && (>=26.2) {
+        this(container, jsonGuiDef, inventory, title, 10, 10);
+    }
+
+    /**
+     * Sized form of the legacy JSON GUI constructor. Minecraft 26.1 resolves container geometry from the dimensions
+     * passed to the superclass constructor, so addons with non-standard JSON GUIs need a constructor-time size just
+     * like the native Filler/Gate screens. The four-argument overload keeps the historical 10x10 sentinel semantics.
+     */
+    protected GuiBC8(C container, Identifier jsonGuiDef, Inventory inventory, Component title,
+        int imageWidth, int imageHeight) {
+        super(container, inventory, title, imageWidth, imageHeight);
+//? } else {
         super(container, inventory, title);
+//?}
         this.container = container;
         BuildCraftJsonGui jsonGui = new BuildCraftJsonGui(this, BuildCraftGui.createWindowedArea(this), jsonGuiDef);
         jsonGui.properties.put("player.inventory", new InventorySlotHolder(container, container.playerInventory));
         this.mainGui = jsonGui;
         standardLedgerInit();
+//? if neoforge && (>=26.2) {
+//? } else {
         imageWidth = 10;
         imageHeight = 10;
+//?}
     }
 
     private void standardLedgerInit() {
@@ -89,13 +129,21 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         super.init();
     }
 
+//? if neoforge && (>=26.2) {
+    public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTicks) {
+//? } else {
     public void render(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTicks) {
+//?}
         activeGraphics = guiGraphics;
         try {
+//? if neoforge && (>=26.2) {
+            super.extractRenderState(guiGraphics, mouseX, mouseY, partialTicks);
+//? } else {
             super.render(guiGraphics, mouseX, mouseY, partialTicks);
             if (mainGui.currentMenu == null || !mainGui.currentMenu.shouldFullyOverride()) {
                 renderTooltip(guiGraphics, mouseX, mouseY);
             }
+//?}
             // GuiGraphicsExtractor is 2D, so tooltips render after slots/items and advance the render stratum
             // instead of relying on a PoseStack Z translation.
             BCGraphics.nextLayer(guiGraphics);
@@ -103,6 +151,23 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         } finally {
             activeGraphics = null;
         }
+//? if neoforge && (>=26.2) {
+    }
+
+    protected void extractTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
+        // AbstractContainerScreen now extracts its slot tooltip inside super.extractRenderState(). A statement popup
+        // that fully overrides the GUI must suppress that vanilla tooltip before BuildCraft submits its own popup tip.
+        if (mainGui.currentMenu == null || !mainGui.currentMenu.shouldFullyOverride()) {
+            super.extractTooltip(guiGraphics, mouseX, mouseY);
+        }
+    }
+
+    public void extractContents(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTicks) {
+        activeGraphics = guiGraphics;
+        renderBg(guiGraphics, partialTicks, mouseX, mouseY);
+        super.extractContents(guiGraphics, mouseX, mouseY, partialTicks);
+//? } else {
+//?}
     }
 
     protected boolean shouldAddOwnerLedger() {
@@ -142,10 +207,19 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         int h = Mth.floor(height);
 
         Identifier texture = RenderCompat.getShaderTexture();
+//? if neoforge && (>=26.2) {
+        if (texture == null) {
+            requireGraphics().blitSprite(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                buildcraft.lib.misc.SpriteUtil.missingSprite(), x, y, w, h, 0xFFFFFFFF);
+//? } else {
         if (texture != null) {
             BCGraphics.blit(requireGraphics(), texture, x, y, u, v, w, h);
+//?}
             return;
         }
+//? if neoforge && (>=26.2) {
+        BCGraphics.blit(requireGraphics(), texture, x, y, u, v, w, h);
+//? } else {
 
         Matrix4f matrix = pose.last().pose();
         float u0 = u / 256.0F;
@@ -159,6 +233,7 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         builder.addVertex(matrix, x + w, y, 0).setUv(u1, v0);
         builder.addVertex(matrix, x, y, 0).setUv(u0, v0);
         BufferUploader.drawWithShader(builder.buildOrThrow());
+//?}
     }
 
     public void drawString(GuiGraphicsExtractor guiGraphics, Font fontRenderer, String text, double x, double y, int colour) {
@@ -199,10 +274,24 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         mainGui.drawElementBackgrounds(guiGraphics);
     }
 
+//? if neoforge && (>=26.2) {
+    protected void extractLabels(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
+        // 1.21.1 GuiBC8 intentionally replaced AbstractContainerScreen#renderLabels without calling super,
+        // so machine GUIs did not get the vanilla menu title / "Inventory" labels. In 26.1 that hook was
+        // renamed to extractLabels; keep the legacy BuildCraft hook reachable and preserve the same label set.
+        renderLabels(guiGraphics, mouseX, mouseY);
+    }
+
+//? } else {
+//?}
     protected void renderLabels(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
         activeGraphics = guiGraphics;
 
+//? if neoforge && (>=26.2) {
+        // Container foregrounds receive a GuiGraphicsExtractor already translated by leftPos/topPos. BuildCraft
+//? } else {
         // Container foregrounds arrive already translated by leftPos/topPos. BuildCraft
+//?}
         // elements use absolute screen coordinates through mainGui.rootElement, so cancel that translation on the
         // real GuiGraphicsExtractor matrix before drawing them.
         BCGraphics.push(guiGraphics);
@@ -238,7 +327,11 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends BCContainerScreen
         drawProgress(requireGraphics(), rect, icon, widthPercent, heightPercent);
     }
 
+//? if neoforge && (>=26.2) {
+    /** Legacy-shaped input hooks used by BuildCraft machine screens; native event entry points delegate here. */
+//? } else {
     /** Compatibility input hooks used by machine screens that share the legacy callback shape. */
+//?}
     public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
         List<IGuiElement> elements = mainGui.getElementsAt(mouseX, mouseY);
         boolean hitsStatementParameter = elements.stream().anyMatch(GuiElementStatementParam.class::isInstance);

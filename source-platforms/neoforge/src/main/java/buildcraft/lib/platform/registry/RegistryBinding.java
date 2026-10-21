@@ -4,7 +4,11 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceKey;
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 
 /** Native registration mechanism. Registration order, event bus and lazy factory execution remain loader-owned. */
 public final class RegistryBinding implements BCRegistryBinder {
@@ -12,8 +16,13 @@ public final class RegistryBinding implements BCRegistryBinder {
     private RegistryBinding(IEventBus bus) { this.bus = java.util.Objects.requireNonNull(bus); }
     public static RegistryBinding on(IEventBus bus) { return new RegistryBinding(bus); }
     public static <T> void register(BCDeferredRegister<T> catalog, IEventBus bus) { on(bus).register(catalog); }
+//? if mc_26_x {
+    public <T> void register(BCDeferredRegister<T> catalog) {
+        ResourceKey<Registry<T>> key = ResourceKey.createRegistryKey(Identifier.parse(catalog.registryId()));
+//? } else {
     @Override public <T> void register(BCDeferredRegister<T> catalog) {
         ResourceKey<Registry<T>> key = ResourceKey.createRegistryKey(ResourceLocation.parse(catalog.registryId()));
+//?}
         DeferredRegister<T> nativeRegister = DeferredRegister.create(key, catalog.namespace());
         catalog.bindEntries(new BCDeferredRegister.EntryBinder<T>() {
             public <I extends T> void bind(BCRegistryEntry<I> entry) { bindEntry(nativeRegister, entry); }

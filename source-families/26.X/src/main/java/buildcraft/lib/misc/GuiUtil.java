@@ -19,7 +19,11 @@ import buildcraft.lib.gui.pos.IGuiArea;
 import buildcraft.lib.gui.pos.IGuiPosition;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
+//? if neoforge && (>=26.2) {
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
+//? } else {
 import net.minecraft.ChatFormatting;
+//?}
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -56,11 +60,19 @@ public final class GuiUtil {
     }
 
     public static int getScreenWidth() {
+//? if neoforge && (>=26.2) {
+        return MC.gui.screen() == null ? MC.getWindow().getGuiScaledWidth() : MC.gui.screen().width;
+//? } else {
         return MC.screen == null ? MC.getWindow().getGuiScaledWidth() : MC.screen.width;
+//?}
     }
 
     public static int getScreenHeight() {
+//? if neoforge && (>=26.2) {
+        return MC.gui.screen() == null ? MC.getWindow().getGuiScaledHeight() : MC.gui.screen().height;
+//? } else {
         return MC.screen == null ? MC.getWindow().getGuiScaledHeight() : MC.screen.height;
+//?}
     }
 
     public static IGuiArea moveRectangleToCentre(GuiRectangle area) {
@@ -308,11 +320,19 @@ public final class GuiUtil {
         List<Component> list = getUnFormattedTooltip(stack);
         if (!list.isEmpty()) {
             Component first = list.get(0);
+//? if neoforge && (>=26.2) {
+            list.set(0, first.copy().withStyle(style -> style.withColor(stack.getRarity().color())));
+//? } else {
             list.set(0, first.copy().withStyle(stack.getRarity().color()));
+//?}
         }
         for (int i = 1; i < list.size(); i++) {
             Component line = list.get(i);
+//? if neoforge && (>=26.2) {
+            list.set(i, line.copy().setStyle(BCTextFormat.GRAY.apply(line.getStyle())));
+//? } else {
             list.set(i, line.copy().setStyle(line.getStyle().applyFormat(ChatFormatting.GRAY)));
+//?}
         }
         return list;
     }
