@@ -59,6 +59,8 @@ Addons should use the public `buildcraft.api.v2` contracts rather than relying o
 
 The long-term goal is to make addons easier to develop and maintain across BCCE's supported Minecraft versions and future loader ports.
 
+Documentation: https://bcce-team.github.io/BuildCraft/
+
 ## Multi-version build and source architecture
 
 BCCE has three active Stonecutter/Gradle build generations:
