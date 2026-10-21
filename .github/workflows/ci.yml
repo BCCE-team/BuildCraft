@@ -209,6 +209,10 @@ jobs:
 
       - name: Test canonical resource pipeline
         run: python -m unittest discover -s scripts/tests -p test_resource_pipeline.py -v
+      - name: Test localization key deduplication
+        run: python -m unittest discover -s scripts/tests -p test_localization_dedupe.py -v
+      - name: Test external localization packaging
+        run: python -m unittest discover -s scripts/tests -p test_localization_packaging.py -v
 
 
       - name: Test native facade rendering and materials
@@ -268,6 +272,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Checkout BuildCraft localizations (separate repository)
+        uses: actions/checkout@v4
+        with:
+          repository: BCCE-team/Localizations
+          ref: main
+          path: build/external/localizations
+          persist-credentials: false
 
       - name: Set up target Java
         uses: actions/setup-java@v4
@@ -335,6 +347,18 @@ jobs:
 
           ./gradlew --no-daemon --no-parallel --console=plain --stacktrace --refresh-dependencies \
             ":${STONECUTTER_TARGET}:buildAndCollect"
+
+      - name: Verify localizations inside the built JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          minecraft="${STONECUTTER_TARGET%-*}"
+          loader="${STONECUTTER_TARGET##*-}"
+          version="$(sed -n 's/^common\.mod\.version=//p' build-config/common.properties)"
+          python scripts/embed_localizations.py verify-jar \
+            --source build/external/localizations \
+            --english source-shared/src/main/resources/assets/buildcraft/lang/en_us.json \
+            --jar "build/${minecraft}/BuildCraft-Community-Edition-${version}+${minecraft}+${loader}.jar"
 
       - name: Run GameTests
         shell: bash

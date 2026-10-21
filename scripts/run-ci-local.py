@@ -91,6 +91,8 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test Guide Book filtering pagination and live previews", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_guide_book_features.py", "-v")),
     ("Test ownership persistence and ledgers", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_ownership_ledgers.py", "-v")),
     ("Test canonical resource pipeline", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_resource_pipeline.py", "-v")),
+    ("Test localization key deduplication", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_localization_dedupe.py", "-v")),
+    ("Test external localization packaging", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_localization_packaging.py", "-v")),
     ("Test native facade rendering and materials", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_facade_rendering.py", "-v")),
     ("Test all-target paintbrush interactions", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_paintbrush_all_targets.py", "-v")),
     ("Test all-target sign and lens paint", (sys.executable, "-m", "unittest", "discover", "-s", "scripts/tests", "-p", "test_sign_lens_paint_all_targets.py", "-v")),

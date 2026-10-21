@@ -21,11 +21,26 @@ env:
 jobs:
   metadata:
     runs-on: ubuntu-24.04
+    outputs:
+      localizations_sha: ${{ steps.localizations.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
+
+      - name: Pin localization revision for this release
+        id: localizations
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git ls-remote https://github.com/BCCE-team/Localizations.git refs/heads/main | cut -f1)"
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Could not resolve BuildCraft localization revision"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "External localizations pinned to $sha"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -115,6 +130,14 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
 
+      - name: Checkout pinned external BuildCraft localizations
+        uses: actions/checkout@v4
+        with:
+          repository: BCCE-team/Localizations
+          ref: ${{ needs.metadata.outputs.localizations_sha }}
+          path: build/external/localizations
+          persist-credentials: false
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -149,6 +172,10 @@ jobs:
               find build -maxdepth 3 -type f -name '*.jar' -print || true
               exit 1
             fi
+            python scripts/embed_localizations.py verify-jar \
+              --source build/external/localizations \
+              --english source-shared/src/main/resources/assets/buildcraft/lang/en_us.json \
+              --jar "$jar"
             cp "$jar" "$destination/"
           done
 

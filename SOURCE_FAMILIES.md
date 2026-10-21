@@ -493,3 +493,23 @@ The test suite materializes all supported targets, compiles the real boundary
 classes against small native API doubles, and checks the supplied baseline's
 config fingerprints and literal content-registration order. It is not a full
 Forge/NeoForge build or dedicated-server/client integration test.
+
+## External localization resources
+
+Non-English language files are an **external build input**, not a source
+ownership layer. The separately versioned
+`BCCE-team/Localizations` repository supplies:
+
+- `buildcraft/lang/<locale>.json` -> `assets/buildcraft/lang/<locale>.json`
+- `buildcraft/guide/text/<locale>.json` -> `assets/buildcraft/guide/text/<locale>.json`
+
+All loader adapters use `build-logic/common-target.gradle` to stage these
+resources before `processResources`, so IDE runs and production JARs use the
+same translation set. The materializer does not copy translations into any
+`source-*` or `version-src` directory. The original English files and guide
+metadata remain in `source-shared`.
+
+The staging script validates each imported JSON, removes obsolete generated
+resources on restaging, ignores the optional external `en_us`, and never
+includes Iron Tanks. For reproducibility, release builds pin the external
+repository revision in `publish.yml` and inspect every finished JAR.
