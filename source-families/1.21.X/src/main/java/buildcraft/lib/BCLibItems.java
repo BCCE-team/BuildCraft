@@ -17,7 +17,7 @@ public final class BCLibItems {
     public static final BCDeferredRegister<Item> ITEMS = BCDeferredRegister.create("minecraft:item", BCLib.MODID);
 
     public static final BCRegistryEntry<ItemGuide> GUIDE = RegistryCompat.registerItem(ITEMS, "guide",
-        () -> new ItemGuide(RegistryCompat.itemProperties(new Item.Properties()).stacksTo(1).overrideDescription("item.buildcraft.guide.name"))
+        () -> new ItemGuide(RegistryCompat.itemProperties(new Item.Properties()).stacksTo(1).overrideDescription("item.buildcraft.guide"))
     );
 
     private BCLibItems() {

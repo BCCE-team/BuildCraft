@@ -219,7 +219,7 @@ public final class BCRoboticsBoards {
         }
 
         public Component legacyDisplayName() {
-            return Component.translatable("buildcraft." + legacyLangKey());
+            return displayName();
         }
 
         public String legacyLangKey() {

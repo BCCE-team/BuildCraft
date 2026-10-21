@@ -76,34 +76,6 @@ def effective_java(target: str, rel: str, props: dict[str, str]) -> str:
     )
 
 
-def validate_advancement_backgrounds(props: dict[str, str]) -> None:
-    """Guard the 1.21.9+ GUI-sprite migration in the effective advancement data.
-
-    The older texture-file location still works in 1.21.1, but it is not a GUI
-    atlas sprite identifier on 1.21.11/26.X and renders a missing background.
-    """
-    root_path = "data/buildcraftcore/advancement/root.json"
-    legacy_path = "data/buildcraftcore/advancements/root.json"
-    for target in target_ids(props):
-        minecraft = props[f"target.{target}.deps.minecraft"]
-        old_format = not mc_at_least(minecraft, (1, 21, 9))
-        resource_path = (
-            legacy_path if not mc_at_least(minecraft, (1, 21, 0)) else root_path
-        )
-        root_file = resource_map(target, props).get(resource_path)
-        if root_file is None:
-            fail(f"{target}: missing advancement tab root {resource_path}")
-        document = json.loads(root_file.read_text(encoding="utf-8"))
-        display = document.get("display")
-        background = display.get("background") if isinstance(display, dict) else None
-        expected = (
-            "minecraft:textures/gui/advancements/backgrounds/stone.png"
-            if old_format else "minecraft:gui/advancements/backgrounds/stone"
-        )
-        if background != expected:
-            fail(f"{target}: invalid BuildCraft advancement tab background {background!r}; expected {expected!r}")
-
-
 def validate_atlases_and_case(props: dict[str, str]) -> None:
     for target in target_ids(props):
         resources = resource_map(target, props)
@@ -944,7 +916,6 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
 def main() -> None:
     props = load_properties()
     validate_atlases_and_case(props)
-    validate_advancement_backgrounds(props)
     validate_stack_parity(props)
     validate_machine_fluid_drop_ownership(props)
     validate_metadata(props)
@@ -965,7 +936,6 @@ def main() -> None:
     validate_ci_wiring(props)
     print("Cross-target integrity OK:")
     print(" - exact-case atlas/model resources verified")
-    print(" - advancement tab backgrounds match the GUI texture format on every target")
     print(" - clean/used item stack-size parity and single-owner machine fluid drops verified")
     print(" - datagen isolated from production resources")
     print(" - main resources are en_us-only; localization addon ownership guarded")

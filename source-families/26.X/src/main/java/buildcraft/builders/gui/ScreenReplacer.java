@@ -179,8 +179,8 @@ public class ScreenReplacer extends GuiBC8<MenuReplacer> {
         ItemStack stack = this.menu.getSlot(0).getItem();
         Snapshot.Header header = ItemSnapshot.getHeader(stack);
         return header == null
-            ? Component.translatable("gui.buildcraftbuilders.replacer.preview.no_blueprint")
-            : Component.translatable("gui.buildcraftbuilders.replacer.preview.loading");
+            ? Component.translatable("gui.buildcraftbuilders.replacer.status.no_blueprint")
+            : Component.translatable("gui.buildcraftbuilders.replacer.status.loading");
     }
 
     private StatusLine getReplacementStatus() {

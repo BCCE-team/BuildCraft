@@ -71,7 +71,7 @@ public class GuiEngineFE extends GuiBC8<ContainerEngineFE> {
                 String mj = LocaleUtil.localizeMjFlow(TileEngineFE.getMjPerTick(container.upgrades)).getString();
                 String conversion = LocaleUtil.localize("buildcraft.help.fe_engine.fe_battery.desc") + "\n" + fe + " \u2192 " + mj;
                 elements.add(ElementHelpInfo.preTranslated(
-                    LocaleUtil.localize("buildcraft.help.fe_engine.fe_battery.title"),
+                    LocaleUtil.localize("buildcraft.help.mj_dynamo.fe_battery.title"),
                     0xFF_FF_FF_FF, conversion).target(this));
             }
 

@@ -17,9 +17,9 @@ public final class BCLibItems {
 
     public static final BCRegistryEntry<ItemGuide> GUIDE = RegistryCompat.registerItem(ITEMS, "guide",
 //? if neoforge {
-        () -> new ItemGuide(RegistryCompat.itemProperties(RegistryCompat.itemProperties(RegistryCompat.itemProperties(new Item.Properties()))).stacksTo(1).overrideDescription("item.buildcraft.guide.name"))
+        () -> new ItemGuide(RegistryCompat.itemProperties(RegistryCompat.itemProperties(RegistryCompat.itemProperties(new Item.Properties()))).stacksTo(1).overrideDescription("item.buildcraft.guide"))
 //? } else {
-        () -> new ItemGuide(RegistryCompat.itemProperties(RegistryCompat.itemProperties(new Item.Properties())).stacksTo(1).overrideDescription("item.buildcraft.guide.name"))
+        () -> new ItemGuide(RegistryCompat.itemProperties(RegistryCompat.itemProperties(new Item.Properties())).stacksTo(1).overrideDescription("item.buildcraft.guide"))
 //?}
     );
 

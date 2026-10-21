@@ -93,7 +93,7 @@ public class ItemPipeHolder extends BlockItem implements IItemPipe {
 	}
 		
 	public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display, Consumer<Component> tooltip, TooltipFlag flag) {
-        String tipName = "tip." + unlocalizedName;
+        String tipName = PipeTooltipKeys.canonical("tip." + unlocalizedName);
         if (net.minecraft.locale.Language.getInstance().has(tipName)) {
             tooltip.accept(Component.translatable(tipName).setStyle(BCTextFormat.GRAY.apply(Style.EMPTY)));
         }

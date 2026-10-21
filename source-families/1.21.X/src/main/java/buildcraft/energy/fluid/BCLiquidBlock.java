@@ -32,6 +32,12 @@ public class BCLiquidBlock extends LiquidBlock {
 		this.burnOdds = burnOdds;
 	}
 
+    @Override
+    public String getDescriptionId() {
+        // Reuse the registered fluid type name, including its hot/searing variants.
+        return sourceFluid.getFluidType().getDescriptionId();
+    }
+
 	protected void entityInside(BlockState state, Level level, BlockPos pos, Entity entity, InsideBlockEffectApplier effectApplier, boolean submerged) {
 		if(BCEnergyConfig.oilIsSticky && isStick)
 			entity.makeStuckInBlock(state	, new Vec3(0.25D, (double)0.05F, 0.25D));

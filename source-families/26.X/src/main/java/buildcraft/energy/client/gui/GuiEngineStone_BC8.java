@@ -32,7 +32,7 @@ public class GuiEngineStone_BC8 extends GuiBC8<ContainerEngineStone_BC8> {
 
     public GuiEngineStone_BC8(ContainerEngineStone_BC8 container, Inventory inv, Component title) {
         super(container, inv, title.getString().isEmpty() ?
-                Component.translatable("tile.engineStone.name").withStyle(Style.EMPTY.withColor(0x404040))
+                Component.translatable("block.buildcraftcore.engine_stone").withStyle(Style.EMPTY.withColor(0x404040))
                 : title, SIZE_X, SIZE_Y);
         inventoryLabelX = 8;
         inventoryLabelY = SIZE_Y - 96;

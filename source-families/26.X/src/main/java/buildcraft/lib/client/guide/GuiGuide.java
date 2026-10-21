@@ -206,7 +206,7 @@ public final class GuiGuide extends Screen {
     }
 
     private GuiGuide(ItemStack guideStack, InteractionHand guideHand) {
-        super(Component.translatable("item.buildcraft.guide.name"));
+        super(Component.translatable("item.buildcraft.guide"));
         this.guideHand = guideHand;
         this.initialState = ItemGuide.readGuideState(guideStack);
         this.showLore = initialState.showLore;

@@ -101,7 +101,7 @@ public class ItemPipeHolder extends BlockItem implements IItemPipe {
 	public void appendHoverText(ItemStack stack, Item.TooltipContext context, List<Component> tooltipLines, TooltipFlag flag) {
         Consumer<Component> tooltip = tooltipLines::add;
     //?}
-        String tipName = "tip." + unlocalizedName;
+        String tipName = PipeTooltipKeys.canonical("tip." + unlocalizedName);
         if (I18n.exists(tipName)) {
             tooltip.accept(Component.translatable(tipName).setStyle(Style.EMPTY.applyFormat(ChatFormatting.GRAY)));
         }

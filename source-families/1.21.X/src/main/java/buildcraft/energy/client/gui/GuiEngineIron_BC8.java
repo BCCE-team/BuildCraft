@@ -27,7 +27,7 @@ public class GuiEngineIron_BC8 extends GuiBC8<ContainerEngineIron_BC8> {
 
     public GuiEngineIron_BC8(ContainerEngineIron_BC8 container, Inventory inv, Component title) {
         super(container, inv, title.getString().isEmpty() ?
-                Component.translatable("tile.engineIron.name").withStyle(Style.EMPTY.withColor(0x404040))
+                Component.translatable("block.buildcraftcore.engine_iron").withStyle(Style.EMPTY.withColor(0x404040))
                 : title);
         imageWidth = SIZE_X;
         imageHeight = SIZE_Y;

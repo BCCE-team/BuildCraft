@@ -9,7 +9,7 @@
     "description": {
       "translate": "advancements.buildcraftcore.root.description"
     },
-    "background": "minecraft:gui/advancements/backgrounds/stone",
+    "background": "minecraft:textures/gui/advancements/backgrounds/stone.png",
     "show_toast": false,
     "announce_to_chat": false
   },

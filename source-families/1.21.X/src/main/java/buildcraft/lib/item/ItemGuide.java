@@ -38,7 +38,7 @@ public class ItemGuide extends Item {
 
     public String getDescriptionId(ItemStack stack) {
         // Preserve the original BuildCraft 8 translation key.
-        return "item.buildcraft.guide.name";
+        return "item.buildcraft.guide";
     }
 
     /** Reads the UI state stored on this exact guide stack. */

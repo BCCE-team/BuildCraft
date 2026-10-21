@@ -1,7 +1,7 @@
 [
   {
     "id": "buildcraftbuilders:architect",
-    "key": "item.buildcraftbuilders.architect",
+    "key": "block.buildcraftbuilders.architect",
     "name_en_us": "Architect Table",
     "source": "buildcraft/builders/BCBuildersItems.java",
     "kind": "BlockItem"
@@ -15,14 +15,14 @@
   },
   {
     "id": "buildcraftbuilders:builder",
-    "key": "item.buildcraftbuilders.builder",
+    "key": "block.buildcraftbuilders.builder",
     "name_en_us": "Builder",
     "source": "buildcraft/builders/BCBuildersItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftbuilders:filler",
-    "key": "item.buildcraftbuilders.filler",
+    "key": "block.buildcraftbuilders.filler",
     "name_en_us": "Filler",
     "source": "buildcraft/builders/BCBuildersItems.java",
     "kind": "BlockItem"
@@ -36,35 +36,35 @@
   },
   {
     "id": "buildcraftbuilders:frame",
-    "key": "item.buildcraftbuilders.frame",
+    "key": "block.buildcraftbuilders.frame",
     "name_en_us": "Frame",
     "source": "buildcraft/builders/BCBuildersItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftbuilders:library",
-    "key": "item.buildcraftbuilders.library",
+    "key": "block.buildcraftbuilders.library",
     "name_en_us": "Electronic Library",
     "source": "buildcraft/builders/BCBuildersItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftbuilders:marker_construction",
-    "key": "item.buildcraftbuilders.marker_construction",
+    "key": "block.buildcraftbuilders.marker_construction",
     "name_en_us": "Construction Marker",
     "source": "buildcraft/builders/BCBuildersItems.java",
     "kind": "ItemConstructionMarker"
   },
   {
     "id": "buildcraftbuilders:quarry",
-    "key": "item.buildcraftbuilders.quarry",
+    "key": "block.buildcraftbuilders.quarry",
     "name_en_us": "Quarry",
     "source": "buildcraft/builders/BCBuildersItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftbuilders:replacer",
-    "key": "item.buildcraftbuilders.replacer",
+    "key": "block.buildcraftbuilders.replacer",
     "name_en_us": "Replacer",
     "source": "buildcraft/builders/BCBuildersItems.java",
     "kind": "BlockItem"
@@ -85,14 +85,14 @@
   },
   {
     "id": "buildcraftcore:engine_creative",
-    "key": "item.buildcraftcore.engine_creative",
+    "key": "block.buildcraftcore.engine_creative",
     "name_en_us": "Creative Engine",
     "source": "buildcraft/core/BCCoreItems.java",
     "kind": "MultiBlockItem"
   },
   {
     "id": "buildcraftcore:engine_redstone",
-    "key": "item.buildcraftcore.engine_redstone",
+    "key": "block.buildcraftcore.engine_redstone",
     "name_en_us": "Redstone Engine",
     "source": "buildcraft/core/BCCoreItems.java",
     "kind": "MultiBlockItem"
@@ -169,7 +169,7 @@
   },
   {
     "id": "buildcraftcore:marker_volume",
-    "key": "item.buildcraftcore.marker_volume",
+    "key": "block.buildcraftcore.marker_volume",
     "name_en_us": "Land Mark",
     "source": "buildcraft/core/BCCoreItems.java",
     "kind": "BlockItem"
@@ -295,14 +295,14 @@
   },
   {
     "id": "buildcraftcore:spring_oil",
-    "key": "item.buildcraftcore.spring_oil",
+    "key": "block.buildcraftcore.spring_oil",
     "name_en_us": "Oil Spring",
     "source": "buildcraft/core/BCCoreItems.java",
     "kind": "MultiBlockItem"
   },
   {
     "id": "buildcraftcore:spring_water",
-    "key": "item.buildcraftcore.spring_water",
+    "key": "block.buildcraftcore.spring_water",
     "name_en_us": "Water Spring",
     "source": "buildcraft/core/BCCoreItems.java",
     "kind": "MultiBlockItem"
@@ -449,7 +449,7 @@
   },
   {
     "id": "buildcraftenergy:mj_dynamo",
-    "key": "item.buildcraftenergy.mj_dynamo",
+    "key": "block.buildcraftenergy.mj_dynamo",
     "name_en_us": "MJ Dynamo",
     "source": "buildcraft/energy/BCEnergyBlocks.java",
     "kind": "BlockItem"
@@ -561,28 +561,28 @@
   },
   {
     "id": "buildcraftfactory:autoworkbench_item",
-    "key": "item.buildcraftfactory.autoworkbench_item",
+    "key": "block.buildcraftfactory.autoworkbench_item",
     "name_en_us": "Auto Workbench",
     "source": "buildcraft/factory/BCFactoryItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftfactory:chute",
-    "key": "item.buildcraftfactory.chute",
+    "key": "block.buildcraftfactory.chute",
     "name_en_us": "Chute",
     "source": "buildcraft/factory/BCFactoryItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftfactory:distiller",
-    "key": "item.buildcraftfactory.distiller",
+    "key": "block.buildcraftfactory.distiller",
     "name_en_us": "Distiller",
     "source": "buildcraft/factory/BCFactoryItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftfactory:flood_gate",
-    "key": "item.buildcraftfactory.flood_gate",
+    "key": "block.buildcraftfactory.flood_gate",
     "name_en_us": "Flood Gate",
     "source": "buildcraft/factory/BCFactoryItems.java",
     "kind": "BlockItem"
@@ -596,28 +596,28 @@
   },
   {
     "id": "buildcraftfactory:heat_exchange",
-    "key": "item.buildcraftfactory.heat_exchange",
+    "key": "block.buildcraftfactory.heat_exchange",
     "name_en_us": "Heat Exchanger",
     "source": "buildcraft/factory/BCFactoryItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftfactory:mining_well",
-    "key": "item.buildcraftfactory.mining_well",
+    "key": "block.buildcraftfactory.mining_well",
     "name_en_us": "Mining Well",
     "source": "buildcraft/factory/BCFactoryItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftfactory:pump",
-    "key": "item.buildcraftfactory.pump",
+    "key": "block.buildcraftfactory.pump",
     "name_en_us": "Pump",
     "source": "buildcraft/factory/BCFactoryItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftfactory:tank",
-    "key": "item.buildcraftfactory.tank",
+    "key": "block.buildcraftfactory.tank",
     "name_en_us": "Tank",
     "source": "buildcraft/factory/BCFactoryItems.java",
     "kind": "BlockItem"
@@ -631,7 +631,7 @@
   },
   {
     "id": "buildcraftlib:guide",
-    "key": "item.buildcraft.guide.name",
+    "key": "item.buildcraft.guide",
     "name_en_us": "BuildCraft Guide Book",
     "source": "buildcraft/lib/BCLibItems.java",
     "kind": "ItemGuide"
@@ -645,7 +645,7 @@
   },
   {
     "id": "buildcraftrobotics:requester",
-    "key": "item.buildcraftrobotics.requester",
+    "key": "block.buildcraftrobotics.requester",
     "name_en_us": "Requester",
     "source": "buildcraft/robotics/BCRoboticsItems.java",
     "kind": "BlockItem"
@@ -666,28 +666,28 @@
   },
   {
     "id": "buildcraftrobotics:zone_planner",
-    "key": "item.buildcraftrobotics.zone_planner",
+    "key": "block.buildcraftrobotics.zone_planner",
     "name_en_us": "Zone Planner",
     "source": "buildcraft/robotics/BCRoboticsItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftsilicon:advanced_crafting_table",
-    "key": "item.buildcraftsilicon.advanced_crafting_table",
+    "key": "block.buildcraftsilicon.advanced_crafting_table",
     "name_en_us": "Advanced Crafting Table",
     "source": "buildcraft/silicon/BCSiliconItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftsilicon:assembly_table",
-    "key": "item.buildcraftsilicon.assembly_table",
+    "key": "block.buildcraftsilicon.assembly_table",
     "name_en_us": "Assembly Table",
     "source": "buildcraft/silicon/BCSiliconItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftsilicon:charging_table",
-    "key": "item.buildcraftsilicon.charging_table",
+    "key": "block.buildcraftsilicon.charging_table",
     "name_en_us": "Charging Table",
     "source": "buildcraft/silicon/BCSiliconItems.java",
     "kind": "BlockItem"
@@ -701,14 +701,14 @@
   },
   {
     "id": "buildcraftsilicon:integration_table",
-    "key": "item.buildcraftsilicon.integration_table",
+    "key": "block.buildcraftsilicon.integration_table",
     "name_en_us": "Integration Table",
     "source": "buildcraft/silicon/BCSiliconItems.java",
     "kind": "BlockItem"
   },
   {
     "id": "buildcraftsilicon:laser",
-    "key": "item.buildcraftsilicon.laser",
+    "key": "block.buildcraftsilicon.laser",
     "name_en_us": "Laser",
     "source": "buildcraft/silicon/BCSiliconItems.java",
     "kind": "BlockItem"
@@ -757,7 +757,7 @@
   },
   {
     "id": "buildcraftsilicon:programming_table",
-    "key": "item.buildcraftsilicon.programming_table",
+    "key": "block.buildcraftsilicon.programming_table",
     "name_en_us": "Programming Table",
     "source": "buildcraft/silicon/BCSiliconItems.java",
     "kind": "BlockItem"

@@ -62,7 +62,7 @@ public class GuiAdvancedCraftingTable extends GuiBC8<ContainerAdvancedCraftingTa
         GuiHelpUtil.addSlots(mainGui, 33, 16, 3, 3, "buildcraft.help.advanced_crafting.recipe.title", 0xFF_66_AA_FF, "buildcraft.help.advanced_crafting.recipe.desc");
         GuiHelpUtil.addSlots(mainGui, 15, 85, 5, 3, "buildcraft.help.advanced_crafting.materials.title", 0xFF_88_CC_88, "buildcraft.help.advanced_crafting.materials.desc");
         GuiHelpUtil.addSlots(mainGui, 109, 85, 3, 3, "buildcraft.help.advanced_crafting.outputs.title", 0xFF_DD_CC_55, "buildcraft.help.advanced_crafting.outputs.desc");
-        GuiHelpUtil.addSlot(mainGui, 127, 33, "buildcraft.help.advanced_crafting.preview.title", 0xFF_CC_AA_FF, "buildcraft.help.advanced_crafting.preview.desc");
+        GuiHelpUtil.addSlot(mainGui, 127, 33, "buildcraft.help.advanced_crafting.preview.title", 0xFF_CC_AA_FF, "buildcraft.help.autoworkbench.preview.desc");
         GuiHelpUtil.addRoot(mainGui, (int) RECT_PROGRESS.x - 2, (int) RECT_PROGRESS.y - 1,
             (int) RECT_PROGRESS.width + 4, (int) RECT_PROGRESS.height + 2,
             "buildcraft.help.advanced_crafting.power.title", 0xFF_D4_6C_1F, "buildcraft.help.advanced_crafting.power.desc");
