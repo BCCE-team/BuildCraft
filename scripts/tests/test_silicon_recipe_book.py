@@ -195,7 +195,10 @@ import json
 import re
 import subprocess
 
-from source_layout import load_properties, resolve_effective_source, target_layout
+from source_layout import (
+    load_properties, preprocess_text, resolve_effective_source,
+    strip_source_condition, target_layout,
+)
 
 LENS_RECIPE_TARGETS = ('1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge',
            '1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge')
@@ -270,7 +273,19 @@ class LensRecipeTargets(unittest.TestCase):
         path = 'src/main/java/buildcraft/lib/recipe/AssemblyRecipe.java'
         for target in ('26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge'):
             with self.subTest(target=target):
-                source = self.source(target, path).read_text(encoding='utf-8')
+                layout = target_layout(target, self.props)
+                selected_source = self.source(target, path)
+                source, _ = strip_source_condition(selected_source.read_text(encoding='utf-8'))
+                # Resolve Stonecutter branches before extracting a Java method. Both
+                # variants include a closing brace; raw brace counting used to cut
+                # the method at the inactive branch and generated invalid Java.
+                source = preprocess_text(
+                    source,
+                    minecraft=self.props[f'target.{target}.deps.minecraft'],
+                    family=layout.family,
+                    platform=layout.platform,
+                    source=f'{target}:{path}',
+                )
                 signature = '        private ItemStackTemplate template() {'
                 start = source.index(signature)
                 opening = source.index('{', start)
