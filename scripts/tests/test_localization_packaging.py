@@ -66,6 +66,21 @@ class ExternalLocalizationPackagingTest(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0, result.stdout)
         return result
 
+    def test_obsolete_localizations_addon_is_incompatible(self):
+        # Historical addon releases used mod_id=buildcraftlocalizations.
+        # Since 8.0.24 the translations are included in the BCCE JAR itself.
+        for mc in ("1.19.2", "1.20.1"):
+            source = (ROOT / f"version-src/{mc}-forge/src/main/java/buildcraft/lib/BCLib.java").read_text(encoding="utf-8")
+            with self.subTest(mc=mc):
+                self.assertIn('"buildcraftlocalizations"', source)
+                self.assertIn('rejectIncompatibleMods();', source)
+                self.assertIn('ModList.get().isLoaded(modId)', source)
+                self.assertIn('Translations have been bundled since BCCE 8.0.24', source)
+                self.assertIn('ModLoadingException(', source)
+        metadata = (ROOT / "source-platforms/neoforge/src/main/resources/META-INF/neoforge.mods.toml").read_text(encoding="utf-8")
+        self.assertIn('[[dependencies.buildcraftlib]]\n    modId="buildcraftlocalizations"\n    type="incompatible"', metadata)
+        self.assertIn('Translations have been bundled since BCCE 8.0.24', metadata)
+
     def test_stage_only_buildcraft_non_english_resources(self):
         self.run_stage(source=self.source)
         staged = sorted(path.relative_to(self.output).as_posix() for path in self.output.rglob("*.json"))

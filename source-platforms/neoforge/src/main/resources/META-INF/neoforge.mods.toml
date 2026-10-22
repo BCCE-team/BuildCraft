@@ -41,6 +41,13 @@ Shared library code and runtime helpers used by the BuildCraft Community Edition
     side="BOTH"
 
 [[dependencies.buildcraftlib]]
+    modId="buildcraftlocalizations"
+    type="incompatible"
+    reason="Translations have been bundled since BCCE 8.0.24; the separate Localizations addon is no longer needed."
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.buildcraftlib]]
     modId="jei"
     type="optional"
     versionRange="${jei_version_range}"

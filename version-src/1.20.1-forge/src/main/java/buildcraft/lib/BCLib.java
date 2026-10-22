@@ -45,7 +45,7 @@ public class BCLib {
     public static final String GIT_COMMIT_MSG = BuildCraftTarget.GIT_COMMIT_MESSAGE;
     public static final String GIT_COMMIT_AUTHOR = BuildCraftTarget.GIT_COMMIT_AUTHOR;
 
-    private static final List<String> INCOMPATIBLE_MODS = List.of("buildcraftrf");
+    private static final List<String> INCOMPATIBLE_MODS = List.of("buildcraftrf", "buildcraftlocalizations");
 
     public static final boolean DEV = !FMLEnvironment.production || Boolean.getBoolean("buildcraft.dev");
 
@@ -118,7 +118,10 @@ public class BCLib {
                 ModList.get().getModContainerById(MODID).orElseThrow().getModInfo(),
                 ModLoadingStage.CONSTRUCT,
                 "BuildCraft Community Edition is incompatible with " + displayName + " (" + modId + "). "
-                    + "Remove it before starting the game. BCCE already provides native FE compatibility.",
+                    + "Remove it before starting the game. "
+                    + ("buildcraftlocalizations".equals(modId)
+                        ? "Translations have been bundled since BCCE 8.0.24; the separate Localizations addon is no longer needed."
+                        : "BCCE already provides native FE compatibility."),
                 new IllegalStateException("Incompatible mod detected: " + modId)
             );
         }
