@@ -35,7 +35,7 @@ def main() -> int:
         ROOT / "source-shared/src/main/java/buildcraft/transport/internal",
         ROOT / "source-platforms/forge/src/main/java/buildcraft/transport/internal",
         ROOT / "source-platforms/neoforge/src/main/java/buildcraft/transport/internal",
-        ROOT / "source-families/modern/src/main/java/buildcraft/transport/internal",
+        ROOT / "source-families/1.21.X/src/main/java/buildcraft/transport/internal",
         ROOT / "version-src/1.19.2-forge/src/main/java/buildcraft/transport/internal",
         ROOT / "version-src/1.20.1-forge/src/main/java/buildcraft/transport/internal",
     ]
@@ -63,7 +63,7 @@ def main() -> int:
     for path in pipe_paths:
         src = text(path)
         for token in [
-            "implements IPipe, IDebuggable, PipeMutationContext",
+            "implements IPipe, IDebuggable, PipeExecutionContext",
             "applyItemRouting(",
             "applyFluidRouting(",
             "applyMjRouting(",
@@ -72,10 +72,15 @@ def main() -> int:
             "PipeActivationComponent",
             "PipeConnectionComponent",
             "PIPE_CONNECTION_RULES",
-            "PIPE_COMPONENT_TYPES",
+            "apiRuntime.components()",
         ]:
             if token not in src:
                 errors.append(f"{path}: missing API2 runtime hook {token}")
+
+    component_runtime = text("source-shared/src/main/java/buildcraft/transport/api2/PipeComponentRuntime.java")
+    for token in ("PIPE_COMPONENT_TYPES", "PIPE_SYNC_CHANNELS", "RuntimeExtensions", "readState(", "writeState(", "writeFullSync(", "writeChangedSync("):
+        if token not in component_runtime:
+            errors.append(f"PipeComponentRuntime: missing {token}")
 
     flow_checks = {
         "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java": ["applyItemRouting(", "requireItemProfile()", "maxItemsPerCycle()"],
@@ -105,7 +110,7 @@ def main() -> int:
     for path in [
         "version-src/1.19.2-forge/src/main/java/buildcraft/transport/item/ItemPipeHolder.java",
         "version-src/1.20.1-forge/src/main/java/buildcraft/transport/item/ItemPipeHolder.java",
-        "source-families/modern/src/main/java/buildcraft/transport/item/ItemPipeHolder.java",
+        "source-families/1.21.X/src/main/java/buildcraft/transport/item/ItemPipeHolder.java",
     ]:
         src = text(path)
         for token in ("getFluidTransferInfo", "getPowerTransferInfo", "getForgeEnergyTransferInfo"):
@@ -128,7 +133,7 @@ def main() -> int:
 
     for path in [
         "source-platforms/forge/src/main/java/buildcraft/transport/pipe/PipeRegistry.java",
-        "source-families/modern/src/main/java/buildcraft/transport/pipe/PipeRegistry.java",
+        "source-families/1.21.X/src/main/java/buildcraft/transport/pipe/PipeRegistry.java",
     ]:
         src = text(path)
         for token in ["PipeTypeBridge.ensureRegistered", "ensureRuntimeDefinition("]:

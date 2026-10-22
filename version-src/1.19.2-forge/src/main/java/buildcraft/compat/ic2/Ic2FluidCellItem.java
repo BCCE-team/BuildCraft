@@ -34,7 +34,9 @@ public final class Ic2FluidCellItem extends Item {
 
     public Ic2FluidCellItem(Fluid fluid) {
         super(new Item.Properties()
-            .stacksTo(64)
+            // A fluid-item handler replaces a single container on drain. Stacking
+            // filled cells would silently destroy the other 63 containers.
+            .stacksTo(1)
             .tab(BCCore.tabFluids)
             .craftRemainder(IC2Items.CELL_EMPTY));
         this.fluid = fluid;
@@ -104,7 +106,9 @@ public final class Ic2FluidCellItem extends Item {
 
         @Override
         public @Nonnull FluidStack drain(int maxDrain, FluidAction action) {
-            if (maxDrain < CAPACITY || container.getItem() != cell) {
+            // Older worlds may still contain stacked filled cells. Refuse the
+            // whole-stack drain instead of deleting the remaining cells.
+            if (maxDrain < CAPACITY || container.getItem() != cell || container.getCount() != 1) {
                 return FluidStack.EMPTY;
             }
 

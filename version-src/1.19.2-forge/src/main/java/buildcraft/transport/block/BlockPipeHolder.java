@@ -118,8 +118,17 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 	private static final ResourceLocation ADVANCEMENT_LOGIC_TRANSPORTATION = new ResourceLocation(
 			"buildcrafttransport:logic_transportation");
 
+    /** Dynamic block light emitted by fluid actually present in the BuildCraft pipe. */
+    public int getLightEmission(BlockState state, BlockGetter level, BlockPos pos) {
+        BlockEntity entity = level.getBlockEntity(pos);
+        if (!(entity instanceof TilePipeHolder holder)) return 0;
+        Pipe pipe = holder.getPipe();
+        if (pipe == null || !(pipe.getFlow() instanceof buildcraft.transport.pipe.flow.PipeFlowFluids flow)) return 0;
+        return flow.getEmittedFluidLight();
+    }
+
 	public BlockPipeHolder() {
-		super(BlockBehaviour.Properties.of(Material.STONE).sound(SoundType.STONE).strength(0.25f)
+		super(BlockBehaviour.Properties.of(Material.STONE).sound(SoundType.METAL).strength(0.25f)
 				.explosionResistance(3.0f));
 		registerDefaultState(stateDefinition.any().setValue(WATERLOGGED, false));
 	}
@@ -588,6 +597,44 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 		return voxelShape;
 	}
 
+	/**
+	 * Select the nearest *occupied* pipe part along the client's pick-block ray.
+	 * Sub-hit indexes match getAllShape(): body/connections = 0..6,
+	 * pluggables = 7..12, wires = 13+. No placement or mutation is performed.
+	 */
+	private int getPickSubHit(BlockGetter world, BlockPos pos, TilePipeHolder tile,
+			HitResult target, Player player) {
+		if (player != null) {
+			Vec3 start = player.getEyePosition();
+			Vec3 aim = target != null ? target.getLocation().subtract(start) : player.getLookAngle();
+			if (aim.lengthSqr() > 1.0E-8D) {
+				Vec3 end = start.add(aim.normalize().scale(player.getReachDistance()));
+				VoxelShape[] shapes = getAllShape(world, pos);
+				double nearest = Double.MAX_VALUE;
+				int nearestPart = -1;
+				for (int part = 0; part < shapes.length; part++) {
+					VoxelShape shape = shapes[part];
+					if (shape == null || shape.isEmpty()) continue;
+					BlockHitResult hit = shape.clip(start, end, pos);
+					if (hit == null) continue;
+					double distance = hit.getLocation().distanceToSqr(start);
+					// Prefer attachments when a surface coincides with the pipe's.
+					if (distance < nearest - 1.0E-8D
+							|| (Math.abs(distance - nearest) <= 1.0E-8D && part >= 7 && nearestPart < 7)) {
+						nearest = distance;
+						nearestPart = part;
+					}
+				}
+				if (nearestPart >= 0) return nearestPart;
+			}
+		}
+		if (target != null) {
+			Vec3 location = target.getLocation().subtract(pos.getX(), pos.getY(), pos.getZ());
+			return computSubhit(tile, location, computHitOctant(location));
+		}
+		return 0;
+	}
+
 	@Override
 	public ItemStack getCloneItemStack(BlockState state, HitResult target, BlockGetter world, BlockPos pos,
 			Player player) {
@@ -596,19 +643,10 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 			return ItemStack.EMPTY;
 		}
 
-		// Forge calls this overload for pick-block. The selected pipe sub-part must be resolved here;
-		// the three-argument getCloneItemStack fallback selects the pipe body instead of attachments.
-		int subHit = 0;
-		if (player != null) {
-			BCBlockHitResult trace = rayTrace(world, pos, player);
-			if (trace != null) {
-				subHit = trace.subHit;
-			}
-		}
-		if (subHit == 0 && target != null) {
-			Vec3 location = target.getLocation().subtract(pos.getX(), pos.getY(), pos.getZ());
-			subHit = computSubhit(tile, location, computHitOctant(location));
-		}
+		// Pick-block uses the nearest actual collision shape, not the pipe-body
+		// fallback from the interaction trace. In particular, facades and lenses
+		// must win over the body when their surface is in front of it.
+		int subHit = getPickSubHit(world, pos, tile, target, player);
 		if (subHit <= 6) {
 			Pipe pipe = tile.getPipe();
 			if (pipe != Pipe.EMPTY) {
@@ -916,7 +954,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 		}
 		Pipe pipe = tile.getPipe();
 		if (pipe != Pipe.EMPTY) {
-			pipe.getBehaviour().onEntityCollide(entity);
+			pipe.onApiEntityCollided(entity);
 		}
 	}
 
@@ -1007,6 +1045,23 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 			}
 		}
 
+        // A lens/filter is itself a coloured pluggable. Recolour the installed instance
+        // rather than the underlying pipe, preserving its filter mode and connections.
+        Direction lensSide = getLensSideAt(tile, pos, hitPos, hitSide);
+        if (lensSide != null) {
+            buildcraft.silicon.plug.PluggableLens lens =
+                (buildcraft.silicon.plug.PluggableLens) tile.getPluggable(lensSide);
+            if (lens.colour == paintColour) return InteractionResult.FAIL;
+            tile.replacePluggable(lensSide, new buildcraft.silicon.plug.PluggableLens(
+                lens.definition, tile, lensSide, paintColour, lens.isFilter));
+            // replacePluggable synchronises the complete pluggable and updates its event handlers.
+            tile.requestModelDataUpdate();
+            tile.scheduleRenderUpdate();
+            tile.redrawBlock();
+            tile.setChanged();
+            return InteractionResult.SUCCESS;
+        }
+
 		Pipe pipe = tile.getPipe();
 		if (pipe == Pipe.EMPTY) {
 			return InteractionResult.FAIL;
@@ -1022,6 +1077,24 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 		tile.setChanged();
 		return InteractionResult.SUCCESS;
 	}
+
+    /** Target the visible lens rather than colouring the supporting pipe. */
+    @Nullable
+    private static Direction getLensSideAt(TilePipeHolder tile, BlockPos pos, Vec3 hitPos,
+            @Nullable Direction hitSide) {
+        Vec3 localHit = hitPos.subtract(pos.getX(), pos.getY(), pos.getZ());
+        if (hitSide != null) {
+            PipePluggable selected = tile.getPluggable(hitSide);
+            if (selected instanceof buildcraft.silicon.plug.PluggableLens
+                    && selected.getBoundingBox().bounds().inflate(1.0E-4).contains(localHit)) return hitSide;
+        }
+        for (Direction side : Direction.values()) {
+            PipePluggable pluggable = tile.getPluggable(side);
+            if (pluggable instanceof buildcraft.silicon.plug.PluggableLens
+                    && pluggable.getBoundingBox().bounds().inflate(1.0E-4).contains(localHit)) return side;
+        }
+        return null;
+    }
 
 	@Override
 	public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {

@@ -15,6 +15,9 @@ import net.minecraft.world.item.ItemStack;
 import buildcraft.lib.platform.storage.ItemStorage;
 
 public class ItemStorageTransactor extends AbstractInvItemTransactor {
+    @Override
+    public Object backingIdentity() { return wrapped; }
+
     private final ItemStorage wrapped;
 
     public ItemStorageTransactor(ItemStorage handler) {

@@ -16,7 +16,7 @@ public final class SnapshotCreationPersistence {
 
     public static void persist(Level level, Snapshot snapshot, Snapshot.Header header) {
         if (level == null || level.isClientSide || snapshot == null || header == null) {
-            return;
+            throw new IllegalArgumentException("Cannot persist an incomplete server blueprint");
         }
 
         Snapshot persistedSnapshot = snapshot.copy();

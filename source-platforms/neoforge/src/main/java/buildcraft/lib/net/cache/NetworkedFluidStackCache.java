@@ -20,14 +20,24 @@ public class NetworkedFluidStackCache extends NetworkedObjectCache<FluidStack> {
     private static final int FLUID_AMOUNT = 1;
 
     public NetworkedFluidStackCache() {
+//? if mc_26_x {
+        super(() -> new FluidStack(Fluids.WATER, FLUID_AMOUNT));
+//? } else {
         // Use water for our base stack as it might not be too bad of an assumption
         super(new FluidStack(Fluids.WATER, FLUID_AMOUNT));
+//?}
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     protected Object2IntMap<FluidStack> createObject2IntMap() {
         return new Object2IntOpenCustomHashMap<>(new Hash.Strategy<FluidStack>() {
+//? if mc_26_x {
+//? } else {
             @Override
+//?}
             public int hashCode(FluidStack o) {
                 if (o == null) {
                     return 0;
@@ -35,7 +45,10 @@ public class NetworkedFluidStackCache extends NetworkedObjectCache<FluidStack> {
                 return FluidStack.hashFluidAndComponents(o);
             }
 
+//? if mc_26_x {
+//? } else {
             @Override
+//?}
             public boolean equals(FluidStack a, FluidStack b) {
                 if (a == null || b == null) {
                     return a == b;
@@ -45,22 +58,34 @@ public class NetworkedFluidStackCache extends NetworkedObjectCache<FluidStack> {
         });
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     protected FluidStack copyOf(FluidStack object) {
         return object.copy();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     protected void writeObject(FluidStack obj, FriendlyByteBuf buffer) {
         FluidStackUtil.write(buffer, obj);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     protected FluidStack readObject(FriendlyByteBuf buffer) throws IOException {
         return FluidStackUtil.read(buffer);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     protected String getCacheName() {
         return "FluidStack";
     }

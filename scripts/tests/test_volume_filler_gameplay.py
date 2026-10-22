@@ -1,0 +1,379 @@
+#!/usr/bin/env python3
+"""Gameplay-cycle regression tests for BuildCraft Volume Box + Filler Planner.
+
+Materializes changed boundaries on all seven targets. The executable Java probe
+uses typed doubles; it does not replace full NeoForge/Forge compile or in-game tests.
+"""
+from __future__ import annotations
+
+import json
+import re
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT=Path(__file__).resolve().parents[2]
+sys.path[:0]=[str(ROOT/'scripts'),str(ROOT/'scripts/tests')]
+from source_config import load_properties,target_layout
+from source_layout import resolve_effective_source,_materialize_text_file
+from minecraft_compat_fixture import parse_sources
+from volume_box_lifecycle_fixture import execute
+from volume_box_render_fixture import execute as check_quad_vertices
+from planner_install_fixture import execute as check_installer
+from planner_menu_fixture import execute as check_menu
+from snapshot_sizing_fixture import execute as check_snapshot_sizing
+
+TARGETS=('1.19.2-forge','1.20.1-forge','1.21.1-neoforge','1.21.11-neoforge',
+         '26.1.2-neoforge','26.2-neoforge','26.3-neoforge')
+P='src/main/java/buildcraft/'
+CLASSES={
+ 'core/BCCore.java','core/BCCoreItems.java','core/item/ItemVolumeBox.java',
+ 'core/item/ItemMarkerConnector.java','core/marker/volume/AddonQuadRenderer.java',
+ 'core/marker/volume/AddonDefaultRenderer.java', 'core/marker/volume/IFastAddonRenderer.java',
+ 'core/marker/volume/BCCoreVolumeBoxEvents.java','core/marker/volume/VolumeBoxToolActions.java',
+ 'core/marker/volume/WorldSavedDataVolumeBoxes.java',
+ 'core/marker/volume/EnumAddonSlot.java','core/marker/volume/ItemAddon.java',
+ 'core/client/render/RenderVolumeBoxes.java',
+ 'builders/BCBuildersItems.java','builders/BCBuildersGuis.java','builders/BCBuildersClientGuis.java',
+ 'builders/BCBuildersSprites.java',
+ 'builders/item/ItemFillerPlanner.java','builders/addon/AddonFillerPlanner.java',
+ 'builders/addon/AddonRendererFillerPlanner.java', 'builders/menu/ContainerFillerPlanner.java',
+ 'builders/gui/GuiFillerPlanner.java','builders/platform/PlannerMenuOpening.java',
+}
+RECIPE_ID={'volume_box':'buildcraftcore:volume_box','filler_planner':'buildcraftbuilders:filler_planner'}
+
+class VolumeFillerGameplayTests(unittest.TestCase):
+    def test_snapshot_dimensions_respect_size_and_overflow_limits(self):
+        """Eight sizing bounds run against the actual Snapshot.getDataSize()."""
+        self.assertEqual(check_snapshot_sizing(), '8 Snapshot size bounds PASS')
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp=tempfile.TemporaryDirectory(prefix='volume-filler-effective-')
+        cls.outputs={}
+        props=load_properties()
+        for target in TARGETS:
+            layout=target_layout(target,props)
+            downs=tuple(p for p in (layout.family_downport_root,layout.family_platform_downport_root) if p)
+            out=Path(cls.tmp.name)/target
+            for relative in sorted(CLASSES):
+                logical=P+relative
+                src=resolve_effective_source(layout,props,logical)
+                if src is None:raise AssertionError(f'Missing {target}: {logical}')
+                _materialize_text_file(src,out/logical,logical_relative=logical,
+                    minecraft=props[f'target.{target}.deps.minecraft'],family=layout.family,
+                    platform=layout.platform,preprocess=True,
+                    native_source=any(src.is_relative_to(d) for d in downs))
+            cls.outputs[target]=out
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def java(self,target,relative):
+        return (self.outputs[target]/P/relative).read_text(encoding='utf-8')
+
+    def test_java_syntax_all_target_boundaries(self):
+        for target,out in self.outputs.items():
+            with self.subTest(target=target):
+                result=parse_sources([out/'src/main/java/buildcraft/core',out/'src/main/java/buildcraft/builders'])
+                self.assertIn('0 errors',result)
+
+    def test_editing_event_registers_each_target(self):
+        for target in TARGETS:
+            with self.subTest(target=target):
+                source=self.java(target,'core/BCCore.java')
+                self.assertIn('BCCoreVolumeBoxEvents.register()',source)
+                event=self.java(target,'core/marker/volume/BCCoreVolumeBoxEvents.java')
+                self.assertIn('WorldSavedDataVolumeBoxes.get(server)',event)
+                self.assertIn('boxes.tick()',event)
+                # Initial/full snapshots are throttled: a player-count change or
+                # periodic recovery triggers the dimension-scoped broadcast.
+                self.assertIn('MessageVolumeBoxes.sendSnapshotToDimension(boxes.volumeBoxes, server.dimension())', event)
+                self.assertIn('playerCount > 0 && !boxes.volumeBoxes.isEmpty()', event)
+                self.assertIn('previous == null || previous != playerCount || server.getGameTime() % 1200 == 0', event)
+                self.assertIn('ClientVolumeBoxes.INSTANCE.volumeBoxes.clear()',event)
+
+    def test_block_vertex_lifecycle_java_stubs_old_and_new(self):
+        for target in ('1.19.2-forge','1.21.1-neoforge','26.3-neoforge'):
+            with self.subTest(target=target):
+                file=self.outputs[target]/P/'core/marker/volume/AddonQuadRenderer.java'
+                result=check_quad_vertices(file)
+                self.assertIn('36 assertions PASS',result)
+                print(target+': '+result,flush=True)
+
+    def test_planner_projection_uses_world_pose_and_translucent_layer(self):
+        for target in TARGETS:
+            with self.subTest(target=target):
+                renderer=self.java(target,'core/client/render/RenderVolumeBoxes.java')
+                default=self.java(target,'core/marker/volume/AddonDefaultRenderer.java')
+                planner=self.java(target,'builders/addon/AddonRendererFillerPlanner.java')
+                helper=self.java(target,'core/marker/volume/AddonQuadRenderer.java')
+                api=self.java(target,'core/marker/volume/IFastAddonRenderer.java') if (self.outputs[target]/P/'core/marker/volume/IFastAddonRenderer.java').exists() else None
+                self.assertIn('partialTicks, pose,',renderer)
+                self.assertIn('AddonQuadRenderer.box(builder, pose, addon.getBoundingBox()',default)
+                self.assertIn('AddonQuadRenderer.box(vb, pose, bb, s, 127)',planner)
+                self.assertIn('FILLER_PREVIEW_WHITE.getSprite()',planner)
+                self.assertIn('pose.last().pose()',helper)
+                self.assertIn('pose.last().normal()',helper)
+                if target.startswith(('1.19.', '1.20.','1.21.1-')):
+                    self.assertIn('RenderSystem.enableBlend()',renderer)
+                    self.assertIn('RenderSystem.depthMask(false)',renderer)
+                elif target in ('1.21.11-neoforge','26.1.2-neoforge'):
+                    self.assertIn('endBatch(',renderer)
+                    self.assertIn('RenderCompat.translucent()',renderer)
+                else:
+                    self.assertIn('BCWorldGeometry.buffer(RenderCompat.translucent())',renderer)
+                    self.assertNotIn('endBatch(',renderer)
+
+    def test_planner_preview_sprite_symbol_resolves_on_all_targets(self):
+        # Do not check source-shared alone: 1.19.2 has a version-src override of
+        # BCBuildersSprites, which used to omit this field and break compilation.
+        for target in TARGETS:
+            with self.subTest(target=target):
+                planner = self.java(target, 'builders/addon/AddonRendererFillerPlanner.java')
+                sprites = self.java(target, 'builders/BCBuildersSprites.java')
+                self.assertIn('BCBuildersSprites.FILLER_PREVIEW_WHITE.getSprite()', planner)
+                self.assertIn('public static final SpriteHolder FILLER_PREVIEW_WHITE;', sprites)
+                self.assertIn('FILLER_PREVIEW_WHITE = getHolder("addons/filler_preview_white");', sprites)
+
+    def test_planner_white_preview_sprite_in_atlas(self):
+        image=ROOT/'source-shared/src/main/resources/assets/buildcraftbuilders/textures/addons/filler_preview_white.png'
+        self.assertTrue(image.is_file())
+        import struct
+        self.assertEqual((16,16),struct.unpack('>II',image.read_bytes()[16:24]))
+        sprites=(ROOT/'source-shared/src/main/java/buildcraft/builders/BCBuildersSprites.java').read_text()
+        self.assertIn('FILLER_PREVIEW_WHITE = getHolder("addons/filler_preview_white")',sprites)
+        atlas=json.loads((ROOT/'source-families/1.21.X/src/main/resources/assets/minecraft/atlases/blocks.json').read_text())
+        self.assertIn({'type':'minecraft:single','resource':'buildcraftbuilders:addons/filler_preview_white'}, atlas['sources'])
+
+    def test_original_buildcraft_separates_volume_item_from_connector(self):
+        for target in TARGETS:
+            with self.subTest(target=target):
+                item=self.java(target,'core/item/ItemVolumeBox.java')
+                connector=self.java(target,'core/item/ItemMarkerConnector.java')
+                tool=self.java(target,'core/marker/volume/VolumeBoxToolActions.java')
+                self.assertIn('boxes.addVolumeBox(position)',item)
+                # addVolumeBox is responsible for marking saved data dirty. A second
+                # setDirty in the item is redundant and was intentionally removed.
+                saved=self.java(target,'core/marker/volume/WorldSavedDataVolumeBoxes.java')
+                method=re.search(r'\bvoid\s+addVolumeBox\s*\(\s*BlockPos\s+pos\s*\)\s*\{([^{}]*)\}',saved)
+                self.assertIsNotNone(method, 'addVolumeBox must be implemented on all targets')
+                body=method.group(1)
+                self.assertIn('volumeBoxes.add(',body)
+                self.assertEqual(body.count('setDirty();'),1, 'addVolumeBox must mark saved data dirty exactly once')
+                self.assertLess(body.index('volumeBoxes.add('),body.index('setDirty();'))
+                self.assertNotIn('boxes.setDirty()',item)
+                self.assertNotIn('VolumeBoxToolActions.use(',item)
+                self.assertNotIn('InteractionResult use(Level',item)
+                self.assertNotIn('InteractionResultHolder<ItemStack> use(Level',item)
+                self.assertIn('VolumeBoxToolActions.use(world, player)',connector)
+                self.assertIn('editing.cancelEditing()',tool)
+                self.assertIn('editing.confirmEditing()',tool)
+                self.assertLess(tool.index('if (editing != null)'),tool.index('getSelectingVolumeBoxAndSlot('))
+                self.assertIn('selected.setHeldDistOldMinOldMax(',tool)
+                self.assertIn('nearest.addons.values().forEach(Addon::onRemoved)',tool)
+                self.assertIn('Lock.Target.TargetRemove',tool)
+
+    def test_cross_version_compilation_contracts(self):
+        for target in TARGETS:
+            with self.subTest(target=target):
+                item=self.java(target,'builders/item/ItemFillerPlanner.java')
+                volume=self.java(target,'core/item/ItemVolumeBox.java')
+                base=self.java(target,'core/marker/volume/ItemAddon.java')
+                menu=self.java(target,'builders/menu/ContainerFillerPlanner.java')
+                renderer=self.java(target,'builders/addon/AddonRendererFillerPlanner.java')
+                gui=self.java(target,'builders/gui/GuiFillerPlanner.java')
+                self.assertIn('import net.minecraft.world.item.Item;',item)
+                self.assertNotIn('VolumeBoxToolActions.use(',volume)
+                self.assertIn('boxes.addVolumeBox(position)',volume)
+                self.assertIn('box.isEditing()',base)
+                self.assertIn('InteractionResult useOn(UseOnContext context)',base)
+                self.assertIn('private InteractionResult tryAttach(',base)
+                self.assertNotIn('.onPlayerRightClick(player)',base)
+                self.assertIn('applyingServerUpdate',menu)
+                if target == '1.19.2-forge':
+                    self.assertIn('return playerInventory.player.level;',menu)
+                    self.assertIn('player.level.isEmptyBlock(p)',renderer)
+                    self.assertNotIn('player.level().isEmptyBlock(p)',renderer)
+                else:
+                    self.assertIn('return playerInventory.player.level();',menu)
+                    self.assertIn('player.level().isEmptyBlock(p)',renderer)
+                if target.startswith('26.'):
+                    self.assertIn('inventory, title, 176, 81);',gui)
+                    self.assertNotIn('imageWidth =',gui)
+                    self.assertNotIn('imageHeight =',gui)
+                else:
+                    self.assertIn('imageWidth = json.getSizeX()',gui)
+                if target.startswith(('1.19.', '1.20.', '1.21.1-')):
+                    self.assertIn('InteractionResultHolder<ItemStack> use(Level',base)
+                else:
+                    self.assertIn('InteractionResult use(Level',base)
+                    self.assertNotIn('InteractionResultHolder',base)
+                self.assertNotIn('InteractionResultHolder',volume)
+
+    def test_large_template_allocation_is_guarded(self):
+        addon=(ROOT/'source-shared/src/main/java/buildcraft/builders/addon/AddonFillerPlanner.java').read_text()
+        self.assertIn('long voxels',addon)
+        self.assertIn('voxels > 2_000_000L',addon)
+        self.assertIn('buildingInfo = FillerUtil.createBuildingInfo(',addon)
+
+    def test_java_addon_item_installs_without_opening_menu_all_targets(self):
+        for target in TARGETS:
+            with self.subTest(target=target):
+                source = self.outputs[target] / P / 'core/marker/volume/ItemAddon.java'
+                modern = target.startswith(('1.21.11-', '26.'))
+                result = check_installer(source, modern_api=modern, level_method=modern)
+                self.assertIn('23 assertions PASS', result)
+                print(target + ': ' + result, flush=True)
+
+    def test_java_planner_menu_server_state_all_targets(self):
+        for target in TARGETS:
+            with self.subTest(target=target):
+                source = self.outputs[target] / P / 'builders/menu/ContainerFillerPlanner.java'
+                modern = target.startswith(('1.21.11-', '26.'))
+                result = check_menu(source, level_method=modern)
+                self.assertIn('24 assertions PASS', result)
+                print(target + ': ' + result, flush=True)
+
+    def test_window_id_guards_prevent_phantom_menu_packet_reuse(self):
+        for target in TARGETS:
+            with self.subTest(target=target):
+                layout = target_layout(target, load_properties())
+                logical = P + 'lib/net/MessageContainer.java'
+                effective = resolve_effective_source(layout, load_properties(), logical)
+                self.assertIsNotNone(effective)
+                content = effective.read_text(encoding='utf-8')
+                self.assertIn('&& container.containerId == id)', content)
+
+    def test_java_volume_tool_lifecycle(self):
+        result=execute(ROOT/'source-shared/src/main/java/buildcraft/core/marker/volume/VolumeBoxToolActions.java')
+        self.assertIn('assertions PASS',result)
+        print(result,flush=True)
+
+    def test_addon_attaches_consumes_and_returns_item(self):
+        for target in TARGETS:
+            with self.subTest(target=target):
+                item=self.java(target,'core/marker/volume/ItemAddon.java')
+                addon=self.java(target,'builders/addon/AddonFillerPlanner.java')
+                self.assertIn('!player.getAbilities().instabuild',item)
+                self.assertIn('shrink(1)',item)
+                self.assertIn('PlannerMenuOpening.open(',addon)
+                self.assertNotIn('onPlayerRightClick(player)',item)
+                self.assertIn('void onRemoved()',addon)
+                self.assertIn('BCBuildersItems.FILLER_PLANNER.get()',addon)
+                self.assertIn('volumeBox.world.addFreshEntity(dropped)',addon)
+
+    def test_planner_server_authority_and_network_sync(self):
+        for target in TARGETS:
+            with self.subTest(target=target):
+                menu=self.java(target,'builders/menu/ContainerFillerPlanner.java')
+                self.assertIn('implements IContainerFilling',menu)
+                self.assertIn('serverSnapshot',menu)
+                self.assertIn('clientEditable',menu)
+                self.assertIn('FullStatement<IFillerPattern> incoming',menu)
+                self.assertIn('clientLocked = buffer.readBoolean()',menu)
+                self.assertIn('public void sendData()',menu)
+                self.assertIn('public void broadcastChanges()',menu)
+                self.assertNotIn('ClientVolumeBoxes.INSTANCE',menu)
+                self.assertIn('valuesChanged()',menu)
+                self.assertIn('updateBuildingInfo()',menu)
+                self.assertIn('isLocked()',menu)
+                self.assertIn('WorldSavedDataVolumeBoxes.get(',menu)
+                self.assertIn('distanceToSqr(',menu)
+                self.assertIn('buf.readUUID()',menu)
+                self.assertIn('buf.readEnum(EnumAddonSlot.class)',menu)
+
+    def test_planner_gui_and_existing_filler_pattern_widgets(self):
+        guiasset=ROOT/'source-shared/src/main/resources/assets/buildcraftbuilders/gui/filler_planner.json'
+        parent=ROOT/'source-shared/src/main/resources/assets/buildcraftbuilders/gui/filler_base.json'
+        gui=json.loads(guiasset.read_text());base=json.loads(parent.read_text())
+        self.assertEqual('buildcraftbuilders:gui/filler_base',gui['parent'])
+        for name in ('pattern_drag_target','pattern_drawable','params','pattern_possible','button_invert'):
+            self.assertIn(name,base['elements'])
+        for target in TARGETS:
+            with self.subTest(target=target):
+                self.assertIn('BCBuildersGuis.MENU_FILLER_PLANNER.get()',self.java(target,'builders/BCBuildersClientGuis.java'))
+                self.assertIn('MENU_FILLER_PLANNER = MENUS.register(',self.java(target,'builders/BCBuildersGuis.java'))
+                editor=self.java(target,'builders/gui/GuiFillerPlanner.java')
+                self.assertIn('filler_planner.json',editor)
+                self.assertIn('filler.invert',editor)
+                self.assertIn('filler.pattern',editor)
+                self.assertIn('container.sendInverted(',editor)
+
+    def test_both_loaders_menu_open_correctly(self):
+        for target in TARGETS:
+            cls=self.java(target,'builders/platform/PlannerMenuOpening.java')
+            with self.subTest(target=target):
+                if target.endswith('-forge'):
+                    self.assertIn('NetworkHooks.openScreen(',cls)
+                    self.assertNotIn('net.neoforged',cls)
+                else:
+                    self.assertIn('player.openMenu(provider, buffer -> {',cls)
+                    self.assertNotIn('net.minecraftforge',cls)
+                self.assertIn('buffer.writeUUID(id)',cls)
+                self.assertIn('buffer.writeEnum(slot)',cls)
+
+    def test_crafting_resources_and_creative_discovery(self):
+        for target in TARGETS:
+            old=target.startswith(('1.19.2','1.20.1'))
+            rel='recipes' if old else 'recipe'
+            fam='old' if old else '1.21.X'
+            core=ROOT/f'source-families/{fam}/src/main/resources/data/buildcraftcore/{rel}/volume_box.json'
+            builders=ROOT/f'source-families/{fam}/src/main/resources/data/buildcraftbuilders/{rel}/filler_planner.json'
+            for name,path in (('volume_box',core),('filler_planner',builders)):
+                with self.subTest(target=target,recipe=name):
+                    recipe=json.loads(path.read_text())
+                    self.assertEqual('minecraft:crafting_shaped',recipe['type'])
+                    self.assertEqual(RECIPE_ID[name],recipe['result']['item' if old else 'id'])
+                    self.assertEqual(3,len(recipe['pattern']))
+                    self.assertEqual(3,len(recipe['pattern'][0]))
+            coreItems=self.java(target,'core/BCCoreItems.java')
+            buildersItems=self.java(target,'builders/BCBuildersItems.java')
+            if old and target.startswith('1.19.2'):
+                self.assertIn('VOLUME_BOX = ITEMS.register("volume_box", () -> new ItemVolumeBox(new Item.Properties().tab(',coreItems)
+                self.assertIn('FILLER_PLANNER = ITEMS.register("filler_planner", () -> new ItemFillerPlanner(new Item.Properties().tab(',buildersItems)
+            else:
+                self.assertIn('add(items, VOLUME_BOX)',coreItems)
+                self.assertIn('add(items, FILLER_PLANNER)',buildersItems)
+
+    def test_preview_is_bounded_and_translucent(self):
+        for target in TARGETS:
+            with self.subTest(target=target):
+                renderer=self.java(target,'builders/addon/AddonRendererFillerPlanner.java')
+                self.assertIn('32_768',renderer)
+                self.assertIn('1_024',renderer)
+                self.assertIn('getSnapshot().data.get(index)',renderer)
+        for target in ('26.1.2-neoforge','26.2-neoforge','26.3-neoforge'):
+            source=self.java(target,'core/client/render/RenderVolumeBoxes.java')
+            self.assertIn('RenderCompat.translucent()',source)
+
+    def test_block_format_renderers_complete_every_vertex(self):
+        for target in TARGETS:
+            with self.subTest(target=target):
+                emitter=self.java(target,'core/marker/volume/AddonQuadRenderer.java')
+                base=self.java(target,'core/marker/volume/AddonDefaultRenderer.java')
+                ghost=self.java(target,'builders/addon/AddonRendererFillerPlanner.java')
+                self.assertIn('OverlayTexture.NO_OVERLAY',emitter)
+                self.assertIn('FULL_BRIGHT',emitter)
+                self.assertEqual(6,emitter.count('quad(out, pose, sprite,'))
+                self.assertIn('AddonQuadRenderer.box(builder, pose, addon.getBoundingBox(), s, 255)',base)
+                self.assertIn('AddonQuadRenderer.box(vb, pose, bb, s, 127)',ghost)
+                if target.startswith(('1.19.', '1.20.')):
+                    self.assertIn('.overlayCoords(OverlayTexture.NO_OVERLAY)',emitter)
+                    self.assertIn('.normal(pose.last().normal(), nx, ny, nz).endVertex()',emitter)
+                else:
+                    self.assertIn('.setOverlay(OverlayTexture.NO_OVERLAY)',emitter)
+                    self.assertIn('.setNormal(normal.m00() * nx',emitter)
+
+    def test_help_and_language(self):
+        texts=json.loads((ROOT/'source-shared/src/main/resources/assets/buildcraft/guide/text/en_us.json').read_text())['pages']
+        self.assertIn('Marker Connector',' '.join(texts['buildcraftcore/item/box_volume']))
+        self.assertNotIn('with the Volume Box or Marker Connector',' '.join(texts['buildcraftcore/item/box_volume']))
+        lang=json.loads((ROOT/'source-shared/src/main/resources/assets/buildcraft/lang/en_us.json').read_text())
+        for name in ('volume_box','filler_planner'):
+            for i in range(3):self.assertIn(f'buildcraft.tooltip.{name}.{i}',lang)
+
+
+if __name__=='__main__':unittest.main()

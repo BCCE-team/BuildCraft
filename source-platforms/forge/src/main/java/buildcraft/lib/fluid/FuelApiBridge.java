@@ -57,8 +57,9 @@ public final class FuelApiBridge {
 
         FluidStack stack = new FluidStack(fluid, amount);
         FluidComponentPayload components = variant.components();
-        if (components.isEmpty() || !components.formatId().filter(COMPONENT_FORMAT::equals).isPresent()) {
-            return stack;
+        if (components.isEmpty()) return stack;
+        if (!components.formatId().filter(COMPONENT_FORMAT::equals).isPresent()) {
+            return FluidStack.EMPTY;
         }
         try {
             CompoundTag tag = NbtSquisher.expand(components.copyCanonicalBytes());
@@ -66,7 +67,7 @@ public final class FuelApiBridge {
                 stack.setTag(tag);
             }
         } catch (IOException | RuntimeException ignored) {
-            // Malformed or foreign component payloads degrade to the plain fluid stack.
+            return FluidStack.EMPTY;
         }
         return stack;
     }

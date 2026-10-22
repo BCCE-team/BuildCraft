@@ -13,6 +13,7 @@ public final class TransportApi2 {
         if (installed) return;
         BuildCraftApiRuntime.bootstrap();
         BuildCraftApiRuntime.INSTANCE.installService(BuildCraftServices.PIPES, PipeServiceImpl.INSTANCE);
+        BuildCraftApiRuntime.INSTANCE.installService(BuildCraftServices.PIPE_RESOURCES, PipeResourceServiceImpl.INSTANCE);
         BuildCraftApiRuntime.INSTANCE.installService(BuildCraftServices.SIGNALS, SignalServiceImpl.INSTANCE);
         ClassicSignalChannels.register();
         installed = true;

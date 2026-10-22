@@ -82,13 +82,14 @@ public final class AutomationActor {
         if (!(obj instanceof AutomationActor other)) return false;
         return type == other.type
             && Objects.equals(playerId, other.playerId)
-            && Objects.equals(playerName, other.playerName)
+            // An authenticated player keeps the same identity after a username change.
+            && (playerId != null || Objects.equals(playerName, other.playerName))
             && Objects.equals(sourceId, other.sourceId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, playerId, playerName, sourceId);
+        return Objects.hash(type, playerId, playerId == null ? playerName : null, sourceId);
     }
 
     @Override

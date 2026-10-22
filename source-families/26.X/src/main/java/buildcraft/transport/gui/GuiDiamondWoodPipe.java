@@ -1,0 +1,129 @@
+/*
+ * Copyright (c) 2017 SpaceToad and the BuildCraft team
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/
+ */
+
+package buildcraft.transport.gui;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+
+import buildcraft.transport.internal.pipe.IFlowItems;
+import buildcraft.lib.gui.GuiBC8;
+import buildcraft.lib.gui.GuiIcon;
+import buildcraft.lib.gui.button.GuiImageButton;
+import buildcraft.lib.gui.button.IButtonBehaviour;
+import buildcraft.lib.gui.button.IButtonClickEventListener;
+import buildcraft.lib.gui.button.IButtonClickEventTrigger;
+import buildcraft.lib.gui.elem.ToolTip;
+import buildcraft.transport.container.ContainerDiamondWoodPipe;
+import buildcraft.transport.pipe.behaviour.PipeBehaviourWoodDiamond;
+import buildcraft.transport.pipe.behaviour.PipeBehaviourWoodDiamond.FilterMode;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Inventory;
+import buildcraft.lib.gui.help.GuiHelpUtil;
+
+public class GuiDiamondWoodPipe extends GuiBC8<ContainerDiamondWoodPipe> implements IButtonClickEventListener {
+    private static final ResourceLocation TEXTURE = ResourceLocation.parse("buildcrafttransport:textures/gui/pipe_emerald.png");
+    private static final ResourceLocation TEXTURE_BUTTON = ResourceLocation.parse("buildcrafttransport:textures/gui/pipe_emerald_button.png");
+    private static final int WHITE_LIST_BUTTON_ID = FilterMode.WHITE_LIST.ordinal();
+    private static final int BLACK_LIST_BUTTON_ID = FilterMode.BLACK_LIST.ordinal();
+    private static final int ROUND_ROBIN_BUTTON_ID = FilterMode.ROUND_ROBIN.ordinal();
+    private static final int SIZE_X = 175, SIZE_Y = 161;
+    private static final GuiIcon ICON_GUI = new GuiIcon(TEXTURE, 0, 0, SIZE_X, SIZE_Y);
+    private static final GuiIcon ICON_ROUND_ROBIN_INDEX = new GuiIcon(TEXTURE, 176, 0, 20, 20);
+    private static final GuiIcon ICON_ROUND_ROBIN_NONE = new GuiIcon(TEXTURE, 176, 20, 20, 20);
+
+    private GuiImageButton whiteListButton;
+    private GuiImageButton blackListButton;
+    private GuiImageButton roundRobinButton;
+
+    private PipeBehaviourWoodDiamond pipe;
+
+    public GuiDiamondWoodPipe(ContainerDiamondWoodPipe container, Inventory inv, Component title) {
+        super(container, inv, title, SIZE_X, SIZE_Y);
+        
+        this.pipe = container.behaviour;
+        
+        GuiHelpUtil.addSlots(mainGui, 8, 18, 9, 1, "buildcraft.help.pipe.emerald.filters.title", 0xFF_66_AA_FF, "buildcraft.help.pipe.emerald.filters.desc");
+        GuiHelpUtil.addRoot(mainGui, 7, 41, 54, 18, "buildcraft.help.pipe.emerald.mode.title", 0xFF_88_CC_88, "buildcraft.help.pipe.emerald.mode.desc");
+    }
+
+    @Override
+    public void init() {
+        super.init();
+        if (pipe == null) {
+            minecraft.player.closeContainer();
+            return;
+        }
+
+        this.whiteListButton = new GuiImageButton(mainGui, WHITE_LIST_BUTTON_ID, this.leftPos + 7, this.topPos + 41, 18, TEXTURE_BUTTON, 19, 19);
+        this.whiteListButton.setToolTip(ToolTip.createLocalized("tip.PipeItemsEmerald.whitelist"));
+        this.whiteListButton.registerListener(this);
+        this.mainGui.shownElements.add(this.whiteListButton);
+
+        this.blackListButton = new GuiImageButton(mainGui, BLACK_LIST_BUTTON_ID, this.leftPos + 7 + 18, this.topPos + 41, 18, TEXTURE_BUTTON, 37, 19);
+        this.blackListButton.setToolTip(ToolTip.createLocalized("tip.PipeItemsEmerald.blacklist"));
+        this.blackListButton.registerListener(this);
+        this.mainGui.shownElements.add(this.blackListButton);
+
+        this.roundRobinButton = new GuiImageButton(mainGui, ROUND_ROBIN_BUTTON_ID, this.leftPos + 7 + 36, this.topPos + 41, 18, TEXTURE_BUTTON, 55, 19);
+        this.roundRobinButton.setToolTip(ToolTip.createLocalized("tip.PipeItemsEmerald.roundrobin"));
+        this.roundRobinButton.registerListener(this);
+        this.mainGui.shownElements.add(this.roundRobinButton);
+        IButtonBehaviour.createAndSetRadioButtons(whiteListButton, blackListButton, roundRobinButton);
+
+        switch (pipe.filterMode) {
+            case WHITE_LIST:
+                this.whiteListButton.activate();
+                break;
+            case BLACK_LIST:
+                this.blackListButton.activate();
+                break;
+            case ROUND_ROBIN:
+                if (roundRobinButton != null) {
+                    this.roundRobinButton.activate();
+                }
+                break;
+        }
+    }
+
+    @Override
+    public void handleButtonClick(IButtonClickEventTrigger sender, int buttonKey) {
+        if (!(sender instanceof GuiImageButton)) {
+            return;
+        }
+        int id = Integer.parseInt(((GuiImageButton) sender).id);
+        if (pipe == null) {
+            return;
+        }
+        FilterMode newFilterMode = FilterMode.get(id);
+        this.pipe.filterMode = newFilterMode;
+        container.sendNewFilterMode(newFilterMode);
+    }
+
+    @Override
+    protected void drawBackgroundLayer(PoseStack pose, int mouseX, int mouseY, float partialTicks) {
+        ICON_GUI.drawAt(getActiveGraphics(), mainGui.rootElement);
+    }
+
+    @Override
+    protected void drawForegroundLayer(PoseStack pose, int mouseX, int mouseY) {
+        GuiGraphicsExtractor guiGraphics = getActiveGraphics();
+        Component title = Component.translatable("gui.pipes.emerald.title");
+        double titleX = mainGui.rootElement.getX() + (SIZE_X - font.width(title)) / 2;
+        guiGraphics.text(font, title, (int) titleX, (int) mainGui.rootElement.getY() + 6, 0xFF404040, false);
+        guiGraphics.text(font, Component.translatable("gui.inventory"), (int) mainGui.rootElement.getX() + 8,
+            (int) mainGui.rootElement.getY() + SIZE_Y - 93, 0xFF404040, false);
+        if (pipe == null) {
+            return;
+        }
+        if (pipe.filterMode == FilterMode.ROUND_ROBIN) {
+            GuiIcon icon = pipe.filterValid ? ICON_ROUND_ROBIN_INDEX : ICON_ROUND_ROBIN_NONE;
+            int x = pipe.filterValid ? 18 * pipe.currentFilter : 0;
+            icon.drawAt(guiGraphics, mainGui.rootElement.getX() + 6 + x, mainGui.rootElement.getY() + 16);
+        }
+    }
+}

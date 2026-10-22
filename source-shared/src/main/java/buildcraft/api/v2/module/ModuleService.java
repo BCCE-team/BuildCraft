@@ -11,4 +11,10 @@ public interface ModuleService {
     default boolean loaded(ResourceLocation id) {
         return module(id).map(ModuleInfo::loaded).orElse(false);
     }
+
+    /** A physically loaded addon advertises its own module before the API freeze. */
+    default void registerExternal(ModuleInfo info, Collection<ResourceLocation> required,
+                                  buildcraft.api.v2.registry.RegistrationContext context) {
+        throw new UnsupportedOperationException("External module declarations are not supported");
+    }
 }

@@ -1,0 +1,26 @@
+package buildcraft.lib.client.sprite;
+
+import net.minecraft.client.particle.SpriteSet;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.util.RandomSource;
+
+/** SpriteSet adapter exposing the first sprite expected by shared rendering code. */
+public class SingleSpriteSet implements SpriteSet {
+    public TextureAtlasSprite texture;
+
+    public SingleSpriteSet(TextureAtlasSprite texture) {
+        this.texture = texture;
+    }
+
+    public TextureAtlasSprite get(int age, int lifetime) {
+        return texture;
+    }
+
+    public TextureAtlasSprite get(RandomSource random) {
+        return texture;
+    }
+
+    public TextureAtlasSprite first() {
+        return texture;
+    }
+}

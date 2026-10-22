@@ -27,7 +27,12 @@ import buildcraft.robotics.client.model.key.KeyRobotStation;
 import buildcraft.robotics.entity.EntityRobot;
 import buildcraft.robotics.item.ItemRobot;
 import buildcraft.transport.tile.TilePipeHolder;
+//? if mc_26_x && (>=26.3) {
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+//? } else {
 import net.minecraft.client.renderer.RenderType;
+//?}
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.FriendlyByteBuf;
@@ -39,12 +44,20 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.neoforge.capabilities.BlockCapability;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.lib.compat.RenderCompat;
+//? } else {
+//?}
 
 public class RobotStationPluggable extends PipePluggable implements IDockingStationProvider, IMjReceiver, IMjReadable {
-    /** Robot battery receiver limit: at most 100 robot-energy units per tick = 1 MJ/t. */
+    /** Robot charging is limited to 20 MJ per tick; the robot may accept less based on free battery capacity. */
     private static final long MAX_CHARGE_PER_TICK = 20 * MjAmount.MICRO_MJ_PER_MJ;
 
     public enum RobotStationState {
@@ -78,7 +91,10 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
         super(definition, holder, side);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public DockingStation getStation() {
         validateStation();
         return station;
@@ -91,7 +107,10 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
         return robot != null && robot.getDockingStation() == station ? robot : null;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public <T> @Nullable T getCapability(@Nonnull BlockCapability<T, Direction> cap) {
         if (cap == MjCapabilities.CAP_CONNECTOR || cap == MjCapabilities.CAP_RECEIVER || cap == MjCapabilities.CAP_READABLE) {
             validateStation();
@@ -100,7 +119,10 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
         return null;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public <T> @Nullable T getInternalCapability(@Nonnull BlockCapability<T, Direction> cap) {
         if (cap == MjCapabilities.CAP_CONNECTOR || cap == MjCapabilities.CAP_RECEIVER || cap == MjCapabilities.CAP_READABLE) {
             validateStation();
@@ -109,12 +131,18 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
         return null;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean canConnect(@Nonnull IMjConnector other) {
         return true;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public long getPowerRequested() {
         EntityRobotBase robot = getDockedRobot();
         if (robot == null || robot.getBattery() == null) {
@@ -126,7 +154,10 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
         return Math.min(Math.max(0L, robot.getBattery().getCapacity() - robot.getBattery().getStored()), MAX_CHARGE_PER_TICK);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public long receivePower(long microJoules, FluidAction action) {
         EntityRobotBase robot = getDockedRobot();
         if (microJoules <= 0 || robot == null || robot.getBattery() == null) {
@@ -137,24 +168,37 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
             if (robot instanceof EntityRobot entityRobot) {
                 entityRobot.receivePower(accepted, FluidAction.EXECUTE);
             } else {
+//? if mc_26_x && (>=26.3) {
+                robot.getBattery().insert(MjAmount.ofMicro(accepted), buildcraft.api.v2.OperationMode.EXECUTE);
+//? } else {
                 robot.getBattery().addPower(accepted, FluidAction.EXECUTE);
+//?}
             }
         }
         return microJoules - accepted;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean canReceive() {
         return getPowerRequested() > 0;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public long getStored() {
         EntityRobotBase robot = getDockedRobot();
         return robot == null || robot.getBattery() == null ? 0 : EntityRobot.robotEnergyToMicroMj(robot.getBattery().getStored());
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public long getCapacity() {
         EntityRobotBase robot = getDockedRobot();
         long capacity = robot == null || robot.getBattery() == null ? EntityRobotBase.MAX_ENERGY : robot.getBattery().getCapacity();
@@ -162,7 +206,11 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
     }
 
     private void validateStation() {
+//? if mc_26_x && (>=26.3) {
+        if (valid || holder == null || holder.getPipeWorld() == null || holder.getPipeWorld().isClientSide()) {
+//? } else {
         if (valid || holder == null || holder.getPipeWorld() == null || holder.getPipeWorld().isClientSide) {
+//?}
             return;
         }
         if (!(holder instanceof TilePipeHolder tile)) {
@@ -182,7 +230,10 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
         valid = true;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void onPlacedBy(Player player) {
         if (isClientSide()) {
             return;
@@ -192,7 +243,10 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
         scheduleNetworkUpdate();
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void onTick() {
         if (isClientSide()) {
             return;
@@ -207,36 +261,59 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void onRemove() {
+//? if mc_26_x && (>=26.3) {
+        if (station != null && station.level() != null && !station.level().isClientSide() && RobotManager.registryProvider != null) {
+//? } else {
         if (station != null && station.level() != null && !station.level().isClientSide && RobotManager.registryProvider != null) {
+//?}
             RobotManager.registryProvider.getRegistry(station.level()).removeStation(station);
         }
         valid = false;
         station = null;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean isBlocking() {
         return true;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public VoxelShape getBoundingBox() {
         return BOXES[side.get3DDataValue()];
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public ItemStack getPickStack() {
         return new ItemStack(BCRoboticsItems.ROBOT_STATION.get());
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public InteractionResult onPluggableActivate(Player player, BlockHitResult trace, Level level) {
         if (player.isShiftKeyDown() && EntityUtil.getWrenchHand(player) != null) {
             // The client has no authoritative station object. Use synchronized render state to decide whether the
             // interaction should be forwarded, then validate the station on the server.
+//? if mc_26_x && (>=26.3) {
+            if (level.isClientSide()) {
+//? } else {
             if (level.isClientSide) {
+//?}
                 return getRenderState() == RobotStationState.Linked
                         ? InteractionResult.SUCCESS
                         : InteractionResult.PASS;
@@ -286,26 +363,39 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
     }
 
     private boolean isClientSide() {
+//? if mc_26_x && (>=26.3) {
+        return holder != null && holder.getPipeWorld() != null && holder.getPipeWorld().isClientSide();
+//? } else {
         return holder != null && holder.getPipeWorld() != null && holder.getPipeWorld().isClientSide;
+//?}
     }
 
     public RobotStationState getRenderState() {
         return renderState == null ? RobotStationState.None : renderState;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void writeCreationPayload(FriendlyByteBuf buffer) {
         refreshRenderState();
         buffer.writeByte(getRenderState().ordinal());
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
         refreshRenderState();
         buffer.writeByte(getRenderState().ordinal());
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         readState(buffer);
     }
@@ -330,10 +420,17 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     @Nullable
     public PluggableModelKey getModelRenderKey(RenderType layer) {
+//? if mc_26_x && (>=26.3) {
+        if (layer == RenderCompat.cutout()) {
+//? } else {
         if (layer == RenderType.cutout()) {
+//?}
             return new KeyRobotStation(side, getRenderState());
         }
         return null;

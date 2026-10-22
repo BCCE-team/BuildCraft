@@ -143,16 +143,18 @@ public class BCLibEventDist {
             // Send a few sync passes because marker messages can otherwise arrive before the client world exists
             // during integrated-server login; the client queues those messages too, but these extra passes make
             // reconnecting to an already loaded marker network deterministic.
-            MessageUtil.doDelayedServer(1, () -> MarkerCache.onPlayerJoinLevel(playerMP));
-            MessageUtil.doDelayedServer(5, () -> MarkerCache.onPlayerJoinLevel(playerMP));
             MessageUtil.doDelayedServer(20, () -> MarkerCache.onPlayerJoinLevel(playerMP));
-            MessageUtil.doDelayedServer(60, () -> MarkerCache.onPlayerJoinLevel(playerMP));
         }
     }
 
 
     public static void onWorldUnload(BCEvents.LevelUnload event) {
         MarkerCache.onLevelUnload(event.getLevel());
+        if (event.getLevel() instanceof ServerLevel server
+            && server.dimension() == net.minecraft.world.level.Level.OVERWORLD) {
+            // The overworld is the server lifetime anchor; other dimensions may unload while it remains online.
+            MessageUtil.clearServerTasks();
+        }
         if (event.getLevel() instanceof ServerLevel) {
             FakePlayerProvider.INSTANCE.unloadWorld((ServerLevel) event.getLevel());
             buildcraft.lib.platform.chunk.BCChunkTickets.unloadWorld((ServerLevel) event.getLevel());
@@ -170,6 +172,7 @@ public class BCLibEventDist {
 
     @OnlyIn(Dist.CLIENT)
     public static void onDisconnectFromServer() {
+        MessageUtil.clearClientTasks();
         MarkerCache.clearClientCaches();
         MessageMarkerClientHandler.clearQueuedMessages();
     }

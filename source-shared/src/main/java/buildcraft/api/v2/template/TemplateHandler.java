@@ -8,4 +8,7 @@ import net.minecraft.world.level.Level;
 @FunctionalInterface
 public interface TemplateHandler {
     boolean handle(Level level, BlockPos pos, Player actor, ItemStack stack);
+
+    /** Opt in to template construction with addon items that are not BlockItems. */
+    default boolean acceptsItem(ItemStack stack) { return false; }
 }

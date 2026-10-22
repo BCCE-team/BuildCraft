@@ -21,6 +21,11 @@ public abstract class RedstoneBoardRobot extends AIRobot implements IRedstoneBoa
     public final void updateBoard(EntityRobotBase container) {
     }
 
+    /** Board logic may return a persisted API task instead of the board itself. */
+    public AIRobot createWorkAI() {
+        return this;
+    }
+
     @Override
     public boolean canLoadFromNBT() {
         return true;

@@ -251,6 +251,14 @@ public abstract class TileAutoWorkbenchBase extends TileBC_Neptune
             }
         }
         int uniqueSlotCount = uniqueStacks.size();
+        if (uniqueSlotCount == 0) {
+            // Custom empty-ingredient recipes can report a result without any input slots.
+            // Never index slotAllocationCount[0] when that array is empty.
+            for (int slot = 0; slot < invMaterialFilter.getSlots(); slot++) {
+                invMaterialFilter.setStackInSlot(slot, ItemStack.EMPTY);
+            }
+            return;
+        }
         int[] slotAllocationCount = new int[uniqueSlotCount];
         Arrays.fill(slotAllocationCount, 1);
         int slotsLeft = slotCount - uniqueSlotCount;

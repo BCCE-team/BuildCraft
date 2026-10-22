@@ -31,6 +31,7 @@ import buildcraft.api.v2.robot.RobotStatus;
 import buildcraft.api.v2.robot.RobotTask;
 import buildcraft.api.v2.robot.RobotTaskContext;
 import buildcraft.api.v2.robot.RobotTaskResult;
+import buildcraft.api.v2.robot.RobotTaskLifecycle;
 import buildcraft.api.v2.robot.RobotTaskType;
 import buildcraft.robotics.ai.AIRobotGotoBlock;
 import buildcraft.robotics.entity.EntityRobot;
@@ -63,6 +64,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
+import net.minecraft.server.level.ServerLevel;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
@@ -108,14 +110,27 @@ public final class RobotServiceImpl implements RobotService {
         if (registry == null || request == null || registry.getLoadedRobot(robotId) == null) return Optional.empty();
         RobotResource resource = request.resource();
         RobotResourceType<?> type = BuildCraftApi.registry(BuildCraftRegistries.ROBOT_RESOURCE_TYPES).get(resource.typeId());
-        return type == null ? Optional.empty() : acquireRegistered(type, level, robotId, resource, request.amount());
+        return type == null ? Optional.empty() : acquireRegistered(type, level, robotId, resource, request.amount())
+            .filter(ApiTaskAI::trackIfExecuting);
     }
 
     private static <R extends RobotResource> Optional<RobotResourceLease> acquireRegistered(
         RobotResourceType<R> type, Level level, long robotId, RobotResource resource, long amount
     ) {
-        if (!type.resourceType().isInstance(resource)) return Optional.empty();
-        return type.acquirer().acquire(level, robotId, type.resourceType().cast(resource), amount);
+        if (amount <= 0 || !type.resourceType().isInstance(resource)) return Optional.empty();
+        try {
+            Optional<RobotResourceLease> acquired = type.acquirer().acquire(
+                level, robotId, type.resourceType().cast(resource), amount);
+            if (acquired == null || acquired.isEmpty()) return Optional.empty();
+            RobotResourceLease lease = acquired.get();
+            if (lease != null && lease.active() && lease.robotId() == robotId
+                    && lease.amount() > 0 && lease.amount() <= amount
+                    && resource.typeId().equals(lease.resource().typeId())) return acquired;
+            if (lease != null) lease.close();
+        } catch (RuntimeException error) {
+            buildcraft.lib.internal.debug.BCLog.logger.warn("Robot resource acquisition failed: " + type.id(), error);
+        }
+        return Optional.empty();
     }
 
     static Optional<RobotResourceLease> acquireBlockResource(Level level, long robotId, BlockRobotResource resource, long amount) {
@@ -134,8 +149,12 @@ public final class RobotServiceImpl implements RobotService {
         entries.sort(Comparator.comparing(entry -> entry.id().toString()));
         for (var entry : entries) {
             RobotEventListener listener = entry.value();
-            RobotEventDecision next = listener.onRobotEvent(context);
-            if (next != null) decision = decision.merge(next);
+            try {
+                RobotEventDecision next = listener.onRobotEvent(context);
+                if (next != null) decision = decision.merge(next);
+            } catch (RuntimeException error) {
+                buildcraft.lib.internal.debug.BCLog.logger.warn("Robot event listener failed: " + entry.id(), error);
+            }
             if (decision.isTerminal()) break;
         }
         return decision;
@@ -145,6 +164,8 @@ public final class RobotServiceImpl implements RobotService {
         return level == null || RobotManager.registryProvider == null ? null : RobotManager.registryProvider.getRegistry(level);
     }
 
+
+    static AutomationActor actorForTask(EntityRobotBase robot) { return actor(robot); }
 
     private static AutomationActor actor(EntityRobotBase robot) {
         if (robot instanceof EntityRobot entity) {
@@ -184,6 +205,7 @@ public final class RobotServiceImpl implements RobotService {
         @Override
         public Optional<ResourceLocation> currentTaskType() {
             AIRobot active = robot.getActiveAI();
+            if (active instanceof ApiTaskAI apiTask) return apiTask.taskTypeId();
             if (active == null) return Optional.empty();
             String name = RobotManager.getAIRobotName(active.getClass());
             if (name == null || name.isBlank()) return Optional.empty();
@@ -196,53 +218,45 @@ public final class RobotServiceImpl implements RobotService {
         private final class Control implements RobotControl {
             @Override
             public boolean moveTo(BlockPos target, OperationMode mode) {
-                if (target == null || !robot.isAlive()) return false;
+                if (target == null || mode == null || !robot.isAlive()
+                    || !(robot.level() instanceof ServerLevel serverLevel)) return false;
+                if (serverLevel.isOutsideBuildHeight(target) || !serverLevel.getWorldBorder().isWithinBounds(target)) {
+                    return false;
+                }
                 if (mode == OperationMode.EXECUTE) {
-                    robot.setMainAIOverride(new AIRobotGotoBlock(robot, target.getX(), target.getY(), target.getZ()));
+                    try {
+                        robot.setMainAIOverride(new AIRobotGotoBlock(robot, target.getX(), target.getY(), target.getZ()));
+                    } catch (RuntimeException rejectedCommand) {
+                        return false;
+                    }
                 }
                 return true;
             }
 
             @Override
             public boolean assign(RobotTask task, OperationMode mode) {
-                if (task == null || !robot.isAlive()) return false;
-                RobotTaskType<?> type = BuildCraftApi.registry(BuildCraftRegistries.ROBOT_TASK_TYPES).get(task.typeId());
-                if (type == null || !type.taskType().isInstance(task)) return false;
-                if (mode == OperationMode.EXECUTE) robot.setMainAIOverride(new ApiTaskAI(robot, task, RobotHandleAdapter.this));
+                if (task == null || mode == null || !robot.isAlive() || !(robot.level() instanceof ServerLevel)) return false;
+                if (!ApiTaskAI.canAssign(task)) return false;
+                if (mode == OperationMode.EXECUTE) {
+                    robot.setMainAIOverride(new ApiTaskAI(robot, task));
+                }
                 return true;
             }
 
             @Override
             public boolean cancelTask(OperationMode mode) {
-                if (!robot.isAlive()) return false;
-                if (mode == OperationMode.EXECUTE) robot.setMainAIOverride(null);
+                if (mode == null || !robot.isAlive() || !(robot.level() instanceof ServerLevel)) return false;
+                if (mode == OperationMode.EXECUTE) {
+                    robot.setMainAIOverride(null);
+                    if (robot.getActiveAI() instanceof ApiTaskAI current) current.abort();
+                }
                 return true;
             }
-        }
-    }
 
-    private static final class ApiTaskAI extends AIRobot {
-        private final RobotTask task;
-        private final RobotHandle handle;
-
-        private ApiTaskAI(EntityRobotBase robot, RobotTask task, RobotHandle handle) {
-            super(robot);
-            this.task = task;
-            this.handle = handle;
-        }
-
-        @Override
-        public void update() {
-            RobotTaskResult result = task.tick(new RobotTaskContext(robot.level(), handle, actor(robot)));
-            if (result == null) {
-                setSuccess(false);
-                terminate();
-                return;
-            }
-            switch (result.status()) {
-                case RUNNING, RETRY -> { }
-                case COMPLETE -> terminate();
-                case FAILED -> { setSuccess(false); terminate(); }
+            @Override
+            public Optional<RobotTaskLifecycle.Phase> taskPhase() {
+                return robot.getActiveAI() instanceof ApiTaskAI current
+                    ? Optional.of(current.phase()) : Optional.empty();
             }
         }
     }
@@ -274,7 +288,14 @@ public final class RobotServiceImpl implements RobotService {
             }
             Level level = station.level();
             if (level == null) return Optional.empty();
-            return type.resolve(new RobotDockContext(level, position(), side(), occupied()));
+            if (!level.hasChunkAt(position())) return Optional.empty();
+            try {
+                Optional<T> resolved = type.resolve(new RobotDockContext(level, position(), side(), occupied()));
+                return resolved == null ? Optional.empty() : resolved;
+            } catch (RuntimeException error) {
+                buildcraft.lib.internal.debug.BCLog.logger.warn("Robot dock port resolver failed: " + type.id(), error);
+                return Optional.empty();
+            }
         }
 
         @Override public boolean occupied() { return station.isTaken(); }
@@ -368,6 +389,9 @@ public final class RobotServiceImpl implements RobotService {
                 FluidStack requested = stored.copy();
                 requested.setAmount(Math.min(limit, stored.getAmount()));
                 FluidStack drained = input.drain(requested, mode == OperationMode.SIMULATE);
+                // A matching tank that cannot actually drain must not hide later usable tanks.
+                if (drained == null || drained.isEmpty() || drained.getAmount() <= 0) continue;
+                if (!matcher.matches(FuelApiBridge.variantOf(drained), FuelApiBridge.MATCH_CONTEXT)) continue;
                 return FluidTransferResult.ofExtraction(maxAmount, FuelApiBridge.volumeOf(drained));
             }
             return FluidTransferResult.nothing(maxAmount);
@@ -388,6 +412,13 @@ public final class RobotServiceImpl implements RobotService {
         @Override public RobotResource resource() { return resource; }
         @Override public long amount() { return 1; }
         @Override public boolean active() { return active; }
-        @Override public void close() { if (active) { registry.release(legacy); active = false; } }
+        @Override public void close() {
+            if (!active) return;
+            active = false;
+            // A stale Lease must never release a reservation reacquired by another robot.
+            if (registry.robotIdTaking(legacy) == robotId) {
+                registry.release(legacy);
+            }
+        }
     }
 }

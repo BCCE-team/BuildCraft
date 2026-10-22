@@ -61,6 +61,8 @@ public class ZonePlan implements IZone {
 
         if (!chunkMapping.containsKey(chunkId)) {
             if (val) {
+                // Never construct a locally valid plan that the network codec cannot send.
+                if (chunkMapping.size() >= MAX_SERIALIZED_CHUNKS) return;
                 property = new ZoneChunk();
                 chunkMapping.put(chunkId, property);
             } else {
@@ -137,6 +139,7 @@ public class ZonePlan implements IZone {
     public void readFromNBT(CompoundTag nbt) {
         chunkMapping.clear();
         NBTUtilBC.readCompoundList(nbt.get("chunkMapping"))
+                .limit(MAX_SERIALIZED_CHUNKS)
                 .forEach(zoneChunkTag -> {
                     ZoneChunk chunk = new ZoneChunk();
                     chunk.readFromNBT(zoneChunkTag);
@@ -182,25 +185,17 @@ public class ZonePlan implements IZone {
 
     @Override
     public BlockPos getRandomBlockPos(Random rand) {
-        if (chunkMapping.size() == 0) {
-            return null;
+        // Deserialized plans can contain empty chunks; never select them as random targets.
+        List<Map.Entry<ChunkPos, ZoneChunk>> candidates = new java.util.ArrayList<>();
+        for (Map.Entry<ChunkPos, ZoneChunk> entry : chunkMapping.entrySet()) {
+            if (entry.getValue() != null && !entry.getValue().isEmpty()) candidates.add(entry);
         }
-
-        int chunkId = rand.nextInt(chunkMapping.size());
-
-        for (Map.Entry<ChunkPos, ZoneChunk> e : chunkMapping.entrySet()) {
-            if (chunkId == 0) {
-                BlockPos i = e.getValue().getRandomBlockPos(rand);
-                int x = ChunkGridMath.minBlock(e.getKey().x) + i.getX();
-                int z = ChunkGridMath.minBlock(e.getKey().z) + i.getZ();
-
-                return new BlockPos(x, i.getY(), z);
-            }
-
-            chunkId--;
-        }
-
-        return null;
+        if (candidates.isEmpty()) return null;
+        Map.Entry<ChunkPos, ZoneChunk> e = candidates.get(rand.nextInt(candidates.size()));
+        BlockPos local = e.getValue().getRandomBlockPos(rand);
+        if (local == null) return null;
+        return new BlockPos(ChunkGridMath.minBlock(e.getKey().x) + local.getX(), local.getY(),
+            ChunkGridMath.minBlock(e.getKey().z) + local.getZ());
     }
 
     public ZonePlan readFromByteBuf(FriendlyByteBuf buf) {

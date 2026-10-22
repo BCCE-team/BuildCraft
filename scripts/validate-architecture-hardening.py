@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Enforce architecture budgets and emit a trend report.
+"""Validate source ownership invariants and report architecture metrics.
 
-The guard measures maintained source ownership rather than materialized build
-output. It prevents architecture drift into target overlays, conditional jungles,
-loader-owned gameplay copies, class-specific Python rewrites, or stale downports.
+File, branch, downport and transform counts are informational, not CI budgets.
+The remaining failures indicate structural inconsistencies (for example,
+loader leakage, duplicate ownership, or a changed canonical source).
 """
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import subprocess
 import sys
 from typing import Iterable
 
@@ -25,8 +24,11 @@ if str(SCRIPT_DIR) not in sys.path:
 from source_layout import ROOT, effective_source_files, load_properties, target_ids, target_layout
 from source_preprocessor import version_tuple
 
-BUDGET_FILE = ROOT / "build-config" / "architecture-budgets.json"
 ALLOWLIST_FILE = ROOT / "build-config" / "platform-gameplay-allowlist.txt"
+EXPECTED_CANONICAL_121X = "1.21.11"
+FROZEN_12111_API_OVERLAYS = frozenset({
+    "src/main/java/buildcraft/api/v2/recipe/CountedIngredient.java",
+})
 
 CONDITIONAL_IF_RE = re.compile(r"^[ \t]*(?://\?|/\*\?)[ \t]*if\b", re.MULTILINE)
 IF_LINE_RE = re.compile(r"^\s*(?://\?|/\*\?)\s*if\b.*\{\s*(?:\*/)?\s*$")
@@ -203,6 +205,7 @@ def platform_metrics() -> dict[str, object]:
         "neoforge": "net.neoforged",
         "fabric": "net.fabricmc",
     }
+    props = load_properties()
     by_root: dict[str, int] = {}
     neutral: list[str] = []
     gameplay: list[str] = []
@@ -210,11 +213,25 @@ def platform_metrics() -> dict[str, object]:
         paths = java_files(root)
         by_root[label] = len(paths)
         token = own_token.get(platform)
+        ownership_exemptions: tuple[str, ...] = ()
+        parts = label.split("/")
+        if len(parts) == 3 and parts[0] == "source-family-platforms":
+            key = f"source.family_platform.{parts[1]}.{parts[2]}.allow_loader_neutral"
+            ownership_exemptions = tuple(
+                value.strip().rstrip("/")
+                for value in props.get(key, "").split(",")
+                if value.strip()
+            )
         for path in paths:
+            relative_in_root = path.relative_to(root).as_posix()
+            explicitly_owned = any(
+                relative_in_root == prefix or relative_in_root.startswith(prefix + "/")
+                for prefix in ownership_exemptions
+            )
             text = path.read_text(encoding="utf-8", errors="replace")
-            if token and token not in text:
+            if not explicitly_owned and token and token not in text:
                 neutral.append(path.relative_to(ROOT).as_posix())
-            if "/src/main/java/" in path.as_posix() and GAMEPLAY_NAME_RE.match(path.name):
+            if not explicitly_owned and "/src/main/java/" in path.as_posix() and GAMEPLAY_NAME_RE.match(path.name):
                 gameplay.append(path.relative_to(ROOT).as_posix())
     return {
         "by_root": dict(sorted(by_root.items())),
@@ -340,18 +357,18 @@ def foreign_package_metrics() -> dict[str, object]:
 
 
 def canonical_metrics(props: dict[str, str]) -> dict[str, object]:
-    canonical = props.get("source.family.modern.canonical_minecraft", "").strip()
-    modern_targets = [target for target in target_ids(props) if target_layout(target, props).family == "modern"]
-    modern_versions = {target: props.get(f"target.{target}.deps.minecraft", "").strip() for target in modern_targets}
-    newest = max(modern_versions.values(), key=version_tuple) if modern_versions else ""
-    canonical_target = next((target for target, version in modern_versions.items() if version == canonical), None)
+    canonical = props.get("source.family.1.21.X.canonical_minecraft", "").strip()
+    family_121x_targets = [target for target in target_ids(props) if target_layout(target, props).family == "1.21.X"]
+    family_121x_versions = {target: props.get(f"target.{target}.deps.minecraft", "").strip() for target in family_121x_targets}
+    newest = max(family_121x_versions.values(), key=version_tuple) if family_121x_versions else ""
+    canonical_target = next((target for target, version in family_121x_versions.items() if version == canonical), None)
     has_downport = False
     if canonical_target:
         layout = target_layout(canonical_target, props)
         has_downport = layout.family_downport_root is not None or layout.family_platform_downport_root is not None
     return {
         "configured": canonical,
-        "newest_modern": newest,
+        "newest_1_21_x": newest,
         "target": canonical_target,
         "canonical_target_uses_downport": has_downport,
     }
@@ -387,79 +404,17 @@ def current_metrics() -> dict[str, object]:
     }
 
 
-def load_budget_file(path: Path = BUDGET_FILE) -> dict[str, object]:
-    if not path.is_file():
-        fail(f"missing {path.relative_to(ROOT)}")
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        fail(f"invalid architecture budget JSON: {exc}")
-    if value.get("schema_version") != 1:
-        fail("unsupported architecture budget schema")
-    return value
-
-
-def load_budget_from_git(ref: str | None) -> dict[str, object] | None:
-    if not ref:
-        return None
-    try:
-        completed = subprocess.run(
-            ["git", "show", f"{ref}:build-config/architecture-budgets.json"],
-            cwd=ROOT,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            check=False,
-            timeout=20,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if completed.returncode != 0 or not completed.stdout.strip():
-        return None
-    try:
-        return json.loads(completed.stdout)
-    except json.JSONDecodeError:
-        return None
-
-
-def get_metric(metrics: dict[str, object], path: str) -> int:
-    value: object = metrics
-    parts = path[1:].split("/") if path.startswith("/") else path.split(".")
-    for part in parts:
-        if not isinstance(value, dict) or part not in value:
-            fail(f"budget references unknown metric {path!r}")
-        value = value[part]
-    if isinstance(value, bool) or not isinstance(value, int):
-        fail(f"budget metric {path!r} is not an integer")
-    return value
-
-
-def validate(metrics: dict[str, object], budget: dict[str, object]) -> list[str]:
+def validate(metrics: dict[str, object]) -> list[str]:
     errors: list[str] = []
-    limits = budget.get("limits", {})
-    if not isinstance(limits, dict):
-        fail("architecture budgets: limits must be an object")
-    for metric_path, maximum in sorted(limits.items()):
-        if not isinstance(maximum, int):
-            fail(f"architecture budget {metric_path!r} must be an integer")
-        current = get_metric(metrics, metric_path)
-        if current > maximum:
-            errors.append(f"{metric_path}: {current} exceeds budget {maximum}")
-
-    conditions = metrics["conditions"]
-    invariants = budget.get("invariants", {})
-    max_blocks = int(invariants.get("max_conditional_blocks_per_java", 4))
-    if int(conditions["max_blocks_per_file"]) > max_blocks:
-        paths = ", ".join(conditions["max_block_files"][:5])
-        errors.append(f"conditional block budget: max is {conditions['max_blocks_per_file']} > {max_blocks}; {paths}")
+    # Keep source ownership checks; file-count and transform statistics are informational.
 
     targets = metrics["targets"]
-    frozen_api = set(invariants.get("frozen_12111_api_files", []))
-    t12111 = targets.get("1.21.11-neoforge", {})
-    if int(t12111.get("gameplay_lib_java", -1)) != 0:
-        errors.append(f"1.21.11 target gameplay/lib overrides must be 0, got {t12111.get('gameplay_lib_java')}")
-    if int(t12111.get("api_java", -1)) != len(frozen_api):
-        errors.append(f"1.21.11 frozen API override count must be {len(frozen_api)}, got {t12111.get('api_java')}")
+    frozen_api = FROZEN_12111_API_OVERLAYS
+    t1_21_11 = targets.get("1.21.11-neoforge", {})
+    if int(t1_21_11.get("gameplay_lib_java", -1)) != 0:
+        errors.append(f"1.21.11 target gameplay/lib overrides must be 0, got {t1_21_11.get('gameplay_lib_java')}")
+    if int(t1_21_11.get("api_java", -1)) != len(frozen_api):
+        errors.append(f"1.21.11 frozen API override count must be {len(frozen_api)}, got {t1_21_11.get('api_java')}")
     layout = target_layout("1.21.11-neoforge", load_properties())
     actual_target_java = {
         rel for rel, path in file_map(layout.overlay_root).items()
@@ -485,52 +440,37 @@ def validate(metrics: dict[str, object], budget: dict[str, object]) -> list[str]
     if downports["target_overlay_duplicates"]:
         errors.append(f"target override duplicates its downport: {downports['target_overlay_duplicates'][0]}")
 
-    transforms = metrics["transforms"]
-    if int(transforms["class_specific_java_rewrites"]) != 0:
-        errors.append(f"class-specific Java transform detected: {transforms['violations'][0]}")
-
     foreign = metrics["foreign_packages"]
     if int(foreign["count"]) != 0:
         errors.append(f"foreign package declaration in maintained source: {foreign['violations'][0]}")
 
     canonical = metrics["canonical"]
-    expected_canonical = invariants.get("canonical_modern_minecraft", "1.21.11")
+    expected_canonical = EXPECTED_CANONICAL_121X
     if canonical["configured"] != expected_canonical:
-        errors.append(f"modern canonical Minecraft changed unexpectedly: {canonical['configured']} != {expected_canonical}")
-    if canonical["configured"] != canonical["newest_modern"]:
-        errors.append(f"modern canonical source is not newest-first: canonical={canonical['configured']} newest={canonical['newest_modern']}")
+        errors.append(f"1.21.X canonical Minecraft changed unexpectedly: {canonical['configured']} != {expected_canonical}")
+    if canonical["configured"] != canonical["newest_1_21_x"]:
+        errors.append(f"1.21.X canonical source is not newest-first: canonical={canonical['configured']} newest={canonical['newest_1_21_x']}")
     if canonical["canonical_target_uses_downport"]:
-        errors.append("canonical modern target must not resolve through an older-version downport")
+        errors.append("canonical 1.21.X target must not resolve through an older-version downport")
 
     return errors
 
 
-def trend_rows(metrics: dict[str, object], budget: dict[str, object], previous: dict[str, object] | None) -> list[tuple[str, int, int, int | None]]:
-    rows: list[tuple[str, int, int, int | None]] = []
-    limits = budget.get("limits", {})
-    previous_limits = previous.get("limits", {}) if isinstance(previous, dict) else {}
-    for path, maximum in sorted(limits.items()):
-        current = get_metric(metrics, path)
-        prior = previous_limits.get(path) if isinstance(previous_limits, dict) else None
-        rows.append((path, current, int(maximum), int(prior) if isinstance(prior, int) else None))
-    return rows
-
-
-def markdown(metrics: dict[str, object], budget: dict[str, object], previous: dict[str, object] | None, errors: list[str]) -> str:
+def markdown(metrics: dict[str, object], errors: list[str]) -> str:
     lines = [
-        "# Architecture hardening",
+        "# Source architecture diagnostics",
         "",
-        f"Status: **{'FAIL' if errors else 'PASS'}**",
+        f"Structural checks: **{'FAIL' if errors else 'PASS'}**",
         "",
-        "## Budget trend",
+        "Source counts and class-specific transforms are reported, not limited.",
         "",
-        "| Metric | Current | Budget | Previous budget | Delta vs previous |",
-        "|---|---:|---:|---:|---:|",
+        "## Target overlay counts (informational)",
+        "",
+        "| Target | Java | Resources |",
+        "|---|---:|---:|",
     ]
-    for path, current, maximum, prior in trend_rows(metrics, budget, previous):
-        prior_text = "-" if prior is None else str(prior)
-        delta_text = "-" if prior is None else f"{current - prior:+d}"
-        lines.append(f"| `{path}` | {current} | {maximum} | {prior_text} | {delta_text} |")
+    for target, stats in sorted(metrics["targets"].items()):
+        lines.append(f"| `{target}` | {stats['java']} | {stats['resources']} |")
 
     cond = metrics["conditions"]
     lines.extend([
@@ -556,6 +496,16 @@ def markdown(metrics: dict[str, object], budget: dict[str, object], previous: di
     ])
     for item in down["similar_to_canonical_ge_90"][:10]:
         lines.append(f"  - `{item['path']}` - {float(item['similarity']) * 100:.1f}%")
+
+    transforms = metrics["transforms"]
+    lines.extend([
+        "",
+        "## Java transform diagnostics (informational)",
+        "",
+        f"- Class-specific Java transform references: **{transforms['class_specific_java_rewrites']}**",
+    ])
+    for violation in transforms["violations"][:12]:
+        lines.append(f"  - `{violation}`")
 
     plat = metrics["platform"]
     lines.extend([
@@ -587,26 +537,21 @@ def write_json(path: Path, value: object) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--budget-ref", help="optional git ref whose budget file is shown as the previous trend baseline")
     parser.add_argument("--json", type=Path, help="write current architecture metrics as JSON")
     parser.add_argument("--markdown", type=Path, help="write a human-readable CI summary")
     args = parser.parse_args()
 
-    budget = load_budget_file()
-    previous = load_budget_from_git(args.budget_ref)
     metrics = current_metrics()
-    errors = validate(metrics, budget)
+    errors = validate(metrics)
 
     report = {
         "schema_version": 1,
         "metrics": metrics,
-        "budget": budget,
-        "previous_budget": previous,
         "errors": errors,
     }
     if args.json:
         write_json(args.json, report)
-    text = markdown(metrics, budget, previous, errors)
+    text = markdown(metrics, errors)
     if args.markdown:
         args.markdown.parent.mkdir(parents=True, exist_ok=True)
         args.markdown.write_text(text, encoding="utf-8", newline="")

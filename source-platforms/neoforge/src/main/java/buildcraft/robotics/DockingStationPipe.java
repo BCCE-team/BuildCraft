@@ -24,8 +24,13 @@ import buildcraft.compat.CompatCapTransfromer;
 import buildcraft.lib.misc.BlockUtil;
 import buildcraft.lib.misc.CapUtil;
 import buildcraft.lib.platform.storage.FluidStorage;
+//? if mc_26_x && (>=26.3) {
+//? } else {
+import buildcraft.lib.platform.storage.ItemStorage;
+import buildcraft.lib.platform.storage.ItemStorageContainer;
 import buildcraft.lib.platform.storage.PlatformStorage;
 import buildcraft.lib.platform.storage.StorageAdapters;
+//?}
 import buildcraft.robotics.statements.ActionStationRequestItems;
 import buildcraft.robotics.plug.RobotStationPluggable;
 import buildcraft.silicon.plug.PluggableGate;
@@ -38,11 +43,21 @@ import buildcraft.transport.tile.TilePipeHolder;
 import buildcraft.transport.pipe.Pipe;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+//? if mc_26_x && (>=26.3) {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x && (>=26.3) {
+import net.neoforged.neoforge.capabilities.Capabilities;
+import buildcraft.transport.compat.NativeFluidStorage263;
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 import org.jetbrains.annotations.NotNull;
 
 public class DockingStationPipe extends DockingStation implements RequestProvider {
@@ -53,14 +68,20 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
     private long invalidSinceTick = Long.MIN_VALUE;
 
     private final IInjectable injectablePipe = new IInjectable() {
+//? if mc_26_x && (>=26.3) {
+//? } else {
         @Override
+//?}
         public boolean canInjectItems(Direction from) {
             return getPipe() != null && getPipe().getPipe() != null
                     && getPipe().getPipe().flow instanceof PipeFlowItems
                     && normalizeOutputSide(from) != null;
         }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
         @Override
+//?}
         public ItemStack injectItem(ItemStack stack, boolean doAdd, Direction from, DyeColor color, double speed) {
             if (stack.isEmpty()) {
                 return ItemStack.EMPTY;
@@ -82,11 +103,28 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         }
     };
 
+//? if mc_26_x && (>=26.3) {
+    private final FluidStorage<FluidStack> injectableFluidPipe = new FluidStorage<>() {
+        public int getTanks() { return 0; }
+        public FluidStack getFluidInTank(int index) { return FluidStack.EMPTY; }
+        public int getTankCapacity(int index) { return 0; }
+        public boolean isFluidValid(int index, FluidStack stack) { return canFillFluid(stack); }
+        public int fill(FluidStack resource, boolean simulate) {
+            if (resource == null || resource.isEmpty() || getPipe() == null || getPipe().getPipe() == null
+                    || !(getPipe().getPipe().flow instanceof PipeFlowFluids fluids)) return 0;
+            return fluids.insertFluidsForce(resource.copy(), normalizeOutputSide(side()),
+                    simulate ? FluidAction.SIMULATE : FluidAction.EXECUTE);
+//? } else {
     private final IFluidHandler injectableFluidPipe = new IFluidHandler() {
         @Override
         public int getTanks() {
             return 0;
+//?}
         }
+//? if mc_26_x && (>=26.3) {
+        public FluidStack drain(FluidStack resource, boolean simulate) { return FluidStack.EMPTY; }
+        public FluidStack drain(int amount, boolean simulate) { return FluidStack.EMPTY; }
+//? } else {
 
         @Override
         public @NotNull FluidStack getFluidInTank(int tank) {
@@ -122,12 +160,20 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
             return FluidStack.EMPTY;
         }
 
+//?}
         private boolean canFillFluid(FluidStack stack) {
+//? if mc_26_x && (>=26.3) {
+            return stack != null && !stack.isEmpty() && getPipe() != null
+                    && getPipe().getPipe() != null
+                    && getPipe().getPipe().flow instanceof PipeFlowFluids fluids
+                    && fluids.insertFluidsForce(stack.copy(), normalizeOutputSide(side()), FluidAction.SIMULATE) > 0;
+//? } else {
             if (stack.isEmpty() || getPipe() == null || getPipe().getPipe() == null
                     || !(getPipe().getPipe().flow instanceof PipeFlowFluids fluids)) {
                 return false;
             }
             return fluids.insertFluidsForce(stack.copy(), normalizeOutputSide(side()), FluidAction.SIMULATE) > 0;
+//?}
         }
     };
 
@@ -180,7 +226,11 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
     }
 
     private void removeInvalidStation(Level stationLevel) {
+//? if mc_26_x && (>=26.3) {
+        if (stationLevel == null || stationLevel.isClientSide() || RobotManager.registryProvider == null || removingInvalidStation) {
+//? } else {
         if (stationLevel == null || stationLevel.isClientSide || RobotManager.registryProvider == null || removingInvalidStation) {
+//?}
             return;
         }
 
@@ -202,7 +252,10 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         return side() != null ? side() : from;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public Iterable<StatementSlot> getActiveActions() {
         if (getPipe() == null) {
             return Collections.emptyList();
@@ -217,12 +270,18 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         return actions;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean isInitialized() {
         return getPipe() != null && getPipe().getPipe() != null;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean take(EntityRobotBase robot) {
         if (getPipe() == null) return false;
         boolean result = super.take(robot);
@@ -232,7 +291,10 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         return result;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean takeAsMain(EntityRobotBase robot) {
         if (getPipe() == null) return false;
         boolean result = super.takeAsMain(robot);
@@ -242,13 +304,19 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         return result;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void unsafeRelease(EntityRobotBase robot) {
         super.unsafeRelease(robot);
         scheduleRenderUpdateIfLoaded();
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public IInjectable getItemOutput() {
         return getPipe() != null && getPipe().getPipe().flow instanceof PipeFlowItems ? injectablePipe : null;
     }
@@ -265,18 +333,36 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
                 && items.doesContainItems();
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public Direction getItemOutputSide() {
         return side();
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public Container getItemInput() {
         Direction inputSide = getItemInputPipeSide();
         Level level = level();
         if (getPipe() == null || inputSide == null || level == null) return null;
-        BlockEntity neighbour = level.getBlockEntity(new net.minecraft.core.BlockPos(x(), y(), z()).relative(inputSide));
+        BlockPos neighbourPos = new BlockPos(x(), y(), z()).relative(inputSide);
+        if (!level.isLoaded(neighbourPos)) return null;
+        BlockEntity neighbour = level.getBlockEntity(neighbourPos);
+//? if mc_26_x && (>=26.3) {
         return getNeighbourItemContainer(neighbour);
+//? } else {
+        Container vanilla = getNeighbourItemContainer(neighbour);
+        if (vanilla != null) return vanilla;
+        if (neighbour == null) return null;
+        // Query the contacted face, not an unsided wrapper. Native-only addon machines
+        // expose extractable slots through IItemHandler without implementing Container.
+        ItemStorage storage = PlatformStorage.items(level, neighbourPos, inputSide.getOpposite());
+        return storage == null ? null : new ItemStorageContainer(storage, neighbour);
+//?}
     }
 
     private static Container getNeighbourItemContainer(BlockEntity neighbour) {
@@ -294,32 +380,59 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         return neighbour instanceof Container container ? container : null;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public Direction getItemInputSide() {
         Direction inputSide = getItemInputPipeSide();
         return inputSide == null ? null : inputSide.getOpposite();
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public FluidStorage<FluidStack> getFluidOutput() {
         return getPipe() != null && getPipe().getPipe() != null && getPipe().getPipe().flow instanceof PipeFlowFluids
+//? if mc_26_x && (>=26.3) {
+            ? injectableFluidPipe : null;
+//? } else {
             ? StorageAdapters.fromNativeFluids(injectableFluidPipe) : null;
+//?}
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public Direction getFluidOutputSide() {
         return side();
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public FluidStorage<FluidStack> getFluidInput() {
         Direction inputSide = getFluidInputPipeSide();
         if (getPipe() == null || inputSide == null || level() == null) return null;
         BlockPos neighbourPos = new BlockPos(x(), y(), z()).relative(inputSide);
+//? if mc_26_x && (>=26.3) {
+        Level stationLevel = level();
+        if (!stationLevel.isLoaded(neighbourPos)) return null;
+        var nativeHandler = stationLevel.getCapability(Capabilities.Fluid.BLOCK, neighbourPos, inputSide.getOpposite());
+        return nativeHandler == null ? null : new NativeFluidStorage263(nativeHandler);
+//? } else {
+        if (!level().isLoaded(neighbourPos)) return null;
         return PlatformStorage.fluids(level(), neighbourPos, inputSide.getOpposite());
+//?}
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public Direction getFluidInputSide() {
         Direction inputSide = getFluidInputPipeSide();
         return inputSide == null ? null : inputSide.getOpposite();
@@ -343,7 +456,10 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         return inputSide;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean providesPower() {
         return getPipe() != null && getPipe().getPipe() != null && getPipe().getPipe().flow instanceof PipeFlowPower;
     }
@@ -353,7 +469,10 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         return slot >= 0 && slot < requests.size() ? requests.get(slot).copy() : ItemStack.EMPTY;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public Collection<ItemRequest> requests() {
         List<ItemStack> active = getActiveItemRequests();
         List<ItemRequest> result = new ArrayList<>(active.size());
@@ -366,23 +485,34 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         return List.copyOf(result);
     }
 
+//? if mc_26_x && (>=26.3) {
+    public ItemTransferResult offer(Identifier requestId, ItemStack offered, OperationMode mode) {
+//? } else {
     @Override
     public ItemTransferResult offer(ResourceLocation requestId, ItemStack offered, OperationMode mode) {
+//?}
         if (offered == null || offered.isEmpty()) {
             return ItemTransferResult.nothing(offered == null ? 0 : offered.getCount());
         }
         int slot = RequestSupport.slot(requestId).orElse(-1);
-        if (slot < 0 || getRequest(slot).isEmpty()) {
+        ItemStack requested = getRequest(slot);
+        if (slot < 0 || requested.isEmpty()
+            || !RequestSupport.request(slot, requested, 0).matcher().matches(offered)) {
             return ItemTransferResult.nothing(offered.getCount());
         }
+        ItemStack bounded = offered.copy();
+        bounded.setCount(Math.min(offered.getCount(), requested.getCount()));
 
         IInjectable output = getItemOutput();
         Direction outputSide = getItemOutputSide();
         if (output == null || outputSide == null || !output.canInjectItems(outputSide)) {
             return ItemTransferResult.nothing(offered.getCount());
         }
-        ItemStack remainder = output.injectItem(offered.copy(), mode == OperationMode.EXECUTE, outputSide, null, 0.08D);
-        return ItemTransferResult.ofInsertion(offered, offered.getCount() - remainder.getCount());
+        ItemStack remainder = output.injectItem(bounded, mode == OperationMode.EXECUTE, outputSide, null, 0.08D);
+        if (remainder == null || remainder.getCount() > bounded.getCount()) {
+            return ItemTransferResult.nothing(offered.getCount());
+        }
+        return ItemTransferResult.ofInsertion(offered, bounded.getCount() - remainder.getCount());
     }
 
     private List<ItemStack> getActiveItemRequests() {
@@ -409,22 +539,41 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         return requests;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public RequestProvider getRequestProvider() {
         Level level = level();
         if (level != null) {
             BlockPos pos = new BlockPos(x(), y(), z());
+            RequestProvider selected = null;
+            int bestPriority = Integer.MIN_VALUE;
+            // Highest-priority request wins. Direction order remains the deterministic tie-breaker.
             for (Direction dir : Direction.values()) {
-                BlockEntity neighbour = level.getBlockEntity(pos.relative(dir));
-                if (neighbour instanceof RequestProvider provider) {
-                    return provider;
+                BlockPos neighbourPos = pos.relative(dir);
+                if (!level.isLoaded(neighbourPos)) continue;
+                BlockEntity neighbour = level.getBlockEntity(neighbourPos);
+                if (neighbour instanceof RequestProvider provider && provider != this) {
+                    java.util.Collection<ItemRequest> requests = provider.requests();
+                    int priority = requests == null ? Integer.MIN_VALUE : requests.stream()
+                        .filter(java.util.Objects::nonNull).mapToInt(ItemRequest::priority)
+                        .max().orElse(Integer.MIN_VALUE);
+                    if (selected == null || priority > bestPriority) {
+                        selected = provider;
+                        bestPriority = priority;
+                    }
                 }
             }
+            if (selected != null) return selected;
         }
         return this;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void onChunkUnload() {
         pipe = null;
         invalidSinceTick = Long.MIN_VALUE;

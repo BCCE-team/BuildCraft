@@ -22,7 +22,10 @@ public class DelegatingItemHandlerFilter implements IStackFilter {
         this.handler = handler;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean matches(@Nonnull ItemStack stack) {
         for (int slot = 0; slot < handler.getSlots(); slot++) {
             if (perStackFilter.matches(handler.getStackInSlot(slot), stack)) {

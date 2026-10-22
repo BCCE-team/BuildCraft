@@ -14,13 +14,24 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+//? if mc_26_x && (>=26.3) {
+import net.neoforged.neoforge.fluids.FluidStack;
+import buildcraft.transport.internal.pipe.FluidAction;
+import net.neoforged.neoforge.transfer.ResourceHandler;
+import net.neoforged.neoforge.transfer.fluid.FluidResource;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
+//?}
 
 import buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot;
 import buildcraft.lib.internal.area.IZone;
 import buildcraft.lib.internal.mj.MjBattery;
 
+//? if mc_26_x && (>=26.3) {
+public abstract class EntityRobotBase extends LivingEntity implements Container {
+//? } else {
 public abstract class EntityRobotBase extends LivingEntity implements Container, IFluidHandler {
+//?}
     public static final int MAX_ENERGY = 100_000;
     public static final int SAFETY_ENERGY = MAX_ENERGY / 5;
     public static final int SHUTDOWN_ENERGY = 0;
@@ -64,6 +75,19 @@ public abstract class EntityRobotBase extends LivingEntity implements Container,
 
     public abstract MjBattery getBattery();
 
+//? if mc_26_x && (>=26.3) {
+    /** Fluid transport contract independent of removed NeoForge fluid-handler interfaces. */
+    public abstract int getTanks();
+    public abstract FluidStack getFluidInTank(int index);
+    public abstract int getTankCapacity(int index);
+    public abstract boolean isFluidValid(int index, FluidStack stack);
+    public abstract int fill(FluidStack resource, FluidAction action);
+    public abstract FluidStack drain(FluidStack resource, FluidAction action);
+    public abstract FluidStack drain(int maxDrain, FluidAction action);
+    public abstract ResourceHandler<FluidResource> resourceHandler();
+
+//? } else {
+//?}
     public abstract DockingStation getDockingStation();
 
     public abstract void dock(DockingStation station);

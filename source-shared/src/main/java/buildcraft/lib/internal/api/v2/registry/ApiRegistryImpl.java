@@ -33,7 +33,7 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(context, "context");
         String owner = Objects.requireNonNull(context.owner(), "context.owner()");
-        if (owner.isBlank()) throw new IllegalArgumentException("registration owner must not be blank");
+        checkNamespace(id, owner);
         if (entries.containsKey(id) || aliases.containsKey(id)) {
             throw new IllegalStateException("Duplicate registry id or alias: " + id);
         }
@@ -46,10 +46,23 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
         Objects.requireNonNull(alias, "alias");
         Objects.requireNonNull(canonicalId, "canonicalId");
         Objects.requireNonNull(context, "context");
+        String owner = Objects.requireNonNull(context.owner(), "context.owner()");
+        checkNamespace(alias, owner);
         if (alias.equals(canonicalId)) throw new IllegalArgumentException("alias must differ from canonicalId");
-        if (entries.containsKey(alias) || aliases.putIfAbsent(alias, canonicalId) != null) {
+        if (entries.containsKey(alias) || aliases.containsKey(alias)) {
             throw new IllegalStateException("Duplicate registry id or alias: " + alias);
         }
+        // Refuse a cycle at registration time; keep forward references legal until freeze.
+        ResourceLocation current = canonicalId;
+        Set<ResourceLocation> visited = new LinkedHashSet<>();
+        while (aliases.containsKey(current)) {
+            if (!visited.add(current) || current.equals(alias)) {
+                throw new IllegalArgumentException("Registry alias cycle involving " + alias);
+            }
+            current = aliases.get(current);
+        }
+        if (current.equals(alias)) throw new IllegalArgumentException("Registry alias cycle involving " + alias);
+        aliases.put(alias, canonicalId);
     }
 
     @Override
@@ -93,7 +106,8 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
 
     @Override public boolean frozen() { return frozen; }
 
-    public void freeze() {
+    /** Validation is side-effect-free so the runtime can preflight all registries. */
+    public void validateFreeze() {
         if (frozen) return;
         for (ResourceLocation alias : aliases.keySet()) {
             ResourceLocation canonical = canonicalId(alias);
@@ -101,7 +115,22 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
                 throw new IllegalStateException("Registry alias " + alias + " targets missing id " + canonical);
             }
         }
+    }
+
+    public void freeze() {
+        if (frozen) return;
+        validateFreeze();
         frozen = true;
+    }
+
+    /** Preserve legacy no-context registration; explicit addon owners must match their namespace. */
+    private static void checkNamespace(ResourceLocation id, String owner) {
+        if (owner.isBlank()) throw new IllegalArgumentException("registration owner must not be blank");
+        String namespace = id.getNamespace();
+        if (!namespace.equals(owner) && !"unknown".equals(owner)
+            && !("buildcraft".equals(owner) && namespace.startsWith("buildcraft"))) {
+            throw new IllegalArgumentException("Owner " + owner + " cannot register identifier " + id);
+        }
     }
 
     private void ensureMutable() {

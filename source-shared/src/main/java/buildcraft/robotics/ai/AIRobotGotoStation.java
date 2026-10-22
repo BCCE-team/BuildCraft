@@ -12,6 +12,7 @@ public class AIRobotGotoStation extends AIRobot {
     private BlockIndex stationIndex;
     private Direction stationSide;
     private boolean reservedStation;
+    private boolean restoreReservationAfterLoad;
 
     public AIRobotGotoStation(EntityRobotBase robot) {
         super(robot);
@@ -43,6 +44,21 @@ public class AIRobotGotoStation extends AIRobot {
             int targetY = station.y() + dy;
             int targetZ = station.z() + dz;
             startDelegateAI(new AIRobotGotoBlock(robot, targetX, targetY, targetZ, pathRangeTo(targetX, targetY, targetZ)));
+        } else {
+            setSuccess(false);
+            terminate();
+        }
+    }
+
+    @Override
+    public void preempt(AIRobot ai) {
+        if (!restoreReservationAfterLoad) return;
+        DockingStation station = getStation();
+        if (station == null) return; // Wait for station registry/chunk to load.
+        restoreReservationAfterLoad = false;
+        if (station == robot.getLinkedStation() || station == robot.getDockingStation()) return;
+        if (station.take(robot)) {
+            reservedStation = true;
         } else {
             setSuccess(false);
             terminate();
@@ -91,6 +107,17 @@ public class AIRobotGotoStation extends AIRobot {
         return Math.max(32.0D, Math.sqrt(dx * dx + dy * dy + dz * dz) + 16.0D);
     }
 
+    @Override
+    public void end() {
+        DockingStation station = getStation();
+        if (!reservedStation && station != null && station != robot.getLinkedStation()
+            && station != robot.getDockingStation() && station.robotIdTaking() == robot.getRobotId()) {
+            // A persisted station can still hold our robot ID before preempt() restores the runtime reference.
+            reservedStation = station.take(robot);
+        }
+        releaseReservation(station);
+    }
+
     private void releaseReservation(DockingStation station) {
         if (reservedStation && station != null && station != robot.getLinkedStation() && robot.getDockingStation() != station) {
             station.release(robot);
@@ -120,6 +147,7 @@ public class AIRobotGotoStation extends AIRobot {
 
     @Override
     public void loadSelfFromNBT(CompoundTag nbt) {
+        restoreReservationAfterLoad = true;
         if (nbt.contains("stationIndex")) {
             stationIndex = new BlockIndex(nbt.getCompound("stationIndex"));
             int side = nbt.getByte("stationSide");

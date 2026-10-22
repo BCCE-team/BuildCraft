@@ -227,6 +227,12 @@ public class PipeBehaviourStripes extends PipeBehaviour implements StripesOutput
         }
         battery.tick(world, pipe.getHolder().getPipePos());
         if (direction != null) {
+            // Never inspect or operate on a target beyond the loaded chunk boundary.
+            // In particular, StripesRegistry and block-state queries may load that chunk.
+            if (!world.isLoaded(pos.relative(direction))) {
+                resetProgress();
+                return;
+            }
             var blockPlayer = FakePlayerProvider.INSTANCE.getFakePlayer((ServerLevel) world, pipe.getHolder().getOwner(), pos);
             if (StripesRegistry.INSTANCE.handleBlock(world, pos, direction, blockPlayer, this)) {
                 resetProgress();

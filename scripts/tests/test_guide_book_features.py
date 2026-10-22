@@ -105,7 +105,7 @@ class GuideBookFeatures(unittest.TestCase):
             self.assertIn("window.getHeight()", gui, target)
             self.assertIn("if (x1 <= x0 || y1 <= y0) return;", gui, target)
 
-    def test_12111_recipe_cache_preserves_datapack_ids_and_has_revision(self):
+    def test_1_21_11_recipe_cache_preserves_datapack_ids_and_has_revision(self):
         cache = self.java("1.21.11-neoforge", "buildcraft/lib/net/GuideRecipeDisplayCache.java")
         message = self.java("1.21.11-neoforge", "buildcraft/lib/net/MessageGuideRecipeDisplays.java")
         gui = self.java("1.21.11-neoforge", "buildcraft/lib/client/guide/GuiGuide.java")
@@ -129,7 +129,7 @@ class GuideBookFeatures(unittest.TestCase):
         self.assertNotIn("clientRecipeKey(RecipeDisplayEntry", gui)
 
 
-    def test_12111_keeps_multiple_displays_from_one_recipe_distinct(self):
+    def test_1_21_11_keeps_multiple_displays_from_one_recipe_distinct(self):
         gui = self.java("1.21.11-neoforge", "buildcraft/lib/client/guide/GuiGuide.java")
         cache = self.java("1.21.11-neoforge", "buildcraft/lib/net/GuideRecipeDisplayCache.java")
         self.assertIn("Set<GuideRecipeDisplayKey> renderedRecipeDisplays", gui)
@@ -140,14 +140,23 @@ class GuideBookFeatures(unittest.TestCase):
         self.assertNotIn(".findFirst()\n                    .ifPresent(recipe -> addRecipe(recipe, ItemStack.EMPTY));", gui)
         self.assertIn("Integer.toUnsignedString(display.id().index(), 16)", cache)
 
-    def test_12111_datapack_reload_resends_live_recipe_previews(self):
+    def test_1_21_11_datapack_reload_resends_live_recipe_previews(self):
         event = self.java("1.21.11-neoforge", "buildcraft/lib/BCLibEventDist.java")
         self.assertIn("OnDatapackSyncEvent", event)
         self.assertIn("public static void onDatapackSync(OnDatapackSyncEvent event)", event)
         self.assertIn("if (event.getPlayer() == null)", event)
         self.assertIn("event.getRelevantPlayers().forEach", event)
         self.assertIn("MessageUtil.doDelayedServer(1", event)
-        self.assertIn("MessageGuideRecipeDisplays.create(player)", event)
+        # A full reload must resend every recipe display using the packet-batched path.
+        # create(player) is limited to a small, single-packet index and fails on large packs.
+        self.assertIn("MessageGuideRecipeDisplays.sendAll(player)", event)
+        self.assertIn("MessageGuideRecipeDisplays.sendAll(playerMP)", event)
+        self.assertNotIn("MessageGuideRecipeDisplays.create(", event)
+        message = self.java("1.21.11-neoforge", "buildcraft/lib/net/MessageGuideRecipeDisplays.java")
+        self.assertIn("public static void sendAll(ServerPlayer player)", message)
+        self.assertIn("current.size() >= MAX_ENTRIES_PER_PACKET", message)
+        self.assertIn("bytes + estimated > MAX_PACKET_BYTES", message)
+        self.assertIn("MessageManager.sendTo(new MessageGuideRecipeDisplays(batches.get(i), i, batches.size()), player);", message)
 
         # The 1.21.1 downport keeps its native RecipeManager-backed guide path and must not acquire
         # the 1.21.11-only display-sync protocol just to implement the common UI hardening.

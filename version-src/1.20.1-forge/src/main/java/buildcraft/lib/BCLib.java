@@ -45,9 +45,7 @@ public class BCLib {
     public static final String GIT_COMMIT_MSG = BuildCraftTarget.GIT_COMMIT_MESSAGE;
     public static final String GIT_COMMIT_AUTHOR = BuildCraftTarget.GIT_COMMIT_AUTHOR;
 
-    private static final List<String> INCOMPATIBLE_MODS = List.of(
-        "buildcraftrf"
-    );
+    private static final List<String> INCOMPATIBLE_MODS = List.of("buildcraftrf");
 
     public static final boolean DEV = !FMLEnvironment.production || Boolean.getBoolean("buildcraft.dev");
 

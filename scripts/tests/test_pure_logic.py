@@ -39,7 +39,7 @@ class PureLogic(unittest.TestCase):
         for rel in (
             "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java",
             "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java",
-            "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java",
+            "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java",
         ):
             text = (ROOT / rel).read_text(encoding="utf-8")
             self.assertIn("WeightedAllocation", text, rel)
@@ -48,7 +48,7 @@ class PureLogic(unittest.TestCase):
         for rel in (
             "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowForgeEnergy.java",
             "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowForgeEnergy.java",
-            "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowForgeEnergy.java",
+            "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowForgeEnergy.java",
         ):
             text = (ROOT / rel).read_text(encoding="utf-8")
             self.assertIn("WeightedAllocation", text, rel)
@@ -57,7 +57,7 @@ class PureLogic(unittest.TestCase):
         for rel in (
             "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
             "source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
-            "source-family-platforms/modern/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
+            "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java",
         ):
             self.assertIn("EqualFlowMath.share", (ROOT / rel).read_text(encoding="utf-8"), rel)
 

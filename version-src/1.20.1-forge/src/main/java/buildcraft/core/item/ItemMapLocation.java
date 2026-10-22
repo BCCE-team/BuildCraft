@@ -101,9 +101,8 @@ public class ItemMapLocation extends Item implements MapLocationAdapter, ItemLab
             }
             case PATH:
             case PATH_REPEATING: {
-                if (cpt.contains("path")) {
-                    ListTag pathNBT = (ListTag) cpt.get("path");
-                    if (pathNBT.size() > 0) {
+                if (cpt.get("path") instanceof ListTag pathNBT) {
+                    if (!pathNBT.isEmpty()) {
                         BlockPos first = NBTUtilBC.readBlockPos(pathNBT.get(0));
                         if (first != null) {
                             strings.add(Component.literal("{"+

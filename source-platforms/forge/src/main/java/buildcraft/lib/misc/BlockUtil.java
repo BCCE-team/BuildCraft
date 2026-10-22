@@ -39,7 +39,6 @@ import net.minecraft.network.protocol.game.ClientboundExplodePacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.CompoundContainer;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
@@ -125,7 +124,11 @@ public final class BlockUtil {
      */
     public static boolean placeBlock(Level level, BlockPos pos, BlockState state, @Nullable Player actor,
                                      Direction placedAgainst, int flags) {
-        return PlatformWorldActions.placeBlock(level, pos, state, actor, placedAgainst, flags);
+        boolean placed = PlatformWorldActions.placeBlock(level, pos, state, actor, placedAgainst, flags);
+        if (placed && level instanceof ServerLevel) {
+            SoundUtil.playBlockPlace(level, pos, state);
+        }
+        return placed;
     }
 
     public static boolean harvestBlock(ServerLevel world, BlockPos pos, @Nonnull ItemStack tool, GameProfile owner) {
@@ -149,6 +152,7 @@ public final class BlockUtil {
                 tool.mineBlock(world, state, pos, fakePlayer);
             }
             state.getBlock().playerDestroy(world, fakePlayer, pos, state, blockEntity, tool);
+            SoundUtil.playBlockBreak(world, pos, state);
             return true;
         });
     }
@@ -159,8 +163,11 @@ public final class BlockUtil {
                 return false;
             }
 
-            world.destroyBlock(pos, true);
-
+            BlockState state = world.getBlockState(pos);
+            if (!world.destroyBlock(pos, true)) {
+                return false;
+            }
+            SoundUtil.playBlockBreak(world, pos, state);
             return true;
         });
     }
@@ -193,10 +200,12 @@ public final class BlockUtil {
             return false;
         }
 
-        if (!world.getBlockState(pos).isAir() && !world.isClientSide && world.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS)) {
+        BlockState state = world.getBlockState(pos);
+        if (!state.isAir() && !world.isClientSide && world.getGameRules().getBoolean(GameRules.RULE_DOBLOCKDROPS)) {
             drops.addAll(getItemStackFromBlock(world, pos, owner));
         }
         world.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
+        SoundUtil.playBlockBreak(world, pos, state);
         return true;
     }
 
@@ -506,13 +515,16 @@ public final class BlockUtil {
             return null;
         }
 
-        ChestBlockEntity other = getOtherDoubleChest(chest);
-        if (other == null || other.isRemoved()) {
+        BlockState state = chest.getBlockState();
+        if (!(state.getBlock() instanceof ChestBlock chestBlock)
+                || state.getValue(BlockStateProperties.CHEST_TYPE) == ChestType.SINGLE) {
             return null;
         }
 
-        ChestType type = chest.getBlockState().getValue(BlockStateProperties.CHEST_TYPE);
-        return type == ChestType.RIGHT ? new CompoundContainer(other, chest) : new CompoundContainer(chest, other);
+        // Do not reconstruct a double chest from the contacted half. Vanilla/loader capability providers
+        // use ChestBlock's combiner, whose FIRST/SECOND order is also the order used by the 54-slot chest
+        // menu. Reusing it makes slot 0 stable no matter which physical half BuildCraft automation touches.
+        return ChestBlock.getContainer(chestBlock, state, chest.getLevel(), chest.getBlockPos(), true);
     }
 
     public static <T extends Comparable<T>> BlockState copyProperty(Property<T> property, BlockState dst,

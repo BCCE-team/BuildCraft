@@ -15,7 +15,10 @@ public final class MjReceiverEnergyStorage implements IEnergyStorage {
         this.readable = receiver instanceof IMjReadable r ? r : null;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public int receiveEnergy(int maxReceive, boolean simulate) {
         if (maxReceive <= 0 || !canReceive()) return 0;
         long ratio = BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjPerFe();
@@ -39,11 +42,18 @@ public final class MjReceiverEnergyStorage implements IEnergyStorage {
         return Math.max(0, Math.min(offered, excess));
     }
 
+//? if mc_26_x {
+    public int extractEnergy(int maxExtract, boolean simulate) { return 0; }
+    public boolean canExtract() { return false; }
+    public boolean canReceive() { return BuildCraftApi.service(BuildCraftServices.ENERGY).automaticFeConversionEnabled() && receiver.canReceive(); }
+    public int getEnergyStored() { return readable == null ? 0 : (int)Math.min(Integer.MAX_VALUE, BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjToWholeFe(readable.getStored())); }
+//? } else {
     @Override public int extractEnergy(int maxExtract, boolean simulate) { return 0; }
     @Override public boolean canExtract() { return false; }
     @Override public boolean canReceive() { return BuildCraftApi.service(BuildCraftServices.ENERGY).automaticFeConversionEnabled() && receiver.canReceive(); }
     @Override public int getEnergyStored() { return readable == null ? 0 : (int)Math.min(Integer.MAX_VALUE, BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjToWholeFe(readable.getStored())); }
     @Override
+//?}
     public int getMaxEnergyStored() {
         if (readable != null) {
             return (int) Math.min(Integer.MAX_VALUE, BuildCraftApi.service(BuildCraftServices.ENERGY).conversion().microMjToWholeFe(readable.getCapacity()));

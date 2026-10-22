@@ -116,11 +116,14 @@ def validate_tick_cadence() -> None:
     value = require("1.20.1-forge", rel, "WorldSavedDataWireSystems.get(event.level()).tick();", "PipeItemMessageQueue.serverTick();")
     if "event.phase" in value:
         fail("1.20.1-forge: transport ticks must not filter START/END phases")
-    for target in NEWER:
+    for target in TARGETS:
         require(target, rel,
                 "onWorldTick(BCEvents.LevelTick event)", "onServerTick(BCEvents.ServerTick event)",
-                "PlatformEvents.levelTick(BCEvents.Phase.START", "PlatformEvents.levelTick(BCEvents.Phase.END",
+                "PlatformEvents.levelTick(BCEvents.Phase.END",
                 "PlatformEvents.serverTick(BCEvents.Phase.START", "PlatformEvents.serverTick(BCEvents.Phase.END")
+        # Wires must tick once per world tick, not at both START and END.
+        # The 1.19.2 reference and every maintained port register only END.
+        forbid(target, rel, "PlatformEvents.levelTick(BCEvents.Phase.START")
 
 
 def validate_java_invariants() -> None:
@@ -373,14 +376,43 @@ def validate_persistence_and_reload_invariants() -> None:
                 "rollbackPlacement(rollback, placeTask.pos)",
                 "keeping reservations consumed",
                 "if (!isBlockCorrect(placeTask.pos))")
-        require(target, blueprint_rel,
+        blueprint = require(target, blueprint_rel,
                 "rollbackReservation(reserved, drained)",
                 "refundReservedItem",
                 "if (!tile.needMeterial() || placeTask.items == null)",
                 "FluidAction.SIMULATE",
                 "FluidAction.EXECUTE",
-                "boolean committed = isBlockCorrect(blockPos)",
                 "isSchematicEntityPresent(schematicEntity, level)")
+        # A robot schematic can mutate the world and then fail. The postcondition must be
+        # checked *after* build(), and failed placements must restore the original block.
+        # The previous guard required a pre-rollback implementation's exact declaration
+        # (boolean committed = isBlockCorrect(blockPos)), rejecting the safer implementation.
+        begin = blueprint.find("public RobotBuildResult buildRobotTaskResult(")
+        end = blueprint.find("private boolean hasRobotRequirements(", begin) if begin >= 0 else -1
+        if begin < 0 or end < 0:
+            fail(f"{target}: robot blueprint task implementation is missing")
+        else:
+            robot_placement = blueprint[begin:end]
+            expected_order = (
+                "PlacementRollback rollback = capturePlacementRollback(blockPos);",
+                "boolean committed = false;",
+                "try {",
+                "schematicBlock.build(tile.getWorldBC(), blockPos, actor);",
+                "committed = isBlockCorrect(blockPos);",
+                "} catch (RuntimeException failure) {",
+                "} finally {",
+                "if (!committed && !rollbackPlacement(rollback, blockPos)) {",
+                "if (committed) {",
+                "consumeRobotRequirements(robot, task.requirements());",
+                "return committed ? RobotBuildResult.COMMITTED : RobotBuildResult.FAILED;",
+            )
+            cursor = 0
+            for fragment in expected_order:
+                found = robot_placement.find(fragment, cursor)
+                if found < 0:
+                    fail(f"{target}: robot blueprint placement lost its postcondition/rollback guard: {fragment!r}")
+                    break
+                cursor = found + len(fragment)
         require(target, template_rel,
                 "!tile.getInvResources().extract(PLACEABLE_BLOCK_FILTER, 1, 1, true).isEmpty()",
                 "!tile.needMeterial()",
@@ -543,13 +575,35 @@ def validate_worldgen_resources() -> None:
                 fail(f"{target}: genOilInEveryModBiomes must stay false in {relative}")
 
 
+def advancement_id(data_root: Path, path: Path) -> str:
+    """Normalize the 1.19/1.20 ``recipes`` and 1.21 ``recipe`` directories."""
+    relative = path.relative_to(data_root)
+    namespace, _directory, *parts = relative.parts
+    if parts and parts[0] == "recipes":
+        parts[0] = "recipe"
+    return f"{namespace}:{Path(*parts).with_suffix('').as_posix()}"
+
+
 def validate_advancements() -> None:
+    legacy_root = TARGETS["1.19.2-forge"] / "src/main/resources/data"
+    legacy_files = sorted(legacy_root.glob("*/advancements/**/*.json"))
+    legacy_ids = {advancement_id(legacy_root, path) for path in legacy_files}
+    if len(legacy_files) != 192:
+        fail(f"1.19.2-forge: expected 192 advancements, found {len(legacy_files)}")
+
     for target in ("1.21.1-neoforge",):
         data = TARGETS[target] / "src/main/resources/data"
         all_files = sorted(data.glob("*/advancement/**/*.json"))
         recipe_files = sorted(data.glob("*/advancement/recipe/**/*.json"))
-        if len(all_files) != 191:
-            fail(f"{target}: expected 191 advancements, found {len(all_files)}")
+        if len(all_files) != 192:
+            fail(f"{target}: expected 192 advancements, found {len(all_files)}")
+        current_ids = {advancement_id(data, path) for path in all_files}
+        if current_ids != legacy_ids:
+            fail(f"{target}: advancement IDs differ from 1.19.2; "
+                 f"missing={sorted(legacy_ids - current_ids)[:8]}, "
+                 f"extra={sorted(current_ids - legacy_ids)[:8]}")
+        if "buildcraftcore:free_power" not in current_ids:
+            fail(f"{target}: restored Redstone Engine free_power advancement is missing")
         if len(recipe_files) != 147:
             fail(f"{target}: expected 147 recipe advancements, found {len(recipe_files)}")
         recipe_ids = set(recipe_inventory(target))
@@ -703,8 +757,8 @@ def validate_modpack_interop_fixes() -> None:
                 "Fluids.WATER.getSource(false)",
                 "world.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(world))")
 
-    legacy_tag = ROOT / "source-families/legacy/src/main/resources/data/c/tags/items/tools/wrench.json"
-    modern_tag = ROOT / "source-families/modern/src/main/resources/data/c/tags/item/tools/wrench.json"
+    legacy_tag = ROOT / "source-families/old/src/main/resources/data/c/tags/items/tools/wrench.json"
+    modern_tag = ROOT / "source-families/1.21.X/src/main/resources/data/c/tags/item/tools/wrench.json"
     for tag_path in (legacy_tag, modern_tag):
         if not tag_path.is_file():
             fail(f"missing common wrench tag: {tag_path.relative_to(ROOT)}")
@@ -798,8 +852,8 @@ def validate_jei_facade_scalability() -> None:
     # treats a focus link with only hidden output variants as invisible and drops the recipe.
     # BuildCraft narrows the three aligned facade lists itself from IFocusGroup instead.
     hidden_tags = (
-        ROOT / "source-families/legacy/src/main/resources/data/c/tags/items/hidden_from_recipe_viewers.json",
-        ROOT / "source-families/modern/src/main/resources/data/c/tags/item/hidden_from_recipe_viewers.json",
+        ROOT / "source-families/old/src/main/resources/data/c/tags/items/hidden_from_recipe_viewers.json",
+        ROOT / "source-families/1.21.X/src/main/resources/data/c/tags/item/hidden_from_recipe_viewers.json",
     )
     for tag_path in hidden_tags:
         if not tag_path.is_file():
@@ -813,7 +867,7 @@ def validate_jei_facade_scalability() -> None:
     # hiding alone is too late: JEI has already paid the allocation/UID/search-index cost.
     #
     # 1.19.2 does not have registry-backed creative tabs, therefore this resource must stay out
-    # of the legacy family and begin at the 1.20.1 target boundary. Modern targets can share it.
+    # of the old family and begin at the 1.20.1 target boundary. 1.21.X targets can share it.
     creative_tab_tag = "src/main/resources/data/c/tags/creative_mode_tab/hidden_from_recipe_viewers.json"
     latest_modern = materialize_target("1.21.11-neoforge")
     creative_tab_roots = {
@@ -1041,9 +1095,9 @@ def validate_network_hardening() -> None:
 
 def validate_gametest_runtime_guards() -> None:
     expected_tests = {
-        "1.19.2-forge": 102,
-        "1.20.1-forge": 102,
-        "1.21.1-neoforge": 103,
+        "1.19.2-forge": 103,
+        "1.20.1-forge": 103,
+        "1.21.1-neoforge": 104,
     }
     for target in TARGETS:
         test_root = TARGETS[target] / "src/gametest/java"
@@ -1337,7 +1391,7 @@ def validate_id_allocator_contracts() -> None:
 
 
 def validate_transactional_side_effect_ordering() -> None:
-    """Cosmetic fluid sounds must not sit between fluid mutation and authoritative inventory/menu state."""
+    """Fluid sounds are best-effort and must be emitted for every committed BC8 transfer path."""
     for target in TARGETS:
         sound = compact(text(target, "src/main/java/buildcraft/lib/misc/SoundUtil.java"))
         for required in (
@@ -1358,29 +1412,29 @@ def validate_transactional_side_effect_ordering() -> None:
         if transfer_match is None:
             fail(f"{target}: could not locate Tank.transferStackToTank for transaction guard")
         else:
-            transfer = transfer_match.group(1)
-            if "SoundUtil.playBucketEmpty" in transfer or "SoundUtil.playBucketFill" in transfer:
-                fail(f"{target}: Tank.transferStackToTank still performs cosmetic sound inside the transaction")
+            transfer = compact(transfer_match.group(1))
+            fill_commit = transfer.find("int reallyAccepted = fill(result.fluidStack, FluidAction.EXECUTE);")
+            empty_sound = transfer.find("SoundUtil.playBucketEmpty")
+            drain_commit = transfer.find("FluidStack reallyDrained = drain(filled, FluidAction.EXECUTE);")
+            fill_sound = transfer.find("SoundUtil.playBucketFill")
+            if fill_commit < 0 or empty_sound < 0 or empty_sound <= fill_commit:
+                fail(f"{target}: committed item->tank transfer does not emit the BC8 bucket-empty sound")
+            if drain_commit < 0 or fill_sound < 0 or fill_sound <= drain_commit:
+                fail(f"{target}: committed tank->item transfer does not emit the BC8 bucket-fill sound")
 
         if "private static FluidStack copyFluidForSound" not in tank_raw:
-            fail(f"{target}: GUI fluid sound delta is not copied through the cross-loader helper")
-        if target == "1.19.2-forge" and "Level world = player.level;" not in tank_raw:
-            fail("1.19.2-forge: GUI fluid sound must use the pre-1.20 Player.level field")
-        if target == "1.20.1-forge" and "Level world = player.level();" not in tank_raw:
-            fail("1.20.1-forge: GUI fluid sound must use Player.level() on 1.20+")
+            fail(f"{target}: committed fluid sound delta is not copied through the cross-loader helper")
+        if "playCommittedGuiTransferSound" in tank_raw:
+            fail(f"{target}: fluid sound is still restricted to the GUI widget instead of transferStackToTank")
+        if target == "1.19.2-forge" and "SoundUtil.playBucketEmpty(player.level," not in tank_raw:
+            fail("1.19.2-forge: transfer sound must use the pre-1.20 Player.level field")
+        if target != "1.19.2-forge" and "player.level()" not in transfer_match.group(1):
+            fail(f"{target}: transfer sound must use Player.level()")
         for incompatible in ("new FluidStack(after,", "new FluidStack(before,"):
             if incompatible in tank_raw:
                 fail(
-                    f"{target}: GUI fluid sound uses loader-specific FluidStack copy constructor: {incompatible!r}"
+                    f"{target}: fluid sound uses loader-specific FluidStack copy constructor: {incompatible!r}"
                 )
-
-        tank = compact(tank_raw)
-        for needle in (
-            "menu.setCarried(stack); menu.broadcastFullState(); player.inventoryMenu.broadcastFullState(); playCommittedGuiTransferSound(player, before);",
-            "container.setCarried(stack); container.broadcastFullState(); player.inventoryMenu.broadcastFullState(); playCommittedGuiTransferSound(player, before);",
-        ):
-            if compact(needle) not in tank:
-                fail(f"{target}: GUI fluid sound is not post-commit: missing normalized fragment {needle!r}")
 
     forge = compact(text("1.19.2-forge", "src/main/java/buildcraft/lib/misc/FluidUtilBC.java"))
     direct_commit = compact(
@@ -1432,7 +1486,7 @@ def main() -> None:
 
     print(
         "Behavior parity OK: 2 newer targets locked to the 1.19.2 reference; "
-        "228/227 recipes, 31 loot tables and 191 advancements validated"
+        "228/227 recipes, 31 loot tables and 192 advancements validated"
     )
 
 

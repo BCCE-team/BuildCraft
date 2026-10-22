@@ -75,8 +75,12 @@ public class TriggerFluidContainer extends BCStatement implements ITriggerExtern
 
             switch (state) {
                 case EMPTY:
-                    FluidStack drained = handler.drain(1, true);
-                    return drained.isEmpty() || drained.getAmount() <= 0;
+                    for (int i = 0; i < liquids; i++) {
+                        if (!handler.getFluidInTank(i).isEmpty()) {
+                            return false;
+                        }
+                    }
+                    return true;
                 case CONTAINS:
                     for (int i = 0; i < liquids ; i++) {
                         FluidStack fluid = handler.getFluidInTank(i);
@@ -99,7 +103,7 @@ public class TriggerFluidContainer extends BCStatement implements ITriggerExtern
                 case FULL:
                     if (searchedFluid.isEmpty()) {
                         for (int i = 0; i < liquids ; i++) {
-                            FluidStack fluid = handler.getFluidInTank(1);
+                            FluidStack fluid = handler.getFluidInTank(i);
                             if ((fluid.isEmpty() || fluid.getAmount() < handler.getTankCapacity(i))) {
                                 return false;
                             }

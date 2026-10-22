@@ -112,7 +112,11 @@ public class LocaleUtil {
      * @param key The key to check
      * @return True if the key could be localized, false if not. */
     public static boolean canLocalize(String key) {
+//? if mc_26_x && (>=26.2) {
+        return net.minecraft.locale.Language.getInstance().has(key);
+//? } else {
         return I18n.exists(key);
+//?}
     }
 
     /** @param colour The {@link DyeColor} to localize.

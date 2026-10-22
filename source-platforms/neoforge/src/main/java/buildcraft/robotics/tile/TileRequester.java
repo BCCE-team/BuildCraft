@@ -29,7 +29,11 @@ import buildcraft.robotics.container.ContainerRequester;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
+//? if mc_26_x && (>=26.3) {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -41,7 +45,10 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+//? if mc_26_x && (>=26.3) {
+//? } else {
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
+//?}
 
 public class TileRequester extends TileBC_Neptune implements RequestProvider, IDebuggable, MenuProvider {
     protected static final IdAllocator IDS = TileBC_Neptune.IDS.makeChild("requester");
@@ -66,9 +73,23 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
 
     public TileRequester(BlockPos pos, BlockState state) {
         super(BCRoboticsBlocks.REQUESTER_TILE.get(), pos, state);
+//? if mc_26_x && (>=26.3) {
+        buildcraft.lib.tile.item.StackChangeCallback callback = (handler, slot, before, after) -> {
+            itemManager.callback.onStackChange(handler, slot, before, after);
+            if (level != null && !level.isClientSide()) {
+                level.updateNeighbourForOutputSignal(worldPosition, getBlockState().getBlock());
+            }
+        };
+        requests.setCallback(callback);
+        inv.setCallback(callback);
+//? } else {
+//?}
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public IdAllocator getIdAllocator() {
         return IDS;
     }
@@ -186,7 +207,10 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
         return copyRemainder(stack, accepted);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public Collection<ItemRequest> requests() {
         List<ItemRequest> result = new ArrayList<>();
         for (int slot = 0; slot < NB_ITEMS; slot++) {
@@ -198,8 +222,12 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
         return List.copyOf(result);
     }
 
+//? if mc_26_x && (>=26.3) {
+    public ItemTransferResult offer(Identifier requestId, ItemStack offered, OperationMode mode) {
+//? } else {
     @Override
     public ItemTransferResult offer(ResourceLocation requestId, ItemStack offered, OperationMode mode) {
+//?}
         int slot = RequestSupport.slot(requestId).orElse(-1);
         if (slot < 0 || slot >= NB_ITEMS || offered == null || offered.isEmpty()) {
             return ItemTransferResult.nothing(offered == null ? 0 : offered.getCount());
@@ -208,6 +236,8 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
         return ItemTransferResult.ofInsertion(offered, offered.getCount() - remainder.getCount());
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
     protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before,
             @Nonnull ItemStack after) {
@@ -218,19 +248,30 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
     }
 
     @Override
+//?}
     public InteractionResult onActivated(Player player, InteractionHand hand, BlockHitResult hit) {
+//? if mc_26_x && (>=26.3) {
+        if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
+//? } else {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+//?}
             serverPlayer.openMenu(this, buffer -> buffer.writeBlockPos(worldPosition));
         }
         return InteractionResult.SUCCESS;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public AbstractContainerMenu createMenu(int id, Inventory inventory, Player player) {
         return new ContainerRequester(id, inventory, this, ContainerLevelAccess.create(level, worldPosition));
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public Component getDisplayName() {
         return Component.translatable(getBlockState().getBlock().getDescriptionId());
     }
@@ -252,7 +293,10 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
         return RequestMath.comparatorSignal(requested, existingCounts, matching);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void getDebugInfo(List<String> left, List<String> right, Direction side) {
         int active = 0;
         int missing = 0;

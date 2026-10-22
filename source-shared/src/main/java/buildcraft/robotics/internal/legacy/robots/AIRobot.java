@@ -36,6 +36,11 @@ public class AIRobot {
     public void end() {
     }
 
+    /** Release transient claims on unload without aborting a persisted AI job. */
+    public void onUnload() {
+        if (delegateAI != null) delegateAI.onUnload();
+    }
+
     /** Called when a delegate AI ends work naturally. */
     public void delegateAIEnded(AIRobot ai) {
     }

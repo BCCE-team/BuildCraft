@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 from source_layout import load_properties, materialize_target, target_ids
 API_ROOTS = [
     ROOT / "source-shared/src/main/java/buildcraft/api/v2",
-    ROOT / "source-families/legacy/src/main/java/buildcraft/api/v2",
-    ROOT / "source-families/modern/src/main/java/buildcraft/api/v2",
+    ROOT / "source-families/old/src/main/java/buildcraft/api/v2",
+    ROOT / "source-families/1.21.X/src/main/java/buildcraft/api/v2",
 ]
 FIXTURE_ROOT = ROOT / "addon-fixture/src/main/java"
 REGISTRY_KEYS_FILE = ROOT / "source-shared/src/main/java/buildcraft/api/v2/BuildCraftRegistries.java"
@@ -127,6 +127,31 @@ def main() -> int:
                 for imported in IMPORT_RE.findall(materialized):
                     if imported.startswith(("net.minecraftforge.", "net.neoforged.", "net.fabricmc.", "org.quiltmc.")):
                         errors.append(f"{target}: materialized API v2 imports loader type {imported} in {path.relative_to(api_root)}")
+            facade = api_root / "BuildCraftApi.java"
+            if not facade.is_file() or not re.search(r"new ApiVersion\(2, 1, 0\)", facade.read_text(encoding="utf-8")):
+                errors.append(f"{target}: API facade does not advertise version 2.1.0")
+            target_registry = api_root / "BuildCraftRegistries.java"
+            target_runtime = destination / "src/main/java/buildcraft/lib/internal/api/v2/BuildCraftApiRuntime.java"
+            if not target_registry.is_file() or not target_runtime.is_file():
+                errors.append(f"{target}: missing API registry declarations or selected runtime")
+            else:
+                keys = set(REGISTRY_KEY_RE.findall(target_registry.read_text(encoding="utf-8")))
+                runtime_source = target_runtime.read_text(encoding="utf-8")
+                created = set(RUNTIME_REGISTRY_RE.findall(runtime_source))
+                for missing in sorted(keys - created):
+                    errors.append(f"{target}: missing registry backend for {missing}")
+                for unknown in sorted(created - keys):
+                    errors.append(f"{target}: unknown registry backend {unknown}")
+                declared_features = dict(re.findall(
+                    r"new ApiFeature\(BuildCraftFeatures\.([A-Z_]+),\s*(\d+)\)", runtime_source
+                ))
+                required_features = {
+                    "PIPES": "2", "MACHINES": "2", "ROBOTS": "2",
+                    "CLIENT_PRESENTATION": "2", "LOGISTICS": "1",
+                }
+                for feature, expected_level in required_features.items():
+                    if declared_features.get(feature) != expected_level:
+                        errors.append(f"{target}: feature {feature} must advertise level {expected_level}")
             counted = api_root / "recipe/CountedIngredient.java"
             if counted.is_file() and "DataComponentIngredient" in counted.read_text(encoding="utf-8"):
                 errors.append(f"{target}: materialized CountedIngredient still exposes DataComponentIngredient")

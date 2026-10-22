@@ -1,3 +1,4 @@
 {
-  "parent": "buildcrafttransport:plugs/power_adapter"
+  "parent": "buildcrafttransport:plugs/power_adapter",
+  "textures": { "particle": "buildcrafttransport:pipes/power_adapter" }
 }

@@ -11,7 +11,7 @@
 	"elements": {
 		"title": {
 			"type": "buildcraftlib:text",
-			"text": "item.filler_planner.name",
+			"text": "item.buildcraftbuilders.filler_planner",
 			"pos": [88,10],
 			"colour": "0x40_40_40",
 			"centered": true

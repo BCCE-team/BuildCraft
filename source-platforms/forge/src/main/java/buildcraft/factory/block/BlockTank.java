@@ -54,10 +54,10 @@ public class BlockTank extends BlockBCTile_Neptune implements ICustomPipeConnect
 
 	protected static BlockBehaviour.Properties defaultProperties() {
 		//? if <1.20 {
-		return BlockBehaviour.Properties.of(Material.GLASS).sound(SoundType.GLASS).strength(6.0f, 10.0f).requiresCorrectToolForDrops();
+		return BlockBehaviour.Properties.of(Material.GLASS).sound(SoundType.METAL).strength(6.0f, 10.0f).requiresCorrectToolForDrops();
 		//?} else {
 		/*?
-		return BlockBehaviour.Properties.of().mapColor(MapColor.NONE).sound(SoundType.GLASS).strength(6.0f, 10.0f).requiresCorrectToolForDrops();
+		return BlockBehaviour.Properties.of().mapColor(MapColor.NONE).sound(SoundType.METAL).strength(6.0f, 10.0f).requiresCorrectToolForDrops();
 		?*/
 		//?}
 	}

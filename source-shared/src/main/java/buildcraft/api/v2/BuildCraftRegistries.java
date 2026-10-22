@@ -5,6 +5,8 @@ import buildcraft.api.v2.automation.StripesHandler;
 import buildcraft.api.v2.block.PaintHandler;
 import buildcraft.api.v2.block.RotationHandler;
 import buildcraft.api.v2.client.ContentPresentation;
+import buildcraft.api.v2.client.DynamicPresentation;
+import buildcraft.api.v2.client.MenuPresentation;
 import buildcraft.api.v2.client.ParameterPresentation;
 import buildcraft.api.v2.client.PipePresentation;
 import buildcraft.api.v2.client.StatementPresentation;
@@ -17,6 +19,7 @@ import buildcraft.api.v2.debug.DebugContributor;
 import buildcraft.api.v2.facade.FacadeMaterialAdapter;
 import buildcraft.api.v2.fluid.FluidItemAdapter;
 import buildcraft.api.v2.filler.FillerPatternType;
+import buildcraft.api.v2.list.ItemList;
 import buildcraft.api.v2.list.ListMatchAdapter;
 import buildcraft.api.v2.machine.EngineType;
 import buildcraft.api.v2.machine.MachineComponentType;
@@ -26,11 +29,15 @@ import buildcraft.api.v2.machine.LaserTableType;
 import buildcraft.api.v2.pipe.PipeAttachmentType;
 import buildcraft.api.v2.pipe.PipeComponentType;
 import buildcraft.api.v2.pipe.PipeConnectionRule;
+import buildcraft.api.v2.pipe.PipeEndpointProvider;
 import buildcraft.api.v2.pipe.PipeSyncChannel;
 import buildcraft.api.v2.pipe.PipeType;
+import buildcraft.api.v2.pipe.PipeFlowDefinition;
+import buildcraft.api.v2.pipe.PipeBehaviourDefinition;
 import buildcraft.api.v2.registry.RegistryKey;
 import buildcraft.api.v2.robot.DockPortType;
 import buildcraft.api.v2.robot.RobotBoardType;
+import buildcraft.api.v2.robot.RobotBoardProgram;
 import buildcraft.api.v2.robot.RobotResourceType;
 import buildcraft.api.v2.robot.RobotTaskType;
 import buildcraft.api.v2.schematic.EntitySchematicAdapter;
@@ -42,6 +49,7 @@ import buildcraft.api.v2.statement.ActionType;
 import buildcraft.api.v2.statement.ParameterType;
 import buildcraft.api.v2.statement.StatementContributor;
 import buildcraft.api.v2.statement.TriggerType;
+import buildcraft.api.v2.tool.WrenchAdapter;
 import java.util.Objects;
 import net.minecraft.resources.ResourceLocation;
 
@@ -56,9 +64,12 @@ public final class BuildCraftRegistries {
 
 
     public static final RegistryKey<PipeType> PIPE_TYPES = key("pipe_types");
+    public static final RegistryKey<PipeFlowDefinition<?>> PIPE_FLOW_TYPES = key("pipe_flow_types");
+    public static final RegistryKey<PipeBehaviourDefinition<?>> PIPE_BEHAVIOUR_TYPES = key("pipe_behaviour_types");
     public static final RegistryKey<PipeComponentType<?>> PIPE_COMPONENT_TYPES = key("pipe_component_types");
     public static final RegistryKey<PipeAttachmentType<?>> PIPE_ATTACHMENT_TYPES = key("pipe_attachment_types");
     public static final RegistryKey<PipeConnectionRule> PIPE_CONNECTION_RULES = key("pipe_connection_rules");
+    public static final RegistryKey<PipeEndpointProvider> PIPE_ENDPOINT_PROVIDERS = key("pipe_endpoint_providers");
     public static final RegistryKey<PipeSyncChannel<?>> PIPE_SYNC_CHANNELS = key("pipe_sync_channels");
 
     public static final RegistryKey<ParameterType<?>> PARAMETER_TYPES = key("parameter_types");
@@ -75,6 +86,7 @@ public final class BuildCraftRegistries {
     public static final RegistryKey<RobotResourceType<?>> ROBOT_RESOURCE_TYPES = key("robot_resource_types");
     public static final RegistryKey<DockPortType<?>> ROBOT_DOCK_PORT_TYPES = key("robot_dock_port_types");
     public static final RegistryKey<RobotBoardType> ROBOT_BOARD_TYPES = key("robot_board_types");
+    public static final RegistryKey<RobotBoardProgram> ROBOT_BOARD_PROGRAMS = key("robot_board_programs");
     public static final RegistryKey<RobotEventListener> ROBOT_EVENT_LISTENERS = key("robot_event_listeners");
 
     public static final RegistryKey<SchematicAdapter> SCHEMATIC_ADAPTERS = key("schematic_adapters");
@@ -83,6 +95,7 @@ public final class BuildCraftRegistries {
     public static final RegistryKey<InventoryCopyPolicy> INVENTORY_COPY_POLICIES = key("inventory_copy_policies");
 
     public static final RegistryKey<FacadeMaterialAdapter> FACADE_MATERIAL_ADAPTERS = key("facade_material_adapters");
+    public static final RegistryKey<ItemList> NAMED_ITEM_LISTS = key("named_item_lists");
     public static final RegistryKey<ListMatchAdapter> LIST_MATCH_ADAPTERS = key("list_match_adapters");
     public static final RegistryKey<ItemLabelAdapter> ITEM_LABEL_ADAPTERS = key("item_label_adapters");
     public static final RegistryKey<FluidItemAdapter> FLUID_ITEM_ADAPTERS = key("fluid_item_adapters");
@@ -91,8 +104,11 @@ public final class BuildCraftRegistries {
     public static final RegistryKey<DebugContributor> DEBUG_CONTRIBUTORS = key("debug_contributors");
     public static final RegistryKey<RotationHandler> ROTATION_HANDLERS = key("rotation_handlers");
     public static final RegistryKey<PaintHandler> PAINT_HANDLERS = key("paint_handlers");
+    public static final RegistryKey<WrenchAdapter> WRENCH_ADAPTERS = key("wrench_adapters");
 
     public static final RegistryKey<ContentPresentation> CLIENT_PRESENTATIONS = key("client_presentations");
+    public static final RegistryKey<DynamicPresentation> DYNAMIC_PRESENTATIONS = key("dynamic_presentations");
+    public static final RegistryKey<MenuPresentation> MENU_PRESENTATIONS = key("menu_presentations");
     public static final RegistryKey<PipePresentation> PIPE_PRESENTATIONS = key("pipe_presentations");
     public static final RegistryKey<StatementPresentation> STATEMENT_PRESENTATIONS = key("statement_presentations");
     public static final RegistryKey<ParameterPresentation> PARAMETER_PRESENTATIONS = key("parameter_presentations");

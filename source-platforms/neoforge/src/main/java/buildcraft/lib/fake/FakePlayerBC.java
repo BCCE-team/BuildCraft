@@ -16,7 +16,10 @@ public class FakePlayerBC extends FakePlayer {
         super(level, profile);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void openTextEdit(SignBlockEntity sign, boolean frontText) {
         // Automation must never open a client sign editor.
     }

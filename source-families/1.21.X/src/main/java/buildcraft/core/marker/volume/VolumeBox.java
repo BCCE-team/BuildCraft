@@ -1,0 +1,276 @@
+/*
+ * Copyright (c) 2017 SpaceToad and the BuildCraft team This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at
+ * https://mozilla.org/MPL/2.0/
+ */
+
+package buildcraft.core.marker.volume;
+
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+
+import buildcraft.lib.misc.NBTUtilBC;
+import buildcraft.lib.misc.data.Box;
+import io.netty.buffer.Unpooled;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+
+public class VolumeBox {
+    public final Level world;
+    public UUID id;
+    public Box box;
+    private UUID player = null;
+    private UUID oldPlayer = null;
+    private BlockPos held = null;
+    private double dist = 0;
+    private BlockPos oldMin = null, oldMax = null;
+    public final Map<EnumAddonSlot, Addon> addons = new EnumMap<>(EnumAddonSlot.class);
+    public final List<Lock> locks = new ArrayList<>();
+
+    public VolumeBox(Level world, BlockPos at) {
+        if (world == null) throw new NullPointerException("world");
+        this.world = world;
+        id = UUID.randomUUID();
+        box = new Box(at, at);
+    }
+
+    public VolumeBox(Level world, CompoundTag nbt) {
+        if (world == null) throw new NullPointerException("world");
+        this.world = world;
+        id = nbt.getUUID("id");
+        box = new Box();
+        box.initialize(nbt.getCompound("box"));
+        player = nbt.contains("player") ? NbtUtils.loadUUID(nbt.getCompound("player")) : null;
+        oldPlayer = nbt.contains("oldPlayer") ? NbtUtils.loadUUID(nbt.getCompound("oldPlayer")) : null;
+        if (nbt.contains("held")) {
+            held = NBTUtilBC.readBlockPos(nbt.get("held"));
+        }
+        dist = nbt.getDouble("dist");
+        if (nbt.contains("oldMin")) {
+            oldMin = NBTUtilBC.readBlockPos(nbt.get("oldMin"));
+        }
+        if (nbt.contains("oldMax")) {
+            oldMax = NBTUtilBC.readBlockPos(nbt.get("oldMax"));
+        }
+        NBTUtilBC.readCompoundList(nbt.get("addons")).forEach(addonsEntryTag -> {
+            try {
+                Class<? extends Addon> addonClass =
+                    AddonsRegistry.INSTANCE.getClassByName(ResourceLocation.parse(addonsEntryTag.getString("addonClass")));
+                Addon addon = addonClass.getDeclaredConstructor().newInstance();
+                addon.volumeBox = this;
+                addon.readFromNBT(addonsEntryTag.getCompound("addonData"));
+                EnumAddonSlot slot = NBTUtilBC.readEnum(addonsEntryTag.get("slot"), EnumAddonSlot.class);
+                addons.put(slot, addon);
+                addon.postReadFromNbt();
+            } catch (Exception e) {
+                buildcraft.lib.internal.debug.BCLog.logger.warn("Failed to clone volume box stored snapshot", e);
+            }
+        });
+        // One corrupt enum or target must not discard the other saved locks
+        // or abort loading the entire collection of Volume Boxes.
+        NBTUtilBC.readCompoundList(nbt.get("locks")).forEach(lockTag -> {
+            try {
+                Lock lock = new Lock();
+                lock.readFromNBT(lockTag);
+                if (lock.cause != null) locks.add(lock);
+            } catch (RuntimeException invalidLock) {
+                buildcraft.lib.internal.debug.BCLog.logger.warn("Skipped corrupt Volume Box lock", invalidLock);
+            }
+        });
+    }
+
+    public VolumeBox(Level world, FriendlyByteBuf buf) throws IOException {
+        if (world == null) throw new NullPointerException("world");
+        this.world = world;
+        fromBytes(buf);
+    }
+
+    public boolean isEditing() {
+        return player != null;
+    }
+
+    private void resetEditing() {
+        oldMin = oldMax = null;
+        held = null;
+        dist = 0;
+    }
+
+    public void cancelEditing() {
+        player = null;
+        box.reset();
+        box.extendToEncompass(oldMin);
+        box.extendToEncompass(oldMax);
+        resetEditing();
+    }
+
+    public void confirmEditing() {
+        player = null;
+        resetEditing();
+        addons.values().forEach(Addon::onVolumeBoxSizeChange);
+    }
+
+    public void pauseEditing() {
+        oldPlayer = player;
+        player = null;
+    }
+
+    public void resumeEditing() {
+        player = oldPlayer;
+        oldPlayer = null;
+    }
+
+    public void setPlayer(Player player) {
+        this.player = player.getGameProfile().getId();
+    }
+
+    public boolean isEditingBy(Player player) {
+        return player != null && Objects.equals(this.player, player.getGameProfile().getId());
+    }
+
+    public boolean isPausedEditingBy(Player player) {
+        return oldPlayer != null && Objects.equals(oldPlayer, player.getGameProfile().getId());
+    }
+
+    public Player getPlayer(Level world) {
+        return world.getPlayerByUUID(player);
+    }
+
+    public void setHeldDistOldMinOldMax(BlockPos held, double dist, BlockPos oldMin, BlockPos oldMax) {
+        this.held = held;
+        this.dist = dist;
+        this.oldMin = oldMin;
+        this.oldMax = oldMax;
+    }
+
+    public BlockPos getHeld() {
+        return held;
+    }
+
+    public double getDist() {
+        return dist;
+    }
+
+    public Stream<Lock.Target> getLockTargetsStream() {
+        return locks.stream().flatMap(lock -> lock.targets.stream());
+    }
+
+    public CompoundTag writeToNBT() {
+        CompoundTag nbt = new CompoundTag();
+        nbt.putUUID("id", id);
+        nbt.put("box", this.box.writeToNBT());
+        if (player != null) {
+            nbt.put("player", NbtUtils.createUUID(player));
+        }
+        if (oldPlayer != null) {
+            nbt.put("oldPlayer", NbtUtils.createUUID(oldPlayer));
+        }
+        if (held != null) {
+            nbt.put("held", NbtUtils.writeBlockPos(held));
+        }
+        nbt.putDouble("dist", dist);
+        if (oldMin != null) {
+            nbt.put("oldMin", NbtUtils.writeBlockPos(oldMin));
+        }
+        if (oldMax != null) {
+            nbt.put("oldMax", NbtUtils.writeBlockPos(oldMax));
+        }
+        nbt.put(
+            "addons",
+            NBTUtilBC.writeObjectList(
+                addons.entrySet().stream().map(entry -> {
+                    CompoundTag addonsEntryTag = new CompoundTag();
+                    addonsEntryTag.put("slot", NBTUtilBC.writeEnum(entry.getKey()));
+                    addonsEntryTag.putString(
+                        "addonClass",
+                        AddonsRegistry.INSTANCE.getNameByClass(entry.getValue().getClass()).toString()
+                    );
+                    addonsEntryTag.put("addonData", entry.getValue().writeToNBT(new CompoundTag()));
+                    return addonsEntryTag;
+                })
+            ));
+        nbt.put("locks", NBTUtilBC.writeObjectList(locks.stream().map(Lock::writeToNBT)));
+        return nbt;
+    }
+
+    public void toBytes(FriendlyByteBuf buf) {
+        buf.writeUUID(id);
+        box.writeData(buf);
+        buf.writeBoolean(player != null);
+        if (player != null) {
+            buf.writeUUID(player);
+        }
+        buf.writeInt(addons.size());
+        addons.forEach((slot, addon) -> {
+            buf.writeEnum(slot);
+            buf.writeUtf(AddonsRegistry.INSTANCE.getNameByClass(addon.getClass()).toString());
+            addon.toBytes(buf);
+        });
+        buf.writeInt(locks.size());
+        locks.forEach(lock -> lock.toBytes(buf));
+    }
+
+    public void fromBytes(FriendlyByteBuf buf) throws IOException {
+        id = buf.readUUID();
+        box = new Box();
+        box.readData(buf);
+        player = buf.readBoolean() ? buf.readUUID() : null;
+        Map<EnumAddonSlot, Addon> incomingAddons = new EnumMap<>(EnumAddonSlot.class);
+        int count = buf.readInt();
+        if (count < 0 || count > EnumAddonSlot.values().length) {
+            throw new IOException("Invalid Volume Box addon count " + count);
+        }
+        for (int i = 0; i < count; i++) {
+            EnumAddonSlot slot = buf.readEnum(EnumAddonSlot.class);
+            ResourceLocation rl = ResourceLocation.parse(buf.readUtf(1024));
+            Class<? extends Addon> addonClass = AddonsRegistry.INSTANCE.getClassByName(rl);
+            if (addonClass == null) throw new IOException("Unknown addon class " + rl);
+            if (incomingAddons.containsKey(slot)) throw new IOException("Duplicate Volume Box addon " + slot);
+            try {
+                // Resyncs must not create a new heavy addon (Filler Planner etc.)
+                // when the type at this slot has not changed.
+                Addon addon = addons.get(slot);
+                if (addon == null || addon.getClass() != addonClass) {
+                    addon = addonClass.getDeclaredConstructor().newInstance();
+                    addon.volumeBox = this;
+                    addon.onAdded();
+                }
+                addon.fromBytes(buf);
+                incomingAddons.put(slot, addon);
+            } catch (ReflectiveOperationException ex) {
+                throw new IOException("Failed to deserialize Volume Box addon", ex);
+            }
+        }
+        addons.clear();
+        addons.putAll(incomingAddons);
+        locks.clear();
+        IntStream.range(0, buf.readInt()).mapToObj(i -> {
+            Lock lock = new Lock();
+            lock.fromBytes(buf);
+            return lock;
+        }).forEach(locks::add);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return this == o || !(o == null || getClass() != o.getClass()) && id.equals(((VolumeBox) o).id);
+
+    }
+
+    @Override
+    public int hashCode() {
+        return id.hashCode();
+    }
+}

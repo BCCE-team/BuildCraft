@@ -24,6 +24,9 @@ class ResourcePipeline(unittest.TestCase):
             "1.20.1-forge",
             "1.21.1-neoforge",
             "1.21.11-neoforge",
+            "26.1.2-neoforge",
+            "26.2-neoforge",
+            "26.3-neoforge",
         ):
             root = Path(cls.temp.name) / target
             materialize_target(target, root, cls.props)
@@ -41,11 +44,13 @@ class ResourcePipeline(unittest.TestCase):
             "1.19.2-forge": {
                 "assets/buildcraftenergy/textures/items/ic2_cell_fluid.png",
             },
-            # 1.20.1-only resources belong in resource-src/legacy/1.20.1, not
+            # 1.20.1-only resources belong in resource-src/old/1.20.1, not
             # the target overlay. The materialized target is checked below.
             "1.20.1-forge": set(),
             "1.21.1-neoforge": set(),
             "1.21.11-neoforge": set(),
+            "26.2-neoforge": set(),
+            "26.3-neoforge": set(),
         }
         for target, expected_paths in expected.items():
             root = ROOT / "version-src" / target / "src/main/resources"
@@ -96,6 +101,95 @@ class ResourcePipeline(unittest.TestCase):
             self.assertIn("buildcraftenergy:spout_oil", values, target)
             self.assertIn("buildcraftenergy:spout_oil_flowing", values, target)
 
+
+    def test_26_1_2_energy_buckets_skip_the_artifact_prone_cover_mask(self):
+        rel = "assets/buildcraftenergy/items/oil/cool_bucket.json"
+
+        old = self.read_json("1.21.11-neoforge", rel)["model"]
+        self.assertEqual("neoforge:item/mask/bucket_fluid_cover", old["textures"]["cover"])
+        self.assertTrue(old["cover_is_mask"])
+
+        new = self.read_json("26.1.2-neoforge", rel)["model"]
+        self.assertEqual("neoforge:fluid_container", new["type"])
+        self.assertEqual("minecraft:item/bucket", new["textures"]["base"])
+        self.assertEqual("neoforge:item/mask/bucket_fluid", new["textures"]["fluid"])
+        self.assertNotIn("cover", new["textures"])
+        self.assertNotIn("cover_is_mask", new)
+
+        bucket_root = self.roots["26.1.2-neoforge"] / "assets/buildcraftenergy/items"
+        dynamic_buckets = []
+        for path in sorted(bucket_root.rglob("*_bucket.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("model", {}).get("type") == "neoforge:fluid_container":
+                dynamic_buckets.append(path)
+                self.assertNotIn("cover", data["model"]["textures"], path.as_posix())
+                self.assertNotIn("cover_is_mask", data["model"], path.as_posix())
+        self.assertEqual(30, len(dynamic_buckets))
+
+    def test_26_2_and_26_3_buckets_only_colour_the_open_top(self):
+        for ver in ('26.2-neoforge', '26.3-neoforge'):
+            with self.subTest(target=ver):
+                atlas = self.read_json(ver, 'assets/minecraft/atlases/blocks.json')
+                sprite = 'buildcraftenergy:block/mask/bucket_surface'
+                self.assertEqual(1, sum(
+                    source.get('resource') == sprite
+                    for source in atlas['sources'] if isinstance(source, dict)))
+                # The obsolete atlas extension had only two unregistered bucket sprites.
+                # Removing it does not remove the vanilla items atlas or modern bucket models.
+                self.assertFalse((self.roots[ver] / 'assets/minecraft/atlases/items.json').exists())
+                texture = self.roots[ver] / 'assets/buildcraftenergy/textures/block/mask/bucket_surface.png'
+                self.assertTrue(texture.is_file())
+                for family in (
+                    'oil', 'oil_dense', 'oil_distilled', 'oil_heavy', 'oil_residue',
+                    'fuel_dense', 'fuel_gaseous', 'fuel_light',
+                    'fuel_mixed_heavy', 'fuel_mixed_light',
+                ):
+                    for index, heat in enumerate(('cool', 'hot', 'searing')):
+                        path = f'assets/buildcraftenergy/items/{family}/{heat}_bucket.json'
+                        item = self.read_json(ver, path)['model']
+                        self.assertEqual('neoforge:fluid_container', item['type'], path)
+                        self.assertEqual('minecraft:item/bucket', item['textures']['base'], path)
+                        self.assertEqual(sprite, item['textures']['fluid'], path)
+                        self.assertNotIn('cover', item['textures'], path)
+                        self.assertEqual('buildcraftenergy:' + family + (f'_heat_{index}' if index else ''),
+                                         item['fluid'], path)
+                        # Fallback models must not refer to pre-26.2 bucket skins.
+                        fallback = self.read_json(ver,
+                            f'assets/buildcraftenergy/models/item/{family}/{heat}_bucket.json')
+                        self.assertEqual('minecraft:item/bucket', fallback['textures']['layer0'])
+
+        # This patch must not alter the working 1.21.11 / 26.1.2 contracts.
+        for ver in ('1.21.11-neoforge', '26.1.2-neoforge'):
+            with self.subTest(target=ver):
+                model = self.read_json(ver, 'assets/buildcraftenergy/items/oil/cool_bucket.json')['model']
+                self.assertEqual('neoforge:fluid_container', model['type'])
+                self.assertEqual('neoforge:item/mask/bucket_fluid', model['textures']['fluid'])
+                self.assertNotIn('buildcraftenergy:block/mask/bucket_surface',
+                                 {x.get('resource') for x in self.read_json(
+                                     ver, 'assets/minecraft/atlases/blocks.json')['sources']})
+
+    def test_tube_end_atlas_sprite_retains_pixel_art_at_16px(self):
+        from PIL import Image
+        common = ROOT / (
+            'source-shared/src/main/resources/assets/buildcraftfactory/'
+            'textures/blocks/tube/end.png'
+        )
+        with Image.open(common) as src:
+            current = src.convert('RGBA')
+            self.assertEqual((16, 16), current.size)
+            for y in range(0, 16, 2):
+                for x in range(0, 16, 2):
+                    self.assertEqual(current.getpixel((x, y)), current.getpixel((x+1, y)))
+                    self.assertEqual(current.getpixel((x, y)), current.getpixel((x, y+1)))
+                    self.assertEqual(current.getpixel((x, y)), current.getpixel((x+1, y+1)))
+        for target in ('26.2-neoforge', '26.3-neoforge'):
+            sprite = self.roots[target] / (
+                'assets/buildcraftfactory/textures/blocks/tube/end.png'
+            )
+            self.assertTrue(sprite.is_file(), target)
+            with Image.open(sprite) as image:
+                self.assertEqual((16, 16), image.size, target)
+
     def test_ic2_cell_models_are_generated_only_for_119(self):
         rel = Path("assets/buildcraftenergy/models/item/ic2_cell")
         old = self.roots["1.19.2-forge"] / rel
@@ -108,7 +202,7 @@ class ResourcePipeline(unittest.TestCase):
         self.assertEqual("buildcraftenergy:items/ic2_cell_fluid", sample["textures"]["fluid"])
 
     def test_canonical_atlas_is_modern_and_120_gets_only_legacy_compat_additions(self):
-        canonical = ROOT / "source-families/modern/src/main/resources/assets/minecraft/atlases/blocks.json"
+        canonical = ROOT / "source-families/1.21.X/src/main/resources/assets/minecraft/atlases/blocks.json"
         self.assertTrue(canonical.is_file())
         def resources(target: str) -> set[str]:
             data = self.read_json(target, "assets/minecraft/atlases/blocks.json")
@@ -131,7 +225,7 @@ class ResourcePipeline(unittest.TestCase):
             self.assertIn(value, modern)
 
     def test_oil_worldgen_is_newest_source_with_a_deterministic_119_downport(self):
-        canonical = ROOT / "source-families/modern/src/main/resources/data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json"
+        canonical = ROOT / "source-families/1.21.X/src/main/resources/data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json"
         self.assertTrue(canonical.is_file())
         old = self.read_json("1.19.2-forge", "data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json")
         new = self.read_json("1.20.1-forge", "data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json")
@@ -156,7 +250,7 @@ class ResourcePipeline(unittest.TestCase):
             "assets/buildcraftrobotics/items/robot.json",
             "assets/buildcraftsilicon/items/gate_copier.json",
         )
-        root = ROOT / "resource-src/modern/1.21.11"
+        root = ROOT / "resource-src/1.21.X/1.21.11"
         for rel in special:
             maintained = root / rel
             self.assertTrue(maintained.is_file(), rel)
@@ -166,6 +260,85 @@ class ResourcePipeline(unittest.TestCase):
             self.assertFalse((self.roots["1.21.1-neoforge"] / rel).exists(), rel)
             item = self.read_json("1.21.11-neoforge", rel)
             self.assertEqual("minecraft:range_dispatch", item["model"]["type"])
+
+    def test_263_advancement_trigger_renames_preserve_progression(self):
+        # In 26.3 the recipe_unlocked trigger uses `recipes` and enter_block
+        # uses `blocks`. Scan *every* materialized advancement rather than only
+        # examples so a single stale recipe can no longer prevent world load.
+        from source_layout import resolve_effective_source, target_layout
+
+        layout = target_layout("26.3-neoforge", self.props)
+        root = self.roots["26.3-neoforge"]
+        advancements = sorted((root / "data").glob("*/advancement/**/*.json"))
+        self.assertGreater(len(advancements), 175)
+        counts = {"minecraft:recipe_unlocked": 0, "minecraft:enter_block": 0}
+        renamed = {
+            "minecraft:recipe_unlocked": ("recipe", "recipes"),
+            "minecraft:enter_block": ("block", "blocks"),
+        }
+        for compiled in advancements:
+            rel = compiled.relative_to(root).as_posix()
+            original_path = resolve_effective_source(
+                layout, self.props, "src/main/resources/" + rel
+            )
+            self.assertIsNotNone(original_path, rel)
+            original = json.loads(original_path.read_text(encoding="utf-8"))
+            expected = json.loads(original_path.read_text(encoding="utf-8"))
+            actual = json.loads(compiled.read_text(encoding="utf-8"))
+
+            for key, criterion in expected.get("criteria", {}).items():
+                trigger = criterion.get("trigger")
+                if trigger not in renamed:
+                    continue
+                old_name, new_name = renamed[trigger]
+                conditions = criterion.get("conditions", {})
+                if old_name in conditions:
+                    counts[trigger] += 1
+                    self.assertNotIn(new_name, conditions, (rel, key))
+                    conditions[new_name] = conditions.pop(old_name)
+                self.assertNotIn(old_name, actual["criteria"][key].get("conditions", {}), (rel, key))
+                self.assertIn(new_name, actual["criteria"][key].get("conditions", {}), (rel, key))
+
+            # Check the entire output: criteria names, requirements, parent,
+            # rewards and optional display metadata must all remain intact.
+            self.assertEqual(expected, actual, rel)
+            self.assertEqual(original.get("requirements"), actual.get("requirements"), rel)
+            self.assertEqual(original.get("rewards"), actual.get("rewards"), rel)
+
+        self.assertEqual(145, counts["minecraft:recipe_unlocked"])
+        self.assertEqual(1, counts["minecraft:enter_block"])
+
+        # Older targets still use the old keys and must not change.
+        recipe_path = "data/buildcraftsilicon/advancement/recipe/assembly/diamond_chipset.json"
+        for target in ("1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge"):
+            self.assertEqual(
+                {"recipe": "buildcraftsilicon:assembly/diamond_chipset"},
+                self.read_json(target, recipe_path)["criteria"]["has_the_recipe"]["conditions"],
+                target,
+            )
+        old_oil = self.read_json("26.2-neoforge", "data/buildcraftenergy/advancement/sticky_dipping.json")
+        self.assertEqual("buildcraftenergy:oil", old_oil["criteria"]["oil"]["conditions"]["block"])
+
+    def test_263_advancement_transform_is_idempotent_and_scoped(self):
+        from transforms.resources import apply_resource_transforms
+
+        relative = "src/main/resources/data/buildcraftcore/advancement/recipe/example.json"
+        raw = json.dumps({
+            "criteria": {
+                "has_the_recipe": {
+                    "trigger": "minecraft:recipe_unlocked",
+                    "conditions": {"recipe": "buildcraftcore:example"},
+                }
+            },
+            "requirements": [["has_the_recipe"]],
+            "rewards": {"recipes": ["buildcraftcore:example"]},
+        })
+        new = apply_resource_transforms(raw, minecraft="26.3", relative=relative)
+        self.assertEqual(new, apply_resource_transforms(new, minecraft="26.3", relative=relative))
+        self.assertIn('"recipes": "buildcraftcore:example"', new)
+        self.assertEqual(raw, apply_resource_transforms(raw, minecraft="26.2", relative=relative))
+        self.assertEqual(raw, apply_resource_transforms(raw, minecraft="26.3",
+                            relative="src/main/resources/data/buildcraftcore/recipe/example.json"))
 
     def test_all_versioned_json_resources_are_valid_json(self):
         root = ROOT / "resource-src"
@@ -177,20 +350,20 @@ class ResourcePipeline(unittest.TestCase):
 
     def test_versioned_binary_resource_leaves_modern_target_overlay(self):
         modern_rel = "assets/buildcrafttransport/textures/pipes/overlay_stained.png"
-        modern_source = ROOT / "resource-src/modern/1.21.11" / modern_rel
+        modern_source = ROOT / "resource-src/1.21.X/1.21.11" / modern_rel
         self.assertEqual(modern_source.read_bytes(), (self.roots["1.21.11-neoforge"] / modern_rel).read_bytes())
 
     def test_mechanical_modern_item_definitions_remain_generated(self):
         items_121 = list((self.roots["1.21.1-neoforge"] / "assets").glob("buildcraft*/items/**/*.json"))
-        items_12111 = list((self.roots["1.21.11-neoforge"] / "assets").glob("buildcraft*/items/**/*.json"))
+        items_1_21_11 = list((self.roots["1.21.11-neoforge"] / "assets").glob("buildcraft*/items/**/*.json"))
         self.assertEqual(0, len(items_121))
-        self.assertGreater(len(items_12111), 200)
+        self.assertGreater(len(items_1_21_11), 200)
         example = self.read_json("1.21.11-neoforge", "assets/buildcraftcore/items/wrench.json")
         self.assertEqual("minecraft:model", example["model"]["type"])
         self.assertEqual("buildcraftcore:item/wrench", example["model"]["model"])
 
     def test_forge_metadata_has_one_maintained_owner(self):
-        canonical = ROOT / "source-family-platforms/legacy/forge/src/main/resources/META-INF/mods.toml"
+        canonical = ROOT / "source-family-platforms/old/forge/src/main/resources/META-INF/mods.toml"
         self.assertTrue(canonical.is_file())
         self.assertFalse((ROOT / "version-src/1.19.2-forge/src/main/resources/META-INF/mods.toml").exists())
         self.assertFalse((ROOT / "version-src/1.20.1-forge/src/main/resources/META-INF/mods.toml").exists())
@@ -202,5 +375,248 @@ class ResourcePipeline(unittest.TestCase):
         self.assertIn("Forestry Propolis Item Pipe", new)
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
+
+
+# ---- Resource atlas and fluid sprite reload behavior ----
+
+
+
+
+import struct
+
+FLUID_RELOAD_ROOT = Path(__file__).resolve().parents[2]
+FLUID_RELOAD_ASSETS = FLUID_RELOAD_ROOT / 'source-shared/src/main/resources/assets'
+from source_config import load_properties, target_layout
+from source_layout import resolve_effective_source
+
+# Resource and model sprites that must resolve with valid atlas animation metadata.
+FLUID_RELOAD_MODEL_WARNINGS = """
+buildcraftrobotics:item/robot/lumberjack
+buildcraftrobotics:item/robot/planter
+buildcraftenergy:fluids/oil_distilled/hot
+buildcraftrobotics:item/robot/picker
+buildcraftrobotics:item/robot/shovelman
+buildcraftrobotics:item/robot/fluid_carrier
+buildcraftenergy:fluids/oil_distilled/searing
+buildcrafttransport:item/plug_power_adaptor
+buildcraftcore:item/engine_redstone
+buildcraftenergy:fluids/oil_residue/searing
+buildcraftrobotics:item/robot/delivery
+buildcraftbuilders:block/builder/slot_template
+buildcraftcore:item/engine_creative
+buildcraftbuilders:block/builder/slot_empty
+buildcraftrobotics:item/robot/builder
+buildcraftenergy:fluids/fuel_mixed_light/searing
+buildcraftenergy:fluids/oil_residue/hot
+buildcraftrobotics:item/robot/empty
+buildcraftenergy:fluids/fuel_gaseous/cool
+buildcraftrobotics:item/robot/miner
+buildcraftenergy:item/engine_fe
+buildcraftrobotics:item/robot/leave_cutter
+buildcraftrobotics:item/robot/farmer
+buildcraftenergy:fluids/oil_residue/cool
+buildcraftenergy:fluids/fuel_mixed_heavy/searing
+buildcraftenergy:fluids/oil_dense/searing
+buildcraftenergy:fluids/fuel_gaseous/hot
+buildcraftenergy:fluids/oil_dense/hot
+buildcraftenergy:fluids/fuel_gaseous/searing
+buildcraftrobotics:item/robot/knight
+buildcraftenergy:fluids/fuel_dense/searing
+buildcraftenergy:fluids/oil/cool
+buildcraftenergy:fluids/oil_dense/cool
+buildcraftenergy:fluids/oil/hot
+buildcraftcore:item/volume_box
+buildcraftenergy:fluids/fuel_light/searing
+buildcraftfactory:item/heat_exchange_middle
+buildcraftenergy:fluids/fuel_dense/hot
+buildcraftfactory:item/distiller
+buildcraftenergy:fluids/fuel_dense/cool
+buildcraftenergy:item/engine_stone
+buildcraftlib:item/engine_base
+buildcraftenergy:fluids/oil_heavy/searing
+buildcraftrobotics:item/robot/butcher
+buildcraftrobotics:item/robot/pump
+buildcraftfactory:item/heat_exchange_start
+buildcraftbuilders:block/builder/slot_blueprint
+buildcraftenergy:fluids/fuel_mixed_heavy/hot
+buildcraftrobotics:item/robot/bomber
+buildcraftfactory:item/heat_exchange_end
+buildcraftrobotics:item/robot/stripes
+buildcraftrobotics:item/robot/harvester
+buildcraftenergy:fluids/fuel_light/hot
+buildcraftenergy:fluids/fuel_mixed_heavy/cool
+buildcraftenergy:fluids/oil/searing
+buildcraftenergy:item/engine_iron
+buildcraftenergy:fluids/oil_distilled/cool
+buildcraftenergy:fluids/oil_heavy/hot
+buildcraftenergy:fluids/oil_heavy/cool
+buildcraftenergy:fluids/fuel_mixed_light/hot
+buildcraftenergy:fluids/fuel_light/cool
+buildcraftenergy:fluids/fuel_mixed_light/cool
+buildcraftrobotics:item/robot/carrier
+""".split()
+
+
+class ResourceReload26Regression(unittest.TestCase):
+    def test_fluid_stitch_does_not_query_uninitialized_model_manager(self):
+        props = load_properties()
+        targets = ('1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge',
+                   '1.21.11-neoforge', '26.1.2-neoforge',
+                   '26.2-neoforge', '26.3-neoforge')
+        for target in targets:
+            with self.subTest(target=target):
+                layout = target_layout(target, props)
+                src = resolve_effective_source(layout, props,
+                    'src/main/java/buildcraft/lib/client/render/fluid/FluidRenderer.java')
+                self.assertIsNotNone(src)
+                code = src.read_text(encoding='utf-8')
+                stitch = code.split('public static void onTextureStitchPost(ClientAtlas.After event)', 1)[1]
+                stitch = stitch.split('private static void clearSpriteCache()', 1)[0]
+                self.assertIn('clearSpriteCache()', stitch)
+                self.assertNotIn('for (Fluid fluid : BuiltInRegistries.FLUID)', stitch)
+                self.assertNotIn('getStillTextureSafe(fluid)', stitch)
+                self.assertNotIn('getFlowingTextureSafe(fluid)', stitch)
+                self.assertIn('getFluidSprite(', code)
+                if target in ('26.2-neoforge', '26.3-neoforge'):
+                    self.assertIn('return switch (type)', code)
+                    self.assertIn('fluidSprite(fluid, true)', code)
+
+    def test_particle_references_are_all_defined_and_point_at_real_sprites(self):
+        for model in FLUID_RELOAD_MODEL_WARNINGS:
+            namespace, path = model.split(':', 1)
+            src = FLUID_RELOAD_ASSETS / namespace / 'models' / (path + '.json')
+            with self.subTest(model=model):
+                self.assertTrue(src.exists(), model)
+                data = json.loads(src.read_text(encoding='utf-8'))
+                particle = data['textures']['particle']
+                if particle.startswith('#'):
+                    self.assertIn(particle[1:], data['textures'])
+                    self.assertNotEqual(particle, data['textures'][particle[1:]])
+                else:
+                    ns, tex = particle.split(':', 1)
+                    self.assertTrue((FLUID_RELOAD_ASSETS / ns / 'textures' / (tex + '.png')).is_file(), particle)
+
+    def test_obsolete_bucket_models_and_plasma_are_absent(self):
+        # 1.21.11+/26.X buckets are registered as oil/cool_bucket etc.
+        # The old standalone bucketfuel/bucketoil/bucketredplasma IDs never
+        # existed as actual registered items. Their atlas override is unnecessary.
+        from source_layout import resolve_effective_source, target_layout
+
+        retired_names = ("bucketfuel", "bucketoil", "bucketredplasma", "glob_oil")
+        for name in retired_names:
+            src = FLUID_RELOAD_ASSETS / "buildcraftenergy/models/item" / (name + ".json")
+            self.assertFalse(src.exists(), name)
+        for name in ("bucket_fuel", "oil_bucket", "bucket_red_plasma", "glob_oil"):
+            src = FLUID_RELOAD_ASSETS / "buildcraftenergy/textures/items" / (name + ".png")
+            self.assertFalse(src.exists(), name)
+        for name in ("redplasma_still", "redplasma_flow"):
+            src = FLUID_RELOAD_ASSETS / "buildcraftenergy/textures/blocks/fluids" / (name + ".png")
+            self.assertFalse(src.exists(), name)
+            self.assertFalse(Path(str(src) + ".mcmeta").exists(), name)
+
+        props = load_properties()
+        for target in ('1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge'):
+            with self.subTest(target=target):
+                # Vanilla's item atlas is retained by Minecraft, but this mod
+                # must not overlay it with its two unregistered bucket sprites.
+                src = resolve_effective_source(target_layout(target, props), props,
+                    'src/main/resources/assets/minecraft/atlases/items.json')
+                self.assertIsNone(src)
+                # Check that the real modern bucket remains selectable.
+                bucket = resolve_effective_source(target_layout(target, props), props,
+                    'src/main/resources/assets/buildcraftenergy/items/oil/cool_bucket.json')
+                if target == '1.21.11-neoforge':
+                    # This generation synthesizes bucket item descriptors;
+                    # ResourcePipeline validates the materialized 1.21.11 copy.
+                    self.assertIsNone(bucket)
+                    continue
+                self.assertIsNotNone(bucket)
+                oil = json.loads(bucket.read_text(encoding='utf-8'))
+                self.assertEqual('neoforge:fluid_container', oil['model']['type'])
+                self.assertEqual('buildcraftenergy:oil', oil['model']['fluid'])
+
+        atlas_src = resolve_effective_source(
+            target_layout('1.21.11-neoforge', props), props,
+            'src/main/resources/assets/minecraft/atlases/blocks.json')
+        self.assertIsNotNone(atlas_src)
+        atlas = json.loads(atlas_src.read_text(encoding='utf-8'))
+        self.assertTrue(all('redplasma' not in json.dumps(sprite).lower()
+                            and 'bucket_fuel' not in json.dumps(sprite)
+                            for sprite in atlas['sources']))
+
+    def test_architect_keeps_six_different_faces(self):
+        for suffix in ('architect_on', 'architect_off'):
+            data = json.loads((FLUID_RELOAD_ASSETS / 'buildcraftbuilders/models/block' / (suffix + '.json')).read_text())
+            self.assertEqual('block/cube', data['parent'])
+            self.assertTrue({'up','down','north','south','east','west'}.issubset(data['textures']))
+
+    def test_builder_base_depends_only_on_facing(self):
+        paths = (
+            FLUID_RELOAD_ROOT / 'source-families/old/src/main/resources/assets/buildcraftbuilders/blockstates/builder.json',
+            FLUID_RELOAD_ROOT / 'source-families/1.21.X/src/main/resources/assets/buildcraftbuilders/blockstates/builder.json')
+        for src in paths:
+            data = json.loads(src.read_text())
+            self.assertEqual(4, sum(1 for part in data['multipart'] if part['apply']['model'].endswith('/main')))
+            for part in data['multipart']:
+                self.assertNotEqual('none|blueprint|template', part.get('when', {}).get('snapshot_type'), src)
+
+    @staticmethod
+    def png_dimensions(path: Path) -> tuple[int, int]:
+        header = path.read_bytes()[:24]
+        assert header.startswith(b"\x89PNG\r\n\x1a\n") and header[12:16] == b"IHDR"
+        return struct.unpack(">II", header[16:24])
+
+    def test_sprite_dimensions_match_animation_metadata_and_mip_level(self):
+        p = FLUID_RELOAD_ASSETS / 'buildcraftfactory/textures/blocks/plain_pipe/end.png'
+        self.assertEqual((16,16), self.png_dimensions(p))
+        for name in ('oil_still','fuel_still'):
+            p = FLUID_RELOAD_ASSETS / 'buildcraftenergy/textures/blocks/fluids' / (name + '.png')
+            meta = json.loads(Path(str(p) + '.mcmeta').read_text())['animation']['frames']
+            indices = [f if isinstance(f, int) else f['index'] for f in meta]
+            width, height = self.png_dimensions(p)
+            self.assertEqual((16,320),(width,height))
+            self.assertLess(max(indices),height // width)
+
+
+class OilWorldgenPolicy(unittest.TestCase):
+    """Keep the issue #65 replacement contract consistent across the seven targets."""
+
+    def test_modded_blocks_are_blocked_only_by_unbreakable_hardness(self):
+        from source_layout import resolve_effective_source, target_layout
+
+        props = load_properties()
+        for target in (
+            '1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge',
+            '1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge',
+        ):
+            with self.subTest(target=target):
+                source = resolve_effective_source(
+                    target_layout(target, props), props,
+                    'src/main/java/buildcraft/energy/generation/features/OilStructure.java',
+                )
+                self.assertIsNotNone(source)
+                code = source.read_text(encoding='utf-8')
+                policy = code.split('private static boolean canReplaceNaturalTerrain(', 1)[1].split(
+                    '\n    private static boolean isProtectedConstructionPath(', 1)[0]
+                hardness = 'if (state.getDestroySpeed(world, pos) < 0.0F) {'
+                modded = 'if (!"minecraft".equals(key.getNamespace())) {'
+                block_entity = 'if (state.hasBlockEntity()) {'
+                vanilla_wood = 'state.is(BlockTags.LOGS)'
+                protected = 'if (isProtectedConstructionPath(path)) {'
+
+                # A modded block's name, tags and block entity are irrelevant.
+                # The only veto before returning true must be unbreakable hardness
+                # (and an unavailable registry key, whose namespace is unknown).
+                for fragment in (hardness, modded, block_entity, vanilla_wood, protected):
+                    self.assertIn(fragment, policy)
+                self.assertRegex(policy, r'if \(!"minecraft"\.equals\(key\.getNamespace\(\)\)\) \{[\s\S]*?return true;\s*\}')
+                self.assertLess(policy.index(hardness), policy.index(modded))
+                self.assertLess(policy.index('if (key == null) {'), policy.index(modded))
+                self.assertLess(policy.index(modded), policy.index(block_entity))
+                self.assertLess(policy.index(modded), policy.index(vanilla_wood))
+                self.assertLess(policy.index(modded), policy.index(protected))
+                self.assertIn('return isNaturalTerrainPath(path);', policy)
+
+
+if __name__ == '__main__':
+    unittest.main()

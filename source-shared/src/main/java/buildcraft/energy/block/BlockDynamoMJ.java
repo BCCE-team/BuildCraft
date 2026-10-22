@@ -54,8 +54,10 @@ public class BlockDynamoMJ extends BlockBCTile_Neptune implements EntityBlock, I
 
     @Override
     public InteractionResult attemptRotation(Level world, BlockPos pos, BlockState state, Direction sideWrenched) {
+        // Wrench interaction is predicted on the client, but orientation is changed only by the server.
+        if (world.isClientSide) return InteractionResult.SUCCESS;
         BlockEntity tile = world.getBlockEntity(pos);
-        return tile instanceof TileDynamoMJ dynamo ? dynamo.attemptRotation() : InteractionResult.FAIL;
+        return tile instanceof TileDynamoMJ dynamo ? dynamo.attemptManualRotation() : InteractionResult.FAIL;
     }
 
     @Override

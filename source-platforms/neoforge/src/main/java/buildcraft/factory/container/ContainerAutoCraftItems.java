@@ -39,7 +39,11 @@ public class ContainerAutoCraftItems extends ContainerBCTile<TileAutoWorkbenchIt
 	}
 
     public ContainerAutoCraftItems(int containerId, Inventory player, IItemHandlerAdv invResult, IItemHandlerAdv invBlueprint, 
+//? if mc_26_x && (>=26.3) {
+        IItemHandlerAdv invMaterialFilter, IItemHandlerAdv invMaterials, IItemHandler resultClient, ContainerLevelAccess access) {
+//? } else {
     		IItemHandlerAdv invMaterialFilter, IItemHandlerAdv invMaterials, IItemHandler resultClient, ContainerLevelAccess access) {
+//?}
         super(BCFactoryGuis.MENU_AUTOWORK_BENCH_ITEM.get(), player, containerId, access);
         blueprintInv = invBlueprint;
         materialInv = invMaterials;
@@ -62,7 +66,10 @@ public class ContainerAutoCraftItems extends ContainerBCTile<TileAutoWorkbenchIt
         addFullPlayerInventory(115);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean clickMenuButton(Player player, int id) {
         if (player.isSpectator() || tile == null) {
             return false;

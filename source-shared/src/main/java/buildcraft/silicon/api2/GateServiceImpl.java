@@ -21,6 +21,7 @@ public final class GateServiceImpl implements GateService {
         Objects.requireNonNull(level, "level");
         Objects.requireNonNull(pos, "pos");
         Objects.requireNonNull(side, "side");
+        if (!level.hasChunkAt(pos)) return Optional.empty();
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (!(blockEntity instanceof TilePipeHolder holder)) return Optional.empty();
         if (!(holder.getPluggable(side) instanceof PluggableGate gate)) return Optional.empty();

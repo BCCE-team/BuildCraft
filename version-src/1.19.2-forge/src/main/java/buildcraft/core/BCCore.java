@@ -22,9 +22,11 @@ import buildcraft.core.client.render.RenderMarkerVolume;
 import buildcraft.core.client.render.RenderVolumeBoxes;
 import buildcraft.core.list.ContainerList;
 import buildcraft.core.list.GuiList;
+import buildcraft.core.item.ItemPaintbrush_BC8;
 import buildcraft.core.marker.PathCache;
 import buildcraft.core.marker.VolumeCache;
 import buildcraft.core.marker.volume.MessageVolumeBoxes;
+import buildcraft.core.marker.volume.BCCoreVolumeBoxEvents;
 import buildcraft.energy.BCEnergyFluids;
 import buildcraft.energy.tile.TileSpringOil;
 import buildcraft.lib.BCLibEventDist;
@@ -84,6 +86,7 @@ public class BCCore {
         ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCCoreConfig.config));
         MessageManager.registerMessageClass(BCModules.CORE, MessageVolumeBoxes.class, MessageVolumeBoxes.HANDLER, MessageVolumeBoxes::toBytes, MessageVolumeBoxes::new, Dist.CLIENT);
         MinecraftForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.addListener(ItemPaintbrush_BC8::onRightClickBlock);
         MinecraftForge.EVENT_BUS.register(BCLibEventDist.class);
         BCLibEventDist.registerGameplayEvents();
         IEventBus eventBus = MinecraftForge.EVENT_BUS;
@@ -91,6 +94,7 @@ public class BCCore {
             eventBus.addListener(RenderTickListener::renderOverlay);
             eventBus.addListener(RenderTickListener::renderLast);
         });
+        BCCoreVolumeBoxEvents.register();
         BCCoreStatements.preInit();
     }
 

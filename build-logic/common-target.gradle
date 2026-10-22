@@ -76,6 +76,8 @@ def sourceFamily = requiredProperty('source.family')
 def sourcePlatform = requiredProperty('source.platform')
 
 def sharedSourceRoot = new File(repositoryRoot, requiredProperty('source.shared_root'))
+def familyBaseRootValue = optionalProperty('source.family_base_root')
+def familyBaseSourceRoot = familyBaseRootValue ? new File(repositoryRoot, familyBaseRootValue) : null
 def familySourceRoot = new File(repositoryRoot, requiredProperty('source.root'))
 def platformSourceRoot = new File(repositoryRoot, requiredProperty('source.platform_root'))
 def familyPlatformRootKey = "source.family_platform.${sourceFamily}.${sourcePlatform}.root"
@@ -84,11 +86,15 @@ if (!familyPlatformRootValue) {
     throw new GradleException("Missing '${familyPlatformRootKey}' in build-config/common.properties")
 }
 def familyPlatformSourceRoot = new File(repositoryRoot, familyPlatformRootValue)
+def familyPlatformBaseRootValue = optionalProperty('source.family_platform_base_root')
+def familyPlatformBaseSourceRoot = familyPlatformBaseRootValue ? new File(repositoryRoot, familyPlatformBaseRootValue) : null
 def targetOverlayRoot = new File(repositoryRoot, requiredProperty('source.overlay_root'))
-def sourceLayers = [sharedSourceRoot, familySourceRoot, platformSourceRoot, familyPlatformSourceRoot, targetOverlayRoot]
+def sourceLayers = [sharedSourceRoot, familyBaseSourceRoot, familySourceRoot, platformSourceRoot,
+                    familyPlatformBaseSourceRoot, familyPlatformSourceRoot, targetOverlayRoot].findAll { it != null }
 
 def resolveSourceFile = { String relative ->
-    [targetOverlayRoot, familyPlatformSourceRoot, platformSourceRoot, familySourceRoot, sharedSourceRoot]
+    [targetOverlayRoot, familyPlatformSourceRoot, familyPlatformBaseSourceRoot, platformSourceRoot,
+     familySourceRoot, familyBaseSourceRoot, sharedSourceRoot].findAll { it != null }
             .collect { new File(it, relative) }.find { it.isFile() }
 }
 def targetAccessTransformer = resolveSourceFile('src/main/resources/META-INF/accesstransformer.cfg')
@@ -155,6 +161,57 @@ def prepareEffectiveSource = tasks.register('prepareEffectiveSource', Exec) {
             '--output', effectiveSourceRoot.get().asFile.absolutePath
 }
 
+// Languages live in BCCE-team/Localizations, not in maintained mod
+// source layers. Stage them under Gradle's ignored build directory and let
+// processResources package them identically for every Stonecutter target/loader.
+// The English source of truth remains in source-shared and is never replaced.
+def externalLocalizationsScript = new File(repositoryRoot, 'scripts/embed_localizations.py')
+def externalLocalizationsEnglish = new File(
+        repositoryRoot, 'source-shared/src/main/resources/assets/buildcraft/lang/en_us.json')
+def externalLocalizationsOutput = layout.buildDirectory.dir('generated-resources/external-localizations')
+def externalLocalizationsCache = layout.buildDirectory.dir('external-localizations/checkout')
+def externalLocalizationsPath = providers.gradleProperty('bcceLocalizationsDir')
+        .orElse(providers.environmentVariable('BCCE_LOCALIZATIONS_DIR')).getOrNull()
+def externalLocalizationsRef = providers.gradleProperty('bcceLocalizationsRef')
+        .orElse(providers.environmentVariable('BCCE_LOCALIZATIONS_REF')).getOrElse('main')
+def externalLocalizationsRemote = providers.gradleProperty('bcceLocalizationsRemote')
+        .getOrElse('https://github.com/BCCE-team/Localizations.git')
+
+def stageBuildCraftLocalizations = tasks.register('stageBuildCraftLocalizations', Exec) {
+    group = 'build setup'
+    description = "Stage external BuildCraft translations and guide pages for ${targetName}"
+    workingDir repositoryRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    inputs.file(externalLocalizationsScript)
+    inputs.file(externalLocalizationsEnglish)
+    inputs.property('localizationsRef', externalLocalizationsRef)
+    inputs.property('localizationsRemote', externalLocalizationsRemote)
+    inputs.property('localizationsPath', externalLocalizationsPath ?: '(auto)')
+    outputs.dir(externalLocalizationsOutput)
+    // Auto-fetched main is a moving reference; a previous stage must not
+    // prevent Gradle from checking for new translations on the next build.
+    outputs.upToDateWhen { false }
+    def cmd = [pythonExecutable, externalLocalizationsScript.absolutePath,
+               'stage', '--root', repositoryRoot.absolutePath,
+               '--english', externalLocalizationsEnglish.absolutePath,
+               '--cache', externalLocalizationsCache.get().asFile.absolutePath,
+               '--output', externalLocalizationsOutput.get().asFile.absolutePath,
+               '--ref', externalLocalizationsRef,
+               '--remote', externalLocalizationsRemote]
+    if (externalLocalizationsPath?.trim()) {
+        cmd.addAll(['--source', externalLocalizationsPath])
+    }
+    if (gradle.startParameter.offline) {
+        cmd.add('--offline')
+    }
+    commandLine cmd
+}
+
+tasks.named('processResources', ProcessResources) {
+    dependsOn stageBuildCraftLocalizations
+    from(externalLocalizationsOutput)
+}
+
 def effectiveSourceDir = effectiveSourceRoot.get().asFile
 def effectiveDirs = { String relative -> [new File(effectiveSourceDir, relative)] }
 
@@ -208,8 +265,10 @@ project.ext.bcTarget = [
         sourceFamily: sourceFamily,
         sourcePlatform: sourcePlatform,
         sharedSourceRoot: sharedSourceRoot,
+        familyBaseSourceRoot: familyBaseSourceRoot,
         familySourceRoot: familySourceRoot,
         platformSourceRoot: platformSourceRoot,
+        familyPlatformBaseSourceRoot: familyPlatformBaseSourceRoot,
         familyPlatformSourceRoot: familyPlatformSourceRoot,
         targetOverlayRoot: targetOverlayRoot,
         sourceLayers: sourceLayers,

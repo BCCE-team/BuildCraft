@@ -69,6 +69,16 @@ public class MessageUtil {
         DELAYED_CLIENT_TASKS.add(delay, task);
     }
 
+    /** Release captured worlds/players when the owning server session ends. */
+    public static void clearServerTasks() {
+        DELAYED_SERVER_TASKS.clear();
+    }
+
+    /** Deferred client work cannot be carried into the next connection. */
+    public static void clearClientTasks() {
+        DELAYED_CLIENT_TASKS.clear();
+    }
+
     public static void postServerTick() {
         for (Runnable runnable : DELAYED_SERVER_TASKS.advance()) {
             runnable.run();

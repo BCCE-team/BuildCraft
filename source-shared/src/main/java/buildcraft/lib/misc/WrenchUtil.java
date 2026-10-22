@@ -6,6 +6,9 @@ package buildcraft.lib.misc;
 
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.api.v2.BuildCraftRegistries;
+import buildcraft.api.v2.tool.WrenchAdapter;
+import buildcraft.api.v2.tool.WrenchUseContext;
 import buildcraft.lib.internal.tool.IToolWrench;
 
 import net.minecraft.world.InteractionHand;
@@ -23,8 +26,15 @@ public final class WrenchUtil {
         return BuildCraftApi.service(BuildCraftServices.WRENCHES).isWrench(stack);
     }
 
-    /** Notifies legacy interface-based wrenches after use; tag-only tools have no BuildCraft callback to invoke. */
+    /** Notifies registered adapters and the wrench item after a successful interaction. */
     public static void wrenchUsed(Player player, InteractionHand hand, ItemStack stack, HitResult hit) {
+        if (stack == null || stack.isEmpty()) return;
+        WrenchUseContext context = new WrenchUseContext(player, hand, stack, hit);
+        for (WrenchAdapter adapter : BuildCraftApi.registry(BuildCraftRegistries.WRENCH_ADAPTERS).values()) {
+            try {
+                if (adapter.recognizes(stack)) adapter.onUsed(context);
+            } catch (RuntimeException ignored) { }
+        }
         if (stack.getItem() instanceof IToolWrench wrench) {
             wrench.wrenchUsed(player, hand, stack, hit);
         }

@@ -8,6 +8,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
 
@@ -59,6 +60,39 @@ public class RenderTickListener {
     private static final String DIFF_START, DIFF_HEADER_FORMATTING;
 
     private static final Box LAST_RENDERED_MAP_LOC = new Box();
+    // Client-render-only memoization. MapLocationService.read constructs a ZonePlan from
+    // NBT; doing this twice per rendered frame is very expensive for large maps.
+    private static ClientLevel cachedMapWorld;
+    private static ItemStack cachedMainMap = ItemStack.EMPTY;
+    private static ItemStack cachedOffMap = ItemStack.EMPTY;
+    private static Optional<MapLocationView> cachedMainView = Optional.empty();
+    private static Optional<MapLocationView> cachedOffView = Optional.empty();
+
+    private static Optional<MapLocationView> readHeldMap(ItemStack stack, boolean primary, ClientLevel world) {
+        if (cachedMapWorld != world) {
+            cachedMapWorld = world;
+            cachedMainMap = ItemStack.EMPTY;
+            cachedOffMap = ItemStack.EMPTY;
+            cachedMainView = Optional.empty();
+            cachedOffView = Optional.empty();
+        }
+        ItemStack previous = primary ? cachedMainMap : cachedOffMap;
+        if (ItemStack.matches(previous, stack)) {
+            return primary ? cachedMainView : cachedOffView;
+        }
+        // Keep a frozen stack snapshot. ItemStack.matches checks the complete tag/component
+        // contents, so in-place map edits and dimension changes cannot reuse stale previews.
+        Optional<MapLocationView> view = BuildCraftApi.service(BuildCraftServices.MAP_LOCATIONS).read(stack);
+        if (primary) {
+            cachedMainMap = stack.copy();
+            cachedMainView = view;
+        } else {
+            cachedOffMap = stack.copy();
+            cachedOffView = view;
+        }
+        return view;
+    }
+
     private static final double MAP_LOCATION_RENDER_DISTANCE_SQ = 128.0 * 128.0;
     private static final int MAX_ZONE_RENDER_EDGES = 4096;
 
@@ -192,8 +226,12 @@ public class RenderTickListener {
         Item mainHandItem = mainHand.getItem();
         Item offHandItem = offHand.getItem();
 
-        var mapLocation = BuildCraftApi.service(BuildCraftServices.MAP_LOCATIONS).read(mainHand);
-        if (mapLocation.isPresent()) {
+        // A blank map location must not shadow an offhand preview or marker connector.
+var mapLocation = readHeldMap(mainHand, true, world);
+        if (mapLocation.isEmpty() || mapLocation.get().kind() == MapLocationKind.CLEAN) {
+            mapLocation = readHeldMap(offHand, false, world);
+        }
+        if (mapLocation.isPresent() && mapLocation.get().kind() != MapLocationKind.CLEAN) {
             renderMapLocation(poseStack, matrix, world, player, mapLocation.get());
         } else if (mainHandItem == BCCoreItems.MARKER_CONNECTOR.get() || offHandItem == BCCoreItems.MARKER_CONNECTOR.get()) {
             renderMarkerConnector(poseStack, matrix, world, player);
@@ -265,16 +303,26 @@ public class RenderTickListener {
 
     private static void renderMapPathSegment(PoseStack poseStack, Matrix4f matrix, Player player,
         BlockPos start, BlockPos end) {
-        if (start.equals(end) || !isNearPlayer(start, player) && !isNearPlayer(end, player)) {
-            return;
-        }
-        LaserData_BC8 laser = new LaserData_BC8(
+        if (start.equals(end)) return;
+        // Clip against the actual viewing sphere, not its two endpoints. A path crossing the viewer
+        // can have both endpoints thousands of blocks away. Also bound the geometry sent to the renderer.
+        Vec3 a = VecUtil.convertCenter(start);
+        Vec3 direction = VecUtil.convertCenter(end).subtract(a);
+        Vec3 relative = a.subtract(player.position());
+        double lengthSquared = direction.lengthSqr();
+        if (lengthSquared < 1.0E-12) return;
+        double projection = -relative.dot(direction) / lengthSquared;
+        double nearestSquared = relative.lengthSqr() - projection * projection * lengthSquared;
+        if (nearestSquared > MAP_LOCATION_RENDER_DISTANCE_SQ) return;
+        double halfWindow = Math.sqrt(Math.max(0.0, MAP_LOCATION_RENDER_DISTANCE_SQ - nearestSquared)
+            / lengthSquared);
+        double from = Math.max(0.0, projection - halfWindow);
+        double to = Math.min(1.0, projection + halfWindow);
+        if (from >= to) return;
+        LaserRenderer_BC8.renderLaserStatic(poseStack, matrix, new LaserData_BC8(
             BuildCraftLaserManager.STRIPES_WRITE_DIRECTION,
-            VecUtil.convertCenter(start),
-            VecUtil.convertCenter(end),
-            1 / 16.0
-        );
-        LaserRenderer_BC8.renderLaserStatic(poseStack, matrix, laser);
+            a.add(direction.scale(from)), a.add(direction.scale(to)), 1 / 16.0
+        ));
     }
 
     private static void renderMapZone(PoseStack poseStack, Matrix4f matrix, ClientLevel world, Player player,

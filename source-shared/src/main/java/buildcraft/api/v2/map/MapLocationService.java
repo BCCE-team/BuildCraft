@@ -8,14 +8,29 @@ public interface MapLocationService {
     Optional<MapLocationAdapter> adapter(ItemStack stack);
 
     default Optional<MapLocationView> read(ItemStack stack) {
-        return adapter(stack).flatMap(a -> a.read(stack));
+        if (stack == null || stack.isEmpty()) return Optional.empty();
+        try {
+            return adapter(stack).flatMap(a -> a.read(stack.copy()));
+        } catch (RuntimeException ignored) {
+            return Optional.empty();
+        }
     }
 
     default boolean write(ItemStack stack, MapLocationView location, OperationMode mode) {
-        return adapter(stack).map(a -> a.write(stack, location, mode)).orElse(false);
+        if (stack == null || stack.isEmpty() || location == null || mode == null) return false;
+        try {
+            return adapter(stack).map(a -> a.write(mode == OperationMode.SIMULATE ? stack.copy() : stack, location, mode)).orElse(false);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     default boolean clear(ItemStack stack, OperationMode mode) {
-        return adapter(stack).map(a -> a.clear(stack, mode)).orElse(false);
+        if (stack == null || stack.isEmpty() || mode == null) return false;
+        try {
+            return adapter(stack).map(a -> a.clear(mode == OperationMode.SIMULATE ? stack.copy() : stack, mode)).orElse(false);
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 }

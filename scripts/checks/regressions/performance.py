@@ -125,7 +125,7 @@ for rel in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/lib/client/render/fluid/FluidRenderer.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/lib/client/render/fluid/FluidRenderer.java",
     "source-platforms/neoforge/src/main/java/buildcraft/lib/client/render/fluid/FluidRenderer.java",
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/lib/client/render/fluid/FluidRenderer.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/client/render/fluid/FluidRenderer.java",
 ):
     require(
         rel,
@@ -286,7 +286,7 @@ for platform in ("forge", "neoforge"):
         "getParticleTexture(PipeDefinition definition)",
         "itemModelCenter",
     )
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/lib/client/model/ModelUtil.java",
         "case WEST:", "case EAST:", "case DOWN:", "case UP:", "case NORTH:", "case SOUTH:",
@@ -317,11 +317,11 @@ for family in ("legacy", "modern"):
 # Legacy/1.21.1 still build the pipe item body from cached quads. 1.21.11 instead keeps the
 # already-baked JSON item body and composes only the colour overlay, avoiding an empty/stale custom body after reload.
 require(
-    "source-families/legacy/src/main/java/buildcraft/transport/client/model/ModelPipeItem.java",
+    "source-families/old/src/main/java/buildcraft/transport/client/model/ModelPipeItem.java",
     "QUADS_TOP", "QUADS_CENTER", "QUADS_BOTTOM", "createSectionQuads",
 )
 require(
-    "source-families/modern/src/main/java/buildcraft/transport/client/model/ModelPipeItem.java",
+    "source-families/1.21.X/src/main/java/buildcraft/transport/client/model/ModelPipeItem.java",
     "private final ItemModel baseModel",
     "this.colours[0] = baseModel",
     "new CompositeModel(List.of(baseModel",
@@ -364,7 +364,7 @@ require(
     "SignalPortProvider",
     "gatesChanged = true",
 )
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/transport/wire/WorldSavedDataWireSystems.java",
         "getExternalPort",

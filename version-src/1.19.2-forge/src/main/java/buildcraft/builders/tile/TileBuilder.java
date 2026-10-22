@@ -198,7 +198,9 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     	}
     	@Override
     	public boolean handleGameEvent(ServerLevel level, Message msg) {
-    		return blueprint.handleGameEvent(level, msg) || template.handleGameEvent(level, msg);
+			boolean blueprintChanged = blueprint.handleGameEvent(level, msg);
+            boolean templateChanged = template.handleGameEvent(level, msg);
+            return blueprintChanged || templateChanged;
     	}
     };
 
@@ -370,9 +372,8 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
                 rotation = Rotation.NONE;
             }
             BlockPos buildBasePos = getCurrentBasePos();
-            if (!canRotate) {
-                buildBasePos = adjustBasePosIfOverlappingBuilder(buildBasePos, rotation);
-            }
+            // Rotating a blueprint must not allow its own placement/excavation to touch this Builder.
+            buildBasePos = adjustBasePosIfOverlappingBuilder(buildBasePos, rotation);
             if (snapshot.getType() == EnumSnapshotType.TEMPLATE) {
                 templateBuildingInfo = ((Template) snapshot).new BuildingInfo(buildBasePos, rotation);
             }
@@ -649,7 +650,11 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
         }
         if (side == BCNetworkSide.SERVER) {
             if (id == NET_CAN_EXCAVATE) {
-                canExcavate = buffer.readBoolean();
+                boolean selected = buffer.readBoolean();
+                if (selected != canExcavate) {
+                    canExcavate = selected;
+                    setChanged();
+                }
                 sendNetworkUpdate(NET_CAN_EXCAVATE);
             }
         }

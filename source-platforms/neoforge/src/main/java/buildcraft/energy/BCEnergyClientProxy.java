@@ -13,8 +13,16 @@ import buildcraft.energy.client.gui.GuiEngineIron_BC8;
 import buildcraft.energy.client.gui.GuiEngineStone_BC8;
 import buildcraft.energy.client.render.RenderDynamoMJ;
 import buildcraft.energy.fluid.BCFluidType;
+//? if mc_26_x {
+import buildcraft.lib.fluid.BCFluid;
+//? } else {
+//?}
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+//? if mc_26_x {
+import net.neoforged.neoforge.client.event.RegisterFluidModelsEvent;
+//? } else {
+//?}
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
@@ -26,8 +34,17 @@ import org.joml.Vector4f;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+//? if mc_26_x {
+import net.minecraft.client.renderer.block.FluidModel;
+import net.minecraft.client.resources.model.sprite.Material;
+//? } else {
+//?}
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
+//? if mc_26_x {
+import net.neoforged.neoforge.client.fluid.FluidTintSources;
+//? } else {
+//?}
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 //?}
 
@@ -41,6 +58,37 @@ public abstract class BCEnergyClientProxy {
 
 
     //? if >=1.21.9 {
+//? if mc_26_x {
+    @SubscribeEvent
+    public static void registerFluidModels(RegisterFluidModelsEvent event) {
+        int count = Math.min(BCEnergyFluids.OIL_TYPE.size(), BCEnergyFluids.OIL_SOURCE.size());
+        for (int i = 0; i < count; i++) {
+            BCFluidType type = BCEnergyFluids.OIL_TYPE.get(i).get();
+            BCFluid source = BCEnergyFluids.OIL_SOURCE.get(i).get();
+            FluidModel.Unbaked model = new FluidModel.Unbaked(
+                new Material(type.getStillTextureLocation()),
+                new Material(type.getFlowTextureLocation()),
+                null,
+                FluidTintSources.constant(type.getFluidTintColor())
+            );
+            event.register(model, source, source.getFlowing());
+        }
+
+        if (BCEnergyFluids.SPOUT_OIL_SOURCE != null && BCEnergyFluids.SPOUT_OIL_FLOWING != null
+            && !BCEnergyFluids.OIL_TYPE.isEmpty()) {
+            BCFluidType type = BCEnergyFluids.OIL_TYPE.get(0).get();
+            FluidModel.Unbaked model = new FluidModel.Unbaked(
+                new Material(type.getStillTextureLocation()),
+                new Material(type.getFlowTextureLocation()),
+                null,
+                FluidTintSources.constant(type.getFluidTintColor())
+            );
+            event.register(model, BCEnergyFluids.SPOUT_OIL_SOURCE.get(), BCEnergyFluids.SPOUT_OIL_FLOWING.get());
+        }
+    }
+
+//? } else {
+//?}
     @SubscribeEvent
     public static void registerFluidClientExtensions(RegisterClientExtensionsEvent event) {
         for (var holder : BCEnergyFluids.OIL_TYPE) {
@@ -61,7 +109,11 @@ public abstract class BCEnergyClientProxy {
 
                 @Override
                 public ResourceLocation getOverlayTexture() {
+//? if mc_26_x {
+                    // Preserve BuildCraft fluid block rendering: these fluids use their own
+//? } else {
                     // Keep block-side rendering identical to 1.21.1: BuildCraft fluids use their own
+//?}
                     // still/flow textures instead of borrowing the vanilla water overlay.
                     return null;
                 }
@@ -77,11 +129,23 @@ public abstract class BCEnergyClientProxy {
                 }
 
                 @Override
+//? if mc_26_x {
+                public void modifyFogColor(Camera camera, float partialTick, ClientLevel level,
+//? } else {
                 public Vector4f modifyFogColor(Camera camera, float partialTick, ClientLevel level,
+//?}
                         int renderDistance, float darkenWorldAmount, Vector4f fluidFogColor) {
+//? if mc_26_x {
+                    // BuildCraft deliberately uses a neutral grey immersion fog for every
+//? } else {
                     // 1.21.1 deliberately uses a neutral grey immersion fog for every BuildCraft
+//?}
                     // oil/fuel variant. Preserve the incoming alpha used by the modern fog pipeline.
+//? if mc_26_x {
+                    fluidFogColor.set(0.5f, 0.5f, 0.5f, fluidFogColor.w);
+//? } else {
                     return new Vector4f(0.5f, 0.5f, 0.5f, fluidFogColor.w);
+//?}
                 }
             }, type);
         }

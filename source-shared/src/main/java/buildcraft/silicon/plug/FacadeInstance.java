@@ -39,6 +39,9 @@ public class FacadeInstance {
         if (list.isEmpty()) {
             return FacadeInstance.createSingle(FacadeStateManager.defaultState, false);
         }
+        if (list.size() > 17) {
+            throw new IllegalArgumentException("Too many facade phases: " + list.size());
+        }
         FacadePhasedState[] states = new FacadePhasedState[list.size()];
         for (int i = 0; i < list.size(); i++) {
             states[i] = FacadePhasedState.readFromNbt(list.getCompound(i));
@@ -61,6 +64,9 @@ public class FacadeInstance {
     public static FacadeInstance readFromBuffer(FriendlyByteBuf buf) {
         boolean isHollow = buf.readBoolean();
         int count = buf.readShort();
+        if (count < 1 || count > 17) {
+            throw new IllegalArgumentException("Invalid facade phase count: " + count);
+        }
         FacadePhasedState[] states = new FacadePhasedState[count];
         for (int i = 0; i < count; i++) {
             states[i] = FacadePhasedState.readFromBuffer(buf);
@@ -69,6 +75,9 @@ public class FacadeInstance {
     }
 
     public void writeToBuffer(FriendlyByteBuf buf) {
+        if (phasedStates.length < 1 || phasedStates.length > 17) {
+            throw new IllegalStateException("Invalid facade phase count: " + phasedStates.length);
+        }
         buf.writeBoolean(isHollow);
         buf.writeShort(phasedStates.length);
         for (FacadePhasedState phasedState : phasedStates) {
@@ -87,7 +96,7 @@ public class FacadeInstance {
 
     @Nullable
     public FacadeInstance withState(FacadePhasedState state) {
-        if (canAddColour(state.activeColour)) {
+        if (phasedStates.length < 17 && canAddColour(state.activeColour)) {
             FacadePhasedState[] newStates = Arrays.copyOf(phasedStates, phasedStates.length + 1);
             newStates[newStates.length - 1] = state;
             return new FacadeInstance(newStates, isHollow);

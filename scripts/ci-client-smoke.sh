@@ -102,6 +102,49 @@ mkdir -p "$run_dir"
 rm -f "$latest_log"
 : > "$client_log"
 
+# Minecraft 26.3 switched to SDL3/RenderPearl. Under Xvfb its OpenGL context
+# requests a GLX visual that Mesa's virtual display does not expose. Provide
+# Mesa Lavapipe's real Vulkan WSI/device instead of skipping the client smoke.
+# Earlier targets retain their existing OpenGL setup and environment.
+if [[ "$target" == "26.3-neoforge" ]]; then
+  lavapipe_icd=""
+  for candidate in /usr/share/vulkan/icd.d/lvp_icd.x86_64.json /usr/share/vulkan/icd.d/lvp_icd.json; do
+    if [[ -f "$candidate" ]]; then
+      lavapipe_icd="$candidate"
+      break
+    fi
+  done
+  if [[ -z "$lavapipe_icd" ]]; then
+    echo "Minecraft 26.3 needs the Mesa Lavapipe Vulkan ICD (mesa-vulkan-drivers)." >&2
+    exit 2
+  fi
+  export VK_DRIVER_FILES="$lavapipe_icd"
+  export VK_ICD_FILENAMES="$lavapipe_icd"
+  export SDL_VIDEO_DRIVER=x11
+  export LIBGL_ALWAYS_SOFTWARE=1
+  echo "Minecraft 26.3: using Mesa Lavapipe Vulkan ICD $lavapipe_icd"
+
+  if command -v vulkaninfo >/dev/null 2>&1; then
+    vulkan_probe="$(mktemp)"
+    if ! xvfb-run -a -s '-screen 0 1280x720x24' vulkaninfo > "$vulkan_probe" 2>&1; then
+      echo "Lavapipe failed to initialize under Xvfb:" >&2
+      tail -n 60 "$vulkan_probe" >&2
+      rm -f "$vulkan_probe"
+      exit 2
+    fi
+    for extension in VK_KHR_surface VK_KHR_xcb_surface VK_KHR_swapchain; do
+      if ! grep -Fq "$extension" "$vulkan_probe"; then
+        echo "Lavapipe is missing required Vulkan extension: $extension" >&2
+        tail -n 60 "$vulkan_probe" >&2
+        rm -f "$vulkan_probe"
+        exit 2
+      fi
+    done
+    rm -f "$vulkan_probe"
+    echo "Lavapipe Vulkan display/swapchain extensions: OK"
+  fi
+fi
+
 # The JEI-only profile keeps the client small while still exercising BuildCraft's
 # recipe-viewer registration in addition to model bake, texture stitching and GUI classloading.
 echo "Starting client smoke ${generation}/${target} (profile=${runtime_profile}, timeout=${startup_timeout}s)."
@@ -128,6 +171,15 @@ while (( SECONDS < deadline )); do
 
   if grep -Eiq "$fatal_regex" "${logs[@]}" 2>/dev/null; then
     echo "Client reported a fatal startup/render error."
+    show_tail
+    exit 1
+  fi
+  # In 26.3 both rendering backends failing means startup is impossible. Fail
+  # immediately rather than waiting the entire client startup timeout.
+  if [[ "$target" == "26.3-neoforge" ]] \
+      && grep -Eiq 'Failed to create backend OpenGL' "${logs[@]}" 2>/dev/null \
+      && grep -Eiq 'Failed to create backend Vulkan' "${logs[@]}" 2>/dev/null; then
+    echo "Minecraft 26.3 has no usable OpenGL or Vulkan rendering backend."
     show_tail
     exit 1
   fi

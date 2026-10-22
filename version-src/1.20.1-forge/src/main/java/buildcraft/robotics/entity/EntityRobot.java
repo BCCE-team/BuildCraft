@@ -21,6 +21,7 @@ import buildcraft.lib.internal.core.BlockIndex;
 import buildcraft.lib.internal.area.IZone;
 import buildcraft.lib.internal.mj.MjBattery;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
+import buildcraft.robotics.internal.api2.ApiTaskAI;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.api.v2.robot.RobotEventKind;
@@ -1458,12 +1459,21 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
 
     @Override
     public void onChunkUnload() {
+        if (!getCommandSenderWorld().isClientSide && mainAI != null) mainAI.onUnload();
+        if (level() instanceof ServerLevel && getActiveAI() instanceof ApiTaskAI task) {
+            task.suspendForUnload();
+        }
         IRobotRegistry registry = getRegistry();
         if (registry != null) registry.unloadRobot(this);
     }
 
     @Override
     public void remove(RemovalReason reason) {
+        if (!getCommandSenderWorld().isClientSide && mainAI != null) mainAI.onUnload();
+        if (level() instanceof ServerLevel && getActiveAI() instanceof ApiTaskAI task) {
+            if (reason.shouldDestroy()) task.abort();
+            else task.suspendForUnload();
+        }
         IRobotRegistry registry = getRegistry();
         if (!level().isClientSide && !convertingToItems && registry != null) {
             if (reason.shouldDestroy()) {
@@ -1541,14 +1551,16 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
 
     @Override
     public void setMainStation(DockingStation station) {
-        if (linkedStation != null && linkedStation != station) {
-            linkedStation.unsafeRelease(this);
-        }
+        // Stage the destination coordinates before releasing the previous home link.
+        // A malformed/unloaded station must not leave the robot bound to nowhere.
+        BlockIndex newStationIndex = station == null ? null : copyIndex(station.index());
+        if (station != null && newStationIndex == null) return;
+        DockingStation previous = linkedStation;
         linkedStation = station;
         if (station != null) {
             mainStationReleasedManually = false;
             station.setLevel(level());
-            linkedStationIndex = copyIndex(station.index());
+            linkedStationIndex = newStationIndex;
             linkedStationSide = station.side();
             rememberMainStation(linkedStationIndex, linkedStationSide);
         } else {
@@ -1556,6 +1568,9 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
             // stranded robot should return so it can be found and automatically reconnect when the dock reappears.
             linkedStationIndex = null;
             linkedStationSide = null;
+        }
+        if (previous != null && previous != station) {
+            previous.unsafeRelease(this);
         }
     }
 

@@ -34,12 +34,12 @@ def forbid(rel, *tokens):
 
 # Exact-stack semantics: preserve the 1.19 reference branch, but require NBT/components on newer targets.
 require(
-    "source-families/legacy/src/main/java/buildcraft/lib/inventory/filter/ArrayStackFilter.java",
+    "source-families/old/src/main/java/buildcraft/lib/inventory/filter/ArrayStackFilter.java",
     "ItemStack.isSame(s, stack)",
     "ItemStack.isSameItemSameTags(s, stack)",
 )
 require(
-    "source-families/modern/src/main/java/buildcraft/lib/inventory/filter/ArrayStackFilter.java",
+    "source-families/1.21.X/src/main/java/buildcraft/lib/inventory/filter/ArrayStackFilter.java",
     "ItemStack.isSameItemSameComponents(s, stack)",
 )
 # Workbench material changes must include count-only mutations. ItemStack.matches compares
@@ -79,7 +79,7 @@ require(
     "OperationMode.EXECUTE",
     ".consumesAction()",
 )
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/ai/AIRobotStripesHandler.java",
         "return stack.getItem() instanceof BlockItem;",
@@ -99,7 +99,7 @@ for platform in ("forge", "neoforge"):
     )
 
 # Robotics must authorize the actual mutation, not only a simulation/preflight.
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/ai/AIRobotBreak.java",
         "RobotAutomationSupport.actor(robot), OperationMode.SIMULATE",
@@ -193,7 +193,7 @@ for platform in ("forge", "neoforge"):
     )
     forbid(library, "snapshot.key = new Snapshot.Key(snapshot.key, (Snapshot.Header) null);")
 
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/builders/snapshot/MessageSnapshotRequest.java",
         "Snapshot transientSnapshot = snapshot.copy();",

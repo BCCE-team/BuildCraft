@@ -72,7 +72,7 @@ public class MessageMultiPipeItem {
     }
 
     public boolean append(BlockPos pos, int stackId, int stackCount, boolean toCenter, Direction side,
-        DyeColor colour, int timeToDest) {
+        DyeColor colour, int timeToDest, boolean pausedAtCenter) {
         List<TravellingItemData> list = items.get(pos);
         if (list == null) {
             if (items.size() >= MAX_POSITIONS) {
@@ -84,7 +84,7 @@ public class MessageMultiPipeItem {
         if (list.size() >= MAX_ITEMS_PER_PIPE) {
             return false;
         }
-        list.add(new TravellingItemData(stackId, stackCount, toCenter, side, colour, timeToDest));
+        list.add(new TravellingItemData(stackId, stackCount, toCenter, side, colour, timeToDest, pausedAtCenter));
         return true;
     }
 
@@ -95,15 +95,17 @@ public class MessageMultiPipeItem {
         public final Direction side;
         public final @Nullable DyeColor colour;
         public final int timeToDest;
+        public final boolean pausedAtCenter;
 
         public TravellingItemData(int stackId, int stackCount, boolean toCenter, Direction side, DyeColor colour,
-            int timeToDest) {
+            int timeToDest, boolean pausedAtCenter) {
             this.stackId = stackId;
             this.stackCount = stackCount;
             this.toCenter = toCenter;
             this.side = side;
             this.colour = colour;
             this.timeToDest = timeToDest;
+            this.pausedAtCenter = pausedAtCenter;
         }
 
         TravellingItemData(FriendlyByteBuf buf) {
@@ -119,6 +121,7 @@ public class MessageMultiPipeItem {
             if (timeToDest < 0 || timeToDest > 1_000_000) {
                 throw new DecoderException("Invalid travelling item travel time: " + timeToDest);
             }
+            pausedAtCenter = buf.readBoolean();
         }
 
         void toBuffer(FriendlyByteBuf buf) {
@@ -128,6 +131,7 @@ public class MessageMultiPipeItem {
             buf.writeEnum(side);
             MessageUtil.writeEnumOrNull(buf, colour);
             buf.writeVarInt(timeToDest);
+            buf.writeBoolean(pausedAtCenter);
         }
     }
 

@@ -25,7 +25,11 @@ import buildcraft.robotics.BCRoboticsSprites;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x && (>=26.3) {
+import net.neoforged.neoforge.transfer.fluid.FluidUtil;
+//? } else {
 import net.neoforged.neoforge.fluids.FluidUtil;
+//?}
 
 public class ActionRobotFilter extends BCStatement implements IActionInternal {
 
@@ -33,22 +37,37 @@ public class ActionRobotFilter extends BCStatement implements IActionInternal {
         super("buildcraft:robot.work_filter");
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public int maxParameters() { return 3; }
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public int minParameters() { return 1; }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public IStatementParameter createParameter(int index) {
         return StatementParameterItemStack.EMPTY;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public Component getDescription() {
         return Component.translatable("gate.action.robot.filter");
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void actionActivate(IStatementContainer container, IStatementParameter[] parameters) {
         // Filter is used passively by the robot AI, not actively
     }
@@ -105,12 +124,17 @@ public class ActionRobotFilter extends BCStatement implements IActionInternal {
             if (slot.statement instanceof ActionRobotFilter && slot.parameters != null) {
                 for (IStatementParameter parameter : slot.parameters) {
                     if (parameter == null) continue;
+//? if mc_26_x && (>=26.3) {
+                    FluidStack contained = FluidUtil.getFirstStackContained(parameter.getItemStack());
+                    if (!contained.isEmpty()) result.add(contained.copy());
+//? } else {
                     Optional<FluidStack> contained = FluidUtil.getFluidContained(parameter.getItemStack());
                     contained.ifPresent(fluid -> {
                         if (!fluid.isEmpty()) {
                             result.add(fluid.copy());
                         }
                     });
+//?}
                 }
             }
         }
@@ -179,10 +203,19 @@ public class ActionRobotFilter extends BCStatement implements IActionInternal {
         boolean hasFilter = false;
         for (IStatementParameter parameter : parameters) {
             if (parameter == null) continue;
+//? if mc_26_x && (>=26.3) {
+            FluidStack contained = FluidUtil.getFirstStackContained(parameter.getItemStack());
+            if (!contained.isEmpty()) {
+//? } else {
             Optional<FluidStack> contained = FluidUtil.getFluidContained(parameter.getItemStack());
             if (contained.isPresent() && !contained.get().isEmpty()) {
+//?}
                 hasFilter = true;
+//? if mc_26_x && (>=26.3) {
+                if (filter == null || filter.matches(contained)) {
+//? } else {
                 if (filter == null || filter.matches(contained.get())) {
+//?}
                     return true;
                 }
             }
@@ -190,7 +223,10 @@ public class ActionRobotFilter extends BCStatement implements IActionInternal {
         return !hasFilter;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public ISprite getSprite() {
         return BCRoboticsSprites.ACTION_ROBOT_FILTER;
     }

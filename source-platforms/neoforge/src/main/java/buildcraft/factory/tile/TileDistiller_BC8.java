@@ -99,6 +99,8 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
 
     private DistillationRecipeDefinition currentRecipe;
     private long distillPower = 0;
+    // Progress paid for but cancelled when output tanks or recipes changed.
+    private long pendingPowerRefund = 0;
     private boolean hasWork, isActive = false;
     private final AverageLong powerAvg = new AverageLong(100);
     private final SafeTimeTracker updateTracker = new SafeTimeTracker(BCCoreConfig.networkUpdateRate, 2);
@@ -150,6 +152,7 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
         nbt.put("tanks", tankManager.serializeNBT(registries));
         nbt.put("battery", mjBattery.serializeNBT(registries));
         bcData.writeLong("distillPower", distillPower);
+        bcData.writeLong("pendingPowerRefund", pendingPowerRefund);
         powerAvg.writeToNbt(nbt, "powerAvg");
 	}
 
@@ -161,7 +164,8 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
 		super.readData(bcData);
         tankManager.deserializeNBT(registries, bcData.readCompound("tanks"));
         mjBattery.deserializeNBT(registries, bcData.readCompound("battery"));
-        distillPower = bcData.readLong("distillPower");
+        distillPower = Math.max(0L, bcData.readLong("distillPower"));
+        pendingPowerRefund = Math.max(0L, bcData.readLong("pendingPowerRefund"));
         powerAvg.readFromNbt(nbt, "powerAvg");
 	}
 
@@ -246,13 +250,14 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
             clientModelData.tick();
             return;
         }
+        long previousDistillPower = distillPower;
         powerAvg.tick();
         changedSinceNetUpdate |= powerAvgClient != powerAvg.getAverageLong();
+        refundPendingPower();
 
         currentRecipe = MachineRecipeApiBridge.findDistillation(tankIn.getFluid());
         if (currentRecipe == null) {
-            mjBattery.addPowerChecking(distillPower, FluidAction.EXECUTE);
-            distillPower = 0;
+            queueProgressRefund();
             isActive = false;
             hasWork = false;
         } else {
@@ -286,8 +291,7 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
                 }
             } else {
                 hasWork = false;
-                mjBattery.addPowerChecking(distillPower, FluidAction.EXECUTE);
-                distillPower = 0;
+                queueProgressRefund();
                 isActive = false;
             }
         }
@@ -297,8 +301,31 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
             sendNetworkUpdate(NET_RENDER_DATA);
             changedSinceNetUpdate = false;
         }
+        // Persist in-flight MJ without marking the chunk dirty on every active tick.
+        // Clearing or completing a recipe must still be saved immediately.
+        if (distillPower != previousDistillPower && (distillPower == 0 || level.getGameTime() % 20 == 0)) {
+            markChunkDirty();
+        }
     }
     
+
+    private void queueProgressRefund() {
+        if (distillPower <= 0) return;
+        pendingPowerRefund += Math.min(distillPower, Long.MAX_VALUE - pendingPowerRefund);
+        distillPower = 0;
+        markChunkDirty();
+        refundPendingPower();
+    }
+
+    private void refundPendingPower() {
+        long free = Math.max(0L, mjBattery.getCapacity() - mjBattery.getStored());
+        long canRefund = Math.min(free, pendingPowerRefund);
+        if (canRefund <= 0) return;
+        // Use the checked rate-independent stored-buffer operation for a paid refund.
+        mjBattery.addPower(canRefund, FluidAction.EXECUTE);
+        pendingPowerRefund -= canRefund;
+        markChunkDirty();
+    }
 
     @Override
     public IdAllocator getIdAllocator() {

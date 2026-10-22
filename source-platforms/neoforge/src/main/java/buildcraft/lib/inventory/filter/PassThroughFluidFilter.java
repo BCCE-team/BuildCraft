@@ -13,7 +13,10 @@ import net.neoforged.neoforge.fluids.FluidStack;
 /** Returns true if the stack matches any one one of the filter stacks. */
 public class PassThroughFluidFilter implements IFluidFilter {
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean matches(FluidStack fluid) {
         return fluid != null;
     }

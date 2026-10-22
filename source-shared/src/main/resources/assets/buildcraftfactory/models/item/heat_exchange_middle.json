@@ -60,6 +60,7 @@
         }
     ],
     "textures": {
+        "particle": "#sprite_a",
         "sprite_a": "buildcraftfactory:blocks/heat_exchange/sprite_a",
         "sprite_b": "buildcraftfactory:blocks/heat_exchange/sprite_b"
     }

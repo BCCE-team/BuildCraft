@@ -38,6 +38,8 @@ public class BCPermissions {
     public static final ResourceLocation SOURCE_PUMP = id("pump");
     public static final ResourceLocation SOURCE_FLOOD_GATE = id("flood_gate");
     public static final ResourceLocation SOURCE_MINING_WELL = id("mining_well");
+    public static final ResourceLocation SOURCE_HEAT_EXCHANGE = id("heat_exchange");
+    public static final ResourceLocation SOURCE_WATER_GEL = id("water_gel");
     public static final ResourceLocation SOURCE_STRIPES_PIPE = id("stripes_pipe");
 
     protected BCPermissions() {}

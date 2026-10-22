@@ -15,7 +15,11 @@ import java.util.function.Function;
 
 import com.google.common.base.Splitter;
 
+//? if mc_26_x && (>=26.2) {
+import buildcraft.lib.compat.minecraft.text.BCTextFormat;
+//? } else {
 import net.minecraft.ChatFormatting;
+//?}
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.world.phys.Vec3;
@@ -33,7 +37,10 @@ public final class StringUtilBC {
      * deliberately small: it is only provenance for live UI strings, not persistent application state.
      */
     private static final Map<String, String> FORMAT_SOURCES = new LinkedHashMap<>(128, 0.75F, true) {
+//? if mc_26_x && (>=26.2) {
+//? } else {
         @Override
+//?}
         protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
             return size() > 512;
         }
@@ -51,18 +58,30 @@ public final class StringUtilBC {
     }
 
     /** Formats a string to be displayed on a white background (for example a book background), replacing any
+//? if mc_26_x && (>=26.2) {
+     * close-to-white colours with darker variants. Replaces instances of {@link BCTextFormat} values. */
+//? } else {
      * close-to-white colours with darker variants. Replaces instances of {@link ChatFormatting} values. */
+//?}
     public static String formatStringForWhite(String string) {
         return formatStringImpl(string, ColourUtil.getTextFormatForWhite);
     }
 
     /** Formats a string to be displayed on a black background (for example an item tooltip), replacing any
+//? if mc_26_x && (>=26.2) {
+     * close-to-white colours with darker variants. Replaces instances of {@link BCTextFormat} values. */
+//? } else {
      * close-to-white colours with darker variants. Replaces instances of {@link ChatFormatting} values. */
+//?}
     public static String formatStringForBlack(String string) {
         return formatStringImpl(string, ColourUtil.getTextFormatForBlack);
     }
 
+//? if mc_26_x && (>=26.2) {
+    private static String formatStringImpl(String string, Function<BCTextFormat, BCTextFormat> fn) {
+//? } else {
     private static String formatStringImpl(String string, Function<ChatFormatting, ChatFormatting> fn) {
+//?}
         String source;
         synchronized (FORMAT_SOURCES) {
             source = FORMAT_SOURCES.getOrDefault(string, string);
@@ -73,13 +92,29 @@ public final class StringUtilBC {
             if (c == '\u00a7' && source.length() > i + 1) {
                 i++;
                 char after = source.charAt(i);
+//? if mc_26_x && (>=26.2) {
+                BCTextFormat colour = null;
+//? } else {
                 ChatFormatting colour = null;
+//?}
                 if (after >= '0' && after <= '9') {
+//? if mc_26_x && (>=26.2) {
+                    colour = BCTextFormat.getById(after - '0');
+//? } else {
                     colour = ChatFormatting.getById(after - '0');
+//?}
                 } else if (after >= 'a' && after <= 'f') {
+//? if mc_26_x && (>=26.2) {
+                    colour = BCTextFormat.getById(after - 'a' + 10);
+//? } else {
                     colour = ChatFormatting.getById(after - 'a' + 10);
+//?}
                 } else if (after >= 'A' && after <= 'F') {
+//? if mc_26_x && (>=26.2) {
+                    colour = BCTextFormat.getById(after - 'A' + 10);
+//? } else {
                     colour = ChatFormatting.getById(after - 'A' + 10);
+//?}
                 }
                 if (colour == null) {
                     out.append(c).append(after);
@@ -149,7 +184,10 @@ public final class StringUtilBC {
     enum BasicReadableStringComparator implements Comparator<String> {
         INSTANCE;
 
+//? if mc_26_x && (>=26.2) {
+//? } else {
         @Override
+//?}
         public int compare(String o1, String o2) {
             String __o1 = ColourUtil.stripAllFormatCodes(o1);
             String __o2 = ColourUtil.stripAllFormatCodes(o2);

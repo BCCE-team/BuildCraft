@@ -40,6 +40,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.common.util.FakePlayer;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.level.BlockEvent;
+//? if >=26.1.2 {
+import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
+//? }
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -222,7 +225,11 @@ public final class PermissionOwnerGameTests {
         otherPlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(BCCoreItems.WRENCH.get()));
         otherPlayer.setShiftKeyDown(true);
 
+//? if >=26.1.2 {
+        InteractionResult result = robot.interact(otherPlayer, InteractionHand.MAIN_HAND, robot.position());
+//? } else {
         InteractionResult result = robot.interact(otherPlayer, InteractionHand.MAIN_HAND);
+//? }
         require(helper, result != InteractionResult.PASS,
             "robot owner became an ACL: another player must still be able to dismantle/steal the robot");
         require(helper, robot.isRemoved(), "non-owner wrench dismantle did not convert the robot back to items");
@@ -269,7 +276,11 @@ public final class PermissionOwnerGameTests {
         protectionHooksInstalled = true;
     }
 
+//? if >=26.1.2 {
+    private static void onBreak(BreakBlockEvent event) {
+//? } else {
     private static void onBreak(BlockEvent.BreakEvent event) {
+//? }
         if (DENIED_OWNER_ID.equals(event.getPlayer().getUUID())) event.setCanceled(true);
     }
 

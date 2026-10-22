@@ -4,8 +4,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from .java_compat import upgrade_symbols
+from .neoforge263 import relocate_removed_neoforge_apis, upgrade_minecraft_263_apis
 from .gametest import generate_gametest_registry, transform_gametest_source
 from .java_symbols import downport_symbols
+from .lib_symbols import upgrade_lib_symbols
 from .resources import apply_resource_transforms, generate_target_resources
 
 
@@ -20,6 +22,9 @@ def apply_text_transforms(
         text = upgrade_symbols(text, minecraft=minecraft, relative=relative)
     else:
         text = downport_symbols(text, minecraft=minecraft, relative=relative)
+    text = upgrade_lib_symbols(text, minecraft=minecraft, relative=relative)
+    text = relocate_removed_neoforge_apis(text, minecraft=minecraft, relative=relative)
+    text = upgrade_minecraft_263_apis(text, minecraft=minecraft, relative=relative)
     text = transform_gametest_source(text, minecraft=minecraft, relative=relative)
     return apply_resource_transforms(text, minecraft=minecraft, relative=relative)
 

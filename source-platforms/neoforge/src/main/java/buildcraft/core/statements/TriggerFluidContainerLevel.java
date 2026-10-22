@@ -25,7 +25,13 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x {
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.lib.fluid.FuelApiBridge;
+//? } else {
 import net.neoforged.neoforge.fluids.FluidUtil;
+//?}
 
 public class TriggerFluidContainerLevel extends BCStatement implements ITriggerExternal {
     public final TriggerType type;
@@ -38,22 +44,34 @@ public class TriggerFluidContainerLevel extends BCStatement implements ITriggerE
         this.type = type;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public SpriteHolder getSprite() {
         return BCCoreSprites.TRIGGER_FLUID_LEVEL.get(type);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public int maxParameters() {
         return 1;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public Component getDescription() {
         return Component.translatable("gate.trigger.fluidlevel.below", (int) (type.level * 100));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean isTriggerActive(BlockEntity tile, Direction side, IStatementContainer statementContainer, IStatementParameter[] parameters) {
         FluidStorage<FluidStack> handler = PlatformStorage.fluids(
             tile.getLevel(), tile.getBlockPos(), side.getOpposite());
@@ -63,7 +81,11 @@ public class TriggerFluidContainerLevel extends BCStatement implements ITriggerE
         FluidStack searchedFluid = FluidStack.EMPTY;
 
         if (parameters != null && parameters.length >= 1 && parameters[0] != null && !parameters[0].getItemStack() .isEmpty()) {
+//? if mc_26_x {
+            searchedFluid = FuelApiBridge.stackOf(BuildCraftApi.service(BuildCraftServices.FLUID_ITEMS).fluid(parameters[0].getItemStack()));
+//? } else {
             searchedFluid = FluidUtil.getFluidContained(parameters[0].getItemStack()).orElse(searchedFluid);
+//?}
             if (!searchedFluid.isEmpty()) {
                 searchedFluid.setAmount(1);
             }
@@ -77,23 +99,34 @@ public class TriggerFluidContainerLevel extends BCStatement implements ITriggerE
         for (int i = 0; i < tanks ; i++) {
             FluidStack fluid = handler.getFluidInTank(i);
             if (fluid.isEmpty()) {
-                return searchedFluid.isEmpty() || handler.fill(searchedFluid, true) > 0;
+                if (searchedFluid.isEmpty() || handler.fill(searchedFluid, true) > 0) {
+                    return true;
+                }
+                continue;
             }
 
             if (searchedFluid.isEmpty() || FluidCompatRegistry.areEquivalent(searchedFluid, fluid)) {
-                float percentage = fluid.getAmount() / (float) handler.getTankCapacity(i);
-                return percentage < type.level;
+                int capacity = handler.getTankCapacity(i);
+                if (capacity > 0 && fluid.getAmount() / (float) capacity < type.level) {
+                    return true;
+                }
             }
         }
         return false;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public IStatementParameter createParameter(int index) {
         return new StatementParameterItemStack();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public IStatement[] getPossible() {
         return BCCoreStatements.TRIGGER_FLUID_ALL;
     }

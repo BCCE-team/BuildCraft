@@ -5,6 +5,7 @@
 package buildcraft.builders.tile;
 
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -89,10 +90,19 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
     );
     public static final int TRANSFER_TIME = 50;
 
+    private static final int MAX_DOWNLOAD_PART_BYTES = 4 * 1024;
+    private static final int MAX_DOWNLOAD_TOTAL_BYTES = 8 * 1024 * 1024;
+    private static final int MAX_DOWNLOAD_PARTS = 2049;
+    private byte[][] downloadParts;
+    private int downloadNextPart;
+    private int downloadTransferId;
+    private int downloadTotalBytes;
+    private int downloadSequence;
     private static final int MAX_UPLOAD_PART_BYTES = 4 * 1024;
     private static final int MAX_UPLOAD_TOTAL_BYTES = 8 * 1024 * 1024;
     private static final int MAX_UPLOAD_PARTS = MAX_UPLOAD_TOTAL_BYTES / MAX_UPLOAD_PART_BYTES + 1;
     private static final int MAX_CONCURRENT_UPLOADS = 64;
+    private static final long UPLOAD_IDLE_TIMEOUT_TICKS = 20L * 60L;
     private static final long MAX_UPLOAD_EXPANDED_BYTES = 64L * 1024 * 1024;
     private static final long MAX_UPLOAD_NBT_DECODE_BUDGET = 20_000_000L;
 
@@ -158,6 +168,11 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
 
         progressDownLast = progressDown;
         progressUpLast = progressUp;
+        // Partial uploads have bounded memory but must not live indefinitely.
+        if (level.getGameTime() % 20 == 0) {
+            long now = level.getGameTime();
+            upSnapshotsParts.values().removeIf(upload -> now - upload.lastPartTick > UPLOAD_IDLE_TIMEOUT_TICKS);
+        }
 
         boolean canDownload = getSnapshotForDownload() != null && invDownOut.getStackInSlot(0).isEmpty();
         if (canDownload) {
@@ -165,7 +180,10 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
                 progressDown = 0;
             }
             if (progressDown >= TRANSFER_TIME) {
-                sendNetworkGuiUpdate(NET_DOWN);
+                if (!sendSnapshotDownload()) {
+                    // Retain the input and retry; an oversized/corrupt blueprint must not be consumed.
+                    return;
+                }
                 ItemStack downloaded = invDownIn.getStackInSlot(0).copy();
                 downloaded.setCount(1);
                 invDownOut.setStackInSlot(0, downloaded);
@@ -235,6 +253,39 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
         return IDS;
     }
 
+    /** Download with the same bounded streaming approach as library uploads. */
+    private boolean sendSnapshotDownload() {
+        Snapshot.Header header = ItemSnapshot.getHeader(invDownIn.getStackInSlot(0));
+        Snapshot snapshot = getSnapshotForDownload();
+        if (header == null || snapshot == null) return false;
+        snapshot = snapshot.copy();
+        snapshot.key = new Snapshot.Key(snapshot.key, header);
+        byte[] encoded;
+        try {
+            encoded = NbtSquisher.squish(Snapshot.writeToNBT(snapshot),
+                NbtSquishConstants.BUILDCRAFT_V1_COMPRESSED);
+        } catch (RuntimeException ex) {
+            return false;
+        }
+        if (encoded.length > MAX_DOWNLOAD_TOTAL_BYTES) return false;
+        int parts = Math.max(1, (encoded.length + MAX_DOWNLOAD_PART_BYTES - 1) / MAX_DOWNLOAD_PART_BYTES);
+        int transfer = ++downloadSequence;
+        for (int index = 0; index < parts; index++) {
+            int offset = index * MAX_DOWNLOAD_PART_BYTES;
+            int amount = Math.min(MAX_DOWNLOAD_PART_BYTES, encoded.length - offset);
+            int partIndex = index;
+            createAndSendGuiMessage(NET_DOWN, local -> {
+                local.writeBoolean(true);
+                local.writeInt(transfer);
+                local.writeVarInt(partIndex);
+                local.writeVarInt(parts);
+                local.writeVarInt(amount);
+                local.writeBytes(encoded, offset, amount);
+            });
+        }
+        return true;
+    }
+
     @Override
     public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
@@ -246,20 +297,8 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
                 }
             }
             if (id == NET_DOWN) {
-                Snapshot.Header header = ItemSnapshot.getHeader(invDownIn.getStackInSlot(0));
-                Snapshot snapshot = getSnapshotForDownload();
-                if (header != null && snapshot != null) {
-                    snapshot = snapshot.copy();
-                    snapshot.key = new Snapshot.Key(snapshot.key, header);
-                    buffer.writeBoolean(true);
-                    NbtSquisher.squish(
-                        Snapshot.writeToNBT(snapshot),
-                        NbtSquishConstants.BUILDCRAFT_V1_COMPRESSED,
-                        buffer
-                    );
-                } else {
-                    buffer.writeBoolean(false);
-                }
+                // NET_DOWN is sent by sendSnapshotDownload as bounded parts.
+                buffer.writeBoolean(false);
             }
             // noinspection StatementWithEmptyBody
             if (id == NET_UP) {
@@ -284,9 +323,45 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
             }
             if (id == NET_DOWN) {
                 if (buffer.readBoolean()) {
-                    Snapshot snapshot = Snapshot.readFromNBT(NbtSquisher.expand(buffer));
-                    snapshot.computeKey();
-                    GlobalSavedDataSnapshots.saveClientSnapshot(snapshot);
+                    int transferId = buffer.readInt();
+                    int part = buffer.readVarInt();
+                    int partCount = buffer.readVarInt();
+                    int partLength = NetworkSecurity.requireCount(buffer.readVarInt(),
+                        MAX_DOWNLOAD_PART_BYTES, "electronic-library download part");
+                    if (partCount < 1 || partCount > MAX_DOWNLOAD_PARTS || part < 0 || part >= partCount
+                        || partLength > buffer.readableBytes()) {
+                        throw new DecoderException("Invalid electronic library download chunk");
+                    }
+                    byte[] partBytes = new byte[partLength];
+                    buffer.readBytes(partBytes);
+                    if (part == 0) {
+                        downloadParts = new byte[partCount][];
+                        downloadTransferId = transferId;
+                        downloadNextPart = 0;
+                        downloadTotalBytes = 0;
+                    }
+                    if (downloadParts == null || downloadTransferId != transferId
+                        || part != downloadNextPart || partCount != downloadParts.length
+                        || downloadTotalBytes + partLength > MAX_DOWNLOAD_TOTAL_BYTES) {
+                        downloadParts = null;
+                        return;
+                    }
+                    downloadParts[part] = partBytes;
+                    downloadTotalBytes += partLength;
+                    downloadNextPart++;
+                    if (downloadNextPart == partCount) {
+                        byte[] all = new byte[downloadTotalBytes];
+                        int offset = 0;
+                        for (byte[] partData : downloadParts) {
+                            System.arraycopy(partData, 0, all, offset, partData.length);
+                            offset += partData.length;
+                        }
+                        downloadParts = null;
+                        Snapshot snapshot = Snapshot.readFromNBT(NbtSquisher.expandBuildCraftV1Limited(
+                            all, MAX_UPLOAD_EXPANDED_BYTES, MAX_UPLOAD_NBT_DECODE_BUDGET));
+                        snapshot.computeKey();
+                        GlobalSavedDataSnapshots.saveClientSnapshot(snapshot);
+                    }
                 }
             }
             if (id == NET_GUI_TICK || id == NET_GUI_DATA) {
@@ -388,8 +463,8 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
                         throw new DecoderException("Too many concurrent electronic-library uploads");
                     }
 
-                    UploadAccumulator upload = upSnapshotsParts.computeIfAbsent(pair, ignored -> new UploadAccumulator());
-                    upload.add(part);
+                    UploadAccumulator upload = upSnapshotsParts.computeIfAbsent(pair, ignored -> new UploadAccumulator(level.getGameTime()));
+                    upload.add(part, level.getGameTime());
                     if (!last) {
                         return;
                     }
@@ -427,8 +502,13 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
     private static final class UploadAccumulator {
         private final List<byte[]> parts = new ArrayList<>();
         private int totalBytes;
+        private long lastPartTick;
 
-        private void add(byte[] part) {
+        private UploadAccumulator(long now) {
+            this.lastPartTick = now;
+        }
+
+        private void add(byte[] part, long now) {
             if (parts.size() >= MAX_UPLOAD_PARTS) {
                 throw new DecoderException("Electronic-library upload has too many parts");
             }
@@ -437,6 +517,7 @@ public class TileElectronicLibrary extends TileBC_Neptune implements MenuProvide
             }
             parts.add(part);
             totalBytes += part.length;
+            lastPartTick = now;
         }
 
         private byte[] join() {

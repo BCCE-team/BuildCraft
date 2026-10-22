@@ -161,7 +161,7 @@ public class BCSiliconRecipesProvider extends RecipeProvider{
                 .save(writer, new ResourceLocation("buildcraftsilicon",name));
             }
 
-            IngredientStack glass = IngredientStack.of(Tags.Blocks.GLASS);
+            IngredientStack glass = IngredientStack.of(Blocks.GLASS);
             ImmutableSet<IngredientStack> input = ImmutableSet.of(glass);
             ItemStack output = BCSiliconItems.PLUG_LENS_ITEM.get().getStack(null, false);
             new AssemblyRecipeBuilder(assemblyCost(500), input, output)
@@ -172,7 +172,7 @@ public class BCSiliconRecipesProvider extends RecipeProvider{
             output = BCSiliconItems.PLUG_LENS_ITEM.get().getStack(null, true);
             input = ImmutableSet.of(glass, IngredientStack.of(Blocks.IRON_BARS));
             new AssemblyRecipeBuilder(assemblyCost(500), input, output)
-            .group("buildcraftsilicon:lens_regulars")
+            .group("buildcraftsilicon:lens_filters")
             .unlockedBy("has_"+BCSiliconItems.ASSEMBLY_TABLE_ITEM.get().getDescriptionId(), TriggerInstance.hasItems(BCSiliconItems.ASSEMBLY_TABLE_ITEM.get()))
             .save(writer, new ResourceLocation("buildcraftsilicon", "assembly/lens/lens_filter"));
         }

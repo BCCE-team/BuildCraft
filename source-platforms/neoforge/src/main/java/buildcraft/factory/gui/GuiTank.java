@@ -6,7 +6,10 @@
 
 package buildcraft.factory.gui;
 
+//? if mc_26_x {
+//? } else {
 import com.mojang.blaze3d.systems.RenderSystem;
+//?}
 import com.mojang.blaze3d.vertex.PoseStack;
 
 import java.util.List;
@@ -17,7 +20,11 @@ import buildcraft.lib.misc.GuiUtil;
 import buildcraft.lib.misc.LocaleUtil;
 import net.minecraft.ChatFormatting;
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x {
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+//? } else {
 import net.minecraft.client.gui.GuiGraphics;
+//?}
 
 import buildcraft.factory.container.ContainerTank;
 import buildcraft.lib.gui.GuiBC8;
@@ -49,9 +56,13 @@ public class GuiTank extends GuiBC8<ContainerTank> {
     );
 
     public GuiTank(ContainerTank menu, Inventory inventory, Component title) {
+//? if mc_26_x {
+        super(menu, inventory, title, SIZE_X, SIZE_Y);
+//? } else {
         super(menu, inventory, title);
         imageWidth = SIZE_X;
         imageHeight = SIZE_Y;
+//?}
         inventoryLabelX = 8;
         inventoryLabelY = SIZE_Y - 96;
 
@@ -70,33 +81,61 @@ public class GuiTank extends GuiBC8<ContainerTank> {
 
     @Override
     protected void drawBackgroundLayer(PoseStack pose, int mouseX, int mouseY, float partialTicks) {
+//? if mc_26_x {
+        GuiGraphicsExtractor guiGraphics = getActiveGraphics();
+//? } else {
         GuiGraphics guiGraphics = getActiveGraphics();
+//?}
         ICON_GUI.drawAt(guiGraphics, mainGui.rootElement);
         if (!renderStackAwareFluid(guiGraphics, partialTicks)) {
             tankComponent.render(guiGraphics, mouseX, mouseY, partialTicks, this);
         }
+//? if mc_26_x {
+//? } else {
         RenderSystem.setShaderTexture(0, TEXTURE_BASE);
+//?}
         tankComponent.postRender(guiGraphics, mouseX, mouseY, partialTicks, this);
     }
 
     @Override
     protected void drawForegroundLayer(PoseStack pose, int mouseX, int mouseY) {
+//? if mc_26_x {
+        GuiGraphicsExtractor guiGraphics = getActiveGraphics();
+//? } else {
         GuiGraphics guiGraphics = getActiveGraphics();
+//?}
         int rootX = (int) mainGui.rootElement.getX();
         int rootY = (int) mainGui.rootElement.getY();
+//? if mc_26_x {
+        guiGraphics.text(font, title, rootX + (imageWidth - font.width(title)) / 2, rootY + 6, 0xFF404040, false);
+        guiGraphics.text(font, playerInventoryTitle, rootX + inventoryLabelX, rootY + inventoryLabelY, 0xFF404040, false);
+//? } else {
         guiGraphics.drawString(font, title, rootX + (imageWidth - font.width(title)) / 2, rootY + 6, 0x404040, false);
         guiGraphics.drawString(font, playerInventoryTitle, rootX + inventoryLabelX, rootY + inventoryLabelY, 0x404040, false);
+//?}
     }
 
     @Override
+//? if mc_26_x {
+    protected void extractTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
+//? } else {
     protected void renderTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+//?}
         if (!renderStackAwareTooltip(guiGraphics, mouseX, mouseY)) {
             tankComponent.renderTooltip(guiGraphics, mouseX, mouseY);
         }
+//? if mc_26_x {
+        super.extractTooltip(guiGraphics, mouseX, mouseY);
+//? } else {
         super.renderTooltip(guiGraphics, mouseX, mouseY);
+//?}
     }
 
+//? if mc_26_x {
+    private boolean renderStackAwareFluid(GuiGraphicsExtractor guiGraphics, float partialTicks) {
+//? } else {
     private boolean renderStackAwareFluid(GuiGraphics guiGraphics, float partialTicks) {
+//?}
         FluidStack fluid = columnFluid(partialTicks);
         if (fluid.isEmpty()) {
             return false;
@@ -115,7 +154,11 @@ public class GuiTank extends GuiBC8<ContainerTank> {
         return true;
     }
 
+//? if mc_26_x {
+    private boolean renderStackAwareTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
+//? } else {
     private boolean renderStackAwareTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+//?}
         if (!isTankHovered(mouseX, mouseY)) {
             return false;
         }

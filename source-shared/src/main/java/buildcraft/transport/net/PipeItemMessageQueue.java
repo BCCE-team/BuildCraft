@@ -32,15 +32,15 @@ public class PipeItemMessageQueue {
     }
 
     public static void appendTravellingItem(Level world, BlockPos pos, int stackId, int stackCount, boolean toCenter,
-        Direction side, @Nullable DyeColor colour, int timeToDest) {
+        Direction side, @Nullable DyeColor colour, int timeToDest, boolean pausedAtCenter) {
         ServerLevel server = (ServerLevel) world;
         List<MessageMultiPipeItem> messages = cachedPlayerPackets.computeIfAbsent(
             server.getChunkAt(pos), ignored -> new ArrayList<>()
         );
         MessageMultiPipeItem current = messages.isEmpty() ? null : messages.get(messages.size() - 1);
-        if (current == null || !current.append(pos, stackId, stackCount, toCenter, side, colour, timeToDest)) {
+        if (current == null || !current.append(pos, stackId, stackCount, toCenter, side, colour, timeToDest, pausedAtCenter)) {
             MessageMultiPipeItem next = new MessageMultiPipeItem();
-            if (next.append(pos, stackId, stackCount, toCenter, side, colour, timeToDest)) {
+            if (next.append(pos, stackId, stackCount, toCenter, side, colour, timeToDest, pausedAtCenter)) {
                 messages.add(next);
             }
         }

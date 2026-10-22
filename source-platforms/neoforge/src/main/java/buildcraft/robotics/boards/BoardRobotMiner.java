@@ -7,11 +7,18 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
+//? if mc_26_x && (>=26.2) {
+//? } else {
 import net.minecraft.world.item.PickaxeItem;
+//?}
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.common.Tags;
+//? if mc_26_x && (>=26.2) {
+import buildcraft.lib.compat.ItemCompat;
+//? } else {
 import net.neoforged.neoforge.common.ItemAbilities;
+//?}
 
 /** Miner board that fetches a pickaxe and mines reachable ore blocks in the work zone. */
 public class BoardRobotMiner extends BoardRobotGenericBreakBlock {
@@ -19,18 +26,31 @@ public class BoardRobotMiner extends BoardRobotGenericBreakBlock {
         super(robot);
     }
 
+//? if mc_26_x && (>=26.2) {
+//? } else {
     @Override
+//?}
     public RedstoneBoardRobotNBT getNBTHandler() {
         return BCRoboticsBoards.getByKey("miner").nbt();
     }
 
+//? if mc_26_x && (>=26.2) {
+//? } else {
     @Override
+//?}
     public boolean isExpectedTool(ItemStack stack) {
         return !stack.isEmpty()
+//? if mc_26_x && (>=26.2) {
+                && (ItemCompat.isPickaxe(stack));
+//? } else {
                 && (stack.getItem() instanceof PickaxeItem || stack.canPerformAction(ItemAbilities.PICKAXE_DIG));
+//?}
     }
 
+//? if mc_26_x && (>=26.2) {
+//? } else {
     @Override
+//?}
     public boolean isExpectedBlock(Level level, BlockPos pos) {
         if (!level.isLoaded(pos)) {
             return false;
@@ -50,8 +70,13 @@ public class BoardRobotMiner extends BoardRobotGenericBreakBlock {
 
     private static boolean isOre(BlockState state) {
         // Forge ore tags preserve OreDictionary-style "ore*" matching and keep modded ores compatible.
+//? if mc_26_x && (>=26.2) {
+        return state.is(Tags.Blocks.ORES) || state.is(BlockTags.IRON_ORES)
+            || state.is(BlockTags.COPPER_ORES) || state.is(BlockTags.GOLD_ORES);
+//? } else {
         return state.is(Tags.Blocks.ORES) || state.is(BlockTags.COAL_ORES) || state.is(BlockTags.IRON_ORES)
                 || state.is(BlockTags.COPPER_ORES) || state.is(BlockTags.GOLD_ORES) || state.is(BlockTags.REDSTONE_ORES)
                 || state.is(BlockTags.EMERALD_ORES) || state.is(BlockTags.LAPIS_ORES) || state.is(BlockTags.DIAMOND_ORES);
+//?}
     }
 }

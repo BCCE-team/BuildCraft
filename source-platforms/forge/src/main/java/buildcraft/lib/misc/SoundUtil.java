@@ -49,7 +49,7 @@ public class SoundUtil {
 
     public static void playLeverSwitch(Level world, BlockPos pos, boolean isNowOn) {
         float pitch = isNowOn ? 0.6f : 0.5f;
-        SoundEvent soundEvent = SoundEvents.LAVA_POP;
+        SoundEvent soundEvent = SoundEvents.LEVER_CLICK;
         world.playSound(null, pos, soundEvent, SoundSource.BLOCKS, 0.2f, pitch);
     }
 

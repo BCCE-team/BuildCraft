@@ -56,14 +56,14 @@ def validate_zone_planner() -> None:
         require(read(rel), "argbToAbgr(colour)", rel)
 
     modern_logical = "src/main/java/buildcraft/robotics/gui/GuiZonePlanner.java"
-    modern_1211_path = resolve_target_source("1.21.1-neoforge", modern_logical)
-    modern_1211 = modern_1211_path.read_text(encoding="utf-8")
-    require(modern_1211, "argbToAbgr(colour)", "1.21.1 effective GuiZonePlanner")
+    modern_1_21_1_path = resolve_target_source("1.21.1-neoforge", modern_logical)
+    modern_1_21_1 = modern_1_21_1_path.read_text(encoding="utf-8")
+    require(modern_1_21_1, "argbToAbgr(colour)", "1.21.1 effective GuiZonePlanner")
 
-    modern_12111_path = resolve_target_source("1.21.11-neoforge", modern_logical)
-    modern_12111 = modern_12111_path.read_text(encoding="utf-8")
-    require(modern_12111, "fillNativeImage(", "1.21.11 effective GuiZonePlanner")
-    reject(modern_12111, "argbToAbgr(colour)", "1.21.11 effective GuiZonePlanner")
+    modern_1_21_11_path = resolve_target_source("1.21.11-neoforge", modern_logical)
+    modern_1_21_11 = modern_1_21_11_path.read_text(encoding="utf-8")
+    require(modern_1_21_11, "fillNativeImage(", "1.21.11 effective GuiZonePlanner")
+    reject(modern_1_21_11, "argbToAbgr(colour)", "1.21.11 effective GuiZonePlanner")
 
 
 def validate_gui_gears() -> None:
@@ -112,12 +112,12 @@ def validate_gui_gears() -> None:
 
     modern_checks = [
         (
-            "source-families/modern/src/main/java/buildcraft/energy/client/gui/GuiEngineFE.java",
+            "source-families/1.21.X/src/main/java/buildcraft/energy/client/gui/GuiEngineFE.java",
             "addGearIcon(BCCoreItems.GEAR_IRON.get(), 78, 22);",
             "addGearIcon(BCCoreItems.GEAR_GOLD.get(), 101, 22);",
         ),
         (
-            "source-families/modern/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
+            "source-families/1.21.X/src/main/java/buildcraft/energy/client/gui/GuiDynamoMJ.java",
             "addGearIcon(BCCoreItems.GEAR_IRON.get(), 60, 22);",
             "addGearIcon(BCCoreItems.GEAR_GOLD.get(), 83, 22);",
         ),
@@ -171,7 +171,7 @@ def validate_texture_stitching() -> None:
     }
 
     for rel in (
-        "source-families/modern/src/main/resources/assets/minecraft/atlases/blocks.json",
+        "source-families/1.21.X/src/main/resources/assets/minecraft/atlases/blocks.json",
     ):
         resources = atlas_resources(rel)
         missing = sorted((expected_pipe | expected_energy) - resources)
@@ -202,7 +202,10 @@ def validate_engine_pipe_handshake() -> None:
             "level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, worldPosition);",
             "level.neighborChanged(worldPosition.relative(current), sourceBlock, worldPosition);",
             "protected boolean isFacingReceiver(Direction dir)",
-            "return getPortToPower(dir) != null;",
+            # The API2 port must actually accept MJ; mere presence is not enough
+            # (a chain may expose a non-inserting or output-only endpoint).
+            "MjPort receiver = getPortToPower(dir);",
+            "return receiver != null && receiver.canInsert();",
         ):
             require(text, needle, rel)
     shared_block = read("source-shared/src/main/java/buildcraft/lib/engine/BlockEngineBase_BC8.java")

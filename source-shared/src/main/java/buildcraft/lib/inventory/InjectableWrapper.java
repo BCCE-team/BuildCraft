@@ -18,6 +18,9 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
 
 public class InjectableWrapper implements IItemTransactor {
+    @Override
+    public Object backingIdentity() { return injectable; }
+
     private final IInjectable injectable;
     private final Direction from;
 

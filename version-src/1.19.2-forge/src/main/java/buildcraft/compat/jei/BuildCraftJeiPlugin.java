@@ -37,6 +37,7 @@ import buildcraft.lib.misc.ItemStackKey;
 import buildcraft.lib.misc.LocaleUtil;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.lib.recipe.AssemblyRecipeBasic;
+import buildcraft.lib.recipe.ApiAssemblyRecipeAdapter;
 import buildcraft.lib.recipe.ChangingItemStack;
 import buildcraft.robotics.BCRoboticsBoards;
 import buildcraft.robotics.BCRoboticsBoards.BoardEntry;
@@ -59,6 +60,7 @@ import buildcraft.silicon.plug.FacadeStateManager;
 import buildcraft.transport.BCTransportItems;
 import buildcraft.transport.recipe.PipeRecipe;
 import mezz.jei.api.IModPlugin;
+import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.constants.VanillaTypes;
@@ -114,6 +116,20 @@ public class BuildCraftJeiPlugin implements IModPlugin {
     public static final RecipeType<CombustionFuelRecipeView> COMBUSTION_FUEL = RecipeType.create("buildcraftenergy", "combustion_fuel", CombustionFuelRecipeView.class);
 
     private static final Map<ResourceLocation, GroupedAssemblyRecipe> GROUPED_ASSEMBLY_RECIPES = new LinkedHashMap<>();
+    // Legacy JEI targets need their own reload reconciliation; newer targets use
+    // the server-authoritative BCSiliconRecipeSync callback instead.
+    private static IJeiRuntime activeRuntime;
+    private static boolean clientTickRegistered;
+    private static Level lastRefreshWorld;
+    private static long lastRefreshTick = Long.MIN_VALUE;
+    private static int lastRefreshSignature = Integer.MIN_VALUE;
+    private static List<AssemblyRecipeBasic> publishedAssembly = List.of();
+    private static List<ProgrammingRecipeView> publishedProgramming = List.of();
+    private static List<IntegrationRecipeView> publishedIntegration = List.of();
+    private static List<DistillationRecipeDefinition> publishedDistillation = List.of();
+    private static List<HeatExchangeRecipeView> publishedHeatExchange = List.of();
+    private static List<CombustionFuelRecipeView> publishedFuels = List.of();
+
     private static List<FluidContainerAlias> fluidContainerAliases = List.of();
 
     @Override
@@ -188,12 +204,19 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         Level level = Minecraft.getInstance().level;
         if (level != null) {
             List<AssemblyRecipeBasic> assemblyRecipes = new ArrayList<>(level.getRecipeManager().getAllRecipesFor(BCSiliconRecipes.ASSEMBLY_TYPE.get()));
+            for (var entry : BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).assemblyRecipes()) {
+                ApiAssemblyRecipeAdapter adapter = ApiAssemblyRecipeAdapter.fromService(entry.id());
+                if (adapter != null && !adapter.getOutputPreviews().isEmpty()) {
+                    assemblyRecipes.add(adapter);
+                }
+            }
             boolean hadFacadeRecipe = assemblyRecipes.removeIf(FacadeAssemblyRecipes.class::isInstance);
             if (hadFacadeRecipe && BCSiliconConfig.enableFacades) {
                 assemblyRecipes.add(FacadeAssemblyJeiRecipe.create());
             }
             assemblyRecipes = groupAssemblyRecipes(assemblyRecipes);
             registration.addRecipes(ASSEMBLY, assemblyRecipes);
+        publishedAssembly = List.copyOf(assemblyRecipes);
         }
 
         BCRoboticsBoards.init();
@@ -204,12 +227,16 @@ public class BuildCraftJeiPlugin implements IModPlugin {
             integration.add(new IntegrationRecipeView(board));
         }
         registration.addRecipes(PROGRAMMING, programming);
+        publishedProgramming = List.copyOf(programming);
         registration.addRecipes(INTEGRATION, integration);
+        publishedIntegration = List.copyOf(integration);
 
         MachineRecipeService machineRecipes = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES);
-        registration.addRecipes(DISTILLATION, machineRecipes.recipes(DistillationRecipeDefinition.class).stream()
+        List<DistillationRecipeDefinition> distillation = machineRecipes.recipes(DistillationRecipeDefinition.class).stream()
                 .map(match -> match.recipe())
-                .toList());
+                .toList();
+        registration.addRecipes(DISTILLATION, distillation);
+        publishedDistillation = List.copyOf(distillation);
 
         List<HeatExchangeRecipeView> heatExchange = machineRecipes.recipes(HeatExchangeRecipeDefinition.class).stream()
                 .map(match -> match.recipe())
@@ -217,6 +244,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
                 .map(HeatExchangeRecipeView::new)
                 .toList();
         registration.addRecipes(HEAT_EXCHANGE, heatExchange);
+        publishedHeatExchange = List.copyOf(heatExchange);
 
         EnergyFluidService energyFluids = BuildCraftApi.service(BuildCraftServices.ENERGY_FLUIDS);
         List<CombustionFuelRecipeView> fuels = energyFluids.fuels().stream()
@@ -225,7 +253,121 @@ public class BuildCraftJeiPlugin implements IModPlugin {
                 .map(CombustionFuelRecipeView::new)
                 .toList();
         registration.addRecipes(COMBUSTION_FUEL, fuels);
+        publishedFuels = List.copyOf(fuels);
     }
+
+    @Override
+    public void onRuntimeAvailable(IJeiRuntime runtime) {
+        activeRuntime = runtime;
+        lastRefreshSignature = Integer.MIN_VALUE;
+        if (!clientTickRegistered) {
+            clientTickRegistered = true;
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.addListener(
+                (net.minecraftforge.event.TickEvent.ClientTickEvent event) -> {
+                    if (event.phase == net.minecraftforge.event.TickEvent.Phase.END) refreshOnClientTick();
+                });
+        }
+    }
+
+    @Override
+    public void onRuntimeUnavailable() {
+        activeRuntime = null;
+        lastRefreshWorld = null;
+        lastRefreshSignature = Integer.MIN_VALUE;
+        publishedAssembly = List.of();
+        publishedProgramming = List.of();
+        publishedIntegration = List.of();
+        publishedDistillation = List.of();
+        publishedHeatExchange = List.of();
+        publishedFuels = List.of();
+    }
+
+    private static void refreshOnClientTick() {
+        IJeiRuntime runtime = activeRuntime;
+        if (runtime == null) return;
+        Level level = Minecraft.getInstance().level;
+        long now = level == null ? 0L : level.getGameTime();
+        if (level == lastRefreshWorld && now >= lastRefreshTick && now - lastRefreshTick < 20) return;
+        lastRefreshTick = now;
+        // Detect both /reload (recipes replaced in the existing level) and server switches.
+        int signature = java.util.Objects.hash(
+            level == null ? List.of() : level.getRecipeManager().getAllRecipesFor(BCSiliconRecipes.ASSEMBLY_TYPE.get()),
+            BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).snapshot().generation().id()
+        );
+        if (level == lastRefreshWorld && signature == lastRefreshSignature) return;
+        lastRefreshWorld = level;
+        lastRefreshSignature = signature;
+        refreshAllCategories(runtime);
+    }
+
+    private static <T> void reconcile(IJeiRuntime runtime, RecipeType<T> type, List<T> previous, List<T> current) {
+        if (previous.equals(current)) return;
+        if (!previous.isEmpty()) runtime.getRecipeManager().hideRecipes(type, previous);
+        if (!current.isEmpty()) runtime.getRecipeManager().addRecipes(type, current);
+    }
+
+    private static void refreshAllCategories(IJeiRuntime runtime) {
+
+
+        Level level = Minecraft.getInstance().level;
+        if (level != null) {
+            List<AssemblyRecipeBasic> assemblyRecipes = new ArrayList<>(level.getRecipeManager().getAllRecipesFor(BCSiliconRecipes.ASSEMBLY_TYPE.get()));
+            for (var entry : BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).assemblyRecipes()) {
+                ApiAssemblyRecipeAdapter adapter = ApiAssemblyRecipeAdapter.fromService(entry.id());
+                if (adapter != null && !adapter.getOutputPreviews().isEmpty()) {
+                    assemblyRecipes.add(adapter);
+                }
+            }
+            boolean hadFacadeRecipe = assemblyRecipes.removeIf(FacadeAssemblyRecipes.class::isInstance);
+            if (hadFacadeRecipe && BCSiliconConfig.enableFacades) {
+                assemblyRecipes.add(FacadeAssemblyJeiRecipe.create());
+            }
+            assemblyRecipes = groupAssemblyRecipes(assemblyRecipes);
+            reconcile(runtime, ASSEMBLY, publishedAssembly, assemblyRecipes);
+            publishedAssembly = List.copyOf(assemblyRecipes);
+        } else {
+            reconcile(runtime, ASSEMBLY, publishedAssembly, List.of());
+            publishedAssembly = List.of();
+        }
+
+        BCRoboticsBoards.init();
+        List<ProgrammingRecipeView> programming = new ArrayList<>();
+        List<IntegrationRecipeView> integration = new ArrayList<>();
+        for (BoardEntry board : getSortedProgrammingBoards()) {
+            programming.add(new ProgrammingRecipeView(board));
+            integration.add(new IntegrationRecipeView(board));
+        }
+        reconcile(runtime, PROGRAMMING, publishedProgramming, programming);
+        publishedProgramming = List.copyOf(programming);
+        reconcile(runtime, INTEGRATION, publishedIntegration, integration);
+        publishedIntegration = List.copyOf(integration);
+
+        MachineRecipeService machineRecipes = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES);
+        List<DistillationRecipeDefinition> distillation = machineRecipes.recipes(DistillationRecipeDefinition.class).stream()
+                .map(match -> match.recipe())
+                .toList();
+        reconcile(runtime, DISTILLATION, publishedDistillation, distillation);
+        publishedDistillation = List.copyOf(distillation);
+
+        List<HeatExchangeRecipeView> heatExchange = machineRecipes.recipes(HeatExchangeRecipeDefinition.class).stream()
+                .map(match -> match.recipe())
+                .filter(recipe -> !recipe.output().isEmpty())
+                .map(HeatExchangeRecipeView::new)
+                .toList();
+        reconcile(runtime, HEAT_EXCHANGE, publishedHeatExchange, heatExchange);
+        publishedHeatExchange = List.copyOf(heatExchange);
+
+        EnergyFluidService energyFluids = BuildCraftApi.service(BuildCraftServices.ENERGY_FLUIDS);
+        List<CombustionFuelRecipeView> fuels = energyFluids.fuels().stream()
+                .map(match -> match.profile())
+                .filter(fuel -> fuel.representativeVariant().isPresent())
+                .map(CombustionFuelRecipeView::new)
+                .toList();
+        reconcile(runtime, COMBUSTION_FUEL, publishedFuels, fuels);
+        publishedFuels = List.copyOf(fuels);
+
+    }
+
 
     @Override
     public void registerRecipeCatalysts(IRecipeCatalystRegistration registration) {

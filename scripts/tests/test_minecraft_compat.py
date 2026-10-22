@@ -175,10 +175,10 @@ class MinecraftBoundaries(unittest.TestCase):
             self.assertIn('loadBlockEntity(', compat)
             self.assertIn('findDeclaredCompatibleMethod(', compat)
             self.assertIn('public static String readString(', compat)
-        self.assertTrue((ROOT / 'source-families/modern/src/gametest/java/buildcraft/gametest/GameTestCompat.java').is_file())
+        self.assertTrue((ROOT / 'source-families/1.21.X/src/gametest/java/buildcraft/gametest/GameTestCompat.java').is_file())
         self.assertFalse((ROOT / 'source-platforms/neoforge/src/gametest/java/buildcraft/gametest/GameTestCompat.java').exists())
 
-    def test_modern_fluid_water_guards_survive_12111_api_changes(self):
+    def test_modern_fluid_water_guards_survive_1_21_11_api_changes(self):
         current_root = self.target_roots['1.21.11-neoforge'] / 'src/main/java'
         fluid = (current_root / 'buildcraft/lib/fluid/BCFluid.java').read_text(encoding='utf-8')
         pump = (current_root / 'buildcraft/factory/tile/TilePump.java').read_text(encoding='utf-8')
@@ -192,7 +192,17 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertIn('fluid == Fluids.WATER || (state.isSource() && isWater(state))', pump)
         self.assertIn('if (!level.hasChunkAt(neighbourPos)) {\n                continue;', pump)
         self.assertNotIn('if (!level.hasChunkAt(neighbourPos)) {\n                return false;', pump)
-        self.assertIn('&& isWater(drain.getFluid());', pump)
+        # FACT-13: a renewable pool must not make every connected water block infinite.
+        # The actual source block must be water, be a source, and be locally renewable.
+        self.assertRegex(
+            pump,
+            r'boolean keepSource = isInfiniteWaterSource\s*'
+            r'&& !BCCoreConfig\.pumpsConsumeWater\s*'
+            r'&& isWater\(drain\.getFluid\(\)\)\s*'
+            r'&& isWaterSource\(level\.getFluidState\(currentPos\)\)\s*'
+            r'&& isInfiniteWaterSourceAt\(currentPos\);',
+        )
+        self.assertIn('if (!keepSource) {\n                    actualDrain = BlockUtil.drainBlock(level, currentPos, true);', pump)
 
     def test_cross_target_safety_contracts_survive_modern_materialization(self):
         current = self.roots['1.21.11-neoforge'] / 'buildcraft'
@@ -225,6 +235,11 @@ class MinecraftBoundaries(unittest.TestCase):
             self.assertNotIn('if (!level.hasChunkAt(neighbourPos)) {\n                return false;', pump)
             self.assertIn('state.is(FluidTags.WATER)', pump)
             self.assertIn('isWaterSource(neighbour)', pump)
+            # Both loaders must preserve the exact-source guard even when a pool is renewable.
+            self.assertIn('boolean keepSource = isInfiniteWaterSource', pump)
+            self.assertIn('&& isWaterSource(level.getFluidState(currentPos))', pump)
+            self.assertIn('&& isInfiniteWaterSourceAt(currentPos);', pump)
+            self.assertIn('if (!keepSource) {\n                    actualDrain = BlockUtil.drainBlock(level, currentPos, true);', pump)
 
     def test_pump_infinite_water_fixture_stays_inside_empty3x3x3(self):
         suite = (
@@ -236,7 +251,7 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertNotIn('BlockPos pumpPos = new BlockPos(1, 4, 1);', suite)
         self.assertNotIn('BlockPos waterPos = new BlockPos(1, 2, 1);', suite)
 
-    def test_12111_client_runtime_hooks_are_isolated_from_common_event_owner(self):
+    def test_1_21_11_client_runtime_hooks_are_isolated_from_common_event_owner(self):
         current_root = self.target_roots['1.21.11-neoforge'] / 'src/main/java'
         events = (current_root / 'buildcraft/lib/BCLibEventDist.java').read_text(encoding='utf-8')
 
@@ -261,8 +276,8 @@ class MinecraftBoundaries(unittest.TestCase):
             self.assertNotIn('target_config="${build_root}/targets.properties"', smoke, script)
 
     def test_legacy_fluid_widget_keeps_client_renderer_off_dedicated_server(self):
-        widget = (ROOT / 'source-families/legacy/src/main/java/buildcraft/lib/gui/widget/WidgetFluidTank.java').read_text(encoding='utf-8')
-        client = (ROOT / 'source-families/legacy/src/main/java/buildcraft/lib/gui/widget/GuiElementFluidTank.java').read_text(encoding='utf-8')
+        widget = (ROOT / 'source-families/old/src/main/java/buildcraft/lib/gui/widget/WidgetFluidTank.java').read_text(encoding='utf-8')
+        client = (ROOT / 'source-families/old/src/main/java/buildcraft/lib/gui/widget/GuiElementFluidTank.java').read_text(encoding='utf-8')
         self.assertNotIn('IGuiElement', widget)
         self.assertNotIn('BuildCraftGui', widget)
         self.assertNotIn('GuiElementSimple', widget)
@@ -271,14 +286,14 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertIn('widget.getTank()', client)
 
     def test_new_facades_are_loader_neutral(self):
-        root = ROOT / 'source-families/modern/src/main/java/buildcraft/lib/compat/minecraft'
+        root = ROOT / 'source-families/1.21.X/src/main/java/buildcraft/lib/compat/minecraft'
         for path in root.rglob('*.java'):
             text = path.read_text()
             self.assertNotRegex(text, r'\b(?:net\.neoforged|net\.minecraftforge|net\.fabricmc)\.', str(path))
             self.assertNotRegex(text, r'(?m)^package (?:net\.|com\.mojang)', str(path))
 
     def test_no_class_specific_bootstrap_or_duplicate_target_renderers(self):
-        self.assertFalse((ROOT / 'scripts/transforms/bootstrap_12111.py').exists())
+        self.assertEqual([], sorted((ROOT / 'scripts/transforms').glob('bootstrap_*.py')))
         compat = (ROOT / 'scripts/transforms/java_compat.py').read_text()
         self.assertNotRegex(compat, r'buildcraft/[^\"\']+\.java')
         self.assertEqual(1, compat.count('relative.endswith(".java")'))
@@ -287,5 +302,334 @@ class MinecraftBoundaries(unittest.TestCase):
             self.assertFalse((overlay / rel).exists(), rel)
 
 
+
+
+# ---- 1.21.1 detached world rendering camera transform ----
+
+
+
+
+
+
+
+
+import math
+
+from source_config import load_properties, target_layout
+from source_layout import resolve_effective_source
+
+
+class DetachedWorldPose1211Test(unittest.TestCase):
+    def test_1211_uses_identity_pose_before_world_origin_translation(self):
+        props = load_properties()
+        target = target_layout('1.21.1-neoforge', props)
+        source = resolve_effective_source(target, props,
+            'src/main/java/buildcraft/lib/BCLibEventDist.java')
+        self.assertIsNotNone(source)
+        content = source.read_text(encoding='utf-8')
+        method = content.split('public static void renderWorldLast(RenderLevelStageEvent event)', 1)[1].split('\n    }',1)[0]
+        self.assertIn('PoseStack pose = new PoseStack();', method)
+        self.assertNotIn('pose.mulPose(new Matrix4f(event.getModelViewMatrix()))', method)
+        self.assertIn('DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks)',method)
+        self.assertIn('Matrix4f matrix = new Matrix4f(event.getProjectionMatrix());', method)
+
+    def test_world_pose_subtracts_camera_once(self):
+        props=load_properties()
+        target=target_layout('1.21.1-neoforge',props)
+        source=resolve_effective_source(target,props,
+            'src/main/java/buildcraft/lib/client/render/DetachedRenderer.java')
+        self.assertIsNotNone(source)
+        method=source.read_text(encoding='utf-8').split('public static void fromWorldOriginPre(',1)[1].split('public static void fromWorldOriginPost(',1)[0]
+        self.assertIn('diff = diff.subtract(camera.getPosition());',method)
+        self.assertEqual(1,method.count('pose.translate('))
+        self.assertNotIn('pose.mulPose(',method)
+
+    def test_rotation_is_applied_exactly_once(self):
+        # Non-axis aligned world point makes doubled view rotation observable.
+        # Check several camera angles and world/camera positions including negative coordinates.
+        for angle in (0, math.pi/6, math.pi/2, math.pi, -math.pi/3):
+            c,s=math.cos(angle),math.sin(angle)
+            for vertex,camera in (((20.,65.,-13.),(13.,63.,-18.)),
+                                  ((-41.,70.,37.),(-39.,64.,29.)),
+                                  ((2.,0.,4.),(-10.,1.,8.))):
+                vx,vy,vz=(vertex[i]-camera[i] for i in range(3))
+                # GPU's one model-view rotation is authoritative.
+                once=(c*vx+s*vz,vy,-s*vx+c*vz)
+                # The regression: CPU pre-rotation *and* GPU view rotation.
+                twice=(c*once[0]+s*once[2],once[1],-s*once[0]+c*once[2])
+                if abs(angle)>1e-5:
+                    self.assertGreater(max(abs(a-b) for a,b in zip(once,twice)),1e-4)
+                # New CPU pose is identity, so GPU output equals single rotation.
+                cpu=(vx,vy,vz)
+                actual=(c*cpu[0]+s*cpu[2],cpu[1],-s*cpu[0]+c*cpu[2])
+                for a,b in zip(once,actual): self.assertAlmostEqual(a,b,places=5)
+
+# ---- Consolidated 1.21.1 NeoForge pick-block hook coverage ----
+# Native 1.21.1 NeoForge pick-block override and attachment hit precedence.
+
+import subprocess
+
+from source_layout import load_properties, target_layout, resolve_effective_source, _materialize_text_file
+
+PICK_1211_TARGET = '1.21.1-neoforge'
+PICK_1211_JAVA_CLASS = 'buildcraft/transport/block/BlockPipeHolder.java'
+
+
+def PICK_1211_source_code(target: str = PICK_1211_TARGET) -> tuple[Path, str]:
+    props = load_properties()
+    layout = target_layout(target, props)
+    source = resolve_effective_source(layout, props, 'src/main/java/' + PICK_1211_JAVA_CLASS)
+    if source is None:
+        raise AssertionError('1.21.1 pipe block is missing')
+    with tempfile.TemporaryDirectory(prefix='bc-1211-pick-source-') as temp:
+        destination = Path(temp, PICK_1211_JAVA_CLASS)
+        downports = tuple(root for root in (layout.family_downport_root, layout.family_platform_downport_root) if root)
+        _materialize_text_file(source, destination, logical_relative='src/main/java/' + PICK_1211_JAVA_CLASS,
+            minecraft=props[f'target.{target}.deps.minecraft'], family=layout.family, platform=layout.platform,
+            preprocess=True, native_source=any(source.is_relative_to(root) for root in downports))
+        return source, destination.read_text(encoding='utf-8')
+
+
+def PICK_1211_extract_method(text: str, declaration: str) -> str:
+    at = text.index(declaration)
+    start = text.rfind('\n', 0, at) + 1
+    brace = text.index('{', at)
+    depth = 0
+    for i in range(brace, len(text)):
+        if text[i] == '{':
+            depth += 1
+        elif text[i] == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start:i+1]
+    raise AssertionError('unbalanced Java source')
+
+
+class PickBlock1211(unittest.TestCase):
+    def test_downport_owns_actual_neoforge_pick_hook(self):
+        path, text = PICK_1211_source_code()
+        self.assertIn('/source-downports/1.21.X/1.21.1/neoforge/', path.as_posix())
+        sig = 'public ItemStack getCloneItemStack(BlockState state, HitResult target, LevelReader level, BlockPos pos, Player player)'
+        self.assertIn(sig, text)
+        self.assertRegex(text, r'@Override\s+' + re.escape(sig))
+        self.assertNotIn('getCloneItemStack(LevelReader level, BlockPos pos, BlockState state, boolean includeData, Player player)', text)
+        self.assertIn('getPickStack(tile, getPickSubHit(level, pos, tile, target, player))', text)
+
+    def test_real_hook_compiles_and_selects_actual_nearest_shape(self):
+        _, text = PICK_1211_source_code()
+        helper = PICK_1211_extract_method(text, 'private int getPickSubHit(')
+        hook = PICK_1211_extract_method(text, 'public ItemStack getCloneItemStack(BlockState state, HitResult target, LevelReader level, BlockPos pos, Player player)')
+        source = r'''import java.util.*;
+public class PipePickHookProbe extends NativeBlock {
+  interface BlockGetter {}
+  interface LevelReader extends BlockGetter {}
+  static final class World implements LevelReader {}
+  static final class BlockState {
+    final NativeBlock block;
+    BlockState(NativeBlock block) {this.block=block;}
+    ItemStack getCloneItemStack(HitResult hit,LevelReader world,BlockPos pos,Player player) {
+      return block.getCloneItemStack(this,hit,world,pos,player);
+    }
+  }
+  static final class BlockPos {int getX(){return 0;}int getY(){return 0;}int getZ(){return 0;}}
+  static class Vec3 {
+    final double x,y,z;
+    Vec3(double x,double y,double z){this.x=x;this.y=y;this.z=z;}
+    Vec3 add(Vec3 v){return new Vec3(x+v.x,y+v.y,z+v.z);}
+    Vec3 scale(double v){return new Vec3(x*v,y*v,z*v);}
+    Vec3 subtract(double x,double y,double z){return new Vec3(this.x-x,this.y-y,this.z-z);}
+    Vec3 subtract(Vec3 v){return subtract(v.x,v.y,v.z);}
+    double lengthSqr(){return x*x+y*y+z*z;}
+    Vec3 normalize(){return scale(1/Math.sqrt(lengthSqr()));}
+    double distanceToSqr(Vec3 v){return subtract(v).lengthSqr();}
+  }
+  static class HitResult {final Vec3 location;HitResult(Vec3 p){location=p;}Vec3 getLocation(){return location;}}
+  static class BlockHitResult extends HitResult {BlockHitResult(Vec3 p){super(p);}}
+  static class Player {
+    Vec3 eye, look; Player(Vec3 eye,Vec3 look){this.eye=eye;this.look=look;}
+    Vec3 getEyePosition(){return eye;}Vec3 getLookAngle(){return look;}
+    double blockInteractionRange(){return 5;}
+  }
+  static class ItemStack {final int part;ItemStack(int part){this.part=part;}static final ItemStack EMPTY=new ItemStack(-1);}
+  static class TilePipeHolder {}
+  static class VoxelShape {
+    final double[] low,high;
+    VoxelShape(double x,double y,double z,double xx,double yy,double zz) {
+      low=new double[]{x,y,z};high=new double[]{xx,yy,zz};
+    }
+    boolean isEmpty(){return false;}
+    BlockHitResult clip(Vec3 start,Vec3 end,BlockPos pos) {
+      double[] a={start.x,start.y,start.z},b={end.x,end.y,end.z};
+      double t0=0,t1=1;
+      for(int i=0;i<3;i++){
+        double d=b[i]-a[i];if(Math.abs(d)<1e-10){if(a[i]<low[i]||a[i]>high[i])return null;continue;}
+        double x=(low[i]-a[i])/d,y=(high[i]-a[i])/d;
+        if(x>y){double t=x;x=y;y=t;}
+        t0=Math.max(t0,x);t1=Math.min(t1,y);if(t0>t1)return null;
+      }
+      return new BlockHitResult(new Vec3(a[0]+(b[0]-a[0])*t0,a[1]+(b[1]-a[1])*t0,a[2]+(b[2]-a[2])*t0));
+    }
+  }
+  VoxelShape[] shapes=new VoxelShape[57];
+  TilePipeHolder pipe = new TilePipeHolder();
+  TilePipeHolder getPipe(LevelReader world,BlockPos pos,boolean load){return pipe;}
+  VoxelShape[] getAllShape(BlockGetter world,BlockPos pos){return shapes;}
+  int computSubhit(TilePipeHolder tile,Vec3 pos,int octant){return 0;}
+  int computHitOctant(Vec3 pos){return 0;}
+  ItemStack getPickStack(TilePipeHolder tile,int index){return new ItemStack(index);}
+  HELPER
+  HOOK
+  static void check(boolean ok){if(!ok)throw new AssertionError();}
+  public static void main(String[]args) {
+    PipePickHookProbe pipe=new PipePickHookProbe();
+    BlockState state=new BlockState(pipe);World world=new World();BlockPos pos=new BlockPos();
+    Player player=new Player(new Vec3(.5,.5,-1),new Vec3(0,0,1));
+    HitResult blockTarget=new HitResult(new Vec3(.5,.5,.25));
+    pipe.shapes[0]=new VoxelShape(.25,.25,.25,.75,.75,.75);
+    check(state.getCloneItemStack(blockTarget,world,pos,player).part==0);
+    pipe.shapes[9]=new VoxelShape(.25,.25,.0625,.75,.75,.25); // NORTH-facing lens
+    check(state.getCloneItemStack(blockTarget,world,pos,player).part==9);
+    pipe.shapes[9]=new VoxelShape(.25,.25,.25,.75,.75,.31); // same front plane
+    check(state.getCloneItemStack(blockTarget,world,pos,player).part==9);
+    pipe.shapes[9]=null;
+    pipe.shapes[13]=new VoxelShape(.25,.25,.0625,.75,.75,.25); // wire segment
+    check(state.getCloneItemStack(blockTarget,world,pos,player).part==13);
+    pipe.shapes[13]=null;
+    check(state.getCloneItemStack(blockTarget,world,pos,player).part==0);
+    pipe.shapes[10]=new VoxelShape(.25,.25,.0625,.75,.75,.25); // on bare holder
+    pipe.shapes[0]=null;
+    check(state.getCloneItemStack(blockTarget,world,pos,player).part==10);
+    pipe.pipe=null;
+    check(state.getCloneItemStack(blockTarget,world,pos,player)==ItemStack.EMPTY);
+    System.out.println("NeoForge 1.21.1 real pick hook PASS");
+  }
+}
+class NativeBlock {
+  public PipePickHookProbe.ItemStack getCloneItemStack(PipePickHookProbe.BlockState state,
+      PipePickHookProbe.HitResult hit,PipePickHookProbe.LevelReader level,
+      PipePickHookProbe.BlockPos pos,PipePickHookProbe.Player player) {return PipePickHookProbe.ItemStack.EMPTY;}
+}
+'''.replace('  HELPER', helper).replace('  HOOK', hook)
+        with tempfile.TemporaryDirectory(prefix='bc-1211-skm-java-') as temp:
+            src=Path(temp)/'PipePickHookProbe.java'
+            src.write_text(source,encoding='utf-8')
+            result=subprocess.run(['javac','--release','21',str(src)],capture_output=True,text=True,timeout=45)
+            self.assertEqual(result.returncode,0,result.stderr)
+            result=subprocess.run(['java','-cp',temp,'PipePickHookProbe'],capture_output=True,text=True,timeout=45)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertIn('PASS',result.stdout)
+
+# Original Forge ray/plug hit logic belongs with the 1.21.1 native pick-hook test.
+import subprocess
+
+PICK_LEGACY_TARGETS = ('1.19.2-forge', '1.20.1-forge')
+
+
+def PICK_1211_write(root: Path, relative: str, code: str) -> Path:
+    file = root / relative
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(code, encoding='utf-8')
+    return file
+
+
+def PICK_1211_javaprobe(root: Path, sources: list[Path], main: str) -> str:
+    classes = root / 'classes'
+    classes.mkdir(exist_ok=True)
+    build = subprocess.run(['javac', '--release', '21', '-encoding', 'UTF-8', '-d', str(classes),
+        *(str(source) for source in sources)], capture_output=True, text=True, timeout=40)
+    if build.returncode:
+        raise AssertionError('javac error: ' + build.stderr)
+    run = subprocess.run(['java', '-cp', str(classes), main], capture_output=True, text=True, timeout=30)
+    if run.returncode:
+        raise AssertionError('Java assertion: ' + run.stderr + '\n' + run.stdout)
+    return run.stdout
+
+
+class LegacyPipePickTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory(prefix='bc-legacy-pick-')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temp.cleanup()
+
+    def test_legacy_pick_ray_selects_plug_and_pipe(self):
+        for target in PICK_LEGACY_TARGETS:
+            with self.subTest(target=target):
+                code = PICK_1211_source_code(target)[1]
+                pattern = re.compile(r'\tprivate int getPickSubHit\(.*?\n\t}\n', re.DOTALL)
+                match = pattern.search(code)
+                self.assertIsNotNone(match)
+                method = match.group()
+                self.assertIn('getPickSubHit(world, pos, tile, target, player)', code)
+                self.assertIn('return plug.getPickStack();', code)
+                reach_api = ('player.getReachDistance()' if target == '1.19.2-forge'
+                    else 'player.getAttributeValue(ForgeMod.BLOCK_REACH.get())')
+                self.assertIn(reach_api, method)
+                root = Path(self.temp.name) / ('pick-stubs-' + target)
+                fixture = '''public class PickRayProbe {
+  static class BlockGetter {}
+  static class TilePipeHolder {}
+  static class BlockPos {int getX(){return 0;}int getY(){return 0;}int getZ(){return 0;}}
+  static class Vec3{double x,y,z;Vec3(double x,double y,double z){this.x=x;this.y=y;this.z=z;}
+    Vec3 subtract(Vec3 v){return new Vec3(x-v.x,y-v.y,z-v.z);}Vec3 subtract(double a,double b,double c){return new Vec3(x-a,y-b,z-c);}
+    Vec3 add(Vec3 v){return new Vec3(x+v.x,y+v.y,z+v.z);}Vec3 scale(double k){return new Vec3(x*k,y*k,z*k);}
+    double lengthSqr(){return x*x+y*y+z*z;}Vec3 normalize(){return scale(1.0/Math.sqrt(lengthSqr()));}
+    double distanceToSqr(Vec3 v){return subtract(v).lengthSqr();}}
+  static class HitResult{Vec3 hit;HitResult(Vec3 h){hit=h;}Vec3 getLocation(){return hit;}}
+  static class BlockHitResult extends HitResult{BlockHitResult(Vec3 h){super(h);}}
+  static class Player{Vec3 eye,look;Player(Vec3 eye,Vec3 look){this.eye=eye;this.look=look;}Vec3 getEyePosition(){return eye;}Vec3 getLookAngle(){return look;}double getReachDistance(){return 5;}}
+  static class VoxelShape{
+    double[] lo,hi;VoxelShape(double x,double y,double z,double xx,double yy,double zz){lo=new double[]{x,y,z};hi=new double[]{xx,yy,zz};}
+    boolean isEmpty(){return false;}
+    BlockHitResult clip(Vec3 start,Vec3 end,BlockPos pos){double[] a={start.x,start.y,start.z}, b={end.x,end.y,end.z};
+      double t0=0,t1=1;for(int i=0;i<3;i++){double d=b[i]-a[i];if(Math.abs(d)<1e-10){if(a[i]<lo[i]||a[i]>hi[i])return null;continue;}
+      double low=(lo[i]-a[i])/d,high=(hi[i]-a[i])/d;if(low>high){double tmp=low;low=high;high=tmp;}
+      t0=Math.max(t0,low);t1=Math.min(t1,high);if(t0>t1)return null;}
+      return new BlockHitResult(new Vec3(a[0]+(b[0]-a[0])*t0,a[1]+(b[1]-a[1])*t0,a[2]+(b[2]-a[2])*t0));}
+  }
+  VoxelShape[] shapes=new VoxelShape[57];
+  VoxelShape[] getAllShape(BlockGetter level,BlockPos pos){return shapes;}
+  int computSubhit(TilePipeHolder tile,Vec3 location,int octant){return 0;}
+  int computHitOctant(Vec3 location){return 0;}
+  METHOD
+  static void check(boolean value){if(!value)throw new AssertionError();}
+  public static void main(String[]args){
+    PickRayProbe b=new PickRayProbe();BlockGetter level=new BlockGetter();BlockPos pos=new BlockPos();TilePipeHolder tile=new TilePipeHolder();
+    b.shapes[0]=new VoxelShape(.25,.25,.25,.75,.75,.75);
+    Player p=new Player(new Vec3(.5,.5,-1),new Vec3(0,0,1));
+    HitResult target=new HitResult(new Vec3(.5,.5,.25));
+    check(b.getPickSubHit(level,pos,tile,target,p)==0);
+    b.shapes[7]=new VoxelShape(.25,.25,.0625,.75,.75,.25); // plug outside front of pipe
+    check(b.getPickSubHit(level,pos,tile,target,p)==7);
+    b.shapes[7]=new VoxelShape(.25,.25,.25,.75,.75,.3); // exactly coincident: plug wins
+    check(b.getPickSubHit(level,pos,tile,target,p)==7);
+    b.shapes[7]=null;b.shapes[13]=new VoxelShape(.25,.25,.0625,.75,.75,.25); // a wire
+    check(b.getPickSubHit(level,pos,tile,target,p)==13);
+    b.shapes[13]=null;check(b.getPickSubHit(level,pos,tile,target,p)==0);
+    System.out.println("legacy pick nearest part PASS");
+  }
+}
+'''.replace('  METHOD', method)
+                if target == '1.20.1-forge':
+                    # Forge 1.20.1 removed Player#getReachDistance; the block-reach
+                    # attribute is available through ForgeMod.BLOCK_REACH instead.
+                    fixture = fixture.replace(
+                        '  static class Player{',
+                        '  static class ForgeMod { '
+                        'static final AttributeRef BLOCK_REACH = new AttributeRef(); '
+                        'static class Attribute {} '
+                        'static class AttributeRef { Attribute get(){ return new Attribute(); } } '
+                        '}\n  static class Player{',
+                    ).replace(
+                        'double getReachDistance(){return 5;}',
+                        'double getAttributeValue(ForgeMod.Attribute attr){return 5;}',
+                    )
+                file = PICK_1211_write(root, 'PickRayProbe.java', fixture)
+                out=PICK_1211_javaprobe(root, [file], 'PickRayProbe')
+                self.assertIn('PASS', out)
+
+
 if __name__ == '__main__':
-    unittest.main(verbosity=2)
+    unittest.main()

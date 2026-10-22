@@ -23,6 +23,8 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
 
 class NbtSquishMapReader {
+    private static final long MAX_EXPANDED_BUDGET = 4L * 1024 * 1024;
+    private static final int MAX_NBT_DEPTH = 64;
     private final NbtSquishMap map = new NbtSquishMap();
     private long remainingBudget;
 
@@ -30,7 +32,8 @@ class NbtSquishMapReader {
         if (maxBudget < 0) {
             throw new IllegalArgumentException("maxBudget must be non-negative");
         }
-        remainingBudget = maxBudget;
+        // The unbounded overload must not make attacker-controlled compressed input unlimited.
+        remainingBudget = Math.min(maxBudget, MAX_EXPANDED_BUDGET);
     }
 
     public static NbtSquishMap read(DataInput in) throws IOException {
@@ -191,9 +194,41 @@ class NbtSquishMapReader {
         for (int i = 0; i < count; i++) {
             String key = map.getStringForReading(stringType.readIndex(in));
             Tag value = map.getTagForReading(type.readIndex(in));
+            // Compound dictionary entries can refer to previously expanded compounds.
+            // Charge for every descendant BEFORE copying; dictionary-only accounting
+            // misses exponential copy amplification with tiny input streams.
+            chargeCopy(value, 0);
             nbt.put(key, value.copy());
         }
         return nbt;
+    }
+
+    private void chargeCopy(Tag tag, int depth) throws InvalidInputDataException {
+        if (depth > MAX_NBT_DEPTH) {
+            throw new InvalidInputDataException("NBT squish nesting exceeds " + MAX_NBT_DEPTH);
+        }
+        consumeBudget(1, "expanded tag");
+        if (tag instanceof CompoundTag compound) {
+            // CompoundTag#getAllKeys was renamed to keySet in modern Minecraft.
+            //? if >=1.21.11 {
+            for (String key : compound.keySet()) {
+            //? } else {
+            for (String key : compound.getAllKeys()) {
+            //? }
+                Tag child = compound.get(key);
+                if (child != null) chargeCopy(child, depth + 1);
+            }
+        } else if (tag instanceof ListTag list) {
+            for (int i = 0; i < list.size(); i++) {
+                chargeCopy(list.get(i), depth + 1);
+            }
+        } else if (tag instanceof net.minecraft.nbt.ByteArrayTag array) {
+            consumeBudget(array.getAsByteArray().length, "expanded byte array");
+        } else if (tag instanceof net.minecraft.nbt.IntArrayTag array) {
+            consumeBudget(4L * array.getAsIntArray().length, "expanded int array");
+        } else if (tag instanceof net.minecraft.nbt.LongArrayTag array) {
+            consumeBudget(8L * array.getAsLongArray().length, "expanded long array");
+        }
     }
 
     private ListTag readNormalList(WrittenType type, DataInput in) throws IOException {

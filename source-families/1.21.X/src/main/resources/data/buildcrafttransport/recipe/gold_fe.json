@@ -1,0 +1,14 @@
+{
+  "type": "buildcrafttransport:pipe",
+  "mode": "upgrade",
+  "group": "buildcrafttransport:pipe_upgrades",
+  "from": {
+    "item": "buildcrafttransport:gold_power"
+  },
+  "additional": {
+    "item": "minecraft:redstone"
+  },
+  "result": {
+    "item": "buildcrafttransport:gold_fe"
+  }
+}

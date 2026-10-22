@@ -244,7 +244,8 @@ class PlatformBoundaries(unittest.TestCase):
                     self.assertNotRegex(text,r'@SubscribeEvent\s+(?:public|private|protected)\s+(?:static\s+)?void\s+\w+\(BCEvents\.')
                     self.assertNotRegex(text,r'import net\.(?:minecraftforge|neoforged).*\.(?:LevelTickEvent|ServerTickEvent|PlayerTickEvent|EntityJoinLevelEvent|ChunkWatchEvent);')
             transport = (java/'buildcraft/transport/BCTransportEventDist.java').read_text()
-            self.assertEqual(1,transport.count('PlatformEvents.levelTick(BCEvents.Phase.START'))
+            # Wire networks must tick once at END; registering START as well causes a duplicate tick.
+            self.assertEqual(0,transport.count('PlatformEvents.levelTick(BCEvents.Phase.START'))
             self.assertEqual(1,transport.count('PlatformEvents.levelTick(BCEvents.Phase.END'))
             transport_bootstrap = (java/'buildcraft/transport/BCTransport.java').read_text()
             self.assertNotIn('EVENT_BUS.register(BCTransportEventDist.class)', transport_bootstrap)

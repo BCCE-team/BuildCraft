@@ -34,7 +34,10 @@ import net.neoforged.neoforge.common.SpecialPlantable;
 public enum CropHandlerPlantable implements CropAdapter {
     INSTANCE;
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean isSeed(ItemStack stack) {
         if (stack.getItem() instanceof SpecialPlantable) {
             return true;
@@ -46,7 +49,10 @@ public enum CropHandlerPlantable implements CropAdapter {
         return false;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean canSustainPlant(Level world, ItemStack seed, BlockPos pos) {
         BlockPos plantPos = pos.above();
         if (!world.isEmptyBlock(plantPos)) {
@@ -63,12 +69,18 @@ public enum CropHandlerPlantable implements CropAdapter {
         return false;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean plant(Level world, Player player, ItemStack seed, BlockPos pos) {
         return BlockUtil.useItemOnBlock(world, player, seed, pos, Direction.UP);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean isMature(BlockGetter blockAccess, BlockState state, BlockPos pos) {
         Block block = state.getBlock();
         if (block instanceof FlowerBlock || block instanceof TallGrassBlock || block instanceof MushroomBlock || block instanceof DoublePlantBlock
@@ -86,7 +98,10 @@ public enum CropHandlerPlantable implements CropAdapter {
         return false;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean harvest(Level world, BlockPos pos, NonNullList<ItemStack> drops, Player actor) {
         if (!(world instanceof ServerLevel serverLevel)) {
             return false;

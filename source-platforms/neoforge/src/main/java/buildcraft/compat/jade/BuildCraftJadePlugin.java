@@ -169,6 +169,20 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
         registration.addTooltipCollectedCallback(1000, BuildCraftJadePlugin::preserveBuildCraftTitleColours);
     }
 
+    private static void appendFluidNamesWithoutAmounts(CompoundTag root, TileBC_Neptune tile) {
+        if (!BCLibConfig.hideFluidValues) return;
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
+        for (Tank tank : tile.tankManager) {
+            var fluid = tank.getFluid();
+            if (fluid != null && !fluid.isEmpty()) {
+                String name = fluid.getDisplayName().getString();
+                if (!name.isBlank()) names.add(name);
+            }
+            if (names.size() >= 8) break;
+        }
+        if (!names.isEmpty()) root.putString("FluidNames", String.join(", ", names));
+    }
+
     private enum BlockProvider implements IBlockComponentProvider, IServerDataProvider<BlockAccessor> {
         INSTANCE;
 
@@ -194,6 +208,8 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             appendPipe(root, tile, accessor.showDetails());
             appendLaserTable(root, tile);
             appendZonePlanner(root, tile);
+            // Preserve fluid names in privacy mode: only quantities are hidden.
+            appendFluidNamesWithoutAmounts(root, tile);
 
             if (!root.isEmpty()) {
                 data.put(DATA_ROOT, root);
@@ -222,6 +238,9 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             }
             if (root.contains("LaserTable")) {
                 appendLaserTooltip(tooltip, root.getCompound("LaserTable"));
+            }
+            if (root.contains("FluidNames")) {
+                tooltip.add(line("fluid", Component.literal(root.getString("FluidNames")).withStyle(ChatFormatting.WHITE)));
             }
             if (root.contains("ZonePlanner")) {
                 appendZonePlannerTooltip(tooltip, root.getCompound("ZonePlanner"));
@@ -646,16 +665,22 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             if (matching != null) {
                 long combined = (long) matching.getCount() + stack.getCount();
                 matching.setCount((int) Math.min(Integer.MAX_VALUE, combined));
-            } else if (compacted.size() < limit) {
+            } else if (compacted.size() < 1024) {
                 compacted.add(stack.copy());
             }
         }
-        return new ViewGroup<>(compacted);
+        // A HUD can show only 9 (or 54 expanded) distinct stacks at once.
+        // Rotate through bounded pages instead of permanently hiding every later slot.
+        if (compacted.size() <= limit) return new ViewGroup<>(compacted);
+        int pageCount = (compacted.size() + limit - 1) / limit;
+        int page = (int) Math.floorMod(System.currentTimeMillis() / 4000L, pageCount);
+        int first = page * limit;
+        return new ViewGroup<>(new ArrayList<>(compacted.subList(first, Math.min(compacted.size(), first + limit))));
     }
 
     private static ViewGroup<ItemStack> itemHandlerGroup(IItemHandler handler, int maxSize) {
         List<ItemStack> stacks = new ArrayList<>();
-        int limit = Math.min(handler.getSlots(), Math.max(1, maxSize) * 3);
+        int limit = handler.getSlots();
         for (int slot = 0; slot < limit; slot++) {
             ItemStack stack = handler.getStackInSlot(slot);
             if (!stack.isEmpty()) {

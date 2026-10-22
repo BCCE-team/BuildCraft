@@ -72,15 +72,38 @@ public class TileIntegrationTable extends TileLaserTableBase implements MenuProv
     );
     public final ItemProvider invOutput = new ItemProvider((i) -> getOutput(), 1);
     public RecipeMatch<IntegrationRecipeDefinition> recipe;
+    private long lastRecipeGeneration = -1;
+    private long lastGuiTarget = Long.MIN_VALUE;
+    private String lastGuiRecipeId;
+    private ItemStack lastGuiOutput = ItemStack.EMPTY;
 
     private boolean extract(CountedIngredient item, List<CountedIngredient> items, boolean simulate) {
         ItemStack targetStack = invTarget.getStackInSlot(0);
         if (targetStack.isEmpty() || !item.test(targetStack)) return false;
-        List<IngredientStack> legacyItems = new ArrayList<>(items.size());
-        for (CountedIngredient definition : items) {
-            legacyItems.add(new IngredientStack(definition.ingredient(), definition.count()));
+        // Keep the API2 exact-sample matcher (including NBT/Data Components).
+        // Converting to legacy IngredientStack silently discards that information.
+        List<ItemStack> remaining = new ArrayList<>(invToIntegrate.getSlots());
+        for (int slot = 0; slot < invToIntegrate.getSlots(); slot++) {
+            remaining.add(invToIntegrate.getStackInSlot(slot).copy());
         }
-        if (!extract(invToIntegrate, legacyItems, simulate, true)) return false;
+        for (CountedIngredient definition : items) {
+            int needed = definition.count();
+            for (int slot = 0; slot < remaining.size() && needed > 0; slot++) {
+                ItemStack stack = remaining.get(slot);
+                if (!definition.matchesItem(stack)) continue;
+                int taken = Math.min(needed, stack.getCount());
+                stack.shrink(taken);
+                needed -= taken;
+            }
+            if (needed > 0) return false;
+        }
+        // Integration recipes consume all inserted ingredients, not arbitrary extras.
+        if (remaining.stream().anyMatch(stack -> !stack.isEmpty())) return false;
+        if (!simulate) {
+            for (int slot = 0; slot < remaining.size(); slot++) {
+                invToIntegrate.setStackInSlot(slot, remaining.get(slot));
+            }
+        }
         if (!simulate) {
             targetStack.setCount(targetStack.getCount() - item.count());
             invTarget.setStackInSlot(0, targetStack);
@@ -98,6 +121,12 @@ public class TileIntegrationTable extends TileLaserTableBase implements MenuProv
     }
 
     private void updateRecipe() {
+        long generation = recipeService().snapshot().generation().id();
+        if (lastRecipeGeneration != generation) {
+            lastRecipeGeneration = generation;
+            // Re-resolve against new datapacks/API2 snapshot, even if inputs did not change.
+            recipe = null;
+        }
         if (recipe != null) {
             IntegrationRecipeDefinition definition = recipe.recipe();
             ItemStack output = getOutput();
@@ -131,6 +160,7 @@ public class TileIntegrationTable extends TileLaserTableBase implements MenuProv
         updateRecipe();
 
         long target = getTarget();
+        boolean completed = false;
         if (target > 0 && power >= target) {
             ItemStack output = getOutput();
             IntegrationRecipeDefinition definition = recipe.recipe();
@@ -144,10 +174,23 @@ public class TileIntegrationTable extends TileLaserTableBase implements MenuProv
                 }
                 invResult.setStackInSlot(0, result);
                 power -= target;
+                completed = true;
             }
         }
 
-        sendNetworkGuiUpdate(NET_GUI_DATA);
+        // Avoid broadcasting the full recipe, preview and inventory state every idle server tick.
+        // A changed recipe/preview/target and a completed craft still sync immediately.
+        String recipeId = recipe == null ? null : recipe.id().toString();
+        ItemStack preview = getOutput();
+        if (completed || target != lastGuiTarget
+            || !java.util.Objects.equals(recipeId, lastGuiRecipeId)
+            || !ItemStack.matches(preview, lastGuiOutput)
+            || (target > 0 && level.getGameTime() % 4 == 0)) {
+            sendNetworkGuiUpdate(NET_GUI_DATA);
+            lastGuiTarget = target;
+            lastGuiRecipeId = recipeId;
+            lastGuiOutput = preview.copy();
+        }
     }
     
     @Override

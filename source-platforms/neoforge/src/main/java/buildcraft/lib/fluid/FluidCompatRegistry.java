@@ -13,7 +13,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.annotation.Nullable;
 
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
@@ -35,7 +39,11 @@ public final class FluidCompatRegistry {
     private FluidCompatRegistry() {}
 
     public static synchronized void registerCanonical(TagKey<Fluid> tag, Fluid canonical,
+//? if mc_26_x {
+        Identifier... fallbackAliases) {
+//? } else {
         ResourceLocation... fallbackAliases) {
+//?}
         if (tag == null || canonical == null || canonical == Fluids.EMPTY) {
             return;
         }
@@ -109,7 +117,11 @@ public final class FluidCompatRegistry {
         fluids.add(stack.getFluid());
         fluids.add(group.canonical);
         for (Fluid fluid : BuiltInRegistries.FLUID) {
+//? if mc_26_x {
+            Identifier id = BuiltInRegistries.FLUID.getKey(fluid);
+//? } else {
             ResourceLocation id = BuiltInRegistries.FLUID.getKey(fluid);
+//?}
             if (id == null || isFlowingVariant(id)) {
                 continue;
             }
@@ -122,7 +134,11 @@ public final class FluidCompatRegistry {
         ordered.sort(Comparator
             .comparingInt((Fluid fluid) -> namespaceRank(fluid, stack.getFluid(), preferredNamespace, group.canonical))
             .thenComparing(fluid -> {
+//? if mc_26_x {
+                Identifier id = BuiltInRegistries.FLUID.getKey(fluid);
+//? } else {
                 ResourceLocation id = BuiltInRegistries.FLUID.getKey(fluid);
+//?}
                 return id == null ? "" : id.toString();
             }));
 
@@ -148,7 +164,11 @@ public final class FluidCompatRegistry {
         if (fluid == requested) {
             return 0;
         }
+//? if mc_26_x {
+        Identifier id = BuiltInRegistries.FLUID.getKey(fluid);
+//? } else {
         ResourceLocation id = BuiltInRegistries.FLUID.getKey(fluid);
+//?}
         if (preferredNamespace != null && id != null && preferredNamespace.equals(id.getNamespace())) {
             return 1;
         }
@@ -168,14 +188,22 @@ public final class FluidCompatRegistry {
         return null;
     }
 
+//? if mc_26_x {
+    private static boolean isFlowingVariant(Identifier id) {
+//? } else {
     private static boolean isFlowingVariant(ResourceLocation id) {
+//?}
         String path = id.getPath();
         return path.endsWith("_flowing") || path.startsWith("flowing_");
     }
 
     private static final class FluidGroup {
         private final TagKey<Fluid> tag;
+//? if mc_26_x {
+        private final Set<Identifier> fallbackAliases = new HashSet<>();
+//? } else {
         private final Set<ResourceLocation> fallbackAliases = new HashSet<>();
+//?}
         private Fluid canonical;
 
         private FluidGroup(TagKey<Fluid> tag, Fluid canonical) {
@@ -187,7 +215,11 @@ public final class FluidCompatRegistry {
             if (fluid == canonical) {
                 return true;
             }
+//? if mc_26_x {
+            Identifier id = BuiltInRegistries.FLUID.getKey(fluid);
+//? } else {
             ResourceLocation id = BuiltInRegistries.FLUID.getKey(fluid);
+//?}
             return (id != null && fallbackAliases.contains(id)) || fluid.is(tag);
         }
     }

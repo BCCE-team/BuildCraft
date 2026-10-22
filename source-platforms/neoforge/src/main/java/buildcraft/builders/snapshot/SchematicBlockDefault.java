@@ -960,6 +960,29 @@ public class SchematicBlockDefault implements ISchematicBlock {
         return false;
     }
 
+    /** Compare only stable, user-authored block entity fields (never inventories or transient power). */
+    protected boolean matchesSafeBlockEntityData(Level world, BlockPos blockPos) {
+        if (tileNbt == null || !blockState.hasBlockEntity()) return true;
+        if (!world.hasChunkAt(blockPos)) return false;
+        BlockEntity current = world.getBlockEntity(blockPos);
+        if (current == null) return false;
+        CompoundTag actual;
+        try {
+            actual = current.saveWithFullMetadata(world.registryAccess());
+        } catch (RuntimeException invalidData) {
+            return false;
+        }
+        // These values are copied into the snapshot and should not be silently ignored
+        // on signs, banners, nameable containers, or legacy text block entities.
+        for (String key : new String[]{"front_text", "back_text", "Text1", "Text2", "Text3", "Text4",
+            "CustomName", "Patterns", "patterns", "author"}) {
+            if (tileNbt.contains(key) && !java.util.Objects.equals(tileNbt.get(key), actual.get(key))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     public boolean isBuilt(Level world, BlockPos blockPos) {
         BlockState blockState2 = world.getBlockState(blockPos);
@@ -968,13 +991,13 @@ public class SchematicBlockDefault implements ISchematicBlock {
         }
         BlockState expectedState = getPlacementState(world, blockPos);
         if (blockState2 == expectedState) {
-            return true;
+            return matchesSafeBlockEntityData(world, blockPos);
         }
         if (!canBeReplacedWithBlocks.contains(blockState2.getBlock())) {
             return false;
         }
         if (BlockUtil.blockStatesWithoutBlockEqual(expectedState, blockState2, ignoredProperties)) {
-            return true;
+            return matchesSafeBlockEntityData(world, blockPos);
         }
 
         // A half of a double chest can temporarily become SINGLE while its neighbour is still
@@ -985,7 +1008,8 @@ public class SchematicBlockDefault implements ISchematicBlock {
                 && blockState2.hasProperty(BlockStateProperties.CHEST_TYPE)) {
             List<Property<?>> comparisonIgnored = new ArrayList<>(ignoredProperties);
             comparisonIgnored.add(BlockStateProperties.CHEST_TYPE);
-            return BlockUtil.blockStatesWithoutBlockEqual(expectedState, blockState2, comparisonIgnored);
+            return BlockUtil.blockStatesWithoutBlockEqual(expectedState, blockState2, comparisonIgnored)
+                && matchesSafeBlockEntityData(world, blockPos);
         }
         return false;
     }

@@ -35,14 +35,14 @@ public class ResourceJsonTester {
     void processedPackMetadataMatchesTarget() throws IOException {
         String expectedValue = System.getProperty("buildcraft.expectedPackFormat");
         Assertions.assertNotNull(expectedValue, "Gradle must provide the target pack format");
-        int expected = Integer.parseInt(expectedValue);
+        double expected = Double.parseDouble(expectedValue);
 
         InputStream stream = ResourceJsonTester.class.getResourceAsStream("/pack.mcmeta");
         Assertions.assertNotNull(stream, "Missing processed pack.mcmeta on the test runtime classpath");
         try (Reader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             JsonElement root = JsonParser.parseReader(reader);
             Assertions.assertEquals(expected,
-                root.getAsJsonObject().getAsJsonObject("pack").get("pack_format").getAsInt());
+                root.getAsJsonObject().getAsJsonObject("pack").get("pack_format").getAsDouble());
         }
     }
 

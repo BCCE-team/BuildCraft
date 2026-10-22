@@ -12,12 +12,18 @@ import buildcraft.robotics.statements.ActionRobotFilter;
 import buildcraft.robotics.statements.ActionStationAcceptFluids;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 
 public class AIRobotUnloadFluids extends AIRobot {
     private static final int FLUID_UNLOAD_INITIAL_DELAY_TICKS = 10;
     private int waitedCycles;
+    private int stalledTicks;
+    private static final int MAX_STALLED_TICKS = 200;
     private boolean requireAcceptAction;
 
     public AIRobotUnloadFluids(EntityRobotBase robot) {
@@ -30,7 +36,10 @@ public class AIRobotUnloadFluids extends AIRobot {
         this.requireAcceptAction = requireAcceptAction;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void update() {
         waitedCycles++;
         if (waitedCycles <= FLUID_UNLOAD_INITIAL_DELAY_TICKS) {
@@ -42,9 +51,15 @@ public class AIRobotUnloadFluids extends AIRobot {
             // Keep trying every tick after the initial 40 tick docking delay.
             // The original BuildCraft 7.1.x robot does not wait 40 ticks per bucket;
             // it waits once, then pushes fluid as fast as the target pipe can accept it.
+            stalledTicks = 0;
             setSuccess(true);
-        } else {
-            setSuccess(robot.getFluidInTank(0).isEmpty());
+        } else if (robot.getFluidInTank(0).isEmpty()) {
+            setSuccess(true);
+            terminate();
+        } else if (++stalledTicks >= MAX_STALLED_TICKS) {
+            // A full pipe is a transient backpressure condition; wait before
+            // returning the still-loaded robot to the scheduler for rerouting.
+            setSuccess(false);
             terminate();
         }
     }
@@ -123,7 +138,10 @@ public class AIRobotUnloadFluids extends AIRobot {
         return station.getFluidOutput() != null;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public int getEnergyCost() {
         return 10;
     }

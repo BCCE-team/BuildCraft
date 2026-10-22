@@ -116,7 +116,7 @@ for platform in ("forge", "neoforge"):
             if token not in data:
                 errors.append(f"{rel}: request provider not migrated to API2 ({token})")
 
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     stack_request = text(f"source-families/{family}/src/main/java/buildcraft/robotics/StackRequest.java")
     for token in ("RequestProvider", "ResourceLocation requestId", "ResourceIdApiRequest", '"requestId"'):
         if token not in stack_request:

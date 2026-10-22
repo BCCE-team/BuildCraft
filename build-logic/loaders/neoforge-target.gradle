@@ -85,6 +85,7 @@ sourceSets {
         compileClasspath = sourceSets.apiV2.output + sourceSets.apiV2.compileClasspath
         runtimeClasspath = output + compileClasspath
     }
+
 }
 
 if (!jeiCompatEnabled) {
@@ -103,11 +104,9 @@ if (!forestryCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/forestry/**'
 }
 if (!dataGenSourcesEnabled) {
-    // NeoForge 1.21.11 does not expose the datagen helper APIs used by these
-    // source-time generators. Keep the exclusion list deliberately narrow: many
-    // BuildCraft runtime/API contracts also end in *Provider and must remain part
-    // of the main compile, e.g. AreaProvider, IBCCapabilityProvider,
-    // FakePlayerProvider, ItemProvider and the statement provider interfaces.
+    // Some Minecraft/NeoForge targets do not expose the generator APIs used by
+    // these source-time providers. Keep the exclusion list narrow: runtime/API
+    // contracts that also end in *Provider remain part of the main compile.
     sourceSets.main.java.exclude 'buildcraft/energy/BCEnergyProvider.java'
     sourceSets.main.java.exclude 'buildcraft/lib/BCTagsProvider.java'
     // SimpleRobotRegistryProvider is runtime SavedData/robot docking infrastructure, not a datagen provider.
@@ -120,6 +119,7 @@ if (!dataGenSourcesEnabled) {
     // so Gradle must not second-guess that resolution by inspecting version-src.
     sourceSets.main.java.exclude 'buildcraft/core/client/model/FragileFluidContainerModel.java'
     sourceSets.main.java.exclude 'buildcraft/core/client/model/ModelEngine.java'
+
 }
 
 configurations {
@@ -289,6 +289,38 @@ neoForge {
     }
 }
 
+// In NeoForge 1.21.11+ the FML dev locator reports classes/java/main as the
+// primary path of the exploded BuildCraft mod, with resources/main as another
+// root. GameTest needs the processed mod metadata at that primary path too.
+// Mirror ONLY the expanded TOML for this run, then always clean it up: a
+// persistent duplicate in the compiled output would otherwise contaminate
+// later production JARs (which already contain the resources/main copy).
+if (gameTestRunRequested && minecraftVersion != '1.21.1') {
+    def processedGameTestMetadata = layout.buildDirectory.file('resources/main/META-INF/neoforge.mods.toml')
+    def classGameTestMetadata = layout.buildDirectory.file('classes/java/main/META-INF/neoforge.mods.toml')
+    def prepareGameTestModMetadata = tasks.register('prepareGameTestModMetadata', Copy) {
+        dependsOn tasks.named('compileJava'), tasks.named('processResources')
+        from(processedGameTestMetadata)
+        into(layout.buildDirectory.dir('classes/java/main/META-INF'))
+        doFirst {
+            def metadata = processedGameTestMetadata.get().asFile
+            if (!metadata.isFile()) {
+                throw new GradleException("Missing processed NeoForge mod metadata for GameTests: ${metadata}")
+            }
+            if (metadata.getText('UTF-8').contains('${')) {
+                throw new GradleException("Unexpanded NeoForge mod metadata for GameTests: ${metadata}")
+            }
+        }
+    }
+    def cleanGameTestModMetadata = tasks.register('cleanGameTestModMetadata', Delete) {
+        delete classGameTestMetadata
+    }
+    tasks.named('runGameTestServer') {
+        dependsOn prepareGameTestModMetadata
+        finalizedBy cleanGameTestModMetadata
+    }
+}
+
 tasks.matching { it.name == 'runData' }.configureEach {
     dependsOn prepareEffectiveSource
     doFirst {
@@ -364,6 +396,10 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter-api:${requiredProperty('deps.junit')}"
     testImplementation "org.junit.jupiter:junit-jupiter-params:${requiredProperty('deps.junit')}"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${requiredProperty('deps.junit')}"
+    // Gradle 9 no longer injects the JUnit Platform launcher into the test runtime.
+    // Import the JUnit BOM so the launcher version stays aligned with Jupiter.
+    testRuntimeOnly platform("org.junit:junit-bom:${requiredProperty('deps.junit')}")
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 }
 
 tasks.named('test', Test) {
@@ -387,7 +423,8 @@ def resourceProperties = [
         resource_pack_format: requiredProperty('pack.resource_format'),
         data_pack_format: requiredProperty('pack.data_format'),
         jei_version_range: requiredProperty('compat.jei.range'),
-        jade_version_range: requiredProperty('compat.jade.range')
+        jade_version_range: requiredProperty('compat.jade.range'),
+        create_version_range: optionalProperty('compat.create.range') ?: '[0,)'
 ]
 
 tasks.named('processResources', ProcessResources) {
@@ -441,6 +478,35 @@ tasks.register('buildAndCollect') {
     dependsOn tasks.named('build')
 }
 
+
+// Compile independent addon fixtures a second time against the actual production JAR.
+// The source-set probe alone would not detect packaging or ABI omissions.
+def verifyApi2AddonBinary = tasks.register('verifyApi2AddonBinary', Exec) {
+    group = 'verification'
+    description = "Verify independent API v2 fixtures against the production ${targetName} JAR"
+    dependsOn tasks.named('jar')
+    dependsOn prepareEffectiveSource
+    workingDir repositoryRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    doFirst {
+        def jarFile = tasks.named('jar', Jar).get().archiveFile.get().asFile
+        def javac = tasks.named('compileJava', org.gradle.api.tasks.compile.JavaCompile)
+            .get().javaCompiler.get().executablePath.asFile.absolutePath
+        commandLine pythonExecutable,
+            new File(repositoryRoot, 'scripts/verify-addon-binary.py').absolutePath,
+            '--bcce-jar', jarFile.absolutePath,
+            '--dependencies', sourceSets.main.compileClasspath.asPath,
+            '--release', javaVersion.toString(),
+            '--javac', javac,
+            '--fixture-root', new File(effectiveSourceDir, 'addon-fixture/src/main/java/dev/bcce/apifixture').absolutePath,
+            '--output', new File(project.buildDir, 'conformance/api2-fixtures.jar').absolutePath
+    }
+}
+
+tasks.named('buildAndCollect') {
+    dependsOn verifyApi2AddonBinary
+}
+
 // API 2 is bundled directly in the normal BuildCraft production jar.
 // The isolated apiV2 source set and addonFixture remain verification-only: they
 // prove that addons can compile against the public surface without implementation
@@ -482,6 +548,7 @@ def validateApiV2Only = tasks.register('validateApiV2Only', Exec) {
 
 tasks.named('compileApiV2Java') { dependsOn prepareEffectiveSource }
 tasks.named('compileAddonFixtureJava') { dependsOn tasks.named('compileApiV2Java') }
+
 tasks.named('check') {
     dependsOn validateApiV2Boundary
     dependsOn validateApiV2Only

@@ -124,7 +124,7 @@ def validate_runtime_services() -> None:
             "Optional<ItemTransfer>",
             "Optional<FluidTransfer>",
             "Optional<EnergyTransfer>",
-            "implements ItemPort",
+            "implements SlottedItemPort",
             "implements FluidPort",
             "implements ExternalEnergyPort",
         )
@@ -146,13 +146,23 @@ def validate_robot_extensions() -> None:
             ROOT / f"source-platforms/{platform}/src/main/java/buildcraft/robotics/internal/api2/RobotServiceImpl.java",
             "BuildCraftRegistries.ROBOT_RESOURCE_TYPES",
             "type.acquirer().acquire",
-            "BuildCraftRegistries.ROBOT_TASK_TYPES",
-            "type.taskType().isInstance(task)",
+            "ApiTaskAI.canAssign(task)",
+            "ApiTaskAI::trackIfExecuting",
             "BuildCraftRegistries.ROBOT_DOCK_PORT_TYPES",
             "type.resolve(new RobotDockContext",
         )
         if "resource instanceof BlockRobotResource" in service:
             fail(f"{platform}: RobotService.acquire still hard-codes BlockRobotResource instead of registry dispatch")
+
+        require(
+            ROOT / "source-shared/src/main/java/buildcraft/robotics/internal/api2/ApiTaskAI.java",
+            "BuildCraftRegistries.ROBOT_TASK_TYPES",
+            "type.taskType().isInstance(value)",
+            "taskRegistry().decode",
+            "writeSelfToNBT",
+            "loadSelfFromNBT",
+            "trackIfExecuting",
+        )
 
         bootstrap = require(
             ROOT / f"source-platforms/{platform}/src/main/java/buildcraft/robotics/internal/api2/RoboticsApi2Bootstrap.java",
@@ -184,6 +194,10 @@ def validate_fixture_extensions() -> None:
     )
     if "buildcraft.lib.internal" in fixture or "net.minecraftforge" in fixture or "net.neoforged" in fixture:
         fail("addon fixture robot extensions leaked implementation/loader APIs")
+
+
+def validate_slotted_port_contract() -> None:
+    require(ROOT / "source-shared/src/main/java/buildcraft/api/v2/item/SlottedItemPort.java", "extends ItemPort")
 
 
 def validate_retired_dead_surface() -> None:
@@ -224,6 +238,7 @@ def main() -> None:
     props = load_properties()
     validate_lifecycle(props)
     validate_runtime_services()
+    validate_slotted_port_contract()
     validate_robot_extensions()
     validate_fixture_extensions()
     validate_retired_dead_surface()

@@ -211,6 +211,7 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
                         tile2.onLoad();
                     }
                 } else {
+                    SoundUtil.playBlockPlace(w, p, stripesStateOld);
                     stacksToSendBack.addAll(list);
                     for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
                         ItemStack stack = player.getInventory().removeItemNoUpdate(i);
@@ -324,6 +325,7 @@ public enum PipeExtensionManager implements IPipeExtensionManager {
 
                 blockSnapshot2.restore(true);
             } else {
+                SoundUtil.playBlockPlace(w, p, stripesStateOld);
                 stacksToSendBack.addAll(list);
             }
         } else {

@@ -4,13 +4,20 @@ import java.util.EnumMap;
 
 import javax.annotation.Nullable;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+
+import buildcraft.lib.engine.TileEngineBase_BC8;
 
 public class MultiBlockItem<E extends Enum<E> & StringRepresentable> extends BlockItem{
 
@@ -27,6 +34,21 @@ public class MultiBlockItem<E extends Enum<E> & StringRepresentable> extends Blo
 	public void fillItemCategory(CreativeModeTab tab, NonNullList<ItemStack> list) {
 		if(this.allowedIn(tab)) {
 			list.add(new ItemStack(this));}
+	}
+
+	@Override
+	public InteractionResult place(BlockPlaceContext context) {
+		BlockPos placementPos = context.getClickedPos();
+		Direction preferredDirection = context.getClickedFace().getOpposite();
+		InteractionResult result = super.place(context);
+
+		if (result.consumesAction() && !context.getLevel().isClientSide) {
+			BlockEntity blockEntity = context.getLevel().getBlockEntity(placementPos);
+			if (blockEntity instanceof TileEngineBase_BC8 engine) {
+				engine.preferDirectionOnPlacement(preferredDirection);
+			}
+		}
+		return result;
 	}
 
 	@Override

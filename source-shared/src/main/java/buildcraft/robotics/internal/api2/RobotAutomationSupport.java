@@ -10,6 +10,7 @@ import buildcraft.api.v2.permission.AutomationActor;
 import buildcraft.lib.misc.AutomationPermissionUtil;
 import buildcraft.lib.misc.FakePlayerProvider;
 import buildcraft.robotics.entity.EntityRobot;
+import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
@@ -36,6 +37,28 @@ public final class RobotAutomationSupport {
         return AutomationPermissionUtil.mayBlock(
             level, robot.blockPosition(), target, owner(robot), AutomationPermissionUtil.SOURCE_ROBOT, operation, mode
         );
+    }
+
+    /** Inventory access must be checked even when an old robot AI uses Container directly. */
+    public static boolean permitsInventory(EntityRobotBase robot, DockingStation station,
+                                           boolean withdrawing, OperationMode mode) {
+        if (robot == null || station == null) return false;
+        Level world = robot.getCommandSenderWorld();
+        if (!(world instanceof net.minecraft.server.level.ServerLevel)) return false;
+        BlockPos dock = new BlockPos(station.x(), station.y(), station.z());
+        if (!world.hasChunkAt(dock)) return false;
+        try {
+            if (!permitsBlock(robot, world, dock, WorldOperationKind.INVENTORY_ACCESS, mode)) return false;
+            net.minecraft.core.Direction face = withdrawing ? station.getItemInputSide() : station.getItemOutputSide();
+            if (face != null) {
+                BlockPos neighbor = dock.relative(face);
+                if (!world.hasChunkAt(neighbor)
+                    || !permitsBlock(robot, world, neighbor, WorldOperationKind.INVENTORY_ACCESS, mode)) return false;
+            }
+            return true;
+        } catch (RuntimeException failure) {
+            return false; // A broken permission provider is never treated as an allow.
+        }
     }
 
     public static boolean permitsEntity(EntityRobotBase robot, Level level, Entity target, WorldOperationKind operation, OperationMode mode) {

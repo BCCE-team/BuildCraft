@@ -71,7 +71,10 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
 
     public final ItemProvider optionDisplay = new ItemProvider(this::getOptionStack, OPTION_COUNT);
     private List<BoardEntry> options = List.of();
+    /** Registry order is stable until an addon registers new boards. */
+    private List<BoardEntry> cachedBoardCatalog = List.of();
     public int selectedOption = -1;
+    public int selectedPage;
 
     public TileProgrammingTable_Neptune(BlockPos pos, BlockState state) {
         super(BCSiliconBlocks.PROGRAMMING_TABLE_TILE.get(), pos, state);
@@ -96,18 +99,20 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
 
     public ItemStack getOptionStack(int index) {
         List<BoardEntry> opts = getOptions();
-        if (index < 0 || index >= opts.size()) {
+        if (index < 0 || index >= OPTION_COUNT) {
             return ItemStack.EMPTY;
         }
-        return ItemRedstoneBoard.createStack(opts.get(index));
+        int absolute = selectedPage * OPTION_COUNT + index;
+        return absolute >= 0 && absolute < opts.size() ? ItemRedstoneBoard.createStack(opts.get(absolute)) : ItemStack.EMPTY;
     }
 
     public BoardEntry getSelectedBoard() {
         List<BoardEntry> opts = getOptions();
-        if (selectedOption < 0 || selectedOption >= opts.size()) {
+        int absolute = selectedPage * OPTION_COUNT + selectedOption;
+        if (selectedOption < 0 || absolute < 0 || absolute >= opts.size()) {
             return BCRoboticsBoards.EMPTY;
         }
-        return opts.get(selectedOption);
+        return opts.get(absolute);
     }
 
     public boolean canProgramInput() {
@@ -120,9 +125,18 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
         return output.isEmpty() || (StackUtil.canMerge(stack, output) && output.getCount() + stack.getCount() <= output.getMaxStackSize());
     }
 
+    public int pageCount() {
+        return Math.max(1, (getOptions().size() + OPTION_COUNT - 1) / OPTION_COUNT);
+    }
+
     public void selectOption(int option) {
         List<BoardEntry> opts = getOptions();
-        if (option < 0 || option >= opts.size()) {
+        if (option <= -2) {
+            long requested = -((long) option) - 2L;
+            if (requested < 0 || requested >= pageCount()) return;
+            selectedPage = (int) requested;
+            selectedOption = -1;
+        } else if (option < 0 || option >= OPTION_COUNT || selectedPage * OPTION_COUNT + option >= opts.size()) {
             selectedOption = -1;
         } else {
             selectedOption = option;
@@ -138,12 +152,19 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
             options = List.of();
             return;
         }
-        options = new ArrayList<>(BCRoboticsBoards.robotEntries());
-        options.sort((a, b) -> {
-            int byCost = Integer.compare(a.energyCost(), b.energyCost());
-            return byCost != 0 ? byCost : a.id().compareTo(b.id());
-        });
-        if (selectedOption >= options.size()) {
+        List<BoardEntry> catalog = List.copyOf(BCRoboticsBoards.robotEntries());
+        if (!catalog.equals(cachedBoardCatalog) || options.isEmpty()) {
+            cachedBoardCatalog = catalog;
+            List<BoardEntry> sorted = new ArrayList<>(catalog);
+            sorted.sort((a, b) -> {
+                int byCost = Integer.compare(a.energyCost(), b.energyCost());
+                return byCost != 0 ? byCost : a.id().compareTo(b.id());
+            });
+            options = List.copyOf(sorted);
+        }
+        int pageCount = Math.max(1, (options.size() + OPTION_COUNT - 1) / OPTION_COUNT);
+        if (selectedPage < 0 || selectedPage >= pageCount) selectedPage = 0;
+        if (selectedOption >= OPTION_COUNT || selectedPage * OPTION_COUNT + selectedOption >= options.size()) {
             selectedOption = -1;
         }
     }
@@ -215,12 +236,14 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
     public void saveAdditional(CompoundTag nbt) {
         super.saveAdditional(nbt);
         nbt.putInt("selectedOption", selectedOption);
+        nbt.putInt("selectedPage", selectedPage);
     }
 
     @Override
     public void load(CompoundTag nbt) {
         super.load(nbt);
         selectedOption = nbt.getInt("selectedOption");
+        selectedPage = nbt.getInt("selectedPage");
         refreshOptions();
     }
 
@@ -229,6 +252,7 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
         super.writePayload(id, buffer, side);
         if (id == NET_GUI_DATA || id == NET_SELECTED_OPTION) {
             buffer.writeVarInt(selectedOption);
+            buffer.writeVarInt(selectedPage);
         }
     }
 
@@ -236,8 +260,15 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
     public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
         if (id == NET_GUI_DATA || id == NET_SELECTED_OPTION) {
-            selectedOption = buffer.readVarInt();
-            refreshOptions();
+            int incomingOption = buffer.readVarInt();
+            int incomingPage = buffer.readVarInt();
+            // This packet is a server-owned GUI snapshot. Players select a board
+            // through the validated menu action, not by writing arbitrary tile state.
+            if (side == BCNetworkSide.CLIENT) {
+                selectedOption = incomingOption;
+                selectedPage = incomingPage;
+                refreshOptions();
+            }
         }
     }
 
@@ -245,6 +276,7 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
     public void getDebugInfo(List<String> left, List<String> right, Direction side) {
         super.getDebugInfo(left, right, side);
         left.add("selected - " + selectedOption);
+        left.add("page - " + selectedPage);
         left.add("options - " + getOptions().size());
         left.add("target - " + LocaleUtil.localizeMj(getTarget()));
     }

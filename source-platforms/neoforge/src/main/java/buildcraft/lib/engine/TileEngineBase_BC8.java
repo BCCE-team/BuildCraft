@@ -21,6 +21,9 @@ import buildcraft.api.v2.energy.MjPortRole;
 import buildcraft.api.v2.energy.MjTransferResult;
 import buildcraft.api.v2.machine.EngineStage;
 import buildcraft.api.v2.machine.EngineView;
+import buildcraft.api.v2.machine.HeatPort;
+import buildcraft.api.v2.machine.HeatProfile;
+import buildcraft.api.v2.machine.HeatState;
 import buildcraft.api.v2.machine.MachineComponent;
 import buildcraft.api.v2.machine.MachineControl;
 import buildcraft.api.v2.machine.WorkState;
@@ -54,7 +57,11 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
@@ -64,11 +71,20 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+//? if mc_26_x {
+import net.neoforged.neoforge.model.data.ModelData;
+import net.neoforged.neoforge.model.data.ModelProperty;
+//? } else {
 import net.neoforged.neoforge.client.model.data.ModelData;
 import net.neoforged.neoforge.client.model.data.ModelProperty;
+//?}
 import net.neoforged.neoforge.capabilities.BlockCapability;
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
+//? if mc_26_x {
+import buildcraft.lib.compat.GameProfileCompat;
+//? } else {
+//?}
 
 public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebuggable, EngineView, MjPortProvider {
 
@@ -89,20 +105,38 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     /** Model-data key shared with the client model without making the block entity depend on a client model class. */
     public static final ModelProperty<Direction> ENGINE_MODEL_FACING = new ModelProperty<>();
 
+//? if mc_26_x {
+    private static final Identifier ADVANCEMENT_POWERING_UP =
+        Identifier.parse("buildcraftenergy:powering_up");
+    private static final Identifier MJ_NETWORK_ID = Identifier.parse("buildcraft:mj");
+//? } else {
     private static final ResourceLocation ADVANCEMENT_POWERING_UP =
         ResourceLocation.parse("buildcraftenergy:powering_up");
     private static final ResourceLocation MJ_NETWORK_ID = ResourceLocation.parse("buildcraft:mj");
+//?}
 
     private final MjPort api2OutputPort = new MjPort() {
+//? if mc_26_x {
+        public MjTransferResult insert(MjAmount offered, OperationMode mode) { return MjTransferResult.none(offered); }
+        public MjTransferResult extract(MjAmount requested, OperationMode mode) {
+//? } else {
         @Override public MjTransferResult insert(MjAmount offered, OperationMode mode) { return MjTransferResult.none(offered); }
         @Override public MjTransferResult extract(MjAmount requested, OperationMode mode) {
+//?}
             long extracted = extractPower(0L, requested.microMj(), mode == OperationMode.EXECUTE);
             return MjTransferResult.of(requested, MjAmount.ofMicro(extracted));
         }
+//? if mc_26_x {
+        public MjAmount stored() { return MjAmount.ofMicro(Math.max(0L, power)); }
+        public MjAmount capacity() { return MjAmount.ofMicro(Math.max(0L, getMaxPower())); }
+        public boolean canInsert() { return false; }
+        public boolean canExtract() { return true; }
+//? } else {
         @Override public MjAmount stored() { return MjAmount.ofMicro(Math.max(0L, power)); }
         @Override public MjAmount capacity() { return MjAmount.ofMicro(Math.max(0L, getMaxPower())); }
         @Override public boolean canInsert() { return false; }
         @Override public boolean canExtract() { return true; }
+//?}
     };
 
     /** Heat per {@link MjAmount#MICRO_MJ_PER_MJ}. */
@@ -128,6 +162,9 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
 
     protected EnumPowerStage powerStage = EnumPowerStage.BLUE;
     protected Direction currentDirection = Direction.UP;
+    // A dynamo deliberately aimed with a wrench must not be reoriented by receiver discovery.
+    // Other engine types never set this flag and retain their automatic orientation behavior.
+    private boolean manuallySelectedDirection;
 
     public long currentOutput;
     public boolean isRedstonePowered = false;
@@ -155,17 +192,20 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     	super(bet, pos, state);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void onLoad() {
         super.onLoad();
         lastProgress = progress;
         syncRenderProgressFromProgress();
+//? if mc_26_x {
+        if (level != null && level.isClientSide()) {
+//? } else {
         if (level != null && level.isClientSide) {
+//?}
             refreshEngineModelData();
-        } else if (level != null) {
-            // Revalidate the output after chunk load. The target capability can be restored after the engine NBT,
-            // and relying solely on a later neighbour event leaves an engine permanently aimed at an absent endpoint.
-            rotateIfInvalid();
         }
     }
 
@@ -188,7 +228,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return progress > 0.5F ? ((1 - progress) * (8 * 2 - 0.01F)) * 0.125F : (progress * (8 * 2 - 0.01F) * 0.125F);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     protected void readData(BCValueInput bcData) {
         CompoundTag nbt = bcData.tag();
         super.readData(bcData);
@@ -196,8 +239,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         if (currentDirection == null) {
             currentDirection = Direction.UP;
         }
+        manuallySelectedDirection = bcData.has("manualDirection") && bcData.readBoolean("manualDirection");
         isRedstonePowered = bcData.readBoolean("isRedstonePowered");
         heat = bcData.readDouble("heat");
+        if (!Double.isFinite(heat)) heat = MIN_HEAT;
         power = bcData.readLong("power");
         progress = bcData.readFloat("progress");
         lastProgress = progress;
@@ -206,11 +251,15 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         capturePersistedState();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     protected void writeData(BCValueOutput bcData) {
         CompoundTag nbt = bcData.tag();
         super.writeData(bcData);
         nbt.put("currentDirection", NBTUtilBC.writeEnum(currentDirection));
+        if (manuallySelectedDirection) bcData.writeBoolean("manualDirection", true);
         bcData.writeBoolean("isRedstonePowered", isRedstonePowered);
         bcData.writeDouble("heat", heat);
         bcData.writeLong("power", power);
@@ -218,7 +267,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         bcData.writeInt("progressPart", progressPart);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(id, buffer, side, ctx);
         if (side == BCNetworkSide.CLIENT) {
@@ -251,7 +303,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         }
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(id, buffer, side);
         if (side == BCNetworkSide.SERVER) {
@@ -277,15 +332,27 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         }
     }
 
+    /** Automatic rotation continues to prefer an actual connected receiver. */
     public InteractionResult attemptRotation() {
+        return attemptRotation(false);
+    }
+
+    /** A wrench turn is an explicit player choice, even with no energy receiver adjacent. */
+    public InteractionResult attemptManualRotation() {
+        return attemptRotation(true);
+    }
+
+    private InteractionResult attemptRotation(boolean manual) {
+        if (manual && (level == null || level.isClientSide)) return InteractionResult.FAIL;
         OrderedEnumMap<Direction> possible = VanillaRotationHandlers.ROTATE_FACING;
         Direction current = currentDirection;
         for (int i = 0; i < 6; i++) {
             current = possible.next(current);
-            if (isFacingReceiver(current)) {
+            if (manual || isFacingReceiver(current)) {
                 if (currentDirection != current) {
                     Direction previousDirection = currentDirection;
                     currentDirection = current;
+                    if (manual) manuallySelectedDirection = true;
                     // The MJ/FE output capability is sided by currentDirection. Invalidate NeoForge capability
                     // caches whenever that side changes so queries see the current output face.
                     level.invalidateCapabilities(worldPosition);
@@ -297,9 +364,17 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
                     // pipes immediately recompute their functional connection after automatic rotation.
                     Block sourceBlock = getBlockState().getBlock();
                     if (previousDirection != null && previousDirection != current) {
+//? if mc_26_x {
+                        level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, null);
+//? } else {
                         level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, worldPosition);
+//?}
                     }
+//? if mc_26_x {
+                    level.neighborChanged(worldPosition.relative(current), sourceBlock, null);
+//? } else {
                     level.neighborChanged(worldPosition.relative(current), sourceBlock, worldPosition);
+//?}
                     return InteractionResult.SUCCESS;
                 }
                 return InteractionResult.FAIL;
@@ -308,8 +383,39 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return InteractionResult.FAIL;
     }
 
+    /**
+     * Prefer the receiver on the face the engine was placed against. If that face cannot receive power then the
+     * direction already selected by the normal placement scan is preserved.
+     */
+    public void preferDirectionOnPlacement(Direction preferredDirection) {
+        if (preferredDirection == null || preferredDirection == currentDirection || !isFacingReceiver(preferredDirection)) {
+            return;
+        }
+        Direction previousDirection = currentDirection;
+        currentDirection = preferredDirection;
+        level.invalidateCapabilities(worldPosition);
+        sendNetworkUpdate(NET_RENDER_DATA);
+        redrawBlock();
+        markChunkDirty();
+        capturePersistedState();
+        Block sourceBlock = getBlockState().getBlock();
+        if (previousDirection != null && previousDirection != preferredDirection) {
+//? if mc_26_x {
+            level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, null);
+//? } else {
+            level.neighborChanged(worldPosition.relative(previousDirection), sourceBlock, worldPosition);
+//?}
+        }
+//? if mc_26_x {
+        level.neighborChanged(worldPosition.relative(preferredDirection), sourceBlock, null);
+//? } else {
+        level.neighborChanged(worldPosition.relative(preferredDirection), sourceBlock, worldPosition);
+//?}
+    }
+
     protected boolean isFacingReceiver(Direction dir) {
-        return getPortToPower(dir) != null;
+        MjPort receiver = getPortToPower(dir);
+        return receiver != null && receiver.canInsert();
     }
 
     protected final boolean canChain() {
@@ -322,7 +428,7 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     public void rotateIfInvalid() {
-        if (currentDirection != null && isFacingReceiver(currentDirection)) {
+        if (manuallySelectedDirection || (currentDirection != null && isFacingReceiver(currentDirection))) {
             return;
         }
         attemptRotation();
@@ -331,9 +437,13 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         }
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void onPlacedBy(LivingEntity placer, ItemStack stack) {
         super.onPlacedBy(placer, stack);
+        manuallySelectedDirection = false;
         currentDirection = null;// Force rotateIfInvalid to always attempt to rotate
         rotateIfInvalid();
     }
@@ -370,7 +480,11 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     public final EnumPowerStage getPowerStage() {
+//? if mc_26_x {
+        if (!level.isClientSide()) {
+//? } else {
         if (!level.isClientSide) {
+//?}
             EnumPowerStage newStage = computePowerStage();
 
             if (powerStage != newStage) {
@@ -398,11 +512,28 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return heat;
     }
 
+    private final HeatPort api2HeatPort = new HeatPort() {
+        @Override public HeatState heatState() {
+            return new HeatState(getHeat(), MIN_HEAT + (MAX_HEAT - MIN_HEAT) * 0.85);
+        }
+        @Override public HeatProfile profile() { return new HeatProfile(MIN_HEAT, IDEAL_HEAT, MAX_HEAT); }
+        @Override public boolean canSetTemperature() { return false; }
+        @Override public HeatState setTemperature(double temperature, OperationMode mode) {
+            throw new UnsupportedOperationException("Native engine temperature is controlled by its power cycle");
+        }
+    };
+
+    @Override public Optional<HeatPort> heatPort() { return Optional.of(api2HeatPort); }
+
     public double getPistonSpeed() {
         // BC8 uses the continuous heat-derived speed for server-side engine timing. The stage values below are only
         // the client-side approximation used to animate the piston between network updates. Using the staged values
         // on the server slows hot engines (and therefore wooden-pipe extraction pulses) below the original cadence.
+//? if mc_26_x {
+        if (!level.isClientSide()) {
+//? } else {
         if (!level.isClientSide) {
+//?}
             return Math.max(0.16 * getHeatLevel(), 0.01);
         }
         switch (getPowerStage()) {
@@ -422,15 +553,13 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     @Nonnull
     protected abstract IMjConnector createConnector();
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void neighbourBlockChanged(BlockState state, BlockPos nehighbour, boolean a) {
     	super.onNeighbourBlockChanged(state, nehighbour);
         isRedstonePowered = level.hasNeighborSignal(worldPosition);
-        if (!level.isClientSide) {
-            // Target blocks may be placed/removed after the engine. Re-evaluate immediately instead of keeping the
-            // direction chosen when the engine itself was first placed.
-            rotateIfInvalid();
-        }
     }
 
     public void update() {
@@ -439,7 +568,11 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
 
         boolean overheat = getPowerStage() == EnumPowerStage.OVERHEAT;
 
+//? if mc_26_x {
+        if (level.isClientSide()) {
+//? } else {
         if (level.isClientSide) {
+//?}
             lastProgress = progress;
 
             if (isPumping) {
@@ -523,7 +656,11 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         boolean operationalForAdvancement = canUnlockPoweringUpAdvancement()
             && isRedstonePowered && isBurning();
         if (operationalForAdvancement && !wasOperationalForAdvancement && getOwner() != null) {
+//? if mc_26_x {
+            AdvancementUtil.unlockAdvancement(GameProfileCompat.id(getOwner()), ADVANCEMENT_POWERING_UP);
+//? } else {
             AdvancementUtil.unlockAdvancement(getOwner().getId(), ADVANCEMENT_POWERING_UP);
+//?}
         }
         wasOperationalForAdvancement = operationalForAdvancement;
 
@@ -531,7 +668,11 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     private void markPersistentStateIfNeeded() {
+//? if mc_26_x {
+        if (level == null || level.isClientSide() || !hasPersistentStateChanged()) {
+//? } else {
         if (level == null || level.isClientSide || !hasPersistentStateChanged()) {
+//?}
             return;
         }
         long now = level.getGameTime();
@@ -594,7 +735,11 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     }
 
     private boolean explodeIfOverheated() {
+//? if mc_26_x {
+        if (level == null || level.isClientSide() || !shouldExplodeOnOverheat()
+//? } else {
         if (level == null || level.isClientSide || !shouldExplodeOnOverheat()
+//?}
             || getPowerStage() != EnumPowerStage.OVERHEAT) {
             return false;
         }
@@ -646,7 +791,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return () -> getNeighbourTile(side);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void setRemoved() {
         super.setRemoved();
         cachedBiomeLevel = null;
@@ -654,7 +802,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         cachedBiome = null;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void clearRemoved() {
         super.clearRemoved();
         cachedBiomeLevel = null;
@@ -739,27 +890,23 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
     private boolean isPulsedPowerReceiver(Direction side) {
         if (level == null || side == null) return false;
         TileEngineBase_BC8 engine = this;
-        BlockEntity next = null;
-
+        BlockPos targetPos = engine.worldPosition.relative(side);
         for (int len = 0; len <= getMaxChainLength(); len++) {
-            next = engine.getTileBuffer(side).getTile();
-            if (next == null) return false;
-
-            if (next.getClass() == getClass()) {
-                if (side != ((TileEngineBase_BC8) next).currentDirection) return false;
-            }
-
-            if (next instanceof TileEngineBase_BC8) {
-                if (next.getClass() != getClass()) return false;
-                engine = (TileEngineBase_BC8) next;
-            } else {
+            BlockEntity next = level.getBlockEntity(targetPos);
+            if (!(next instanceof TileEngineBase_BC8 nextEngine)) {
                 break;
             }
+            if (len >= getMaxChainLength()) return false;
+            if (nextEngine.getClass() != getClass() || side != nextEngine.currentDirection) return false;
+            engine = nextEngine;
+            targetPos = engine.worldPosition.relative(side);
         }
 
-        if (next == null || next instanceof TileEngineBase_BC8) return false;
+        // Modern NeoForge capabilities are positional: the final receiver may intentionally have no BlockEntity.
+        // Resolve the role at the same final position used by getPortToPower() so a positional REDSTONE_RECEIVER
+        // still receives one piston-midpoint pulse instead of continuous per-tick MJ.
         return BuildCraftApi.service(BuildCraftServices.ENERGY)
-            .descriptor(level, next.getBlockPos(), side.getOpposite())
+            .descriptor(level, targetPos, side.getOpposite())
             .map(descriptor -> descriptor.has(MjPortRole.REDSTONE_RECEIVER))
             .orElse(false);
     }
@@ -773,7 +920,11 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         TileEngineBase_BC8 engine = this;
         BlockPos targetPos = engine.worldPosition.relative(side);
         for (int len = 0; len <= getMaxChainLength(); len++) {
+//? if mc_26_x {
+            // Endpoint availability is capability-driven, so resolve the block entity directly instead
+//? } else {
             // Endpoint availability is capability-driven on 1.21.11, so resolve the block entity directly instead
+//?}
             // of using a neighbour cache that may be stale.
             BlockEntity next = level.getBlockEntity(targetPos);
             if (!(next instanceof TileEngineBase_BC8 nextEngine)) {
@@ -790,7 +941,11 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
             targetPos = engine.worldPosition.relative(side);
         }
 
+//? if mc_26_x {
+        // The final endpoint does not have to own a BlockEntity. NeoForge block capabilities are positional,
+//? } else {
         // The final endpoint does not have to own a BlockEntity. NeoForge 1.21.11 block capabilities are positional,
+//?}
         // and BuildCraft's API2 EnergyService already knows how to bridge MJ and the modern FE handler.
         var energy = BuildCraftApi.service(BuildCraftServices.ENERGY);
         MjPort remotePort = energy.port(level, targetPos, side.getOpposite()).orElse(null);
@@ -805,7 +960,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return remotePort;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     @Nullable
     public <T> T getCapability(BlockCapability<T, Direction> capability, @Nullable Direction facing) {
         if (facing == currentDirection) {
@@ -856,8 +1014,12 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return currentDirection;
     }
 
+//? if mc_26_x {
+    public Identifier typeId() {
+//? } else {
     @Override
     public ResourceLocation typeId() {
+//?}
         BlockState state = getBlockState();
         if (state.hasProperty(BuildCraftProperties.ENGINE_TYPE)) {
             EnumEngineType type = state.getValue(BuildCraftProperties.ENGINE_TYPE);
@@ -872,9 +1034,16 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return BuildCraftContentIds.Engines.REDSTONE;
     }
 
+//? if mc_26_x {
+    public BlockPos position() { return worldPosition; }
+//? } else {
     @Override public BlockPos position() { return worldPosition; }
+//?}
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public WorkStatus workStatus() {
         WorkState state = !isRedstonePowered ? WorkState.PAUSED
             : (isPumping || isBurning() ? WorkState.RUNNING : WorkState.IDLE);
@@ -882,22 +1051,38 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return new WorkStatus(state, p, getPowerStage().name().toLowerCase(java.util.Locale.ROOT));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public Collection<MachineComponent> machineComponents() {
         return List.of((MachineComponent) () -> BuildCraftContentIds.MachineComponents.ENERGY);
     }
 
+//? if mc_26_x {
+    public Optional<MachineControl> control() { return Optional.empty(); }
+    public Optional<MjPort> mjPort(Direction side) {
+//? } else {
     @Override public Optional<MachineControl> control() { return Optional.empty(); }
     @Override public Optional<MjPort> mjPort(Direction side) {
+//?}
         return side == currentDirection ? Optional.of(api2OutputPort) : Optional.empty();
     }
+//? if mc_26_x {
+    public Optional<MjPortDescriptor> mjPortDescriptor(Direction side) {
+//? } else {
     @Override public Optional<MjPortDescriptor> mjPortDescriptor(Direction side) {
+//?}
         if (side != currentDirection) return Optional.empty();
         return Optional.of(new MjPortDescriptor(MJ_NETWORK_ID,
             Set.of(MjPortRole.PROVIDER, MjPortRole.CONNECTOR, MjPortRole.READABLE),
             MjAmount.ZERO, MjAmount.ofMicro(Math.max(0L, maxPowerExtracted()))));
     }
+//? if mc_26_x {
+    public EngineStage stage() {
+//? } else {
     @Override public EngineStage stage() {
+//?}
         return switch (getPowerStage()) {
             case BLUE -> new EngineStage(BuildCraftContentIds.EngineStages.BLUE, 0);
             case GREEN -> new EngineStage(BuildCraftContentIds.EngineStages.GREEN, 1);
@@ -907,9 +1092,16 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
             case BLACK -> new EngineStage(BuildCraftContentIds.EngineStages.BLACK, 5);
         };
     }
+//? if mc_26_x {
+    public MjAmount outputPerTick() { return MjAmount.ofMicro(Math.max(0L, getCurrentOutput())); }
+//? } else {
     @Override public MjAmount outputPerTick() { return MjAmount.ofMicro(Math.max(0L, getCurrentOutput())); }
+//?}
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void getDebugInfo(List<String> left, List<String> right, Direction side) {
         left.add("facing = " + currentDirection);
         left.add("heat = " + (heat) + " -- " + String.format("%.2f %%", getHeatLevel()));
@@ -918,7 +1110,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         left.add("progress = " + progress);
         left.add("last = " + (lastPower));
     }
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void getClientDebugInfo(List<String> left, List<String> right, Direction side) {
         left.add("Current Model Variables:");
 //        clientModelData.addDebugInfo(left);
@@ -942,7 +1137,10 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
         return EngineVisualType.REDSTONE;
     }
 
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public @NotNull ModelData getModelData() {
 		return ModelData.builder().with(ENGINE_MODEL_FACING, currentDirection).build();
 	}

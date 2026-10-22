@@ -10,6 +10,7 @@ import buildcraft.api.v2.pipe.PipeAttachment;
 import buildcraft.api.v2.pipe.PipeAttachmentPlacementContext;
 import buildcraft.api.v2.pipe.PipeAttachmentResult;
 import buildcraft.api.v2.pipe.PipeAttachmentType;
+import buildcraft.api.v2.pipe.PipeExternalEndpoint;
 import buildcraft.api.v2.pipe.PipeService;
 import buildcraft.api.v2.pipe.PipeType;
 import buildcraft.api.v2.pipe.PipeView;
@@ -49,10 +50,17 @@ public final class PipeServiceImpl implements PipeService {
     public Optional<PipeView> pipe(Level level, BlockPos pos) {
         Objects.requireNonNull(level, "level");
         Objects.requireNonNull(pos, "pos");
+        if (!level.hasChunkAt(pos)) return Optional.empty();
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (!(blockEntity instanceof TilePipeHolder holder)) return Optional.empty();
         Pipe pipe = holder.getPipe();
-        return pipe == null || pipe == Pipe.EMPTY ? Optional.empty() : Optional.of(pipe);
+        return pipe == null || pipe == Pipe.EMPTY ? Optional.empty() : Optional.of(ReadOnlyPipeView.of(pipe));
+    }
+
+    @Override
+    public Optional<PipeExternalEndpoint> externalEndpoint(Level level, BlockPos pos, Direction side) {
+        Objects.requireNonNull(side, "side");
+        return pipe(level, pos).flatMap(view -> PipeEndpointRuntime.find(level, view, side));
     }
 
     @Override
@@ -73,6 +81,8 @@ public final class PipeServiceImpl implements PipeService {
         Objects.requireNonNull(actor, "actor");
         Objects.requireNonNull(mode, "mode");
 
+        if (mode == OperationMode.EXECUTE && level.isClientSide()) return PipeAttachmentResult.failure("server_only");
+        if (!level.hasChunkAt(pos)) return PipeAttachmentResult.failure("unloaded_pipe");
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (!(blockEntity instanceof TilePipeHolder holder)) return PipeAttachmentResult.failure("not_a_pipe");
         Pipe pipe = holder.getPipe();
@@ -84,17 +94,31 @@ public final class PipeServiceImpl implements PipeService {
 
         final PipeAttachment attachment;
         try {
-            attachment = type.create(new PipeAttachmentPlacementContext(pipe, side, stack, actor, mode));
+            PipeView view = PipeAttachmentBridge.isLegacy(attachmentTypeId) ? pipe : ReadOnlyPipeView.of(pipe);
+            attachment = type.create(new PipeAttachmentPlacementContext(view, side, stack, actor, mode));
         } catch (RuntimeException ex) {
             return PipeAttachmentResult.failure("attachment_factory_failed:" + ex.getClass().getSimpleName());
         }
-        if (!(attachment instanceof LegacyPipeAttachmentView legacy)) {
-            return PipeAttachmentResult.failure("attachment_requires_runtime_adapter");
+        if (attachment == null || !attachmentTypeId.equals(attachment.typeId()) || attachment.side() != side) {
+            return PipeAttachmentResult.failure("incorrect_attachment_instance");
         }
         if (mode == OperationMode.EXECUTE) {
-            holder.replacePluggable(side, legacy.internalPluggable());
+            if (attachment instanceof LegacyPipeAttachmentView legacy) {
+                holder.replacePluggable(side, legacy.internalPluggable());
+            } else {
+                var definition = PipeAttachmentBridge.definition(attachmentTypeId);
+                if (definition == null) return PipeAttachmentResult.failure("unknown_attachment_definition");
+                ApiPipePluggable adapter = new ApiPipePluggable(definition, holder, side, type, attachment);
+                try {
+                    adapter.writeToNbt();
+                } catch (RuntimeException ex) {
+                    return PipeAttachmentResult.failure("attachment_state_invalid");
+                }
+                holder.replacePluggable(side, adapter);
+                adapter.installed();
+            }
         }
-        return PipeAttachmentResult.success(legacy);
+        return PipeAttachmentResult.success(attachment);
     }
 
     @Override
@@ -110,21 +134,26 @@ public final class PipeServiceImpl implements PipeService {
         Objects.requireNonNull(side, "side");
         Objects.requireNonNull(actor, "actor");
         Objects.requireNonNull(mode, "mode");
+        if (mode == OperationMode.EXECUTE && level.isClientSide()) return false;
+        if (!level.hasChunkAt(pos)) return false;
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (!(blockEntity instanceof TilePipeHolder holder)) return false;
         PipePluggable current = holder.getPluggable(side);
         if (current == null || current == PipePluggable.EMPTY) return false;
         if (mode == OperationMode.EXECUTE) {
-            current.onRemove();
             holder.replacePluggable(side, PipePluggable.EMPTY);
+            current.onRemove();
         }
         return true;
     }
 
     @Override
     public ItemTransferResult injectItem(Level level, BlockPos pos, ItemInjectionRequest request, OperationMode mode) {
+        Objects.requireNonNull(level, "level");
+        Objects.requireNonNull(pos, "pos");
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(mode, "mode");
+        if (!level.hasChunkAt(pos)) return ItemTransferResult.nothing(request.stack().getCount());
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (!(blockEntity instanceof TilePipeHolder holder)) {
             return ItemTransferResult.nothing(request.stack().getCount());

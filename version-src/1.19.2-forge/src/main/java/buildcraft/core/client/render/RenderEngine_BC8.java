@@ -123,6 +123,10 @@ public class RenderEngine_BC8 implements BlockEntityRenderer<TileEngineBase_BC8>
 
 	@Override
 	public void render(TileEngineBase_BC8 tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
+        var frame = buildcraft.lib.client.render.ApiPresentationModels.hostFrame(tile, partialTicks);
+        if (frame.isPresent() && buildcraft.lib.client.render.ApiPresentationModels.render(frame.orElseThrow(), matrix, buffer, light, overlay)) {
+            return;
+        }
 		ensureSprites();
 		matrix.pushPose();
 		matrix.translate(0.5f, 0.5f, 0.5f);

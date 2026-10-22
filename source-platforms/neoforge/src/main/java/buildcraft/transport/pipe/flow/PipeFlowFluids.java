@@ -76,6 +76,22 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.lib.net.BCNetworkSide;
 
 public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable {
+    private int apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase phase, Direction side,
+                              FluidStack fluid, int offered, int capacity, boolean simulate) {
+        if (offered <= 0) return 0;
+        if (!buildcraft.transport.api2.PipeFlowEventRuntime.hasFluidListeners(pipe)) return offered;
+        return buildcraft.transport.api2.PipeFlowEventRuntime.fluidLimit(pipe, phase, side,
+            FuelApiBridge.volumeOf(fluid), offered, capacity,
+            simulate ? buildcraft.api.v2.OperationMode.SIMULATE : buildcraft.api.v2.OperationMode.EXECUTE);
+    }
+
+    private int apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase phase, Direction side,
+                              int offered, int capacity, boolean simulate) {
+        if (currentFluid.isEmpty() || offered <= 0) return 0;
+        if (!buildcraft.transport.api2.PipeFlowEventRuntime.hasFluidListeners(pipe)) return offered;
+        return apiFluidLimit(phase, side, currentFluid.copyWithAmount(offered), offered, capacity, simulate);
+    }
+
 
     private static final int DIRECTION_COOLDOWN = 60;
     private static final int COOLDOWN_INPUT = -DIRECTION_COOLDOWN;
@@ -98,6 +114,8 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
 
     private final Map<EnumPipePart, Section> sections = new EnumMap<>(EnumPipePart.class);
     private FluidStack currentFluid = FluidStack.EMPTY;
+    // Server-side block-light cache. Fluid brightness can change without replacing the pipe block.
+    private int lastEmittedLight = -1;
     private int currentDelay;
     private final SafeTimeTracker tracker = new SafeTimeTracker(BCCoreConfig.networkUpdateRate, 4);
     private final AverageInt throughputAverage = new AverageInt(10);
@@ -147,7 +165,66 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         return FluidStackUtil.parseOptional(registries, nbt);
     }
 
-    @Override
+    private long lastApiTransferTick = Long.MIN_VALUE;
+    private int apiSentThisTick;
+    private long lastApiReceiveTick = Long.MIN_VALUE;
+    private int apiReceivedThisTick;
+
+    /** Matured, extractable fluid in the requested section, including variant components. */
+    public buildcraft.api.v2.fluid.FluidVolume availableFluidForApi(Direction side) {
+        if (side == null || currentFluid.isEmpty()) return buildcraft.api.v2.fluid.FluidVolume.empty();
+        Section section = sections.get(EnumPipePart.fromFacing(side));
+        int available = Math.max(0, section.getMaxDrained());
+        if (available == 0) return buildcraft.api.v2.fluid.FluidVolume.empty();
+        return FuelApiBridge.volumeOf(currentFluid.copyWithAmount(available));
+    }
+
+    /** Move matured fluid directly between loaded pipe sections without external handler callbacks. */
+    public int transferFluidForApi(PipeFlowFluids target, Direction sourceSide, Direction targetSide,
+                                   int maximum, boolean simulate) {
+        if (target == null || target == this || sourceSide == null || targetSide == null
+            || maximum <= 0 || currentFluid.isEmpty()) return 0;
+        if (!target.currentFluid.isEmpty()
+            && !FuelApiBridge.volumeOf(currentFluid.copyWithAmount(1)).sameVariant(
+                FuelApiBridge.volumeOf(target.currentFluid.copyWithAmount(1)))) return 0;
+        Section from = sections.get(EnumPipePart.fromFacing(sourceSide));
+        Section to = target.sections.get(EnumPipePart.fromFacing(targetSide));
+        long sourceTick = pipe.getHolder().getPipeWorld().getGameTime();
+        long targetTick = target.pipe.getHolder().getPipeWorld().getGameTime();
+        int leftSource = transferPerTick - (lastApiTransferTick == sourceTick ? apiSentThisTick : 0);
+        int leftTarget = target.transferPerTick - (target.lastApiReceiveTick == targetTick ? target.apiReceivedThisTick : 0);
+        int amount = Math.max(0, Math.min(maximum, Math.min(from.getMaxDrained(),
+            Math.min(to.getMaxFilled(), Math.min(leftSource, leftTarget)))));
+        amount = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.PIPE_TRANSFER,
+            sourceSide, amount, target.capacity, simulate);
+        if (amount <= 0) return 0;
+        amount = target.apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.PIPE_TRANSFER,
+            targetSide, currentFluid.copyWithAmount(amount), amount, target.capacity, simulate);
+        if (amount == 0 || simulate) return amount;
+        if (target.currentFluid.isEmpty()) target.setFluid(currentFluid.copy());
+        int extracted = from.drainInternal(amount, true);
+        if (extracted <= 0) return 0;
+        int inserted = to.fill(extracted, FluidAction.EXECUTE);
+        if (inserted < extracted) {
+            // The target changed since capacity was calculated. Return any undelivered fluid.
+            int refunded = from.fill(extracted - inserted, FluidAction.EXECUTE);
+            if (refunded != extracted - inserted) {
+                BCLog.logger.error("Pipe transfer could not restore {} mB at {}", extracted - inserted - refunded,
+                    pipe.getHolder().getPipePos());
+            }
+        }
+        if (inserted <= 0) return 0;
+        from.ticksInDirection = COOLDOWN_OUTPUT;
+        to.ticksInDirection = COOLDOWN_INPUT;
+        if (lastApiTransferTick != sourceTick) apiSentThisTick = 0;
+        lastApiTransferTick = sourceTick;
+        apiSentThisTick += inserted;
+        if (target.lastApiReceiveTick != targetTick) target.apiReceivedThisTick = 0;
+        target.lastApiReceiveTick = targetTick;
+        target.apiReceivedThisTick += inserted;
+        return inserted;
+    }
+
     public boolean requiresPeriodicSave() {
         return sections.values().stream().anyMatch(section -> section.amount > 0 || section.incomingTotalCache > 0);
     }
@@ -302,9 +379,21 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         if (millibuckets <= 0) {
             return FAILED_EXTRACT;
         }
-        FluidStack toAdd = extractor.extract(millibuckets, currentFluid, fluidHandler);
-        if (toAdd.isEmpty() || toAdd.getAmount() <= 0) {
+        FluidStack toAdd;
+        try {
+            toAdd = extractor.extract(millibuckets, currentFluid, fluidHandler);
+        } catch (RuntimeException rejectedByHandler) {
+            BCLog.logger.warn("Fluid handler rejected pipe extraction at {}", pipe.getHolder().getPipePos(), rejectedByHandler);
             return FAILED_EXTRACT;
+        }
+        if (toAdd == null || toAdd.isEmpty() || toAdd.getAmount() <= 0) {
+            return FAILED_EXTRACT;
+        }
+        // Third-party handlers can return more than the requested amount. Put the
+        // overage back rather than overflowing a pipe section or duplicating a fluid.
+        if (toAdd.getAmount() > millibuckets) {
+            if (!simulate) restoreUnexpectedFluid(fluidHandler, toAdd.copyWithAmount(toAdd.getAmount() - millibuckets));
+            toAdd = toAdd.copyWithAmount(millibuckets);
         }
         millibuckets = toAdd.getAmount();
         if (currentFluid.isEmpty() && !simulate) {
@@ -317,13 +406,32 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             section.ticksInDirection = COOLDOWN_INPUT;
         }
         if (reallyFilled != millibuckets) {
+            if (!simulate && reallyFilled < millibuckets) {
+                restoreUnexpectedFluid(fluidHandler, toAdd.copyWithAmount(millibuckets - reallyFilled));
+                toAdd = toAdd.copyWithAmount(Math.max(0, reallyFilled));
+            }
             BCLog.logger.warn(
                 "[tryExtractFluidAdv] Filled "
                 + reallyFilled + " != extracted " + millibuckets //
                 + " (handler = " + fluidHandler.getClass() + ") @" + pipe.getHolder().getPipePos()
             );
         }
-        return new InteractionResultHolder<>(InteractionResult.SUCCESS, toAdd);
+        return reallyFilled > 0
+            ? new InteractionResultHolder<>(InteractionResult.SUCCESS, toAdd) : FAILED_EXTRACT;
+    }
+
+    /** Best effort recovery after a broken external fluid handler violates its transfer contract. */
+    private static void restoreUnexpectedFluid(FluidStorage<FluidStack> handler, FluidStack amount) {
+        if (amount == null || amount.isEmpty()) return;
+        try {
+            int accepted = handler.fill(amount, false);
+            if (accepted < amount.getAmount()) {
+                BCLog.logger.error("External fluid handler rejected {} mB during transfer recovery",
+                    amount.getAmount() - Math.max(0, accepted));
+            }
+        } catch (RuntimeException refusedRefund) {
+            BCLog.logger.error("External fluid handler failed to restore {} mB", amount.getAmount(), refusedRefund);
+        }
     }
 
     private static FluidStack extractSimple(int millibuckets, FluidStack filter, FluidStorage<FluidStack> handler,
@@ -339,7 +447,13 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
                 String detail = "(Filter = " + StringUtilBC.fluidToString(filter);
                 detail += ",\nactually drained = " + StringUtilBC.fluidToString(drained) + ")";
                 detail += ",\nIFluidHandler = " + handler.getClass() + "(" + handler + ")";
-                throw new IllegalStateException("Drained fluid did not equal filter fluid!\n" + detail);
+                // A third-party fluid storage violated the filtered-drain contract.
+                // Attempt to return it instead of crashing the server or silently discarding it.
+                if (simulate.execute()) {
+                    restoreUnexpectedFluid(handler, drained);
+                }
+                BCLog.logger.warn("Ignoring invalid filtered fluid transfer: {}", detail);
+                return FluidStack.EMPTY;
             }
         }
         return drained;
@@ -473,6 +587,17 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
 
     // Internal logic
 
+    /** Dynamic luminous-fluid light, with no glow when all pipe sections are empty. */
+    public int getEmittedFluidLight() {
+        if (currentFluid.isEmpty()) return 0;
+        for (Section section : sections.values()) {
+            if (section.amount > 0) {
+                return Math.max(0, Math.min(15, currentFluid.getFluid().getFluidType().getLightLevel()));
+            }
+        }
+        return 0;
+    }
+
     private void setFluid(FluidStack fluid) {
         currentFluid = FluidCompatRegistry.canonicalize(fluid);
         fluid = currentFluid;
@@ -542,6 +667,16 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             }
         }
 
+        // Recompute block light only when fluid volume crosses zero or the liquid type
+        // changes brightness. The light engine must run on the owning server level.
+        int emittedLight = getEmittedFluidLight();
+        if (emittedLight != lastEmittedLight) {
+            lastEmittedLight = emittedLight;
+            if (world.hasChunkAt(pipe.getHolder().getPipePos())) {
+                world.getChunkSource().getLightEngine().checkBlock(pipe.getHolder().getPipePos());
+            }
+        }
+
         int throughputThisTick = Math.min(transferPerTick, Math.max(movedFromCentre, movedToCentre));
         throughputAverage.tick(Math.max(0, throughputThisTick));
 
@@ -579,13 +714,30 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
                 sideCheck.disallowAllExcept(part.face);
                 pipe.getHolder().fireEvent(sideCheck);
                 if (sideCheck.getOrder().size() == 1) {
+                    maxDrain = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.OUTPUT,
+                        part.face, maxDrain, transferPerTick, false);
+                    if (maxDrain <= 0) continue;
                     FluidStorage<FluidStack> fluidHandler = StorageAdapters.fromNativeFluids(pipe.getHolder().getCapabilityFromPipe(part.face, CapUtil.CAP_FLUIDS));
                     if (fluidHandler == null) continue;
 
                     FluidStack fluidToPush = currentFluid.copyWithAmount(maxDrain);
 
                     if (fluidToPush.getAmount() > 0) {
-                        int filled = fluidHandler.fill(fluidToPush, false);
+                        int filled;
+                        try {
+                            filled = fluidHandler.fill(fluidToPush, false);
+                        } catch (RuntimeException rejectedByHandler) {
+                            // Untrusted external capabilities must never crash the pipe's server tick.
+                            // Leave the local fluid untouched when insertion fails.
+                            BCLog.logger.warn("External fluid handler failed during pipe output at {}",
+                                pipe.getHolder().getPipePos(), rejectedByHandler);
+                            continue;
+                        }
+                        if (filled < 0 || filled > fluidToPush.getAmount()) {
+                            BCLog.logger.warn("External fluid handler returned invalid inserted amount {} of {} at {}",
+                                filled, fluidToPush.getAmount(), pipe.getHolder().getPipePos());
+                            filled = Math.max(0, Math.min(fluidToPush.getAmount(), filled));
+                        }
                         if (filled > 0) {
                             section.drainInternal(filled, true);
                             section.ticksInDirection = COOLDOWN_OUTPUT;
@@ -653,6 +805,8 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
                 int amountToPush = EqualFlowMath.share(available, flowRate, random.size(), totalAvailable);
 
                 amountToPush = center.drainInternal(amountToPush, false);
+                amountToPush = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.FROM_CENTRE,
+                    direction, amountToPush, flowRate, false);
                 if (amountToPush > 0) {
                     int filled = section.fill(amountToPush, FluidAction.EXECUTE);
                     if (filled > 0) {
@@ -699,6 +853,11 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
         );
         // Event handlers edit the array in-place
         pipe.getHolder().fireEvent(preMove);
+        for (Direction side : Direction.values()) {
+            int index = side.ordinal();
+            inputPerTick[index] = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.BEFORE_CENTRE,
+                side, Math.max(0, Math.min(totalOffered[index], inputPerTick[index])), spaceAvailable, false);
+        }
 
         int[] fluidLeavingSide = new int[6];
 
@@ -726,6 +885,17 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             pipe.getHolder(), this, currentFluid, fluidLeavingSide, fluidEnteringCentre
         );
         pipe.getHolder().fireEvent(move);
+        for (Direction side : Direction.values()) {
+            int index = side.ordinal();
+            int leaving = Math.max(0, fluidLeavingSide[index]);
+            int entering = Math.max(0, fluidEnteringCentre[index]);
+            int allowed = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.TO_CENTRE,
+                side, Math.min(leaving, entering), spaceAvailable, false);
+            if (allowed < Math.min(leaving, entering)) {
+                fluidLeavingSide[index] = allowed;
+                fluidEnteringCentre[index] = allowed;
+            }
+        }
 
         for (EnumPipePart part : EnumPipePart.FACES) {
             Section section = sections.get(part);
@@ -734,22 +904,27 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             if (leaving > 0) {
                 int actuallyDrained = section.drainInternal(leaving, true);
                 if (actuallyDrained != leaving) {
-                    throw new IllegalStateException(
-                        "Couldn't drain " + leaving + " from " + part + ", only drained " + actuallyDrained
-                    );
+                    BCLog.logger.warn("Pipe {} drained {} of requested {} mB from {}",
+                        pipe.getHolder().getPipePos(), actuallyDrained, leaving, part);
                 }
                 if (actuallyDrained > 0) {
                     section.ticksInDirection = COOLDOWN_INPUT;
                 }
                 int entering = fluidEnteringCentre[i];
                 if (entering > 0) {
-                    int actuallyFilled = center.fill(entering, FluidAction.EXECUTE);
-                    if (actuallyFilled != entering) {
-                        throw new IllegalStateException(
-                            "Couldn't fill " + entering + " from " + part + ", only filled " + actuallyFilled
-                        );
+                    int moving = Math.min(entering, actuallyDrained);
+                    int actuallyFilled = center.fill(moving, FluidAction.EXECUTE);
+                    if (actuallyFilled < actuallyDrained) {
+                        // Restore units extracted from the side but rejected by the centre.
+                        int refunded = section.fill(actuallyDrained - actuallyFilled, FluidAction.EXECUTE);
+                        if (refunded != actuallyDrained - actuallyFilled) {
+                            BCLog.logger.error("Failed to restore {} mB in pipe {} after centre rejection",
+                                actuallyDrained - actuallyFilled - refunded, pipe.getHolder().getPipePos());
+                        }
                     }
                     moved += actuallyFilled;
+                } else if (actuallyDrained > 0) {
+                    section.fill(actuallyDrained, FluidAction.EXECUTE);
                 }
             }
         }
@@ -1062,13 +1237,11 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
             }
 
             if (currentFluid.isEmpty() || FluidCompatRegistry.areEquivalent(currentFluid, resource)) {
-                if (!simulate) {
-                    if (currentFluid.isEmpty()) {
-                        setFluid(resource.copy());
-                    }
-                }
                 FluidAction action = simulate ? FluidAction.SIMULATE : FluidAction.EXECUTE;
-                int filled = fill(resource.getAmount(), action);
+                int offered = apiFluidLimit(buildcraft.api.v2.pipe.FluidMovementPhase.INSERT,
+                    part.face, resource, resource.getAmount(), capacity, simulate);
+                if (offered > 0 && !simulate && currentFluid.isEmpty()) setFluid(resource.copy());
+                int filled = offered <= 0 ? 0 : fill(offered, action);
                 if (filled > 0 && !simulate) {
                     ticksInDirection = COOLDOWN_INPUT;
                 }

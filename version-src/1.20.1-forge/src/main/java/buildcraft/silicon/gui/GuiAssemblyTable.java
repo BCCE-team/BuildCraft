@@ -5,6 +5,8 @@
 package buildcraft.silicon.gui;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
@@ -72,8 +74,11 @@ public class GuiAssemblyTable extends GuiBC8<ContainerAssemblyTable> {
                     ).offset(mainGui.rootElement)
             );
         }
-        for (int i = 0; i < container.tile.recipesStates.size(); i++) {
-            EnumAssemblyRecipeState state = new ArrayList<>(container.tile.recipesStates.values()).get(i);
+        List<Map.Entry<TileAssemblyTable.AssemblyInstruction, EnumAssemblyRecipeState>> entries
+                = new ArrayList<>(container.tile.recipesStates.entrySet());
+        int offset = container.tile.getDisplayPage() * 12;
+        for (int i = 0; i < 12 && offset + i < entries.size(); i++) {
+            EnumAssemblyRecipeState state = entries.get(offset + i).getValue();
             if (state == EnumAssemblyRecipeState.SAVED) {
                 ICON_SAVED.drawAt(getActiveGraphics(), getArea(i));
             }
@@ -89,15 +94,38 @@ public class GuiAssemblyTable extends GuiBC8<ContainerAssemblyTable> {
     @Override
     protected void drawForegroundLayer(PoseStack pose, int mouseX, int mouseY) {
         getActiveGraphics().drawString(font, title, titleLabelX + leftPos + (imageWidth - font.width(title)) / 2, titleLabelY + topPos, 0x404040, false);
+        drawPageLabel(pose);
+    }
+
+    private void drawPageLabel(PoseStack pose) {
+        if (container.tile.getDisplayPageCount() > 1) {
+            String label = "< " + (container.tile.getDisplayPage() + 1) + "/"
+                    + container.tile.getDisplayPageCount() + " >";
+            getActiveGraphics().drawString(font, label, leftPos + 136, topPos + 110, 0x404040, false);
+        }
     }
 
     @Override
-	public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
+    public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
+        if (mouseButton == 0 && container.tile.getDisplayPageCount() > 1
+            && mouseY >= topPos + 109 && mouseY < topPos + 121) {
+            if (mouseX >= leftPos + 119 && mouseX < leftPos + 135) {
+                container.tile.setDisplayPage(container.tile.getDisplayPage() - 1);
+                return true;
+            }
+            if (mouseX >= leftPos + 157 && mouseX < leftPos + 172) {
+                container.tile.setDisplayPage(container.tile.getDisplayPage() + 1);
+                return true;
+            }
+        }
         boolean flag = super.mouseClicked(mouseX, mouseY, mouseButton);
         if (mouseButton == 0) {
-            for (int i = 0; i < container.tile.recipesStates.size(); i++) {
-                TileAssemblyTable.AssemblyInstruction instruction = new ArrayList<>(container.tile.recipesStates.keySet()).get(i);
-                EnumAssemblyRecipeState state = new ArrayList<>(container.tile.recipesStates.values()).get(i);
+            List<Map.Entry<TileAssemblyTable.AssemblyInstruction, EnumAssemblyRecipeState>> entries
+                    = new ArrayList<>(container.tile.recipesStates.entrySet());
+            int offset = container.tile.getDisplayPage() * 12;
+            for (int i = 0; i < 12 && offset + i < entries.size(); i++) {
+                TileAssemblyTable.AssemblyInstruction instruction = entries.get(offset + i).getKey();
+                EnumAssemblyRecipeState state = entries.get(offset + i).getValue();
                 if (getArea(i).contains(mouseX, mouseY)) {
                     container.tile.sendRecipeStateToServer(
                             instruction,

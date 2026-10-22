@@ -3,6 +3,20 @@ package buildcraft.lib.internal.api.v2;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftRegistries;
 import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.BuildCraftServices;
+import buildcraft.api.v2.event.WorldEventContext;
+import buildcraft.api.v2.event.WorldEventDecision;
+import buildcraft.api.v2.event.WorldEventKind;
+import buildcraft.api.v2.permission.AutomationActor;
+import buildcraft.api.v2.permission.WorldOperationContext;
+import buildcraft.api.v2.permission.WorldOperationTarget;
+import buildcraft.api.v2.permission.WorldOperationKind;
+import buildcraft.api.v2.permission.PermissionVerdict;
+import net.minecraft.resources.ResourceLocation;
+import java.util.Optional;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import buildcraft.api.v2.block.BlockInteractionService;
 import buildcraft.api.v2.block.PaintContext;
 import buildcraft.api.v2.block.PaintHandler;
@@ -23,9 +37,14 @@ import net.minecraft.world.InteractionResult;
 final class BlockInteractionServiceImpl implements BlockInteractionService {
     @Override
     public RotationResult rotate(RotationContext context) {
+        if (denied(context.level(), context.pos(), context.state(), context.actor(), context.mode())) return RotationResult.DENIED;
         for (RotationHandler handler : BuildCraftApi.registry(BuildCraftRegistries.ROTATION_HANDLERS).values()) {
-            RotationResult result = handler.rotate(context);
-            if (result != RotationResult.PASS) return result;
+            try {
+                RotationResult result = handler.rotate(context);
+                if (result != null && result != RotationResult.PASS) return result;
+            } catch (RuntimeException ignored) {
+                // A faulty extension must not stop the vanilla fallback.
+            }
         }
         if (context.mode() == OperationMode.SIMULATE) return RotationResult.PASS;
         InteractionResult legacy = CustomRotationHelper.INSTANCE.attemptRotateBlock(
@@ -35,15 +54,42 @@ final class BlockInteractionServiceImpl implements BlockInteractionService {
 
     @Override
     public PaintResult paint(PaintContext context) {
+        if (denied(context.level(), context.pos(), context.state(), context.actor(), context.mode())) return PaintResult.DENIED;
         for (PaintHandler handler : BuildCraftApi.registry(BuildCraftRegistries.PAINT_HANDLERS).values()) {
-            PaintResult result = handler.paint(context);
-            if (result != PaintResult.PASS) return result;
+            try {
+                PaintResult result = handler.paint(context);
+                if (result != null && result != PaintResult.PASS) return result;
+            } catch (RuntimeException ignored) {
+                // A faulty extension must not stop the vanilla fallback.
+            }
         }
         if (context.mode() == OperationMode.SIMULATE) return PaintResult.PASS;
         InteractionResult legacy = CustomPaintHelper.INSTANCE.attemptPaintBlock(
             context.level(), context.pos(), context.state(), context.hitPosition(),
             context.hitSide().orElse(null), context.color());
         return paintResult(legacy);
+    }
+
+    private static final ResourceLocation INTERACTION_REASON = java.util.Objects.requireNonNull(ResourceLocation.tryParse("buildcraft:block_interaction"));
+
+    private static boolean denied(Level level, BlockPos pos, BlockState state,
+            AutomationActor actor, OperationMode mode) {
+        // Client prediction remains unchanged; registered listeners execute only on the server.
+        if (level.isClientSide()) return false;
+        // Addon permissions may exist without a corresponding world-event listener.
+        if (!level.hasChunkAt(pos)) return true;
+        try {
+            if (BuildCraftApi.service(BuildCraftServices.PERMISSIONS).decide(new WorldOperationContext(
+                actor, level, pos, WorldOperationTarget.block(pos),
+                WorldOperationKind.BLOCK_INTERACT, mode, INTERACTION_REASON)).verdict() == PermissionVerdict.DENY) {
+                return true;
+            }
+        } catch (RuntimeException invalidPermissionProvider) {
+            return true;
+        }
+        return BuildCraftApi.service(BuildCraftServices.WORLD_EVENTS).dispatch(new WorldEventContext(
+            WorldEventKind.BLOCK_INTERACT, level, pos, actor, Optional.of(state), Optional.empty(), mode))
+            == WorldEventDecision.DENY;
     }
 
     private static RotationResult rotationResult(InteractionResult result) {

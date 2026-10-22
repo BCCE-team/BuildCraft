@@ -195,8 +195,11 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     	}
     	@Override
         public boolean handleGameEvent(ServerLevel level, GameEvent event, GameEvent.Context context, Vec3 sourcePos) {
-            return blueprint.handleGameEvent(level, event, context, sourcePos)
-                || template.handleGameEvent(level, event, context, sourcePos);
+            // Both listeners must receive the event; short-circuiting leaves
+            // a Template Builder blind whenever the Blueprint listener responds first.
+            boolean blueprintChanged = blueprint.handleGameEvent(level, event, context, sourcePos);
+            boolean templateChanged = template.handleGameEvent(level, event, context, sourcePos);
+            return blueprintChanged || templateChanged;
     	}
     };
 
@@ -368,9 +371,8 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
                 rotation = Rotation.NONE;
             }
             BlockPos buildBasePos = getCurrentBasePos();
-            if (!canRotate) {
-                buildBasePos = adjustBasePosIfOverlappingBuilder(buildBasePos, rotation);
-            }
+            // Rotating a blueprint must not allow its own placement/excavation to touch this Builder.
+            buildBasePos = adjustBasePosIfOverlappingBuilder(buildBasePos, rotation);
             if (snapshot.getType() == EnumSnapshotType.TEMPLATE) {
                 templateBuildingInfo = ((Template) snapshot).new BuildingInfo(buildBasePos, rotation);
             }
@@ -647,7 +649,11 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
         }
         if (side == BCNetworkSide.SERVER) {
             if (id == NET_CAN_EXCAVATE) {
-                canExcavate = buffer.readBoolean();
+                boolean selected = buffer.readBoolean();
+                if (selected != canExcavate) {
+                    canExcavate = selected;
+                    setChanged();
+                }
                 sendNetworkUpdate(NET_CAN_EXCAVATE);
             }
         }

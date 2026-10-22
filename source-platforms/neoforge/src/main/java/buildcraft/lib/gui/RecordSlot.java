@@ -18,7 +18,10 @@ public class RecordSlot extends SlotItemHandler {
 		super(itemHandler, index, xPosition, yPosition);
 	}
 
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public boolean mayPlace(@NotNull ItemStack stack) {
 		return false;
 	}
@@ -37,18 +40,27 @@ public class RecordSlot extends SlotItemHandler {
 		this.setChanged();
 	}
 
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public boolean mayPickup(Player playerIn) {
 		return true;
 	}
 
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public ItemStack safeTake(int p_150648_, int p_150649_, Player p_150650_) {
 		clearRecordedStack();
 		return ItemStack.EMPTY;
 	}
 
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public Optional<ItemStack> tryRemove(int p_150642_, int p_150643_, Player p_150644_) {
 		clearRecordedStack();
 		return Optional.of(ItemStack.EMPTY);

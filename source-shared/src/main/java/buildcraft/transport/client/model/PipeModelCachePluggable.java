@@ -66,8 +66,8 @@ public class PipeModelCachePluggable {
         }
 
         /**
-         * Builds a static-model key for a selected subset of pluggables. Native 1.21.11 terrain rendering uses this
-         * to leave glass facades to the dynamic translucent renderer, which is the only path that preserves alpha.
+         * Builds a static-model key for a selected subset of pluggables. Newer native renderers use this to select
+         * pluggables while preserving BakedColors; legacy glass alpha is handled in PlugBakerFacade itself.
          */
         public PluggableKey(RenderType layer, IPipeHolder holder, Predicate<PipePluggable> include) {
             ImmutableSet.Builder<PluggableModelKey> builder = ImmutableSet.builder();

@@ -35,8 +35,8 @@ def main() -> int:
 
     internal_statement_roots = [
         ROOT / "source-shared/src/main/java/buildcraft/lib/internal/statement",
-        ROOT / "source-families/legacy/src/main/java/buildcraft/lib/internal/statement",
-        ROOT / "source-families/modern/src/main/java/buildcraft/lib/internal/statement",
+        ROOT / "source-families/old/src/main/java/buildcraft/lib/internal/statement",
+        ROOT / "source-families/1.21.X/src/main/java/buildcraft/lib/internal/statement",
         ROOT / "source-platforms/forge/src/main/java/buildcraft/lib/internal/statement",
         ROOT / "source-platforms/neoforge/src/main/java/buildcraft/lib/internal/statement",
     ]
@@ -74,8 +74,8 @@ def main() -> int:
             errors.append(f"StatementApi2Bridge: missing runtime hook {token}")
 
     for path in [
-        "source-families/legacy/src/main/java/buildcraft/lib/internal/statement/StatementManager.java",
-        "source-families/modern/src/main/java/buildcraft/lib/internal/statement/StatementManager.java",
+        "source-families/old/src/main/java/buildcraft/lib/internal/statement/StatementManager.java",
+        "source-families/1.21.X/src/main/java/buildcraft/lib/internal/statement/StatementManager.java",
     ]:
         src = text(path)
         for token in [
@@ -92,8 +92,8 @@ def main() -> int:
         "source-shared/src/main/java/buildcraft/silicon/BCSiliconStatements.java": "StatementApi2Bridge.mirrorLegacyStatements(TRIGGER_LIGHT);",
         "source-shared/src/main/java/buildcraft/transport/BCTransportStatements.java": "StatementApi2Bridge.mirrorLegacyStatements(TRIGGER_PIPE_SIGNAL);",
         "source-shared/src/main/java/buildcraft/robotics/BCRoboticsStatements.java": "StatementApi2Bridge.mirrorLegacyStatements(",
-        "source-families/legacy/src/main/java/buildcraft/core/BCCoreStatements.java": "StatementApi2Bridge.mirrorLegacyStatements(TRIGGER_INVENTORY_ALL);",
-        "source-families/modern/src/main/java/buildcraft/core/BCCoreStatements.java": "StatementApi2Bridge.mirrorLegacyStatements(TRIGGER_INVENTORY_ALL);",
+        "source-families/old/src/main/java/buildcraft/core/BCCoreStatements.java": "StatementApi2Bridge.mirrorLegacyStatements(TRIGGER_INVENTORY_ALL);",
+        "source-families/1.21.X/src/main/java/buildcraft/core/BCCoreStatements.java": "StatementApi2Bridge.mirrorLegacyStatements(TRIGGER_INVENTORY_ALL);",
     }
     for path, token in construction_safe_mirroring.items():
         if token not in text(path):

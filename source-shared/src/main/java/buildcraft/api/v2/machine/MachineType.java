@@ -1,6 +1,8 @@
 package buildcraft.api.v2.machine;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -33,7 +35,41 @@ public final class MachineType {
     ) {
         this.id = Objects.requireNonNull(id, "id");
         this.components = Collections.unmodifiableSet(new LinkedHashSet<>(Objects.requireNonNull(components, "components")));
-        this.properties = Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(properties, "properties")));
+        this.properties = copyProperties(Objects.requireNonNull(properties, "properties"));
+    }
+
+    private static Map<MachineProperty<?>, Object> copyProperties(Map<MachineProperty<?>, Object> source) {
+        Map<MachineProperty<?>, Object> copy = new LinkedHashMap<>();
+        source.forEach((property, value) -> copy.put(property, copyValue(value)));
+        return Collections.unmodifiableMap(copy);
+    }
+
+    /** Copy standard mutable containers both when building a type and when exposing its properties. */
+    private static Object copyValue(Object value) {
+        if (value instanceof List<?> list) {
+            List<Object> copy = new ArrayList<>(list.size());
+            for (Object entry : list) copy.add(copyValue(entry));
+            return copy;
+        }
+        if (value instanceof Set<?> set) {
+            Set<Object> copy = new LinkedHashSet<>();
+            for (Object entry : set) copy.add(copyValue(entry));
+            return copy;
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<Object, Object> copy = new LinkedHashMap<>();
+            map.forEach((key, entry) -> copy.put(copyValue(key), copyValue(entry)));
+            return copy;
+        }
+        if (value != null && value.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(value);
+            Object copy = java.lang.reflect.Array.newInstance(value.getClass().getComponentType(), length);
+            for (int i = 0; i < length; i++) {
+                java.lang.reflect.Array.set(copy, i, copyValue(java.lang.reflect.Array.get(value, i)));
+            }
+            return copy;
+        }
+        return value;
     }
 
     public static Builder builder(ResourceLocation id) {
@@ -57,13 +93,14 @@ public final class MachineType {
     }
 
     public Map<MachineProperty<?>, Object> properties() {
-        return properties;
+        // A read-only outer Map does not protect nested collection-valued settings.
+        return copyProperties(properties);
     }
 
     public <T> Optional<T> property(MachineProperty<T> property) {
         Objects.requireNonNull(property, "property");
         Object value = properties.get(property);
-        return value == null ? Optional.empty() : Optional.of(property.cast(value));
+        return value == null ? Optional.empty() : Optional.of(property.cast(copyValue(value)));
     }
 
     public <T> T propertyOrDefault(MachineProperty<T> property, T fallback) {

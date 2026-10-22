@@ -406,6 +406,12 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         }
 
         BlockPos blockPos = task.pos();
+        // Robots can return persisted tasks after the blueprint was replaced or moved.
+        // Never convert an obsolete world position into a snapshot-array index.
+        if (blockPos == null || !getBuildingInfo().box.contains(blockPos)) {
+            releaseRobotTask(robot, task);
+            return RobotBuildResult.FAILED;
+        }
         try {
             if (task.breakTask()) {
                 check(blockPos);
@@ -465,16 +471,26 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
                 return RobotBuildResult.FAILED;
             }
             Player actor = getAutomationPlayer(robot, blockPos);
-            schematicBlock.build(tile.getWorldBC(), blockPos, actor);
-            // Commit material consumption from the robot only after the requested schematic state actually exists.
-            // A custom schematic handler may mutate the world before returning false, or return true without producing
-            // the requested state; the world postcondition is the transaction boundary.
-            boolean committed = isBlockCorrect(blockPos);
-            if (committed) {
-                consumeRobotRequirements(robot, task.requirements());
-                if (check(blockPos)) {
-                    afterChecks();
+            // Robot placement must be as transactional as the normal Builder. Some addon
+            // schematic handlers partially change blocks or block entities, then fail.
+            PlacementRollback rollback = capturePlacementRollback(blockPos);
+            boolean committed = false;
+            try {
+                schematicBlock.build(tile.getWorldBC(), blockPos, actor);
+                committed = isBlockCorrect(blockPos);
+            } catch (RuntimeException failure) {
+                BCLog.logger.warn("Robot schematic placement failed at {}", blockPos, failure);
+            } finally {
+                if (!committed && !rollbackPlacement(rollback, blockPos)) {
+                    BCLog.logger.error("Failed to restore original block after robot placement at {}", blockPos);
                 }
+            }
+            if (committed) {
+                // Requirements are paid only after the world postcondition succeeded.
+                consumeRobotRequirements(robot, task.requirements());
+            }
+            if (check(blockPos)) {
+                afterChecks();
             }
             return committed ? RobotBuildResult.COMMITTED : RobotBuildResult.FAILED;
         } finally {
@@ -965,8 +981,9 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         List<ISchematicEntity> toSpawn = getBuildingInfo().entities.stream()
             .filter(schematicEntity ->
                 entitiesWithinBox.stream()
-                .noneMatch($ -> 
-                	$.distanceToSqr(schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos)))< MAX_ENTITY_DISTANCE
+                .noneMatch($ ->
+                    $.distanceToSqr(schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos))) < MAX_ENTITY_DISTANCE
+                        && isSameSchematicEntity(schematicEntity, $, level)
                 )
 /*                    .map(Entity::)
                     .map(schematicEntity.getPos().add(new Vec3(getBuildingInfo().offsetPos))::distanceTo)
@@ -1003,7 +1020,8 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
                     	entity.distanceToSqr(Vec3.atLowerCornerOf(
                     			getBuildingInfo().offsetPos)
                     			.add($.getPos()))
-                    			< MAX_ENTITY_DISTANCE)&&
+                            < MAX_ENTITY_DISTANCE
+                                && isSameSchematicEntity($, entity, level))&&
 /*                        .map(ISchematicEntity::getPos)
                         .map(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos)::add)
                         .map(entity::distanceToSqr)
@@ -1017,10 +1035,22 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
             .collect(Collectors.toList());
         if (!toKill.isEmpty()) {
             if (!tile.getBattery().isFull()) {
+                level.getProfiler().pop();
                 return false;
             } else {
                 level.getProfiler().push("kill");
-                toKill.forEach(Entity::kill);
+                for (Entity entity : toKill) {
+                    if (AutomationPermissionUtil.mayEntity(
+                        level, tile.getBuilderPos(), entity, tile.getOwner(), AutomationPermissionUtil.SOURCE_BUILDER,
+                        WorldOperationKind.ENTITY_ATTACK, OperationMode.EXECUTE
+                    )) {
+                        //? if >=1.21.11 {
+                        entity.kill((ServerLevel) level);
+                        //? } else {
+                        entity.kill();
+                        //? }
+                    }
+                }
                 level.getProfiler().pop();
             }
         }
@@ -1076,7 +1106,18 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
     private boolean isSchematicEntityPresent(ISchematicEntity schematicEntity, Level level) {
         Vec3 expected = schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos));
         return level.getEntitiesOfClass(Entity.class, getBuildingInfo().box.getBoundingBox(), Objects::nonNull).stream()
-            .anyMatch(entity -> entity.distanceToSqr(expected) < MAX_ENTITY_DISTANCE);
+            .anyMatch(entity -> entity.distanceToSqr(expected) < MAX_ENTITY_DISTANCE
+                && isSameSchematicEntity(schematicEntity, entity, level));
+    }
+
+    private static boolean isSameSchematicEntity(ISchematicEntity schematicEntity, Entity entity, Level level) {
+        if (schematicEntity instanceof SchematicEntityDefault standard) {
+            return standard.matchesEntityType(entity);
+        }
+        // For addon snapshot entities compare the owning schematic type, not just coordinates.
+        ISchematicEntity captured = SchematicEntityManager.getSchematicEntity(
+            new SchematicEntityContext(level, BlockPos.ZERO, entity));
+        return captured != null && captured.typeId().equals(schematicEntity.typeId());
     }
 
     private static boolean buildSchematicEntity(ISchematicEntity schematicEntity, Level level, BlockPos basePos) {

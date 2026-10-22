@@ -211,20 +211,20 @@ class NetworkContextContract(_AllTargets):
                     self.assertIn(
                         "getSimpleNetworkWrapper(message).sendToServer(message)", manager
                     )
-                elif target == "1.21.11-neoforge":
-                    self.assertIn(
-                        "PacketDistributor.sendToPlayer(player, payload(message))", manager
-                    )
-                    self.assertIn(
-                        "ClientPacketDistributor.sendToServer(payload(message))", manager
-                    )
                 else:
+                    # LIB-08: payload direction is now explicit and verified by the
+                    # native decoder before an untrusted packet body is parsed.
                     self.assertIn(
-                        "PacketDistributor.sendToPlayer(player, payload(message))", manager
+                        "PacketDistributor.sendToPlayer(player, payload(message, true))", manager
                     )
-                    self.assertIn(
-                        "PacketDistributor.sendToServer(payload(message))", manager
+                    send_to_server = (
+                        "ClientPacketDistributor.sendToServer(payload(message, false))"
+                        if target == "1.21.11-neoforge"
+                        else "PacketDistributor.sendToServer(payload(message, false))"
                     )
+                    self.assertIn(send_to_server, manager)
+                    self.assertIn("registrar.playToClient(CLIENTBOUND_TYPE, CLIENTBOUND_CODEC", manager)
+                    self.assertIn("registrar.playToServer(SERVERBOUND_TYPE, SERVERBOUND_CODEC", manager)
 
 
 class EventContract(_AllTargets):
@@ -390,5 +390,18 @@ class ContractSuiteShape(unittest.TestCase):
         self.assertEqual(expected, current)
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
+
+
+# ---- Capability invalidation and revival lifecycle ----
+
+from capability_lifecycle_fixture import run
+
+
+class CapabilityLifecycle(unittest.TestCase):
+    def test_real_forge_helper_invalidates_and_revives_cached_storage_handles(self):
+        with tempfile.TemporaryDirectory(prefix='bc-capability-lifecycle-') as tmp:
+            print(run(Path(tmp)/'probe'), flush=True)
+
+
+if __name__ == '__main__':
+    unittest.main()

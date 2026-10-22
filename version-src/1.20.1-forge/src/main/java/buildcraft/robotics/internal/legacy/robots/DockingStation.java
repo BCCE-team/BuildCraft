@@ -98,24 +98,33 @@ public abstract class DockingStation {
     }
 
     public boolean takeAsMain(EntityRobotBase robot) {
-        if (robot == null || RobotManager.registryProvider == null) {
+        if (robot == null || RobotManager.registryProvider == null
+                || robot.getRobotId() == EntityRobotBase.NULL_ROBOT_ID) return false;
+        if (robotTakingId != EntityRobotBase.NULL_ROBOT_ID && robotTakingId != robot.getRobotId()) return false;
+        if (level() != null && level() != robot.level()) return false;
+
+        IRobotRegistry registry = RobotManager.registryProvider.getRegistry(robot.level());
+        if (registry == null) return false;
+        DockingStation previous = robot.getLinkedStation();
+        // Reserve the candidate before committing the robot's home pointer. If the
+        // assignment fails, restore the old station and avoid a dangling new link.
+        try {
+            registry.take(this, robot.getRobotId());
+            robot.setMainStation(this);
+        } catch (RuntimeException failedReassignment) {
+            registry.release(this, robot.getRobotId());
+            if (previous != this && robot.getLinkedStation() != previous) {
+                robot.setMainStation(previous);
+            }
             return false;
         }
-
-        if (robotTakingId == EntityRobotBase.NULL_ROBOT_ID || robotTakingId == robot.getRobotId()) {
-            IRobotRegistry registry = RobotManager.registryProvider.getRegistry(robot.level());
-            linkIsMain = true;
-            manuallyReleasedRobotId = EntityRobotBase.NULL_ROBOT_ID;
-            robotTaking = robot;
-            robotTakingId = robot.getRobotId();
-            registry.registryMarkDirty();
-            robot.setMainStation(this);
-            registry.take(this, robot.getRobotId());
-            setLevel(robot.level());
-
-            return true;
-        }
-        return false;
+        linkIsMain = true;
+        manuallyReleasedRobotId = EntityRobotBase.NULL_ROBOT_ID;
+        robotTaking = robot;
+        robotTakingId = robot.getRobotId();
+        setLevel(robot.level());
+        registry.registryMarkDirty();
+        return true;
     }
 
     public boolean take(EntityRobotBase robot) {

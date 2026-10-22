@@ -60,6 +60,7 @@ public class ModelHolderRegistry {
 
 	public static void preModelBake(ClientModelBaking.Additional event) {
         bootstrapBuiltinHolders();
+        buildcraft.lib.client.render.ApiPresentationModels.prepareModels();
         for (ModelHolder holder : HOLDERS_VANILLABAKE) {
             holder.onModelBakePre(event);
         }

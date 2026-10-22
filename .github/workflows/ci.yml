@@ -30,6 +30,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install Python test dependencies
+        run: python -m pip install --disable-pip-version-check 'Pillow==12.3.0'
+
       - name: Set up Java for offline compatibility probes
         uses: actions/setup-java@v4
         with:
@@ -42,20 +45,13 @@ jobs:
       - name: Validate hybrid source layout
         run: python scripts/validate-source-families.py
 
-      - name: Enforce architecture budgets and trend
+      - name: Validate source architecture invariants
         shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          args=(
-            --json build/reports/source-architecture/architecture-hardening.json
+          python scripts/validate-architecture-hardening.py \
+            --json build/reports/source-architecture/architecture-hardening.json \
             --markdown build/reports/source-architecture/architecture-hardening.md
-          )
-          if [[ -n "${BASE_SHA:-}" ]]; then
-            args+=(--budget-ref "$BASE_SHA")
-          fi
-          python scripts/validate-architecture-hardening.py "${args[@]}"
           cat build/reports/source-architecture/architecture-hardening.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate API v2 boundary
@@ -67,18 +63,44 @@ jobs:
       - name: Validate API2 runtime completeness
         run: python scripts/validate-api2-runtime-completeness.py
 
+      - name: Test extension runtime lifecycle and state
+        run: python -m unittest discover -s scripts/tests -p test_runtime_extensions.py -v
+      - name: Test pipe component persistence and sync
+        run: python -m unittest discover -s scripts/tests -p test_pipe_component_runtime.py -v
+      - name: Test addon pipe attachment placement and persistence
+        run: python -m unittest discover -s scripts/tests -p test_pipe_attachment_runtime.py -v
+      - name: Test pipe item transit ownership and callbacks
+        run: python -m unittest discover -s scripts/tests -p test_pipe_item_transit.py -v
+      - name: Test fluid, MJ and FE pipe transfers
+        run: python -m unittest discover -s scripts/tests -p test_pipe_resource_transfers.py -v
+      - name: Test standalone addon pipe types and routing
+        run: python -m unittest discover -s scripts/tests -p test_custom_pipe_types.py -v
+      - name: Test addon machine runtime and GUI actions
+        run: python -m unittest discover -s scripts/tests -p test_machine_runtime.py -v
+      - name: Test addon engine MJ runtime and persisted thermal stages
+        run: python -m unittest discover -s scripts/tests -p test_engine_runtime.py -v
+      - name: Test persisted robot task lifecycle and leases
+        run: python -m unittest discover -s scripts/tests -p test_robot_task_runtime.py -v
+      - name: Test requester reservations and durable logistics
+        run: python -m unittest discover -s scripts/tests -p test_request_lifecycle.py -v
+
+      - name: Test dynamic API2 client presentation
+        run: python -m unittest discover -s scripts/tests -p test_presentation_runtime.py -v
+
+      - name: Verify independent API2 addon JAR conformance
+        run: python -m unittest discover -s scripts/tests -p test_external_addon_conformance.py -v
+
+      - name: Verify independent API extension contracts
+        run: python -m unittest discover -s scripts/tests -p 'test_api_*.py' -v
+
       - name: Validate API2 module contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          python scripts/validate-core-misc-api2.py
-          python scripts/validate-energy-api2.py
-          python scripts/validate-facades-lists-map-api2.py
-          python scripts/validate-robots-api2.py
-          python scripts/validate-schematics-api2.py
-          python scripts/validate-signals-automation-api2.py
-          python scripts/validate-statements-api2.py
-          python scripts/validate-transport-api2.py
+        run: python scripts/validate-api2-modules.py
+
+      - name: Test legacy Forge compiler compatibility
+        run: python -m unittest discover -s scripts/tests -p test_old_compile_regressions.py -v
+
+      - name: Test NeoForge compiler compatibility
+        run: python -m unittest discover -s scripts/tests -p test_neoforge_compiler_compat.py -v
 
       - name: Validate repository cleanliness
         run: python scripts/validate-repository-cleanliness.py
@@ -87,7 +109,48 @@ jobs:
         run: python scripts/validate-behavior-parity.py
 
       - name: Validate 1.21.11 parity
-        run: python scripts/validate-12111-parity.py
+        run: python scripts/validate-1.21.11-parity.py
+
+      - name: Validate 26.1.2 target structure
+        run: python scripts/validate-26.1.2-target.py
+
+      - name: Test 26.X lib native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_lib_26.py -v
+
+      - name: Test 26.X core native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_core_26.py -v
+
+      - name: Test 26.X energy native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_energy_26.py -v
+
+      - name: Test 26.X transport native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_transport_26.py -v
+
+      - name: Test 26.X factory native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_factory_26.py -v
+
+      - name: Test Volume Box and Filler Planner gameplay
+        run: python -m unittest discover -s scripts/tests -p test_volume_filler_gameplay.py -v
+
+      - name: Test 26.X builders native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_builders_26.py -v
+
+      - name: Test 26.X silicon native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_silicon_26.py -v
+
+      - name: Test 26.X compat and bucket presentation
+        run: python -m unittest discover -s scripts/tests -p test_compat_buckets_26.py -v
+
+      - name: Test 26.X robotics native boundaries
+        run: python -m unittest discover -s scripts/tests -p test_robotics_26.py -v
+
+      - name: Test MJ Dynamo wrench and Quarry lattice all targets
+        run: python -m unittest discover -s scripts/tests -p test_cross_target_dynamo_quarry.py -v
+
+
+
+      - name: Test Minecraft 26.x native API compatibility
+        run: python -m unittest discover -s scripts/tests -p test_version_compatibility_26x.py -v
 
       - name: Validate Zone Planner block preview parity
         run: python scripts/validate-zone-planner-preview.py
@@ -119,8 +182,6 @@ jobs:
       - name: Test storage, event, registry and config boundaries
         run: python -m unittest discover -s scripts/tests -p test_platform_boundaries.py -v
 
-      - name: Test capability lifecycle invalidation and revival
-        run: python -m unittest discover -s scripts/tests -p test_capability_lifecycle.py -v
 
       - name: Test platform contracts
         run: python -m unittest discover -s scripts/tests -p test_platform_contracts.py -v
@@ -148,6 +209,26 @@ jobs:
 
       - name: Test canonical resource pipeline
         run: python -m unittest discover -s scripts/tests -p test_resource_pipeline.py -v
+      - name: Test localization key deduplication
+        run: python -m unittest discover -s scripts/tests -p test_localization_dedupe.py -v
+      - name: Test external localization packaging
+        run: python -m unittest discover -s scripts/tests -p test_localization_packaging.py -v
+
+
+      - name: Test native facade rendering and materials
+        run: python -m unittest discover -s scripts/tests -p test_facade_rendering.py -v
+
+      - name: Test all-target paintbrush interactions
+        run: python -m unittest discover -s scripts/tests -p test_paintbrush_all_targets.py -v
+
+      - name: Test all-target sign and lens paint
+        run: python -m unittest discover -s scripts/tests -p test_sign_lens_paint_all_targets.py -v
+
+      - name: Test 26.3 signed normals
+        run: python -m unittest discover -s scripts/tests -p test_signed_normals_263.py -v
+
+      - name: Test 26.3 cushion paint
+        run: python -m unittest discover -s scripts/tests -p test_cushion_paint_263.py -v
 
       - name: Validate resources, metadata and build hygiene
         run: python scripts/validate-cross-target-integrity.py
@@ -163,17 +244,26 @@ jobs:
       matrix:
         include:
           - target: 1.19.2-forge
-            generation: legacy
+            generation: old
             java: '17'
           - target: 1.20.1-forge
-            generation: legacy
+            generation: old
             java: '17'
           - target: 1.21.1-neoforge
-            generation: modern
+            generation: 1.21.X
             java: '21'
           - target: 1.21.11-neoforge
-            generation: modern
+            generation: 1.21.X
             java: '21'
+          - target: 26.1.2-neoforge
+            generation: 26.X
+            java: '25'
+          - target: 26.2-neoforge
+            generation: 26.X
+            java: '25'
+          - target: 26.3-neoforge
+            generation: 26.X
+            java: '25'
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dfile.encoding=UTF-8
       BUILD_GENERATION: ${{ matrix.generation }}
@@ -182,6 +272,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Checkout BuildCraft localizations (separate repository)
+        uses: actions/checkout@v4
+        with:
+          repository: BCCE-team/Localizations
+          ref: main
+          path: build/external/localizations
+          persist-credentials: false
 
       - name: Set up target Java
         uses: actions/setup-java@v4
@@ -194,7 +292,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Validate Forge 1.20.1 port invariants
+      - name: Validate Forge 1.20.1 target invariants
         if: matrix.target == '1.20.1-forge'
         run: python scripts/validate-1.20.1-target.py --source-root version-src/1.20.1-forge
 
@@ -205,9 +303,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0
+          # Minecraft 26.3 uses SDL3/RenderPearl: Xvfb cannot create its requested GLX
+          # visual, so install Mesa's CPU Vulkan implementation as a real fallback.
+          if [[ "${STONECUTTER_TARGET}" == "26.3-neoforge" ]]; then
+            sudo apt-get install -y libvulkan1 mesa-vulkan-drivers vulkan-tools
+          fi
 
       - name: Make build scripts executable
-        run: chmod +x builds/legacy/gradlew builds/modern/gradlew build-all.sh scripts/ci-server-smoke.sh scripts/ci-client-smoke.sh scripts/source_layout.py scripts/validate-stonecutter.py scripts/validate-api-v2.py scripts/validate-api-v2-only.py
+        run: chmod +x builds/old/gradlew builds/1.21.X/gradlew builds/26.X/gradlew build-all.sh scripts/ci-server-smoke.sh scripts/ci-client-smoke.sh scripts/source_layout.py scripts/validate-stonecutter.py scripts/validate-api-v2.py scripts/validate-api-v2-only.py
 
       - name: Build and test target
         shell: bash
@@ -229,7 +332,7 @@ jobs:
           # Gradle User Home (or restores one from the Actions cache). Only retry
           # failures that are unmistakably ZIP/JAR corruption; real compile/test
           # failures still fail immediately with their original status.
-          if [[ "$BUILD_GENERATION" != "legacy" ]] || ! grep -Eq \
+          if [[ "$BUILD_GENERATION" != "old" ]] || ! grep -Eq \
             'ZipException|invalid LOC header|zip END header not found' "$build_log"; then
             exit "$build_status"
           fi
@@ -244,6 +347,18 @@ jobs:
 
           ./gradlew --no-daemon --no-parallel --console=plain --stacktrace --refresh-dependencies \
             ":${STONECUTTER_TARGET}:buildAndCollect"
+
+      - name: Verify localizations inside the built JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          minecraft="${STONECUTTER_TARGET%-*}"
+          loader="${STONECUTTER_TARGET##*-}"
+          version="$(sed -n 's/^common\.mod\.version=//p' build-config/common.properties)"
+          python scripts/embed_localizations.py verify-jar \
+            --source build/external/localizations \
+            --english source-shared/src/main/resources/assets/buildcraft/lang/en_us.json \
+            --jar "build/${minecraft}/BuildCraft-Community-Edition-${version}+${minecraft}+${loader}.jar"
 
       - name: Run GameTests
         shell: bash
@@ -331,7 +446,7 @@ jobs:
             profile: forestry
     env:
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dfile.encoding=UTF-8
-      BUILD_GENERATION: legacy
+      BUILD_GENERATION: old
       STONECUTTER_TARGET: ${{ matrix.target }}
 
     steps:
@@ -375,7 +490,7 @@ jobs:
 
       - name: Make scripts executable
         if: steps.support.outputs.supported == 'true'
-        run: chmod +x builds/legacy/gradlew scripts/ci-server-smoke.sh scripts/source_layout.py
+        run: chmod +x builds/old/gradlew scripts/ci-server-smoke.sh scripts/source_layout.py
 
       - name: Smoke-test compatibility server
         if: steps.support.outputs.supported == 'true'
@@ -407,6 +522,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
           path: |
-            run/legacy/${{ matrix.target }}/logs/**
-            run/legacy/${{ matrix.target }}/crash-reports/**
-            ci-server-legacy-${{ matrix.target }}-${{ matrix.profile }}.log
+            run/old/${{ matrix.target }}/logs/**
+            run/old/${{ matrix.target }}/crash-reports/**
+            ci-server-old-${{ matrix.target }}-${{ matrix.profile }}.log

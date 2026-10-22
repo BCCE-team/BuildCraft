@@ -2,7 +2,7 @@
   <configuration default="false" name="Run Client 1.21.11" type="GradleRunConfiguration" factoryName="Gradle">
     <ExternalSystemSettings>
       <option name="executionName" />
-      <option name="externalProjectPath" value="$PROJECT_DIR$/builds/modern" />
+      <option name="externalProjectPath" value="$PROJECT_DIR$/builds/1.21.X" />
       <option name="externalSystemIdString" value="GRADLE" />
       <option name="scriptParameters" value="" />
       <option name="taskDescriptions">

@@ -31,7 +31,9 @@ import com.google.common.collect.ImmutableSet;
 import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.BCLib;
+import buildcraft.api.v2.facade.FacadePhase;
 import buildcraft.api.v2.facade.FacadeMaterial;
+import buildcraft.silicon.BCSiliconItems;
 import buildcraft.api.v2.facade.FacadeMaterialAdapter;
 import buildcraft.api.v2.facade.FacadeStateResult;
 import buildcraft.lib.misc.BlockUtil;
@@ -312,6 +314,9 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
                     BCLog.logger.info("[silicon.facade] Allowed block " + ForgeRegistries.BLOCKS.getKey(block));
                 }
             }
+            // A PASS from the block-level filter requires an independent decision
+            // for every state; an earlier accepted state must not authorize the next.
+            final boolean wholeBlockAllowed = result.getResult() == InteractionResult.SUCCESS;
             Map<BlockState, ItemStack> usedStates = new HashMap<>();
             Map<ItemStackKey, Map<Property<?>, Comparable<?>>> varyingProperties = new HashMap<>();
             int skippedStateCount = 0;
@@ -322,16 +327,16 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
                 // if (!checkedStates.add(state)) {
                 // continue;
                 // }
-                if (result.getResult() != InteractionResult.SUCCESS) {
-                    result = isValidFacadeState(state);
-                    if (result.getResult() == InteractionResult.SUCCESS) {
+                if (!wholeBlockAllowed) {
+                    InteractionResultHolder<String> stateResult = isValidFacadeState(state);
+                    if (stateResult.getResult() == InteractionResult.SUCCESS) {
                         if (DEBUG) {
                             BCLog.logger.info("[silicon.facade] Allowed state " + state);
                         }
                     } else {
                         if (DEBUG) {
                             BCLog.logger
-                                .info("[silicon.facade] Disallowed state " + state + " because " + result.getResult());
+                                .info("[silicon.facade] Disallowed state " + state + " because " + stateResult.getResult());
                         }
                         continue;
                     }
@@ -589,6 +594,27 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         } catch (Throwable t) {
             return "~~ERROR~~" + t.getMessage();
         }
+    }
+
+    @Override
+    public Optional<ItemStack> createPhased(List<FacadePhase> phases, boolean hollow) {
+        if (phases == null || phases.isEmpty() || phases.size() > 17) return Optional.empty();
+        FacadePhasedState[] result = new FacadePhasedState[phases.size()];
+        Set<DyeColor> colours = new HashSet<>();
+        boolean uncoloured = false;
+        for (int i = 0; i < result.length; i++) {
+            FacadePhase phase = phases.get(i);
+            if (phase == null) return Optional.empty();
+            DyeColor colour = phase.activeColour();
+            if (colour == null) {
+                if (uncoloured) return Optional.empty();
+                uncoloured = true;
+            } else if (!colours.add(colour)) return Optional.empty();
+            FacadeBlockStateInfo info = validFacadeStates.get(phase.state());
+            if (info == null || !info.isVisible) return Optional.empty();
+            result[i] = info.createPhased(colour);
+        }
+        return Optional.of(BCSiliconItems.PLUG_FACADE_ITEM.get().createItemStack(new FacadeInstance(result, hollow)));
     }
 
     @Override

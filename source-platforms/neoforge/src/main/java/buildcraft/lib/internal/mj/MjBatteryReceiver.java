@@ -29,44 +29,71 @@ public class MjBatteryReceiver implements IMjReceiver, IMjReadable, MjPort {
 
     public MjBattery battery() { return battery; }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean canConnect(@Nonnull IMjConnector other) {
         return true;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public long getPowerRequested() {
         return battery.getCapacity() - battery.getStored();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public long receivePower(long microJoules, FluidAction simulate) {
         return battery.addPowerChecking(microJoules, simulate);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public long getStored() {
         return battery.getStored();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public long getCapacity() {
         return battery.getCapacity();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public MjTransferResult insert(MjAmount offered, OperationMode mode) {
         long remainder = receivePower(offered.microMj(), mode == OperationMode.EXECUTE ? FluidAction.EXECUTE : FluidAction.SIMULATE);
         remainder = Math.max(0L, Math.min(offered.microMj(), remainder));
         return MjTransferResult.of(offered, MjAmount.ofMicro(offered.microMj() - remainder));
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public MjTransferResult extract(MjAmount requested, OperationMode mode) {
         return MjTransferResult.none(requested);
     }
 
+//? if mc_26_x {
+    public MjAmount stored() { return MjAmount.ofMicro(Math.max(0L, getStored())); }
+    public MjAmount capacity() { return MjAmount.ofMicro(Math.max(0L, getCapacity())); }
+    public boolean canExtract() { return false; }
+//? } else {
     @Override public MjAmount stored() { return MjAmount.ofMicro(Math.max(0L, getStored())); }
     @Override public MjAmount capacity() { return MjAmount.ofMicro(Math.max(0L, getCapacity())); }
     @Override public boolean canExtract() { return false; }
+//?}
 }

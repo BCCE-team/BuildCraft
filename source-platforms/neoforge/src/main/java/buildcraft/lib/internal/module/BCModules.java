@@ -6,7 +6,11 @@ import java.util.Locale;
 
 import javax.annotation.Nullable;
 
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.neoforged.fml.ModList;
 
 
@@ -84,7 +88,10 @@ public enum BCModules implements IBuildCraftMod {
         return missingModules;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public String getModId() {
         return modId;
     }
@@ -94,7 +101,12 @@ public enum BCModules implements IBuildCraftMod {
         return loaded;
     }
 
+//? if mc_26_x {
+    public Identifier createLocation(String path) {
+        return Identifier.fromNamespaceAndPath(getModId(), path);
+//? } else {
     public ResourceLocation createLocation(String path) {
         return ResourceLocation.fromNamespaceAndPath(getModId(), path);
+//?}
     }
 }

@@ -59,6 +59,7 @@ public final class WireSystem {
     /** Checks to see if the given holder could connect a wire across the specified side even if a matching wire wasn't
      * there. */
     public static boolean canWireConnect(IPipeHolder holder, Direction side) {
+        if (!holder.getPipeWorld().hasChunkAt(holder.getPipePos().relative(side))) return false;
         IPipe pipe = holder.getPipe();
         if (pipe == Pipe.EMPTY) {
             return false;
@@ -96,6 +97,7 @@ public final class WireSystem {
     }
 
     public static List<WireElement> getConnectedElementsOfElement(Level world, WireElement element) {
+        if (!world.hasChunkAt(element.blockPos)) return Collections.emptyList();
         if (element.type == WireElement.Type.WIRE_PART) {
             BlockEntity tile = world.getBlockEntity(element.blockPos);
             if (tile instanceof IPipeHolder) {
@@ -130,7 +132,8 @@ public final class WireSystem {
 
             if (!walked.contains(element)) {
                 if (!holdersCache.containsKey(element.blockPos)) {
-                    BlockEntity tile = wireSystems.world.getBlockEntity(element.blockPos);
+                    BlockEntity tile = wireSystems.world.hasChunkAt(element.blockPos)
+                        ? wireSystems.world.getBlockEntity(element.blockPos) : null;
                     IPipeHolder holder = null;
                     if (tile instanceof IPipeHolder) {
                         holder = (IPipeHolder) tile;
@@ -221,19 +224,32 @@ public final class WireSystem {
     public CompoundTag writeToNBT() {
         CompoundTag nbt = new CompoundTag();
         ListTag elementsList = new ListTag();
-        int counter = 0;
-        for(CompoundTag tag : elements.stream().map(WireElement::writeToNBT).toArray(CompoundTag[]::new))
-        	elementsList.addTag(counter, tag);
+        // Preserve the wire element order: ListTag.addTag(0, ...) reverses the list
+        // and changes its order-sensitive network hash after loading a save.
+        for (WireElement element : elements) {
+            elementsList.add(element.writeToNBT());
+        }
         nbt.put("elements", elementsList);
         nbt.putInt("color", color.getId());
         return nbt;
     }
 
+    // Bound untrusted persisted network data before allocating/indexing it.
+    private static int checkedIndex(int value, int size, String property) {
+        if (value < 0 || value >= size) {
+            throw new IllegalArgumentException("Invalid wire " + property + ": " + value);
+        }
+        return value;
+    }
+
     public WireSystem(CompoundTag nbt) {
         ListTag elementsList = nbt.getList("elements", Tag.TAG_COMPOUND);
+        if (elementsList.isEmpty() || elementsList.size() > 16_384) {
+            throw new IllegalArgumentException("Invalid wire network size: " + elementsList.size());
+        }
         //noinspection UnstableApiUsage
         elements = IntStream.range(0, elementsList.size()).mapToObj(elementsList::getCompound).map(WireElement::new).collect(ImmutableList.toImmutableList());
-        color = DyeColor.byId(nbt.getInt("color"));
+        color = DyeColor.byId(checkedIndex(nbt.getInt("color"), DyeColor.values().length, "color"));
 
         this.cachedHashCode = this.computeHashCode();
         this.cachedWiresHashCode = this.computeCachedWiresHashCode();
@@ -293,10 +309,10 @@ public final class WireSystem {
         }
 
         public WireElement(FriendlyByteBuf buf) {
-            type = Type.values()[buf.readInt()];
+            type = Type.values()[checkedIndex(buf.readInt(), Type.values().length, "type")];
             blockPos = MessageUtil.readBlockPos(buf);
             if (type == Type.WIRE_PART) {
-                wirePart = EnumWirePart.VALUES[buf.readInt()];
+                wirePart = EnumWirePart.VALUES[checkedIndex(buf.readInt(), EnumWirePart.VALUES.length, "wirePart")];
                 this.emitterSide = null;
             } else if (type == Type.EMITTER_SIDE) {
                 this.wirePart = null;
@@ -308,18 +324,18 @@ public final class WireSystem {
         }
 
         public WireElement(CompoundTag nbt) {
-            type = Type.values()[nbt.getInt("type")];
+            type = Type.values()[checkedIndex(nbt.getInt("type"), Type.values().length, "type")];
             blockPos = NBTUtilBC.readBlockPos(nbt.getIntArray("blockPos"));
             if (blockPos == null) {
                 // Oh dear. We probably can't recover from this properly
                 throw new NullPointerException("Cannot read this Wire Systems from NBT!");
             }
             if (type == Type.WIRE_PART) {
-                wirePart = EnumWirePart.VALUES[nbt.getInt("wirePart")];
+                wirePart = EnumWirePart.VALUES[checkedIndex(nbt.getInt("wirePart"), EnumWirePart.VALUES.length, "wirePart")];
                 this.emitterSide = null;
             } else if (type == Type.EMITTER_SIDE) {
                 this.wirePart = null;
-                emitterSide = Direction.from3DDataValue(nbt.getInt("emitterSide"));
+                emitterSide = Direction.from3DDataValue(checkedIndex(nbt.getInt("emitterSide"), 6, "emitterSide"));
             } else {
                 this.wirePart = null;
                 this.emitterSide = null;

@@ -17,6 +17,7 @@ import net.minecraft.core.Direction;
 final class DebugServiceImpl implements DebugService {
     @Override
     public Collection<DebugSection> collect(DebugContext context) {
+        if (!context.level().hasChunkAt(context.position())) return List.of();
         List<DebugSection> sections = new ArrayList<>();
         Object blockEntity = context.level().getBlockEntity(context.position());
         if (blockEntity instanceof IDebuggable debuggable) {

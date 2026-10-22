@@ -112,7 +112,10 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
 
     private int penaltyCooling = 0;
     private boolean lastPowered = false;
+    /** Unspent fractions of game ticks already paid for by consumed fuel. */
     private double burnTime;
+    /** MJ/t of the fuel that paid for burnTime (persisted across save/reload). */
+    private long activePowerPerTick;
     /** Fractional residue below one mB, plus any persisted legacy hidden backlog. */
     private double residueAmount = 0;
     private boolean residueBlocked;
@@ -132,6 +135,7 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
         nbt.put("tank",tankManager.serializeNBT());
         nbt.putInt("penaltyCooling", penaltyCooling);
         nbt.putDouble("burnTime", burnTime);
+        nbt.putLong("activePowerPerTick", activePowerPerTick);
         nbt.putDouble("residueAmount", residueAmount);
         nbt.putBoolean("solidCoolantLoaded", solidCoolantLoaded);
     }
@@ -142,6 +146,8 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
         tankManager.deserializeNBT(nbt.getCompound("tank"));
         penaltyCooling = nbt.getInt("penaltyCooling");
         burnTime = nbt.getDouble("burnTime");
+        if (!Double.isFinite(burnTime) || burnTime < 0) burnTime = 0;
+        activePowerPerTick = Math.max(0L, nbt.getLong("activePowerPerTick"));
         residueAmount = nbt.getDouble("residueAmount");
         if (!Double.isFinite(residueAmount) || residueAmount < 0) {
             residueAmount = 0;
@@ -231,7 +237,8 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
     @Override
     public boolean isBurning() {
         FluidStack fuel = tankFuel.getFluid();
-        return fuel != null && fuel.getAmount() > 0 && penaltyCooling == 0 && isRedstonePowered && !residueBlocked;
+        return (burnTime > 0 && activePowerPerTick > 0 || fuel != null && fuel.getAmount() > 0)
+            && penaltyCooling == 0 && isRedstonePowered && !residueBlocked;
     }
 
     /** Flushes any whole-mB residue debt into the visible tank. */
@@ -282,63 +289,92 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
     }
 
     @Override
+    /**
+     * A consumed mB buys burnTicksPerBucket/1000 ticks of work, not necessarily
+     * a whole tick. Split the tick between already-paid fuel and newly bought
+     * fuel so short-burning fuels cannot create MJ, and profile changes cannot
+     * reprice work that was purchased with an earlier fuel.
+     */
     protected void burn() {
-        final FluidStack fuel = this.tankFuel.getFluid();
-        if (fuel == null || fuel.isEmpty()) {
-            currentFuel = null;
-            return;
-        }
-        FluidVariant fuelVariant = FuelApiBridge.variantOf(fuel);
-        currentFuel = energyFluids().findFuel(fuelVariant, FuelApiBridge.MATCH_CONTEXT)
-            .map(match -> match.profile()).orElse(null);
-        if (currentFuel == null) {
-            residueBlocked = false;
-            return;
-        }
-        residueBlocked = false;
-
-        if (penaltyCooling <= 0) {
-            if (isRedstonePowered) {
-                lastPowered = true;
-
-                if (burnTime > 0 || fuel.getAmount() > 0) {
-                    if (burnTime > 0) {
-                        burnTime--;
-                    }
-                    if (burnTime <= 0) {
-                        if (fuel.getAmount() > 0) {
-                            if (!canConsumeFuelWithResidue()) {
-                                residueBlocked = true;
-                                currentOutput = 0;
-                                return;
-                            }
-                            fuel.setAmount(fuel.getAmount() - 1);
-                            burnTime += currentFuel.burnTicksPerBucket() / 1000.0;
-                            if (currentFuel.hasResidue()) {
-                                residueAmount += currentFuel.residuePerBucket().amount().milliBuckets() / 1000.0D;
-                                flushPendingResidue();
-                            }
-                        } else {
-                            tankFuel.setFluid(null);
-                            currentFuel = null;
-                            currentOutput = 0;
-                            return;
-                        }
-                    }
-                    currentOutput = currentFuel.powerPerTickMicroMj();
-                    addPower(currentFuel.powerPerTickMicroMj());
-                    heat += currentFuel.powerPerTickMicroMj() * HEAT_PER_MJ / MjAmount.MICRO_MJ_PER_MJ * getBiomeTempScalar();
-                }
-            } else if (lastPowered) {
+        currentOutput = 0;
+        if (penaltyCooling > 0) return;
+        if (!isRedstonePowered) {
+            if (lastPowered) {
                 lastPowered = false;
                 penaltyCooling = 10;
-                // 10 tick of penalty on top of the cooling
             }
+            return;
+        }
+        lastPowered = true;
+        residueBlocked = false;
+
+        double tickRemaining = 1.0D;
+        double generated = 0.0D;
+        // Compatibility with saves that recorded burnTime but no fuel-rate snapshot.
+        if (burnTime > 0 && activePowerPerTick <= 0) {
+            FluidStack storedFuel = tankFuel.getFluid();
+            if (storedFuel != null && !storedFuel.isEmpty()) {
+                currentFuel = energyFluids().findFuel(FuelApiBridge.variantOf(storedFuel), FuelApiBridge.MATCH_CONTEXT)
+                    .map(match -> match.profile()).orElse(null);
+                if (currentFuel != null) activePowerPerTick = currentFuel.powerPerTickMicroMj();
+            }
+            if (activePowerPerTick <= 0) burnTime = 0; // Unknown old fuel cannot produce unpaid MJ.
+        }
+        if (burnTime > 0) {
+            double used = Math.min(tickRemaining, burnTime);
+            generated += used * activePowerPerTick;
+            burnTime -= used;
+            tickRemaining -= used;
         }
 
-        if (burnTime <= 0 && fuel.getAmount() <= 0) {
-            tankFuel.setFluid(null);
+        if (tickRemaining > 1.0E-9D) {
+            FluidStack storedFuel = tankFuel.getFluid();
+            if (storedFuel != null && !storedFuel.isEmpty()) {
+                FuelProfile nextFuel = energyFluids()
+                    .findFuel(FuelApiBridge.variantOf(storedFuel), FuelApiBridge.MATCH_CONTEXT)
+                    .map(match -> match.profile()).orElse(null);
+                if (nextFuel != null) {
+                    currentFuel = nextFuel;
+                    double ticksPerMb = nextFuel.burnTicksPerBucket() / 1000.0D;
+                    // min burnTicksPerBucket is 1, so at most 1000 mB/tick.
+                    boolean consumed = false;
+                    while (tickRemaining > 1.0E-9D && storedFuel.getAmount() > 0) {
+                        if (!canConsumeFuelWithResidue()) {
+                            residueBlocked = true;
+                            break;
+                        }
+                        if (tankFuel.drainInternal(1, FluidAction.EXECUTE).isEmpty()) {
+                            break;
+                        }
+                        storedFuel.shrink(1);
+                        consumed = true;
+                        activePowerPerTick = nextFuel.powerPerTickMicroMj();
+                        if (nextFuel.hasResidue()) {
+                            residueAmount += nextFuel.residuePerBucket().amount().milliBuckets() / 1000.0D;
+                            flushPendingResidue();
+                        }
+                        double used = Math.min(tickRemaining, ticksPerMb);
+                        generated += used * activePowerPerTick;
+                        tickRemaining -= used;
+                        burnTime = ticksPerMb - used;
+                    }
+                    if (consumed) {
+                        if (storedFuel.getAmount() <= 0) {
+                            tankFuel.setFluid(null);
+                        }
+                        markChunkDirty();
+                    }
+                }
+            }
         }
+        if (generated > 0.0D) {
+            // Fractional last ticks scale MJ and heat by their actual paid runtime.
+            currentOutput = Math.max(0L, (long) Math.min(Long.MAX_VALUE, Math.round(generated)));
+            if (currentOutput > 0) addPower(currentOutput);
+            heat += generated * HEAT_PER_MJ / MjAmount.MICRO_MJ_PER_MJ * getBiomeTempScalar();
+            markChunkDirty();
+        }
+        if (burnTime < 1.0E-9D) burnTime = 0;
     }
 
     @Override
@@ -450,11 +486,8 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
 
     @Override
     public long getCurrentOutput() {
-        if (currentFuel == null) {
-            return 0;
-        } else {
-            return currentFuel.powerPerTickMicroMj();
-        }
+        if (burnTime > 0 && activePowerPerTick > 0) return activePowerPerTick;
+        return currentFuel == null ? 0 : currentFuel.powerPerTickMicroMj();
     }
 
     private static EnergyFluidService energyFluids() {

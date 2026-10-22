@@ -1,5 +1,9 @@
 package buildcraft.factory.tile;
 
+import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.permission.WorldOperationKind;
+import buildcraft.lib.misc.AutomationPermissionUtil;
+
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -38,8 +42,6 @@ import buildcraft.lib.tile.TileBC_Neptune;
 import buildcraft.lib.platform.storage.FluidStorage;
 import buildcraft.lib.platform.storage.PlatformStorage;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.ParticleStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
@@ -148,6 +150,11 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
 //            if(!level.isClientSide)
 //            BCLog.logger.debug("TileHeatExchange:close flag at "+worldPosition);
             Deque<TileHeatExchange> exchangers = findAdjacentExchangers();
+            if (exchangers == null) {
+                // A neighbour chunk is not loaded: postpone without dismantling and dropping tanks.
+                checkNeighbours = true;
+                return;
+            }
             if (level.isClientSide) {
                 // Find the start + end sections and link them up
 //            	BCLog.logger.debug("TileHeatExchange:client tick for "+worldPosition);
@@ -308,7 +315,9 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
         Deque<TileHeatExchange> exchangers = new ArrayDeque<>();
         exchangers.add(this);
         for (int i = 1; i < 6; i++) {
-            BlockEntity neighbour = getLocalTile(worldPosition.offset(dirToStart.getNormal().multiply(i)));
+            BlockPos adjacentPos = worldPosition.offset(dirToStart.getNormal().multiply(i));
+            if (!level.hasChunkAt(adjacentPos)) return null;
+            BlockEntity neighbour = getLocalTile(adjacentPos);
             if (neighbour instanceof TileHeatExchange) {
                 TileHeatExchange other = (TileHeatExchange) neighbour;
                 if (other.getFacing() != thisFacing) {
@@ -320,7 +329,9 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             }
         }
         for (int i = 1; i < 6; i++) {
-            BlockEntity neighbour = getLocalTile(worldPosition.offset(dirToEnd.getNormal().multiply(i)));
+            BlockPos adjacentPos = worldPosition.offset(dirToEnd.getNormal().multiply(i));
+            if (!level.hasChunkAt(adjacentPos)) return null;
+            BlockEntity neighbour = getLocalTile(adjacentPos);
             if (neighbour instanceof TileHeatExchange) {
                 TileHeatExchange other = (TileHeatExchange) neighbour;
                 if (other.getFacing() != thisFacing) {
@@ -359,6 +370,7 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
 
     @Override
     public void readPayload(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
+        super.readPayload(id, buffer, side, ctx);
         if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
                 readPayload(NET_ID_CHANGE_SECTION, buffer, side, ctx);
@@ -385,6 +397,7 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
 
     @Override
     public void writePayload(int id, FriendlyByteBuf buffer, BCNetworkSide side) {
+        super.writePayload(id, buffer, side);
 //    	BCLog.logger.debug("TileHeatExchange:send message at "+worldPosition+" "+checkNeighbours);
         if (side == BCNetworkSide.SERVER) {
             if (id == NET_RENDER_DATA) {
@@ -490,6 +503,19 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             return;
         }
         Deque<TileHeatExchange> exchangers = findAdjacentExchangers();
+        if (exchangers == null) return; // Never rotate only the loaded half of a multiblock.
+        // Validate the ENTIRE column before rotating a single section. Otherwise a
+        // protected adjacent machine can be silently reconfigured as a side effect.
+        for (TileHeatExchange exchange : exchangers) {
+            if (!level.hasChunkAt(exchange.getBlockPos())) return;
+            try {
+                if (!AutomationPermissionUtil.mayBlock(level, worldPosition, exchange.getBlockPos(),
+                        getOwner(), AutomationPermissionUtil.SOURCE_HEAT_EXCHANGE,
+                        WorldOperationKind.BLOCK_INTERACT, OperationMode.EXECUTE)) return;
+            } catch (RuntimeException denied) {
+                return;
+            }
+        }
         if (exchangers.size() == 1) {
             BlockState state = getBlockState();
             level.setBlock(
@@ -982,13 +1008,14 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             double z = from.z;
 
             Vec3 motion = VecUtil.scale(vecDir, 0.4);
-            Minecraft mc = Minecraft.getInstance();
-            ParticleStatus particleType = mc.options.particles().get();
+            // Run on the client level without linking the common block entity class to
+            // net.minecraft.client.Minecraft (dedicated servers load this class too).
+            // ClientLevel handles particle graphics settings when particles are submitted.
             Level w = getTile().getLevel();
-            if (particleType == ParticleStatus.MINIMAL || w == null) {
+            if (w == null || !w.isClientSide()) {
                 return;
             }
-            int particleCount = particleType == ParticleStatus.ALL ? 5 : 2;
+            int particleCount = 2;
             for (int i = 0; i < particleCount; i++) {
                 double dx = motion.x + (Math.random() - 0.5) * 0.1;
                 double dy = motion.y + (Math.random() - 0.5) * 0.1;
@@ -1115,6 +1142,11 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
         RUNNING,
         /** Progress is decreasing from max to 0. */
         STOPPING;
+    }
+
+    /** Menus must stop using the previous TankContainerData when the multiblock is rebuilt. */
+    public TankContainerData getGuiTankData() {
+        return tankData;
     }
 
     public Tank getSectionTank(int index) {

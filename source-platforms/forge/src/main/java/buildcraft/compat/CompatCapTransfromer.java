@@ -53,7 +53,12 @@ public enum CompatCapTransfromer {
             // Forge handler but still require fluid-ID translation at the integration boundary.
             IFluidHandler transformed = transfromFluidCap(provider, face);
             if (transformed != null) {
-                return LazyOptional.of(() -> transformed).cast();
+                LazyOptional<E> adapted = LazyOptional.<IFluidHandler>of(() -> transformed).cast();
+                // Native Forge capability invalidation is the block lifecycle signal.
+                // Do not leave a transformed LazyOptional alive after its source disappears.
+                LazyOptional<?> source = provider.getCapability(capability, face);
+                source.addListener(ignored -> adapted.invalidate());
+                return adapted;
             }
         }
         return provider.getCapability(capability, face);

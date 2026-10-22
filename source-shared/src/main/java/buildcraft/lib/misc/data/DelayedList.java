@@ -34,6 +34,27 @@ public class DelayedList<E> {
                     return super.advance();
                 }
             }
+
+            @Override
+            public void add(int delay, E element) {
+                synchronized (this.elements) {
+                    super.add(delay, element);
+                }
+            }
+
+            @Override
+            public void clear() {
+                synchronized (this.elements) {
+                    super.clear();
+                }
+            }
+
+            @Override
+            public int getMaxDelay() {
+                synchronized (this.elements) {
+                    return super.getMaxDelay();
+                }
+            }
         };
     }
 

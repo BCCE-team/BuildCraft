@@ -113,7 +113,10 @@ public class CapabilityHelper implements IBCCapabilityProvider {
         return StorageAdapters.toNativeFluids((FluidStorage<net.neoforged.neoforge.fluids.FluidStack>) storage);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     @Nullable
     @SuppressWarnings("unchecked")
     public <T> T getCapability(BlockCapability<T, Direction> capability, @Nullable Direction facing) {

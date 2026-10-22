@@ -30,7 +30,11 @@ import com.google.gson.JsonParser;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.nbt.TagParser;
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.item.Item;
@@ -49,6 +53,10 @@ import buildcraft.lib.internal.api.v2.GuideOwnershipView;
 import buildcraft.lib.misc.ItemStackUtil;
 import buildcraft.lib.internal.statement.IStatement;
 import buildcraft.lib.internal.statement.StatementManager;
+//? if mc_26_x {
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
 /**
  * Loads the BuildCraft Guide Book index and its localized packed pages.
@@ -57,8 +65,13 @@ import buildcraft.lib.internal.statement.StatementManager;
  * with the selected language text pack and its configured fallbacks before the Markdown document is parsed.
  */
 public final class GuideContent {
+//? if mc_26_x {
+    private static final Identifier MANIFEST =
+        Identifier.fromNamespaceAndPath("buildcraft", "guide/original_manifest.json");
+//? } else {
     private static final ResourceLocation MANIFEST =
         ResourceLocation.fromNamespaceAndPath("buildcraft", "guide/original_manifest.json");
+//?}
     private static final Pattern FIRST_CHAPTER = Pattern.compile("<chapter\\s+name=\"([^\"]+)\"[^>]*/>");
     private static final Pattern FIRST_HEADING = Pattern.compile("(?m)^#+\\s+(.+)$");
     private static final Pattern TAGS = Pattern.compile("<[^>]+>");
@@ -66,13 +79,21 @@ public final class GuideContent {
 
     private final List<Entry> allEntries;
     private final List<Entry> listedEntries;
+//? if mc_26_x {
+    private final Map<Identifier, Entry> byId;
+//? } else {
     private final Map<ResourceLocation, Entry> byId;
+//?}
     private final List<String> loadedGuideSources;
 
     private GuideContent(List<Entry> entries) {
         allEntries = Collections.unmodifiableList(entries);
         List<Entry> listed = new ArrayList<>();
+//? if mc_26_x {
+        Map<Identifier, Entry> ids = new LinkedHashMap<>();
+//? } else {
         Map<ResourceLocation, Entry> ids = new LinkedHashMap<>();
+//?}
         for (Entry entry : entries) {
             ids.put(entry.id, entry);
             if (entry.listed) {
@@ -100,7 +121,11 @@ public final class GuideContent {
                     if (requiredMod != null && !requiredMod.isBlank() && !ModList.get().isLoaded(requiredMod)) {
                         continue;
                     }
+//? if mc_26_x {
+                    Identifier id = Identifier.parse(json.get("id").getAsString());
+//? } else {
                     ResourceLocation id = ResourceLocation.parse(json.get("id").getAsString());
+//?}
                     String page = getString(json, "page");
                     if (page == null || page.isBlank()) {
                         BCLog.logger.warn("[lib.guide] Entry {} has no page key", id);
@@ -148,7 +173,11 @@ public final class GuideContent {
         Optional<GuideService> optional = BuildCraftApi.runtime().service(BuildCraftServices.GUIDE);
         if (optional.isEmpty()) return;
         GuideService guide = optional.get();
+//? if mc_26_x {
+        Set<Identifier> appended = new LinkedHashSet<>();
+//? } else {
         Set<ResourceLocation> appended = new LinkedHashSet<>();
+//?}
 
         // Sections are the public Guide API's ordering/grouping primitive. Walking them first makes section.order()
         // authoritative in the native contents tree, while entries(section) already honours GuideEntry.order().
@@ -188,7 +217,11 @@ public final class GuideContent {
             ? titleCase(apiEntry.section().getPath())
             : guideSectionTitle(guide, section);
         String title = translateOrLiteral(apiEntry.titleKey());
+//? if mc_26_x {
+        String stackId = apiEntry.icon().map(Identifier::toString).orElse(null);
+//? } else {
         String stackId = apiEntry.icon().map(ResourceLocation::toString).orElse(null);
+//?}
         entries.add(new Entry(
             apiEntry.id(),
             apiEntry.id().toString(),
@@ -214,7 +247,11 @@ public final class GuideContent {
 
     private static String guideSectionTitle(GuideService guide, GuideSection leaf) {
         List<String> path = new ArrayList<>();
+//? if mc_26_x {
+        Set<Identifier> visited = new LinkedHashSet<>();
+//? } else {
         Set<ResourceLocation> visited = new LinkedHashSet<>();
+//?}
         GuideSection section = leaf;
         while (section != null && visited.add(section.id())) {
             path.add(0, translateOrLiteral(section.titleKey()));
@@ -285,7 +322,11 @@ public final class GuideContent {
         return markdown.toString();
     }
 
+//? if mc_26_x {
+    private static String readText(ResourceManager resources, Identifier location) throws IOException {
+//? } else {
     private static String readText(ResourceManager resources, ResourceLocation location) throws IOException {
+//?}
         Optional<Resource> optional = resources.getResource(location);
         if (optional.isEmpty()) {
             throw new IOException("Missing resource " + location);
@@ -310,7 +351,11 @@ public final class GuideContent {
         ItemStack stack = resolveStackForTag(rawId, Map.of());
         if (!stack.isEmpty() && rawNbt != null && !rawNbt.isBlank()) {
             try {
+//? if mc_26_x {
+                ItemStackUtil.setCustomData(stack, NbtCompat.parseTag(rawNbt));
+//? } else {
                 ItemStackUtil.setCustomData(stack, TagParser.parseTag(rawNbt));
+//?}
             } catch (Exception ex) {
                 BCLog.logger.warn("[lib.guide] Invalid stack NBT '{}' for {}", rawNbt, rawId, ex);
             }
@@ -336,13 +381,25 @@ public final class GuideContent {
         }
 
         String remappedId = remapLegacyStackId(spec.id, spec.data);
+//? if mc_26_x {
+        Identifier id;
+//? } else {
         ResourceLocation id;
+//?}
         try {
+//? if mc_26_x {
+            id = Identifier.parse(remappedId);
+//? } else {
             id = ResourceLocation.parse(remappedId);
+//?}
         } catch (RuntimeException ex) {
             return ItemStack.EMPTY;
         }
+//? if mc_26_x {
+        Item item = BuiltInRegistries.ITEM.get(id).map(net.minecraft.core.Holder.Reference::value).orElse(net.minecraft.world.item.Items.AIR);
+//? } else {
         Item item = BuiltInRegistries.ITEM.get(id);
+//?}
         if (item == null) {
             return ItemStack.EMPTY;
         }
@@ -350,7 +407,11 @@ public final class GuideContent {
         ItemStack stack = item.getDefaultInstance();
         stack.setCount(Math.max(1, spec.count));
 
+//? if mc_26_x {
+        if (id.equals(Identifier.fromNamespaceAndPath("buildcraftsilicon", "plug/lens"))) {
+//? } else {
         if (id.equals(ResourceLocation.fromNamespaceAndPath("buildcraftsilicon", "plug/lens"))) {
+//?}
             int legacyData = spec.data;
             boolean oldFilterId = "buildcraftsilicon:plug_filter".equals(spec.id);
             boolean filter = oldFilterId || legacyData >= 16;
@@ -475,25 +536,45 @@ public final class GuideContent {
     }
 
     @Nullable
+//? if mc_26_x {
+    public Entry get(Identifier id) {
+//? } else {
     public Entry get(ResourceLocation id) {
+//?}
         return byId.get(id);
     }
 
     @Nullable
     public Entry get(String id) {
         try {
+//? if mc_26_x {
+            return get(Identifier.parse(id));
+//? } else {
             return get(ResourceLocation.parse(id));
+//?}
         } catch (RuntimeException ex) {
             return null;
         }
     }
 
     public static Entry createGeneratedItemEntry(ItemStack stack) {
+//? if mc_26_x {
+        Identifier registryId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+//? } else {
         ResourceLocation registryId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+//?}
         if (registryId == null) {
+//? if mc_26_x {
+            registryId = Identifier.fromNamespaceAndPath("minecraft", "air");
+//? } else {
             registryId = ResourceLocation.fromNamespaceAndPath("minecraft", "air");
+//?}
         }
+//? if mc_26_x {
+        Identifier pageId = Identifier.fromNamespaceAndPath(
+//? } else {
         ResourceLocation pageId = ResourceLocation.fromNamespaceAndPath(
+//?}
             "buildcraftlib", "generated/item/" + registryId.getNamespace() + "/" + registryId.getPath()
         );
         return new Entry(
@@ -523,7 +604,11 @@ public final class GuideContent {
     }
 
     public static final class Entry {
+//? if mc_26_x {
+        public final Identifier id;
+//? } else {
         public final ResourceLocation id;
+//?}
         public final String page;
         public final String module;
         public final String type;
@@ -537,7 +622,11 @@ public final class GuideContent {
         public final String markdown;
         public final String searchText;
 
+//? if mc_26_x {
+        private Entry(Identifier id, String page, @Nullable String module, @Nullable String type,
+//? } else {
         private Entry(ResourceLocation id, String page, @Nullable String module, @Nullable String type,
+//?}
             @Nullable String subtype, @Nullable String name, @Nullable String book, boolean listed,
             @Nullable String stackId, @Nullable String statement, ItemStack stack, String markdown) {
             this.id = id;
@@ -646,7 +735,11 @@ public final class GuideContent {
             return value == null ? "" : value;
         }
         try {
+//? if mc_26_x {
+            if (net.minecraft.locale.Language.getInstance().has(value)) {
+//? } else {
             if (I18n.exists(value)) {
+//?}
                 return I18n.get(value);
             }
         } catch (RuntimeException translationError) {

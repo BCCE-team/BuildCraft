@@ -132,6 +132,7 @@ def _resource_values(properties: dict[str, str], target: str) -> dict[str, str]:
         "buildcraft_version_range": _target_property(properties, target, "buildcraft.version_range"),
         "jei_version_range": _target_property(properties, target, "compat.jei.range"),
         "jade_version_range": _target_property(properties, target, "compat.jade.range"),
+        "create_version_range": properties.get(f"target.{target}.compat.create.range", "[0,)"),
         "ic2_version_range": _target_property(properties, target, "compat.ic2.range"),
         "forestry_version_range": _target_property(properties, target, "compat.forestry.range"),
         "pack_format": _target_property(properties, target, "pack.format"),
@@ -206,11 +207,12 @@ def _common_gradle_header(properties: dict[str, str], target: str, *, neo: bool)
         if neo
         else "    id 'java'\n"
     )
-    loader_plugin = (
-        "    id 'net.neoforged.moddev' version '2.0.143'\n"
-        if neo
-        else "    id 'net.minecraftforge.gradle' version '[6.0,6.2)'\n"
-    )
+    if neo:
+        generation = _target_property(properties, target, "build.generation")
+        moddev_version = "2.0.148" if generation == "26.X" else "2.0.143"
+        loader_plugin = f"    id 'net.neoforged.moddev' version '{moddev_version}'\n"
+    else:
+        loader_plugin = "    id 'net.minecraftforge.gradle' version '[6.0,6.2)'\n"
     return (
         "plugins {\n"
         f"{plugins}"
@@ -418,6 +420,8 @@ def _neoforge_build_gradle(properties: dict[str, str], target: str) -> str:
             f'    testImplementation "org.junit.jupiter:junit-jupiter-api:{junit}"',
             f'    testImplementation "org.junit.jupiter:junit-jupiter-params:{junit}"',
             f'    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:{junit}"',
+            f'    testRuntimeOnly platform("org.junit:junit-bom:{junit}")',
+            '    testRuntimeOnly "org.junit.platform:junit-platform-launcher"',
         ]
     )
 

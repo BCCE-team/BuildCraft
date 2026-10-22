@@ -81,10 +81,10 @@ public class TileAdvancedCraftingTable extends TileLaserTableBase implements IAu
         @Nonnull ItemStack after) {
         super.onSlotChange(handler, slot, before, after);
         //? if <1.20 {
-        if (!ItemStack.isSame(before, after)) {
+        if (!ItemStack.isSame(before, after) || before.getCount() != after.getCount()) {
         //?} else {
         /*?
-        if (!ItemStack.isSameItemSameTags(before, after)) {
+        if (!ItemStack.isSameItemSameTags(before, after) || before.getCount() != after.getCount()) {
         ?*/
         //?}
             crafting.onInventoryChange(handler);

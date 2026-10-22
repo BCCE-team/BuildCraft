@@ -25,7 +25,7 @@ public final class BuildCraftCompat {
         try {
             Class.forName(className).getMethod("register", IEventBus.class).invoke(null, modBus);
         } catch (ClassNotFoundException ignored) {
-            // This target intentionally omits integrations whose dependency is unavailable for NeoForge 1.21.1.
+            // This target intentionally omits integrations whose dependency is unavailable for the selected NeoForge target.
         } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException exception) {
             BCLog.logger.error("Failed to initialize optional BuildCraft compatibility class {}", className, exception);
         }

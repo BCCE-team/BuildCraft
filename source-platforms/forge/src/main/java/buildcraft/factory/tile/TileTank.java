@@ -114,7 +114,9 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
     public int getComparatorLevel() {
         int amount = tank.getFluidAmount();
         int cap = tank.getCapacity();
-        return amount * 14 / cap + (amount > 0 ? 1 : 0);
+        if (amount <= 0 || cap <= 0) return 0;
+        // Integer multiplication overflow used to turn near-full large tanks into a weak signal.
+        return Math.min(15, 1 + (int) Math.min(14L, (long) amount * 14L / cap));
     }
 
     /**
@@ -189,13 +191,27 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
         // Compact the whole column in one pass. Moving only each tank into its
         // immediate predecessor leaves newly transferred fluid stranded in the
         // middle tank until another rebalance happens (placement order 1,3,2).
+        // One source cursor across the entire column: do not revisit every empty source
+        // for each target tank (quadratic work on tall columns, even when nearly empty).
+        int sourceIndex = 1;
         for (int targetIndex = 0; targetIndex < tanks.size(); targetIndex++) {
             TileTank target = tanks.get(targetIndex);
-            for (int sourceIndex = targetIndex + 1; sourceIndex < tanks.size(); sourceIndex++) {
-                if (target.tank.getFluidAmount() >= target.tank.getCapacity()) {
-                    break;
+            sourceIndex = Math.max(sourceIndex, targetIndex + 1);
+            while (sourceIndex < tanks.size() && target.tank.getFluidAmount() < target.tank.getCapacity()) {
+                TileTank source = tanks.get(sourceIndex);
+                int before = source.tank.getFluidAmount();
+                if (before <= 0) {
+                    sourceIndex++;
+                    continue;
                 }
-                FluidUtilBC.move(tanks.get(sourceIndex).tank, target.tank);
+                FluidUtilBC.move(source.tank, target.tank);
+                // The source either emptied, or a handler refused the move. In both
+                // cases do not retry it endlessly for this compaction pass.
+                if (source.tank.getFluidAmount() <= 0 || source.tank.getFluidAmount() == before) {
+                    sourceIndex++;
+                }
+                // If the source still contains fluid while target is full, keep this
+                // source for the next target instead of restarting from the bottom.
             }
         }
     }
@@ -326,7 +342,11 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
                 }
             }
             BlockEntity next = current.getNeighbourTile(awayFromBoundary);
-            current = next instanceof TileTank tank ? tank : null;
+            if (!(next instanceof TileTank neighbour)) break;
+            // A physically adjacent tank may belong to a different fluid column.
+            // Never let an incompatible disconnected segment veto the current column.
+            if (!fluidsCanShareColumn(current.tank.getFluid(), neighbour.tank.getFluid())) break;
+            current = neighbour;
         }
         return found;
     }
@@ -412,7 +432,7 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
             if (total.isEmpty()) {
                 total = other.copy();
             } else if (FluidCompatRegistry.areEquivalent(total, other)) {
-                total.grow(other.getAmount());
+                total.setAmount((int) Math.min(Integer.MAX_VALUE, (long) total.getAmount() + other.getAmount()));
             }
         }
         return total;
@@ -425,11 +445,14 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
         }
 
         List<TileTank> tanks = getConnectedTanks();
-        int capacity = 0;
+        long capacity = 0;
         for (TileTank t : tanks) {
-            capacity += t.tank.getCapacity();
+            capacity += Math.max(0, t.tank.getCapacity());
+            if (capacity >= Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            }
         }
-        return capacity;
+        return (int) capacity;
     }
 
 	@Override

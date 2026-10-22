@@ -18,7 +18,10 @@ public class InvertedFluidFilter implements IFluidFilter {
         this.delegate = delegate;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean matches(FluidStack fluid) {
         return !delegate.matches(fluid);
     }

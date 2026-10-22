@@ -104,12 +104,12 @@ for platform in ("forge", "neoforge"):
     )
 
 require(
-    "source-families/legacy/src/main/java/buildcraft/builders/block/BlockConstructionMarker.java",
+    "source-families/old/src/main/java/buildcraft/builders/block/BlockConstructionMarker.java",
     "allowed to continue to their own Item#useOn implementation",
     "return InteractionResult.PASS;",
 )
 require(
-    "source-families/legacy/src/main/java/buildcraft/factory/block/BlockFloodGate.java",
+    "source-families/old/src/main/java/buildcraft/factory/block/BlockFloodGate.java",
     "A wrench interaction belongs to the Flood Gate",
     "return InteractionResult.SUCCESS;",
 )
@@ -117,10 +117,10 @@ require(
 for rel in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/factory/gui/GuiAutoCraftItems.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/factory/gui/GuiAutoCraftItems.java",
-    "source-families/modern/src/main/java/buildcraft/factory/gui/GuiAutoCraftItems.java",
+    "source-families/1.21.X/src/main/java/buildcraft/factory/gui/GuiAutoCraftItems.java",
     "version-src/1.19.2-forge/src/main/java/buildcraft/silicon/gui/GuiAdvancedCraftingTable.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/silicon/gui/GuiAdvancedCraftingTable.java",
-    "source-families/modern/src/main/java/buildcraft/silicon/gui/GuiAdvancedCraftingTable.java",
+    "source-families/1.21.X/src/main/java/buildcraft/silicon/gui/GuiAdvancedCraftingTable.java",
 ):
     require(rel, "slot instanceof SlotDisplay", "handleInventoryButtonClick")
 
@@ -136,8 +136,8 @@ for root in ("source-families", "source-platforms", "source-family-platforms", "
                 errors.append(f"{path.relative_to(ROOT)}: obsolete custom oil biome reference {obsolete!r}")
 
 for rel in (
-    "source-families/legacy/src/main/resources/data/forge/tags/worldgen/biome/is_desert.json",
-    "source-families/legacy/src/main/resources/data/forge/tags/worldgen/biome/is_sandy.json",
+    "source-families/old/src/main/resources/data/forge/tags/worldgen/biome/is_desert.json",
+    "source-families/old/src/main/resources/data/forge/tags/worldgen/biome/is_sandy.json",
 ):
     if (ROOT / rel).exists():
         errors.append(f"{rel}: obsolete tag extension for removed oil biome still exists")
@@ -198,7 +198,7 @@ for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
         f"{base}/assembly/lens/lens_regular.json",
         f"{base}/assembly/lens/lens_filter.json",
     ):
-        require_effective(target, rel, '"tag": "c:glass_blocks"')
+        require_effective(target, rel, '"item": "minecraft:glass"')
 
 # Energy-priced crafting keeps the original source balance in BCCE's MJ units.
 # BuildCraft 8.0.0 Assembly Table values were already expressed in MJ and therefore stay unchanged.
@@ -244,8 +244,8 @@ for rel in (
 for rel in (
     "version-src/1.19.2-forge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
     "version-src/1.20.1-forge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
-    "source-family-platforms/modern/neoforge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
-    "source-downports/modern/1.21.1/neoforge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
+    "source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
+    "source-downports/1.21.X/1.21.1/neoforge/src/main/java/buildcraft/silicon/recipe/FacadeAssemblyRecipes.java",
 ):
     require(rel, "MJ_COST = 64 * MjAmount.MICRO_MJ_PER_MJ")
 
@@ -325,7 +325,7 @@ for base in (
 if assembly_json_count != 170:
     errors.append(f"expected 170 committed Assembly recipe JSON files, found {assembly_json_count}")
 
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     require(
         f"source-families/{family}/src/main/java/buildcraft/robotics/BCRoboticsBoards.java",
         "LEGACY_ENERGY_UNITS_PER_MJ = 10",
@@ -354,5 +354,5 @@ print(" - Construction Marker and Flood Gate interaction parity is guarded")
 print(" - dead custom oil biomes and their legacy Forge tag hooks are removed")
 print(" - Programming Table selection packets use an allocated container message ID")
 print(" - NeoForge config-owning modules expose the native generated config screen")
-print(" - 1.21.1/1.21.11 gate and clear-lens recipes use live NeoForge ingredients/tags")
+print(" - 1.21.1/1.21.11 gate ingredients and clear-lens recipes use uncoloured glass")
 print(" - BC8 assembly JSON/provider prices and BC7 robotics laser-energy balances are preserved")

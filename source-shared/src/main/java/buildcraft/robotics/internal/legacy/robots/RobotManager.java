@@ -13,6 +13,7 @@ import java.util.Map;
 import javax.annotation.Nullable;
 
 import buildcraft.lib.internal.debug.BCLog;
+import buildcraft.robotics.internal.api2.ApiTaskAI;
 
 public abstract class RobotManager {
     public static IRobotRegistryProvider registryProvider;
@@ -30,6 +31,7 @@ public abstract class RobotManager {
     private static final Map<String, Class<? extends DockingStation>> DOCKING_STATIONS_BY_NAMES = new HashMap<>();
 
     static {
+        registerAIRobot(ApiTaskAI.class, "api2Task");
         registerResourceId(ResourceIdBlock.class, "resourceIdBlock", "buildcraft.core.robots.ResourceIdBlock");
         registerResourceId(ResourceIdRequest.class, "resourceIdRequest", "buildcraft.core.robots.ResourceIdRequest");
         registerResourceId(ResourceIdApiRequest.class, "resourceIdApiRequest");

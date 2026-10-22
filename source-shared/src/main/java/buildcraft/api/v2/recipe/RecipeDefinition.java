@@ -8,6 +8,7 @@ public interface RecipeDefinition {
         INTEGRATION,
         DISTILLATION,
         HEATING,
-        COOLING
+        COOLING,
+        ASSEMBLY
     }
 }

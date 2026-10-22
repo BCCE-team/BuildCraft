@@ -1,0 +1,184 @@
+/*
+ * Copyright (c) 2017 SpaceToad and the BuildCraft team
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/
+ */
+
+package buildcraft.lib.client.render.laser;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import buildcraft.lib.internal.debug.BCLog;
+import buildcraft.lib.client.render.laser.LaserData_BC8.LaserType;
+import buildcraft.lib.misc.VecUtil;
+import buildcraft.lib.misc.data.Box;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import org.joml.Matrix3f;
+import org.joml.Matrix4f;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Direction.Axis;
+import net.minecraft.world.phys.Vec3;
+public class LaserBoxRenderer {
+    private static final double RENDER_SCALE = 1 / 16.05;
+
+    public static void renderLaserBoxStatic(PoseStack pose, Matrix4f matrix, Box box, LaserType type, boolean center) {
+        if (box == null || box.min() == null || box.max() == null) {
+            return;
+        }
+        
+        makeLaserBox(box, type, center);
+
+        for (LaserData_BC8 data : box.laserData) {
+            LaserRenderer_BC8.renderLaserStatic(pose, matrix, data);
+        }
+    }
+
+    public static void renderLaserBoxDynamic(Box box, LaserType type, Matrix4f pose, Matrix3f normal, VertexConsumer bb, boolean center) {
+        if (box == null || box.min() == null || box.max() == null) {
+            return;
+        }
+
+        makeLaserBox(box, type, center);
+
+        LaserRenderer_BC8.renderLaserBoxDynamic(pose, normal, Arrays.asList(box.laserData), bb);
+    }
+
+    /** Draw only portions of the original volume outline backed by loaded client chunks.
+     * Do not move a box corner: that would invent a false boundary in an unloaded chunk.
+     * The per-edge scan is bounded by the viewing player's 16-nearest-chunk window.
+     */
+    public static void renderVisibleLaserBoxDynamic(Box box, LaserType type, Matrix4f pose,
+            Matrix3f normal, VertexConsumer bb, boolean center,
+            net.minecraft.client.multiplayer.ClientLevel level, BlockPos observer) {
+        if (box == null || box.min() == null || box.max() == null || level == null || observer == null) return;
+        makeLaserBox(box, type, center);
+        List<LaserData_BC8> visible = new ArrayList<>();
+        int viewerX = observer.getX() >> 4;
+        int viewerZ = observer.getZ() >> 4;
+        for (LaserData_BC8 edge : box.laserData) {
+            boolean variesX = Math.abs(edge.end.x - edge.start.x) > 1.0e-5;
+            boolean variesZ = Math.abs(edge.end.z - edge.start.z) > 1.0e-5;
+            if (!variesX && !variesZ) {
+                int cx = net.minecraft.util.Mth.floor(edge.start.x) >> 4;
+                int cz = net.minecraft.util.Mth.floor(edge.start.z) >> 4;
+                if (Math.abs((long) cx - viewerX) <= 16 && Math.abs((long) cz - viewerZ) <= 16
+                        && level.getChunkSource().getChunkNow(cx, cz) != null) visible.add(edge);
+                continue;
+            }
+            boolean alongX = variesX;
+            double start = alongX ? edge.start.x : edge.start.z;
+            double end = alongX ? edge.end.x : edge.end.z;
+            if (end <= start) continue;
+            int low = (int) Math.max((long) net.minecraft.util.Mth.floor(start) >> 4,
+                (long) (alongX ? viewerX : viewerZ) - 16);
+            int high = (int) Math.min((long) net.minecraft.util.Mth.floor(end) >> 4,
+                (long) (alongX ? viewerX : viewerZ) + 16);
+            int stationary = net.minecraft.util.Mth.floor(alongX ? edge.start.z : edge.start.x) >> 4;
+            int observerStationary = alongX ? viewerZ : viewerX;
+            if (Math.abs((long) stationary - observerStationary) > 16) continue;
+            for (int chunk = low; chunk <= high; chunk++) {
+                int cx = alongX ? chunk : stationary;
+                int cz = alongX ? stationary : chunk;
+                if (level.getChunkSource().getChunkNow(cx, cz) == null) continue;
+                double a = Math.max(start, chunk * 16.0);
+                double b = Math.min(end, (chunk + 1.0) * 16.0);
+                if (a >= b) continue;
+                visible.add(new LaserData_BC8(edge.laserType,
+                    edge.start.lerp(edge.end, (a - start) / (end - start)),
+                    edge.start.lerp(edge.end, (b - start) / (end - start)),
+                    edge.scale, edge.enableDiffuse, edge.doubleFace, edge.minBlockLight, edge.isOrgin));
+            }
+        }
+        if (!visible.isEmpty()) LaserRenderer_BC8.renderLaserBoxDynamic(pose, normal, visible, bb);
+    }
+
+    private static void makeLaserBox(Box box, LaserType type, boolean center) {
+        if (box == null || box.min() == null || box.max() == null) {
+            return;
+        }
+        BlockPos minPos = box.min();
+        BlockPos maxPos = box.max();
+        if (minPos.equals(box.lastMin) && maxPos.equals(box.lastMax) && box.lastType == type
+            && box.laserData != null) {
+            return;
+        }
+
+        boolean renderX = center ? box.size().getX() > 1 : true;
+        boolean renderY = center ? box.size().getY() > 1 : true;
+        boolean renderZ = center ? box.size().getZ() > 1 : true;
+
+        Vec3 min = Vec3.atLowerCornerOf(minPos).add(center ? VecUtil.VEC_HALF : Vec3.ZERO);
+        Vec3 max = Vec3.atLowerCornerOf(maxPos).add(center ? VecUtil.VEC_HALF : VecUtil.VEC_ONE);
+
+        List<LaserData_BC8> datas = new ArrayList<>();
+
+        Vec3[][][] vecs = new Vec3[2][2][2];
+        vecs[0][0][0] = new Vec3(min.x, min.y, min.z);
+        vecs[1][0][0] = new Vec3(max.x, min.y, min.z);
+        vecs[0][1][0] = new Vec3(min.x, max.y, min.z);
+        vecs[1][1][0] = new Vec3(max.x, max.y, min.z);
+        vecs[0][0][1] = new Vec3(min.x, min.y, max.z);
+        vecs[1][0][1] = new Vec3(max.x, min.y, max.z);
+        vecs[0][1][1] = new Vec3(min.x, max.y, max.z);
+        vecs[1][1][1] = new Vec3(max.x, max.y, max.z);
+
+        if (renderX) {
+            datas.add(makeLaser(type, vecs[0][0][0], vecs[1][0][0], Axis.X));
+            if (renderY) {
+                datas.add(makeLaser(type, vecs[0][1][0], vecs[1][1][0], Axis.X));
+                if (renderZ) {
+                    datas.add(makeLaser(type, vecs[0][1][1], vecs[1][1][1], Axis.X));
+                }
+            }
+            if (renderZ) {
+                datas.add(makeLaser(type, vecs[0][0][1], vecs[1][0][1], Axis.X));
+            }
+        }
+
+        if (renderY) {
+            datas.add(makeLaser(type, vecs[0][0][0], vecs[0][1][0], Axis.Y));
+            if (renderX) {
+                datas.add(makeLaser(type, vecs[1][0][0], vecs[1][1][0], Axis.Y));
+                if (renderZ) {
+                    datas.add(makeLaser(type, vecs[1][0][1], vecs[1][1][1], Axis.Y));
+                }
+            }
+            if (renderZ) {
+                datas.add(makeLaser(type, vecs[0][0][1], vecs[0][1][1], Axis.Y));
+            }
+        }
+
+        if (renderZ) {
+            datas.add(makeLaser(type, vecs[0][0][0], vecs[0][0][1], Axis.Z));
+            if (renderX) {
+                datas.add(makeLaser(type, vecs[1][0][0], vecs[1][0][1], Axis.Z));
+                if (renderY) {
+                    datas.add(makeLaser(type, vecs[1][1][0], vecs[1][1][1], Axis.Z));
+                }
+            }
+            if (renderY) {
+                datas.add(makeLaser(type, vecs[0][1][0], vecs[0][1][1], Axis.Z));
+            }
+        }
+
+        box.laserData = datas.toArray(new LaserData_BC8[0]);
+        box.lastMin = minPos;
+        box.lastMax = maxPos;
+        box.lastType = type;
+    }
+
+    private static LaserData_BC8 makeLaser(LaserType type, Vec3 min, Vec3 max, Axis axis) {
+        Direction faceForMin = VecUtil.getFacing(axis, true);
+        Direction faceForMax = VecUtil.getFacing(axis, false);
+        Vec3 one = min.add(Vec3.atLowerCornerOf(faceForMin.getUnitVec3i()).scale(1 / 16D));
+        Vec3 two = max.add(Vec3.atLowerCornerOf(faceForMax.getUnitVec3i()).scale(1 / 16D));
+        return new LaserData_BC8(type, one, two, RENDER_SCALE, true, false, 0, true);// Do not draw both windings: cull is disabled by the laser render state, and duplicate faces z-fight.
+    }
+
+}

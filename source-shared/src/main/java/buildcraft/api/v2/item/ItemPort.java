@@ -24,7 +24,9 @@ public interface ItemPort {
         if (policy == ItemTransferPolicy.PARTIAL) return insert(offered, mode);
         ItemTransferResult simulated = insert(offered, OperationMode.SIMULATE);
         if (!simulated.completed()) return ItemTransferResult.nothing(offered.getCount());
-        return mode == OperationMode.SIMULATE ? simulated : insert(offered, OperationMode.EXECUTE);
+        // SIMULATE cannot reserve capacity. A second call could accept fewer items and
+        // violate ALL_OR_NOTHING. Only implementations with transactions may override.
+        return mode == OperationMode.SIMULATE ? simulated : ItemTransferResult.nothing(offered.getCount());
     }
 
     /**
@@ -37,6 +39,9 @@ public interface ItemPort {
         if (minCount < 0 || maxCount < minCount) throw new IllegalArgumentException("invalid extraction range");
         ItemTransferResult simulated = extract(matcher, maxCount, OperationMode.SIMULATE);
         if (simulated.transferredCount() < minCount) return ItemTransferResult.nothing(maxCount);
-        return mode == OperationMode.SIMULATE ? simulated : extract(matcher, maxCount, OperationMode.EXECUTE);
+        // No generic rollback exists if a provider extracts less than the guaranteed minimum.
+        return mode == OperationMode.SIMULATE || minCount == 0
+            ? (mode == OperationMode.SIMULATE ? simulated : extract(matcher, maxCount, mode))
+            : ItemTransferResult.nothing(maxCount);
     }
 }

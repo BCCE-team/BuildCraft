@@ -1,1 +1,3 @@
-{}
+{
+  "textures": { "particle": "buildcraftenergy:blocks/fluids/fuel_still" }
+}

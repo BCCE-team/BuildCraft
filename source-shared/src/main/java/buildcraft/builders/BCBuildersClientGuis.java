@@ -4,6 +4,7 @@ import buildcraft.builders.gui.GuiArchitectTable;
 import buildcraft.builders.gui.GuiBuilder;
 import buildcraft.builders.gui.GuiElectronicLibrary;
 import buildcraft.builders.gui.GuiFiller;
+import buildcraft.builders.gui.GuiFillerPlanner;
 import buildcraft.builders.gui.ScreenReplacer;
 import buildcraft.lib.platform.client.ClientRegistration;
 
@@ -16,6 +17,7 @@ public final class BCBuildersClientGuis {
         event.register(BCBuildersGuis.MENU_BUILDER.get(), GuiBuilder::new);
         event.register(BCBuildersGuis.MENU_ELIBRARY.get(), GuiElectronicLibrary::new);
         event.register(BCBuildersGuis.MENU_FILLER.get(), GuiFiller::new);
+        event.register(BCBuildersGuis.MENU_FILLER_PLANNER.get(), GuiFillerPlanner::new);
         event.register(BCBuildersGuis.MENU_REPLACER.get(), ScreenReplacer::new);
     }
 }

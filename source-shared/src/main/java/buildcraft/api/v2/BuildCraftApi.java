@@ -16,7 +16,7 @@ import java.util.ServiceLoader;
  * {@link ApiRuntime} service provider; the public API contains no implementation-only SPI.
  */
 public final class BuildCraftApi {
-    public static final ApiVersion VERSION = new ApiVersion(2, 0, 0);
+    public static final ApiVersion VERSION = new ApiVersion(2, 1, 0);
 
     private BuildCraftApi() {
     }

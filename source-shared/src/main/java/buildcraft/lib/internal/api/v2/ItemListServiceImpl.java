@@ -4,20 +4,19 @@ import buildcraft.api.v2.list.ItemList;
 import buildcraft.api.v2.list.ItemListAdapter;
 import buildcraft.api.v2.list.ItemListService;
 import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftRegistries;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
 /** Runtime bridge for stack-backed BuildCraft lists plus optional named API2 definitions. */
 public final class ItemListServiceImpl implements ItemListService {
-    private final Map<ResourceLocation, ItemList> named = new LinkedHashMap<>();
 
-    @Override public Optional<ItemList> list(ResourceLocation id) { return Optional.ofNullable(named.get(id)); }
-    @Override public Collection<ResourceLocation> ids() { return java.util.List.copyOf(named.keySet()); }
+    @Override public Optional<ItemList> list(ResourceLocation id) { return Optional.ofNullable(BuildCraftApi.registry(BuildCraftRegistries.NAMED_ITEM_LISTS).get(id)); }
+    @Override public Collection<ResourceLocation> ids() { return BuildCraftApi.registry(BuildCraftRegistries.NAMED_ITEM_LISTS).entries().stream().map(e -> e.id()).toList(); }
     @Override public boolean matches(ResourceLocation listId, ItemStack stack) {
-        ItemList list = named.get(listId);
+        ItemList list = BuildCraftApi.registry(BuildCraftRegistries.NAMED_ITEM_LISTS).get(listId);
         return list != null && list.matches(stack);
     }
 

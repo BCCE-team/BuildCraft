@@ -8,14 +8,14 @@ ROOT = Path(__file__).resolve().parents[1]
 from source_lookup import resolve_source_path
 SOURCE_ROOTS = [
     ROOT / "source-shared/src/main/java",
-    ROOT / "source-families/legacy/src/main/java",
-    ROOT / "source-families/modern/src/main/java",
+    ROOT / "source-families/old/src/main/java",
+    ROOT / "source-families/1.21.X/src/main/java",
     ROOT / "source-platforms/forge/src/main/java",
     ROOT / "source-platforms/neoforge/src/main/java",
-    ROOT / "source-family-platforms/legacy/forge/src/main/java",
-    ROOT / "source-family-platforms/legacy/fabric/src/main/java",
-    ROOT / "source-family-platforms/modern/neoforge/src/main/java",
-    ROOT / "source-family-platforms/modern/fabric/src/main/java",
+    ROOT / "source-family-platforms/old/forge/src/main/java",
+    ROOT / "source-family-platforms/old/fabric/src/main/java",
+    ROOT / "source-family-platforms/1.21.X/neoforge/src/main/java",
+    ROOT / "source-family-platforms/1.21.X/fabric/src/main/java",
     ROOT / "version-src/1.19.2-forge/src/main/java",
     ROOT / "version-src/1.20.1-forge/src/main/java",
     ROOT / "version-src/1.21.1-neoforge/src/main/java",
@@ -49,7 +49,7 @@ def main() -> int:
         if name not in regs:
             errors.append(f"BuildCraftRegistries.{name} missing")
 
-    for family in ["legacy", "modern"]:
+    for family in ["old", "1.21.X"]:
         schematics = read(f"source-families/{family}/src/main/java/buildcraft/builders/BCBuildersSchematics.java")
         if "BuildersSchematicApi2.bootstrap();" not in schematics:
             errors.append(f"{family}: Builder schematic API2 service is not bootstrapped")

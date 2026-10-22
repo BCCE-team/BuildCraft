@@ -12,6 +12,7 @@ import buildcraft.builders.menu.ContainerArchitectTable;
 import buildcraft.builders.menu.ContainerBuilder;
 import buildcraft.builders.menu.ContainerElectronicLibrary;
 import buildcraft.builders.menu.ContainerFiller;
+import buildcraft.builders.menu.ContainerFillerPlanner;
 import buildcraft.lib.gui.BCContainerFactory;
 import net.minecraft.world.inventory.MenuType;
 
@@ -21,6 +22,8 @@ public class BCBuildersGuis {
     public static final BCRegistryEntry<MenuType<ContainerBuilder>> MENU_BUILDER = MENUS.register("builder_menu", () -> BCContainerFactory.create(ContainerBuilder::new));
     public static final BCRegistryEntry<MenuType<ContainerElectronicLibrary>> MENU_ELIBRARY = MENUS.register("elibrary_menu", () -> BCContainerFactory.create(ContainerElectronicLibrary::new));
     public static final BCRegistryEntry<MenuType<ContainerFiller>> MENU_FILLER = MENUS.register("filler_menu", () -> BCContainerFactory.create(ContainerFiller::new));
+    public static final BCRegistryEntry<MenuType<ContainerFillerPlanner>> MENU_FILLER_PLANNER = MENUS.register(
+        "filler_planner_menu", () -> BCContainerFactory.create(ContainerFillerPlanner::new));
     public static final BCRegistryEntry<MenuType<MenuReplacer>> MENU_REPLACER = MENUS.register("replacer_menu", () -> BCContainerFactory.create(MenuReplacer::new));
     static void preInit(BCRegistryBinder modEventBus) {
         MENUS.register(modEventBus);

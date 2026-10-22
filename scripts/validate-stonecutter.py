@@ -5,7 +5,10 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import tomllib
 from pathlib import Path
+
+from source_preprocessor import preprocess_text
 
 from source_layout import (
     resolve_effective_source,
@@ -73,6 +76,31 @@ def resource_placeholders(target: str, props: dict[str, str]) -> set[str]:
     return result
 
 
+def validate_neoforge_metadata(target: str, props: dict[str, str]) -> None:
+    """Reject loader metadata that will fail when NeoForge starts its server.
+
+    Stonecutter directives are not TOML comments. Parse the processed resource,
+    not the raw template, for each target before running costly Gradle jobs.
+    """
+    layout = target_layout(target, props)
+    relative = "src/main/resources/META-INF/neoforge.mods.toml"
+    path = resolve_effective_source(layout, props, relative)
+    if path is None:
+        fail(f"{target}: missing {relative}")
+    try:
+        processed = preprocess_text(
+            path.read_text(encoding="utf-8"),
+            minecraft=value(props, target, "deps.minecraft"),
+            family=layout.family, platform=layout.platform, source=str(path),
+        )
+        parsed = tomllib.loads(processed)
+    except ValueError as exc:
+        fail(f"{target}: invalid preprocessed {relative}: {exc}")
+    module_ids = [module.get("modId") for module in parsed.get("mods", [])]
+    if "buildcraftlib" not in module_ids or "buildcraftrobotics" not in module_ids:
+        fail(f"{target}: missing BuildCraft library/robotics metadata in {relative}")
+
+
 def wrapper_version(build_root: Path) -> str:
     path = build_root / "gradle/wrapper/gradle-wrapper.properties"
     if not path.is_file():
@@ -127,16 +155,20 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
         fail(f"{generation}: vcsTarget {vcs!r} is not in {targets}")
 
     gradle = wrapper_version(build_root)
-    if generation == "legacy" and not gradle.startswith("8."):
-        fail(f"legacy build must stay on Gradle 8 while ForgeGradle 6 is used, got {gradle}")
+    if generation == "old" and not gradle.startswith("8."):
+        fail(f"old build must stay on Gradle 8 while ForgeGradle 6 is used, got {gradle}")
+    if generation == "26.X":
+        parts = tuple(int(part) for part in gradle.split(".")[:2])
+        if parts < (9, 1):
+            fail(f"26.X build must use Gradle 9.1+ for Java 25, got {gradle}")
 
     common_adapter = ROOT / "build-logic/common-target.gradle"
     if not common_adapter.is_file():
         fail("missing build-logic/common-target.gradle")
     common_text = common_adapter.read_text(encoding="utf-8")
     for token in (
-        "build-config/targets.properties", "familyPlatformSourceRoot",
-        "sourceLayers = [sharedSourceRoot, familySourceRoot, platformSourceRoot, familyPlatformSourceRoot, targetOverlayRoot]",
+        "build-config/targets.properties", "familyBaseSourceRoot", "familyPlatformSourceRoot",
+        "familyPlatformBaseSourceRoot", "def sourceLayers = [sharedSourceRoot",
         "scripts/source_preprocessor.py", "scripts/transforms", "prepareEffectiveSource",
     ):
         if token not in common_text:
@@ -166,7 +198,7 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
 
         if loader == "forge":
             if "id 'net.minecraftforge.gradle' version '[6.0,6.2)'" not in wrapper_text:
-                fail("legacy Forge build must use ForgeGradle 6.x")
+                fail("old Forge build must use ForgeGradle 6.x")
             if "fg.deobf" not in adapter_text:
                 fail("Forge adapter must use fg.deobf for mod dependencies")
             if "tasks.findByName('reobfJar')" not in adapter_text:
@@ -193,6 +225,9 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
             dep = value(props, target, f"deps.{compat}", allow_empty=True)
             if enabled and not dep:
                 fail(f"{target}: {compat} compatibility is enabled without a dependency")
+
+        if loader == "neoforge":
+            validate_neoforge_metadata(target, props)
 
         placeholders = resource_placeholders(target, props)
         block = re.search(r"def\s+resourceProperties\s*=\s*\[(.*?)\n\]", adapter_text, flags=re.DOTALL)

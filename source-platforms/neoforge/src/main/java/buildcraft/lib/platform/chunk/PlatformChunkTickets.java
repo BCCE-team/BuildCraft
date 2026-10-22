@@ -3,7 +3,11 @@ package buildcraft.lib.platform.chunk;
 import java.util.Set;
 import buildcraft.lib.BCLib;
 import net.minecraft.core.BlockPos;
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.neoforged.neoforge.common.world.chunk.RegisterTicketControllersEvent;
@@ -13,7 +17,11 @@ import net.neoforged.neoforge.common.world.chunk.TicketHelper;
 /** NeoForge ticket binding. Persisted controller ID is deliberately unchanged. */
 public final class PlatformChunkTickets {
     private static final TicketController CONTROLLER = new TicketController(
+//? if mc_26_x {
+        Identifier.fromNamespaceAndPath(BCLib.MODID, "machines"), PlatformChunkTickets::validate);
+//? } else {
         ResourceLocation.fromNamespaceAndPath(BCLib.MODID, "machines"), PlatformChunkTickets::validate);
+//?}
     private PlatformChunkTickets() {}
     public static void init() { /* NeoForge registers on its mod event, not the common setup callback. */ }
     public static void registerTicketController(RegisterTicketControllersEvent event) { event.register(CONTROLLER); }
@@ -24,6 +32,10 @@ public final class PlatformChunkTickets {
         });
     }
     public static boolean forceChunk(ServerLevel level, BlockPos owner, ChunkPos chunk, boolean add, boolean ticking) {
+//? if mc_26_x {
+        return CONTROLLER.forceChunk(level, owner, chunk.x(), chunk.z(), add, ticking);
+//? } else {
         return CONTROLLER.forceChunk(level, owner, chunk.x, chunk.z, add, ticking);
+//?}
     }
 }

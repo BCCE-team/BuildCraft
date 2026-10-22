@@ -9,6 +9,9 @@ package buildcraft.factory.tile;
 import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
+import buildcraft.lib.misc.AutomationPermissionUtil;
+import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.permission.WorldOperationKind;
 
 import java.io.IOException;
 import java.util.List;
@@ -91,13 +94,22 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
             sendNetworkUpdate(NET_LED_STATUS);
         }
 
+        long previousProgress = progress;
         mine();
+        // The drill saves its accumulated power; a completed operation is immediately durable.
+        if (progress != previousProgress && (progress == 0 || level.getGameTime() % 20 == 0)) {
+            markChunkDirty();
+        }
     }
 
     @Override
     public void onLoad() {
         super.onLoad();
+//? if mc_26_x {
+        offset = level.getRandom().nextInt(10);
+//? } else {
         offset = level.random.nextInt(10);
+//?}
     }
 
     @Override
@@ -105,11 +117,24 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
         super.onRemove(dropSelf);
         for (int y = worldPosition.getY() - 1; y > worldPosition.getY() - BCCoreConfig.miningMaxDepth; y--) {
             BlockPos blockPos = new BlockPos(worldPosition.getX(), y, worldPosition.getZ());
+            if (!level.hasChunkAt(blockPos)) break;
             if (level.getBlockState(blockPos).getBlock() == BCFactoryBlocks.TUBE_BLOCK.get()) {
+                if (!mayChangeTube(blockPos, WorldOperationKind.BLOCK_BREAK)) break;
                 level.setBlockAndUpdate(blockPos, Blocks.AIR.defaultBlockState());
             } else {
                 break;
             }
+        }
+    }
+
+    private boolean mayChangeTube(BlockPos pos, WorldOperationKind operation) {
+        if (!level.hasChunkAt(pos)) return false;
+        try {
+            return AutomationPermissionUtil.mayBlock(
+                level, worldPosition, pos, getOwner(), AutomationPermissionUtil.SOURCE_MINING_WELL,
+                operation, OperationMode.EXECUTE);
+        } catch (RuntimeException failedPermission) {
+            return false;
         }
     }
 
@@ -119,7 +144,9 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
         if (newLength != wantedLength || shaftBlocked) {
             for (int y = worldPosition.getY() - 1; y > worldPosition.getY() - BCCoreConfig.miningMaxDepth; y--) {
                 BlockPos blockPos = new BlockPos(worldPosition.getX(), y, worldPosition.getZ());
+                if (!level.hasChunkAt(blockPos)) break;
                 if (level.getBlockState(blockPos).getBlock() == BCFactoryBlocks.TUBE_BLOCK.get()) {
+                    if (!mayChangeTube(blockPos, WorldOperationKind.BLOCK_BREAK)) break;
                     level.setBlockAndUpdate(blockPos, Blocks.AIR.defaultBlockState());
                 } else {
                     break;
@@ -129,11 +156,21 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
             int effectiveLength = newLength;
             for (int y = worldPosition.getY() - 1; y > newY; y--) {
                 BlockPos blockPos = new BlockPos(worldPosition.getX(), y, worldPosition.getZ());
+                if (!level.hasChunkAt(blockPos)) {
+                    shaftBlocked = true;
+                    effectiveLength = Math.max(0, worldPosition.getY() - (y + 1));
+                    break;
+                }
                 BlockState existing = level.getBlockState(blockPos);
                 if (existing.getBlock() == BCFactoryBlocks.TUBE_BLOCK.get()) {
                     continue;
                 }
                 if (existing.isAir() || BlockUtil.isReplaceable(level, blockPos)) {
+                    if (!mayChangeTube(blockPos, WorldOperationKind.BLOCK_PLACE)) {
+                        shaftBlocked = true;
+                        effectiveLength = Math.max(0, worldPosition.getY() - (y + 1));
+                        break;
+                    }
                     level.setBlockAndUpdate(blockPos, BCFactoryBlocks.TUBE_BLOCK.get().defaultBlockState());
                     continue;
                 }

@@ -400,7 +400,9 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
 
                 boolean keepSource = isInfiniteWaterSource
                     && !BCCoreConfig.pumpsConsumeWater
-                    && isWater(drain.getFluid());
+                    && isWater(drain.getFluid())
+                    && isWaterSource(level.getFluidState(currentPos))
+                    && isInfiniteWaterSourceAt(currentPos);
 
                 if (!AutomationPermissionUtil.mayBlock(
                     level, worldPosition, currentPos, getOwner(), AutomationPermissionUtil.SOURCE_PUMP,
@@ -435,7 +437,7 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
                 }
 
                 progress = 0;
-                isInfiniteWaterSource = keepSource;
+                // The discovered renewable pool and this block's renewable status are independent.
                 AdvancementUtil.unlockAdvancement(getOwner().getId(), ADVANCEMENT_DRAIN_ANY);
                 if (!keepSource) {
                     if (isOil(actualDrain.getFluid())) {
@@ -496,7 +498,9 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
             if (!level.hasChunkAt(path.thisPos)) {
                 return path.thisPos;
             }
-            if (BlockUtil.getFluidWithFlowing(level, path.thisPos) == Fluids.EMPTY) {
+            Fluid current = BlockUtil.getFluidWithFlowing(level, path.thisPos);
+            if (current == Fluids.EMPTY
+                || (scanFluid != Fluids.EMPTY && current.getFluidType() != scanFluid.getFluidType())) {
                 return path.thisPos;
             }
         } while ((path = path.parent) != null);

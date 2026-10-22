@@ -146,6 +146,17 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
             this.fluid = fluid;
             readTankFromNBT(nbt);
         }
+        normalizeLoadedFluid();
+    }
+
+    private void normalizeLoadedFluid() {
+        // Check after subclass metadata has loaded, since it may change capacity.
+        if (capacity <= 0 || fluid.isEmpty() || fluid.getAmount() <= 0 || !validator.test(fluid)) {
+            fluid = FluidStack.EMPTY;
+        } else if (fluid.getAmount() > capacity) {
+            fluid = fluid.copy();
+            fluid.setAmount(capacity);
+        }
     }
 
     /** Writes subclass-specific information to NBT. */
@@ -345,12 +356,10 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
         if (held.isEmpty()) {
             return;
         }
-        FluidStack before = getFluid().copy();
         ItemStack stack = transferStackToTank(player, held);
         menu.setCarried(stack);
         menu.broadcastFullState();
         player.inventoryMenu.broadcastFullState();
-        playCommittedGuiTransferSound(player, before);
     }
     
     public void onGuiClicked(MenuBC_Neptune container) {
@@ -359,34 +368,10 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
         if (held.isEmpty()) {
             return;
         }
-        FluidStack before = getFluid().copy();
         ItemStack stack = transferStackToTank(player, held);
         container.setCarried(stack);
         container.broadcastFullState();
         player.inventoryMenu.broadcastFullState();
-        playCommittedGuiTransferSound(player, before);
-    }
-
-    private void playCommittedGuiTransferSound(Player player, FluidStack before) {
-        FluidStack after = getFluid();
-        int beforeAmount = before.isEmpty() ? 0 : before.getAmount();
-        int afterAmount = after.isEmpty() ? 0 : after.getAmount();
-        //? if <1.20 {
-        Level world = player.level;
-        //?} else {
-        /*?
-        Level world = player.level();
-        ?*/
-        //?}
-        if (afterAmount > beforeAmount && !after.isEmpty()) {
-            SoundUtil.playBucketEmpty(
-                world, player.blockPosition(), copyFluidForSound(after, afterAmount - beforeAmount)
-            );
-        } else if (beforeAmount > afterAmount && !before.isEmpty()) {
-            SoundUtil.playBucketFill(
-                world, player.blockPosition(), copyFluidForSound(before, beforeAmount - afterAmount)
-            );
-        }
     }
 
     private static FluidStack copyFluidForSound(FluidStack source, int amount) {
@@ -432,6 +417,14 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
                         "We seem to be buggy! (accepted = " + accepted + ", reallyAccepted = " + reallyAccepted + ")");
                 }
                 stack.shrink(1);
+                FluidStack soundFluid = copyFluidForSound(result.fluidStack, reallyAccepted);
+                //? if <1.20 {
+                SoundUtil.playBucketEmpty(player.level, player.blockPosition(), soundFluid);
+                //?} else {
+                /*?
+                SoundUtil.playBucketEmpty(player.level(), player.blockPosition(), soundFluid);
+                ?*/
+                //?}
                 if (isSurvival) {
                     if (stack.isEmpty()) {
                         return result.itemStack.copy();
@@ -459,6 +452,13 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
                 throw new IllegalStateException("Somehow drained differently than expected! ( drained = "//
                     + drained + ", filled = " + filled + ", reallyDrained = " + reallyDrained + " )");
             }
+            //? if <1.20 {
+            SoundUtil.playBucketFill(player.level, player.blockPosition(), reallyDrained);
+            //?} else {
+            /*?
+            SoundUtil.playBucketFill(player.level(), player.blockPosition(), reallyDrained);
+            ?*/
+            //?}
             if (isSurvival) {
                 if (original.getCount() == 1) {
                     return fluidHandler.getContainer();
@@ -548,7 +548,7 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
 
 	@Override
 	public @NotNull FluidStack getFluid() {
-		return fluid;
+		return fluid.copy();
 	}
 
 	@Override
@@ -579,7 +579,7 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
 
 	@Override
 	public @NotNull FluidStack getFluidInTank(int tank) {
-		return fluid;
+		return fluid.copy();
 	}
 
 	@Override
@@ -597,6 +597,6 @@ public class Tank implements IFluidHandlerAdv, IFluidHandler, IFluidTank {
 	}
 
 	public void setFluid(FluidStack residueFluid) {
-		this.fluid = FluidCompatRegistry.canonicalize(residueFluid);
+		this.fluid = FluidCompatRegistry.canonicalize(residueFluid.copy());
 	}
 }

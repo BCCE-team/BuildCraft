@@ -55,17 +55,28 @@ public class TankComponent extends AbstractComponent{
 	public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick, AbstractContainerScreen<?> screen) {
 		int leftpos = screen.getGuiLeft();
 		int toppos = screen.getGuiTop();
-		int type = data.get(offset);
+		int type = TankContainerData.getPacked(data, offset);
 		if(type != typeCache)  {
 			typeCache = type;
 			fluidCache = TankContainerData.getFluid(type);
 		}
 		int capacity = getCapacity();
-		int amount = Math.max(0, data.get(offset + 1));
+		int amount = Math.max(0, TankContainerData.getPacked(data, offset + 2));
 		if (this.fluidCache != null && amount > 0 && capacity > 0) {
 			int filled = Math.min(ys, Math.max(1, (int) ((long) ys * amount / capacity)));
-			FluidRenderer.drawFluidForGui(this.fluidCache, leftpos + x, toppos + y + ys,
+			boolean richRendered = false;
+            if (data != null && data.getCount() - offset >= TankContainerData.LEN) {
+                var rich = TankContainerData.getRenderFluidStack(data, offset);
+                if (rich != null && !rich.isEmpty()) {
+                    FluidRenderer.drawFluidForGui(rich, leftpos + x, toppos + y + ys,
 				leftpos + x + xs, toppos + y + ys - filled, guiGraphics.pose().last());
+                    richRendered = true;
+                }
+            }
+            if (!richRendered) {
+                FluidRenderer.drawFluidForGui(this.fluidCache, leftpos + x, toppos + y + ys,
+				leftpos + x + xs, toppos + y + ys - filled, guiGraphics.pose().last());
+            }
 		}
 	}
 
@@ -81,19 +92,19 @@ public class TankComponent extends AbstractComponent{
 	public void renderTooltip(GuiGraphics guiGraphics, int x, int y) {
 		if (super.isHovering(x - screen.getGuiLeft(), y - screen.getGuiTop())) {
 			guiGraphics.renderComponentTooltip(screen.getMinecraft().font,
-                getToolTip(fluidCache, Math.max(0, data.get(offset + 1)), getCapacity()), x, y);
+                getToolTip(fluidCache, Math.max(0, TankContainerData.getPacked(data, offset + 2)), getCapacity()), x, y);
 		}
 	}
 
 
 	@Override
 	public int getNeedDataSize() {
-		return capacityOffset >= 0 ? Math.max(2, capacityOffset + 1) : 2;
+		return capacityOffset >= 0 ? Math.max(4, capacityOffset + 2) : 4;
 	}
 
 	protected int getCapacity() {
 		if (capacityOffset >= 0 && data != null) {
-			int dynamicCapacity = data.get(offset + capacityOffset);
+			int dynamicCapacity = TankContainerData.getPacked(data, offset + capacityOffset);
 			if (dynamicCapacity > 0) {
 				return dynamicCapacity;
 			}

@@ -23,45 +23,69 @@ public class DelegateItemHandler implements IItemHandlerModifiable, IItemHandler
         this.delegate = delegate;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public int getSlots() {
         return delegate.getSlots();
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public ItemStack getStackInSlot(int slot) {
         return delegate.getStackInSlot(slot);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public ItemStack insertItem(int slot, @Nonnull ItemStack stack, boolean simulate) {
         return delegate.insertItem(slot, stack, simulate);
     }
 
     @Nonnull
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public ItemStack extractItem(int slot, int amount, boolean simulate) {
         return delegate.extractItem(slot, amount, simulate);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public void setStackInSlot(int slot, @Nonnull ItemStack stack) {
         delegate.setStackInSlot(slot, stack);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public int getSlotLimit(int slot) {
         return delegate.getSlotLimit(slot);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public ItemStack getFilter(int slot) {
         if (delegate instanceof IItemHandlerFiltered) {
             return ((IItemHandlerFiltered) delegate).getFilter(slot);
         }
         return IItemHandlerFiltered.super.getFilter(slot);
     }
+//? if mc_26_x {
+//? } else {
 	@Override
+//?}
 	public boolean isItemValid(int slot, @NotNull ItemStack stack) {
 		return this.delegate.isItemValid(slot, stack);
 	}

@@ -74,12 +74,20 @@ public class TriggerInventory extends BCStatement implements ITriggerExternal {
 
                 foundItems |= !stack.isEmpty() && (searchedStack.isEmpty() || StackUtil.canStacksOrListsMerge(stack, searchedStack));
 
-                foundSpace |= (stack.isEmpty() || (StackUtil.canStacksOrListsMerge(stack, searchedStack) && stack.getCount() < stack.getMaxStackSize()))//
-                    && (searchedStack.isEmpty() || BuildCraftApi.service(BuildCraftServices.ITEM_LISTS).isList(searchedStack) || handler.insertItem(i, searchedStack, true).isEmpty());
-                // On the test above, we deactivate item list as inventories
-                // typically don't check for lists possibility. This is a
-                // heuristic which is more desirable than expensive computation
-                // of list components or possibility of extension
+                int slotLimit = Math.max(0, handler.getSlotLimit(i));
+                int effectiveLimit = stack.isEmpty() ? slotLimit : Math.min(slotLimit, stack.getMaxStackSize());
+                boolean physicallyFree = effectiveLimit > 0 && (stack.isEmpty() || stack.getCount() < effectiveLimit);
+                if (!physicallyFree) continue;
+
+                if (searchedStack.isEmpty() || BuildCraftApi.service(BuildCraftServices.ITEM_LISTS).isList(searchedStack)) {
+                    foundSpace = true;
+                } else if (stack.isEmpty() || StackUtil.canStacksOrListsMerge(stack, searchedStack)) {
+                    // SPACE means *any* room, not enough room for the full parameter stack.
+                    // Simulate one item to respect sided filters and the slot's own limit.
+                    ItemStack probe = searchedStack.copy();
+                    probe.setCount(1);
+                    foundSpace |= handler.insertItem(i, probe, true).isEmpty();
+                }
             }
 
             if (!hasSlots) {

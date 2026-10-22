@@ -121,7 +121,6 @@ public class BCTransportEventDist {
         if (gameplayEventsRegistered) return;
         gameplayEventsRegistered = true;
         PlatformEvents.levelTick(BCEvents.Phase.END, BCTransportEventDist::onWorldTick);
-        PlatformEvents.levelTick(BCEvents.Phase.START, BCTransportEventDist::onWorldTick);
         PlatformEvents.serverTick(BCEvents.Phase.END, BCTransportEventDist::onServerTick);
         PlatformEvents.serverTick(BCEvents.Phase.START, BCTransportEventDist::onServerTick);
         PlatformEvents.chunkWatch(BCTransportEventDist::onChunkWatch);

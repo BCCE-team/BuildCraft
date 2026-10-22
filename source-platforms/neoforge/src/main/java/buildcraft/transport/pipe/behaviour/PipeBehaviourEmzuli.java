@@ -42,9 +42,17 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
 public class PipeBehaviourEmzuli extends PipeBehaviourWood implements MenuProvider{
 
@@ -90,18 +98,29 @@ public class PipeBehaviourEmzuli extends PipeBehaviourWood implements MenuProvid
 
     public PipeBehaviourEmzuli(IPipe pipe, CompoundTag nbt) {
         super(pipe, nbt);
+//? if mc_26_x && (>=26.3) {
+        invFilters.deserializeNBT(TilePipeHolder.getRegistryAccess(pipe), NbtCompat.getCompound(nbt, "Filters"));
+//? } else {
         invFilters.deserializeNBT(TilePipeHolder.getRegistryAccess(pipe), nbt.getCompound("Filters"));
+//?}
         activeSlots = NBTUtilBC.readEnumSet(nbt.get("activeSlots"), SlotIndex.class);
         currentSlot = NBTUtilBC.readEnum(nbt.get("currentSlot"), SlotIndex.class);
         for (SlotIndex index : SlotIndex.VALUES) {
+//? if mc_26_x && (>=26.3) {
+            byte c = NbtCompat.getByte(nbt, "slotColors[" + index.ordinal() + "]");
+//? } else {
             byte c = nbt.getByte("slotColors[" + index.ordinal() + "]");
+//?}
             if (c > 0 && c <= 16) {
                 slotColours.put(index, DyeColor.byId(c - 1));
             }
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public CompoundTag writeToNbt() {
         CompoundTag nbt = super.writeToNbt();
         nbt.put("Filters", invFilters.serializeNBT(TilePipeHolder.getRegistryAccess(pipe)));
@@ -114,7 +133,10 @@ public class PipeBehaviourEmzuli extends PipeBehaviourWood implements MenuProvid
         return nbt;
     }
     
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void readPayload(FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
         super.readPayload(buffer, side, ctx);
         if (side == BCNetworkSide.CLIENT) {
@@ -132,7 +154,10 @@ public class PipeBehaviourEmzuli extends PipeBehaviourWood implements MenuProvid
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void writePayload(FriendlyByteBuf buffer, BCNetworkSide side) {
         super.writePayload(buffer, side);
         if (side == BCNetworkSide.SERVER) {
@@ -144,7 +169,10 @@ public class PipeBehaviourEmzuli extends PipeBehaviourWood implements MenuProvid
         }
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     protected int extractItems(IFlowItems flow, Direction dir, int count, FluidAction simulate) {
         if (currentSlot == null && activeSlots.size() > 0) {
             currentSlot = getNextSlot();
@@ -167,7 +195,10 @@ public class PipeBehaviourEmzuli extends PipeBehaviourWood implements MenuProvid
         return false;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void onTick() {
         super.onTick();
         if (pipe.getHolder().getPipeWorld().isClientSide()) {
@@ -209,7 +240,10 @@ public class PipeBehaviourEmzuli extends PipeBehaviourWood implements MenuProvid
         return this.activeSlots;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean onPipeActivate(Player player, BlockHitResult trace, Level level, EnumPipePart part) {
         if (EntityUtil.getWrenchHand(player) != null) {
             return super.onPipeActivate(player, trace, level, part);
@@ -220,13 +254,19 @@ public class PipeBehaviourEmzuli extends PipeBehaviourWood implements MenuProvid
         return true;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void addActions(PipeEventStatement.AddActionInternal event) {
         super.addActions(event);
         Collections.addAll(event.actions, BCTransportStatements.ACTION_EXTRACTION_PRESET);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void onActionActivate(PipeEventActionActivate event) {
         super.onActionActivate(event);
         if (event.action instanceof ActionExtractionPreset) {
@@ -236,12 +276,18 @@ public class PipeBehaviourEmzuli extends PipeBehaviourWood implements MenuProvid
         }
     }
     
+//? if mc_26_x && (>=26.3) {
+//? } else {
 	@Override
+//?}
 	public AbstractContainerMenu createMenu(int id, Inventory inventory, Player player) {
 		return new ContainerEmzuliPipe_BC8(id, inventory, invFilters, this);
 	}
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
 	@Override
+//?}
 	public Component getDisplayName() {
 		return Component.translatable(pipe.getDefinition().identifier.toLanguageKey("pipe"));
 	}

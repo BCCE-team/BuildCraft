@@ -14,6 +14,13 @@ public interface MachineView {
     ResourceLocation typeId();
     BlockPos position();
     WorkStatus workStatus();
+    /** Whether there is work available, even if the machine is currently awaiting energy. */
+    default boolean hasWork() {
+        return switch (workStatus().state()) {
+            case RUNNING, BLOCKED -> true;
+            default -> false;
+        };
+    }
     Collection<MachineComponent> machineComponents();
     Optional<MachineControl> control();
     default Optional<ItemPort> itemPort(Direction side) { return Optional.empty(); }

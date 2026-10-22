@@ -156,7 +156,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     /** Rotating X/Z column scan used to recover blocks placed into already-excavated quarry space. */
     private int miningColumnScanIndex;
     private long nextFrameWatchdogTick;
-    private static final int MINING_COLUMN_WATCHDOG_SCANS_PER_TICK = 256;
+    private static final int MINING_COLUMN_WATCHDOG_SCANS_PER_TICK = 32;
     private final Map<BlockPos, Long> deniedBreakUntil = new HashMap<>();
 
     private List<AABB> collisionBoxes = ImmutableList.of();
@@ -557,6 +557,15 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             if (candidate.getY() < miningBox.min().getY()) {
                 continue;
             }
+            // The quarry's mining bounds can change after an iterator was created or
+            // restored (for example, while the frame is still being established).
+            // A stale iterator must not be rewound to an out-of-bounds world position.
+            if (!boxIterator.contains(candidate)) {
+                boxIterator = createBoxIterator();
+                if (!boxIterator.contains(candidate)) {
+                    continue;
+                }
+            }
             boolean visited = boxIterator.hasFinished() || boxIterator.hasVisited(candidate);
             if (!visited || !canMine(candidate) || !canMoveDownTo(candidate)) {
                 continue;
@@ -600,6 +609,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
 
     @Override
     public void onLoad() {
+        super.onLoad();
         if (!level.isClientSide) {
             updatePoses();
             chunkLoadingDirty = true;
@@ -640,10 +650,17 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             return null;
         }
         Set<ChunkPos> chunkPoses = new HashSet<>();
+//? if mc_26_x {
+        ChunkPos minChunkPos = new ChunkPos(frameBox.min().getX() >> 4, frameBox.min().getZ() >> 4);
+        ChunkPos maxChunkPos = new ChunkPos(frameBox.max().getX() >> 4, frameBox.max().getZ() >> 4);
+        for (int x = minChunkPos.x(); x <= maxChunkPos.x(); x++) {
+            for (int z = minChunkPos.z(); z <= maxChunkPos.z(); z++) {
+//? } else {
         ChunkPos minChunkPos = new ChunkPos(frameBox.min());
         ChunkPos maxChunkPos = new ChunkPos(frameBox.max());
         for (int x = minChunkPos.x; x <= maxChunkPos.x; x++) {
             for (int z = minChunkPos.z; z <= maxChunkPos.z; z++) {
+//?}
                 chunkPoses.add(new ChunkPos(x, z));
             }
         }
@@ -841,7 +858,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             }
         }
 
-        if (currentTask == null) {
+        if (currentTask == null && (boxIterator == null || !boxIterator.hasFinished() || gameTime % 5 == 0)) {
             rescanVisitedMiningColumns();
         }
 

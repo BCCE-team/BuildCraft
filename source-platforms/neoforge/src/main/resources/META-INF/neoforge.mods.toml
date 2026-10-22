@@ -371,3 +371,13 @@ Optional cross-mod integration hooks for BuildCraft Community Edition. Integrati
     versionRange="[8.0.0.0,)"
     ordering="AFTER"
     side="BOTH"
+
+//? if ==1.21.1 {
+# Keep Create's binary adapter behind the compatible 1.21.1 range only.
+[[dependencies.buildcraftcompat]]
+    modId="create"
+    type="optional"
+    versionRange="${create_version_range}"
+    ordering="AFTER"
+    side="BOTH"
+//?}

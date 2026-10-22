@@ -23,17 +23,25 @@ public class AIRobotSleep extends AIRobot {
             return;
         }
 
-        DockingStation station = robot.getLinkedStation();
-        if (station == null) {
-            return;
+        // A charging station may be a temporary dock, not the robot's original linked/home station. In that case
+        // checking only the home gate makes an active Wake Up on the charger ineffective even after charging.
+        DockingStation docked = robot.getDockingStation();
+        DockingStation home = robot.getLinkedStation();
+        if (hasWakeUpAction(docked) || (docked != home && hasWakeUpAction(home))) {
+            terminate();
         }
+    }
 
+    private static boolean hasWakeUpAction(DockingStation station) {
+        if (station == null) {
+            return false;
+        }
         for (StatementSlot slot : station.getActiveActions()) {
             if (slot.statement instanceof ActionRobotWakeUp) {
-                terminate();
-                return;
+                return true;
             }
         }
+        return false;
     }
 
     @Override

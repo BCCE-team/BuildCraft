@@ -16,7 +16,11 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
+//? if mc_26_x {
+import net.minecraft.world.level.BlockGetter;
+//? } else {
 import net.minecraft.world.level.BlockAndTintGetter;
+//?}
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.phys.Vec3;
@@ -39,23 +43,31 @@ public final class Api2SchematicEntity implements ISchematicEntity {
     @Override public void init(SchematicEntityContext context) { }
     @Override public Vec3 getPos() { return adapter.relativePosition(element); }
     @Override public List<ItemStack> computeRequiredItems(Level level) {
-        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, AutomationActor.unknown(), OperationMode.SIMULATE)).items();
+        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, BlockPos.containing(getPos()), AutomationActor.unknown(), OperationMode.SIMULATE)).items();
     }
     @Override public List<FluidStack> computeRequiredFluids(Level level) {
-        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, AutomationActor.unknown(), OperationMode.SIMULATE)).fluids().stream()
+        return adapter.requirements(element, new SchematicPlacementContext(level, BlockPos.ZERO, BlockPos.containing(getPos()), AutomationActor.unknown(), OperationMode.SIMULATE)).fluids().stream()
             .map(FuelApiBridge::stackOf).filter(stack -> !stack.isEmpty()).collect(Collectors.toList());
     }
     @Override public ISchematicEntity getRotated(Rotation rotation) { return new Api2SchematicEntity(adapter.rotate(element, rotation), adapter); }
+//? if mc_26_x {
+    @Override public Entity build(BlockGetter world, BlockPos basePos) {
+//? } else {
     @Override public Entity build(BlockAndTintGetter world, BlockPos basePos) {
+//?}
         if (!(world instanceof Level level)) return null;
         return place(level, basePos) ? findPlacedEntity(level, basePos) : null;
     }
+//? if mc_26_x {
+    @Override public Entity buildWithoutChecks(BlockGetter world, BlockPos basePos) { return build(world, basePos); }
+//? } else {
     @Override public Entity buildWithoutChecks(BlockAndTintGetter world, BlockPos basePos) { return build(world, basePos); }
+//?}
     @Override public CompoundTag serializeNBT() { return Api2SnapshotPersistence.write(element); }
     @Override public void deserializeNBT(CompoundTag nbt) { throw new UnsupportedOperationException("API2 snapshot wrappers are immutable"); }
 
     public boolean place(Level level, BlockPos basePos) {
-        SchematicResult result = adapter.place(element, new SchematicPlacementContext(level, basePos, basePos, AutomationActor.unknown(), OperationMode.EXECUTE));
+        SchematicResult result = adapter.place(element, new SchematicPlacementContext(level, basePos, basePos.offset(BlockPos.containing(getPos())), AutomationActor.unknown(), OperationMode.EXECUTE));
         return result.status() == SchematicResult.Status.SUCCESS;
     }
 
@@ -64,3 +76,7 @@ public final class Api2SchematicEntity implements ISchematicEntity {
         return level.getEntities(null, new net.minecraft.world.phys.AABB(expected, expected).inflate(1.0)).stream().findFirst().orElse(null);
     }
 }
+//? if mc_26_x {
+
+//? } else {
+//?}

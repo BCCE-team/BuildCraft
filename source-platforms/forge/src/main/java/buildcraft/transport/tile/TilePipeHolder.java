@@ -6,6 +6,20 @@
 
 package buildcraft.transport.tile;
 
+import java.util.Optional;
+
+import buildcraft.lib.platform.permission.BCPermissions;
+
+import buildcraft.api.v2.event.WorldEventKind;
+
+import buildcraft.api.v2.event.WorldEventContext;
+
+import buildcraft.api.v2.OperationMode;
+
+import buildcraft.api.v2.BuildCraftServices;
+
+import buildcraft.api.v2.BuildCraftApi;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,6 +56,10 @@ import buildcraft.transport.item.ItemPipeHolder;
 import buildcraft.transport.BCTransportBlocks;
 import buildcraft.transport.client.model.ModelPipe;
 import buildcraft.transport.pipe.Pipe;
+import buildcraft.transport.api2.ApiPipePluggable;
+import buildcraft.transport.api2.ApiPortCapabilities;
+import buildcraft.transport.api2.PipeEndpointRuntime;
+import buildcraft.api.v2.pipe.PipeExternalEndpoint;
 import buildcraft.transport.pipe.PipeEventBus;
 import buildcraft.transport.pipe.PluggableHolder;
 import buildcraft.transport.wire.WireManager;
@@ -80,6 +98,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
     public static final int NET_UPDATE_PLUG_WEST = getReceiverId(PipeMessageReceiver.PLUGGABLE_WEST);
     public static final int NET_UPDATE_PLUG_EAST = getReceiverId(PipeMessageReceiver.PLUGGABLE_EAST);
     public static final int NET_UPDATE_WIRES = getReceiverId(PipeMessageReceiver.WIRES);
+    public static final int NET_UPDATE_API_COMPONENTS = getReceiverId(PipeMessageReceiver.API_COMPONENTS);
 
     private static final ResourceLocation ADVANCEMENT_PLACE_PIPE = new ResourceLocation(
         "buildcrafttransport:pipe_dream"
@@ -216,6 +235,17 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
             if (meta > 0 && meta <= 16) {
                 pipe.setColour(DyeColor.byId(meta - 1));
             }
+            if (level != null && !level.isClientSide()) {
+                pipe.onApiPlaced();
+                // BC8 PipePlacedEvent: notification only, never a post-placement veto.
+                // A pipe placement is also a block placement, but these are post-commit notifications.
+                var placementActor = BCPermissions.actor(getOwner(), ResourceLocation.tryParse("buildcraft:pipe_placement"));
+                var worldEvents = BuildCraftApi.service(BuildCraftServices.WORLD_EVENTS);
+                worldEvents.dispatch(new WorldEventContext(WorldEventKind.BLOCK_PLACED, level, worldPosition,
+                    placementActor, Optional.of(getBlockState()), Optional.empty(), OperationMode.EXECUTE));
+                worldEvents.dispatch(new WorldEventContext(WorldEventKind.PIPE_PLACED, level, worldPosition,
+                    placementActor, Optional.of(getBlockState()), Optional.of(pipe.typeId()), OperationMode.EXECUTE));
+            }
         }
         scheduleRenderUpdate();
 
@@ -235,10 +265,15 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
                 }
             }
         }
+        if (pipe != Pipe.EMPTY) {
+            pipe.onApiRemoved();
+            pipe.invalidateApiComponents();
+        }
     }
 
 	@Override
 	public void setRemoved() {
+        if (pipe != Pipe.EMPTY) pipe.onChunkUnloaded();
 		super.setRemoved();
 		eventBus.fireEvent(new PipeEventTileState.Invalidate(this));
 		wireManager.invalidate();
@@ -249,11 +284,13 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         super.clearRemoved();
         eventBus.fireEvent(new PipeEventTileState.Validate(this));
         wireManager.validate();
+        if (pipe != Pipe.EMPTY) pipe.onLoad();
     }
 
     @Override
     public void onChunkUnloaded() {
         super.onChunkUnloaded();
+        if (pipe != Pipe.EMPTY) pipe.onChunkUnloaded();
         eventBus.fireEvent(new PipeEventTileState.ChunkUnload(this));
     }
 
@@ -292,6 +329,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         for (Direction face : Direction.values()) {
             pluggables.get(face).onTick();
         }
+        if (pipe != Pipe.EMPTY) pipe.onApiPostAttachmentTick();
 
         // Coalesce all pipe-part changes scheduled in the same tick into one packet.
         if (!networkUpdates.isEmpty()) {
@@ -397,6 +435,9 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
                 }
             } else if (id == NET_UPDATE_WIRES) {
                 wireManager.writePayload(buffer, side);
+            } else if (id == NET_UPDATE_API_COMPONENTS) {
+                buffer.writeBoolean(pipe != Pipe.EMPTY);
+                if (pipe != Pipe.EMPTY) pipe.writeApiComponentSync(buffer);
             }
         }
         if (id == NET_UPDATE_PIPE_FLOW) {
@@ -420,6 +461,12 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         if (side == BCNetworkSide.CLIENT) {
             if (id == NET_RENDER_DATA) {
             	if (buffer.readBoolean()) {
+                    if (pipe != Pipe.EMPTY) {
+                        pipe.invalidateApiComponents();
+                        eventBus.unregisterHandler(pipe.behaviour);
+                        eventBus.unregisterHandler(pipe.flow);
+                        eventBus.unregisterHandler(FilterEventHandler.class);
+                    }
                     pipe = new Pipe(this, buffer, ctx);
                     eventBus.registerHandler(pipe.behaviour);
                     eventBus.registerHandler(pipe.flow);
@@ -427,14 +474,18 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
                         eventBus.registerHandler(FilterEventHandler.class);
                     }
                 } else if (pipe != Pipe.EMPTY) {
+                    pipe.invalidateApiComponents();
                     eventBus.unregisterHandler(pipe.behaviour);
                     eventBus.unregisterHandler(pipe.flow);
+                    eventBus.unregisterHandler(FilterEventHandler.class);
                     pipe = Pipe.EMPTY;
                 }
                 for (Direction face : Direction.values()) {
                     pluggables.get(face).readCreationPayload(buffer);
                 }
                 wireManager.readPayload(buffer, side, ctx);
+                requestModelDataUpdate();
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 2);
             } else if (id == NET_UPDATE_MULTI) {
                 int total = buffer.readUnsignedShort();
                 for (PipeMessageReceiver type : PipeMessageReceiver.values()) {
@@ -452,6 +503,13 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
                         pipe.readPayload(buffer, side, ctx);
                     }
                 }
+            } else if (id == NET_UPDATE_API_COMPONENTS) {
+                if (buffer.readBoolean()) {
+                    if (pipe == Pipe.EMPTY) throw new IOException("Pipe missing for component update");
+                    pipe.readApiComponentSync(buffer);
+                }
+                requestModelDataUpdate();
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 2);
             } else if (id == NET_UPDATE_WIRES) {
                 wireManager.readPayload(buffer, side, ctx);
             }
@@ -557,6 +615,14 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
             }
         }
         if (pipe.isConnected(side)) {
+            if (level == null || !level.hasChunkAt(worldPosition.relative(side))) return LazyOptional.empty();
+            if (pipe != Pipe.EMPTY) {
+                PipeExternalEndpoint endpoint = PipeEndpointRuntime.find(level, pipe, side).orElse(null);
+                if (endpoint != null && PipeEndpointRuntime.canConnect(endpoint, pipe, side)) {
+                    LazyOptional<T> custom = ApiPortCapabilities.external(endpoint, capability);
+                    if (custom.isPresent()) return custom;
+                }
+            }
             BlockEntity neighbour = getNeighbourTile(side);
             if (neighbour != null) {
                 //return neighbour.getCapability(capability, side.getOpposite());
@@ -648,6 +714,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         redstoneValues = newRedstione;
         pipe.rotate(axis);
         if (level != null && !level.isClientSide) {
+            wireManager.getWireSystems().rebuildWireSystemsAround(this);
             markChunkDirty();
         }
 	}
@@ -660,6 +727,10 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         if (facing != null) {
             PipePluggable plug = getPluggable(facing);
             if (plug != PipePluggable.EMPTY) {
+                if (plug instanceof ApiPipePluggable api) {
+                    LazyOptional<T> exposed = ApiPortCapabilities.attachment(api.attachment(), capability);
+                    if (exposed.isPresent()) return exposed;
+                }
                 LazyOptional<T> cap = plug.getCapability(capability);
                 if (cap.isPresent()) return cap;
                 if (plug.isBlocking()) return LazyOptional.empty();

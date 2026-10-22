@@ -21,7 +21,7 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
     private long microJoules = 0;
 
     public MjBattery(long capacity) {
-        this.capacity = capacity;
+        this.capacity = Math.max(0L, capacity);
     }
 
     @Override
@@ -33,7 +33,7 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
 
     @Override
     public void deserializeNBT(CompoundTag nbt) {
-        microJoules = nbt.getLong("stored");
+        microJoules = clampStored(nbt.getLong("stored"));
     }
 
     public void writeToBuffer(ByteBuf buffer) {
@@ -41,12 +41,15 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
     }
 
     public void readFromBuffer(ByteBuf buffer) {
-        microJoules = buffer.readLong();
+        microJoules = clampStored(buffer.readLong());
     }
 
     public long addPower(long microJoulesToAdd, FluidAction simulate) {
         if (simulate == FluidAction.EXECUTE) {
-            this.microJoules += microJoulesToAdd;
+            if (microJoulesToAdd > 0) {
+                this.microJoules = microJoulesToAdd > Long.MAX_VALUE - this.microJoules
+                    ? Long.MAX_VALUE : this.microJoules + microJoulesToAdd;
+            }
         }
         return 0;
     }
@@ -56,11 +59,14 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
      * @param microJoulesToAdd The power to add.
      * @return The excess power. */
     public long addPowerChecking(long microJoulesToAdd, FluidAction simulate) {
-        if (isFull()) {
+        if (microJoulesToAdd <= 0 || capacity <= 0 || isFull()) {
             return microJoulesToAdd;
-        } else {
-            return addPower(microJoulesToAdd, simulate);
         }
+        // Keep the checked API within advertised capacity; legacy addPower retains overfill semantics.
+        long free = capacity - Math.max(0L, microJoules);
+        long accepted = Math.min(microJoulesToAdd, free);
+        addPower(accepted, simulate);
+        return microJoulesToAdd - accepted;
     }
 
     public long extractAll() {
@@ -76,6 +82,8 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
     }
 
     public long extractPower(long min, long max) {
+        // Invalid bounds must never turn a subtraction into free generated MJ.
+        if (min < 0 || max < 0 || min > max) return 0;
         if (microJoules < min) return 0;
         long extracting = Math.min(microJoules, max);
         microJoules -= extracting;
@@ -125,18 +133,28 @@ public class MjBattery implements INBTSerializable<CompoundTag>, buildcraft.api.
     }
 
     public void tick(Level world, Vec3 position) {
-        if (microJoules > capacity * 2) {
+        if (microJoules > safeOverfillLimit()) {
             losePower(world, position);
         }
     }
 
     protected void losePower(Level world, Vec3 position) {
-        long diff = microJoules - capacity * 2;
+        long diff = Math.max(0L, microJoules - safeOverfillLimit());
+        if (diff == 0) return;
         long lost = ceilDivide(diff, 32);
         microJoules -= lost;
         BuildCraftApi.service(BuildCraftServices.POWER_LOSS_EFFECTS).onPowerLost(
             new PowerLossContext(world, new BlockPos((int) Math.floor(position.x), (int) Math.floor(position.y), (int) Math.floor(position.z)), MjAmount.ofMicro(lost))
         );
+    }
+
+    /** Saturate the legacy double-capacity overfill allowance instead of overflowing long. */
+    private long safeOverfillLimit() {
+        return capacity > Long.MAX_VALUE / 2 ? Long.MAX_VALUE : capacity * 2;
+    }
+
+    private long clampStored(long value) {
+        return Math.max(0L, Math.min(value, safeOverfillLimit()));
     }
 
     private static long ceilDivide(long val, long by) {

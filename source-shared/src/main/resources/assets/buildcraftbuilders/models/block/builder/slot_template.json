@@ -1,5 +1,6 @@
 {
     "textures": {
+        "particle": "#template",
         "template": "buildcraftbuilders:blocks/builder/slot_template"
     },
     "elements": [

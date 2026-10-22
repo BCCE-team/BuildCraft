@@ -581,6 +581,8 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         if (mc == null || mc.level == null) {
             return;
         }
+        // Requests queued by texture rendering are metered on the client tick.
+        ZonePlannerMapDataClient.INSTANCE.flushRequests(mc.level);
 
         int x0 = mapXDraw();
         int y0 = mapYDraw();

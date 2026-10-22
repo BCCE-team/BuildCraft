@@ -83,29 +83,38 @@ public abstract class OilStructure {
     }
 
     /**
-     * Returns whether oil worldgen may replace this block. This is intentionally conservative:
-     * unknown/constructed blocks are protected by default, while normal terrain, replaceable
-     * vegetation and fluids remain eligible. That keeps deposits from eating player builds or
-     * generated structures from other mods.
+     * Decide whether worldgen oil can replace a block.
+     * Modded blocks are replaceable whenever they are breakable, regardless of their registry
+     * name, tags or block entity. Vanilla blocks retain the conservative terrain/structure policy.
      */
     private static boolean canReplaceNaturalTerrain(WorldGenLevel world, BlockPos pos, BlockState state) {
-        // Never touch blocks that are creative-only/unbreakable (bedrock, end portal frames,
-        // barriers, command/structure blocks, etc.) or blocks carrying persistent state.
-        if (state.getDestroySpeed(world, pos) < 0.0F || state.hasBlockEntity()) {
-            return false;
-        }
-
-        // Trees and processed wood are deliberately preserved even though logs/leaves can be
-        // naturally generated: an oil deposit should flow around them instead of deleting them.
-        if (state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES) || state.is(BlockTags.PLANKS)) {
+        // Protect block-entity inventories, machines and data regardless of namespace.
+        // A modded ore/stone can be replaced; a modded tile entity never can.
+        if (state.hasBlockEntity() || world.getBlockEntity(pos) != null) return false;
+        // Unbreakable blocks are protected in every namespace, including other mods.
+        if (state.getDestroySpeed(world, pos) < 0.0F) {
             return false;
         }
 
         ResourceLocation key = net.minecraftforge.registries.ForgeRegistries.BLOCKS.getKey(state.getBlock());
         if (key == null) {
-            // Unknown/unregistered blocks are safest to treat as structure/player content.
+            // Without a registry namespace we cannot classify the block as modded.
             return false;
         }
+        if (!"minecraft".equals(key.getNamespace())) {
+            // Issue #65: modded rock layers, machines, block entities, logs, and other blocks
+            // are all valid oil terrain as long as they are not unbreakable.
+            return true;
+        }
+
+        // Preserve the existing safety checks for vanilla structures and wood.
+        if (state.hasBlockEntity()) {
+            return false;
+        }
+        if (state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES) || state.is(BlockTags.PLANKS)) {
+            return false;
+        }
+
         String path = key.getPath();
         if (isProtectedConstructionPath(path)) {
             return false;
@@ -120,15 +129,12 @@ public abstract class OilStructure {
             return true;
         }
 
-        // Only known natural decoration is allowed through the generic replaceable-block path.
-        // A modded/player block being replaceable is not, by itself, permission to destroy it.
+        // Only known vanilla natural decoration is allowed through the replaceable-block path.
         if (state.canBeReplaced() && isNaturalDecorationPath(path)) {
             return true;
         }
 
-        // Everything solid is denied unless it looks like ordinary geological terrain. This
-        // makes modded machines/decorative blocks safe by default while still accepting common
-        // modded ores and terrain blocks whose registry names follow vanilla conventions.
+        // For vanilla blocks, only known geological terrain can be replaced.
         return isNaturalTerrainPath(path);
     }
 
@@ -409,9 +415,8 @@ public abstract class OilStructure {
         }
 
         public static PatternTerrainHeight create(BlockPos.MutableBlockPos start, ReplaceType replaceType, boolean[][] pattern,
-            int depth) {
-            int minY = OilGenerator.bottomY;
-            int maxY = minY + OilGenerator.worldHeight - 1;
+            int depth, int minY, int worldHeight) {
+            int maxY = minY + worldHeight - 1;
             int maxX = start.getX() + Math.max(0, pattern.length - 1);
             int maxZ = start.getZ() + (pattern.length == 0 ? 0 : Math.max(0, pattern[0].length - 1));
             BlockPos min = new BlockPos(start.getX(), minY, start.getZ());
@@ -473,16 +478,15 @@ public abstract class OilStructure {
         public final int height;
         private int count = 0;
 
-        public Spout(BlockPos start, ReplaceType replaceType, int radius, int height) {
-            super(createBox(start), replaceType);
+        public Spout(BlockPos start, ReplaceType replaceType, int radius, int height, int maxY) {
+            super(createBox(start, maxY), replaceType);
             this.start = start;
             this.radius = radius;
             this.height = height;
         }
 
-        private static Box createBox(BlockPos start) {
-            // Only a block 1 x level.getHeight()(default 384) x 1 -- that way we area only called once.
-            int maxY = OilGenerator.bottomY + OilGenerator.worldHeight - 1;
+        private static Box createBox(BlockPos start, int maxY) {
+            // Resolve height from the generating world, not a mutable global dimension.
             return new Box(start, VecUtil.replaceValue(start, Axis.Y, maxY));
         }
 
@@ -551,7 +555,8 @@ public abstract class OilStructure {
             while (springPos.getY() < maxSpringY && world.getBlockState(springPos).is(Blocks.BEDROCK)) {
                 springPos = springPos.above();
             }
-            if (world.getBlockState(springPos).is(Blocks.BEDROCK)) {
+            if (world.getBlockState(springPos).is(Blocks.BEDROCK)
+                || world.getBlockState(springPos).hasBlockEntity()) {
                 BCLog.logger.warn("[energy.gen.oil] Could not find a non-bedrock position for oil spring at " + pos);
                 return;
             }
@@ -573,6 +578,9 @@ public abstract class OilStructure {
                 level.setBlockEntity(spring);
             }
             spring.totalSources = count;
+            // World-generation placement does not call setPlacedBy(). Start the
+            // spring's recurring updates once the generated chunk is ticked.
+            world.scheduleTick(springPos, state.getBlock(), state.getValue(BlockSpring.SPRING_TYPE).tickRate);
             if (BCLib.DEV) {
                 BCLog.logger.info("[energy.gen.oil] Generated TileSpringOil as " + System.identityHashCode(tile));
             }

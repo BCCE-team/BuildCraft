@@ -1,0 +1,165 @@
+package buildcraft.lib.gui;
+
+import org.lwjgl.opengl.GL11;
+
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import org.joml.Matrix4f;
+
+import buildcraft.lib.internal.core.render.ISprite;
+import buildcraft.lib.client.sprite.SpriteRaw;
+import buildcraft.lib.gui.pos.GuiRectangle;
+import buildcraft.lib.gui.pos.IGuiArea;
+import buildcraft.lib.gui.pos.IGuiPosition;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.Identifier;
+import buildcraft.lib.compat.RenderCompat;
+
+public class GuiIcon implements ISimpleDrawable{
+    public final ISprite sprite;
+    public final int textureSize;
+    public final int width, height;
+
+    public GuiIcon(ISprite sprite, int textureSize) {
+        this.sprite = sprite;
+        this.textureSize = textureSize;
+        this.width = (int) (Math.abs(sprite.getInterpU(1) - sprite.getInterpU(0)) * textureSize);
+        this.height = (int) (Math.abs(sprite.getInterpV(1) - sprite.getInterpV(0)) * textureSize);
+    }
+
+    public GuiIcon(Identifier texture, double u, double v, double width, double height, int texSize) {
+        this(new SpriteRaw(texture, u, v, width, height, texSize), texSize);
+    }
+
+    public GuiIcon(Identifier texture, double u, double v, double width, double height) {
+        this(texture, u, v, width, height, 256);
+    }
+
+    public GuiIcon offset(double u, double v) {
+        SpriteRaw raw = (SpriteRaw) sprite;
+        double uMin = raw.uMin + u / textureSize;
+        double vMin = raw.vMin + v / textureSize;
+        return new GuiIcon(new SpriteRaw(raw.location, uMin, vMin, raw.width, raw.height), textureSize);
+    }
+
+    public boolean containsGuiPos(double x, double y, IGuiPosition pos) {
+        return new GuiRectangle(x, y, width, height).contains(pos);
+    }
+
+    public DynamicTexture createDynamicTexture(int scale) {
+        return RenderCompat.newDynamicTexture(width * scale, height * scale, false);
+    }
+
+    public void drawAt(GuiGraphicsExtractor guiGraphics, double x, double y) {
+        this.drawScaledInside(guiGraphics, x, y, this.width, this.height);
+    }
+
+    public void drawScaledInside(GuiGraphicsExtractor guiGraphics, IGuiArea element) {
+        drawScaledInside(guiGraphics, element.getX(), element.getY(), element.getWidth(), element.getHeight());
+    }
+
+    public void drawScaledInside(GuiGraphicsExtractor guiGraphics, double x, double y, double drawnWidth, double drawnHeight) {
+        draw(guiGraphics, sprite, x, y, x + drawnWidth, y + drawnHeight, textureSize);
+    }
+
+    public void drawCustomQuad(double x1, double y1, double x2, double y2, double x3, double y3, double x4, double y4) {
+        sprite.bindTexture();
+
+        double uMin = sprite.getInterpU(0);
+        double uMax = sprite.getInterpU(1);
+
+        double vMin = sprite.getInterpV(0);
+        double vMax = sprite.getInterpV(1);
+
+        // Unfortunately we cannot use the vertex buffer directly (as it doesn't allow for texture4f)
+        GL11.glBegin(GL11.GL_QUADS);
+
+        double[] q = calcQ(x1, y1, x2, y2, x3, y3, x4, y4);
+
+        vertDirect(x1, y1, uMin * q[0], vMax * q[0], 0, q[0]);
+        vertDirect(x2, y2, uMax * q[1], vMax * q[1], 0, q[1]);
+        vertDirect(x3, y3, uMax * q[2], vMin * q[2], 0, q[2]);
+        vertDirect(x4, y4, uMin * q[3], vMin * q[3], 0, q[3]);
+
+        GL11.glEnd();
+    }
+
+    private static double[] calcQ(double x1, double y1, double x2, double y2, double x3, double y3, double x4,
+        double y4) {
+        // Method contents taken from http://www.bitlush.com/posts/arbitrary-quadrilaterals-in-opengl-es-2-0
+        // (or github https://github.com/bitlush/android-arbitrary-quadrilaterals-in-opengl-es-2-0 if the site is down)
+        // this code is by Keith Wood
+
+        double ax = x3 - x1;
+        double ay = y3 - y1;
+        double bx = x4 - x2;
+        double by = y4 - y2;
+
+        double cross = ax * by - ay * bx;
+
+        if (cross != 0) {
+            double cy = y1 - y2;
+            double cx = x1 - x2;
+
+            double s = (ax * cy - ay * cx) / cross;
+
+            if (s > 0 && s < 1) {
+                double t = (bx * cy - by * cx) / cross;
+
+                if (t > 0 && t < 1) {
+                    double q0 = 1 / (1 - t);
+                    double q1 = 1 / (1 - s);
+                    double q2 = 1 / t;
+                    double q3 = 1 / s;
+                    return new double[] { q0, q1, q2, q3 };
+                }
+            }
+        }
+        // in case (for some reason) some of the input was wrong then we will fail back to default rendering
+        return new double[] { 1, 1, 1, 1 };
+    }
+
+    private static void vertDirect(double x, double y, double s, double t, double r, double q) {
+        GL11.glTexCoord4d(s, t, r, q);
+        GL11.glVertex2d(x, y);
+    }
+
+    public void drawCutInside(GuiGraphicsExtractor guiGraphics, IGuiArea element) {
+        drawCutInside(guiGraphics, element.getX(), element.getY(), element.getWidth(), element.getHeight());
+    }
+
+    public void drawCutInside(GuiGraphicsExtractor guiGraphics, double x, double y, double displayWidth, double displayHeight) {
+        displayWidth = Math.min(this.width, displayWidth);
+        displayHeight = Math.min(this.height, displayHeight);
+
+        double uMax = width == 0 ? 1 : displayWidth / width;
+        double vMax = height == 0 ? 1 : displayHeight / height;
+        drawSprite(guiGraphics, sprite, x, y, x + displayWidth, y + displayHeight, 0, 0, uMax, vMax, textureSize);
+    }
+
+    public static void drawAt(GuiGraphicsExtractor guiGraphics, ISprite sprite, double x, double y, double size) {
+        drawAt(guiGraphics, sprite, x, y, size, size);
+    }
+
+    public static void drawAt(GuiGraphicsExtractor guiGraphics, ISprite sprite, double x, double y, double width, double height) {
+        draw(guiGraphics, sprite, x, y, x + width, y + height);
+    }
+
+    public static void draw(GuiGraphicsExtractor guiGraphics, ISprite sprite, double xMin, double yMin, double xMax, double yMax) {
+        draw(guiGraphics, sprite, xMin, yMin, xMax, yMax, 256);
+    }
+
+    private static void draw(GuiGraphicsExtractor guiGraphics, ISprite sprite, double xMin, double yMin, double xMax, double yMax, int textureSize) {
+        drawSprite(guiGraphics, sprite, xMin, yMin, xMax, yMax, 0, 0, 1, 1, textureSize);
+    }
+
+    private static void drawSprite(GuiGraphicsExtractor guiGraphics, ISprite sprite, double xMin, double yMin, double xMax, double yMax,
+        double spriteUMin, double spriteVMin, double spriteUMax, double spriteVMax, int textureSize) {
+        buildcraft.lib.client.sprite.GuiSpriteRender2612.draw(guiGraphics, sprite,
+            xMin, yMin, xMax, yMax, spriteUMin, spriteVMin, spriteUMax, spriteVMax, 0xFFFFFFFF);
+    }
+
+    private static void vertex(Matrix4f m, BufferBuilder vb, double x, double y, float u, float v) {
+        vb.addVertex(m, (float) x, (float) y, 0).setUv(u, v);
+    }
+}

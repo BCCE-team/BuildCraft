@@ -21,6 +21,7 @@ import buildcraft.core.item.ItemFragileFluidContainer;
 import buildcraft.lib.fluid.FluidCompatRegistry;
 import buildcraft.lib.fluid.Tank;
 import buildcraft.lib.fluid.TankManager;
+import buildcraft.lib.tile.TileBC_Neptune;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -36,6 +37,10 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidUtil;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//? if mc_26_x {
+import buildcraft.lib.misc.CapUtil;
+//? } else {
+//?}
 
 public class FluidUtilBC {
 
@@ -236,6 +241,11 @@ public class FluidUtilBC {
 
     public static boolean onTankActivated(Player player, BlockPos pos, InteractionHand hand,
         IFluidHandler fluidHandler) {
+        // Bucket/item transfers must honour the same BuildCraft edit permission
+        // as the machine GUI. This also covers TankManager and multi-block tanks.
+        if (!player.level().hasChunkAt(pos)) return false;
+        BlockEntity edited = player.level().getBlockEntity(pos);
+        if (edited instanceof TileBC_Neptune bcTile && !bcTile.canPlayerEdit(player)) return true;
         ItemStack held = player.getItemInHand(hand);
         if (held.isEmpty()) {
             return false;
@@ -250,15 +260,80 @@ public class FluidUtilBC {
         if (!fluidContainer) {
             return false;
         }
+//? if mc_26_x {
+        if (player.level().isClientSide()) {
+//? } else {
         if (player.level().isClientSide) {
+//?}
             return true;
         }
 
+        List<FluidStack> before = snapshotFluids(fluidHandler);
         boolean changed = FluidUtil.interactWithFluidHandler(player, hand, fluidHandler);
         if (changed) {
+            FluidActionDelta delta = findFluidActionDelta(before, fluidHandler);
             syncPlayerInventory(player);
+            if (delta != null) {
+                if (delta.emptiedItem) {
+                    SoundUtil.playBucketEmptyFallbackIfMissing(player.level(), pos, delta.fluid);
+                } else {
+                    SoundUtil.playBucketFillFallbackIfMissing(player.level(), pos, delta.fluid);
+                }
+            }
         }
         return true;
+    }
+
+    private static List<FluidStack> snapshotFluids(IFluidHandler handler) {
+        List<FluidStack> snapshot = new ArrayList<>(handler.getTanks());
+        for (int tank = 0; tank < handler.getTanks(); tank++) {
+            FluidStack fluid = handler.getFluidInTank(tank);
+            snapshot.add(fluid == null || fluid.isEmpty() ? FluidStack.EMPTY : fluid.copy());
+        }
+        return snapshot;
+    }
+
+    private static FluidActionDelta findFluidActionDelta(List<FluidStack> before, IFluidHandler handler) {
+        int tanks = Math.max(before.size(), handler.getTanks());
+        for (int tank = 0; tank < tanks; tank++) {
+            FluidStack oldFluid = tank < before.size() ? before.get(tank) : FluidStack.EMPTY;
+            FluidStack newFluid = tank < handler.getTanks() ? handler.getFluidInTank(tank) : FluidStack.EMPTY;
+            if (newFluid == null) {
+                newFluid = FluidStack.EMPTY;
+            }
+
+            if (oldFluid.isEmpty() && newFluid.isEmpty()) {
+                continue;
+            }
+            if (!oldFluid.isEmpty() && !newFluid.isEmpty()
+                && FluidCompatRegistry.areEquivalent(oldFluid, newFluid)) {
+                int delta = newFluid.getAmount() - oldFluid.getAmount();
+                if (delta > 0) {
+                    return new FluidActionDelta(newFluid.copyWithAmount(delta), true);
+                }
+                if (delta < 0) {
+                    return new FluidActionDelta(oldFluid.copyWithAmount(-delta), false);
+                }
+                continue;
+            }
+            if (oldFluid.isEmpty() && !newFluid.isEmpty()) {
+                return new FluidActionDelta(newFluid.copy(), true);
+            }
+            if (!oldFluid.isEmpty() && newFluid.isEmpty()) {
+                return new FluidActionDelta(oldFluid.copy(), false);
+            }
+        }
+        return null;
+    }
+
+    private static final class FluidActionDelta {
+        final FluidStack fluid;
+        final boolean emptiedItem;
+
+        FluidActionDelta(FluidStack fluid, boolean emptiedItem) {
+            this.fluid = fluid;
+            this.emptiedItem = emptiedItem;
+        }
     }
 
     private static void syncPlayerInventory(Player player) {

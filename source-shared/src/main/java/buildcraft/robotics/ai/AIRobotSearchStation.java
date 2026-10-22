@@ -40,10 +40,15 @@ public class AIRobotSearchStation extends AIRobot {
             terminate();
             return;
         }
-        if (robot.getDockingStation() != null
-                && !excludedStations.contains(StationKey.of(robot.getDockingStation()))
-                && filter.matches(robot.getDockingStation())) {
-            targetStation = robot.getDockingStation();
+        // A station that already holds the robot is still subject to the zone and
+        // forbid-robot gate, exactly like every other candidate in this search.
+        DockingStation current = robot.getDockingStation();
+        if (current != null && current.isInitialized()
+                && !excludedStations.contains(StationKey.of(current))
+                && (zone == null || zone.contains(new Vec3(current.x(), current.y(), current.z())))
+                && !ActionStationForbidRobot.isForbidden(current, robot)
+                && filter.matches(current)) {
+            targetStation = current;
             terminate();
             return;
         }

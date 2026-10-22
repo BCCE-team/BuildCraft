@@ -33,7 +33,11 @@ import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.neoforged.neoforge.capabilities.BlockCapability;
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x && (>=26.3) {
+import buildcraft.transport.internal.pipe.FluidAction;
+//? } else {
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
+//?}
 
 public class PipeBehaviourWood extends PipeBehaviourDirectional implements IMjRedstoneReceiver, IDebuggable {
 
@@ -50,22 +54,34 @@ public class PipeBehaviourWood extends PipeBehaviourDirectional implements IMjRe
         super(pipe, nbt);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public PipeFaceTex getTextureData(Direction face) {
         return (face != null && face == getCurrentDir()) ? TEX_FILLED : TEX_CLEAR;
     }
     
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public int[] getTextureUVs(Direction face) {
         return (face != null && face == getCurrentDir()) ? RenderPipeHolder.UP_UV : RenderPipeHolder.DOWN_UV;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean canConnect(Direction face, PipeBehaviour other) {
         return !(other instanceof PipeBehaviourWood);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     protected boolean canFaceDirection(Direction dir) {
         return dir != null && pipe.getConnectedType(dir) == ConnectedType.TILE;
     }
@@ -118,23 +134,35 @@ public class PipeBehaviourWood extends PipeBehaviourDirectional implements IMjRe
 
     // IMjRedstoneReceiver
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public boolean canConnect(@Nonnull IMjConnector other) {
         return true;
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public long getPowerRequested() {
         final long power = 512 * MjAmount.MICRO_MJ_PER_MJ;
         return power - extract(power, FluidAction.SIMULATE);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public long receivePower(long microJoules, FluidAction simulate) {
         return extract(microJoules, simulate);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     @Nullable
     public <T> T getCapability(
         BlockCapability<T, Direction> capability, @Nullable Direction facing
@@ -142,7 +170,10 @@ public class PipeBehaviourWood extends PipeBehaviourDirectional implements IMjRe
         return mjCaps.getCapability(capability, facing);
     }
 
+//? if mc_26_x && (>=26.3) {
+//? } else {
     @Override
+//?}
     public void getDebugInfo(List<String> left, List<String> right, Direction side) {
         left.add("Facing = " + currentDir);
     }

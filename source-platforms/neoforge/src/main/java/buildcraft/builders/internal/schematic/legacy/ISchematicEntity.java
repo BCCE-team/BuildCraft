@@ -12,7 +12,11 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
+//? if mc_26_x {
+import net.minecraft.world.level.BlockGetter;
+//? } else {
 import net.minecraft.world.level.BlockAndTintGetter;
+//?}
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.phys.Vec3;
@@ -40,12 +44,24 @@ public interface ISchematicEntity extends SnapshotElement {
 
     ISchematicEntity getRotated(Rotation rotation);
 
+//? if mc_26_x {
+    Entity build(BlockGetter world, BlockPos basePos);
+//? } else {
     Entity build(BlockAndTintGetter world, BlockPos basePos);
+//?}
 
+//? if mc_26_x {
+    Entity buildWithoutChecks(BlockGetter world, BlockPos basePos);
+//? } else {
     Entity buildWithoutChecks(BlockAndTintGetter world, BlockPos basePos);
+//?}
 
     CompoundTag serializeNBT();
 
     /** @throws InvalidInputDataException If the input data wasn't correct or didn't make sense. */
     void deserializeNBT(CompoundTag nbt) throws InvalidInputDataException;
 }
+//? if mc_26_x {
+
+//? } else {
+//?}

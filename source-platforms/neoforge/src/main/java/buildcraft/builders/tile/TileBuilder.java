@@ -198,8 +198,11 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     	}
     	@Override
         public boolean handleGameEvent(ServerLevel level, Holder<GameEvent> event, GameEvent.Context context, Vec3 sourcePos) {
-            return blueprint.handleGameEvent(level, event, context, sourcePos)
-                || template.handleGameEvent(level, event, context, sourcePos);
+            // Both listeners must receive the event; short-circuiting leaves
+            // a Template Builder blind whenever the Blueprint listener responds first.
+            boolean blueprintChanged = blueprint.handleGameEvent(level, event, context, sourcePos);
+            boolean templateChanged = template.handleGameEvent(level, event, context, sourcePos);
+            return blueprintChanged || templateChanged;
     	}
     };
 
@@ -311,7 +314,8 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
 
         ItemStack stack = invSnapshot.getStackInSlot(0);
         if (stack.isEmpty()) {
-            needsRestartAfterLoad = false;
+            // The blueprint inventory can arrive after the block's saved state.
+            // Keep the pending work until we can actually restore the builder.
             snapshot = null;
             snapshotType = null;
             templateBuildingInfo = null;
@@ -329,12 +333,15 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
         updateBasePoses();
         reloadSnapshotFromItem(stack, false, true);
         SnapshotBuilder<?> restoredBuilder = getBuilder();
-        if (restoredBuilder != null) {
-            if (pendingBuilderState != null) {
-                restoredBuilder.deserializeNBT(pendingBuilderState);
-            } else {
-                restoredBuilder.forceRecheckCurrentTask();
-            }
+        if (restoredBuilder == null) {
+            // Do not lose reserved-resource state if the schematic isn't available yet.
+            needsRestartAfterLoad = true;
+            return;
+        }
+        if (pendingBuilderState != null) {
+            restoredBuilder.deserializeNBT(pendingBuilderState);
+        } else {
+            restoredBuilder.forceRecheckCurrentTask();
         }
         pendingBuilderState = null;
         sendNetworkUpdate(NET_SNAPSHOT_TYPE);
@@ -371,9 +378,8 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
                 rotation = Rotation.NONE;
             }
             BlockPos buildBasePos = getCurrentBasePos();
-            if (!canRotate) {
-                buildBasePos = adjustBasePosIfOverlappingBuilder(buildBasePos, rotation);
-            }
+            // Rotating a blueprint must not allow its own placement/excavation to touch this Builder.
+            buildBasePos = adjustBasePosIfOverlappingBuilder(buildBasePos, rotation);
             if (snapshot.getType() == EnumSnapshotType.TEMPLATE) {
                 templateBuildingInfo = ((Template) snapshot).new BuildingInfo(buildBasePos, rotation);
             }
@@ -428,7 +434,7 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
 
     private void updateBasePoses() {
         basePoses.clear();
-        if (path != null) {
+        if (path != null && !path.isEmpty()) {
             int max = path.size() - 1;
             // Create a list of all the possible block positions on the path that could be used
             basePoses.add(path.get(0));
@@ -650,7 +656,11 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
         }
         if (side == BCNetworkSide.SERVER) {
             if (id == NET_CAN_EXCAVATE) {
-                canExcavate = buffer.readBoolean();
+                boolean selected = buffer.readBoolean();
+                if (selected != canExcavate) {
+                    canExcavate = selected;
+                    setChanged();
+                }
                 sendNetworkUpdate(NET_CAN_EXCAVATE);
             }
         }

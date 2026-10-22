@@ -24,6 +24,8 @@ import buildcraft.compat.CompatCapTransfromer;
 import buildcraft.lib.misc.BlockUtil;
 import buildcraft.lib.misc.CapUtil;
 import buildcraft.lib.platform.storage.FluidStorage;
+import buildcraft.lib.platform.storage.ItemStorage;
+import buildcraft.lib.platform.storage.ItemStorageContainer;
 import buildcraft.lib.platform.storage.PlatformStorage;
 import buildcraft.lib.platform.storage.StorageAdapters;
 import buildcraft.robotics.statements.ActionStationRequestItems;
@@ -275,8 +277,16 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         Direction inputSide = getItemInputPipeSide();
         Level level = level();
         if (getPipe() == null || inputSide == null || level == null) return null;
-        BlockEntity neighbour = level.getBlockEntity(new net.minecraft.core.BlockPos(x(), y(), z()).relative(inputSide));
-        return getNeighbourItemContainer(neighbour);
+        BlockPos neighbourPos = new BlockPos(x(), y(), z()).relative(inputSide);
+        if (!level.isLoaded(neighbourPos)) return null;
+        BlockEntity neighbour = level.getBlockEntity(neighbourPos);
+        Container vanilla = getNeighbourItemContainer(neighbour);
+        if (vanilla != null) return vanilla;
+        if (neighbour == null) return null;
+        // Query the contacted face, not an unsided wrapper. Native-only addon machines
+        // expose extractable slots through IItemHandler without implementing Container.
+        ItemStorage storage = PlatformStorage.items(level, neighbourPos, inputSide.getOpposite());
+        return storage == null ? null : new ItemStorageContainer(storage, neighbour);
     }
 
     private static Container getNeighbourItemContainer(BlockEntity neighbour) {
@@ -316,6 +326,7 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         Direction inputSide = getFluidInputPipeSide();
         if (getPipe() == null || inputSide == null || level() == null) return null;
         BlockPos neighbourPos = new BlockPos(x(), y(), z()).relative(inputSide);
+        if (!level().isLoaded(neighbourPos)) return null;
         return PlatformStorage.fluids(level(), neighbourPos, inputSide.getOpposite());
     }
 
@@ -372,17 +383,24 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
             return ItemTransferResult.nothing(offered == null ? 0 : offered.getCount());
         }
         int slot = RequestSupport.slot(requestId).orElse(-1);
-        if (slot < 0 || getRequest(slot).isEmpty()) {
+        ItemStack requested = getRequest(slot);
+        if (slot < 0 || requested.isEmpty()
+            || !RequestSupport.request(slot, requested, 0).matcher().matches(offered)) {
             return ItemTransferResult.nothing(offered.getCount());
         }
+        ItemStack bounded = offered.copy();
+        bounded.setCount(Math.min(offered.getCount(), requested.getCount()));
 
         IInjectable output = getItemOutput();
         Direction outputSide = getItemOutputSide();
         if (output == null || outputSide == null || !output.canInjectItems(outputSide)) {
             return ItemTransferResult.nothing(offered.getCount());
         }
-        ItemStack remainder = output.injectItem(offered.copy(), mode == OperationMode.EXECUTE, outputSide, null, 0.08D);
-        return ItemTransferResult.ofInsertion(offered, offered.getCount() - remainder.getCount());
+        ItemStack remainder = output.injectItem(bounded, mode == OperationMode.EXECUTE, outputSide, null, 0.08D);
+        if (remainder == null || remainder.getCount() > bounded.getCount()) {
+            return ItemTransferResult.nothing(offered.getCount());
+        }
+        return ItemTransferResult.ofInsertion(offered, bounded.getCount() - remainder.getCount());
     }
 
     private List<ItemStack> getActiveItemRequests() {
@@ -414,12 +432,25 @@ public class DockingStationPipe extends DockingStation implements RequestProvide
         Level level = level();
         if (level != null) {
             BlockPos pos = new BlockPos(x(), y(), z());
+            RequestProvider selected = null;
+            int bestPriority = Integer.MIN_VALUE;
+            // Highest-priority request wins. Direction order remains the deterministic tie-breaker.
             for (Direction dir : Direction.values()) {
-                BlockEntity neighbour = level.getBlockEntity(pos.relative(dir));
-                if (neighbour instanceof RequestProvider provider) {
-                    return provider;
+                BlockPos neighbourPos = pos.relative(dir);
+                if (!level.isLoaded(neighbourPos)) continue;
+                BlockEntity neighbour = level.getBlockEntity(neighbourPos);
+                if (neighbour instanceof RequestProvider provider && provider != this) {
+                    java.util.Collection<ItemRequest> requests = provider.requests();
+                    int priority = requests == null ? Integer.MIN_VALUE : requests.stream()
+                        .filter(java.util.Objects::nonNull).mapToInt(ItemRequest::priority)
+                        .max().orElse(Integer.MIN_VALUE);
+                    if (selected == null || priority > bestPriority) {
+                        selected = provider;
+                        bestPriority = priority;
+                    }
                 }
             }
+            if (selected != null) return selected;
         }
         return this;
     }

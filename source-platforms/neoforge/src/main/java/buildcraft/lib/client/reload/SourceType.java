@@ -7,8 +7,13 @@
 package buildcraft.lib.client.reload;
 
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+//? if mc_26_x {
+import buildcraft.lib.compat.mc2612.client.resources.model.BakedModel;
+import buildcraft.lib.compat.neoforge2612.client.model.geometry.IUnbakedGeometry;
+//? } else {
 import net.minecraft.client.resources.model.BakedModel;
 import net.neoforged.neoforge.client.model.geometry.IUnbakedGeometry;
+//?}
 
 /** Defines that source of the change. Listeners should check to see what actually changed to see if they also need to
  * reload.

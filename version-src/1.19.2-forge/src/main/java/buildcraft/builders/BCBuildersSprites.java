@@ -21,6 +21,8 @@ import net.minecraft.world.inventory.InventoryMenu;
 public class BCBuildersSprites {
 	
     public static final SpriteHolder FILLER_PLANNER;
+    /** Neutral, untinted block texture for the translucent Filler Planner projection. */
+    public static final SpriteHolder FILLER_PREVIEW_WHITE;
     public static final SpriteHolder ROBOT;
     public static final SpriteHolder QUARRY_FRAME;
     public static final SpriteHolder QUARRY_DRILL;
@@ -62,6 +64,7 @@ public class BCBuildersSprites {
 
     static {
         FILLER_PLANNER = getHolder("addons/filler_planner");
+        FILLER_PREVIEW_WHITE = getHolder("addons/filler_preview_white");
         ROBOT = getHolder("robot");
         QUARRY_FRAME = getHolder("blocks/frame/default");
         QUARRY_DRILL = getHolder("blocks/quarry/drill");

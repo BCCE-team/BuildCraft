@@ -1,0 +1,61 @@
+/*
+ * Copyright (c) 2017 SpaceToad and the BuildCraft team
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/
+ */
+
+package buildcraft.lib.net.cache;
+
+import java.io.IOException;
+import java.util.Objects;
+
+import buildcraft.lib.misc.ItemStackUtil;
+import buildcraft.lib.misc.StackUtil;
+
+import it.unimi.dsi.fastutil.Hash;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenCustomHashMap;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.world.item.ItemStack;
+
+// We use ItemStackKey here because ItemStack doesn't implement hashCode and equals
+public class NetworkedItemStackCache extends NetworkedObjectCache<ItemStack> {
+
+    public NetworkedItemStackCache() {
+        super(StackUtil.EMPTY);
+    }
+
+    protected Object2IntMap<ItemStack> createObject2IntMap() {
+        return new Object2IntOpenCustomHashMap<>(new Hash.Strategy<ItemStack>() {
+            public int hashCode(ItemStack o) {
+                if (o == null || o.isEmpty()) {
+                    return 0;
+                }
+                return Objects.hash(o.getItem(), o.getComponentsPatch());
+            }
+
+            public boolean equals(ItemStack a, ItemStack b) {
+                if (a == null || b == null) {
+                    return a == b;
+                }
+                return StackUtil.canMerge(a, b);
+            }
+        });
+    }
+
+    protected ItemStack copyOf(ItemStack object) {
+        return object == null ? null : object.copy();
+    }
+
+    protected void writeObject(ItemStack obj, FriendlyByteBuf buffer) {
+        ItemStackUtil.writeOptional(buffer, obj == null ? ItemStack.EMPTY : obj);
+    }
+
+    protected ItemStack readObject(FriendlyByteBuf buffer) throws IOException {
+        return ItemStackUtil.readOptional(buffer);
+    }
+
+    protected String getCacheName() {
+        return "ItemStack";
+    }
+}

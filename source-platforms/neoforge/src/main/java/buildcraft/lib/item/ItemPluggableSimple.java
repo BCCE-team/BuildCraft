@@ -69,7 +69,10 @@ public class ItemPluggableSimple extends Item implements IItemPluggable {
         this(definition, definition.creator, null, p);
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public PipePluggable onPlace(@Nonnull ItemStack stack, IPipeHolder holder, Direction side, Player player,
         InteractionHand hand) {
         if (!canPlace.canPlace(stack, holder, side)) {

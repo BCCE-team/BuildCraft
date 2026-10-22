@@ -1,0 +1,13 @@
+{
+  "model": {
+    "type": "neoforge:fluid_container",
+    "textures": {
+      "particle": "minecraft:item/bucket",
+      "base": "minecraft:item/bucket",
+      "fluid": "buildcraftenergy:block/mask/bucket_surface"
+    },
+    "fluid": "buildcraftenergy:oil_heavy_heat_1",
+    "flip_gas": true,
+    "apply_fluid_luminosity": false
+  }
+}

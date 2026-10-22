@@ -70,6 +70,21 @@ public enum ModelPipe implements IDynamicBakedModel {
             return PipeModelCacheBase.cacheCutout.bake(new PipeBaseCutoutKey(PipeModelKey.DEFAULT_KEY));
         }
 
+        var apiModel = buildcraft.lib.client.render.ApiPresentationModels.pipeBaseModel(tile.getPipe());
+        if (apiModel != null && apiModel.hasBakedQuads()) {
+            boolean translucent = renderType == RenderType.translucent();
+            java.util.ArrayList<BakedQuad> quads = new java.util.ArrayList<>();
+            if (!buildcraft.lib.client.render.ApiPresentationModels.animatedPipe(tile.getPipe())) {
+                var source = translucent ? apiModel.getTranslucentQuads() : apiModel.getCutoutQuads();
+                for (buildcraft.lib.client.model.MutableQuad quad : source) quads.add(quad.toBakedBlock());
+            }
+            var plugKey = new PipeModelCachePluggable.PluggableKey(
+                translucent ? RenderType.translucent() : RenderType.cutout(), tile);
+            quads.addAll(translucent ? PipeModelCachePluggable.cacheTranslucentAll.bake(plugKey)
+                : PipeModelCachePluggable.cacheCutoutAll.bake(plugKey));
+            return List.copyOf(quads);
+        }
+
         if (renderType == RenderType.translucent()) {
             PipeAllTranslucentKey realKey = new PipeAllTranslucentKey(tile);
             return PipeModelCacheAll.cacheTranslucent.bake(realKey);

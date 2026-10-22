@@ -28,6 +28,7 @@ public enum PluggableRegistry implements IPluggableRegistry {
 
     @Override
     public PluggableDefinition getDefinition(ResourceLocation identifier) {
-        return registered.get(identifier);
+        PluggableDefinition known = registered.get(identifier);
+        return known != null ? known : PipeAttachmentBridge.definition(identifier);
     }
 }

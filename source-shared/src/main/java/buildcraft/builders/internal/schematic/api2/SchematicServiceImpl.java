@@ -18,6 +18,7 @@ import buildcraft.builders.internal.schematic.legacy.SchematicBlockContext;
 import buildcraft.builders.internal.schematic.legacy.SchematicEntityContext;
 import buildcraft.builders.snapshot.SchematicBlockManager;
 import buildcraft.builders.snapshot.SchematicEntityManager;
+import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.misc.FakePlayerProvider;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
@@ -35,14 +36,17 @@ public final class SchematicServiceImpl implements SchematicService {
     @Override
     public Optional<? extends SnapshotElement> capture(SchematicCaptureContext context) {
         for (SchematicAdapter adapter : blockAdapters()) {
-            if (!adapter.supports(context)) continue;
-            Optional<? extends SnapshotElement> captured = adapter.capture(context);
-            if (captured.isPresent()) {
+            try {
+                if (!adapter.supports(context)) continue;
+                Optional<? extends SnapshotElement> captured = adapter.capture(context);
+                if (captured == null || captured.isEmpty()) continue;
                 requireRegisteredType(captured.get());
                 return captured;
+            } catch (RuntimeException error) {
+                BCLog.logger.warn("Schematic block adapter failed during capture", error);
             }
         }
-        return Optional.of(SchematicBlockManager.getLegacySchematicBlock(new SchematicBlockContext(
+        return Optional.ofNullable(SchematicBlockManager.getLegacySchematicBlock(new SchematicBlockContext(
             context.level(), context.origin(), context.position(), context.state(), context.state().getBlock()
         )));
     }
@@ -50,11 +54,14 @@ public final class SchematicServiceImpl implements SchematicService {
     @Override
     public Optional<? extends SnapshotElement> captureEntity(SchematicEntityCaptureContext context) {
         for (EntitySchematicAdapter adapter : entityAdapters()) {
-            if (!adapter.supports(context)) continue;
-            Optional<? extends SnapshotElement> captured = adapter.capture(context);
-            if (captured.isPresent()) {
+            try {
+                if (!adapter.supports(context)) continue;
+                Optional<? extends SnapshotElement> captured = adapter.capture(context);
+                if (captured == null || captured.isEmpty()) continue;
                 requireRegisteredType(captured.get());
                 return captured;
+            } catch (RuntimeException error) {
+                BCLog.logger.warn("Schematic entity adapter failed during capture", error);
             }
         }
         return Optional.ofNullable(SchematicEntityManager.getLegacySchematicEntity(new SchematicEntityContext(
@@ -75,18 +82,46 @@ public final class SchematicServiceImpl implements SchematicService {
             return result(entity.build(context.level(), context.origin()) != null, "entity");
         }
         SchematicAdapter blockAdapter = findBlockAdapter(element).orElse(null);
-        if (blockAdapter != null) return blockAdapter.place(element, context);
+        if (blockAdapter != null) {
+            try {
+                return java.util.Objects.requireNonNull(blockAdapter.place(element, context));
+            } catch (RuntimeException error) {
+                BCLog.logger.warn("Schematic block adapter failed during placement", error);
+                return new SchematicResult(SchematicResult.Status.FAILED, "Schematic block adapter failed");
+            }
+        }
         EntitySchematicAdapter entityAdapter = findEntityAdapter(element).orElse(null);
-        if (entityAdapter != null) return entityAdapter.place(element, context);
+        if (entityAdapter != null) {
+            try {
+                return java.util.Objects.requireNonNull(entityAdapter.place(element, context));
+            } catch (RuntimeException error) {
+                BCLog.logger.warn("Schematic entity adapter failed during placement", error);
+                return new SchematicResult(SchematicResult.Status.FAILED, "Schematic entity adapter failed");
+            }
+        }
         return new SchematicResult(SchematicResult.Status.FAILED, "No schematic adapter for " + element.typeId());
     }
 
     public Optional<SchematicAdapter> findBlockAdapter(SnapshotElement element) {
-        return blockAdapters().stream().filter(adapter -> adapter.supportsElement(element)).findFirst();
+        for (SchematicAdapter adapter : blockAdapters()) {
+            try {
+                if (adapter.supportsElement(element)) return Optional.of(adapter);
+            } catch (RuntimeException error) {
+                BCLog.logger.warn("Schematic block adapter failed to inspect element", error);
+            }
+        }
+        return Optional.empty();
     }
 
     public Optional<EntitySchematicAdapter> findEntityAdapter(SnapshotElement element) {
-        return entityAdapters().stream().filter(adapter -> adapter.supportsElement(element)).findFirst();
+        for (EntitySchematicAdapter adapter : entityAdapters()) {
+            try {
+                if (adapter.supportsElement(element)) return Optional.of(adapter);
+            } catch (RuntimeException error) {
+                BCLog.logger.warn("Schematic entity adapter failed to inspect element", error);
+            }
+        }
+        return Optional.empty();
     }
 
     private static List<SchematicAdapter> blockAdapters() {

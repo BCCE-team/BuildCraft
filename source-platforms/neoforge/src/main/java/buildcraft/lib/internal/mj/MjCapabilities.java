@@ -2,7 +2,11 @@ package buildcraft.lib.internal.mj;
 
 import javax.annotation.Nonnull;
 import net.minecraft.core.Direction;
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.neoforged.neoforge.capabilities.BlockCapability;
 
 /** Loader-specific MJ capability tokens kept strictly inside BCCE Lib. */
@@ -20,7 +24,12 @@ public final class MjCapabilities {
     @Nonnull public static final BlockCapability<IMjPassiveProvider, Direction> CAP_PASSIVE_PROVIDER =
         BlockCapability.createSided(id("mj_passive_provider"), IMjPassiveProvider.class);
 
+//? if mc_26_x {
+    private static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath("buildcraftlib", path);
+//? } else {
     private static ResourceLocation id(String path) {
         return ResourceLocation.fromNamespaceAndPath("buildcraftlib", path);
+//?}
     }
 }

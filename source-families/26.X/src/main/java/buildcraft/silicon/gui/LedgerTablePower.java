@@ -1,0 +1,48 @@
+/*
+ * Copyright (c) 2017 SpaceToad and the BuildCraft team
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/
+ */
+
+package buildcraft.silicon.gui;
+
+import buildcraft.lib.internal.core.render.ISprite;
+import buildcraft.lib.BCLibSprites;
+import buildcraft.lib.gui.BuildCraftGui;
+import buildcraft.lib.gui.GuiIcon;
+import buildcraft.lib.gui.config.GuiConfigManager;
+import buildcraft.lib.gui.ledger.Ledger_Neptune;
+import buildcraft.lib.misc.LocaleUtil;
+import buildcraft.silicon.tile.TileLaserTableBase;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+
+public class LedgerTablePower extends Ledger_Neptune {
+    private static final int OVERLAY_COLOUR = 0xFF_D4_6C_1F;
+    private static final int SUB_HEADER_COLOUR = 0xFF_AA_AF_b8;
+    private static final int TEXT_COLOUR = 0xFF_00_00_00;
+
+    public final TileLaserTableBase tile;
+
+    public LedgerTablePower(BuildCraftGui gui, TileLaserTableBase tile, boolean expandPositive) {
+        super(gui, OVERLAY_COLOUR, expandPositive);
+        this.tile = tile;
+        title = Component.translatable("gui.power");
+
+        appendText(Component.literal(LocaleUtil.localize("gui.assemblyCurrentRequired") + ":"), SUB_HEADER_COLOUR).setDropShadow(true);
+        appendText(() -> LocaleUtil.localizeMj(tile.getGuiTarget()), TEXT_COLOUR);
+        appendText(Component.literal(LocaleUtil.localize("gui.stored") + ":"), SUB_HEADER_COLOUR).setDropShadow(true);
+        appendText(() -> LocaleUtil.localizeMj(tile.power), TEXT_COLOUR);
+        appendText(Component.literal(LocaleUtil.localize("gui.assemblyRate") + ":"), SUB_HEADER_COLOUR).setDropShadow(true);
+        appendText(() -> LocaleUtil.localizeMjFlow(tile.avgPowerClient), TEXT_COLOUR);
+        calculateMaxSize();
+
+        setOpenProperty(GuiConfigManager.getOrAddBoolean(Identifier.parse("buildcraftsilicon:all_tables"), "ledger.power.is_open", false));
+    }
+
+    protected void drawIcon(GuiGraphicsExtractor guiGraphics, double x, double y) {
+        ISprite sprite = tile.avgPowerClient > 0 ? BCLibSprites.ENGINE_ACTIVE : BCLibSprites.ENGINE_INACTIVE;
+        GuiIcon.draw(guiGraphics, sprite, x, y, x + 16, y + 16);
+    }
+}

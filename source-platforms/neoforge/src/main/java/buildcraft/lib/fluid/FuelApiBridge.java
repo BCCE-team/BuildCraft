@@ -14,16 +14,29 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
+//? if mc_26_x {
+import net.minecraft.resources.Identifier;
+//? } else {
 import net.minecraft.resources.ResourceLocation;
+//?}
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
 import net.neoforged.neoforge.fluids.FluidStack;
+//? if mc_26_x {
+import buildcraft.lib.compat.NbtCompat;
+//? } else {
+//?}
 
 /** NeoForge bridge for the loader-neutral API 2 fuel/coolant domain. */
 public final class FuelApiBridge {
+//? if mc_26_x {
+    private static final Identifier COMPONENT_FORMAT =
+            Identifier.fromNamespaceAndPath("buildcraftlib", "neoforge_fluid_components");
+//? } else {
     private static final ResourceLocation COMPONENT_FORMAT =
             ResourceLocation.fromNamespaceAndPath("buildcraftlib", "neoforge_fluid_components");
+//?}
 
     public static final FluidMatchContext MATCH_CONTEXT = FuelApiBridge::isInTag;
 
@@ -34,17 +47,29 @@ public final class FuelApiBridge {
             throw new IllegalArgumentException("Cannot create API fluid variant from an empty FluidStack");
         }
 
+//? if mc_26_x {
+        Identifier id = BuiltInRegistries.FLUID.getKey(stack.getFluid());
+//? } else {
         ResourceLocation id = BuiltInRegistries.FLUID.getKey(stack.getFluid());
+//?}
         if (id == null) {
             throw new IllegalArgumentException("Unregistered fluid: " + stack.getFluid());
         }
 
         CompoundTag serialized = FluidStackUtil.saveOptional(stack);
+//? if mc_26_x {
+        if (!NbtCompat.contains(serialized, "components", Tag.TAG_COMPOUND)) {
+//? } else {
         if (!serialized.contains("components", Tag.TAG_COMPOUND)) {
+//?}
             return FluidVariant.of(id);
         }
 
+//? if mc_26_x {
+        CompoundTag components = NbtCompat.getCompound(serialized, "components");
+//? } else {
         CompoundTag components = serialized.getCompound("components");
+//?}
         if (components.isEmpty()) {
             return FluidVariant.of(id);
         }
@@ -64,8 +89,9 @@ public final class FuelApiBridge {
         }
 
         FluidComponentPayload components = variant.components();
-        if (components.isEmpty() || !components.formatId().filter(COMPONENT_FORMAT::equals).isPresent()) {
-            return new FluidStack(fluid, amount);
+        if (components.isEmpty()) return new FluidStack(fluid, amount);
+        if (!components.formatId().filter(COMPONENT_FORMAT::equals).isPresent()) {
+            return FluidStack.EMPTY;
         }
 
         try {
@@ -78,7 +104,8 @@ public final class FuelApiBridge {
 
             return FluidStackUtil.parseOptional(serialized);
         } catch (IOException | RuntimeException e) {
-            return new FluidStack(fluid, amount);
+            // Invalid or foreign component payload must not be converted to an untagged fluid.
+            return FluidStack.EMPTY;
         }
     }
     public static FluidStack stackOf(FluidVolume volume) {
@@ -103,7 +130,11 @@ public final class FuelApiBridge {
         return !candidateStack.isEmpty() && FluidCompatRegistry.areEquivalent(template, candidateStack);
     }
 
+//? if mc_26_x {
+    private static boolean isInTag(Identifier fluidId, Identifier tagId) {
+//? } else {
     private static boolean isInTag(ResourceLocation fluidId, ResourceLocation tagId) {
+//?}
         Fluid fluid = BuiltInRegistries.FLUID.getOptional(fluidId).orElse(Fluids.EMPTY);
         return fluid != Fluids.EMPTY && fluid.is(TagKey.create(Registries.FLUID, tagId));
     }

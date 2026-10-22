@@ -45,7 +45,10 @@ public class ListMatchHandlerFluid extends ListMatchHandlerBackend {
         }
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean matches(ListMatchType type, @Nonnull ItemStack stack, @Nonnull ItemStack target, boolean precise) {
         if (type == ListMatchType.TYPE) {
             IFluidHandlerItem fluidHandlerStack = FluidUtil.getFluidHandler(stack.copy()).orElse(null);
@@ -71,7 +74,10 @@ public class ListMatchHandlerFluid extends ListMatchHandlerBackend {
         return false;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean isValidSource(ListMatchType type, @Nonnull ItemStack stack) {
         if (type == ListMatchType.TYPE) {
             return FluidUtil.getFluidHandler(stack).isPresent();
@@ -81,7 +87,10 @@ public class ListMatchHandlerFluid extends ListMatchHandlerBackend {
         return false;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public NonNullList<ItemStack> getClientExamples(ListMatchType type, @Nonnull ItemStack stack) {
         buildClientExampleList();
         if (type == ListMatchType.MATERIAL) {

@@ -82,7 +82,8 @@ public interface IPipeHolder extends IRedstoneStatementContainer {
         PLUGGABLE_SOUTH(Direction.SOUTH),
         PLUGGABLE_WEST(Direction.WEST),
         PLUGGABLE_EAST(Direction.EAST),
-        WIRES(null);
+        WIRES(null),
+        API_COMPONENTS(null);
         // Wires are updated differently (they never use this API)
 
         public static final PipeMessageReceiver[] VALUES = values();

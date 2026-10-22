@@ -1,0 +1,19 @@
+{
+  "parent": "buildcraftcore:root",
+  "display": {
+    "icon": {
+      "id": "buildcraftcore:engine_redstone"
+    },
+    "title": {
+      "text": "Free Power"
+    },
+    "description": {
+      "text": "Generate MJ with a redstone engine"
+    }
+  },
+  "criteria": {
+    "code_trigger": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

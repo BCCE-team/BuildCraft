@@ -58,7 +58,7 @@ public class ItemRedstoneBoard extends Item {
         BoardEntry board = BCRoboticsBoards.getBoard(stack);
         if (board != BCRoboticsBoards.EMPTY) {
             String legacyKey = board.legacyLangKey();
-            tooltip.add(Component.translatable("buildcraft." + legacyKey).withStyle(ChatFormatting.BOLD));
+            tooltip.add(board.displayName().copy().withStyle(ChatFormatting.BOLD));
             tooltip.add(Component.translatable("buildcraft." + legacyKey + ".desc").withStyle(ChatFormatting.GRAY));
             if (board.isInDev()) {
                 tooltip.add(Component.translatable("tooltip.buildcraftrobotics.in_dev").withStyle(ChatFormatting.RED));

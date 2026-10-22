@@ -13,6 +13,7 @@ import buildcraft.lib.fluid.BCFluid;
 import buildcraft.lib.fluid.FluidCompatRegistry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.Item;
@@ -25,6 +26,7 @@ import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.material.PushReaction;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.common.SoundActions;
 import net.neoforged.neoforge.fluids.BaseFlowingFluid;
 import net.neoforged.neoforge.fluids.FluidType;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
@@ -176,6 +178,8 @@ public final class BCEnergyFluids {
         BCRegistryEntry<BCFluidType> type = FLUID_TYPES.register(fullName, () -> new BCFluidType(
             FluidType.Properties.create()
                 .canSwim(false)
+                .sound(SoundActions.BUCKET_FILL, SoundEvents.BUCKET_FILL)
+                .sound(SoundActions.BUCKET_EMPTY, SoundEvents.BUCKET_EMPTY)
                 .density(boilAdjustedDensity)
                 .viscosity(tempAdjustedViscosity)
                 .temperature(300 + 50 * heat)
@@ -196,6 +200,9 @@ public final class BCEnergyFluids {
         BCRegistryEntry<LiquidBlock> block = BCEnergyBlocks.BLOCKS.register(fullName, () -> new BCLiquidBlock(
             source.get(),
             BlockBehaviour.Properties.of()
+//? if >=1.21.11 {
+                .overrideDescription("fluid_type.buildcraftenergy." + fullName)
+//? }
                 .mapColor(MapColor.COLOR_BLACK)
                 .replaceable()
                 .noCollission()
@@ -230,6 +237,9 @@ public final class BCEnergyFluids {
         SPOUT_OIL_BLOCK = BCEnergyBlocks.BLOCKS.register("spout_oil", () -> new BCLiquidBlock(
             source.get(),
             BlockBehaviour.Properties.of()
+//? if >=1.21.11 {
+                .overrideDescription("fluid_type.buildcraftenergy.oil")
+//? }
                 .mapColor(MapColor.COLOR_BLACK)
                 .replaceable()
                 .noCollission()

@@ -64,7 +64,7 @@ for platform in ("forge", "neoforge"):
     )
 
 # Path markers have their own possible-connection laser and must not fall back to generic marker visuals.
-for family in ("legacy", "modern"):
+for family in ("old", "1.21.X"):
     rel = f"source-families/{family}/src/main/java/buildcraft/core/marker/PathSubCache.java"
     require(rel, "BuildCraftLaserManager.MARKER_PATH_POSSIBLE")
     forbid(rel, "return null;//BuildCraftLaserManager.MARKER_PATH_POSSIBLE")
@@ -89,7 +89,7 @@ require(
 )
 
 for rel in (
-    "source-families/modern/src/main/resources/assets/minecraft/atlases/blocks.json",
+    "source-families/1.21.X/src/main/resources/assets/minecraft/atlases/blocks.json",
 ):
     text = read(rel)
     try:

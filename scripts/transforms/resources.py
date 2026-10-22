@@ -34,7 +34,7 @@ def _rewrite_legacy_ingredient_json(value):
     return value
 
 
-def _rewrite_121111_recipe_json(text: str, normalized: str) -> str:
+def _rewrite_1_21_11_recipe_json(text: str, normalized: str) -> str:
     if "/data/" not in normalized or "/recipe/" not in normalized or not normalized.endswith(".json"):
         return text
     try:
@@ -89,31 +89,36 @@ def _minecraft_model_client_item(model: str) -> str:
     }, indent=2, ensure_ascii=False) + "\n"
 
 
-def _dynamic_fluid_bucket_client_item_121111(fluid: str) -> str:
-    # Minecraft 1.21.11 moved dynamic item-model selection into assets/<ns>/items.
-    # NeoForge 21.11.x requires an explicit fallback `fluid` in the
-    # DynamicFluidContainerModel codec (fieldOf("fluid")); omitting it makes
-    # the entire client item fail to decode and render as missingno. BucketItem
-    # still exposes its contained fluid at runtime, but the static fluid id is
-    # mandatory and is also the correct fallback for an empty capability view.
-    return json.dumps({
-        "model": {
-            "type": "neoforge:fluid_container",
-            "textures": {
-                "particle": "minecraft:item/bucket",
-                "base": "minecraft:item/bucket",
-                "fluid": "neoforge:item/mask/bucket_fluid",
-                "cover": "neoforge:item/mask/bucket_fluid_cover",
-            },
-            "fluid": fluid,
-            "flip_gas": True,
-            "cover_is_mask": True,
-            "apply_fluid_luminosity": False,
-        },
-    }, indent=2, ensure_ascii=False) + "\n"
+def _dynamic_fluid_bucket_client_item_1_21_11(fluid: str, *, minecraft: str) -> str:
+    # For 26.2+, the vanilla bucket has a new pixel layout. Its visible
+    # liquid occupies *only* the open mouth (rows 3-5 of the 16x16 sprite).
+    # The old NeoForge mask covers part of the metal body and cannot be reused.
+    # Use our pixel-exact surface mask so metal pixels are never tinted and the
+    # 26.2/26.3 buckets use the current vanilla metal artwork, not legacy icons.
+    # Keep the earlier 1.21.11 and 26.1.2 model output unchanged.
+    textures = {
+        "particle": "minecraft:item/bucket",
+        "base": "minecraft:item/bucket",
+        "fluid": (
+            "buildcraftenergy:block/mask/bucket_surface"
+            if _version_tuple(minecraft) >= _version_tuple("26.2")
+            else "neoforge:item/mask/bucket_fluid"
+        ),
+    }
+    model = {
+        "type": "neoforge:fluid_container",
+        "textures": textures,
+        "fluid": fluid,
+        "flip_gas": True,
+        "apply_fluid_luminosity": False,
+    }
+    if _version_tuple(minecraft) == _version_tuple("1.21.11"):
+        textures["cover"] = "neoforge:item/mask/bucket_fluid_cover"
+        model["cover_is_mask"] = True
+    return json.dumps({"model": model}, indent=2, ensure_ascii=False) + "\n"
 
 
-def _buildcraftenergy_bucket_fluid_id_121111(item_path: str) -> str | None:
+def _buildcraftenergy_bucket_fluid_id_1_21_11(item_path: str) -> str | None:
     parts = item_path.split("/")
     if len(parts) != 2:
         return None
@@ -133,14 +138,14 @@ def _buildcraftenergy_bucket_fluid_id_121111(item_path: str) -> str | None:
     return f"buildcraftenergy:{fluid_path}"
 
 
-def _buildcraftenergy_bucket_item_path_121111(normalized: str, marker: str) -> str | None:
+def _buildcraftenergy_bucket_item_path_1_21_11(normalized: str, marker: str) -> str | None:
     if marker not in normalized or not normalized.endswith(".json"):
         return None
     item_path = normalized.split(marker, 1)[1].removesuffix(".json")
     return item_path if "/" in item_path and item_path.endswith("_bucket") else None
 
 
-PIPE_ITEM_TEXTURE_ALIASES_121111 = {
+PIPE_ITEM_TEXTURE_ALIASES_1_21_11 = {
     # Match PipeDefinitionBuilder.itemTex(...) / the inherited texture suffixes
     # used by BCTransportPipes.  The old dynamic ModelPipeItem selected these
     # sprites at runtime; 1.21.11 no longer installs that legacy baked model.
@@ -166,11 +171,11 @@ PIPE_ITEM_TEXTURE_ALIASES_121111 = {
 }
 
 
-def _pipe_item_texture_121111(item: str) -> str:
-    return PIPE_ITEM_TEXTURE_ALIASES_121111.get(item, item)
+def _pipe_item_texture_1_21_11(item: str) -> str:
+    return PIPE_ITEM_TEXTURE_ALIASES_1_21_11.get(item, item)
 
 
-def _pipe_3d_item_model_121111(texture: str) -> str:
+def _pipe_3d_item_model_1_21_11(texture: str) -> str:
     """Recreate the legacy ModelPipeItem body with vanilla 1.21.11 model JSON.
 
     ModelPipeItem renders an 8x16x8 cuboid (x/z 4..12) using 4..12 cap UVs
@@ -204,36 +209,35 @@ def _pipe_3d_item_model_121111(texture: str) -> str:
     }, indent=2, ensure_ascii=False) + "\n"
 
 
-def _is_121111_buildcraftenergy_bucket_client_item(normalized: str) -> bool:
-    return _buildcraftenergy_bucket_item_path_121111(normalized, "/assets/buildcraftenergy/items/") is not None
+def _is_1_21_11_buildcraftenergy_bucket_client_item(normalized: str) -> bool:
+    return _buildcraftenergy_bucket_item_path_1_21_11(normalized, "/assets/buildcraftenergy/items/") is not None
 
 
-def _is_121111_buildcraftenergy_bucket_item_model(normalized: str) -> bool:
-    return _buildcraftenergy_bucket_item_path_121111(normalized, "/assets/buildcraftenergy/models/item/") is not None
+def _is_1_21_11_buildcraftenergy_bucket_item_model(normalized: str) -> bool:
+    return _buildcraftenergy_bucket_item_path_1_21_11(normalized, "/assets/buildcraftenergy/models/item/") is not None
 
 
-def _buildcraftenergy_bucket_client_item_121111(normalized: str) -> str:
-    item_path = _buildcraftenergy_bucket_item_path_121111(normalized, "/assets/buildcraftenergy/items/")
+def _buildcraftenergy_bucket_client_item_1_21_11(normalized: str, *, minecraft: str) -> str:
+    item_path = _buildcraftenergy_bucket_item_path_1_21_11(normalized, "/assets/buildcraftenergy/items/")
     if item_path is None:
         return normalized
-    fluid = _buildcraftenergy_bucket_fluid_id_121111(item_path)
+    fluid = _buildcraftenergy_bucket_fluid_id_1_21_11(item_path)
     if fluid is None:
         return normalized
-    return _dynamic_fluid_bucket_client_item_121111(fluid)
+    return _dynamic_fluid_bucket_client_item_1_21_11(fluid, minecraft=minecraft)
 
 
-def _buildcraftenergy_bucket_generated_model_121111(normalized: str) -> str:
-    # The actual 1.21.11 bucket renderer now lives in the client-item definition
-    # above. Keep a harmless modern vanilla-bucket fallback for any legacy code
-    # that still resolves the old baked-model location directly; critically, do
-    # NOT point this back at BuildCraft's archived pre-1.21 bucket PNGs.
-    item_path = _buildcraftenergy_bucket_item_path_121111(normalized, "/assets/buildcraftenergy/models/item/")
+def _buildcraftenergy_bucket_generated_model_1_21_11(normalized: str, *, minecraft: str) -> str:
+    item_path = _buildcraftenergy_bucket_item_path_1_21_11(normalized, "/assets/buildcraftenergy/models/item/")
     if item_path is None:
         return ""
+    # The dynamic client-item definition renders the filled bucket. Its
+    # fallback model deliberately uses vanilla *empty* bucket artwork, never
+    # the pre-26.2 BuildCraft sprites that have the wrong metal silhouette.
     return _generated_item_model("minecraft:item/bucket")
 
 
-def _fallback_121111_item_model(normalized: str, text: str) -> str | None:
+def _fallback_1_21_11_item_model(normalized: str, text: str) -> str | None:
     """Return a simple generated item model for legacy dynamic item models.
 
     Keep only the compatibility fallback for legacy item-pipe models that still
@@ -253,13 +257,13 @@ def _fallback_121111_item_model(normalized: str, text: str) -> str | None:
             return None
         stripped = text.strip().replace(" ", "")
         if stripped == '{"parent":"block/block"}' or '"parent": "block/block"' in text:
-            texture = _pipe_item_texture_121111(item)
-            return _pipe_3d_item_model_121111(f"buildcrafttransport:pipes/{texture}")
+            texture = _pipe_item_texture_1_21_11(item)
+            return _pipe_3d_item_model_1_21_11(f"buildcrafttransport:pipes/{texture}")
 
     return None
 
 
-def _apply_121111_resource_compat(text: str, *, minecraft: str, relative: str) -> str:
+def _apply_1_21_11_resource_compat(text: str, *, minecraft: str, relative: str) -> str:
     """Apply 1.21.11 resource-pack/model compatibility rewrites.
 
     Minecraft 1.21.11 validates packs above format 64 with the newer
@@ -269,7 +273,7 @@ def _apply_121111_resource_compat(text: str, *, minecraft: str, relative: str) -
     The recipe ingredient JSON shape also changed from legacy {item/tag}
     objects to holder strings, and NeoForge 21.11 no longer exposes the old
     fluid-container JSON model loaders that the 1.21.1 resource layer used.
-    Keep this as a materialization-only bridge so the maintained modern
+    Keep this as a materialization-only bridge so the maintained 1.21.X
     resources can still serve 1.21.1.
     """
     if _version_tuple(minecraft) < _version_tuple("1.21.11"):
@@ -288,13 +292,13 @@ def _apply_121111_resource_compat(text: str, *, minecraft: str, relative: str) -
         return text
 
     if normalized.endswith(".json") and "/recipe/" in normalized and "/data/" in normalized:
-        text = _rewrite_121111_recipe_json(text, normalized)
+        text = _rewrite_1_21_11_recipe_json(text, normalized)
 
-    if _is_121111_buildcraftenergy_bucket_client_item(normalized):
-        return _buildcraftenergy_bucket_client_item_121111(normalized)
+    if _is_1_21_11_buildcraftenergy_bucket_client_item(normalized):
+        return _buildcraftenergy_bucket_client_item_1_21_11(normalized, minecraft=minecraft)
 
-    if _is_121111_buildcraftenergy_bucket_item_model(normalized):
-        return _buildcraftenergy_bucket_generated_model_121111(normalized)
+    if _is_1_21_11_buildcraftenergy_bucket_item_model(normalized):
+        return _buildcraftenergy_bucket_generated_model_1_21_11(normalized, minecraft=minecraft)
 
     if not normalized.endswith(".json") or "/models/item/" not in normalized:
         return text
@@ -302,7 +306,7 @@ def _apply_121111_resource_compat(text: str, *, minecraft: str, relative: str) -
     if '"loader": "buildcraftcore:fragile_fluid_container"' in text:
         return _generated_item_model("buildcraftcore:items/fragile_fluid_shard_base")
 
-    fallback = _fallback_121111_item_model(normalized, text)
+    fallback = _fallback_1_21_11_item_model(normalized, text)
     if fallback is not None:
         return fallback
 
@@ -311,11 +315,67 @@ def _apply_121111_resource_compat(text: str, *, minecraft: str, relative: str) -
 
 
 
+
+def _upgrade_263_advancement_triggers(text: str, *, minecraft: str, normalized: str) -> str:
+    """Translate legacy advancement criteria into Minecraft 26.3's codecs.
+
+    Keep the maintained 1.21.X advancement JSON unchanged. In 26.3 the
+    minecraft:recipe_unlocked trigger renamed `recipe` to `recipes`, and
+    minecraft:enter_block renamed `block` to `blocks`. Both new fields still
+    accept a single namespaced ID. Do not change recipe rewards, the criteria
+    names, or the OR requirements: that would change player progression.
+    """
+    if (_version_tuple(minecraft) < _version_tuple("26.3")
+            or not normalized.endswith(".json")
+            or "/data/" not in normalized
+            or "/advancement/" not in normalized):
+        return text
+
+    data = json.loads(text)
+    if not isinstance(data, dict) or not isinstance(data.get("criteria"), dict):
+        return text
+
+    changed = False
+    renamed = {
+        "minecraft:recipe_unlocked": ("recipe", "recipes"),
+        "minecraft:enter_block": ("block", "blocks"),
+    }
+    for name, criterion in data["criteria"].items():
+        if not isinstance(criterion, dict):
+            continue
+        fields = renamed.get(criterion.get("trigger"))
+        conditions = criterion.get("conditions")
+        if fields is None or not isinstance(conditions, dict):
+            continue
+        old_key, new_key = fields
+        if old_key not in conditions:
+            continue
+        if new_key in conditions:
+            raise ValueError(f"{normalized}: conflicting {old_key}/{new_key} in criterion {name}")
+        conditions[new_key] = conditions.pop(old_key)
+        changed = True
+
+    return json.dumps(data, indent=2, ensure_ascii=False) + "\n" if changed else text
+
+
 def apply_resource_transforms(text: str, *, minecraft: str, relative: str) -> str:
-    text = _apply_121111_resource_compat(text, minecraft=minecraft, relative=relative)
+    text = _apply_1_21_11_resource_compat(text, minecraft=minecraft, relative=relative)
     normalized = relative.replace("\\", "/")
+    text = _upgrade_263_advancement_triggers(text, minecraft=minecraft, normalized=normalized)
     text = _downport_legacy_oil_placement(text, minecraft=minecraft, normalized=normalized)
     text = _augment_legacy_120_block_atlas(text, minecraft=minecraft, normalized=normalized)
+    if (_version_tuple(minecraft) >= _version_tuple("26.2")
+            and normalized.endswith("assets/minecraft/atlases/blocks.json")):
+        # NeoForge's fluid-container textures are read from the *block* atlas.
+        # The item atlas alone cannot supply the bucket-fluid surface mask.
+        atlas = json.loads(text)
+        entry = {
+            "type": "minecraft:single",
+            "resource": "buildcraftenergy:block/mask/bucket_surface",
+        }
+        if entry not in atlas["sources"]:
+            atlas["sources"].append(entry)
+            return json.dumps(atlas, indent=2, ensure_ascii=False) + "\n"
     return text
 
 
@@ -324,8 +384,8 @@ def generate_modern_item_definitions(destination_root: Path, *, minecraft: str) 
 
     For models without legacy predicate overrides, each definition is fully
     deterministic: it either points at the same item model or uses NeoForge's
-    fluid-container model for BuildCraft Energy buckets. Predicate-driven items are maintained as canonical modern resources in the
-    modern family; only one-to-one definitions are generated here.
+    fluid-container model for BuildCraft Energy buckets. Predicate-driven items are maintained as canonical 1.21.X resources in the
+    1.21.X family; only one-to-one definitions are generated here.
     """
     if _version_tuple(minecraft) < _version_tuple("1.21.11"):
         return 0
@@ -360,12 +420,12 @@ def generate_modern_item_definitions(destination_root: Path, *, minecraft: str) 
 
             content: str
             fluid = (
-                _buildcraftenergy_bucket_fluid_id_121111(item_path)
+                _buildcraftenergy_bucket_fluid_id_1_21_11(item_path)
                 if namespace == "buildcraftenergy"
                 else None
             )
             if fluid is not None:
-                content = _dynamic_fluid_bucket_client_item_121111(fluid)
+                content = _dynamic_fluid_bucket_client_item_1_21_11(fluid, minecraft=minecraft)
             else:
                 content = _minecraft_model_client_item(f"{namespace}:item/{item_path}")
 
@@ -470,7 +530,7 @@ def _write_generated_text(path: Path, text: str) -> None:
 def generate_legacy_forge_energy_tags(
     destination_root: Path, *, minecraft: str, family: str, platform: str
 ) -> int:
-    if family != "legacy" or platform != "forge":
+    if family != "old" or platform != "forge":
         return 0
     if _version_tuple(minecraft) not in {_version_tuple("1.19.2"), _version_tuple("1.20.1")}:
         return 0
@@ -511,7 +571,7 @@ def _ic2_cell_model(fluid: str) -> dict[str, object]:
 def generate_legacy_ic2_cell_models(
     destination_root: Path, *, minecraft: str, family: str, platform: str
 ) -> int:
-    if family != "legacy" or platform != "forge" or _version_tuple(minecraft) >= _version_tuple("1.20"):
+    if family != "old" or platform != "forge" or _version_tuple(minecraft) >= _version_tuple("1.20"):
         return 0
     root = destination_root / "src/main/resources/assets/buildcraftenergy/models/item/ic2_cell"
     generated = 0
@@ -585,7 +645,7 @@ def _augment_legacy_120_block_atlas(text: str, *, minecraft: str, normalized: st
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
 
-CANONICAL_MODERN_RESOURCE_ROOT = ROOT / "source-families/modern/src/main/resources"
+CANONICAL_121X_RESOURCE_ROOT = ROOT / "source-families/1.21.X/src/main/resources"
 VERSIONED_RESOURCE_ROOT = ROOT / "resource-src"
 
 
@@ -625,20 +685,25 @@ def install_versioned_resource_sources(
             output.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, output)
             installed += 1
+    if family == "26.X" and _version_tuple(minecraft) >= _version_tuple("26.3"):
+        # ConfiguredFeature registry was removed. The entire Feature config is now inline
+        # inside the placed feature JSON; do not emit a stale configured_feature resource.
+        obsolete = output_root / "data/buildcraftenergy/worldgen/configured_feature/oil_configured_feature.json"
+        obsolete.unlink(missing_ok=True)
     return installed
 
 
 def generate_legacy_resources_from_modern_canonical(
     destination_root: Path, *, minecraft: str, family: str, platform: str
 ) -> int:
-    """Downport selected newest-format resources into the legacy family.
+    """Downport selected newest-format resources into the old family.
 
     These resources are identical between 1.20.1 and modern, or have a small
     deterministic 1.19/1.20 compatibility transform. Keeping one authoritative
     copy avoids large target overlays without moving version conditions into
     the shared source layer.
     """
-    if family != "legacy" or platform != "forge":
+    if family != "old" or platform != "forge":
         return 0
 
     always = (
@@ -655,9 +720,9 @@ def generate_legacy_resources_from_modern_canonical(
 
     generated = 0
     for rel in rels:
-        source = CANONICAL_MODERN_RESOURCE_ROOT / rel
+        source = CANONICAL_121X_RESOURCE_ROOT / rel
         if not source.is_file():
-            raise ValueError(f"missing canonical modern resource: {source}")
+            raise ValueError(f"missing canonical 1.21.X resource: {source}")
         text = source.read_text(encoding="utf-8")
         normalized = f"src/main/resources/{rel}"
         text = _downport_legacy_oil_placement(text, minecraft=minecraft, normalized=normalized)

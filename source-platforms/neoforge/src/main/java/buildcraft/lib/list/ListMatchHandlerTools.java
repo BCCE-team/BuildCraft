@@ -39,7 +39,10 @@ public class ListMatchHandlerTools extends ListMatchHandlerBackend {
         return types;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean matches(ListMatchType type, @Nonnull ItemStack stack, @Nonnull ItemStack target, boolean precise) {
         if (type != ListMatchType.TYPE) {
             return false;
@@ -54,7 +57,10 @@ public class ListMatchHandlerTools extends ListMatchHandlerBackend {
         return precise ? sourceTypes == targetTypes : (targetTypes & sourceTypes) == sourceTypes;
     }
 
+//? if mc_26_x {
+//? } else {
     @Override
+//?}
     public boolean isValidSource(ListMatchType type, @Nonnull ItemStack stack) {
         return type == ListMatchType.TYPE && getToolTypes(stack) != 0;
     }
