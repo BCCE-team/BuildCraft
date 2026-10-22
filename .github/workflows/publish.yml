@@ -5,7 +5,7 @@ on:
     types: [published]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: publish-${{ github.event.release.tag_name }}
@@ -190,6 +190,8 @@ jobs:
     name: Publish versions sequentially
     needs: [metadata, build]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - name: Download old artifacts
         uses: actions/download-artifact@v4
