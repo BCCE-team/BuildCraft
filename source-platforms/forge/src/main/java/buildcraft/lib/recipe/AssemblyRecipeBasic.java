@@ -79,7 +79,7 @@ public abstract class AssemblyRecipeBasic implements Recipe<Container>, Comparab
 	            return false;
 	        }
 
-	        AssemblyRecipe that = (AssemblyRecipe) o;
+	        AssemblyRecipeBasic that = (AssemblyRecipeBasic) o;
 
 	        return name.equals(that.name);
 	    }

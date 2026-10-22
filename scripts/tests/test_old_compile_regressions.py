@@ -6,6 +6,7 @@ so source-family overlays and target-specific preprocessing remain covered.
 """
 from __future__ import annotations
 
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -28,6 +29,7 @@ SOURCES = (
     "robotics/SimpleRobotRegistryProvider.java",
     "transport/pipe/flow/PipeFlowFluids.java",
     "transport/wire/MessageWireSystems.java",
+    "lib/recipe/AssemblyRecipeBasic.java",
 )
 
 
@@ -102,6 +104,54 @@ class OldForgeCompilerRegressionTests(unittest.TestCase):
                 self.assertIn("FluidStack copied = original.copy();", source)
                 self.assertIn("copied.setAmount(Math.max(0, millibuckets));", source)
                 self.assertIn("restoreUnexpectedFluid(fluidHandler, copyWithAmount(toAdd,", source)
+
+    def test_forge_assembly_equality_handles_facade_jei_wrappers(self):
+        # Execute the actual materialized equals implementation with the same
+        # subclass hierarchy used by facades and JEI. List.equals exercises
+        # the recipe reconciliation path that crashed clients on 8.0.24.
+        for target in TARGETS[:2]:
+            source = self.source(target, SOURCES[6])
+            start = source.index("public boolean equals(Object o)")
+            opening = source.index("{", start)
+            depth = 1
+            end = opening + 1
+            while depth:
+                depth += (source[end] == "{") - (source[end] == "}")
+                end += 1
+            equals_method = source[start:end]
+            fixture = """import java.util.List;
+public class AssemblyEqualsProbe {
+    static abstract class AssemblyRecipeBasic {
+        protected final String name;
+        AssemblyRecipeBasic(String name) { this.name = name; }
+        /* EQUALS_METHOD */
+    }
+    static final class AssemblyRecipe extends AssemblyRecipeBasic {
+        AssemblyRecipe(String name) { super(name); }
+    }
+    static class FacadeAssemblyRecipes extends AssemblyRecipeBasic {
+        FacadeAssemblyRecipes(String name) { super(name); }
+    }
+    static final class FacadeAssemblyJeiRecipe extends FacadeAssemblyRecipes {
+        FacadeAssemblyJeiRecipe(String name) { super(name); }
+    }
+    public static void main(String[] args) {
+        List<AssemblyRecipeBasic> oldRecipes = List.of(new FacadeAssemblyJeiRecipe("facades"));
+        List<AssemblyRecipeBasic> refreshedRecipes = List.of(new FacadeAssemblyJeiRecipe("facades"));
+        if (!oldRecipes.equals(refreshedRecipes)) throw new AssertionError("same facade recipe not equal");
+        if (oldRecipes.equals(List.of(new FacadeAssemblyJeiRecipe("other"))))
+            throw new AssertionError("different facade ids compared equal");
+        if (oldRecipes.equals(List.of(new AssemblyRecipe("facades"))))
+            throw new AssertionError("different recipe subclasses compared equal");
+    }
+}
+""".replace("/* EQUALS_METHOD */", equals_method)
+            with tempfile.TemporaryDirectory(prefix="bcce-facade-equals-") as temp_dir:
+                src = Path(temp_dir) / "AssemblyEqualsProbe.java"
+                src.write_text(fixture, encoding="utf-8")
+                subprocess.run(["javac", str(src)], check=True, capture_output=True, text=True)
+                subprocess.run(["java", "-cp", temp_dir, "AssemblyEqualsProbe"],
+                               check=True, capture_output=True, text=True)
 
     def test_wire_snapshots_only_send_to_server_players(self):
         for target in TARGETS:
