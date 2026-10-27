@@ -77,9 +77,6 @@ public class BCBuilders {
         BCBuildersConfig.preInit();
         BCBuildersRegistries.preInit();
         BCBuildersGuis.preInit(RegistryBinding.on(modEventBus));
-        modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCBuildersConfig.config));
-        ConfigScreenRegistration.register(modContainer);
-        ConfigBinding.listen(modEventBus, BCBuildersConfig::onLoadConfig, BCBuildersConfig::onReloadConfig);
 
 
         MessageManager.registerMessageClass(BCModules.BUILDERS, MessageSnapshotRequest.class,

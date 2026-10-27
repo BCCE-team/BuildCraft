@@ -3,6 +3,7 @@ package buildcraft.robotics.ai;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import net.minecraft.world.phys.Vec3;
+import buildcraft.lib.balance.BalanceConfig;
 
 public abstract class AIRobotGoto extends AIRobot {
     private static final double ROBOT_MOVE_SPEED = 0.15D;
@@ -28,7 +29,9 @@ public abstract class AIRobotGoto extends AIRobot {
         } else {
             dirX = dirY = dirZ = 0;
         }
-        robot.setDeltaMovement(new Vec3(dirX * ROBOT_MOVE_SPEED, dirY * ROBOT_MOVE_SPEED, dirZ * ROBOT_MOVE_SPEED));
+        String key = robot.getBoard() == null ? "empty" : robot.getBoard().getNBTHandler().getID();
+        double speed = ROBOT_MOVE_SPEED * BalanceConfig.robot(key, "movement_speed_multiplier", 1.0);
+        robot.setDeltaMovement(new Vec3(dirX * speed, dirY * speed, dirZ * speed));
     }
 
     @Override

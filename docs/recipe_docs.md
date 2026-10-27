@@ -1,7 +1,5 @@
 # BuildCraft recipe datapacks and absolute blacklists
 
-This document describes the machine-recipe datapack support introduced in this patch. It also distinguishes features already supported from planned extensions.
-
 ## Directory layout
 
 For Minecraft 1.19.2 and 1.20.1 (Forge):

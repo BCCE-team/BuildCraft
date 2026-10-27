@@ -47,7 +47,6 @@ public class BCBuilders {
     public BCBuilders() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(BCBuilders::commonSetup);
-        ConfigBinding.listen(modEventBus, BCBuildersConfig::onLoadConfig, BCBuildersConfig::onReloadConfig);
 
         BCBuildersBlocks.registry(RegistryBinding.on(modEventBus));
         BCBuildersItems.registry(RegistryBinding.on(modEventBus));
@@ -56,7 +55,6 @@ public class BCBuilders {
         BCBuildersConfig.preInit();
         BCBuildersRegistries.preInit();
         BCBuildersGuis.preInit(RegistryBinding.on(modEventBus));
-        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCBuildersConfig.config));
 
         MessageManager.registerMessageClass(BCModules.BUILDERS, MessageSnapshotRequest.class,
                 MessageSnapshotRequest.HANDLER, MessageSnapshotRequest::toBytes, MessageSnapshotRequest::new,

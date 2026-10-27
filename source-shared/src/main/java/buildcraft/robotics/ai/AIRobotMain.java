@@ -1,6 +1,7 @@
 package buildcraft.robotics.ai;
 
 import buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot;
+import buildcraft.lib.balance.BalanceConfig;
 import buildcraft.robotics.internal.api2.ApiTaskAI;
 import buildcraft.robotics.internal.legacy.robots.RobotManager;
 import net.minecraft.nbt.CompoundTag;
@@ -92,8 +93,11 @@ public class AIRobotMain extends AIRobot {
                 + Math.abs(robot.getY() - targetY)
                 + Math.abs(robot.getZ() - targetZ);
 
-        long movementTicks = (long) Math.ceil(pathBlocks / MOVE_SPEED_PER_TICK);
-        long estimatedMovement = movementTicks * MOVE_ENERGY_PER_TICK;
+        String key = robot.getBoard() == null ? "empty" : robot.getBoard().getNBTHandler().getID();
+        double speed = MOVE_SPEED_PER_TICK * BalanceConfig.robot(key, "movement_speed_multiplier", 1);
+        long movementTicks = (long) Math.ceil(pathBlocks / speed);
+        long estimatedMovement = Math.round(movementTicks * MOVE_ENERGY_PER_TICK
+            * BalanceConfig.robot(key, "energy_cost_multiplier", 1));
         long withMargin = estimatedMovement + estimatedMovement / 2L + RETURN_FIXED_RESERVE;
         long threshold = Math.max(EntityRobotBase.SAFETY_ENERGY, withMargin);
         return (int) Math.min(EntityRobotBase.MAX_ENERGY - 1L, threshold);

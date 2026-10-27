@@ -7,6 +7,7 @@
 package buildcraft.robotics.internal.legacy.robots;
 
 import net.minecraft.nbt.CompoundTag;
+import buildcraft.lib.balance.BalanceConfig;
 import net.minecraft.world.item.ItemStack;
 
 public class AIRobot {
@@ -120,7 +121,13 @@ public class AIRobot {
             if (delegateAI != null) {
                 delegateAI.cycle();
             } else {
-                robot.getBattery().extractPower(getEnergyCost());
+                int cost = getEnergyCost();
+                if (cost > 0) {
+                    String key = robot.getBoard() == null ? "empty" : robot.getBoard().getNBTHandler().getID();
+                    double multiplier = BalanceConfig.robot(key, "energy_cost_multiplier", 1.0);
+                    long energy = Math.max(1L, Math.min(Integer.MAX_VALUE, Math.round(cost * multiplier)));
+                    robot.getBattery().extractPower(energy);
+                }
                 update();
             }
         } catch (Throwable throwable) {

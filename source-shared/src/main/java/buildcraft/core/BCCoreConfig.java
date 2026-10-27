@@ -7,6 +7,7 @@
 package buildcraft.core;
 
 import buildcraft.lib.internal.mj.MjCapabilities;
+import buildcraft.lib.balance.BalanceConfig;
 import buildcraft.lib.internal.mj.MjFeConversion;
 import buildcraft.lib.BCLibConfig;
 import buildcraft.lib.BCLibConfig.ChunkLoaderLevel;
@@ -46,7 +47,6 @@ public class BCCoreConfig {
     private static BooleanValue propUseSwappableSprites;
     private static BooleanValue propMinePlayerProtected;
     private static BooleanValue propEnableAnimatedSprites;
-    private static BooleanValue propPumpsConsumeWater;
     private static BooleanValue propUseWrenchTag;
 
     private static IntValue propGuideItemSearchLimit;
@@ -54,16 +54,12 @@ public class BCCoreConfig {
     private static BCConfigSpec.EnumValue<BCLibConfig.PowerMode> propPowerMode;
     private static IntValue propMaxGuideSearchResults;
     private static IntValue propItemLifespan;
-    private static IntValue propMarkerMaxDistance;
-    private static IntValue propPumpMaxDistance;
     private static IntValue propNetworkUpdateRate;
-    private static IntValue propMiningMaxDepth;
 
     private static EnumValue<TimeGap> propDisplayTimeGap;
     private static EnumValue<ChunkLoaderLevel> propChunkLoadLevel;
     private static EnumValue<ChunkLoaderType> propChunkLoadType;
     private static EnumValue<RenderRotation> propItemRenderRotation;
-    private static DoubleValue propMiningMultiplier;
 
     public static void registry() {
         BCConfigSpec.Builder builder = new BCConfigSpec.Builder();
@@ -127,32 +123,13 @@ public class BCCoreConfig {
         propItemLifespan = builder.comment("How long, in seconds, should items stay on the ground? (Vanilla = 300, default = 60)")
             .defineInRange("itemLifespan", 60, 5, 600);
 
-        propPumpsConsumeWater = builder.comment(
-            "Should pumps consume water? Enabling this will disable minor optimisations,",
-            "but work properly with finite water mods."
-        ).define("pumpsConsumeWater", false);
-
         propUseWrenchTag = builder.comment(
             "Allow items in the common c:tools/wrench tag to operate BuildCraft wrench interactions.",
             "Legacy items implementing BuildCraft's IToolWrench interface remain supported even when disabled."
         ).define("useWrenchTag", true);
 
-        propMarkerMaxDistance = builder.comment("How far, in minecraft blocks, should markers (volume and path) reach?")
-            .defineInRange("markerMaxDistance", 64, 16, 256);
-
-        propPumpMaxDistance = builder.comment("How far, in minecraft blocks, should pumps reach in fluids? (Default: 64)")
-            .defineInRange("pumpMaxDistance", 64, 16, 128);
-
         propNetworkUpdateRate = builder.comment("How often, in ticks, should network update packets be sent? Increasing this might help network performance.")
             .defineInRange("updateFactor", 10, 1, 10);
-
-        propMiningMultiplier = builder.comment("How much power should be required for all mining machines?")
-            .defineInRange("miningMultiplier", 1.0, 1, 200);
-
-        propMiningMaxDepth = builder.comment(
-            "How much further down can miners (like the quarry or the mining well) dig?",
-            "(Note: values above 256 only have an effect if a mod like cubic chunks is installed)."
-        ).defineInRange("miningMaxDepth", 256, 32, 4096);
 
         propEnableAnimatedSprites = builder.comment("Disable this if you get sub-standard framerates due to buildcraft's ~60 sprites animating every frame.")
             .define("enableAnimatedSprites", true);
@@ -203,17 +180,17 @@ public class BCCoreConfig {
         BCLibConfig.useBucketsFlow = propUseBucketsFlow.get();
         BCLibConfig.useLongLocalizedName = propUseLongLocalizedName.get();
         BCLibConfig.itemLifespan = propItemLifespan.get();
-        pumpsConsumeWater = propPumpsConsumeWater.get();
+        pumpsConsumeWater = BalanceConfig.machineInt("buildcraftfactory:pump", "consume_water_sources", 0) != 0;
         BCLibConfig.useWrenchTag = propUseWrenchTag.get();
-        markerMaxDistance = propMarkerMaxDistance.get();
-        pumpMaxDistance = propPumpMaxDistance.get();
+        markerMaxDistance = BalanceConfig.machineInt("markers", "max_distance_blocks", 64);
+        pumpMaxDistance = BalanceConfig.machineInt("buildcraftfactory:pump", "max_distance_blocks", 64);
         networkUpdateRate = Mth.clamp(propNetworkUpdateRate.get(), 1, 10);
         BCLibConfig.colourBlindMode = propColourBlindMode.get();
         BCLibConfig.displayTimeGap = propDisplayTimeGap.get();
         BCLibConfig.rotateTravelingItems = propItemRenderRotation.get();
         BCLibConfig.enableAnimatedSprites = propEnableAnimatedSprites.get();
-        miningMultiplier = Mth.clamp(propMiningMultiplier.get(), 1, 200);
-        miningMaxDepth = propMiningMaxDepth.get();
+        miningMultiplier = BalanceConfig.machine("mining", "energy_multiplier", 1);
+        miningMaxDepth = BalanceConfig.machineInt("mining", "max_depth", 256);
         BCLibConfig.chunkLoadingType = propChunkLoadType.get();
         BCLibConfig.chunkLoadingLevel = propChunkLoadLevel.get();
         BCLibConfig.useSwappableSprites = propUseSwappableSprites.get();

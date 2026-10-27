@@ -1,6 +1,7 @@
 package buildcraft.lib.internal.api.v2;
 
 import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.lib.balance.BalanceConfig;
 import buildcraft.api.v2.BuildCraftRegistries;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.api.v2.machine.BuiltInMachineProperties;
@@ -34,11 +35,13 @@ public final class MachineDefinitionLookup {
     }
 
     public static double workSpeedMultiplier(Identifier id) {
-        return property(id, BuiltInMachineProperties.WORK_SPEED_MULTIPLIER, 1.0);
+        return property(id, BuiltInMachineProperties.WORK_SPEED_MULTIPLIER, 1.0)
+            * BalanceConfig.machine(id.toString(), "work_speed_multiplier", 1.0);
     }
 
     public static double energyCostMultiplier(Identifier id) {
-        return property(id, BuiltInMachineProperties.ENERGY_COST_MULTIPLIER, 1.0);
+        return property(id, BuiltInMachineProperties.ENERGY_COST_MULTIPLIER, 1.0)
+            * BalanceConfig.machine(id.toString(), "energy_cost_multiplier", 1.0);
     }
 
     public static boolean chunkLoading(Identifier id, boolean fallback) {

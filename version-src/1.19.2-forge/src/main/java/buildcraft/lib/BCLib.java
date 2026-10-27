@@ -22,6 +22,7 @@ import buildcraft.lib.marker.MarkerCache;
 import buildcraft.lib.misc.ExpressionCompat;
 import buildcraft.lib.net.MessageManager;
 import buildcraft.lib.net.BuildCraftTarget;
+import buildcraft.lib.balance.BalanceConfig;
 import buildcraft.lib.net.cache.BuildCraftObjectCaches;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.data.event.GatherDataEvent;
@@ -65,6 +66,7 @@ public class BCLib {
             throw throwBadClass(e, BCLog.class);
         }
         BCLog.logger.info("Starting BuildCraft " + BCLib.VERSION);
+        BalanceConfig.initialize();
         BCLog.logger.info("Copyright (c) the BuildCraft team, 2011-2018");
         BCLog.logger.info("https://www.mod-buildcraft.com");
         if (!GIT_COMMIT_HASH.isBlank() && !"unknown".equals(GIT_COMMIT_HASH)) {

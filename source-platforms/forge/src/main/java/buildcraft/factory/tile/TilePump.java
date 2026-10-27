@@ -36,6 +36,7 @@ import buildcraft.energy.tile.ITileOilSpring;
 import buildcraft.factory.BCFactoryBlocks;
 import buildcraft.lib.fluid.FluidCompatRegistry;
 import buildcraft.lib.internal.api.v2.MachineDefinitionLookup;
+import buildcraft.lib.balance.BalanceConfig;
 import buildcraft.lib.internal.api.v2.MachineRuntimeView;
 import buildcraft.lib.fluid.Tank;
 import buildcraft.lib.misc.AdvancementUtil;
@@ -103,7 +104,7 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
     private static final ResourceLocation ADVANCEMENT_DRAIN_OIL
         = new ResourceLocation("buildcraftfactory:oil_platform");
 
-    private final Tank tank = new Tank("tank", 16 * FluidType.BUCKET_VOLUME, this);
+    private final Tank tank = new Tank("tank", BalanceConfig.machineInt("buildcraftfactory:pump", "tank_capacity_mb", 16000), this);
     private boolean queueBuilt = false;
     private final Map<BlockPos, FluidPath> paths = new HashMap<>();
     private BlockPos fluidConnection;
@@ -327,8 +328,17 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
         return targetPos;
     }
 
+    /** Drain excess capacity safely before shrinking a tank after an INI change. */
+    private void reconcileTankCapacity() {
+        int configured = BalanceConfig.machineInt("buildcraftfactory:pump", "tank_capacity_mb", 16000);
+        if (tank.getCapacity() > configured && tank.getFluidAmount() <= configured) {
+            tank.setCapacity(configured);
+        }
+    }
+
     @Override
     public void update() {
+        if (!level.isClientSide) reconcileTankCapacity();
         if (!level.isClientSide && !queueBuilt) {
             if (!scanInProgress) beginQueueBuild();
             if (scanInProgress) continueQueueBuild();
@@ -354,7 +364,7 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
         }
 //        BCLog.logger.debug(""+currentPos);
 
-        long target = Math.max(0L, Math.round(10 * MjAmount.MICRO_MJ_PER_MJ * MachineDefinitionLookup.energyCostMultiplier(BuildCraftContentIds.Machines.PUMP)));
+        long target = Math.max(0L, Math.round(BalanceConfig.machineInt("buildcraftfactory:pump", "energy_per_bucket_mj", 10) * MjAmount.MICRO_MJ_PER_MJ * MachineDefinitionLookup.energyCostMultiplier(BuildCraftContentIds.Machines.PUMP)));
         if (currentPos != null && paths.containsKey(currentPos)) {
             if (!level.hasChunkAt(currentPos)) {
                 return;
@@ -524,6 +534,7 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
         	nbt.putLong("oilSpringPos", oilSpringPos.asLong());
         }
 		nbt.put("tank", tank.serializeNBT());
+        nbt.putInt("tankCapacity", tank.getCapacity());
         
 	}
 
@@ -531,6 +542,9 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
 	public void load(CompoundTag nbt) {
 		super.load(nbt);
 		oilSpringPos = nbt.contains("oilSpringPos") ? BlockPos.of(nbt.getLong("oilSpringPos")) : null;
+        // Old worlds had a 16,000 mB tank and no capacity tag. Do not truncate saved fluid.
+        int savedCapacity = nbt.contains("tankCapacity") ? nbt.getInt("tankCapacity") : 16000;
+        if (savedCapacity > tank.getCapacity()) tank.setCapacity(savedCapacity);
         tank.readFromNBT(nbt.getCompound("tank"));
 	}
 
