@@ -37,6 +37,14 @@ Make sure to download the version matching your Minecraft version and mod loader
 - [ ] Port to 1.21.11 Fabric
 - [ ] Port to 26.x Fabric
 
+## For Modpack Creators
+
+If you're a modpack creator using BCCE, please don't hesitate to reach out to me, no matter how small your modpack is. I'm always happy to hear from modpack authors and receive feedback about how BuildCraft fits into their projects.
+
+Whether you're experiencing compatibility issues, need integrations with other mods, or would benefit from additional configuration options, I'm more than willing to discuss your needs and work on improvements to make BCCE a better fit for your modpack.
+
+You can contact me through [GitHub Issues](https://github.com/BCCE-team/BuildCraft/issues), Discord DMs (`@shipovskijkorp`), or the [My Discord server](https://discord.gg/PTy9m4wxj3).
+
 ## Localizations
 
 Starting with **BCCE 8.0.24**, translations are included directly in the main mod. The separate BCCE Localizations addon is no longer required and supported.
@@ -59,7 +67,7 @@ Addons should use the public `buildcraft.api.v2` contracts rather than relying o
 
 The long-term goal is to make addons easier to develop and maintain across BCCE's supported Minecraft versions and future loader ports.
 
-Documentation: https://bcce-team.github.io/BuildCraft/
+Documentation: [BCCE API Documentation](https://bcce-team.github.io/BuildCraft/)
 
 ## Multi-version build and source architecture
 
