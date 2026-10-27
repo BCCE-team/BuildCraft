@@ -22,6 +22,8 @@ RECIPES_PUBLIC = [
     'buildcraft/api/v2/recipe/AssemblyIngredients.java',
     'buildcraft/api/v2/recipe/AssemblyRecipeDefinition.java',
     'buildcraft/api/v2/recipe/SimpleAssemblyRecipe.java',
+    'buildcraft/api/v2/recipe/StaticIntegrationRecipe.java',
+    'buildcraft/api/v2/recipe/ProgrammingRecipeDefinition.java',
     'buildcraft/api/v2/recipe/IntegrationRecipeDefinition.java',
     'buildcraft/api/v2/recipe/IntegrationRecipeProvider.java',
     'buildcraft/api/v2/recipe/RecipeMatch.java',
@@ -31,6 +33,7 @@ RECIPES_PUBLIC = [
         'ReloadDiagnostic', 'ReloadGeneration', 'ResolvedDefinition')),
 ]
 RECIPES_BACKEND = [
+    'buildcraft/lib/recipe/RecipeBlacklist.java',
     'buildcraft/lib/internal/api/v2/MachineRecipeRegistryImpl.java',
     *('buildcraft/lib/internal/api/v2/reload/' + name + '.java' for name in (
         'ReloadableDefinitionRegistry', 'ReloadTransaction', 'ReloadPhase', 'DefinitionValidator')),
@@ -282,6 +285,23 @@ public class Host {
   ok(service.findIntegration(new ItemStack(IndependentRecipeAddon.WRENCH),
     IndependentRecipeAddon.slots(new ItemStack(IndependentRecipeAddon.COPPER))).isEmpty(),
     "dynamic integration accepted wrong ingredient");
+  var fixed = new StaticIntegrationRecipe(CountedIngredient.of(IndependentRecipeAddon.WRENCH,1),
+    List.of(CountedIngredient.of(IndependentRecipeAddon.METAL, 2),
+            CountedIngredient.of(IndependentRecipeAddon.COPPER, 1)),
+    new ItemStack(IndependentRecipeAddon.MODULE,2), 2500);
+  ok(!fixed.output(new ItemStack(IndependentRecipeAddon.WRENCH),
+    IndependentRecipeAddon.slots(new ItemStack(IndependentRecipeAddon.COPPER,1),
+      new ItemStack(IndependentRecipeAddon.TIN,2))).isEmpty(), "static integration overlap allocation failed");
+  ok(fixed.output(new ItemStack(IndependentRecipeAddon.WRENCH),
+    IndependentRecipeAddon.slots(new ItemStack(IndependentRecipeAddon.COPPER,1),
+      new ItemStack(IndependentRecipeAddon.TIN,1))).isEmpty(), "static integration double-counted input");
+  ok(fixed.output(new ItemStack(IndependentRecipeAddon.WRENCH),
+    IndependentRecipeAddon.slots(new ItemStack(IndependentRecipeAddon.COPPER,2),
+      new ItemStack(IndependentRecipeAddon.TIN,2))).isEmpty(), "static integration accepted extra items");
+  ok(fixed.requiredMicroJoules(new ItemStack(IndependentRecipeAddon.MODULE,2))==2500,
+    "static integration MJ mismatch");
+  ok(new ProgrammingRecipeDefinition("picker", 800_000_000L).kind() == RecipeDefinition.Kind.PROGRAMMING,
+    "programming definition not typed");
   // One malformed third-party definition must not take the entire Silicon machine offline.
   service.register(IndependentRecipeAddon.id("bad_assembly"),new AssemblyRecipeDefinition() {
      public Set<ItemStack> outputs(NonNullList<ItemStack> slots){throw new IllegalStateException("broken addon");}
@@ -351,6 +371,10 @@ class AssemblyRecipeConformanceTest(unittest.TestCase):
                 ('26.x',ROOT/'source-families/26.X/src/main/java/buildcraft/api/v2/recipe/CountedIngredient.java',
                     ROOT/'source-family-platforms/26.X/neoforge/src/main/java/buildcraft/lib/recipe/ApiAssemblyRecipeAdapter.java'),
             ):
+                # Optional developer-only smoke run; the default still checks every family.
+                selected_family = os.environ.get("BCCE_TEST_RECIPE_FAMILY")
+                if selected_family and family != selected_family:
+                    continue
                 with self.subTest(family=family):
                     work = temp/family
                     api_dir=work/'public'; api_dir.mkdir(parents=True)

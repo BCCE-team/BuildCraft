@@ -1,0 +1,7 @@
+{
+  "type": "buildcraftsilicon:programming",
+  "board_key": "pump",
+  "energy": {
+    "mj": 3200
+  }
+}

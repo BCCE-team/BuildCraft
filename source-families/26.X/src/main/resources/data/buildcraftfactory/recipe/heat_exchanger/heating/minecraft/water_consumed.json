@@ -1,0 +1,10 @@
+{
+  "type": "buildcraftfactory:heat_exchange",
+  "mode": "heating",
+  "input": {
+    "fluid": "minecraft:water",
+    "amount_mb": 10
+  },
+  "heat_from": 0,
+  "heat_to": 1
+}

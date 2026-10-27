@@ -1,0 +1,20 @@
+{
+  "type": "buildcraftfactory:distillation",
+  "input": {
+    "fluid": "buildcraftenergy:oil",
+    "amount_mb": 8
+  },
+  "outputs": {
+    "gas": {
+      "fluid": "buildcraftenergy:fuel_gaseous",
+      "amount_mb": 16
+    },
+    "liquid": {
+      "fluid": "buildcraftenergy:oil_heavy",
+      "amount_mb": 3
+    }
+  },
+  "energy": {
+    "mj": 32
+  }
+}

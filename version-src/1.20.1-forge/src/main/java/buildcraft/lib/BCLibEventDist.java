@@ -63,6 +63,13 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 public class BCLibEventDist {
 
+    /** Reloads all recipe layers and deny-only blacklist rules from server datapacks. */
+    @SubscribeEvent
+    public static void reloadMachineRecipes(net.minecraftforge.event.AddReloadListenerEvent event) {
+        event.addListener(new buildcraft.lib.recipe.MachineRecipeDatapackReloadListener());
+    }
+
+
     @Mod.EventBusSubscriber(modid = BCLib.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static class Client {
 
@@ -144,6 +151,7 @@ public class BCLibEventDist {
             // during integrated-server login; the client queues those messages too, but these extra passes make
             // reconnecting to an already loaded marker network deterministic.
             MessageUtil.doDelayedServer(20, () -> MarkerCache.onPlayerJoinLevel(playerMP));
+            MessageUtil.doDelayedServer(7, () -> buildcraft.lib.net.MessageMachineRecipes.sendAll(playerMP));
         }
     }
 
@@ -172,6 +180,7 @@ public class BCLibEventDist {
 
     @OnlyIn(Dist.CLIENT)
     public static void onDisconnectFromServer() {
+        buildcraft.lib.recipe.ClientMachineRecipeCatalog.clear();
         MessageUtil.clearClientTasks();
         MarkerCache.clearClientCaches();
         MessageMarkerClientHandler.clearQueuedMessages();

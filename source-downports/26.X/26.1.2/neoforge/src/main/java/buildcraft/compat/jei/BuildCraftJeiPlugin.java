@@ -22,6 +22,11 @@ import buildcraft.api.v2.recipe.DistillationRecipeDefinition;
 import buildcraft.api.v2.recipe.HeatExchangeRecipeDefinition;
 import buildcraft.api.v2.recipe.MachineRecipeService;
 import buildcraft.api.v2.recipe.RecipeDefinition;
+import buildcraft.lib.recipe.ClientMachineRecipeCatalog;
+import buildcraft.lib.recipe.ProgrammingRecipeAccess;
+import buildcraft.api.v2.recipe.IntegrationRecipeDefinition;
+import buildcraft.api.v2.recipe.StaticIntegrationRecipe;
+import buildcraft.api.v2.recipe.CountedIngredient;
 import buildcraft.lib.fluid.FuelApiBridge;
 import buildcraft.lib.recipe.MachineRecipeApiBridge;
 import buildcraft.lib.internal.recipes.IngredientStack;
@@ -234,24 +239,18 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         registration.addRecipes(ASSEMBLY, assemblyRecipes);
 
         BCRoboticsBoards.init();
-        List<ProgrammingRecipeView> programming = new ArrayList<>();
-        List<IntegrationRecipeView> integration = new ArrayList<>();
-        for (BoardEntry board : getSortedProgrammingBoards()) {
-            programming.add(new ProgrammingRecipeView(board));
-            integration.add(new IntegrationRecipeView(board));
-        }
+        List<ProgrammingRecipeView> programming = getSortedProgrammingRecipes();
+        List<IntegrationRecipeView> integration = collectIntegrationRecipes();
         publishedProgramming = List.copyOf(programming);
         registration.addRecipes(PROGRAMMING, programming);
         publishedIntegration = List.copyOf(integration);
         registration.addRecipes(INTEGRATION, integration);
 
         MachineRecipeService machineRecipes = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES);
-        publishedDistillation = machineRecipes.recipes(DistillationRecipeDefinition.class).stream()
-                .map(match -> match.recipe()).toList();
+        publishedDistillation = ClientMachineRecipeCatalog.visibleRecipes(DistillationRecipeDefinition.class);
         registration.addRecipes(DISTILLATION, publishedDistillation);
 
-        List<HeatExchangeRecipeView> heatExchange = machineRecipes.recipes(HeatExchangeRecipeDefinition.class).stream()
-                .map(match -> match.recipe())
+        List<HeatExchangeRecipeView> heatExchange = ClientMachineRecipeCatalog.visibleRecipes(HeatExchangeRecipeDefinition.class).stream()
                 .filter(recipe -> !recipe.output().isEmpty())
                 .map(HeatExchangeRecipeView::new)
                 .toList();
@@ -307,12 +306,14 @@ public class BuildCraftJeiPlugin implements IModPlugin {
     /** Reload the server-authoritative recipe list even if JEI registered before login sync. */
     private static List<AssemblyJeiRecipe> collectAssemblyRecipes(List<RecipeHolder<AssemblyRecipeBasic>> source) {
         List<AssemblyJeiRecipe> assemblyRecipes = source.stream()
+                .filter(holder -> !ClientMachineRecipeCatalog.isDenied("assembly_table", holder.id().identifier()))
                 .map(holder -> new AssemblyJeiRecipe(holder.id().identifier(), holder.value()))
                 .collect(Collectors.toCollection(ArrayList::new));
         // Registered addon recipes are not Minecraft recipe holders; publish their previews as well.
         for (var entry : BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES).assemblyRecipes()) {
             ApiAssemblyRecipeAdapter adapter = ApiAssemblyRecipeAdapter.fromService(entry.id());
-            if (adapter != null && !adapter.getOutputPreviews().isEmpty()) {
+            if (!ClientMachineRecipeCatalog.isDenied("assembly_table", entry.id())
+                && adapter != null && !adapter.getOutputPreviews().isEmpty()) {
                 assemblyRecipes.add(new AssemblyJeiRecipe(entry.id(), adapter));
             }
         }
@@ -331,6 +332,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         // Immediately reconcile the snapshot registered before runtime startup, then
         // handle subsequent logins and /reloads using the same callback.
         BCSiliconRecipeSync.Client.setAssemblyRecipesChangedListener(BuildCraftJeiPlugin::refreshAssemblyRecipes);
+        ClientMachineRecipeCatalog.setListener(BuildCraftJeiPlugin::refreshAssemblyRecipes);
     }
 
     private static void refreshAssemblyRecipes() {
@@ -358,22 +360,16 @@ public class BuildCraftJeiPlugin implements IModPlugin {
     /** Reconcile every API-backed JEI category after recipe or datapack sync. */
     private static void refreshOtherRecipes(IJeiRuntime runtime) {
         BCRoboticsBoards.init();
-        List<ProgrammingRecipeView> programming = new ArrayList<>();
-        List<IntegrationRecipeView> integration = new ArrayList<>();
-        for (BoardEntry board : getSortedProgrammingBoards()) {
-            programming.add(new ProgrammingRecipeView(board));
-            integration.add(new IntegrationRecipeView(board));
-        }
+        List<ProgrammingRecipeView> programming = getSortedProgrammingRecipes();
+        List<IntegrationRecipeView> integration = collectIntegrationRecipes();
         reconcile(runtime, PROGRAMMING, publishedProgramming, programming);
         reconcile(runtime, INTEGRATION, publishedIntegration, integration);
         publishedProgramming = List.copyOf(programming);
         publishedIntegration = List.copyOf(integration);
 
         MachineRecipeService recipes = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES);
-        List<DistillationRecipeDefinition> distillation = recipes.recipes(DistillationRecipeDefinition.class)
-            .stream().map(match -> match.recipe()).toList();
-        List<HeatExchangeRecipeView> heat = recipes.recipes(HeatExchangeRecipeDefinition.class).stream()
-            .map(match -> match.recipe()).filter(r -> !r.output().isEmpty())
+        List<DistillationRecipeDefinition> distillation = ClientMachineRecipeCatalog.visibleRecipes(DistillationRecipeDefinition.class);
+        List<HeatExchangeRecipeView> heat = ClientMachineRecipeCatalog.visibleRecipes(HeatExchangeRecipeDefinition.class).stream().filter(r -> !r.output().isEmpty())
             .map(HeatExchangeRecipeView::new).toList();
         List<CombustionFuelRecipeView> fuels = BuildCraftApi.service(BuildCraftServices.ENERGY_FLUIDS)
             .fuels().stream().map(match -> match.profile())
@@ -389,13 +385,19 @@ public class BuildCraftJeiPlugin implements IModPlugin {
 
     private static <T> void reconcile(IJeiRuntime runtime, IRecipeType<T> type, List<T> previous, List<T> next) {
         if (previous.equals(next)) return;
-        if (!previous.isEmpty()) runtime.getRecipeManager().hideRecipes(type, previous);
-        if (!next.isEmpty()) runtime.getRecipeManager().addRecipes(type, next);
+        List<T> removed = previous.stream().filter(recipe -> !next.contains(recipe)).toList();
+        List<T> introduced = next.stream().filter(recipe -> !previous.contains(recipe)).toList();
+        if (!removed.isEmpty()) runtime.getRecipeManager().hideRecipes(type, removed);
+        if (!introduced.isEmpty()) runtime.getRecipeManager().addRecipes(type, introduced);
+        // A previously hidden recipe must be made visible again after a /reload.
+        // addRecipes alone does not clear JEI's hidden-recipe state.
+        if (!next.isEmpty()) runtime.getRecipeManager().unhideRecipes(type, next);
     }
 
     @Override
     public void onRuntimeUnavailable() {
         BCSiliconRecipeSync.Client.setAssemblyRecipesChangedListener(null);
+        ClientMachineRecipeCatalog.setListener(null);
         activeRuntime = null;
         publishedAssemblySource = List.of();
         publishedAssemblyRecipes = List.of();
@@ -581,13 +583,57 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         return stacks;
     }
 
-    private static List<BoardEntry> getSortedProgrammingBoards() {
+    /** JEI displays the server's complete Integration Table catalog, not just robot boards. */
+    private static List<IntegrationRecipeView> collectIntegrationRecipes() {
+        List<IntegrationRecipeView> recipes = new ArrayList<>();
+        // Installing a board is independent from whether the board is programmable.
+        // The robot-board operation is defined by one JSON recipe but expands into
+        // individual JEI previews for every board. A remote catalogue may not carry
+        // a preview for a Java-backed handler, so use the local registered definition
+        // as a display fallback only for this known built-in operation. The server's
+        // blacklist still has absolute priority over both sources.
+        var robotRecipeId = net.minecraft.resources.Identifier.fromNamespaceAndPath(
+            "buildcraftrobotics", "integration_table/robot_board_integration");
+        if (!ClientMachineRecipeCatalog.isDenied("integration_table", robotRecipeId)) {
+            RecipeDefinition robotRecipe = ClientMachineRecipeCatalog.visibleDefinition("integration_table", robotRecipeId);
+            if (!(robotRecipe instanceof IntegrationRecipeDefinition)) {
+                robotRecipe = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES)
+                    .snapshot().resolved(robotRecipeId).map(defined -> defined.value()).orElse(null);
+            }
+            if (robotRecipe instanceof buildcraft.robotics.recipes.RobotIntegrationRecipe) {
+                for (BoardEntry board : BCRoboticsBoards.robotEntries()) {
+                    recipes.add(new IntegrationRecipeView(board));
+                }
+            }
+        }
+        for (StaticIntegrationRecipe recipe : ClientMachineRecipeCatalog.visibleRecipes(StaticIntegrationRecipe.class)) {
+            recipes.add(new IntegrationRecipeView(recipe));
+        }
+        return List.copyOf(recipes);
+    }
+
+    /** Expand item and tag inputs into JEI-visible stacks without losing ingredient counts. */
+    private static List<ItemStack> integrationIngredientStacks(CountedIngredient ingredient) {
+        List<ItemStack> stacks = new ArrayList<>();
+        for (ItemStack stack : IngredientCompat.getItems(ingredient.ingredient())) {
+            if (stack == null || stack.isEmpty()) continue;
+            ItemStack copy = stack.copy();
+            copy.setCount(Math.min(ingredient.count(), copy.getMaxStackSize()));
+            stacks.add(copy);
+        }
+        return List.copyOf(stacks);
+    }
+
+    private static List<ProgrammingRecipeView> getSortedProgrammingRecipes() {
         BCRoboticsBoards.init();
-        List<BoardEntry> boards = new ArrayList<>(BCRoboticsBoards.robotEntries());
-        boards.sort(Comparator
-                .comparingInt(BoardEntry::energyCost)
-                .thenComparing(BoardEntry::id));
-        return boards;
+        List<ProgrammingRecipeView> recipes = new ArrayList<>();
+        for (buildcraft.api.v2.recipe.ProgrammingRecipeDefinition definition : ProgrammingRecipeAccess.options(true)) {
+            BoardEntry board = BCRoboticsBoards.getByKey(definition.boardKey());
+            if (board != BCRoboticsBoards.EMPTY) {
+                recipes.add(new ProgrammingRecipeView(board, definition.requiredMicroJoules()));
+            }
+        }
+        return List.copyOf(recipes);
     }
 
     private static String formatMj(long microJoules) {
@@ -681,7 +727,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         return slot;
     }
 
-    public record ProgrammingRecipeView(BoardEntry board) {
+    public record ProgrammingRecipeView(BoardEntry board, long requiredMicroJoules) {
         public ItemStack input() {
             return new ItemStack(BCRoboticsItems.REDSTONE_BOARD.get());
         }
@@ -690,12 +736,13 @@ public class BuildCraftJeiPlugin implements IModPlugin {
             return ItemRedstoneBoard.createStack(board);
         }
 
-        public long requiredMicroJoules() {
-            return board.energyCost() * MjAmount.MICRO_MJ_PER_MJ;
-        }
     }
 
-    public record IntegrationRecipeView(BoardEntry board) {
+    /** Robot-board transformations and arbitrary fixed datapack recipes share the JEI category. */
+    public record IntegrationRecipeView(BoardEntry board, StaticIntegrationRecipe fixed) {
+        public IntegrationRecipeView(BoardEntry board) { this(board, null); }
+        public IntegrationRecipeView(StaticIntegrationRecipe fixed) { this(null, fixed); }
+
         public ItemStack robotInput() {
             return new ItemStack(BCRoboticsItems.ROBOT.get());
         }
@@ -705,11 +752,21 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         }
 
         public ItemStack output() {
-            return ItemRobot.createRobotStack(board, EntityRobotBase.SAFETY_ENERGY);
+            return fixed != null ? fixed.result()
+                : ItemRobot.createRobotStack(board, EntityRobotBase.SAFETY_ENERGY);
         }
 
         public long requiredMicroJoules() {
-            return 10_000L * MjAmount.MICRO_MJ_PER_MJ;
+            if (fixed != null) return fixed.requiredMicroJoules(fixed.result());
+            RecipeDefinition definition = ClientMachineRecipeCatalog.visibleDefinition("integration_table",
+                Identifier.fromNamespaceAndPath("buildcraftrobotics", "integration_table/robot_board_integration"));
+            if (!(definition instanceof IntegrationRecipeDefinition)) {
+                var id = net.minecraft.resources.Identifier.fromNamespaceAndPath(
+                    "buildcraftrobotics", "integration_table/robot_board_integration");
+                definition = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES)
+                    .snapshot().resolved(id).map(entry -> entry.value()).orElse(null);
+            }
+            return definition instanceof IntegrationRecipeDefinition recipe ? recipe.requiredMicroJoules(output()) : 0L;
         }
     }
 
@@ -1231,7 +1288,6 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         private final IDrawableStatic progressDrawable;
         private final IDrawable selectedDrawable;
         private final Map<Integer, IDrawableAnimated> progressBars = new HashMap<>();
-        private final List<BoardEntry> optionBoards;
 
         ProgrammingCategory(IGuiHelper guiHelper) {
             this.guiHelper = guiHelper;
@@ -1241,7 +1297,6 @@ public class BuildCraftJeiPlugin implements IModPlugin {
             icon = guiHelper.createDrawableItemStack(new ItemStack(BCSiliconItems.PROGRAMMING_TABLE_ITEM.get()));
             progressDrawable = guiHelper.createDrawable(TEXTURE, 176, 18, 4, 70);
             selectedDrawable = guiHelper.createDrawable(TEXTURE, 196, 1, 16, 16);
-            optionBoards = List.copyOf(getSortedProgrammingBoards());
         }
 
         public IRecipeType<ProgrammingRecipeView> getRecipeType() {
@@ -1270,18 +1325,19 @@ public class BuildCraftJeiPlugin implements IModPlugin {
             builder.addSlot(RecipeIngredientRole.OUTPUT, 8, 82)
                     .addItemStack(recipe.output());
 
-            int count = Math.min(optionBoards.size(), TileProgrammingTable_Neptune.OPTION_COUNT);
+            List<ProgrammingRecipeView> optionRecipes = getSortedProgrammingRecipes();
+            int count = Math.min(optionRecipes.size(), TileProgrammingTable_Neptune.OPTION_COUNT);
             for (int index = 0; index < count; index++) {
                 int x = 43 + (index % TileProgrammingTable_Neptune.WIDTH) * 18;
                 int y = 28 + (index / TileProgrammingTable_Neptune.WIDTH) * 18;
                 builder.addSlot(RecipeIngredientRole.RENDER_ONLY, x, y)
-                        .addItemStack(ItemRedstoneBoard.createStack(optionBoards.get(index)));
+                        .addItemStack(optionRecipes.get(index).output());
             }
         }
 
         public void draw(ProgrammingRecipeView recipe, IRecipeSlotsView recipeSlotsView, GuiGraphicsExtractor guiGraphics, double mouseX, double mouseY) {
             background.draw(guiGraphics, 0, 0);
-            int selected = optionBoards.indexOf(recipe.board());
+            int selected = getSortedProgrammingRecipes().indexOf(recipe);
             if (selected >= 0 && selected < TileProgrammingTable_Neptune.OPTION_COUNT) {
                 int x = 43 + (selected % TileProgrammingTable_Neptune.WIDTH) * 18;
                 int y = 28 + (selected / TileProgrammingTable_Neptune.WIDTH) * 18;
@@ -1336,6 +1392,28 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         }
 
         public void setRecipe(IRecipeLayoutBuilder builder, IntegrationRecipeView recipe, IFocusGroup focuses) {
+            if (recipe.fixed() != null) {
+                StaticIntegrationRecipe fixed = recipe.fixed();
+                builder.addSlot(RecipeIngredientRole.INPUT, 27, 27)
+                    .addItemStacks(integrationIngredientStacks(fixed.centerIngredient()));
+                List<CountedIngredient> additional = fixed.requirements(fixed.result());
+                // Eight secondary slots surround the larger centre slot. The original
+                // BuildCraft 7 background uses irregular spacing, not an 18px grid.
+                for (int index = 0; index < additional.size(); index++) {
+                    // Positions measured from the JEI background crop (17,22,153,71).
+                    // Its central 26x26 slot is intentionally larger than the other eight.
+                    int cell = index < 4 ? index : index + 1;
+                    int[] columns = {2, 28, 53};
+                    int[] rows = {2, 27, 52};
+                    int x = columns[cell % 3];
+                    int y = rows[cell / 3];
+                    builder.addSlot(RecipeIngredientRole.INPUT, x, y)
+                        .addItemStacks(integrationIngredientStacks(additional.get(index)));
+                }
+                builder.addSlot(RecipeIngredientRole.OUTPUT, 121, 27)
+                    .addItemStack(fixed.result());
+                return;
+            }
             builder.addSlot(RecipeIngredientRole.INPUT, 27, 27)
                     .addItemStack(recipe.robotInput());
             builder.addSlot(RecipeIngredientRole.INPUT, 52, 27)

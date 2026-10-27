@@ -1,0 +1,7 @@
+{
+  "type": "buildcraftsilicon:programming",
+  "board_key": "leave_cutter",
+  "energy": {
+    "mj": 3200
+  }
+}

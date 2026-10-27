@@ -6,6 +6,7 @@ import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 import buildcraft.robotics.BCRoboticsBoards;
+import buildcraft.lib.recipe.ProgrammingRecipeAccess;
 import buildcraft.robotics.BCRoboticsBoards.BoardEntry;
 import buildcraft.robotics.BCRoboticsItems;
 import net.minecraft.ChatFormatting;
@@ -60,7 +61,11 @@ public class ItemRedstoneBoard extends Item implements ICreativeTabItemProvider 
             if (board.isInDev()) {
                 tooltip.add(Component.translatable("tooltip.buildcraftrobotics.in_dev").withStyle(ChatFormatting.RED));
             }
-            tooltip.add(Component.translatable("tooltip.buildcraftrobotics.board.energy", BCRoboticsBoards.formatBoardEnergyCost(board.energyCost())).withStyle(ChatFormatting.GRAY));
+            String cost = BCRoboticsBoards.formatProgrammingCostTooltip(board.key(), true);
+            if (cost != null) {
+                tooltip.add(Component.translatable("tooltip.buildcraftrobotics.board.energy",
+                    cost).withStyle(ChatFormatting.GRAY));
+            }
         }
     }
 }

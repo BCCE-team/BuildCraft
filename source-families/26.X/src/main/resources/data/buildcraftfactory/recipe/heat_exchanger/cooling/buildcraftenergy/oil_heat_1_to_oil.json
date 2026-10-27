@@ -1,0 +1,14 @@
+{
+  "type": "buildcraftfactory:heat_exchange",
+  "mode": "cooling",
+  "input": {
+    "fluid": "buildcraftenergy:oil_heat_1",
+    "amount_mb": 10
+  },
+  "output": {
+    "fluid": "buildcraftenergy:oil",
+    "amount_mb": 10
+  },
+  "heat_from": 1,
+  "heat_to": 0
+}

@@ -1,0 +1,10 @@
+{
+  "type": "buildcraftfactory:heat_exchange",
+  "mode": "cooling",
+  "input": {
+    "fluid": "minecraft:lava",
+    "amount_mb": 5
+  },
+  "heat_from": 4,
+  "heat_to": 2
+}

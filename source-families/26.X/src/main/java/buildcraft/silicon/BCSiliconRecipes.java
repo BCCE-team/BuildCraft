@@ -17,6 +17,13 @@ import buildcraft.silicon.recipe.GateLogicChangeRecipe;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.item.crafting.CustomRecipe;
+import net.minecraft.world.item.crafting.CraftingInput;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import com.mojang.serialization.MapCodec;
 
 public final class BCSiliconRecipes {
     public static final BCDeferredRegister<RecipeType<?>> TYPES =
@@ -34,6 +41,38 @@ public final class BCSiliconRecipes {
         SERIALIZERS.register("facade", () -> FacadeAssemblyRecipes.SERIALIZER);
     public static final BCRegistryEntry<RecipeSerializer<FacadeSwapRecipe>> FACADE_SWAP_SERIALIZER =
         SERIALIZERS.register("facade_swap", () -> FacadeSwapRecipe.SERIALIZER);
+
+    public static final BCRegistryEntry<RecipeSerializer<MachinePlaceholder>> INTEGRATION_SERIALIZER =
+        SERIALIZERS.register("integration", () -> MachinePlaceholder.INTEGRATION_SERIALIZER);
+    public static final BCRegistryEntry<RecipeSerializer<MachinePlaceholder>> PROGRAMMING_SERIALIZER =
+        SERIALIZERS.register("programming", () -> MachinePlaceholder.PROGRAMMING_SERIALIZER);
+    public static final BCRegistryEntry<RecipeSerializer<MachinePlaceholder>> ROBOT_INTEGRATION_SERIALIZER =
+        SERIALIZERS.register("robot_board_integration", () -> MachinePlaceholder.ROBOT_SERIALIZER);
+
+    /** Native reader for JSON-only machine definitions; never matches a crafting grid. */
+    public static final class MachinePlaceholder extends CustomRecipe {
+        private static final MachinePlaceholder INTEGRATION = new MachinePlaceholder(false, false);
+        private static final MachinePlaceholder PROGRAMMING = new MachinePlaceholder(true, false);
+        private static final MachinePlaceholder ROBOT = new MachinePlaceholder(false, true);
+        static final RecipeSerializer<MachinePlaceholder> INTEGRATION_SERIALIZER = serializer(INTEGRATION);
+        static final RecipeSerializer<MachinePlaceholder> PROGRAMMING_SERIALIZER = serializer(PROGRAMMING);
+        static final RecipeSerializer<MachinePlaceholder> ROBOT_SERIALIZER = serializer(ROBOT);
+        private static RecipeSerializer<MachinePlaceholder> serializer(MachinePlaceholder value) {
+            return new RecipeSerializer<>(MapCodec.unit(value), StreamCodec.<RegistryFriendlyByteBuf, MachinePlaceholder>unit(value));
+        }
+        private final boolean programming;
+        private final boolean robot;
+        private MachinePlaceholder(boolean programming, boolean robot) {
+            super(); this.programming = programming; this.robot = robot;
+        }
+        @Override public boolean matches(CraftingInput input, Level world) { return false; }
+        @Override public ItemStack assemble(CraftingInput input) { return ItemStack.EMPTY; }
+        @Override public boolean canCraftInDimensions(int width, int height) { return false; }
+        @Override public RecipeSerializer<? extends CustomRecipe> getSerializer() {
+            return programming ? BCSiliconRecipes.PROGRAMMING_SERIALIZER.get()
+                : robot ? BCSiliconRecipes.ROBOT_INTEGRATION_SERIALIZER.get() : BCSiliconRecipes.INTEGRATION_SERIALIZER.get();
+        }
+    }
 
     private BCSiliconRecipes() {
     }

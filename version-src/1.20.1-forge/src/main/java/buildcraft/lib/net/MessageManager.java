@@ -272,6 +272,12 @@ public class MessageManager {
     /** Send this message to everyone. The {@link MessageHandler} for this message type should be on the CLIENT side.
      *
      * @param message The message to send */
+    /** True only while executing on the running server's own event loop. */
+    public static boolean isAuthoritativeServerThread() {
+        var server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+        return server != null && server.isSameThread();
+    }
+
     public static void sendToAll(Object message) {
         getSimpleNetworkWrapper(message).send(PacketDistributor.ALL.noArg(), message);
     }

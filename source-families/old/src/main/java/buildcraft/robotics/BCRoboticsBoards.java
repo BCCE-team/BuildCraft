@@ -11,6 +11,7 @@ import buildcraft.robotics.internal.api2.RobotServiceImpl;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.lib.internal.mj.MjFormatting;
+import buildcraft.lib.recipe.ProgrammingRecipeAccess;
 
 import java.util.Collection;
 import java.util.ArrayList;
@@ -107,6 +108,27 @@ public final class BCRoboticsBoards {
      * Board programming costs are stored as whole BuildCraft MJ after converting the original 7.1.27 balance
      * at 10 legacy energy units = 1 MJ. Convert to micro-MJ only when feeding modern energy APIs or formatting the tooltip.
      */
+    public static String formatBoardEnergyCostMicro(long microMj) {
+        return BCLibConfig.hidePowerValues ? LocaleUtil.localize("buildcraft.value.hidden")
+            : MjFormatting.formatMicroMj(Math.max(0L, microMj));
+    }
+
+    /** The board item does not identify which programming recipe was used.
+     * Show a single MJ value when all active recipes agree, otherwise the inclusive
+     * minimum–maximum range. This is display-only; machines use the selected recipe.
+     */
+    public static String formatProgrammingCostTooltip(String boardKey, boolean client) {
+        var range = ProgrammingRecipeAccess.costRange(boardKey, client);
+        if (range.isEmpty()) return null;
+        var cost = range.get();
+        String minimum = formatBoardEnergyCostMicro(cost.minMicroMj());
+        if (BCLibConfig.hidePowerValues || cost.minMicroMj() == cost.maxMicroMj()) {
+            return minimum;
+        }
+        return minimum + " – " + formatBoardEnergyCostMicro(cost.maxMicroMj());
+    }
+
+    /** Legacy cost formatter retained for existing API callers. */
     public static String formatBoardEnergyCost(int energyCostMj) {
         if (BCLibConfig.hidePowerValues) {
             return LocaleUtil.localize("buildcraft.value.hidden");
@@ -283,8 +305,9 @@ public final class BCRoboticsBoards {
         @Override
         public void addInformation(ItemStack stack, Player player, List<Component> list, boolean advanced) {
             BoardEntry entry = getById(id);
-            if (entry.energyCost() > 0) {
-                list.add(Component.translatable("tooltip.buildcraftrobotics.board.energy", formatBoardEnergyCost(entry.energyCost())));
+            String cost = formatProgrammingCostTooltip(entry.key(), true);
+            if (cost != null) {
+                list.add(Component.translatable("tooltip.buildcraftrobotics.board.energy", cost));
             }
         }
 

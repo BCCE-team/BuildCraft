@@ -18,6 +18,12 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.SimpleCraftingRecipeSerializer;
+import net.minecraft.world.item.crafting.CustomRecipe;
+import net.minecraft.world.item.crafting.CraftingBookCategory;
+import net.minecraft.world.item.crafting.CraftingInput;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 
 public final class BCSiliconRecipes {
     public static final BCDeferredRegister<RecipeType<?>> TYPES =
@@ -35,6 +41,28 @@ public final class BCSiliconRecipes {
         SERIALIZERS.register("facade", FacadeAssemblyRecipes.Serializer::new);
     public static final BCRegistryEntry<RecipeSerializer<FacadeSwapRecipe>> FACADE_SWAP_SERIALIZER =
         SERIALIZERS.register("facade_swap", () -> FacadeSwapRecipe.SERIALIZER);
+
+    public static final BCRegistryEntry<SimpleCraftingRecipeSerializer<MachinePlaceholder>> INTEGRATION_SERIALIZER =
+        SERIALIZERS.register("integration", () -> new SimpleCraftingRecipeSerializer<>(category -> new MachinePlaceholder(category, false, false)));
+    public static final BCRegistryEntry<SimpleCraftingRecipeSerializer<MachinePlaceholder>> PROGRAMMING_SERIALIZER =
+        SERIALIZERS.register("programming", () -> new SimpleCraftingRecipeSerializer<>(category -> new MachinePlaceholder(category, true, false)));
+    public static final BCRegistryEntry<SimpleCraftingRecipeSerializer<MachinePlaceholder>> ROBOT_INTEGRATION_SERIALIZER =
+        SERIALIZERS.register("robot_board_integration", () -> new SimpleCraftingRecipeSerializer<>(category -> new MachinePlaceholder(category, false, true)));
+
+    /** Native reader for JSON-only machine definitions; never matches a normal crafting grid. */
+    public static final class MachinePlaceholder extends CustomRecipe {
+        private final boolean programming;
+        private final boolean robot;
+        public MachinePlaceholder(CraftingBookCategory category, boolean programming, boolean robot) {
+            super(category); this.programming = programming; this.robot = robot;
+        }
+        @Override public boolean matches(CraftingInput input, Level world) { return false; }
+        @Override public ItemStack assemble(CraftingInput input, HolderLookup.Provider registries) { return ItemStack.EMPTY; }
+        @Override public boolean canCraftInDimensions(int width, int height) { return false; }
+        @Override public RecipeSerializer<? extends CustomRecipe> getSerializer() {
+            return programming ? PROGRAMMING_SERIALIZER.get() : robot ? ROBOT_INTEGRATION_SERIALIZER.get() : INTEGRATION_SERIALIZER.get();
+        }
+    }
 
     private BCSiliconRecipes() {
     }

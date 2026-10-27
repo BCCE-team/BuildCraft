@@ -1,0 +1,6 @@
+{
+  "type": "buildcraftsilicon:robot_board_integration",
+  "energy": {
+    "mj": 5000
+  }
+}

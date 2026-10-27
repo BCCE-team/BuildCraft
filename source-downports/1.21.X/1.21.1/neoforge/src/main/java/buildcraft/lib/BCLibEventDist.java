@@ -62,6 +62,15 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
 public class BCLibEventDist {
 
+    @EventBusSubscriber(modid = BCLib.MODID)
+    public static final class RecipeReloadEvents {
+        @SubscribeEvent
+        public static void reloadMachineRecipes(net.neoforged.neoforge.event.AddReloadListenerEvent event) {
+            event.addListener(new buildcraft.lib.recipe.MachineRecipeDatapackReloadListener());
+        }
+    }
+
+
     @EventBusSubscriber(modid = BCLib.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static class Client {
 
@@ -152,6 +161,7 @@ public class BCLibEventDist {
             // during integrated-server login; the client queues those messages too, but these extra passes make
             // reconnecting to an already loaded marker network deterministic.
             MessageUtil.doDelayedServer(20, () -> MarkerCache.onPlayerJoinLevel(playerMP));
+            MessageUtil.doDelayedServer(7, () -> buildcraft.lib.net.MessageMachineRecipes.sendAll(playerMP));
         }
     }
 
@@ -182,6 +192,7 @@ public class BCLibEventDist {
 
     @OnlyIn(Dist.CLIENT)
     public static void onDisconnectFromServer() {
+        buildcraft.lib.recipe.ClientMachineRecipeCatalog.clear();
         ItemStackUtil.setClientRegistryProvider(null);
         MessageUtil.clearClientTasks();
         MarkerCache.clearClientCaches();

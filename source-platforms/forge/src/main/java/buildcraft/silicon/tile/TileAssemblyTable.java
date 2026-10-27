@@ -29,6 +29,7 @@ import buildcraft.lib.net.NetworkSecurity;
 import buildcraft.lib.net.MessageUpdateTile;
 import buildcraft.lib.recipe.AssemblyRecipeBasic;
 import buildcraft.lib.recipe.ApiAssemblyRecipeAdapter;
+import buildcraft.lib.recipe.RecipeBlacklist;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.recipe.MachineRecipeService;
@@ -106,6 +107,7 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
     
     protected boolean isDirty = true;
     private long lastApiRecipeGeneration = -1;
+    private long lastBlacklistGeneration = -1;
     /** Last advertised work target; progress packets are rate-limited while the recipe is unchanged. */
     private long lastGuiTarget = Long.MIN_VALUE;
     private Object lastVanillaRecipeManager;
@@ -158,9 +160,17 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
             changed |= recipesStates.entrySet().removeIf(entry ->
                 entry.getKey().recipe instanceof ApiAssemblyRecipeAdapter adapter && !adapter.registered());
         }
+        long blacklistGeneration = RecipeBlacklist.generation();
+        if (lastBlacklistGeneration != blacklistGeneration) {
+            lastBlacklistGeneration = blacklistGeneration;
+            isDirty = true;
+            changed |= recipesStates.entrySet().removeIf(entry ->
+                RecipeBlacklist.isDenied("assembly_table", entry.getKey().recipe.getId()));
+        }
         if (isDirty) {
             int previousSize = recipesStates.size();
             for (AssemblyRecipeBasic recipe : level.getRecipeManager().getAllRecipesFor(BCSiliconRecipes.ASSEMBLY_TYPE.get())) {
+                if (RecipeBlacklist.isDenied("assembly_table", recipe.getId())) continue;
                 Set<ItemStack> outputs = recipe.getOutputs(inv);
                 for (ItemStack out : outputs) {
                     if (out.isEmpty()) {
@@ -463,6 +473,7 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
     
     @Nullable
     private AssemblyInstruction lookupRecipe(String name, ItemStack output) {
+        if (RecipeBlacklist.isDenied("assembly_table", ResourceLocation.tryParse(name))) return null;
         Optional<? extends Recipe<?>> recipe = level.getRecipeManager().byKey(new ResourceLocation(name));
         if (recipe.isPresent() && recipe.get() instanceof AssemblyRecipeBasic original) {
             return new AssemblyInstruction(original, output.copy());

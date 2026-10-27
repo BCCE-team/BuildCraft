@@ -1,0 +1,7 @@
+{
+  "type": "buildcraftsilicon:programming",
+  "board_key": "fluid_carrier",
+  "energy": {
+    "mj": 800
+  }
+}

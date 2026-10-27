@@ -8,7 +8,6 @@ package buildcraft.energy;
 
 import java.util.function.Consumer;
 
-import buildcraft.lib.internal.module.BCModules;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.energy.MjAmount;
@@ -20,17 +19,11 @@ import buildcraft.api.v2.fuels.EnergyFluidService;
 import buildcraft.api.v2.fuels.FluidSelector;
 import buildcraft.api.v2.fuels.FuelProfile;
 import buildcraft.api.v2.fuels.SolidCoolantProfile;
-import buildcraft.api.v2.recipe.DistillationRecipeDefinition;
-import buildcraft.api.v2.recipe.FluidIngredient;
-import buildcraft.api.v2.recipe.HeatExchangeRecipeDefinition;
-import buildcraft.api.v2.recipe.MachineRecipeService;
-import buildcraft.api.v2.recipe.RecipeDefinition;
 import buildcraft.api.v2.reload.DefinitionProvenance;
 import buildcraft.lib.internal.enums.EnumEngineType;
 import buildcraft.core.BCCoreItems;
 import buildcraft.lib.fluid.BCFluid;
 import buildcraft.lib.fluid.FuelApiBridge;
-import buildcraft.lib.misc.MathUtil;
 
 import net.minecraft.advancements.critereon.InventoryChangeTrigger.TriggerInstance;
 import net.minecraft.data.DataGenerator;
@@ -82,55 +75,14 @@ public class BCEnergyRecipes {
         addDirtyFuel(BCEnergyFluids.oilHeavy, lightDenseResidue, 2, 4);
         addDirtyFuel(BCEnergyFluids.crudeOil, oil, 3, 4);
 
-        if (BCModules.FACTORY.isLoaded()) {
-            FluidStack[] gasLightDenseResidue = createFluidStack(BCEnergyFluids.crudeOil, oil);
-            FluidStack[] gasLightDenseStacks = createFluidStack(BCEnergyFluids.oilDistilled, gasLightDense);
-            FluidStack[] gasLightStacks = createFluidStack(BCEnergyFluids.fuelMixedLight, gasLight);
-            FluidStack[] gasStacks = createFluidStack(BCEnergyFluids.fuelGaseous, gas);
-            FluidStack[] lightDenseResidueStacks = createFluidStack(BCEnergyFluids.oilHeavy, lightDenseResidue);
-            FluidStack[] lightDenseStacks = createFluidStack(BCEnergyFluids.fuelMixedHeavy, lightDense);
-            FluidStack[] lightStacks = createFluidStack(BCEnergyFluids.fuelLight, light);
-            FluidStack[] denseResidueStacks = createFluidStack(BCEnergyFluids.oilDense, denseResidue);
-            FluidStack[] denseStacks = createFluidStack(BCEnergyFluids.fuelDense, dense);
-            FluidStack[] residueStacks = createFluidStack(BCEnergyFluids.oilResidue, residue);
-
-            addDistillation(gasLightDenseResidue, gasStacks, lightDenseResidueStacks, 0, 32 * MjAmount.MICRO_MJ_PER_MJ);
-            addDistillation(gasLightDenseResidue, gasLightStacks, denseResidueStacks, 1, 16 * MjAmount.MICRO_MJ_PER_MJ);
-            addDistillation(gasLightDenseResidue, gasLightDenseStacks, residueStacks, 2, 12 * MjAmount.MICRO_MJ_PER_MJ);
-            addDistillation(gasLightDenseStacks, gasStacks, lightDenseStacks, 0, 24 * MjAmount.MICRO_MJ_PER_MJ);
-            addDistillation(gasLightDenseStacks, gasLightStacks, denseStacks, 1, 16 * MjAmount.MICRO_MJ_PER_MJ);
-            addDistillation(gasLightStacks, gasStacks, lightStacks, 0, 24 * MjAmount.MICRO_MJ_PER_MJ);
-            addDistillation(lightDenseResidueStacks, lightStacks, denseResidueStacks, 1, 16 * MjAmount.MICRO_MJ_PER_MJ);
-            addDistillation(lightDenseResidueStacks, lightDenseStacks, residueStacks, 2, 12 * MjAmount.MICRO_MJ_PER_MJ);
-            addDistillation(lightDenseStacks, lightStacks, denseStacks, 1, 16 * MjAmount.MICRO_MJ_PER_MJ);
-            addDistillation(denseResidueStacks, denseStacks, residueStacks, 2, 12 * MjAmount.MICRO_MJ_PER_MJ);
-
-            addHeatExchange(BCEnergyFluids.crudeOil);
-            addHeatExchange(BCEnergyFluids.oilDistilled);
-            addHeatExchange(BCEnergyFluids.oilHeavy);
-            addHeatExchange(BCEnergyFluids.oilDense);
-            addHeatExchange(BCEnergyFluids.fuelMixedLight);
-            addHeatExchange(BCEnergyFluids.fuelMixedHeavy);
-            addHeatExchange(BCEnergyFluids.fuelGaseous);
-            addHeatExchange(BCEnergyFluids.fuelLight);
-            addHeatExchange(BCEnergyFluids.fuelDense);
-            addHeatExchange(BCEnergyFluids.oilResidue);
-
-            registerHeatRecipe("heating/minecraft/water_consumed", RecipeDefinition.Kind.HEATING,
-                new FluidStack(Fluids.WATER, 10), FluidStack.EMPTY, 0, 1);
-            registerHeatRecipe("cooling/minecraft/lava_consumed", RecipeDefinition.Kind.COOLING,
-                new FluidStack(Fluids.LAVA, 5), FluidStack.EMPTY, 4, 2);
-        }
-
+        // The identical packaged JSON is also used for local client-side recipe previews.
+        // An authoritative server datapack reload replaces this fallback catalogue.
+        buildcraft.lib.recipe.MachineRecipeDatapackReloadListener.bootstrapBundled();
         initialized = true;
     }
 
     private static EnergyFluidService energyFluids() {
         return BuildCraftApi.service(BuildCraftServices.ENERGY_FLUIDS);
-    }
-
-    private static MachineRecipeService machineRecipes() {
-        return BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES);
     }
 
     private static ResourceLocation id(String path) {
@@ -154,12 +106,6 @@ public class BCEnergyRecipes {
             }
         );
         energyFluids().register(id(path), profile, BUILTIN);
-    }
-
-    private static FluidStack[] createFluidStack(Fluid[] fluids, int amount) {
-        FluidStack[] result = new FluidStack[fluids.length];
-        for (int i = 0; i < result.length; i++) result[i] = new FluidStack(fluids[i], amount);
-        return result;
     }
 
     private static Fluid getFirstOrNull(Fluid[] fluids) {
@@ -195,64 +141,6 @@ public class BCEnergyRecipes {
             );
         }
         energyFluids().register(id("fuel/" + fuelVariant.fluidId().getNamespace() + "/" + fuelVariant.fluidId().getPath()), profile, BUILTIN);
-    }
-
-    private static void addDistillation(
-        FluidStack[] input, FluidStack[] outputGas, FluidStack[] outputLiquid, int heat, long mjCost
-    ) {
-        FluidStack inputStack = input[heat];
-        FluidStack gasStack = outputGas[heat];
-        FluidStack liquidStack = outputLiquid[heat];
-        FluidVariant inputVariant = FuelApiBridge.variantOf(inputStack);
-        if (machineRecipes().findDistillation(inputVariant, FuelApiBridge.MATCH_CONTEXT).isPresent()) {
-            throw new IllegalStateException("Already added distillation recipe for " + inputVariant.fluidId());
-        }
-        int hcf = MathUtil.findHighestCommonFactor(inputStack.getAmount(), gasStack.getAmount());
-        hcf = MathUtil.findHighestCommonFactor(hcf, liquidStack.getAmount());
-        if (hcf > 1) {
-            inputStack = inputStack.copy();
-            gasStack = gasStack.copy();
-            liquidStack = liquidStack.copy();
-            inputStack.setAmount(inputStack.getAmount() / hcf);
-            gasStack.setAmount(gasStack.getAmount() / hcf);
-            liquidStack.setAmount(liquidStack.getAmount() / hcf);
-            mjCost /= hcf;
-            inputVariant = FuelApiBridge.variantOf(inputStack);
-        }
-        DistillationRecipeDefinition definition = new DistillationRecipeDefinition(
-            FluidIngredient.exact(inputVariant, inputStack.getAmount()),
-            FuelApiBridge.volumeOf(gasStack), FuelApiBridge.volumeOf(liquidStack), mjCost
-        );
-        ResourceLocation fluidId = inputVariant.fluidId();
-        machineRecipes().register(id("distillation/" + fluidId.getNamespace() + "/" + fluidId.getPath()), definition, BUILTIN);
-    }
-
-    private static void addHeatExchange(BCFluid[] fluids) {
-        for (int i = 0; i < fluids.length - 1; i++) {
-            BCFluid cool = fluids[i];
-            BCFluid hot = fluids[i + 1];
-            FluidStack coolStack = new FluidStack(cool, 10);
-            FluidStack hotStack = new FluidStack(hot, 10);
-            int coolHeat = cool.getHeatValue();
-            int hotHeat = hot.getHeatValue();
-            ResourceLocation coolId = FuelApiBridge.variantOf(coolStack).fluidId();
-            ResourceLocation hotId = FuelApiBridge.variantOf(hotStack).fluidId();
-            registerHeatRecipe("heating/" + coolId.getNamespace() + "/" + coolId.getPath() + "_to_" + hotId.getPath(),
-                RecipeDefinition.Kind.HEATING, coolStack, hotStack, coolHeat, hotHeat);
-            registerHeatRecipe("cooling/" + hotId.getNamespace() + "/" + hotId.getPath() + "_to_" + coolId.getPath(),
-                RecipeDefinition.Kind.COOLING, hotStack, coolStack, hotHeat, coolHeat);
-        }
-    }
-
-    private static void registerHeatRecipe(
-        String path, RecipeDefinition.Kind kind, FluidStack input, FluidStack output, int heatFrom, int heatTo
-    ) {
-        FluidVariant inputVariant = FuelApiBridge.variantOf(input);
-        FluidVolume outputVolume = output == null || output.isEmpty() ? FluidVolume.empty() : FuelApiBridge.volumeOf(output);
-        HeatExchangeRecipeDefinition definition = new HeatExchangeRecipeDefinition(
-            kind, FluidIngredient.exact(inputVariant, input.getAmount()), outputVolume, heatFrom, heatTo
-        );
-        machineRecipes().register(id(path), definition, BUILTIN);
     }
 
     public static class BCEnergyRecipeProvider extends RecipeProvider{

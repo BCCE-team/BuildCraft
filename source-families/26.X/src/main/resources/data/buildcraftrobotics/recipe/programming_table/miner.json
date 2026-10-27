@@ -1,0 +1,7 @@
+{
+  "type": "buildcraftsilicon:programming",
+  "board_key": "miner",
+  "energy": {
+    "mj": 3200
+  }
+}

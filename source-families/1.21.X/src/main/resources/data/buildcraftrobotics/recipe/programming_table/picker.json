@@ -1,0 +1,7 @@
+{
+  "type": "buildcraftsilicon:programming",
+  "board_key": "picker",
+  "energy": {
+    "mj": 800
+  }
+}

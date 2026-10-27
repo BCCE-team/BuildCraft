@@ -4,6 +4,8 @@
  */
 package buildcraft.lib.tile.craft;
 
+import buildcraft.lib.recipe.RecipeBlacklist;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -59,6 +61,7 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
     private final ItemHandlerSimple invAssumedResult = new ItemHandlerSimple(1);
 
     private boolean isBlueprintDirty = true;
+    private long lastBlacklistGeneration = -1;
     private boolean areMaterialsDirty = true;
     private boolean cachedHasRequirements = false;
 
@@ -225,6 +228,11 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         cachedHasRequirements = false;
     }
 
+    private String recipeMachine() {
+        return tile instanceof buildcraft.silicon.tile.TileAdvancedCraftingTable
+            ? "advanced_crafting_table" : "auto_workbench";
+    }
+
     private void rebuildMatchingRecipes(Level world) {
         matchingRecipes.clear();
         matchingRecipeIds.clear();
@@ -237,7 +245,8 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
 
         for (RecipeHolder<?> holder : recipeManager.getRecipes()) {
             Recipe<?> raw = holder.value();
-            if (raw instanceof CraftingRecipe recipe && recipe.matches(input, world)) {
+            if (raw instanceof CraftingRecipe recipe && recipe.matches(input, world)
+                && !RecipeBlacklist.isDenied(recipeMachine(), holder.id().identifier())) {
                 matchingRecipes.add(recipe);
                 matchingRecipeIds.add(holder.id().identifier());
             }
@@ -284,6 +293,11 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         if (world == null) return false;
         if (world.isClientSide()) {
             throw new IllegalStateException("Never call this on the client side!");
+        }
+        long generation = RecipeBlacklist.generation();
+        if (lastBlacklistGeneration != generation) {
+            lastBlacklistGeneration = generation;
+            isBlueprintDirty = true;
         }
         if (isBlueprintDirty) {
             rebuildMatchingRecipes(world);

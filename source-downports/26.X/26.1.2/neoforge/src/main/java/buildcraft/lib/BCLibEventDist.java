@@ -62,6 +62,14 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 @EventBusSubscriber(modid = BCLib.MODID)
 public class BCLibEventDist {
 
+    /** Data-driven machine recipes and deny-wins blacklists (one listener per server reload). */
+    @SubscribeEvent
+    public static void reloadMachineRecipes(net.neoforged.neoforge.event.AddServerReloadListenersEvent event) {
+        event.addListener(net.minecraft.resources.Identifier.fromNamespaceAndPath(
+            "buildcraftlib", "machine_recipes"), new buildcraft.lib.recipe.MachineRecipeDatapackReloadListener());
+    }
+
+
     @EventBusSubscriber(modid = BCLib.MODID, value = Dist.CLIENT)
     public static class Client {
 
@@ -142,6 +150,7 @@ public class BCLibEventDist {
         }
 
         private static void onDisconnectFromServer() {
+        buildcraft.lib.recipe.ClientMachineRecipeCatalog.clear();
             ItemStackUtil.setClientRegistryProvider(null);
             MessageUtil.clearClientTasks();
         MarkerCache.clearClientCaches();
@@ -186,6 +195,7 @@ public class BCLibEventDist {
             // during integrated-server login; the client queues those messages too, but these extra passes make
             // reconnecting to an already loaded marker network deterministic.
             MessageUtil.doDelayedServer(20, () -> MarkerCache.onPlayerJoinLevel(playerMP));
+            MessageUtil.doDelayedServer(7, () -> buildcraft.lib.net.MessageMachineRecipes.sendAll(playerMP));
             MessageUtil.doDelayedServer(5, () -> buildcraft.lib.net.MessageGuideRecipeDisplays.sendAll(playerMP));
         }
     }

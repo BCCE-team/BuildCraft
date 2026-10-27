@@ -1,0 +1,20 @@
+{
+  "type": "buildcraftfactory:distillation",
+  "input": {
+    "fluid": "buildcraftenergy:fuel_mixed_light",
+    "amount_mb": 5
+  },
+  "outputs": {
+    "gas": {
+      "fluid": "buildcraftenergy:fuel_gaseous",
+      "amount_mb": 8
+    },
+    "liquid": {
+      "fluid": "buildcraftenergy:fuel_light",
+      "amount_mb": 2
+    }
+  },
+  "energy": {
+    "mj": 12
+  }
+}

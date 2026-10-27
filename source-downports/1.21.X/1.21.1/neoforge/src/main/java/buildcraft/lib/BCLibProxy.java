@@ -34,6 +34,14 @@ public abstract class BCLibProxy {
     static void MessageRegistry() {
         MessageManager.registerMessageClass(
             BCModules.LIB,
+            buildcraft.lib.net.MessageMachineRecipes.class,
+            buildcraft.lib.net.MessageMachineRecipes.HANDLER,
+            buildcraft.lib.net.MessageMachineRecipes::toBytes,
+            buildcraft.lib.net.MessageMachineRecipes::new,
+            Dist.CLIENT
+        );
+        MessageManager.registerMessageClass(
+            BCModules.LIB,
             MessageUpdateTile.class,
             MessageUpdateTile.HANDLER,
             MessageUpdateTile::toBytes,

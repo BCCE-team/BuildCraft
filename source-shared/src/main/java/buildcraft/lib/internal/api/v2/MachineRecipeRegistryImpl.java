@@ -4,6 +4,7 @@ import buildcraft.lib.internal.api.v2.recipe.MachineRecipeRegistration;
 import buildcraft.lib.internal.api.v2.recipe.MachineRecipeReloadResult;
 import buildcraft.api.v2.recipe.MachineRecipeService;
 import buildcraft.api.v2.recipe.RecipeDefinition;
+import buildcraft.lib.recipe.RecipeBlacklist;
 import buildcraft.api.v2.reload.DefinitionProvenance;
 import buildcraft.api.v2.reload.DefinitionSnapshot;
 import buildcraft.lib.internal.api.v2.reload.ReloadTransaction;
@@ -24,7 +25,17 @@ public final class MachineRecipeRegistryImpl implements MachineRecipeService {
     private List<MachineRecipeRegistration> dataDefinitions = List.of();
 
     @Override
-    public DefinitionSnapshot<RecipeDefinition> snapshot() { return published.current(); }
+    /** Public service queries and addon lookups never expose blacklisted recipes.
+     * The internal published snapshot retains all definitions for reload diagnostics. */
+    public DefinitionSnapshot<RecipeDefinition> snapshot() {
+        DefinitionSnapshot<RecipeDefinition> all = published.current();
+        RecipeBlacklist.Snapshot policy = RecipeBlacklist.snapshot();
+        if (policy.denied().isEmpty()) return all;
+        var visible = new LinkedHashMap<>(all.asMap());
+        visible.entrySet().removeIf(entry -> RecipeBlacklist.isDenied(
+            RecipeBlacklist.machineFor(entry.getValue().value().kind()), entry.getKey()));
+        return DefinitionSnapshot.of(all.generation(), visible);
+    }
 
     @Override
     public synchronized void register(ResourceLocation id, RecipeDefinition definition, DefinitionProvenance provenance) {
@@ -100,6 +111,14 @@ public final class MachineRecipeRegistryImpl implements MachineRecipeService {
         }
         for (MachineRecipeRegistration registration : data) {
             transaction.add(registration.id(), registration.definition(), registration.provenance());
+        }
+        // Duplication is reported, not silently ignored or treated as a blacklist.
+        for (MachineRecipeRegistration definition : data) {
+            MachineRecipeRegistration existing = codeDefinitions.get(definition.id());
+            if (existing != null) {
+                transaction.warning(definition.id(), "Duplicate recipe ID in Java (" + existing.provenance().source()
+                    + ") and datapack (" + definition.provenance().source() + "); datapack wins by priority");
+            }
         }
         boolean resolved = transaction.resolve();
         boolean publishedOk = resolved && transaction.publish();

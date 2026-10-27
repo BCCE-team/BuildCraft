@@ -1,0 +1,7 @@
+{
+  "type": "buildcraftsilicon:programming",
+  "board_key": "planter",
+  "energy": {
+    "mj": 3200
+  }
+}

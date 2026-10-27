@@ -9,6 +9,7 @@ public interface RecipeDefinition {
         DISTILLATION,
         HEATING,
         COOLING,
-        ASSEMBLY
+        ASSEMBLY,
+        PROGRAMMING
     }
 }

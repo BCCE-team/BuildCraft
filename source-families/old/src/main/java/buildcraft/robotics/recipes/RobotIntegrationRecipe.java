@@ -5,12 +5,8 @@ import buildcraft.api.v2.energy.MjAmount;
 import java.util.List;
 
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
-import buildcraft.api.v2.BuildCraftApi;
-import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.recipe.CountedIngredient;
 import buildcraft.api.v2.recipe.IntegrationRecipeDefinition;
-import buildcraft.api.v2.recipe.MachineRecipeService;
-import buildcraft.api.v2.reload.DefinitionProvenance;
 import buildcraft.robotics.BCRobotics;
 import buildcraft.robotics.BCRoboticsBoards;
 import buildcraft.robotics.BCRoboticsBoards.BoardEntry;
@@ -23,18 +19,33 @@ import net.minecraft.world.item.crafting.Ingredient;
 
 /** Built-in robot-board Integration Table recipe registered through API 2. */
 public class RobotIntegrationRecipe implements IntegrationRecipeDefinition {
-    public static final ResourceLocation ID = new ResourceLocation(BCRobotics.MODID, "robot_board_integration");
-    private static final DefinitionProvenance PROVENANCE =
-        new DefinitionProvenance(BCRobotics.MODID, "built-in", 0);
+    /** Declares a Java algorithm, never a hardcoded registered recipe. */
+    public static final String TYPE = "buildcraftsilicon:robot_board_integration";
+    public static final ResourceLocation ID = ResourceLocation.tryParse(
+        "buildcraftrobotics:integration_table/robot_board_integration");
+    private final long powerMicroMj;
     private static boolean registered;
 
-    public static void register() {
-        MachineRecipeService service = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES);
-        if (registered || service.snapshot().resolved(ID).isPresent()) {
-            registered = true;
-            return;
-        }
-        service.register(ID, new RobotIntegrationRecipe(), PROVENANCE);
+    public RobotIntegrationRecipe(long powerMicroMj) {
+        if (powerMicroMj <= 0) throw new IllegalArgumentException("Robot integration energy must be positive");
+        this.powerMicroMj = powerMicroMj;
+    }
+
+    public static synchronized void register() {
+        if (registered) return;
+        buildcraft.lib.recipe.MachineRecipeDatapackReloadListener.registerHandler(TYPE, json -> {
+            if (!json.has("energy") || !json.get("energy").isJsonObject()) {
+                throw new IllegalArgumentException("Missing robot integration energy object");
+            }
+            com.google.gson.JsonObject energy = json.getAsJsonObject("energy");
+            if (!energy.has("mj") || !energy.get("mj").isJsonPrimitive()
+                || !energy.get("mj").getAsJsonPrimitive().isNumber()) {
+                throw new IllegalArgumentException("Robot integration energy must be an integer MJ amount");
+            }
+            long mj = energy.get("mj").getAsBigDecimal().longValueExact();
+            if (mj <= 0) throw new IllegalArgumentException("Robot integration energy must be positive");
+            return new RobotIntegrationRecipe(Math.multiplyExact(mj, MjAmount.MICRO_MJ_PER_MJ));
+        });
         registered = true;
     }
 
@@ -65,7 +76,7 @@ public class RobotIntegrationRecipe implements IntegrationRecipeDefinition {
     @Override
     public long requiredMicroJoules(ItemStack output) {
         // BuildCraft 7.1.27 charged 50,000 legacy energy units here; BCCE preserves that balance at 10 legacy units = 1 MJ.
-        return 5_000L * MjAmount.MICRO_MJ_PER_MJ;
+        return powerMicroMj;
     }
 
     @Override

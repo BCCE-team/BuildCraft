@@ -6,6 +6,8 @@
 
 package buildcraft.lib.tile.craft;
 
+import buildcraft.lib.recipe.RecipeBlacklist;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -73,6 +75,7 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
     private final ItemHandlerSimple invResult;
     private final ItemHandlerSimple invAssumedResult = new ItemHandlerSimple(1);
     private boolean isBlueprintDirty = true;
+    private long lastBlacklistGeneration = -1;
     private boolean areMaterialsDirty = true;
     private boolean cachedHasRequirements = false;
     private final List<Recipe<CraftingContainer>> matchingRecipes = new ArrayList<>();
@@ -233,11 +236,16 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
         isBlueprintDirty = true;
     }
 
+    private String recipeMachine() {
+        return tile instanceof buildcraft.silicon.tile.TileAdvancedCraftingTable
+            ? "advanced_crafting_table" : "auto_workbench";
+    }
+
     private void rebuildMatchingRecipes(Level world) {
         matchingRecipes.clear();
         matchingRecipeIds.clear();
         for (Recipe<CraftingContainer> recipe : world.getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING)) {
-            if (recipe.matches(this, world)) {
+            if (recipe.matches(this, world) && !RecipeBlacklist.isDenied(recipeMachine(), recipe.getId())) {
                 matchingRecipes.add(recipe);
                 matchingRecipeIds.add(recipe.getId());
             }
@@ -293,6 +301,11 @@ public class WorkbenchCrafting extends TransientCraftingContainer {
     	Level world = tile.getLevel();
     	if (world.isClientSide) {
             throw new IllegalStateException("Never call this on the client side!");
+        }
+        long generation = RecipeBlacklist.generation();
+        if (lastBlacklistGeneration != generation) {
+            lastBlacklistGeneration = generation;
+            isBlueprintDirty = true;
         }
         if (isBlueprintDirty) {
             rebuildMatchingRecipes(world);

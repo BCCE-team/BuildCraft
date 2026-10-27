@@ -7,6 +7,7 @@ import buildcraft.api.v2.recipe.DistillationRecipeDefinition;
 import buildcraft.api.v2.recipe.FluidIngredient;
 import buildcraft.api.v2.recipe.HeatExchangeRecipeDefinition;
 import buildcraft.api.v2.recipe.MachineRecipeService;
+import buildcraft.api.v2.recipe.RecipeMatch;
 import buildcraft.lib.fluid.FluidCompatRegistry;
 import buildcraft.lib.fluid.FuelApiBridge;
 import net.neoforged.neoforge.fluids.FluidStack;
@@ -20,11 +21,17 @@ public final class MachineRecipeApiBridge {
     }
 
     public static DistillationRecipeDefinition findDistillation(FluidStack input) {
+        RecipeMatch<DistillationRecipeDefinition> match = findDistillationMatch(input);
+        return match == null ? null : match.recipe();
+    }
+
+    /** Preserve the recipe ID as well as the body for in-flight progress validation. */
+    public static RecipeMatch<DistillationRecipeDefinition> findDistillationMatch(FluidStack input) {
         if (input == null || input.isEmpty()) return null;
         FluidStack canonical = FluidCompatRegistry.canonicalize(input);
         if (canonical == null || canonical.isEmpty()) return null;
         return service().findDistillation(FuelApiBridge.variantOf(canonical), FuelApiBridge.MATCH_CONTEXT)
-            .map(match -> match.recipe()).orElse(null);
+            .orElse(null);
     }
 
     public static HeatExchangeRecipeDefinition findHeating(FluidStack input) {

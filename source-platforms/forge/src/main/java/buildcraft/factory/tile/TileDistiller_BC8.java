@@ -20,6 +20,7 @@ import buildcraft.api.v2.recipe.DistillationRecipeDefinition;
 import buildcraft.lib.internal.api.v2.MachineDefinitionLookup;
 import buildcraft.lib.internal.api.v2.MachineRuntimeView;
 import buildcraft.lib.recipe.MachineRecipeApiBridge;
+import buildcraft.lib.recipe.DistillationProgressIdentity;
 import buildcraft.lib.internal.tiles.IDebuggable;
 import buildcraft.lib.internal.tiles.TilesAPI;
 import buildcraft.core.BCCoreConfig;
@@ -104,6 +105,8 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
 
     private DistillationRecipeDefinition currentRecipe;
     private long distillPower = 0;
+    /** Identity of the recipe that accumulated distillPower, persisted across chunk loads. */
+    private String inFlightRecipeKey = "";
     // Progress paid for but cancelled when output tanks or recipes changed.
     private long pendingPowerRefund = 0;
     private boolean hasWork, isActive = false;
@@ -155,6 +158,7 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
         nbt.put("tanks", tankManager.serializeNBT());
         nbt.put("battery", mjBattery.serializeNBT());
         nbt.putLong("distillPower", distillPower);
+        nbt.putString("distillRecipeKey", inFlightRecipeKey);
         nbt.putLong("pendingPowerRefund", pendingPowerRefund);
         powerAvg.writeToNbt(nbt, "powerAvg");
 	}
@@ -166,6 +170,7 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
         tankManager.deserializeNBT(nbt.getCompound("tanks"));
         mjBattery.deserializeNBT(nbt.getCompound("battery"));
         distillPower = Math.max(0L, nbt.getLong("distillPower"));
+        inFlightRecipeKey = DistillationProgressIdentity.fromSaved(nbt.getString("distillRecipeKey"));
         pendingPowerRefund = Math.max(0L, nbt.getLong("pendingPowerRefund"));
         powerAvg.readFromNbt(nbt, "powerAvg");
 	}
@@ -254,9 +259,20 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
         long previousDistillPower = distillPower;
         powerAvg.tick();
         changedSinceNetUpdate |= powerAvgClient != powerAvg.getAverageLong();
+        // Never block new work just because a cancelled operation's refunded MJ
+        // are still waiting for free battery space. Otherwise an incoming power
+        // supply can fill the buffer perpetually and deadlock distillation.
         refundPendingPower();
 
-        currentRecipe = MachineRecipeApiBridge.findDistillation(tankIn.getFluid());
+        var matching = MachineRecipeApiBridge.findDistillationMatch(tankIn.getFluid());
+        String activeKey = DistillationProgressIdentity.of(matching);
+        if (distillPower > 0 && !activeKey.equals(inFlightRecipeKey)) {
+            // Do not let the old recipe's paid progress complete a new datapack recipe.
+            queueProgressRefund();
+            matching = null; // wait until the next server tick before starting new work
+        }
+        inFlightRecipeKey = activeKey;
+        currentRecipe = matching == null ? null : matching.recipe();
         if (currentRecipe == null) {
             queueProgressRefund();
             isActive = false;
@@ -296,6 +312,10 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
                 isActive = false;
             }
         }
+
+        // Extracting energy for the next operation creates room for the escrow;
+        // return the old MJ before the buffer can be refilled externally.
+        refundPendingPower();
 
         if (changedSinceNetUpdate && updateTracker.markTimeIfDelay(level)) {
             powerAvgClient = powerAvg.getAverageLong();

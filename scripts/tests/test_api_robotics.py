@@ -39,6 +39,9 @@ ROBOTICS_STUBS = {
  public net.minecraft.nbt.CompoundTag getTag(){return tag;}}''',
  'buildcraft/lib/misc/ItemStackUtil.java': '''package buildcraft.lib.misc;
  public class ItemStackUtil{public static net.minecraft.nbt.CompoundTag getCustomData(net.minecraft.world.item.ItemStack s){return s.getTag();}}''',
+ 'buildcraft/lib/recipe/ProgrammingRecipeAccess.java': '''package buildcraft.lib.recipe;
+ import java.util.Map;public final class ProgrammingRecipeAccess {
+ public static Map<String,Long> costs(boolean client){return Map.of();}}''',
  'buildcraft/lib/BCLibConfig.java':'package buildcraft.lib;public class BCLibConfig{public static boolean hidePowerValues;}',
  'buildcraft/lib/misc/LocaleUtil.java':'package buildcraft.lib.misc;public class LocaleUtil{public static String localize(String key){return key;}}',
  'buildcraft/lib/internal/mj/MjFormatting.java':'package buildcraft.lib.internal.mj;public class MjFormatting{public static String formatMicroMj(long value){return Long.toString(value);}}',

@@ -35,6 +35,7 @@ import buildcraft.lib.recipe.ApiAssemblyRecipeAdapter;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.recipe.MachineRecipeService;
+import buildcraft.lib.recipe.RecipeBlacklist;
 import net.minecraft.core.NonNullList;
 import buildcraft.lib.tile.TileBC_Neptune;
 import buildcraft.lib.tile.item.ItemHandlerManager;
@@ -111,6 +112,7 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
 
     protected boolean isDirty = true;
     private long lastApiRecipeGeneration = -1;
+    private long lastBlacklistGeneration = -1;
     /** Last advertised work target; progress packets are rate-limited while the recipe is unchanged. */
     private long lastGuiTarget = Long.MIN_VALUE;
     private Object lastVanillaRecipeManager;
@@ -151,6 +153,13 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
                 !(entry.getKey().recipe instanceof ApiAssemblyRecipeAdapter));
             isDirty = true;
         }
+        long blacklistGeneration = RecipeBlacklist.generation();
+        if (lastBlacklistGeneration != blacklistGeneration) {
+            lastBlacklistGeneration = blacklistGeneration;
+            isDirty = true;
+            changed |= recipesStates.entrySet().removeIf(entry ->
+                RecipeBlacklist.isDenied("assembly_table", entry.getKey().recipeId));
+        }
         long generation = machineRecipes().snapshot().generation().id();
         if (lastApiRecipeGeneration != generation) {
             lastApiRecipeGeneration = generation;
@@ -163,6 +172,7 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
             int previousSize = recipesStates.size();
             for (RecipeHolder<AssemblyRecipeBasic> holder : level.getRecipeManager().getAllRecipesFor(BCSiliconRecipes.ASSEMBLY_TYPE.get())) {
                 ResourceLocation recipeId = holder.id();
+                if (RecipeBlacklist.isDenied("assembly_table", recipeId)) continue;
                 AssemblyRecipeBasic recipe = holder.value();
                 Set<ItemStack> outputs = recipe.getOutputs(inv);
                 for (ItemStack out : outputs) {
@@ -491,6 +501,7 @@ public class TileAssemblyTable extends TileLaserTableBase implements MenuProvide
     @Nullable
     private AssemblyInstruction lookupServerRecipe(String name, ItemStack output) {
         ResourceLocation recipeId = normalizeRecipeId(name);
+        if (RecipeBlacklist.isDenied("assembly_table", recipeId)) return null;
         if (recipeId == null || level == null || level.isClientSide) {
             return null;
         }

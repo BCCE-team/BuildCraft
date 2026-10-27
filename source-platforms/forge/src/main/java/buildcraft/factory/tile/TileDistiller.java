@@ -20,6 +20,7 @@ import buildcraft.api.v2.recipe.DistillationRecipeDefinition;
 import buildcraft.lib.internal.api.v2.MachineDefinitionLookup;
 import buildcraft.lib.internal.api.v2.MachineRuntimeView;
 import buildcraft.lib.recipe.MachineRecipeApiBridge;
+import buildcraft.lib.recipe.DistillationProgressIdentity;
 import buildcraft.lib.internal.tiles.IDebuggable;
 import buildcraft.lib.internal.tiles.TilesAPI;
 import buildcraft.core.BCCoreConfig;
@@ -83,6 +84,8 @@ public class TileDistiller extends TileBC_Neptune implements IDebuggable, Machin
 
     private DistillationRecipeDefinition currentRecipe;
     private long distillPower = 0;
+    /** Identity of the recipe that accumulated distillPower, persisted across chunk loads. */
+    private String inFlightRecipeKey = "";
     private long pendingPowerRefund = 0;
     private boolean isActive = false;
     private final AverageLong powerAvg = new AverageLong(100);
@@ -138,6 +141,7 @@ public class TileDistiller extends TileBC_Neptune implements IDebuggable, Machin
         nbt.put("tanks", tankManager.serializeNBT());
         nbt.put("battery", mjBattery.serializeNBT());
         nbt.putLong("distillPower", distillPower);
+        nbt.putString("distillRecipeKey", inFlightRecipeKey);
         nbt.putLong("pendingPowerRefund", pendingPowerRefund);
         powerAvg.writeToNbt(nbt, "powerAvg");
 	}
@@ -149,6 +153,7 @@ public class TileDistiller extends TileBC_Neptune implements IDebuggable, Machin
         tankManager.deserializeNBT(nbt.getCompound("tanks"));
         mjBattery.deserializeNBT(nbt.getCompound("battery"));
         distillPower = Math.max(0, nbt.getLong("distillPower"));
+        inFlightRecipeKey = DistillationProgressIdentity.fromSaved(nbt.getString("distillRecipeKey"));
         pendingPowerRefund = Math.max(0, nbt.getLong("pendingPowerRefund"));
         powerAvg.readFromNbt(nbt, "powerAvg");
 		capturePersistentProgress();
@@ -237,19 +242,22 @@ public class TileDistiller extends TileBC_Neptune implements IDebuggable, Machin
         changedSinceNetUpdate |= powerAvgClient != powerAvg.getAverageLong();
         boolean wasActive = isActive;
 
-        if (!refundPendingPower()) {
-            isActive = false;
-            changedSinceNetUpdate |= wasActive;
-            markPersistentProgressIfNeeded(wasActive != isActive);
-            if (changedSinceNetUpdate && updateTracker.markTimeIfDelay(level)) {
-                powerAvgClient = powerAvg.getAverageLong();
-                sendNetworkUpdate(NET_RENDER_DATA);
-                changedSinceNetUpdate = false;
-            }
-            return;
-        }
+        // A refund waiting for battery space is *not* a reason to suspend new
+        // operations. A powered machine can have a full battery forever; pausing
+        // here prevents it from spending MJ, so the refund never finds room.
+        // Keep unreturned power in its persisted escrow and settle it whenever
+        // a new operation frees battery capacity.
+        refundPendingPower();
 
-        currentRecipe = MachineRecipeApiBridge.findDistillation(tankIn.getFluid());
+        var matching = MachineRecipeApiBridge.findDistillationMatch(tankIn.getFluid());
+        String activeKey = DistillationProgressIdentity.of(matching);
+        if (distillPower > 0 && !activeKey.equals(inFlightRecipeKey)) {
+            // Cancel paid progress before selecting a changed or newly permitted recipe.
+            queueProgressRefund();
+            matching = null;
+        }
+        inFlightRecipeKey = activeKey;
+        currentRecipe = matching == null ? null : matching.recipe();
         boolean completedOperation = false;
         if (currentRecipe == null) {
             queueProgressRefund();
@@ -289,6 +297,10 @@ public class TileDistiller extends TileBC_Neptune implements IDebuggable, Machin
             }
         }
 
+        // The extraction above may have opened space for a previously cancelled
+        // operation. Refund it now instead of starving while the power input keeps
+        // the battery full. Pending MJ never counts as a recipe's paid progress.
+        refundPendingPower();
         markPersistentProgressIfNeeded(completedOperation || wasActive != isActive);
         changedSinceNetUpdate |= wasActive != isActive;
 

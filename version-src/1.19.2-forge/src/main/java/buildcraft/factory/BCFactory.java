@@ -35,6 +35,7 @@ public class BCFactory
         modEventBus.addListener(this::init);
         modEventBus.addListener(this::postInit);*/
 //        modEventBus.addListener(this::gatherData);//DataGenerator
+        BCFactoryRecipeSerializers.registry(RegistryBinding.on(modEventBus));
         BCFactoryBlocks.registry(RegistryBinding.on(modEventBus));
         BCFactoryItems.registry(RegistryBinding.on(modEventBus));
         BCFactoryGuis.registry(RegistryBinding.on(modEventBus));

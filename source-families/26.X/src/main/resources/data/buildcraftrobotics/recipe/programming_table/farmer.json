@@ -1,0 +1,7 @@
+{
+  "type": "buildcraftsilicon:programming",
+  "board_key": "farmer",
+  "energy": {
+    "mj": 3200
+  }
+}

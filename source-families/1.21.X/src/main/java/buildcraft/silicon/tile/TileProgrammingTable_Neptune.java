@@ -6,9 +6,14 @@
 
 package buildcraft.silicon.tile;
 
+import buildcraft.lib.recipe.RecipeBlacklist;
+import buildcraft.lib.recipe.ProgrammingRecipeAccess;
+import buildcraft.api.v2.recipe.ProgrammingRecipeDefinition;
+import buildcraft.api.v2.BuildCraftApi;
+import buildcraft.api.v2.BuildCraftServices;
+
 import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
-import buildcraft.api.v2.energy.MjAmount;
 
 import net.minecraft.core.HolderLookup;
 import java.io.IOException;
@@ -73,8 +78,13 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
 
     public final ItemProvider optionDisplay = new ItemProvider(this::getOptionStack, OPTION_COUNT);
     private List<BoardEntry> options = List.of();
-    /** Registry order is stable until an addon registers new boards. */
-    private List<BoardEntry> cachedBoardCatalog = List.of();
+    /** The same board may occur multiple times at different processing costs. */
+    private List<ProgrammingRecipeDefinition> optionDefinitions = List.of();
+    private List<ProgrammingRecipeDefinition> cachedRecipeCatalog = List.of();
+    private long lastBlacklistGeneration = -1;
+    private long lastRecipeGeneration = -1;
+    /** Server-authoritative GUI snapshot: a list, not a board-key-to-cost map. */
+    private List<ProgrammingRecipeDefinition> syncedProgrammingOptions;
     public int selectedOption = -1;
     public int selectedPage;
 
@@ -148,21 +158,42 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
         setChanged();
     }
 
+    // A board can have multiple JSON recipes with different IDs. Eligibility is
+    // based on the surviving active recipes, not on a guessed canonical ID.
+
     private void refreshOptions() {
         BCRoboticsBoards.init();
         if (!canProgramInput()) {
             options = List.of();
             return;
         }
-        List<BoardEntry> catalog = List.copyOf(BCRoboticsBoards.robotEntries());
-        if (!catalog.equals(cachedBoardCatalog) || options.isEmpty()) {
-            cachedBoardCatalog = catalog;
-            List<BoardEntry> sorted = new ArrayList<>(catalog);
-            sorted.sort((a, b) -> {
-                int byCost = Integer.compare(a.energyCost(), b.energyCost());
-                return byCost != 0 ? byCost : a.id().compareTo(b.id());
-            });
-            options = List.copyOf(sorted);
+        boolean client = level != null && level.isClientSide;
+        long blacklistGeneration = RecipeBlacklist.generation();
+        long recipeGeneration = BuildCraftApi.service(BuildCraftServices.MACHINE_RECIPES)
+            .snapshot().generation().id();
+        if (level != null && !client && (lastBlacklistGeneration != blacklistGeneration
+            || lastRecipeGeneration != recipeGeneration)) {
+            lastBlacklistGeneration = blacklistGeneration;
+            lastRecipeGeneration = recipeGeneration;
+            // Never silently switch to a different board after a recipe reload.
+            selectedOption = -1;
+            cachedRecipeCatalog = List.of();
+            sendNetworkGuiUpdate(NET_GUI_DATA);
+            setChanged();
+        }
+        List<ProgrammingRecipeDefinition> catalog = client && syncedProgrammingOptions != null
+            ? syncedProgrammingOptions : ProgrammingRecipeAccess.options(client);
+        // A datapack can provide several valid recipes for the same registered board.
+        List<ProgrammingRecipeDefinition> active = catalog.stream()
+            .filter(recipe -> BCRoboticsBoards.getByKey(recipe.boardKey()) != BCRoboticsBoards.EMPTY)
+            .distinct()
+            .sorted(java.util.Comparator.comparingLong(ProgrammingRecipeDefinition::requiredMicroJoules)
+                .thenComparing(ProgrammingRecipeDefinition::boardKey))
+            .toList();
+        if (!active.equals(cachedRecipeCatalog) || options.isEmpty()) {
+            cachedRecipeCatalog = active;
+            optionDefinitions = active;
+            options = active.stream().map(recipe -> BCRoboticsBoards.getByKey(recipe.boardKey())).toList();
         }
         int pageCount = Math.max(1, (options.size() + OPTION_COUNT - 1) / OPTION_COUNT);
         if (selectedPage < 0 || selectedPage >= pageCount) selectedPage = 0;
@@ -178,7 +209,10 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
             return 0;
         }
         ItemStack programmed = ItemRedstoneBoard.createStack(selected);
-        return canPutOutput(programmed) ? selected.energyCost() * MjAmount.MICRO_MJ_PER_MJ : 0;
+        int absolute = selectedPage * OPTION_COUNT + selectedOption;
+        if (absolute < 0 || absolute >= optionDefinitions.size()) return 0;
+        // The selected *recipe variant*, not a guessed board-key winner, owns the energy cost.
+        return canPutOutput(programmed) ? optionDefinitions.get(absolute).requiredMicroJoules() : 0L;
     }
 
     @Override
@@ -249,6 +283,14 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
         if (id == NET_GUI_DATA || id == NET_SELECTED_OPTION) {
             buffer.writeVarInt(selectedOption);
             buffer.writeVarInt(selectedPage);
+            if (id == NET_GUI_DATA) {
+                List<ProgrammingRecipeDefinition> recipes = ProgrammingRecipeAccess.options(false);
+                buffer.writeVarInt(recipes.size());
+                for (ProgrammingRecipeDefinition recipe : recipes) {
+                    buffer.writeUtf(recipe.boardKey(), 256);
+                    buffer.writeLong(recipe.requiredMicroJoules());
+                }
+            }
         }
     }
 
@@ -258,6 +300,28 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
         if (id == NET_GUI_DATA || id == NET_SELECTED_OPTION) {
             int incomingOption = buffer.readVarInt();
             int incomingPage = buffer.readVarInt();
+            if (id == NET_GUI_DATA) {
+                int count = buffer.readVarInt();
+                if (count < 0 || count > 512) throw new IOException("Invalid programming recipe count " + count);
+                List<ProgrammingRecipeDefinition> recipes = new ArrayList<>(count);
+                java.util.Set<ProgrammingRecipeDefinition> seen = new java.util.HashSet<>();
+                for (int i = 0; i < count; i++) {
+                    String key = buffer.readUtf(256);
+                    long energy = buffer.readLong();
+                    ProgrammingRecipeDefinition recipe;
+                    try {
+                        recipe = new ProgrammingRecipeDefinition(key, energy);
+                    } catch (IllegalArgumentException invalid) {
+                        throw new IOException("Invalid programming option for " + key, invalid);
+                    }
+                    if (!seen.add(recipe)) throw new IOException("Duplicate programming option " + key + " at " + energy);
+                    recipes.add(recipe);
+                }
+                if (side == BCNetworkSide.CLIENT) {
+                    syncedProgrammingOptions = List.copyOf(recipes);
+                    cachedRecipeCatalog = List.of();
+                }
+            }
             // This packet is a server-owned GUI snapshot. Players select a board
             // through the validated menu action, not by writing arbitrary tile state.
             if (side == BCNetworkSide.CLIENT) {

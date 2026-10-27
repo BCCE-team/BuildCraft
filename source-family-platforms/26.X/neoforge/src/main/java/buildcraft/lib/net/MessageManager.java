@@ -292,6 +292,12 @@ public final class MessageManager {
         return new BuildCraftPayload(message, clientbound);
     }
 
+    /** True only while executing on the running server's own event loop. */
+    public static boolean isAuthoritativeServerThread() {
+        var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+        return server != null && server.isSameThread();
+    }
+
     public static void sendToAll(Object message) {
         PacketDistributor.sendToAllPlayers(payload(message, true));
     }

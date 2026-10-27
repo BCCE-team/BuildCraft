@@ -19,6 +19,7 @@ import buildcraft.lib.internal.recipes.IngredientStack;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.recipe.CountedIngredient;
+import buildcraft.api.v2.recipe.AssemblyIngredients;
 import buildcraft.api.v2.recipe.IntegrationRecipeDefinition;
 import buildcraft.api.v2.recipe.MachineRecipeService;
 import buildcraft.api.v2.recipe.RecipeMatch;
@@ -29,6 +30,7 @@ import buildcraft.lib.tile.item.ItemHandlerManager;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
 import buildcraft.silicon.BCSiliconBlocks;
 import buildcraft.silicon.container.ContainerIntegrationTable;
+import net.minecraft.core.NonNullList;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -87,31 +89,20 @@ public class TileIntegrationTable extends TileLaserTableBase implements MenuProv
         if (targetStack.isEmpty() || !item.test(targetStack)) return false;
         // Keep the API2 exact-sample matcher (including NBT/Data Components).
         // Converting to legacy IngredientStack silently discards that information.
-        List<ItemStack> remaining = new ArrayList<>(invToIntegrate.getSlots());
+        NonNullList<ItemStack> supplies = NonNullList.create();
         for (int slot = 0; slot < invToIntegrate.getSlots(); slot++) {
-            remaining.add(invToIntegrate.getStackInSlot(slot).copy());
+            supplies.add(invToIntegrate.getStackInSlot(slot).copy());
         }
-        for (CountedIngredient definition : items) {
-            int needed = definition.count();
-            for (int slot = 0; slot < remaining.size() && needed > 0; slot++) {
-                ItemStack stack = remaining.get(slot);
-                if (!definition.matchesItem(stack)) continue;
-                int taken = Math.min(needed, stack.getCount());
-                stack.shrink(taken);
-                needed -= taken;
-            }
-            if (needed > 0) return false;
-        }
-        // Integration recipes consume all inserted ingredients, not arbitrary extras.
-        if (remaining.stream().anyMatch(stack -> !stack.isEmpty())) return false;
+        java.util.Optional<List<ItemStack>> result = AssemblyIngredients.remaining(items, supplies);
+        if (result.isEmpty() || result.orElseThrow().stream().anyMatch(stack -> !stack.isEmpty())) return false;
         if (!simulate) {
+            List<ItemStack> remaining = result.orElseThrow();
             for (int slot = 0; slot < remaining.size(); slot++) {
                 invToIntegrate.setStackInSlot(slot, remaining.get(slot));
             }
-        }
-        if (!simulate) {
-            targetStack.setCount(targetStack.getCount() - item.count());
-            invTarget.setStackInSlot(0, targetStack);
+            ItemStack consumedTarget = targetStack.copy();
+            consumedTarget.shrink(item.count());
+            invTarget.setStackInSlot(0, consumedTarget);
         }
         return true;
     }

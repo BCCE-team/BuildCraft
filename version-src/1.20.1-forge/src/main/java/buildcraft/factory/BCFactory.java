@@ -30,6 +30,7 @@ public class BCFactory {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::gatherData);
 
+        BCFactoryRecipeSerializers.registry(RegistryBinding.on(modEventBus));
         BCFactoryBlocks.registry(RegistryBinding.on(modEventBus));
         BCFactoryItems.registry(RegistryBinding.on(modEventBus));
         BCFactoryGuis.registry(RegistryBinding.on(modEventBus));
