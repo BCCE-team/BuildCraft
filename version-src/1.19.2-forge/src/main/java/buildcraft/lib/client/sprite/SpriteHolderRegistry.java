@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +46,10 @@ import net.minecraftforge.fml.ModLoader;
 public class SpriteHolderRegistry {
     public static final boolean DEBUG = BCDebugging.shouldDebugLog("lib.sprite.holder");
 
-    private static final Map<ResourceLocation, SpriteHolder> HOLDER_MAP = new HashMap<>();
+    // Class initialisers and resource-reload workers may create holders concurrently.
+    // HashMap's values() snapshot could contain null during a concurrent resize, crashing Pre.
+    private static final Map<ResourceLocation, SpriteHolder> HOLDER_MAP = new ConcurrentHashMap<>();
+    private static final Object STITCH_LOCK = new Object();
 
     /**
      * Sprite holders are created by several BuildCraft modules that each have their own MOD event bus.
@@ -76,29 +79,29 @@ public class SpriteHolderRegistry {
     };
 
     public static SpriteHolder getHolder(ResourceLocation location) {
-        SpriteHolder holder = HOLDER_MAP.get(location);
-        if (holder == null) {
-            holder = new SpriteHolder(location);
-            HOLDER_MAP.put(location, holder);
-            if (DEBUG) {
-                BCLog.logger.info("[lib.sprite.holder] Created a new sprite holder for " + location);
-            }
-        } else if (DEBUG) {
-            BCLog.logger.info("[lib.sprite.holder] Returned existing sprite holder for " + location);
-        }
+        // Keep creation, active-event registration and generation checks atomic with Post.
+        // Never hold this lock while bootstrapping other classes via Class.forName.
+        synchronized (STITCH_LOCK) {
+            SpriteHolder holder = HOLDER_MAP.computeIfAbsent(location, key -> {
+                SpriteHolder created = new SpriteHolder(key);
+                if (DEBUG) {
+                    BCLog.logger.info("[lib.sprite.holder] Created a new sprite holder for " + key);
+                }
+                return created;
+            });
 
-        // Another BuildCraft module may create this holder after BCLib's Pre listener has run.
-        // Register it in the still-active event instead of silently leaving it as missingno.
-        if (activeStitchEvent != null) {
-            registerForStitch(holder, activeStitchEvent);
-        } else if (atlasHasBeenStitched && holder.lastRegisteredGeneration != stitchGeneration) {
-            BCLog.logger.error(
-                "[lib.sprite.holder] Sprite holder {} was created after the block atlas had already been stitched. " +
-                "It will be missing until resources are reloaded. Add its holder class to the sprite bootstrap.",
-                location
-            );
+            // A different BuildCraft mod bus may create its holders after BCLib's listener.
+            if (activeStitchEvent != null) {
+                registerForStitch(holder, activeStitchEvent);
+            } else if (atlasHasBeenStitched && holder.lastRegisteredGeneration != stitchGeneration) {
+                BCLog.logger.error(
+                    "[lib.sprite.holder] Sprite holder {} was created after the block atlas had already been stitched. " +
+                    "It will be missing until resources are reloaded. Add its holder class to the sprite bootstrap.",
+                    location
+                );
+            }
+            return holder;
         }
-        return holder;
     }
 
     public static SpriteHolder getHolder(String location) {
@@ -109,15 +112,25 @@ public class SpriteHolderRegistry {
         if (!InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
             return;
         }
-        beginStitch(event);
+        synchronized (STITCH_LOCK) {
+            beginStitch(event);
+        }
+        // Class initialisation may call getHolder() on this or another thread. Bootstrapping
+        // under STITCH_LOCK can deadlock with a class-initialisation lock, so do it outside.
         bootstrapBuiltinHolders();
-        for (SpriteHolder holder : new ArrayList<>(HOLDER_MAP.values())) {
-            registerForStitch(holder, event);
+        synchronized (STITCH_LOCK) {
+            for (SpriteHolder holder : HOLDER_MAP.values()) {
+                registerForStitch(holder, event);
+            }
         }
     }
 
+    /** Called with STITCH_LOCK held. */
     private static void beginStitch(ClientAtlas.Before event) {
-        if (activeStitchEvent == event) {
+        // Each mod bus creates its own ClientAtlas.Before record wrapping the SAME Forge
+        // TextureStitchEvent.Pre. Compare the underlying atlas, not the wrapper identity.
+        // Post sets activeStitchEvent to null, so a subsequent reload starts a new generation.
+        if (activeStitchEvent != null && activeStitchEvent.getAtlas() == event.getAtlas()) {
             return;
         }
         activeStitchEvent = event;
@@ -130,13 +143,15 @@ public class SpriteHolderRegistry {
         if (!InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
             return;
         }
-        beginStitch(event);
-        holder.sprite = null;
-        holder.hasCalled = false;
-        if (REGISTERED_THIS_STITCH.add(holder.spriteLocation)) {
-            event.addSprite(holder.spriteLocation);
+        synchronized (STITCH_LOCK) {
+            beginStitch(event);
+            holder.sprite = null;
+            holder.hasCalled = false;
+            if (REGISTERED_THIS_STITCH.add(holder.spriteLocation)) {
+                event.addSprite(holder.spriteLocation);
+            }
+            holder.lastRegisteredGeneration = stitchGeneration;
         }
-        holder.lastRegisteredGeneration = stitchGeneration;
     }
 
     private static void bootstrapBuiltinHolders() {
@@ -186,66 +201,69 @@ public class SpriteHolderRegistry {
         if (!InventoryMenu.BLOCK_ATLAS.equals(event.getAtlas().location())) {
             return;
         }
-        List<ResourceLocation> locations = new ArrayList<>(HOLDER_MAP.keySet());
-        locations.sort(Comparator.comparing(ResourceLocation::toString));
+        synchronized (STITCH_LOCK) {
+            List<ResourceLocation> locations = new ArrayList<>(HOLDER_MAP.keySet());
+            locations.sort(Comparator.comparing(ResourceLocation::toString));
 
-        TextureAtlas manager = event.getAtlas();
-        TextureAtlasSprite missing = manager.getSprite(MissingTextureAtlasSprite.getLocation());
-        List<ResourceLocation> missingLocations = new ArrayList<>();
-        List<ResourceLocation> unregisteredLocations = new ArrayList<>();
+            TextureAtlas manager = event.getAtlas();
+            TextureAtlasSprite missing = manager.getSprite(MissingTextureAtlasSprite.getLocation());
+            List<ResourceLocation> missingLocations = new ArrayList<>();
+            List<ResourceLocation> unregisteredLocations = new ArrayList<>();
 
-        // Always refresh the cached atlas sprite after stitching/resource reload.
-        for (ResourceLocation location : locations) {
-            SpriteHolder holder = HOLDER_MAP.get(location);
-            TextureAtlasSprite stitched = manager.getSprite(location);
-            holder.sprite = stitched;
-            holder.hasCalled = false;
+            // Always refresh the cached atlas sprite after stitching/resource reload.
+            for (ResourceLocation location : locations) {
+                SpriteHolder holder = HOLDER_MAP.get(location);
+                TextureAtlasSprite stitched = manager.getSprite(location);
+                holder.sprite = stitched;
+                holder.hasCalled = false;
 
-            if (holder.lastRegisteredGeneration != stitchGeneration) {
-                unregisteredLocations.add(location);
+                if (holder.lastRegisteredGeneration != stitchGeneration) {
+                    unregisteredLocations.add(location);
+                }
+                if (isMissingSprite(stitched, missing)) {
+                    missingLocations.add(location);
+                }
             }
-            if (isMissingSprite(stitched, missing)) {
-                missingLocations.add(location);
-            }
-        }
 
-        activeStitchEvent = null;
-        REGISTERED_THIS_STITCH.clear();
-        atlasHasBeenStitched = true;
+            activeStitchEvent = null;
+            REGISTERED_THIS_STITCH.clear();
+            atlasHasBeenStitched = true;
 
-        if (!unregisteredLocations.isEmpty()) {
-            BCLog.logger.error(
-                "[lib.sprite.holder] {} sprite holders were not registered during block-atlas stitching: {}",
-                unregisteredLocations.size(), unregisteredLocations
-            );
-        }
-        if (!missingLocations.isEmpty()) {
-            BCLog.logger.error(
-                "[lib.sprite.holder] {} BuildCraft sprites resolved to missingno. " +
-                "The exact missing resources are listed below:",
-                missingLocations.size()
-            );
-            for (ResourceLocation location : missingLocations) {
+            if (!unregisteredLocations.isEmpty()) {
                 BCLog.logger.error(
-                    "[lib.sprite.holder]   {}  (expected assets/{}/textures/{}.png)",
-                    location, location.getNamespace(), location.getPath()
+                    "[lib.sprite.holder] {} sprite holders were not registered during block-atlas stitching: {}",
+                    unregisteredLocations.size(), unregisteredLocations
                 );
             }
-
-            if (Boolean.getBoolean("buildcraft.failOnMissingSprites")) {
-                throw new IllegalStateException(
-                    "BuildCraft has " + missingLocations.size() + " missing stitched sprites: " + missingLocations
+            if (!missingLocations.isEmpty()) {
+                BCLog.logger.error(
+                    "[lib.sprite.holder] {} BuildCraft sprites resolved to missingno. " +
+                    "The exact missing resources are listed below:",
+                    missingLocations.size()
                 );
-            }
-        }
+                for (ResourceLocation location : missingLocations) {
+                    BCLog.logger.error(
+                        "[lib.sprite.holder]   {}  (expected assets/{}/textures/{}.png)",
+                        location, location.getNamespace(), location.getPath()
+                    );
+                }
 
-        if (DEBUG && ModLoader.isLoadingStateValid()) {
-            BCLog.logger.info("[lib.sprite.holder] Successfully stitched {} sprite holders", locations.size());
+                if (Boolean.getBoolean("buildcraft.failOnMissingSprites")) {
+                    throw new IllegalStateException(
+                        "BuildCraft has " + missingLocations.size() + " missing stitched sprites: " + missingLocations
+                    );
+                }
+            }
+
+            if (DEBUG && ModLoader.isLoadingStateValid()) {
+                BCLog.logger.info("[lib.sprite.holder] Successfully stitched {} sprite holders", locations.size());
+            }
         }
     }
 
     private static boolean isMissingSprite(TextureAtlasSprite sprite, TextureAtlasSprite missing) {
-        return sprite == missing || (sprite.getU0() == missing.getU0() && sprite.getV0() == missing.getV0());
+        return sprite == null || sprite == missing ||
+            (sprite.getU0() == missing.getU0() && sprite.getV0() == missing.getV0());
     }
 
     /** Holds a reference to a {@link TextureAtlasSprite} that is automatically refreshed when the resource packs are
@@ -254,8 +272,8 @@ public class SpriteHolderRegistry {
     @OnlyIn(Dist.CLIENT)
     public static class SpriteHolder implements ISprite {
         public final ResourceLocation spriteLocation;
-        private TextureAtlasSprite sprite;
-        private boolean hasCalled = false;
+        private volatile TextureAtlasSprite sprite;
+        private volatile boolean hasCalled = false;
         private int lastRegisteredGeneration = -1;
 
         private SpriteHolder(ResourceLocation spriteLocation) {
