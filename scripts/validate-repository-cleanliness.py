@@ -112,7 +112,12 @@ if ci_file.is_file() and local_runner.is_file():
             index = command.index("-p")
             if index + 1 < len(command):
                 ci_patterns.append(command[index + 1])
-    local_patterns = re.findall(r'"-p",\s*"(test_[^"\n]+\.py)"', local_text)
+    # Local CI may use the shared _unittest_command helper or inline command tuples.
+    # Read both forms in declaration order so missing/reordered suites still fail.
+    local_patterns = re.findall(
+        r'(?:_unittest_command\(\s*|"-p",\s*)"(test_[^"\n]+\.py)"',
+        local_text,
+    )
     if ci_patterns != local_patterns:
         errors.append("unittest discovery patterns differ between GitHub CI and run-ci-local.py")
     for test_path in sorted((ROOT / "scripts/tests").glob("test_*.py")):
