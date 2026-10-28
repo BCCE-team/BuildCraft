@@ -9,8 +9,10 @@ import buildcraft.lib.platform.client.PlatformClientModels;
 import buildcraft.lib.platform.events.PlatformClientEvents;
 import buildcraft.lib.platform.events.PlatformEvents;
 import buildcraft.lib.platform.events.BCEvents;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fStack;
 
 import buildcraft.lib.internal.tiles.IDebuggable;
 import buildcraft.lib.client.model.ModelHolderRegistry;
@@ -136,18 +138,28 @@ public class BCLibEventDist {
             Minecraft mc = Minecraft.getInstance();
             Player player = mc.player;
             if (player == null) return;
-            // RenderSystem already supplies the view rotation to the shader when BufferUploader
-            // submits BLOCK vertices. Folding event.getModelViewMatrix() into this PoseStack
-            // rotates all detached world geometry a second time: Volume Boxes, their Filler
-            // Planner holograms and marker lasers drift across the terrain as the camera turns.
-            // Keep the CPU pose in world space. FROM_WORLD_ORIGIN subtracts the camera position
-            // exactly once in DetachedRenderer.fromWorldOriginPre().
+            // Two draw paths share this pass: static lasers end in VertexBuffer.drawWithShader, which takes the
+            // view matrix from this pose, while Volume Boxes end in BufferUploader.drawWithShader, which takes it
+            // from RenderSystem. Put the camera rotation in the pose and blank RenderSystem's for the pass, so each
+            // path sees it once. FROM_WORLD_ORIGIN subtracts the camera position in fromWorldOriginPre().
             PoseStack pose = new PoseStack();
+            pose.mulPose(new Matrix4f(event.getModelViewMatrix()));
             Matrix4f matrix = new Matrix4f(event.getProjectionMatrix());
             float partialTicks = event.getPartialTick().getGameTimeDeltaPartialTick(false);
 
-            LaserRenderer_BC8.setupLaserRenderState();
-            DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
+            Matrix4fStack modelView = RenderSystem.getModelViewStack();
+            modelView.pushMatrix().identity();
+            RenderSystem.applyModelViewMatrix();
+            try {
+                // The block shader multiplies by the lightmap; with Sodium drawing the terrain nothing is bound
+                // there any more, and the lasers come out black.
+                mc.gameRenderer.lightTexture().turnOnLightLayer();
+                LaserRenderer_BC8.setupLaserRenderState();
+                DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
+            } finally {
+                modelView.popMatrix();
+                RenderSystem.applyModelViewMatrix();
+            }
         }
     }
 
