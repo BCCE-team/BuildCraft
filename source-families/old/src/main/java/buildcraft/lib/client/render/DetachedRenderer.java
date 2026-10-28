@@ -11,7 +11,6 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 //? if <1.20 {
 import com.mojang.math.Matrix4f;
@@ -24,8 +23,6 @@ import org.joml.Matrix4f;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.InventoryMenu;
-import buildcraft.lib.client.render.laser.LaserRenderer_BC8;
 import net.minecraft.world.phys.Vec3;
 
 /** Dispatches "detached renderer elements" - rendering that does not require a specific tile or entity in the world
@@ -84,8 +81,8 @@ public enum DetachedRenderer {
     }
 
     public void renderWorldLastEvent(PoseStack pose, Matrix4f matrix, Player player, float partialTicks) {
-        LaserRenderer_BC8.setupLaserRenderState();
-        RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS);
+        // Each detached renderer records geometry into the native RenderType buffers. The
+        // owning stage event submits the batch after all overlays have been collected.
         for (RenderMatrixType type : RenderMatrixType.values()) {
             List<IDetachedRenderer> rendersForType = this.renders.get(type);
             if (rendersForType.isEmpty()) continue;

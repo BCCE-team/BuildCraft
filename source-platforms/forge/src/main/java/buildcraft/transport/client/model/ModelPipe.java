@@ -59,6 +59,47 @@ public enum ModelPipe implements IDynamicBakedModel {
 	public static void clearTextureCache() {
 		particleIcon.clear();
 	}
+
+    /**
+     * Minecraft 1.19.2/1.20.1 chunk model rendering does not reliably propagate the
+     * alpha channel of baked vertex colours. A translucent render layer alone is not
+     * enough: stained-glass facades, lens panes and translucent pipe dye become opaque.
+     *
+     * Keep fully opaque translucent quads in the terrain pass (water/ice sorting),
+     * while the minority of quads which actually require vertex alpha are submitted
+     * by the pipe block-entity renderer. Never submit either group twice.
+     */
+    private static boolean needsVertexAlpha(BakedQuad quad) {
+        int[] vertices = quad.getVertices();
+        int stride = vertices.length / 4;
+        if (stride < 4) return false;
+        for (int index = 0; index < 4; index++) {
+            if ((vertices[index * stride + 3] >>> 24) != 0xFF) return true;
+        }
+        return false;
+    }
+
+    /** Only the alpha-dependent world quads, shared with the BER. */
+    public static List<BakedQuad> getAlphaQuads(TilePipeHolder tile) {
+        if (tile == null || tile.getPipe() == Pipe.EMPTY) return List.of();
+        return bakeTranslucentQuads(tile).stream().filter(ModelPipe::needsVertexAlpha).toList();
+    }
+
+    private static List<BakedQuad> bakeTranslucentQuads(TilePipeHolder tile) {
+        var apiModel = buildcraft.lib.client.render.ApiPresentationModels.pipeBaseModel(tile.getPipe());
+        if (apiModel != null && apiModel.hasBakedQuads()) {
+            java.util.ArrayList<BakedQuad> quads = new java.util.ArrayList<>();
+            if (!buildcraft.lib.client.render.ApiPresentationModels.animatedPipe(tile.getPipe())) {
+                for (buildcraft.lib.client.model.MutableQuad quad : apiModel.getTranslucentQuads()) {
+                    quads.add(quad.toBakedBlock());
+                }
+            }
+            var plugKey = new PipeModelCachePluggable.PluggableKey(RenderType.translucent(), tile);
+            quads.addAll(PipeModelCachePluggable.cacheTranslucentAll.bake(plugKey));
+            return quads;
+        }
+        return PipeModelCacheAll.cacheTranslucent.bake(new PipeAllTranslucentKey(tile));
+    }
 	@Override
 	public @NotNull List<BakedQuad> getQuads(@Nullable BlockState state, @Nullable Direction side,
 			@NotNull RandomSource rand, @NotNull ModelData data, @Nullable RenderType renderType) {
@@ -68,6 +109,12 @@ public enum ModelPipe implements IDynamicBakedModel {
                 return ImmutableList.of();
             }
             return PipeModelCacheBase.cacheCutout.bake(new PipeBaseCutoutKey(PipeModelKey.DEFAULT_KEY));
+        }
+
+        if (renderType == RenderType.translucent()) {
+            // Do not let the chunk builder silently force per-vertex alpha to opaque.
+            // Those quads are rendered once by the BER via getAlphaQuads().
+            return bakeTranslucentQuads(tile).stream().filter(q -> !needsVertexAlpha(q)).toList();
         }
 
         var apiModel = buildcraft.lib.client.render.ApiPresentationModels.pipeBaseModel(tile.getPipe());

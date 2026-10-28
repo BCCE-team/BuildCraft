@@ -127,8 +127,8 @@ public class BCLibEventDist {
     @SubscribeEvent
     @OnlyIn(Dist.CLIENT)
     public static void renderWorldLast(RenderLevelStageEvent event) {
-        if(event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
-            return ;
+        if(event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) {
+            return;
         }
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
@@ -137,8 +137,11 @@ public class BCLibEventDist {
         Matrix4f matrix = new Matrix4f(RenderSystem.getProjectionMatrix());
         float partialTicks = event.getPartialTick();
 
-        LaserRenderer_BC8.setupLaserRenderState();
-        DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
+        try {
+            DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks);
+        } finally {
+            LaserRenderer_BC8.flushWorldLasers();
+        }
     }
 
 

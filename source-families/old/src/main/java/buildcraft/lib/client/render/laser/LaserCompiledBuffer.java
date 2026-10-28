@@ -45,11 +45,12 @@ public class LaserCompiledBuffer {
             // TEX_2F
             buffer.uv(data[counter++]+0.00f, data[counter++]+0.000f);
 
-            // TEX_2S
+            // Entity RenderTypes include UV1 (overlay) before UV2 (lightmap).
+            // BLOCK RenderTypes omit UV1, in which case overlayCoords is ignored.
             int lmap = (int)data[counter++];
+            buffer.overlayCoords(OverlayTexture.NO_OVERLAY);
             buffer.uv2(lmap);
             buffer.normal(normal, data[counter++], data[counter++], data[counter++]);
-            buffer.overlayCoords(OverlayTexture.NO_OVERLAY);
 
             buffer.endVertex();
         }

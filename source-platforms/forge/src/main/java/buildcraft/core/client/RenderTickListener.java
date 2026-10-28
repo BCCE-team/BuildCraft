@@ -180,14 +180,17 @@ public class RenderTickListener {
     }
 
     public static void renderLast(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) {
             return;
         }
-        LaserRenderer_BC8.setupLaserRenderState();
         float partialTicks = event.getPartialTick();
         PoseStack poseStack = event.getPoseStack();
         Matrix4f matrix = event.getProjectionMatrix();
-        renderHeldItemInWorld(poseStack, matrix, partialTicks);
+        try {
+            renderHeldItemInWorld(poseStack, matrix, partialTicks);
+        } finally {
+            LaserRenderer_BC8.flushWorldLasers();
+        }
     }
 
     private static void renderHeldItemInWorld(PoseStack poseStack, Matrix4f matrix, float partialTicks) {

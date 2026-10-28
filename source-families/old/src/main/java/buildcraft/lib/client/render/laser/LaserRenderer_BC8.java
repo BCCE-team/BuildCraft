@@ -12,13 +12,12 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import buildcraft.lib.client.render.laser.LaserData_BC8.LaserType;
-import buildcraft.lib.misc.SpriteUtil;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -36,22 +35,34 @@ import org.joml.Matrix4f;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
+
 public class LaserRenderer_BC8 {
-    private static final LoadingCache<LaserData_BC8, LaserCompiledList> COMPILED_STATIC_LASERS;
+    private static final LoadingCache<LaserData_BC8, LaserCompiledBuffer> COMPILED_STATIC_LASERS;
     private static final Map<LaserType, CompiledLaserType> COMPILED_LASER_TYPES = new HashMap<>();
     private static final LoadingCache<LaserData_BC8, LaserCompiledBuffer> COMPILED_DYNAMIC_LASERS;
     private static final LoadingCache<List<LaserData_BC8>, LaserCompiledBuffer> COMPILED_DYNAMIC_BOXES;
+
+    // Match the BLOCK-format terrain shaders used for laser geometry in the working 26.2 target.
+    // The entity shader applies minecraft_mix_light to the vertex normal, making legacy markers
+    // appreciably darker than the original BuildCraft block-shader/VBO pipeline.
+    private static final RenderType WORLD_LASER_TYPE = RenderType.cutout();
+    private static final RenderType WORLD_PREVIEW_TYPE = RenderType.translucent();
+    private static final MultiBufferSource.BufferSource WORLD_LASER_BUFFER =
+        MultiBufferSource.immediate(new BufferBuilder(2048));
+    private static final MultiBufferSource.BufferSource WORLD_PREVIEW_BUFFER =
+        MultiBufferSource.immediate(new BufferBuilder(2048));
 
     public static final VertexFormat FORMAT_LESS, FORMAT_ALL;
 
     static {
         COMPILED_STATIC_LASERS = CacheBuilder.newBuilder()//
             .expireAfterWrite(5, TimeUnit.SECONDS)//
-            .removalListener(LaserRenderer_BC8::removeCompiledLaser)//
             .build(CacheLoader.from(LaserRenderer_BC8::makeStaticLaser));
 
         COMPILED_DYNAMIC_LASERS = CacheBuilder.newBuilder()//
@@ -64,49 +75,35 @@ public class LaserRenderer_BC8 {
             .build(CacheLoader.from(LaserRenderer_BC8::makeDynamicLaserBox));
 
         FORMAT_LESS = new VertexFormat(ImmutableMap.<String, VertexFormatElement>builder()
-        		.put("Position", DefaultVertexFormat.ELEMENT_POSITION)
-        		.put("UV", DefaultVertexFormat.ELEMENT_UV)
-        		.put("UV1", DefaultVertexFormat.ELEMENT_UV1)
-        		.put("UV2", DefaultVertexFormat.ELEMENT_UV2)
-        		.build());
+                .put("Position", DefaultVertexFormat.ELEMENT_POSITION)
+                .put("UV", DefaultVertexFormat.ELEMENT_UV)
+                .put("UV1", DefaultVertexFormat.ELEMENT_UV1)
+                .put("UV2", DefaultVertexFormat.ELEMENT_UV2)
+                .build());
 
         FORMAT_ALL = new VertexFormat(ImmutableMap.<String, VertexFormatElement>builder()
-        		.put("Position", DefaultVertexFormat.ELEMENT_POSITION)
-        		.put("UV", DefaultVertexFormat.ELEMENT_UV)
-        		.put("UV1", DefaultVertexFormat.ELEMENT_UV1)
-        		.put("Color", DefaultVertexFormat.ELEMENT_COLOR)
-        		.put("UV2", DefaultVertexFormat.ELEMENT_UV2)
-        		.build());
-
+                .put("Position", DefaultVertexFormat.ELEMENT_POSITION)
+                .put("UV", DefaultVertexFormat.ELEMENT_UV)
+                .put("UV1", DefaultVertexFormat.ELEMENT_UV1)
+                .put("Color", DefaultVertexFormat.ELEMENT_COLOR)
+                .put("UV2", DefaultVertexFormat.ELEMENT_UV2)
+                .build());
     }
 
-    /**
-     * Invalidates every object that contains UV coordinates baked from the block atlas.
-     *
-     * SpriteHolder instances are refreshed after a texture stitch, but the compiled laser
-     * buffers already contain atlas-generation-specific UVs. Keeping stale buffers after a resource
-     * reload makes every laser sample unrelated parts of the new atlas.
-     */
+    /** Compiled UVs belong to one block-atlas generation; discard them after every reload. */
     public static void clearModels() {
         COMPILED_LASER_TYPES.clear();
 
-        // Static lasers own GPU vertex buffers. invalidateAll() followed by cleanUp()
-        // invokes the removal listener immediately, which closes those VBOs.
+        // Static and dynamic lasers both hold CPU-side atlas UVs.
         COMPILED_STATIC_LASERS.invalidateAll();
         COMPILED_STATIC_LASERS.cleanUp();
-
-        // Dynamic lasers are CPU-side vertex arrays with the atlas UVs baked into them.
         COMPILED_DYNAMIC_LASERS.invalidateAll();
         COMPILED_DYNAMIC_LASERS.cleanUp();
         COMPILED_DYNAMIC_BOXES.invalidateAll();
         COMPILED_DYNAMIC_BOXES.cleanUp();
     }
 
-    /**
-     * Marker/path lasers are rendered from RenderLevelStageEvent or custom block-entity buffers instead of the normal
-     * chunk model path. Optimized renderers such as Rubidium can leave a different GL state active for those hooks,
-     * so make the state explicit before drawing BuildCraft laser VBOs/immediate buffers.
-     */
+    /** Retained for callers that still render with the legacy immediate block shader. */
     public static void setupLaserRenderState() {
         RenderSystem.enableDepthTest();
         RenderSystem.depthMask(true);
@@ -130,14 +127,17 @@ public class LaserRenderer_BC8 {
         return COMPILED_LASER_TYPES.get(laserType);
     }
 
-    private static LaserCompiledList makeStaticLaser(LaserData_BC8 data) {
-        try (LaserCompiledList.Builder renderer = new LaserCompiledList.Builder(data.enableDiffuse)) {
-            makeLaser(data, renderer, true);
-            return renderer.build();
-        }
+    private static LaserCompiledBuffer makeStaticLaser(LaserData_BC8 data) {
+        // Terrain shaders do not add entity directional light; retain the original
+        // per-face diffuse colour exactly as in the 26.2 laser implementation.
+        LaserCompiledBuffer.Builder renderer = new LaserCompiledBuffer.Builder(data.enableDiffuse);
+        makeLaser(data, renderer, true);
+        return renderer.build();
     }
 
     private static LaserCompiledBuffer makeDynamicLaser(LaserData_BC8 data) {
+        // Legacy dynamic/BER laser callers are unchanged; they may use BLOCK format
+        // and still require the original CPU diffuse colour.
         LaserCompiledBuffer.Builder renderer = new LaserCompiledBuffer.Builder(data.enableDiffuse);
         makeLaser(data, renderer, data.isOrgin);//default False
         return renderer.build();
@@ -149,17 +149,9 @@ public class LaserRenderer_BC8 {
         type.bakeFor(ctx);
     }
 
-    private static void removeCompiledLaser(RemovalNotification<LaserData_BC8, LaserCompiledList> notification) {
-        LaserCompiledList comp = notification.getValue();
-        if (comp != null) {
-            comp.delete();
-        }
-    }
-
     public static int computeLightmap(double x, double y, double z, int minBlockLight) {
-    	Minecraft mc = Minecraft.getInstance();
+        Minecraft mc = Minecraft.getInstance();
         Level level = mc.level;
-
         if (level == null) return 0;
         int blockLight =
             minBlockLight >= 15 ? 15 : Math.max(minBlockLight, getLightFor(level, LightLayer.BLOCK, x, y, z));
@@ -171,7 +163,7 @@ public class LaserRenderer_BC8 {
         int max = 0;
         int count = 0;
         int sum = 0;
-		boolean ao = Minecraft.useAmbientOcclusion();
+        boolean ao = Minecraft.useAmbientOcclusion();
 
         double xn = (x % 1 + 1) % 1;
         double yn = (y % 1 + 1) % 1;
@@ -214,35 +206,90 @@ public class LaserRenderer_BC8 {
     }
 
     public static void renderLaserStatic(PoseStack pose, Matrix4f matrix, LaserData_BC8 data) {
-        LaserCompiledList compiled = COMPILED_STATIC_LASERS.getUnchecked(data);
+        // World-space lasers use the stage-owned projection and native shader target.
+        COMPILED_STATIC_LASERS.getUnchecked(data).render(
+            pose.last().pose(), pose.last().normal(), worldLaserBuffer());
+    }
 
-        // Static lasers are world overlays (marker connections, map-location previews, etc.). They are rendered after
-        // translucent terrain, while vanilla's distance fog uniforms still describe the current render distance.
-        // Feeding those uniforms into the block shader makes long marker edges blend into the fog/sky colour: for a
-        // 64x64 area this is especially visible from one corner, and the artifact moves when render distance changes.
-        // Temporarily move the fog interval beyond every finite vertex distance, then restore it so later vanilla/mod
-        // render stages keep their original fog state.
+    public static VertexConsumer worldLaserBuffer() {
+        return new BlockFormatConsumer(WORLD_LASER_BUFFER.getBuffer(WORLD_LASER_TYPE));
+    }
+
+    public static VertexConsumer worldPreviewBuffer() {
+        return new BlockFormatConsumer(WORLD_PREVIEW_BUFFER.getBuffer(WORLD_PREVIEW_TYPE));
+    }
+
+    /**
+     * BLOCK has POSITION, COLOR, UV0, UV2 and NORMAL, but no UV1/overlay slot.
+     * LaserCompiledBuffer and addon preview geometry also support NEW_ENTITY format,
+     * so discard only the overlay field when submitting to the terrain shader.
+     * Do not discard UV2: it carries the actual world lightmap.
+     */
+    private static final class BlockFormatConsumer implements VertexConsumer {
+        private final VertexConsumer delegate;
+
+        BlockFormatConsumer(VertexConsumer delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override public VertexConsumer vertex(double x, double y, double z) {
+            delegate.vertex(x, y, z);
+            return this;
+        }
+        @Override public VertexConsumer color(int r, int g, int b, int a) {
+            delegate.color(r, g, b, a);
+            return this;
+        }
+        @Override public VertexConsumer uv(float u, float v) {
+            delegate.uv(u, v);
+            return this;
+        }
+        @Override public VertexConsumer overlayCoords(int u, int v) {
+            return this; // BLOCK has no overlay attribute.
+        }
+        @Override public VertexConsumer uv2(int u, int v) {
+            delegate.uv2(u, v);
+            return this;
+        }
+        @Override public VertexConsumer normal(float x, float y, float z) {
+            delegate.normal(x, y, z);
+            return this;
+        }
+        @Override public void endVertex() {
+            delegate.endVertex();
+        }
+        @Override public void defaultColor(int r, int g, int b, int a) {
+            delegate.defaultColor(r, g, b, a);
+        }
+        @Override public void unsetDefaultColor() {
+            delegate.unsetDefaultColor();
+        }
+    }
+
+    /** Submit world geometry without the old long-distance fog attenuation. */
+    public static void flushWorldLasers() {
         float fogStart = RenderSystem.getShaderFogStart();
         float fogEnd = RenderSystem.getShaderFogEnd();
         try {
             RenderSystem.setShaderFogStart(Float.MAX_VALUE / 2.0F);
             RenderSystem.setShaderFogEnd(Float.MAX_VALUE);
-            setupLaserRenderState();
-            SpriteUtil.bindBlockTextureMap();
-            compiled.render(pose, matrix);
+            WORLD_LASER_BUFFER.endBatch();
+            WORLD_PREVIEW_BUFFER.endBatch();
         } finally {
             RenderSystem.setShaderFogStart(fogStart);
             RenderSystem.setShaderFogEnd(fogEnd);
         }
     }
 
-    /** Assumes the buffer uses {@link DefaultVertexFormats#BLOCK} */
+    /** Assumes a compatible BLOCK or NEW_ENTITY consumer. */
     public static void renderLaserDynamic(Matrix4f pose, Matrix3f normal, LaserData_BC8 data, VertexConsumer buffer) {
         LaserCompiledBuffer compiled = COMPILED_DYNAMIC_LASERS.getUnchecked(data);
         compiled.render(pose, normal, buffer);
     }
 
     private static LaserCompiledBuffer makeDynamicLaserBox(List<LaserData_BC8> data) {
+        // The terrain shader does not add directional light. Restore the original
+        // face diffuse, also used for renderer-submitted BuildCraft volume boxes.
         LaserCompiledBuffer.Builder renderer = new LaserCompiledBuffer.Builder(true);
         for (LaserData_BC8 segment : data) {
             makeLaser(segment, renderer, segment.isOrgin);

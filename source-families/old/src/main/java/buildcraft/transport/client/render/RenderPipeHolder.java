@@ -51,6 +51,10 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder> {
         float conSize = 0;
         Minecraft.getInstance().getProfiler().push("pipe");
         Minecraft.getInstance().getProfiler().push("wire");
+        // Legacy terrain quads lose partial vertex alpha, so draw only the
+        // alpha-dependent pipe dye/lens/coloured glass pieces in the entity pass.
+        // The baked model omits exactly the same quads to avoid double blending.
+        LegacyPipeAlphaRenderer.render(pipe, matrix, buffer, combinedLight, combinedOverlay);
         PipeWireRenderer.renderWires(pipe, conSize, matrix, buffer, combinedLight, combinedOverlay);
         
         Minecraft.getInstance().getProfiler().popPush("pluggable");

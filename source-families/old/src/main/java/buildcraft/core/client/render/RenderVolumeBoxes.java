@@ -6,12 +6,8 @@
 
 package buildcraft.core.client.render;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 //? if <1.20 {
 import com.mojang.math.Matrix4f;
 //?} else {
@@ -39,10 +35,9 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
 	
     @Override
 	public void render(PoseStack pose, Matrix4f matrix, Player player, float partialTicks) {
-    	
-    	LaserRenderer_BC8.setupLaserRenderState();
-    	BufferBuilder bb = Tesselator.getInstance().getBuilder();
-    	bb.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
+        // World-space outlines participate in the same shader pipeline as entity cutout geometry.
+        // Avoid Tesselator.end(): its raw shader draw is invisible in Oculus gbuffer passes.
+        VertexConsumer outlines = LaserRenderer_BC8.worldLaserBuffer();
         ClientVolumeBoxes.INSTANCE.volumeBoxes.forEach(volumeBox -> {
             // Render loaded portions of the original edges without inventing a clipped box corner.
             LaserType type;
@@ -58,31 +53,19 @@ public enum RenderVolumeBoxes implements DetachedRenderer.IDetachedRenderer {
                     .orElse(BuildCraftLaserManager.MARKER_VOLUME_CONNECTED);
             }
             LaserBoxRenderer.renderVisibleLaserBoxDynamic(volumeBox.box, type, pose.last().pose(),
-                pose.last().normal(), bb, false, Minecraft.getInstance().level, player.blockPosition());
-
+                pose.last().normal(), outlines, false, Minecraft.getInstance().level, player.blockPosition());
         });
-        LaserRenderer_BC8.setupLaserRenderState();
-        Tesselator.getInstance().end();
 
-        // The original BuildCraft preview is translucent. The laser state explicitly disables blending,
-        // so draw addon handles and ghost blocks separately AFTER the opaque volume-box outlines.
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.depthMask(false);
-        try {
-            bb.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
-            ClientVolumeBoxes.INSTANCE.volumeBoxes.forEach(volumeBox -> {
-                if (!isBoxFullyLoaded(volumeBox)) return;
-                volumeBox.addons.values().forEach(addon ->
-                    ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(
-                        addon, player, partialTicks, pose, bb)
-                );
-            });
-            Tesselator.getInstance().end();
-        } finally {
-            RenderSystem.depthMask(true);
-            RenderSystem.disableBlend();
-        }
+        // Retain translucent previews in a separate native layer; it enables correct blend,
+        // depth-mask and shader routing without mutating global RenderSystem state.
+        VertexConsumer ghosts = LaserRenderer_BC8.worldPreviewBuffer();
+        ClientVolumeBoxes.INSTANCE.volumeBoxes.forEach(volumeBox -> {
+            if (!isBoxFullyLoaded(volumeBox)) return;
+            volumeBox.addons.values().forEach(addon ->
+                ((IFastAddonRenderer<Addon>) addon.getRenderer()).renderAddonFast(
+                    addon, player, partialTicks, pose, ghosts)
+            );
+        });
 	}
 
     private static boolean isBoxFullyLoaded(buildcraft.core.marker.volume.VolumeBox volumeBox) {
