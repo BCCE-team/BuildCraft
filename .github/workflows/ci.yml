@@ -93,6 +93,16 @@ jobs:
       - name: Verify independent API extension contracts
         run: python -m unittest discover -s scripts/tests -p 'test_api_*.py' -v
 
+      - name: Test balance INI and independent use_config modes
+        run: python -m unittest discover -s scripts/tests -p test_balance_integration.py -v
+      - name: Test machine recipe syncing
+        run: python -m unittest discover -s scripts/tests -p test_machine_recipe_sync.py -v
+      - name: Test Programming Table tooltip ranges
+        run: python -m unittest discover -s scripts/tests -p test_programming_tooltip_range.py -v
+      - name: Test machine recipe datapacks and recovery
+        run: python -m unittest discover -s scripts/tests -p 'test_recipe_*.py' -v
+
+
       - name: Validate API2 module contracts
         run: python scripts/validate-api2-modules.py
 

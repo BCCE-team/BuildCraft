@@ -210,11 +210,18 @@ def main() -> int:
     if "RegisterFluidModelsEvent" not in energy_client_text:
         fail("BuildCraft fluids are not registered in the 26.1 FluidStateModelSet")
 
+    # API v2 uses fluid identifiers, variants and value profiles instead of the
+    # retired private FluidRecipeValue record. Keep checking lazy initialization.
     energy_recipes = ROOT / "source-families/1.21.X/src/main/java/buildcraft/energy/BCEnergyRecipes.java"
     require(
         energy_recipes,
         "BuiltInRegistries.FLUID.getKey(fluid)",
-        "private record FluidRecipeValue",
+        "private static Identifier fluidId(Fluid fluid)",
+        "return FluidVariant.of(fluidId(fluid));",
+        "CoolantProfile.constant(FluidSelector.fluid(fluidId(fluid))",
+        "FuelProfile.clean(",
+        "FuelProfile.dirty(",
+        "FluidVolume.of(",
     )
     if "new FluidStack(" in source_text(energy_recipes):
         fail("energy built-in recipes create FluidStacks before default components are bound")

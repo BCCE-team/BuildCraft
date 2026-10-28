@@ -55,54 +55,7 @@ mkdir -p "$(dirname "$server_log")"
 server_pid=""
 latest_log=""
 
-read_property_file() {
-  local file="$1"
-  local key="$2"
-  awk -F= -v key="$key" '
-    $1 == key {
-      sub(/^[^=]*=/, "")
-      sub(/\r$/, "")
-      print
-      exit
-    }
-  ' "$file"
-}
-
-read_target_property() {
-  local suffix="$1"
-  local value
-  value="$(read_property_file "$target_config" "target.${target}.${suffix}")"
-  if [[ -z "$value" ]]; then
-    value="$(read_property_file "$common_config" "common.${suffix}")"
-  fi
-  printf '%s\n' "$value"
-}
-
-select_java_home() {
-  local major="$1"
-  local var="JAVA_HOME_${major}_X64"
-  local home="${!var:-}"
-
-  if [[ -n "$home" && -x "$home/bin/java" ]]; then
-    printf '%s\n' "$home"
-    return 0
-  fi
-
-  if command -v java >/dev/null 2>&1; then
-    local detected
-    detected="$(java -version 2>&1 | sed -nE '1s/.*version "([0-9]+).*/\1/p')"
-    if [[ "$detected" == "$major" ]]; then
-      local java_path
-      java_path="$(readlink -f "$(command -v java)")"
-      dirname "$(dirname "$java_path")"
-      return 0
-    fi
-  fi
-
-  echo "Java ${major} is required for ${target}, but ${var} is not available." >&2
-  echo "Install every target JDK with actions/setup-java before running this script." >&2
-  return 1
-}
+source "${script_dir}/ci-smoke-common.sh"
 
 show_log_tail() {
   echo "--- ${server_log} (last 200 lines) ---"
@@ -115,21 +68,10 @@ show_log_tail() {
 }
 
 cleanup() {
-  if [[ -n "$server_pid" ]] && kill -0 "$server_pid" 2>/dev/null; then
+  if [[ -n "${server_pid:-}" ]] && kill -0 "$server_pid" 2>/dev/null; then
     echo "Stopping CI server process group."
-    kill -TERM -- "-$server_pid" 2>/dev/null || kill -TERM "$server_pid" 2>/dev/null || true
-
-    for _ in $(seq 1 10); do
-      if ! kill -0 "$server_pid" 2>/dev/null; then
-        break
-      fi
-      sleep 1
-    done
-
-    if kill -0 "$server_pid" 2>/dev/null; then
-      kill -KILL -- "-$server_pid" 2>/dev/null || kill -KILL "$server_pid" 2>/dev/null || true
-    fi
   fi
+  terminate_smoke_process_group "${server_pid:-}"
 }
 trap cleanup EXIT
 

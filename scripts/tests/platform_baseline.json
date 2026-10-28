@@ -3,8 +3,8 @@
   "targets": {
     "1.19.2-forge": {
       "config": {
-        "core/BCCoreConfig": "0bc3ffcdf63c92bfb1ad909353ef37c1a4dc17a776f42dc0537c40900d859b5e",
-        "builders/BCBuildersConfig": "27d100a8bf815519e2ce7856fb913b1404ad30a2d599f903136fec06d7685a92",
+        "core/BCCoreConfig": "ccf926427a02650f8a20d95be8bfefa8408b8fc5860f95e4a34ad6f0f0194e4e",
+        "builders/BCBuildersConfig": "4b005e32b1f670e47bbcb2b23e39f5b651ab96c01593e7ab479fe58f3df4ba32",
         "energy/BCEnergyConfig": "14facc3a6cfe399fd1fc93a65cb18b270e110167783b053fbd5ef1556170e221",
         "silicon/BCSiliconConfig": "6959ca9c8a139d4518dae08fa961b41274c2d4f7bb06f71e154b3b68860fc37c",
         "transport/BCTransportConfig": "99f4448a6aaa0150a3e4ccd5e45afc7585e722071551e2ba90ebc5871dd8006d"
@@ -85,6 +85,9 @@
           "SERIALIZERS:\"assembly\"",
           "SERIALIZERS:\"gate_logic_change\"",
           "SERIALIZERS:\"facade\"",
+          "SERIALIZERS:\"integration\"",
+          "SERIALIZERS:\"programming\"",
+          "SERIALIZERS:\"robot_board_integration\"",
           "SERIALIZERS:\"facade_swap\""
         ],
         "silicon/BCSiliconItems.java": [
@@ -239,8 +242,8 @@
     },
     "1.20.1-forge": {
       "config": {
-        "core/BCCoreConfig": "0bc3ffcdf63c92bfb1ad909353ef37c1a4dc17a776f42dc0537c40900d859b5e",
-        "builders/BCBuildersConfig": "27d100a8bf815519e2ce7856fb913b1404ad30a2d599f903136fec06d7685a92",
+        "core/BCCoreConfig": "ccf926427a02650f8a20d95be8bfefa8408b8fc5860f95e4a34ad6f0f0194e4e",
+        "builders/BCBuildersConfig": "4b005e32b1f670e47bbcb2b23e39f5b651ab96c01593e7ab479fe58f3df4ba32",
         "energy/BCEnergyConfig": "14facc3a6cfe399fd1fc93a65cb18b270e110167783b053fbd5ef1556170e221",
         "silicon/BCSiliconConfig": "6959ca9c8a139d4518dae08fa961b41274c2d4f7bb06f71e154b3b68860fc37c",
         "transport/BCTransportConfig": "99f4448a6aaa0150a3e4ccd5e45afc7585e722071551e2ba90ebc5871dd8006d"
@@ -324,7 +327,10 @@
           "SERIALIZERS:\"assembly\"",
           "SERIALIZERS:\"gate_logic_change\"",
           "SERIALIZERS:\"facade\"",
-          "SERIALIZERS:\"facade_swap\""
+          "SERIALIZERS:\"facade_swap\"",
+          "SERIALIZERS:\"integration\"",
+          "SERIALIZERS:\"programming\"",
+          "SERIALIZERS:\"robot_board_integration\""
         ],
         "silicon/BCSiliconItems.java": [
           "ITEMS:\"redstone_crystal\"",
@@ -487,8 +493,8 @@
     },
     "1.21.1-neoforge": {
       "config": {
-        "core/BCCoreConfig": "0bc3ffcdf63c92bfb1ad909353ef37c1a4dc17a776f42dc0537c40900d859b5e",
-        "builders/BCBuildersConfig": "27d100a8bf815519e2ce7856fb913b1404ad30a2d599f903136fec06d7685a92",
+        "core/BCCoreConfig": "ccf926427a02650f8a20d95be8bfefa8408b8fc5860f95e4a34ad6f0f0194e4e",
+        "builders/BCBuildersConfig": "4b005e32b1f670e47bbcb2b23e39f5b651ab96c01593e7ab479fe58f3df4ba32",
         "energy/BCEnergyConfig": "490a9664354e59b878fd755f97014b78353bc06044a5075b83cfaf68957bdd89",
         "silicon/BCSiliconConfig": "6959ca9c8a139d4518dae08fa961b41274c2d4f7bb06f71e154b3b68860fc37c",
         "transport/BCTransportConfig": "99f4448a6aaa0150a3e4ccd5e45afc7585e722071551e2ba90ebc5871dd8006d"
@@ -572,7 +578,10 @@
           "SERIALIZERS:\"assembly\"",
           "SERIALIZERS:\"gate_logic_change\"",
           "SERIALIZERS:\"facade\"",
-          "SERIALIZERS:\"facade_swap\""
+          "SERIALIZERS:\"facade_swap\"",
+          "SERIALIZERS:\"integration\"",
+          "SERIALIZERS:\"programming\"",
+          "SERIALIZERS:\"robot_board_integration\""
         ],
         "silicon/BCSiliconItems.java": [
           "ITEMS:\"redstone_crystal\"",
@@ -738,8 +747,8 @@
     },
     "1.21.11-neoforge": {
       "config": {
-        "core/BCCoreConfig": "0bc3ffcdf63c92bfb1ad909353ef37c1a4dc17a776f42dc0537c40900d859b5e",
-        "builders/BCBuildersConfig": "27d100a8bf815519e2ce7856fb913b1404ad30a2d599f903136fec06d7685a92",
+        "core/BCCoreConfig": "ccf926427a02650f8a20d95be8bfefa8408b8fc5860f95e4a34ad6f0f0194e4e",
+        "builders/BCBuildersConfig": "4b005e32b1f670e47bbcb2b23e39f5b651ab96c01593e7ab479fe58f3df4ba32",
         "energy/BCEnergyConfig": "f0346911d03a5b1e081362cd62e815548e9a4c5e75634830a0e29dda0371e77b",
         "silicon/BCSiliconConfig": "6959ca9c8a139d4518dae08fa961b41274c2d4f7bb06f71e154b3b68860fc37c",
         "transport/BCTransportConfig": "99f4448a6aaa0150a3e4ccd5e45afc7585e722071551e2ba90ebc5871dd8006d"
@@ -823,7 +832,10 @@
           "SERIALIZERS:\"assembly\"",
           "SERIALIZERS:\"gate_logic_change\"",
           "SERIALIZERS:\"facade\"",
-          "SERIALIZERS:\"facade_swap\""
+          "SERIALIZERS:\"facade_swap\"",
+          "SERIALIZERS:\"integration\"",
+          "SERIALIZERS:\"programming\"",
+          "SERIALIZERS:\"robot_board_integration\""
         ],
         "silicon/BCSiliconItems.java": [
           "ITEMS:\"redstone_crystal\"",

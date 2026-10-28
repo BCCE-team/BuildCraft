@@ -40,7 +40,15 @@ ROBOTICS_STUBS = {
  'buildcraft/lib/misc/ItemStackUtil.java': '''package buildcraft.lib.misc;
  public class ItemStackUtil{public static net.minecraft.nbt.CompoundTag getCustomData(net.minecraft.world.item.ItemStack s){return s.getTag();}}''',
  'buildcraft/lib/recipe/ProgrammingRecipeAccess.java': '''package buildcraft.lib.recipe;
- import java.util.Map;public final class ProgrammingRecipeAccess {
+ import java.util.*;
+ public final class ProgrammingRecipeAccess {
+ public record CostRange(long minMicroMj, long maxMicroMj) {
+  public CostRange {if(minMicroMj<=0||maxMicroMj<minMicroMj)throw new IllegalArgumentException();}}
+ private static final Map<String,CostRange> ranges=new HashMap<>();
+ public static Optional<CostRange> costRange(String boardKey,boolean client){
+  return Optional.ofNullable(ranges.get(boardKey));}
+ public static void setCostRange(String boardKey,long min,long max){
+  ranges.put(boardKey,new CostRange(min,max));}
  public static Map<String,Long> costs(boolean client){return Map.of();}}''',
  'buildcraft/lib/BCLibConfig.java':'package buildcraft.lib;public class BCLibConfig{public static boolean hidePowerValues;}',
  'buildcraft/lib/misc/LocaleUtil.java':'package buildcraft.lib.misc;public class LocaleUtil{public static String localize(String key){return key;}}',
@@ -140,6 +148,14 @@ public class Check {
   ok(found.robotTextureLocation().toString().equals("fixture:textures/entity/robot.png"),"texture lost");
   ok(BCRoboticsBoards.robotEntries().size()==builtins+2,"late registry registration unavailable");
   ok(BCRoboticsBoards.getByKey("fixture.expedition")==found,"board key not linked");
+  ok(BCRoboticsBoards.formatProgrammingCostTooltip("fixture.expedition",false)==null,
+    "unavailable recipe must not advertise a tooltip cost");
+  buildcraft.lib.recipe.ProgrammingRecipeAccess.setCostRange("fixture.expedition",1_000_000L,3_200_000L);
+  ok("1000000 – 3200000".equals(BCRoboticsBoards.formatProgrammingCostTooltip("fixture.expedition",false)),
+    "multiple active programming costs must show the full inclusive range");
+  buildcraft.lib.recipe.ProgrammingRecipeAccess.setCostRange("fixture.expedition",3_200_000L,3_200_000L);
+  ok("3200000".equals(BCRoboticsBoards.formatProgrammingCostTooltip("fixture.expedition",true)),
+    "a single programming cost must not show a duplicate range");
   ok(buildcraft.robotics.internal.legacy.boards.RedstoneBoardRegistry.instance.getEnergyCost(found.nbt())==8192,"native programming cost missing");
   var ai=found.nbt().create(new EntityRobotBase()).createWorkAI();
   ok(ai instanceof ApiTaskAI,"API registered board not executed as task");
@@ -163,6 +179,9 @@ public class Check {
 class RobotBoardConformanceTest(unittest.TestCase):
  def test_actual_board_registry_and_task_runtime(self):
   if not shutil.which('javac') or not shutil.which('java'): self.skipTest('Java toolchain absent')
+  recipe_access=(ROBOTICS_API/'buildcraft/lib/recipe/ProgrammingRecipeAccess.java').read_text()
+  self.assertIn('record CostRange(long minMicroMj, long maxMicroMj)',recipe_access)
+  self.assertIn('costRange(String boardKey, boolean client)',recipe_access)
   with tempfile.TemporaryDirectory(prefix='bcce-robotics-') as tmpname:
    tmp=Path(tmpname)
    for name,code in ROBOTICS_STUBS.items():

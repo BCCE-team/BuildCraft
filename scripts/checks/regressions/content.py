@@ -170,7 +170,6 @@ for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
         "buildcraft/core/BCCore.java",
         "buildcraft/transport/BCTransport.java",
         "buildcraft/energy/BCEnergy.java",
-        "buildcraft/builders/BCBuilders.java",
         "buildcraft/silicon/BCSilicon.java",
     ):
         require_effective(
@@ -179,6 +178,12 @@ for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
             "registerConfig(Type.COMMON, ConfigBinding.bind(",
             "ConfigScreenRegistration.register(modContainer);",
         )
+    # The Builders module has no remaining native config: Quarry balance is INI-owned.
+    builders = effective_source_files(target_layout(target, load_properties()), load_properties())[
+        "src/main/java/buildcraft/builders/BCBuilders.java"
+    ].read_text(encoding="utf-8")
+    if "registerConfig(Type.COMMON" in builders:
+        errors.append(f"{target}: Builders must not re-register the removed TOML balance config")
 
 # NeoForge committed resources must stay aligned with the current datagen provider.
 # 1.21.1 and 1.21.11 must use the same corrected recipe ingredients.
@@ -308,7 +313,7 @@ for base in (
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        if data.get("type") != "buildcraftsilicon:assembly" or "MJ" not in data:
+        if not isinstance(data, dict) or data.get("type") != "buildcraftsilicon:assembly" or "MJ" not in data:
             continue
         assembly_json_count += 1
         expected_mj = expected_assembly_cost_mj(path)
@@ -335,11 +340,13 @@ for family in ("old", "1.21.X"):
         '"robot_builder", legacyEnergyToMj(512_000)',
         "legacyEnergyToMj(Math.round(160000 / probability))",
     )
-    require(
-        f"source-families/{family}/src/main/java/buildcraft/robotics/recipes/RobotIntegrationRecipe.java",
-        "BuildCraft 7.1.27 charged 50,000 legacy energy units",
-        "return 5_000L * MjAmount.MICRO_MJ_PER_MJ;",
-    )
+
+require(
+    "source-shared/src/main/java/buildcraft/robotics/recipes/RobotIntegrationRecipe.java",
+    "BuildCraft 7.1.27 charged 50,000 legacy energy units",
+    "return powerMicroMj;",
+    "MachineRecipeDatapackReloadListener.registerHandler",
+)
 
 
 if errors:

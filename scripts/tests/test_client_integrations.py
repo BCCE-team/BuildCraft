@@ -738,6 +738,16 @@ public class JeiRuntimeProbe {
       static void push(RecipeHolder<AssemblyRecipeBasic>... items){recipes=List.of(items);if(listener!=null)listener.run();}
     }
   }
+  static class ClientMachineRecipeCatalog {
+    private static Runnable listener;
+    static void setListener(Runnable callback) {
+      listener = callback;
+      if (listener != null) listener.run();
+    }
+    static void emitCatalogUpdate() {
+      if (listener != null) listener.run();
+    }
+  }
   record RecipeGeneration(long id){}
   record RecipeSnapshot(RecipeGeneration generation){}
   static class MachineRecipeService {
@@ -788,6 +798,7 @@ public class JeiRuntimeProbe {
   public static void main(String[] args){
     var probe=new JeiRuntimeProbe();var manager=new RecipeManager();IJeiRuntime rt=()->manager;
     probe.register();probe.onRuntimeAvailable(rt);
+    check(ClientMachineRecipeCatalog.listener!=null);
     check(manager.added==0 && manager.hidden==0);
     var gate=new RecipeHolder<>("gate",new AssemblyRecipeBasic("and"));
     var lens=new RecipeHolder<>("lens",new AssemblyRecipeBasic("red"));
@@ -797,13 +808,13 @@ public class JeiRuntimeProbe {
     check(manager.added==2 && manager.hidden==0);
     var addon=new RecipeHolder<>("addon/board",new AssemblyRecipeBasic("addon"));
     BuildCraftApi.MACHINE_RECIPES.publish(addon);
-    BCSiliconRecipeSync.Client.push(gate,lens); // same vanilla recipes, new API generation
+    ClientMachineRecipeCatalog.emitCatalogUpdate(); // catalog update without a new Assembly sync
     check(manager.visible.size()==3 && manager.visible.stream().anyMatch(r->r.id().equals("addon/board")));
     check(manager.added==5 && manager.hidden==2);
     BCSiliconRecipeSync.Client.push(gate,lens); // same generation must not re-register recipes
     check(manager.added==5 && manager.hidden==2);
     BuildCraftApi.MACHINE_RECIPES.publish(); // remove the addon-only recipe
-    BCSiliconRecipeSync.Client.push(gate,lens);
+    ClientMachineRecipeCatalog.emitCatalogUpdate();
     check(manager.visible.size()==2 && manager.visible.stream().noneMatch(r->r.id().equals("addon/board")));
     check(manager.added==7 && manager.hidden==5);
     BCSiliconRecipeSync.Client.push(gate); // reload replaces synced recipes
@@ -813,6 +824,8 @@ public class JeiRuntimeProbe {
     check(manager.visible.isEmpty() && manager.hidden==8);
     probe.onRuntimeUnavailable();
     check(publishedAssemblyApiGeneration==-1);
+    check(ClientMachineRecipeCatalog.listener==null);
+    ClientMachineRecipeCatalog.emitCatalogUpdate(); // detached catalog cannot change JEI
     BCSiliconRecipeSync.Client.push(lens);
     check(manager.visible.isEmpty() && manager.added==8); // detached from JEI
     System.out.println("JEI live registration and reload PASS");

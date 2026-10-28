@@ -49,7 +49,14 @@ class PlatformBoundaries(unittest.TestCase):
                     source = (self.java[target]/'buildcraft'/(name+'.java')).read_text(encoding='utf-8')
                     self.assertEqual(fingerprint, digest(config_tokens(source)))
                     self.assertNotRegex(source, r'\b(?:ForgeConfigSpec|ModConfigSpec|ModConfigEvent)\b')
-                    self.assertIn('BCConfigSpec', source)
+                    if name == 'builders/BCBuildersConfig':
+                        # Quarry balance moved to independent INI configuration.
+                        self.assertNotIn('BCConfigSpec', source)
+                        self.assertIn('import buildcraft.lib.balance.BalanceConfig;', source)
+                        self.assertIn('BalanceConfig.machineInt(QUARRY,', source)
+                        self.assertIn('BalanceConfig.machine(QUARRY,', source)
+                    else:
+                        self.assertIn('BCConfigSpec', source)
 
     def test_existing_registration_names_and_order_preserved(self):
         for target, expected in self.baseline.items():

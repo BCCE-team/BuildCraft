@@ -25,6 +25,11 @@ public class CompoundTag extends HashMap<String,Object>{
 'buildcraft/lib/compat/NbtCompat': '''package buildcraft.lib.compat;
 import net.minecraft.nbt.CompoundTag;
 public final class NbtCompat {public static int getInt(CompoundTag tag,String key){return tag.getInt(key);}}''',
+'buildcraft/lib/balance/BalanceConfig': '''package buildcraft.lib.balance;
+// Recharge tests use the standard balance; INI configuration is covered separately.
+public final class BalanceConfig {
+ public static double robot(String id,String key,double builtInValue){return builtInValue;}
+}''',
 'buildcraft/lib/internal/statement/StatementSlot': '''package buildcraft.lib.internal.statement;
 public class StatementSlot {public final Object statement;public StatementSlot(Object statement){this.statement=statement;}}''',
 'buildcraft/robotics/statements/ActionRobotWakeUp': '''package buildcraft.robotics.statements;
@@ -98,6 +103,11 @@ import buildcraft.robotics.internal.legacy.robots.*;
 public class RedstoneBoardRobot extends AIRobot {
  public RedstoneBoardRobot(EntityRobotBase r){super(r);}
  public AIRobot createWorkAI(){return this;}
+ public RedstoneBoardRobotNBT getNBTHandler(){return new RedstoneBoardRobotNBT();}
+}''',
+'buildcraft/robotics/internal/legacy/boards/RedstoneBoardRobotNBT': '''package buildcraft.robotics.internal.legacy.boards;
+public class RedstoneBoardRobotNBT {
+ public String getID(){return "buildcraftrobotics:boardRobotPicker";}
 }''',
 'buildcraft/robotics/internal/legacy/robots/RobotManager': '''package buildcraft.robotics.internal.legacy.robots;
 public class RobotManager {}''',

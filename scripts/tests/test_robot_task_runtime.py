@@ -18,6 +18,10 @@ JAVA = [
     "buildcraft/api/v2/registry/RegistrationContext.java",
     "buildcraft/lib/internal/api/v2/persistence/PersistenceRegistryBuilder.java",
     "buildcraft/lib/internal/api/v2/persistence/PersistenceRegistrySnapshot.java",
+    # Compile the production balance layer, not an approximation: the classic
+    # robot AI now consults BalanceConfig when calculating movement/energy.
+    "buildcraft/lib/balance/BalanceIni.java",
+    "buildcraft/lib/balance/BalanceConfig.java",
     "buildcraft/api/v2/OperationMode.java",
     *(f"buildcraft/api/v2/robot/{n}.java" for n in (
         "RobotTask", "RobotTaskResult", "RobotTaskLifecycle", "RobotTaskContext",
@@ -136,7 +140,7 @@ import buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot;
 import net.minecraft.world.level.Level;
 public class EntityRobotBase {
  public static final int SAFETY_ENERGY=2000,SHUTDOWN_ENERGY=500,MAX_ENERGY=1000000;
- public static final class Battery{public int extracted;public void extractPower(int power){extracted+=power;}}
+ public static final class Battery{public long extracted;public boolean extractPower(long power){extracted+=power;return true;}}
  private final Battery battery=new Battery();private final Level level=new net.minecraft.server.level.ServerLevel();
  private AIRobot main;private final long id;
  public EntityRobotBase(long id){this.id=id;}
@@ -159,9 +163,16 @@ public class RobotServiceImpl {
  public static AutomationActor actorForTask(EntityRobotBase robot){return new AutomationActor();}
  public static boolean trackLease(RobotResourceLease lease){return ApiTaskAI.trackIfExecuting(lease);}
 }''',
+    "buildcraft/robotics/internal/legacy/boards/RedstoneBoardRobotNBT.java": '''package buildcraft.robotics.internal.legacy.boards;
+public class RedstoneBoardRobotNBT {public String getID(){return "boardRobotMiner";}}
+''',
     "buildcraft/robotics/internal/legacy/boards/RedstoneBoardRobot.java": '''package buildcraft.robotics.internal.legacy.boards;
 import buildcraft.robotics.internal.legacy.robots.*;
-public class RedstoneBoardRobot extends AIRobot {public RedstoneBoardRobot(EntityRobotBase r){super(r);} public AIRobot createWorkAI(){return this;}}
+public class RedstoneBoardRobot extends AIRobot {
+ public RedstoneBoardRobot(EntityRobotBase r){super(r);}
+ public RedstoneBoardRobotNBT getNBTHandler(){return new RedstoneBoardRobotNBT();}
+ public AIRobot createWorkAI(){return this;}
+}
 ''',
 }
 for name in ("AIRobotReturnToLostStation", "AIRobotGotoSleep", "AIRobotSleep", "AIRobotShutdown", "AIRobotRecharge"):
@@ -254,6 +265,9 @@ public class RobotTaskFixture {
   CompoundTag data=nbt.getCompound("delegateAI").getCompound("data");
   return ((ByteArrayTag)data.get("task")).getAsByteArray();}
  public static void main(String[]args) throws Exception {
+  // The real config must run against an isolated temporary game directory.
+  ok(buildcraft.lib.balance.BalanceConfig.robot("empty", "energy_cost_multiplier", 1.0) == 1.0,
+   "built-in robot balance used when use_config=false");
   RobotManager.registerAIRobot(AIRobotMain.class,"main");
   register();
   ok("api2Task".equals(RobotManager.getAIRobotName(ApiTaskAI.class)),"AI registered by a stable name");
@@ -370,9 +384,12 @@ class RobotTaskRuntimeTest(unittest.TestCase):
             self.assertEqual(0, compile_result.returncode, compile_result.stderr[-8000:])
             executed = subprocess.run(
                 ["java", "-cp", str(classes), "fixture.RobotTaskFixture"],
+                cwd=root,  # isolate generated INI files from the developer's workspace
                 capture_output=True, text=True, timeout=15,
             )
             self.assertEqual(0, executed.returncode, executed.stderr[-8000:])
+            for filename in ("buildcraft-machines.ini", "buildcraft-robots.ini"):
+                self.assertTrue((root / "config" / filename).is_file(), filename)
             self.assertIn("PASS:", executed.stdout)
             print(executed.stdout.strip(), flush=True)
 

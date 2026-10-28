@@ -25,12 +25,16 @@ public final class BCFactoryRecipeSerializers {
     private BCFactoryRecipeSerializers() {}
 
     public static final class Placeholder extends CustomRecipe {
-        private static final Placeholder DISTILL = new Placeholder(false);
-        private static final Placeholder HEAT = new Placeholder(true);
-        private static final RecipeSerializer<Placeholder> DISTILL_SERIALIZER = new RecipeSerializer<>(
-            MapCodec.unit(DISTILL), StreamCodec.<RegistryFriendlyByteBuf, Placeholder>unit(DISTILL));
-        private static final RecipeSerializer<Placeholder> HEAT_SERIALIZER = new RecipeSerializer<>(
-            MapCodec.unit(HEAT), StreamCodec.<RegistryFriendlyByteBuf, Placeholder>unit(HEAT));
+        // Recipe registries require one value per ID; unit(singleton) would reuse
+        // the same Placeholder for every distillation or heat-exchange JSON recipe.
+        private static final RecipeSerializer<Placeholder> DISTILL_SERIALIZER = serializer(false);
+        private static final RecipeSerializer<Placeholder> HEAT_SERIALIZER = serializer(true);
+        private static RecipeSerializer<Placeholder> serializer(boolean exchanger) {
+            return new RecipeSerializer<>(
+                MapCodec.unit(() -> new Placeholder(exchanger)),
+                StreamCodec.<RegistryFriendlyByteBuf, Placeholder>of(
+                    (buffer, recipe) -> {}, buffer -> new Placeholder(exchanger)));
+        }
         private final boolean exchanger;
         private Placeholder(boolean exchanger) { super(); this.exchanger = exchanger; }
         public static RecipeSerializer<Placeholder> distillationSerializer() { return DISTILL_SERIALIZER; }

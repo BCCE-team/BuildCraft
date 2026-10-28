@@ -51,14 +51,15 @@ public final class BCSiliconRecipes {
 
     /** Native reader for JSON-only machine definitions; never matches a crafting grid. */
     public static final class MachinePlaceholder extends CustomRecipe {
-        private static final MachinePlaceholder INTEGRATION = new MachinePlaceholder(false, false);
-        private static final MachinePlaceholder PROGRAMMING = new MachinePlaceholder(true, false);
-        private static final MachinePlaceholder ROBOT = new MachinePlaceholder(false, true);
-        static final RecipeSerializer<MachinePlaceholder> INTEGRATION_SERIALIZER = serializer(INTEGRATION);
-        static final RecipeSerializer<MachinePlaceholder> PROGRAMMING_SERIALIZER = serializer(PROGRAMMING);
-        static final RecipeSerializer<MachinePlaceholder> ROBOT_SERIALIZER = serializer(ROBOT);
-        private static RecipeSerializer<MachinePlaceholder> serializer(MachinePlaceholder value) {
-            return new RecipeSerializer<>(MapCodec.unit(value), StreamCodec.<RegistryFriendlyByteBuf, MachinePlaceholder>unit(value));
+        // A distinct placeholder must be decoded for each JSON recipe ID.
+        static final RecipeSerializer<MachinePlaceholder> INTEGRATION_SERIALIZER = serializer(false, false);
+        static final RecipeSerializer<MachinePlaceholder> PROGRAMMING_SERIALIZER = serializer(true, false);
+        static final RecipeSerializer<MachinePlaceholder> ROBOT_SERIALIZER = serializer(false, true);
+        private static RecipeSerializer<MachinePlaceholder> serializer(boolean programming, boolean robot) {
+            return new RecipeSerializer<>(
+                MapCodec.unit(() -> new MachinePlaceholder(programming, robot)),
+                StreamCodec.<RegistryFriendlyByteBuf, MachinePlaceholder>of(
+                    (buffer, recipe) -> {}, buffer -> new MachinePlaceholder(programming, robot)));
         }
         private final boolean programming;
         private final boolean robot;
