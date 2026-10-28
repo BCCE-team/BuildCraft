@@ -867,16 +867,12 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
         "xvfb-run",
         "blocks\\.png-atlas",
         "Missing model for variant",
-        'local var="JAVA_HOME_${major}_X64"',
-        'local home="${!var:-}"',
         "Invalid path in pack: buildcraft",
         "resource_error_seen=1",
         "collecting the rest of the reload before failing",
     ):
         if token not in client:
             fail(f"client smoke script lost {token!r}")
-    if 'local major="$1" var=' in client:
-        fail("client smoke Java-home lookup must not use same-command local assignments with indirect expansion")
 
     server_script = ROOT / "scripts/ci-server-smoke.sh"
     if not server_script.is_file():
@@ -891,6 +887,39 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
     ):
         if token not in server:
             fail(f"server smoke script lost runtime build-metadata/output guard {token!r}")
+
+    # The JDK selector and cleanup are shared between client/server smoke runners.
+    # Check the implementation at its real owner instead of requiring duplicate
+    # function bodies in the client entrypoint.
+    shared_script = ROOT / "scripts/ci-smoke-common.sh"
+    if not shared_script.is_file():
+        fail("missing scripts/ci-smoke-common.sh")
+    shared = shared_script.read_text(encoding="utf-8")
+    for name, script in (("client", client), ("server", server)):
+        for token in (
+            'source "${script_dir}/ci-smoke-common.sh"',
+            'java_version="$(read_target_property java.version)"',
+            'java_home="$(select_java_home "$java_version")"',
+            "terminate_smoke_process_group",
+        ):
+            if token not in script:
+                fail(f"{name} smoke script lost shared helper usage {token!r}")
+
+    for token in (
+        "read_property_file() {",
+        "read_target_property() {",
+        "select_java_home() {",
+        "terminate_smoke_process_group() {",
+        'local major="$1"',
+        'local var="JAVA_HOME_${major}_X64"',
+        'local home="${!var:-}"',
+        'value="$(read_property_file "$target_config" "target.${target}.${suffix}")"',
+        'value="$(read_property_file "$common_config" "common.${suffix}")"',
+    ):
+        if token not in shared:
+            fail(f"shared CI smoke helpers lost {token!r}")
+    if 'local major="$1" var=' in shared:
+        fail("shared smoke Java-home lookup must not use same-command local assignments with indirect expansion")
 
     common_target = (ROOT / "build-logic/common-target.gradle").read_text(encoding="utf-8")
     for token in (
