@@ -320,7 +320,7 @@ from source_layout import resolve_effective_source
 
 
 class DetachedWorldPose1211Test(unittest.TestCase):
-    def test_1211_uses_identity_pose_before_world_origin_translation(self):
+    def test_1211_applies_view_rotation_once_and_restores_global_matrix(self):
         props = load_properties()
         target = target_layout('1.21.1-neoforge', props)
         source = resolve_effective_source(target, props,
@@ -328,10 +328,25 @@ class DetachedWorldPose1211Test(unittest.TestCase):
         self.assertIsNotNone(source)
         content = source.read_text(encoding='utf-8')
         method = content.split('public static void renderWorldLast(RenderLevelStageEvent event)', 1)[1].split('\n    }',1)[0]
+        # PR #71: the VBO receives view rotation through PoseStack, while BufferUploader uses
+        # an identity RenderSystem model-view. Both must see the camera rotation exactly once.
         self.assertIn('PoseStack pose = new PoseStack();', method)
-        self.assertNotIn('pose.mulPose(new Matrix4f(event.getModelViewMatrix()))', method)
-        self.assertIn('DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks)',method)
+        self.assertEqual(1, method.count('pose.mulPose(new Matrix4f(event.getModelViewMatrix()))'))
         self.assertIn('Matrix4f matrix = new Matrix4f(event.getProjectionMatrix());', method)
+        self.assertIn('Matrix4fStack modelView = RenderSystem.getModelViewStack();', method)
+        self.assertIn('modelView.pushMatrix().identity();', method)
+        self.assertEqual(2, method.count('RenderSystem.applyModelViewMatrix();'))
+        render_call = 'DetachedRenderer.INSTANCE.renderWorldLastEvent(pose, matrix, player, partialTicks)'
+        self.assertEqual(1, method.count(render_call))
+        self.assertLess(method.index('modelView.pushMatrix().identity();'), method.index(render_call))
+        self.assertLess(method.index('RenderSystem.applyModelViewMatrix();'), method.index(render_call))
+        self.assertIn('mc.gameRenderer.lightTexture().turnOnLightLayer();', method)
+        self.assertLess(method.index('mc.gameRenderer.lightTexture().turnOnLightLayer();'), method.index(render_call))
+        self.assertIn('} finally {', method)
+        restore = method.split('} finally {', 1)[1]
+        self.assertIn('modelView.popMatrix();', restore)
+        self.assertIn('RenderSystem.applyModelViewMatrix();', restore)
+        self.assertLess(method.index(render_call), method.index('modelView.popMatrix();'))
 
     def test_world_pose_subtracts_camera_once(self):
         props=load_properties()
@@ -353,15 +368,15 @@ class DetachedWorldPose1211Test(unittest.TestCase):
                                   ((-41.,70.,37.),(-39.,64.,29.)),
                                   ((2.,0.,4.),(-10.,1.,8.))):
                 vx,vy,vz=(vertex[i]-camera[i] for i in range(3))
-                # GPU's one model-view rotation is authoritative.
+                # PR #71 applies rotation in the CPU pose while the global model-view is identity.
                 once=(c*vx+s*vz,vy,-s*vx+c*vz)
-                # The regression: CPU pre-rotation *and* GPU view rotation.
+                # A second rotation in RenderSystem would send a misplaced marker to the GPU.
                 twice=(c*once[0]+s*once[2],once[1],-s*once[0]+c*once[2])
                 if abs(angle)>1e-5:
                     self.assertGreater(max(abs(a-b) for a,b in zip(once,twice)),1e-4)
-                # New CPU pose is identity, so GPU output equals single rotation.
-                cpu=(vx,vy,vz)
-                actual=(c*cpu[0]+s*cpu[2],cpu[1],-s*cpu[0]+c*cpu[2])
+                cpu=once
+                # GPU model-view remains identity until this pass is restored in finally.
+                actual=cpu
                 for a,b in zip(once,actual): self.assertAlmostEqual(a,b,places=5)
 
 # ---- Consolidated 1.21.1 NeoForge pick-block hook coverage ----

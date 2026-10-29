@@ -117,7 +117,22 @@ class VolumeFillerGameplayTests(unittest.TestCase):
                 self.assertIn('FILLER_PREVIEW_WHITE.getSprite()',planner)
                 self.assertIn('pose.last().pose()',helper)
                 self.assertIn('pose.last().normal()',helper)
-                if target.startswith(('1.19.', '1.20.','1.21.1-')):
+                if target.startswith(('1.19.', '1.20.')):
+                    # Old Forge previews are written to a separate native translucent
+                    # RenderType, not drawn by toggling global RenderSystem state.
+                    self.assertIn('VertexConsumer ghosts = LaserRenderer_BC8.worldPreviewBuffer();',renderer)
+                    self.assertIn('partialTicks, pose, ghosts)',renderer)
+                    props=load_properties()
+                    laser_source=resolve_effective_source(target_layout(target,props),props,
+                        P+'lib/client/render/laser/LaserRenderer_BC8.java')
+                    self.assertIsNotNone(laser_source)
+                    laser=laser_source.read_text(encoding='utf-8')
+                    self.assertIn('WORLD_PREVIEW_TYPE = RenderType.translucent();',laser)
+                    self.assertIn('WORLD_PREVIEW_BUFFER.getBuffer(WORLD_PREVIEW_TYPE)',laser)
+                    self.assertIn('WORLD_PREVIEW_BUFFER.endBatch();',laser)
+                    self.assertNotIn('RenderSystem.enableBlend()',renderer)
+                    self.assertNotIn('RenderSystem.depthMask(false)',renderer)
+                elif target=='1.21.1-neoforge':
                     self.assertIn('RenderSystem.enableBlend()',renderer)
                     self.assertIn('RenderSystem.depthMask(false)',renderer)
                 elif target in ('1.21.11-neoforge','26.1.2-neoforge'):

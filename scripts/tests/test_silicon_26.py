@@ -78,6 +78,13 @@ class Silicon26Tests(unittest.TestCase):
                     if modern:
                         self.assertNotIn('colour_a = 64;', code)
                         self.assertIn('c.vertex_0.colour_a = q.vertex_0.colour_a;', code)
+                    elif target == '1.21.1-neoforge':
+                        # This target must keep cutout frames opaque, glass translucent,
+                        # and shared source quads unchanged when using Iris.
+                        self.assertIn('boolean glass = key.layer == RenderType.translucent();', code)
+                        self.assertIn('MutableQuad baked = new MutableQuad(quad);', code)
+                        self.assertIn('short alpha = (short) (glass ? 64 : 255);', code)
+                        self.assertIn('vertex.colour_a = alpha;', code)
                     else:
                         self.assertIn('colour_a = 64;', code)
                     print(execute_target(target, dest, modern=modern), flush=True)

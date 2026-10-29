@@ -71,7 +71,9 @@ public class MutableQuad {
     public final Vertex vertex_1 = new Vertex();
     public final Vertex vertex_2 = new Vertex();
     public final Vertex vertex_3 = new Vertex();
+    public final Vertex[] vertexs = { vertex_0, vertex_1, vertex_2, vertex_3 };
     public MutableQuad() {}
+    public MutableQuad(MutableQuad other) { copyFrom(other); }
     public MutableQuad(int alpha) {
         vertex_0.colour_a = vertex_1.colour_a = vertex_2.colour_a = vertex_3.colour_a = (short) alpha;
     }
@@ -127,6 +129,7 @@ public final class ValidateLensRender {
     static void check(boolean b, String message) { assertions++; if (!b) throw new AssertionError(message); }
     public static void main(String[] args) {
         boolean modern = Boolean.parseBoolean(args[0]);
+        boolean iris1211 = Boolean.parseBoolean(args[1]);
         for (boolean filter : new boolean[]{false, true}) {
             for (boolean cutout : new boolean[]{true, false}) {
                 MutableQuad input = filter
@@ -138,13 +141,15 @@ public final class ValidateLensRender {
                 var quads = PlugBakerLens.INSTANCE.bake(key);
                 check(quads.size() == 1, "must bake one quad: " + key.layer);
                 BakedQuad baked = quads.get(0);
-                int expectedBaked = modern ? expectedInput : 32;
-                int expectedSource = modern ? expectedInput : 64;
+                int expectedBaked = modern ? expectedInput : (iris1211 && cutout ? 127 : 32);
+                int expectedSource = modern || iris1211 ? expectedInput : 64;
                 for (int i = 0; i < 4; i++) {
                     check(baked.alphas[i] == expectedBaked,
                         "frame/glass alpha " + baked.alphas[i] + " vs " + expectedBaked + ", filter=" + filter + ", layer=" + key.layer);
                 }
-                check(input.vertex_0.colour_a == expectedSource, "shared model quad changed unexpectedly");
+                for (MutableQuad.Vertex vertex : input.vertexs) {
+                    check(vertex.colour_a == expectedSource, "shared model quad changed unexpectedly");
+                }
                 check(PlugBakerLens.INSTANCE.bake(key) == quads, "cache should remain stable");
             }
         }
@@ -215,7 +220,8 @@ public final class RenderCompat {
         compiled = subprocess.run(compile_cmd, text=True, capture_output=True, timeout=40)
         if compiled.returncode:
             raise AssertionError(f'{target}: javac failed:\n{compiled.stderr}')
-        run = subprocess.run(['java', '-cp', str(classes), 'ValidateLensRender', str(modern).lower()],
+        run = subprocess.run(['java', '-cp', str(classes), 'ValidateLensRender', str(modern).lower(),
+                              str(target == '1.21.1-neoforge').lower()],
                              text=True, capture_output=True, timeout=25)
         if run.returncode or 'assertions PASS' not in run.stdout:
             raise AssertionError(f'{target}: Java probe failed:\n{run.stdout}\n{run.stderr}')
