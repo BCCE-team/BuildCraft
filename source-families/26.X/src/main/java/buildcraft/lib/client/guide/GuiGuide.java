@@ -59,6 +59,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import buildcraft.lib.internal.core.render.ISprite;
 import buildcraft.lib.internal.statement.IStatement;
 import buildcraft.lib.BCLibConfig;
+import buildcraft.lib.guide.GuideFaultIsolation;
 import buildcraft.lib.client.sprite.SpriteNineSliced;
 import buildcraft.lib.gui.GuiIcon;
 import buildcraft.lib.gui.recipe.RecipeListPhantom;
@@ -224,11 +225,15 @@ public final class GuiGuide extends Screen {
     }
 
     public static void open(ItemStack guideStack, InteractionHand hand) {
+        try {
 //? if neoforge && (>=26.3) {
-        Minecraft.getInstance().gui.setScreen(new GuiGuide(guideStack, hand));
+            Minecraft.getInstance().gui.setScreen(new GuiGuide(guideStack, hand));
 //? } else {
-        Minecraft.getInstance().setScreen(new GuiGuide(guideStack, hand));
+            Minecraft.getInstance().setScreen(new GuiGuide(guideStack, hand));
 //?}
+        } catch (RuntimeException | LinkageError failure) {
+            GuideFaultIsolation.warn("guide open", "main", failure);
+        }
     }
 
     protected void init() {
@@ -1198,10 +1203,13 @@ public final class GuiGuide extends Screen {
     }
 
     private DocumentLayout layoutDocument(GuideContent.Entry entry) {
-        GuideDocument parsed = GuideDocument.parse(entry.markdown, showLore, showHints, BCLibConfig.guideShowDetail);
         LayoutBuilder layout = new LayoutBuilder(entry.title());
+        GuideDocument parsed = GuideFaultIsolation.value("page parse", String.valueOf(entry.id), () ->
+            GuideDocument.parse(entry.markdown, showLore, showHints, BCLibConfig.guideShowDetail), null);
+        if (parsed == null) return layout.finish();
         for (GuideDocument.Block block : parsed.blocks) {
-            switch (block.kind) {
+            try {
+                switch (block.kind) {
                 case TEXT:
                     layout.addText(block.text == null ? Component.empty() : block.text, block.target);
                     break;
@@ -1228,12 +1236,18 @@ public final class GuiGuide extends Screen {
                     break;
                 default:
                     break;
+                }
+            } catch (RuntimeException | LinkageError failure) {
+                GuideFaultIsolation.warn("page block", String.valueOf(entry.id), failure);
             }
         }
         // BC8 appended all crafting information to item pages after loading their authored page parts.
         // Avoid duplicates when the markdown already contains explicit <recipe(s)> or <usage(s)> tags.
         if (!entry.stack.isEmpty()) {
-            layout.addAutomaticCrafting(entry.stack);
+            GuideFaultIsolation.value("automatic crafting", String.valueOf(entry.id), () -> {
+                layout.addAutomaticCrafting(entry.stack);
+                return true;
+            }, false);
         }
         return layout.finish();
     }
@@ -1416,7 +1430,9 @@ public final class GuiGuide extends Screen {
         }
 
         void addRecipe(GuideRecipe recipe, ItemStack focusedOutput) {
-            if (!renderedRecipeDisplays.add(recipe.displayKey())) return;
+            GuideRecipeDisplayKey key = GuideFaultIsolation.value("guide layout", String.valueOf(recipe.id()),
+                recipe::displayKey, null);
+            if (key == null || !renderedRecipeDisplays.add(key)) return;
             ensure(60);
             page.elements.add(RenderElement.recipe(y, recipe, focusedOutput));
             y += 60;
@@ -1519,10 +1535,21 @@ public final class GuiGuide extends Screen {
         if (minecraft.level == null || minecraft.player == null) {
             return List.of();
         }
+        // Until server sync arrives, use only valid unlocked client displays.
+        List<RecipeDisplayEntry> fallback = GuideFaultIsolation.value(
+            "client recipe book", "fallback", () ->
+                RecipeListPhantom.from(minecraft.player.getRecipeBook()).entries(), List.of());
         List<GuideRecipe> recipes = new ArrayList<>();
-        for (GuideRecipeDisplayCache.Entry entry : GuideRecipeDisplayCache.entriesOr(
-            RecipeListPhantom.from(minecraft.player.getRecipeBook()).entries())) {
-            recipes.add(new GuideRecipe(entry.recipeId(), entry.display()));
+        for (GuideRecipeDisplayCache.Entry entry : GuideRecipeDisplayCache.entriesOr(fallback)) {
+            if (entry == null) continue;
+            GuideRecipe safe = GuideFaultIsolation.value("guide preview", String.valueOf(entry.recipeId()), () -> {
+                if (entry.recipeId() == null || entry.display() == null || entry.display().display() == null) {
+                    return null;
+                }
+                entry.display().id().index(); // Force lazy ID/type access behind the per-entry guard.
+                return new GuideRecipe(entry.recipeId(), entry.display());
+            }, null);
+            if (safe != null) recipes.add(safe);
         }
         return recipes;
     }
@@ -1555,7 +1582,7 @@ public final class GuiGuide extends Screen {
                 }
             }
             return outputs;
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             return List.of();
         }
     }
@@ -1573,7 +1600,7 @@ public final class GuiGuide extends Screen {
                     if (guideStacksMatch(input, candidate)) return true;
                 }
             }
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
             // Dynamic/tag-backed displays may fail while registries are being replaced during a resource reload.
         }
         return false;
@@ -1604,7 +1631,8 @@ public final class GuiGuide extends Screen {
         ItemStack focus = requestedOutput == null ? ItemStack.EMPTY : requestedOutput;
         try {
             renderCraftingRecipe(guiGraphics, entry, focus, x, y, mouseX, mouseY);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
+            GuideFaultIsolation.warn("recipe rendering", "third-party", ignored);
             // A broken third-party display must not close the whole guide.
         }
     }

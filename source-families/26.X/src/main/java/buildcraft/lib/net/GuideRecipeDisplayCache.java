@@ -7,6 +7,7 @@ package buildcraft.lib.net;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import buildcraft.lib.guide.GuideFaultIsolation;
 
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
@@ -48,7 +49,16 @@ public final class GuideRecipeDisplayCache {
     }
 
     public static void replace(List<Entry> newEntries) {
-        entries = List.copyOf(newEntries);
+        List<Entry> safe = new ArrayList<>(newEntries.size());
+        for (Entry entry : newEntries) {
+            Entry valid = GuideFaultIsolation.value("cached recipe", "sync", () -> {
+                if (entry == null || entry.recipeId() == null || entry.display() == null
+                    || entry.display().id() == null || entry.display().display() == null) return null;
+                return entry;
+            }, null);
+            if (valid != null) safe.add(valid);
+        }
+        entries = List.copyOf(safe);
         synchronised = true;
         REVISION.incrementAndGet();
     }
@@ -73,7 +83,11 @@ public final class GuideRecipeDisplayCache {
         if (synchronised) return entries;
         List<Entry> converted = new ArrayList<>(fallback.size());
         for (RecipeDisplayEntry display : fallback) {
-            converted.add(new Entry(clientRecipeKey(display), display));
+            Entry safe = GuideFaultIsolation.value("fallback recipe", "client", () -> {
+                if (display == null || display.id() == null || display.display() == null) return null;
+                return new Entry(clientRecipeKey(display), display);
+            }, null);
+            if (safe != null) converted.add(safe);
         }
         return List.copyOf(converted);
     }

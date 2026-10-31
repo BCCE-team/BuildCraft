@@ -2,6 +2,7 @@
 package buildcraft.lib.compat.minecraft.recipe;
 
 import java.util.ArrayList;
+import buildcraft.lib.guide.GuideFaultIsolation;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,12 +19,20 @@ public final class BCRecipeDisplays {
     private BCRecipeDisplays() {}
     public static List<RecipeDisplayEntry> unlockedCrafting(ClientRecipeBook book) {
         Map<Object, RecipeDisplayEntry> unique = new LinkedHashMap<>();
-        for (RecipeCollection collection : book.getCollections()) {
-            for (RecipeDisplayEntry entry : collection.getRecipes()) {
-                if (entry.display() instanceof ShapedCraftingRecipeDisplay
-                    || entry.display() instanceof ShapelessCraftingRecipeDisplay) {
-                    unique.putIfAbsent(entry.id(), entry);
-                }
+        Iterable<RecipeCollection> collections = GuideFaultIsolation.value("recipe collections", "unlocked",
+            book::getCollections, List.of());
+        for (RecipeCollection collection : collections) {
+            if (collection == null) continue;
+            Iterable<RecipeDisplayEntry> entries = GuideFaultIsolation.value("recipe collection", "unlocked",
+                collection::getRecipes, List.of());
+            for (RecipeDisplayEntry entry : entries) {
+                GuideFaultIsolation.value("client recipe preview", "unlocked", () -> {
+                    if (entry.display() instanceof ShapedCraftingRecipeDisplay
+                        || entry.display() instanceof ShapelessCraftingRecipeDisplay) {
+                        unique.putIfAbsent(entry.id(), entry);
+                    }
+                    return true;
+                }, false);
             }
         }
         return new ArrayList<>(unique.values());

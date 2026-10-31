@@ -47,6 +47,7 @@ import buildcraft.lib.internal.core.render.ISprite;
 import buildcraft.lib.internal.recipes.IngredientStack;
 import buildcraft.lib.internal.statement.IStatement;
 import buildcraft.lib.BCLibConfig;
+import buildcraft.lib.guide.GuideFaultIsolation;
 import buildcraft.lib.client.sprite.SpriteNineSliced;
 import buildcraft.lib.gui.GuiIcon;
 import buildcraft.lib.misc.ColourUtil;
@@ -204,7 +205,11 @@ public final class GuiGuide extends Screen {
     }
 
     public static void open(ItemStack guideStack, InteractionHand hand) {
-        Minecraft.getInstance().setScreen(new GuiGuide(guideStack, hand));
+        try {
+            Minecraft.getInstance().setScreen(new GuiGuide(guideStack, hand));
+        } catch (RuntimeException | LinkageError failure) {
+            GuideFaultIsolation.warn("guide open", "main", failure);
+        }
     }
 
     @Override
@@ -1018,10 +1023,13 @@ public final class GuiGuide extends Screen {
     }
 
     private DocumentLayout layoutDocument(GuideContent.Entry entry) {
-        GuideDocument parsed = GuideDocument.parse(entry.markdown, showLore, showHints, BCLibConfig.guideShowDetail);
         LayoutBuilder layout = new LayoutBuilder(entry.title());
+        GuideDocument parsed = GuideFaultIsolation.value("page parse", String.valueOf(entry.id), () ->
+            GuideDocument.parse(entry.markdown, showLore, showHints, BCLibConfig.guideShowDetail), null);
+        if (parsed == null) return layout.finish();
         for (GuideDocument.Block block : parsed.blocks) {
-            switch (block.kind) {
+            try {
+                switch (block.kind) {
                 case TEXT:
                     layout.addText(block.text == null ? Component.empty() : block.text, block.target);
                     break;
@@ -1048,12 +1056,18 @@ public final class GuiGuide extends Screen {
                     break;
                 default:
                     break;
+                }
+            } catch (RuntimeException | LinkageError failure) {
+                GuideFaultIsolation.warn("page block", String.valueOf(entry.id), failure);
             }
         }
         // BC8 appended all crafting information to item pages after loading their authored page parts.
         // Avoid duplicates when the markdown already contains explicit <recipe(s)> or <usage(s)> tags.
         if (!entry.stack.isEmpty()) {
-            layout.addAutomaticCrafting(entry.stack);
+            GuideFaultIsolation.value("automatic crafting", String.valueOf(entry.id), () -> {
+                layout.addAutomaticCrafting(entry.stack);
+                return true;
+            }, false);
         }
         return layout.finish();
     }
@@ -1185,7 +1199,8 @@ public final class GuiGuide extends Screen {
                 Minecraft minecraft = Minecraft.getInstance();
                 if (minecraft.level == null) return;
                 minecraft.level.getRecipeManager().getRecipes().stream()
-                    .filter(recipe -> recipeId.equals(recipe.getId()))
+                    .filter(recipe -> GuideFaultIsolation.value("recipe id", recipe.getClass().getName(),
+                        () -> recipeId.equals(recipe.getId()), false))
                     .findFirst()
                     .ifPresent(recipe -> addRecipe(recipe, ItemStack.EMPTY));
                 return;
@@ -1229,7 +1244,9 @@ public final class GuiGuide extends Screen {
         }
 
         void addRecipe(Recipe<?> recipe, ItemStack focusedOutput) {
-            if (!renderedRecipes.add(recipe.getId())) return;
+            ResourceLocation id = GuideFaultIsolation.value("recipe id", recipe.getClass().getName(),
+                recipe::getId, null);
+            if (id == null || !renderedRecipes.add(id)) return;
             ensure(60);
             page.elements.add(RenderElement.recipe(y, recipe, focusedOutput));
             y += 60;
@@ -1311,7 +1328,10 @@ public final class GuiGuide extends Screen {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null) return List.of();
         return minecraft.level.getRecipeManager().getRecipes().stream()
-            .filter(recipe -> recipeOutputs(recipe).stream().anyMatch(result -> guideStacksMatch(output, result)))
+            .filter(recipe -> GuideFaultIsolation.value("recipe output", recipe.getClass().getName(),
+                () -> recipeOutputs(recipe).stream().anyMatch(result -> guideStacksMatch(output, result)), false))
+            .filter(recipe -> GuideFaultIsolation.value("recipe id", recipe.getClass().getName(),
+                () -> recipe.getId() != null, false))
             .sorted(Comparator.comparing(recipe -> recipe.getId().toString()))
             .collect(Collectors.toList());
     }
@@ -1320,7 +1340,7 @@ public final class GuiGuide extends Screen {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null) return List.of();
         return minecraft.level.getRecipeManager().getRecipes().stream()
-            .filter(recipe -> {
+            .filter(recipe -> GuideFaultIsolation.value("recipe usage", recipe.getClass().getName(), () -> {
                 if (recipe instanceof AssemblyRecipeBasic) {
                     ItemStack result = focusedRecipeOutput(recipe, ItemStack.EMPTY);
                     if (!result.isEmpty()) {
@@ -1333,7 +1353,9 @@ public final class GuiGuide extends Screen {
                     }
                 }
                 return recipeIngredients(recipe).stream().anyMatch(ingredient -> ingredientMatches(ingredient, input));
-            })
+            }, false))
+            .filter(recipe -> GuideFaultIsolation.value("recipe id", recipe.getClass().getName(),
+                () -> recipe.getId() != null, false))
             .sorted(Comparator.comparing(recipe -> recipe.getId().toString()))
             .collect(Collectors.toList());
     }
@@ -1419,7 +1441,8 @@ public final class GuiGuide extends Screen {
             } else {
                 renderCraftingRecipe(guiGraphics, recipe, focus, x, y, mouseX, mouseY);
             }
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException | LinkageError ignored) {
+            GuideFaultIsolation.warn("recipe rendering", "third-party", ignored);
             // Recipe implementations supplied by other mods are allowed to be dynamic. A broken preview must not
             // close the whole guide; the affected recipe is simply left blank on this frame.
         }
