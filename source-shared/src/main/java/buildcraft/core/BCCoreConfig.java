@@ -32,6 +32,8 @@ public class BCCoreConfig {
     public static int markerMaxDistance;
     public static int pumpMaxDistance;
     public static int networkUpdateRate = 10;
+    /** Write a complete server-side robotics decision and movement trace to latest.log. Default off. */
+    public static volatile boolean verboseRobotLogging = false;
     public static double miningMultiplier = 1;
     public static int miningMaxDepth;
 
@@ -48,6 +50,7 @@ public class BCCoreConfig {
     private static BooleanValue propMinePlayerProtected;
     private static BooleanValue propEnableAnimatedSprites;
     private static BooleanValue propUseWrenchTag;
+    private static BooleanValue propVerboseRobotLogging;
 
     private static IntValue propGuideItemSearchLimit;
     private static BCConfigSpec.DoubleValue propMjPerFe;
@@ -148,6 +151,13 @@ public class BCCoreConfig {
             .worldRestart().defineEnum("powerMode", BCLibConfig.PowerMode.MJ_ONLY);
         builder.pop();
 
+        builder.push("debug");
+        propVerboseRobotLogging = builder.comment(
+            "Write detailed server-side robot state, AI decisions, docking and pathfinding to latest.log every tick.",
+            "Very noisy and potentially expensive. Enable only temporarily when diagnosing robotics issues."
+        ).define("verboseRobotLogging", false);
+        builder.pop();
+
         config = builder.build();
     }
 
@@ -165,6 +175,7 @@ public class BCCoreConfig {
         }
 
         minePlayerProtected = propMinePlayerProtected.get();
+        verboseRobotLogging = propVerboseRobotLogging.get();
         BCLibConfig.useColouredLabels = propUseColouredLabels.get();
         BCLibConfig.useHighContrastLabelColours = propUseHighContrastColouredLabels.get();
 

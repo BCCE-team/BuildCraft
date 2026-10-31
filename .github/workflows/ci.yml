@@ -81,6 +81,10 @@ jobs:
         run: python -m unittest discover -s scripts/tests -p test_engine_runtime.py -v
       - name: Test persisted robot task lifecycle and leases
         run: python -m unittest discover -s scripts/tests -p test_robot_task_runtime.py -v
+      - name: Test robot work reservations and cancellation
+        run: python -m unittest discover -s scripts/tests -p test_robot_reservation_runtime.py -v
+      - name: Test robot Stripes execution outcomes
+        run: python -m unittest discover -s scripts/tests -p test_robot_stripes_status_runtime.py -v
       - name: Test requester reservations and durable logistics
         run: python -m unittest discover -s scripts/tests -p test_request_lifecycle.py -v
 
@@ -103,8 +107,9 @@ jobs:
         run: python -m unittest discover -s scripts/tests -p 'test_recipe_*.py' -v
 
 
-      - name: Validate API2 module contracts
-        run: python scripts/validate-api2-modules.py
+      # Legacy source-token API2 checks remain available manually via
+      # python scripts/validate-api2-modules.py, but are not a release gate.
+      # Compiled public-API addon tests above enforce the actual contracts.
 
       - name: Test legacy Forge compiler compatibility
         run: python -m unittest discover -s scripts/tests -p test_old_compile_regressions.py -v

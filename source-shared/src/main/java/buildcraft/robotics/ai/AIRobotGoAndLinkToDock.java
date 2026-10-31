@@ -10,7 +10,7 @@ import net.minecraft.util.Mth;
 
 /**
  * Gate-command AI from BuildCraft 7.1.x: move the robot to the requested station and make that station its main dock.
- * This is intentionally different from AIRobotGotoStation, which only reserves a temporary station for charging/unload.
+ *kage be bententionally different from AIRobotGotoStation, which only reserves a temporary station for charging/unload.
  */
 public class AIRobotGoAndLinkToDock extends AIRobot {
     private BlockIndex stationIndex;
@@ -26,6 +26,15 @@ public class AIRobotGoAndLinkToDock extends AIRobot {
             stationIndex = station.index();
             stationSide = station.side();
         }
+    }
+
+    /** Identical persistent gate commands must not restart an active docking route every tick. */
+    public boolean sameDestination(AIRobotGoAndLinkToDock other) {
+        if (other == null || stationIndex == null || other.stationIndex == null) return false;
+        return stationIndex.x == other.stationIndex.x
+                && stationIndex.y == other.stationIndex.y
+                && stationIndex.z == other.stationIndex.z
+                && stationSide == other.stationSide;
     }
 
     @Override

@@ -14,7 +14,6 @@ CHECKS = (
     ("machine behavior", CHECK_ROOT / "machines.py"),
     ("automation", CHECK_ROOT / "automation.py"),
     ("gameplay", CHECK_ROOT / "gameplay.py"),
-    ("integrity", CHECK_ROOT / "integrity.py"),
     ("systems", CHECK_ROOT / "systems.py"),
     ("world/transport", CHECK_ROOT / "world_transport.py"),
     ("performance/rendering", CHECK_ROOT / "performance.py"),

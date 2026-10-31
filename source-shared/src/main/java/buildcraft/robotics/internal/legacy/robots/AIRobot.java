@@ -8,6 +8,7 @@ package buildcraft.robotics.internal.legacy.robots;
 
 import net.minecraft.nbt.CompoundTag;
 import buildcraft.lib.balance.BalanceConfig;
+import buildcraft.robotics.RobotTrace;
 import net.minecraft.world.item.ItemStack;
 
 public class AIRobot {
@@ -85,6 +86,7 @@ public class AIRobot {
     }
 
     public final void terminate() {
+        if (RobotTrace.enabled()) RobotTrace.event(robot, "AI_TERMINATE", "ai=%s success=%s", RobotTrace.name(this), success);
         abortDelegateAI();
         end();
 
@@ -95,6 +97,7 @@ public class AIRobot {
     }
 
     public final void abort() {
+        if (RobotTrace.enabled()) RobotTrace.event(robot, "AI_ABORT", "ai=%s child=%s", RobotTrace.name(this), RobotTrace.name(delegateAI));
         abortDelegateAI();
 
         try {
@@ -116,6 +119,7 @@ public class AIRobot {
 
     public final void cycle() {
         try {
+            if (RobotTrace.enabled()) RobotTrace.cycle(this);
             preempt(delegateAI);
 
             if (delegateAI != null) {
@@ -137,6 +141,8 @@ public class AIRobot {
     }
 
     public final void startDelegateAI(AIRobot ai) {
+        if (RobotTrace.enabled()) RobotTrace.event(robot, "AI_SWITCH", "parent=%s old=%s next=%s",
+                RobotTrace.name(this), RobotTrace.name(delegateAI), RobotTrace.name(ai));
         abortDelegateAI();
         delegateAI = ai;
         ai.parentAI = this;

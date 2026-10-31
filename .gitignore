@@ -29,6 +29,7 @@ logs/
 mcmodsrepo/
 src/generated/
 src/main/resources/.cache/
+config/
 
 # Forge MDK files
 forge*changelog.txt

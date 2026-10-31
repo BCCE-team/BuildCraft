@@ -785,7 +785,10 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
         "python scripts/validate-fe-compat.py",
         "python scripts/validate-cross-target-integrity.py",
         "python scripts/validate-api2-runtime-completeness.py",
-        "python scripts/validate-api2-modules.py",
+        # Executable API2 addon contracts are release gates; source-token
+        # implementation-shape checks are not.
+        "python -m unittest discover -s scripts/tests -p test_external_addon_conformance.py -v",
+        "python -m unittest discover -s scripts/tests -p 'test_api_*.py' -v",
         "python scripts/validate-behavior-parity.py",
         "python scripts/validate-1.21.11-parity.py",
         "python scripts/validate-26.1.2-target.py",

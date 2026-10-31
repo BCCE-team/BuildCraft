@@ -4,6 +4,7 @@ import buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot;
 import buildcraft.lib.balance.BalanceConfig;
 import buildcraft.robotics.internal.api2.ApiTaskAI;
 import buildcraft.robotics.internal.legacy.robots.RobotManager;
+import buildcraft.robotics.RobotTrace;
 import net.minecraft.nbt.CompoundTag;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
@@ -123,6 +124,16 @@ public class AIRobotMain extends AIRobot {
     }
 
     public void setOverridingAI(AIRobot ai) {
+        if (ai instanceof AIRobotGoAndLinkToDock requested) {
+            AIRobot current = overridingAI != null ? overridingAI : getDelegateAI();
+            if (current instanceof AIRobotGoAndLinkToDock existing && existing.sameDestination(requested)) {
+                if (RobotTrace.enabled()) RobotTrace.event(robot, "GATE_COMMAND_UNCHANGED",
+                        "active=%s requested=%s", RobotTrace.name(current), RobotTrace.name(ai));
+                return;
+            }
+        }
+        if (RobotTrace.enabled()) RobotTrace.event(robot, "GATE_COMMAND",
+                "old=%s new=%s", RobotTrace.name(overridingAI), RobotTrace.name(ai));
         if (overridingAI != null && overridingAI != ai && overridingAI != getDelegateAI()) {
             overridingAI.abort();
         }

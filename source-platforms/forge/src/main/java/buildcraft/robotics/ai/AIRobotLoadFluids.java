@@ -1,6 +1,8 @@
 package buildcraft.robotics.ai;
 
 import buildcraft.lib.internal.debug.BCLog;
+import buildcraft.api.v2.OperationMode;
+import buildcraft.robotics.internal.api2.RobotAutomationSupport;
 import buildcraft.lib.internal.core.IFluidFilter;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
@@ -53,6 +55,8 @@ public class AIRobotLoadFluids extends AIRobot {
         if (robot == null || station == null || filter == null) {
             return 0;
         }
+        if (!RobotAutomationSupport.permitsFluidTransfer(robot, station, true,
+                doLoad ? OperationMode.EXECUTE : OperationMode.SIMULATE)) return 0;
 
         FluidStorage<FluidStack> handler = station.getFluidInput();
         if (handler == null) {

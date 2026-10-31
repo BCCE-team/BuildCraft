@@ -68,12 +68,18 @@ public enum StripesRegistry {
                 world, pos, direction, stack, actor, OperationMode.EXECUTE, player, output
             );
             AutomationResult result = handler.activate(context);
-            if (result.status() != AutomationResult.Status.PASS) {
-                if (player != null && !stack.isEmpty()) {
-                    player.getInventory().setItem(player.getInventory().selected, context.stack());
-                }
-                return true;
+            if (result.status() == AutomationResult.Status.PASS) {
+                continue;
             }
+            // DENIED/FAILED/RETRY stop this handler chain but are not successful
+            // actions. Do not write back a rejected handler's working stack.
+            if (result.status() != AutomationResult.Status.SUCCESS) {
+                return false;
+            }
+            if (player != null && !stack.isEmpty()) {
+                player.getInventory().setItem(player.getInventory().selected, context.stack());
+            }
+            return true;
         }
         return false;
     }

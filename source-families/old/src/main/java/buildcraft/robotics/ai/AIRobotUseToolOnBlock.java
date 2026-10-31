@@ -2,6 +2,7 @@ package buildcraft.robotics.ai;
 
 import buildcraft.lib.internal.core.BlockIndex;
 import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.permission.WorldOperationKind;
 import buildcraft.api.v2.automation.UseItemRequest;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
@@ -79,9 +80,10 @@ public class AIRobotUseToolOnBlock extends AIRobot {
             terminate();
             return;
         }
-        if (!RobotAutomationSupport.permits(new UseItemRequest(
-                serverLevel, robot.blockPosition(), pos, Direction.UP, held,
-                RobotAutomationSupport.actor(robot), OperationMode.EXECUTE))) {
+        // An EXECUTE UseItemRequest invokes useOn itself; calling it here would use
+        // the hoe twice. Check EXECUTE permissions, then perform ONE real use.
+        if (!RobotAutomationSupport.permitsBlock(
+                robot, serverLevel, pos, WorldOperationKind.ITEM_USE, OperationMode.EXECUTE)) {
             setSuccess(false);
             terminate();
             return;

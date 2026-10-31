@@ -35,9 +35,11 @@ public final class GameplayIntegrityGameTests {
 
     @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 20)
     public static void mixedFluidColumnsDoNotMergeThroughEmptyBridgeTank(GameTestHelper helper) {
-        BlockPos lowerPos = new BlockPos(1, 1, 1);
-        BlockPos bridgePos = new BlockPos(1, 2, 1);
-        BlockPos upperPos = new BlockPos(1, 3, 1);
+        // Keep all three blocks inside the 3-high structure. The previous upper tank at y=3
+        // was outside the test template and could interfere with neighboring GameTests.
+        BlockPos lowerPos = new BlockPos(1, 0, 1);
+        BlockPos bridgePos = new BlockPos(1, 1, 1);
+        BlockPos upperPos = new BlockPos(1, 2, 1);
         TileTank lower = placeTank(helper, lowerPos);
         TileTank upper = placeTank(helper, upperPos);
 
@@ -53,6 +55,13 @@ public final class GameplayIntegrityGameTests {
             "lava column connected through an empty bridge into incompatible water");
         require(helper, bridge.getConnectedTanks().size() == 1,
             "bridge tank joined incompatible column halves into one logical tank");
+        require(helper, lower.tank.getFluidAmount() == FluidType.BUCKET_VOLUME
+            && lower.tank.getFluid().getFluid() == Fluids.WATER,
+            "creating the bridge tank lost or changed the lower fluid");
+        require(helper, upper.tank.getFluidAmount() == FluidType.BUCKET_VOLUME
+            && upper.tank.getFluid().getFluid() == Fluids.LAVA,
+            "creating the bridge tank lost or changed the upper fluid");
+        require(helper, bridge.tank.isEmpty(), "empty bridge tank acquired incompatible fluid");
         helper.succeed();
     }
 

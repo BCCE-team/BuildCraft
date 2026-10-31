@@ -34,6 +34,24 @@ public final class BalanceConfig {
 public class StatementSlot {public final Object statement;public StatementSlot(Object statement){this.statement=statement;}}''',
 'buildcraft/robotics/statements/ActionRobotWakeUp': '''package buildcraft.robotics.statements;
 public class ActionRobotWakeUp {}''',
+'buildcraft/robotics/RobotTrace': '''package buildcraft.robotics;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+/** A quiet diagnostic bridge: real logging is outside this decision test. */
+public final class RobotTrace {
+ private RobotTrace() {}
+ public static boolean enabled(){return false;}
+ public static String name(Object ai){return ai==null?"null":ai.getClass().getSimpleName();}
+ public static void event(EntityRobotBase robot,String event,String format,Object... args){}
+}''',
+'buildcraft/robotics/ai/AIRobotGoAndLinkToDock': '''package buildcraft.robotics.ai;
+import buildcraft.robotics.internal.legacy.robots.*;
+/** Gate station commands are outside this recharge-only harness. */
+public class AIRobotGoAndLinkToDock extends AIRobot {
+ private final DockingStation target;
+ public AIRobotGoAndLinkToDock(EntityRobotBase robot){this(robot,null);}
+ public AIRobotGoAndLinkToDock(EntityRobotBase robot,DockingStation station){super(robot);target=station;}
+ public boolean sameDestination(AIRobotGoAndLinkToDock other){return other!=null && target==other.target;}
+}''',
 'buildcraft/robotics/IStationFilter': '''package buildcraft.robotics;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
 public interface IStationFilter {boolean matches(DockingStation station);}''',
@@ -176,12 +194,22 @@ public class RobotRechargeHarness {
   charged.energy=EntityRobotBase.SAFETY_ENERGY;currentSleep.preempt(null);
   ok(stay.getDelegateAI()==null);
 
-  // If there is no charger, the Recharge AI fails with a cooldown; it should not restart every tick.
+  // With no charger, a temporary station search may retry for a bounded time.
+  // Afterwards, the main AI must enter cooldown instead of searching every tick.
   var noPower=new EntityRobotBase(1400);noPower.home=home;noPower.registry.stations.add(home);
   var cooldown=new AIRobotMain(noPower);int searches=AIEvents.searched;
-  cooldown.preempt(null);ok(cooldown.getDelegateAI()==null);
-  ok(AIEvents.searched==searches+1);
-  cooldown.preempt(null);ok(AIEvents.searched==searches+1);
+  cooldown.preempt(null);
+  AIRobot noChargerAi=cooldown.getDelegateAI();
+  if (noChargerAi instanceof AIRobotRecharge) {
+   AIRobot stationSearch=noChargerAi.getDelegateAI();
+   for(int tick=0;tick<100 && cooldown.getDelegateAI()!=null;tick++){
+    stationSearch.update();
+   }
+  }
+  ok(cooldown.getDelegateAI()==null);
+  ok(AIEvents.searched>searches && AIEvents.searched<=searches+5);
+  int stoppedSearches=AIEvents.searched;
+  cooldown.preempt(null);ok(AIEvents.searched==stoppedSearches);
 
   // A powered home at a distance does not preempt an already-running search or force sleep.
   var powerHome=new EntityRobotBase(1400);powerHome.home=farPower;

@@ -8,12 +8,17 @@ import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.robotics.IStationFilter;
+import buildcraft.robotics.RobotTrace;
 import buildcraft.robotics.statements.ActionStationForbidRobot;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
 
 public class AIRobotSearchStation extends AIRobot {
     public DockingStation targetStation;
+    /** An eligible station exists, but is currently reserved by another robot. */
+    private boolean occupiedMatch;
+    /** A station in the requested area has not finished initializing yet. */
+    private boolean temporarilyUnavailable;
     private IStationFilter filter;
     private IZone zone;
     private Set<StationKey> excludedStations = Collections.emptySet();
@@ -35,7 +40,10 @@ public class AIRobotSearchStation extends AIRobot {
 
     @Override
     public void start() {
-        if (filter == null) {
+        targetStation = null;
+        occupiedMatch = false;
+        temporarilyUnavailable = false;
+        if (filter == null || robot.getRegistry() == null) {
             setSuccess(false);
             terminate();
             return;
@@ -54,12 +62,20 @@ public class AIRobotSearchStation extends AIRobot {
         }
         double bestDistance = Double.MAX_VALUE;
         for (DockingStation station : robot.getRegistry().getStations()) {
-            if (station == null || !station.isInitialized()) continue;
+            if (station == null) continue;
             if (excludedStations.contains(StationKey.of(station))) continue;
-            if (station.isTaken() && station.robotIdTaking() != robot.getRobotId()) continue;
             if (zone != null && !zone.contains(new Vec3(station.x(), station.y(), station.z()))) continue;
-            if (!filter.matches(station)) continue;
             if (ActionStationForbidRobot.isForbidden(station, robot)) continue;
+            if (!station.isInitialized()) {
+                temporarilyUnavailable = true;
+                continue;
+            }
+            if (!filter.matches(station)) continue;
+            if (station.isTaken() && station.robotIdTaking() != robot.getRobotId()) {
+                occupiedMatch = true;
+                if (RobotTrace.enabled()) RobotTrace.event(robot, "STATION_OCCUPIED", "station=%s", station);
+                continue;
+            }
             double dx = robot.getX() - station.x();
             double dy = robot.getY() - station.y();
             double dz = robot.getZ() - station.z();
@@ -69,7 +85,19 @@ public class AIRobotSearchStation extends AIRobot {
                 bestDistance = distance;
             }
         }
+        if (RobotTrace.enabled()) RobotTrace.event(robot, "STATION_SEARCH",
+                "selected=%s occupiedMatch=%s uninitialized=%s excluded=%d",
+                targetStation, occupiedMatch, temporarilyUnavailable, excludedStations.size());
         terminate();
+    }
+
+    /** Distinguishes temporary contention from the genuine absence of a matching station. */
+    public boolean shouldRetry() {
+        return occupiedMatch || temporarilyUnavailable;
+    }
+
+    public boolean hasOccupiedMatch() {
+        return occupiedMatch;
     }
 
     @Override

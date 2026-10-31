@@ -91,9 +91,22 @@ for platform in ("forge", "neoforge"):
             errors.append(f"{platform} RobotEventSupport: missing API2 event hook {token}")
 
     policy = text(f"source-platforms/{platform}/src/main/java/buildcraft/robotics/internal/api2/RobotAutomationSupport.java")
-    for token in ("AutomationActor", "BuildCraftServices.AUTOMATION", "AutomationResult.Status.DENIED", "AutomationResult.Status.FAILED"):
+    for token in ("AutomationActor", "BuildCraftServices.AUTOMATION"):
         if token not in policy:
             errors.append(f"{platform} RobotAutomationSupport: missing automation-policy hook {token}")
+
+    # The robot policy adapter must fail closed. PASS and RETRY are not grants,
+    # just as DENIED and FAILED are not grants. Checking for the old status names
+    # would reject the stricter SUCCESS-only implementation and encourage an
+    # unsafe regression to `status != DENIED && status != FAILED`.
+    if not re.search(
+        r"\breturn\s+result\.status\(\)\s*==\s*AutomationResult\.Status\.SUCCESS\s*;",
+        policy,
+    ):
+        errors.append(
+            f"{platform} RobotAutomationSupport: permits() must grant SUCCESS only "
+            "(PASS, RETRY, DENIED and FAILED must be rejected)"
+        )
 
 # Every active target must install robotics API2 after board registration.
 for rel in (

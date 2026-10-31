@@ -2,6 +2,7 @@ package buildcraft.robotics.ai;
 
 import buildcraft.lib.internal.core.BlockIndex;
 import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.permission.WorldOperationKind;
 import buildcraft.api.v2.automation.BreakBlockRequest;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
@@ -83,8 +84,10 @@ public class AIRobotBreak extends AIRobot {
         if (blockDamage > 1.0F) {
             serverLevel.destroyBlockProgress(robot.getId(), pos, -1);
             blockDamage = 0.0F;
-            if (!RobotAutomationSupport.permits(new BreakBlockRequest(
-                    serverLevel, robot.blockPosition(), pos, RobotAutomationSupport.actor(robot), OperationMode.EXECUTE))) {
+            // Permission evaluation must not invoke the API v2 BREAK_BLOCK executor here:
+            // it would destroy the target with an EMPTY tool before our real harvest.
+            if (!RobotAutomationSupport.permitsBlock(
+                    robot, serverLevel, pos, WorldOperationKind.BLOCK_BREAK, OperationMode.EXECUTE)) {
                 setSuccess(false);
                 terminate();
                 return;

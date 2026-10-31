@@ -149,6 +149,11 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
     private float aimPitch;
     private FluidStack tank = FluidStack.EMPTY;
     private boolean firstUpdateDone;
+    private transient DockingStation suspectHomeStation;
+    private transient DockingStation suspectDockStation;
+    private long suspectHomeSince = Long.MIN_VALUE;
+    private long suspectDockSince = Long.MIN_VALUE;
+    private static final long STATION_REBIND_GRACE_TICKS = 20L;
     private boolean convertingToItems;
     private int ticksCharging;
     /** Fractional charge accumulator, stored as (microJoules * ENERGY_UNITS_PER_MJ) % MjAmount.MICRO_MJ_PER_MJ. */
@@ -458,7 +463,7 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
         IRobotRegistry registry = getRegistry();
 
         DockingStation currentDockingStation = dockingStation;
-        if (currentDockingStation != null && isStationGone(currentDockingStation)) {
+        if (currentDockingStation != null && isStationGoneAfterGrace(currentDockingStation, false)) {
             BlockIndex oldIndex = copyIndex(dockingStationIndex != null ? dockingStationIndex : currentDockingStation.index());
             Direction oldSide = dockingStationSide != null ? dockingStationSide : currentDockingStation.side();
             currentDockingStation.unsafeRelease(this);
@@ -480,7 +485,7 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
         }
 
         DockingStation currentLinkedStation = linkedStation;
-        if (currentLinkedStation != null && isStationGone(currentLinkedStation)) {
+        if (currentLinkedStation != null && isStationGoneAfterGrace(currentLinkedStation, true)) {
             BlockIndex oldIndex = copyIndex(linkedStationIndex != null ? linkedStationIndex : currentLinkedStation.index());
             Direction oldSide = linkedStationSide != null ? linkedStationSide : currentLinkedStation.side();
             rememberMainStation(oldIndex, oldSide);
@@ -498,10 +503,51 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
         }
     }
 
+    private boolean isStationGoneAfterGrace(DockingStation station, boolean home) {
+        boolean missing = isStationGone(station);
+        DockingStation previous = home ? suspectHomeStation : suspectDockStation;
+        long since = home ? suspectHomeSince : suspectDockSince;
+        if (!missing) {
+            if (previous != null && buildcraft.robotics.RobotTrace.enabled()) {
+                buildcraft.robotics.RobotTrace.event(this, "STATION_REAPPEARED", "home=%s station=%s", home, station);
+            }
+            if (home) {
+                suspectHomeStation = null;
+                suspectHomeSince = Long.MIN_VALUE;
+            } else {
+                suspectDockStation = null;
+                suspectDockSince = Long.MIN_VALUE;
+            }
+            return false;
+        }
+        long tick = level.getGameTime();
+        if (previous != station || since == Long.MIN_VALUE || tick < since) {
+            if (home) {
+                suspectHomeStation = station;
+                suspectHomeSince = tick;
+            } else {
+                suspectDockStation = station;
+                suspectDockSince = tick;
+            }
+            if (buildcraft.robotics.RobotTrace.enabled()) {
+                buildcraft.robotics.RobotTrace.event(this, "STATION_SUSPECT", "home=%s station=%s grace=%d",
+                        home, station, STATION_REBIND_GRACE_TICKS);
+            }
+            return false;
+        }
+        if (tick - since < STATION_REBIND_GRACE_TICKS) return false;
+        if (buildcraft.robotics.RobotTrace.enabled()) {
+            buildcraft.robotics.RobotTrace.event(this, "STATION_MISSING", "home=%s station=%s", home, station);
+        }
+        return true;
+    }
+
     private boolean isStationGone(DockingStation station) {
         if (station == null) {
             return true;
         }
+        // The registry can temporarily lack an unloaded station. That is not evidence of removal.
+        if (!level.isLoaded(station.index().toBlockPos())) return false;
 
         IRobotRegistry registry = getRegistry();
         if (registry != null && registry.getStation(station.index().toBlockPos(), station.side()) != station) {
@@ -553,6 +599,8 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
         }
 
         if (!linkedStation.isInitialized()) {
+            // Allow a still-loaded pipe's pluggable/BlockEntity to finish re-initializing.
+            if (!isStationGoneAfterGrace(linkedStation, true)) return;
             rememberMainStation(linkedStation.index(), linkedStation.side());
             linkedStation = null;
             linkedStationIndex = null;
@@ -597,11 +645,11 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
     }
 
     private void ensureManualStationReturnAI() {
-        setDeltaMovement(Vec3.ZERO);
         if (lastMainStationIndex == null || mainAI == null) {
             return;
         }
         if (!(mainAI.getDelegateAI() instanceof AIRobotReturnToLostStation)) {
+            setDeltaMovement(Vec3.ZERO); // Stop the previous job once, not every emergency-return tick.
             mainAI.setOverridingAI(null);
             mainAI.startDelegateAI(new AIRobotReturnToLostStation(
                     this, lastMainStationIndex, lastMainStationSide, false));
@@ -651,10 +699,6 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
     }
 
     private void returnToLastKnownStation(String reason) {
-        // Clear movement from the previous work AI before station recovery so the robot cannot coast outside its
-        // work area while the station is unavailable.
-        setDeltaMovement(Vec3.ZERO);
-
         if (lastMainStationIndex == null) {
             shutdownRobot(reason + ", no last station coordinates");
             return;
@@ -665,6 +709,11 @@ public class EntityRobot extends EntityRobotBase implements IEntityAdditionalSpa
             return;
         }
 
+        // Do not freeze AIRobotReturnToLostStation on every tick while it is following its route.
+        setDeltaMovement(Vec3.ZERO);
+        if (buildcraft.robotics.RobotTrace.enabled()) {
+            buildcraft.robotics.RobotTrace.event(this, "EMERGENCY_RETURN", "reason=%s", reason);
+        }
         BCLog.logger.warn(
                 "Robot {} lost its main station at {} side {} while at [{}, {}, {}] ({}). Returning within 5 blocks.",
                 robotId, lastMainStationIndex, lastMainStationSide,

@@ -93,6 +93,11 @@ public class BoardRobotDelivery extends RedstoneBoardRobot {
         }
     }
 
+    @Override
+    public void end() {
+        releaseCurrentRequest();
+    }
+
     private void releaseCurrentRequest() {
         if (currentRequest == null) {
             return;
@@ -105,7 +110,7 @@ public class BoardRobotDelivery extends RedstoneBoardRobot {
         ResourceId resourceId = currentRequest.getResourceId(robot.level());
         ?*/
         //?}
-        if (resourceId != null) {
+        if (resourceId != null && robot.getRegistry() != null) {
             robot.getRegistry().release(resourceId);
         }
 

@@ -11,6 +11,8 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
     private IBlockFilter filter;
     private boolean random;
     private double maxDistanceToEnd;
+    /** True only after the owning board has been notified of successful arrival. */
+    private boolean keepReservationForBoard;
 
     public AIRobotSearchAndGotoBlock(EntityRobotBase robot) {
         super(robot);
@@ -43,11 +45,22 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
                 terminate();
             }
         } else if (ai instanceof AIRobotGotoBlock) {
-            if (!ai.success()) {
-                releaseBlockFound();
+            if (ai.success() && blockFound != null) {
+                // The board's delegateAIEnded takes over this reservation.
+                keepReservationForBoard = true;
+            } else {
                 setSuccess(false);
             }
             terminate();
+        }
+    }
+
+    @Override
+    public void end() {
+        // terminate() and abort() both run end(); navigation may be cancelled by
+        // gates, loss of station, unload, or a newly selected board.
+        if (!keepReservationForBoard) {
+            releaseBlockFound();
         }
     }
 
@@ -92,6 +105,8 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
 
     @Override
     public void loadSelfFromNBT(CompoundTag nbt) {
+        // Ownership is transferred only in the success callback, never in NBT.
+        keepReservationForBoard = false;
         if (nbt.contains("indexStored")) {
             blockFound = new BlockIndex(nbt.getCompound("indexStored"));
         }

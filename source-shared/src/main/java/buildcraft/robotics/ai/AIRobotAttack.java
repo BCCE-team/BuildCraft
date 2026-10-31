@@ -34,7 +34,10 @@ public class AIRobotAttack extends AIRobot {
 
     @Override
     public void update() {
-        if (target == null || !target.isAlive() || target.isRemoved()) {
+        // The target may have escaped its originally valid work zone while
+        // the robot was travelling. Never pursue or strike outside it.
+        if (target == null || !target.isAlive() || target.isRemoved()
+                || robot.getZoneToWork() != null && !robot.getZoneToWork().contains(target.position())) {
             terminate();
             return;
         }

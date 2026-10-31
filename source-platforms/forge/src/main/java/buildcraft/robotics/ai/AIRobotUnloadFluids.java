@@ -1,6 +1,8 @@
 package buildcraft.robotics.ai;
 
 import buildcraft.lib.internal.debug.BCLog;
+import buildcraft.api.v2.OperationMode;
+import buildcraft.robotics.internal.api2.RobotAutomationSupport;
 import buildcraft.lib.internal.core.IFluidFilter;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
@@ -65,6 +67,8 @@ public class AIRobotUnloadFluids extends AIRobot {
         if (robot == null || station == null) {
             return 0;
         }
+        if (!RobotAutomationSupport.permitsFluidTransfer(robot, station, false,
+                doUnload ? OperationMode.EXECUTE : OperationMode.SIMULATE)) return 0;
 
         FluidStack fluidInRobot = robot.getFluidInTank(0);
         if (fluidInRobot.isEmpty() || !canUnloadFluid(station, new SimpleFluidFilter(fluidInRobot), requireAcceptAction)) {

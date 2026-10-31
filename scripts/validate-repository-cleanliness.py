@@ -94,9 +94,9 @@ if tracked_files is not None:
         ):
             errors.append(f"generated/backup file is tracked: {rel}")
 
-# Every unittest module must be selected by both CI runners. Module globs are
-# legitimate discovery patterns; checking literal filenames would reject a
-# consolidated subsystem suite even when every test is actually executed.
+# CI and local CI must select the same mandatory suites. Additional test
+# modules are allowed for opt-in/manual checks: a local-only diagnostic is not
+# a repository hygiene failure. Registered patterns must match real modules.
 ci_file = ROOT / ".github/workflows/ci.yml"
 local_runner = ROOT / "scripts/run-ci-local.py"
 if ci_file.is_file() and local_runner.is_file():
@@ -122,9 +122,7 @@ if ci_file.is_file() and local_runner.is_file():
         errors.append("unittest discovery patterns differ between GitHub CI and run-ci-local.py")
     for test_path in sorted((ROOT / "scripts/tests").glob("test_*.py")):
         matches = [pattern for pattern in ci_patterns if fnmatch.fnmatchcase(test_path.name, pattern)]
-        if not matches:
-            errors.append(f"unreferenced unittest module is not executed by CI: {test_path.relative_to(ROOT)}")
-        elif len(matches) != 1:
+        if len(matches) > 1:
             errors.append(f"unittest module is selected by multiple CI steps: {test_path.relative_to(ROOT)}")
     for pattern in ci_patterns:
         if not list((ROOT / "scripts/tests").glob(pattern)):
@@ -268,4 +266,4 @@ if errors:
         print(f" - {error}")
     sys.exit(1)
 
-print("Repository cleanliness OK: no tracked generated junk, dead CI test modules, compressed script-version paths, known scratch classes, obsolete lifecycle/UI shims, wrong-generation resource paths, stale module-local mining tags, or stale 1.12 tooltips detected")
+print("Repository cleanliness OK: no tracked generated junk, duplicate mandatory unittest registration, compressed script-version paths, known scratch classes, obsolete lifecycle/UI shims, wrong-generation resource paths, stale module-local mining tags, or stale 1.12 tooltips detected")

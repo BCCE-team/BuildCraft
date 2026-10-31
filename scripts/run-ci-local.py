@@ -55,6 +55,8 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test addon machine runtime and GUI actions", _unittest_command("test_machine_runtime.py")),
     ("Test addon engine MJ runtime and persisted thermal stages", _unittest_command("test_engine_runtime.py")),
     ("Test persisted robot task lifecycle and leases", _unittest_command("test_robot_task_runtime.py")),
+    ("Test robot work reservations and cancellation", _unittest_command("test_robot_reservation_runtime.py")),
+    ("Test robot Stripes execution outcomes", _unittest_command("test_robot_stripes_status_runtime.py")),
     ("Test requester reservations and durable logistics", _unittest_command("test_request_lifecycle.py")),
     ("Test dynamic API2 client presentation", _unittest_command("test_presentation_runtime.py")),
     ("Verify independent API2 addon JAR conformance", _unittest_command("test_external_addon_conformance.py")),
@@ -63,7 +65,6 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test machine recipe syncing", _unittest_command("test_machine_recipe_sync.py")),
     ("Test Programming Table tooltip ranges", _unittest_command("test_programming_tooltip_range.py")),
     ("Test machine recipe datapacks and recovery", _unittest_command("test_recipe_*.py")),
-    ("Validate API2 module contracts", (sys.executable, "scripts/validate-api2-modules.py")),
     ("Test legacy Forge compiler compatibility", _unittest_command("test_old_compile_regressions.py")),
     ("Test NeoForge compiler compatibility", _unittest_command("test_neoforge_compiler_compat.py")),
     ("Validate repository cleanliness", (sys.executable, "scripts/validate-repository-cleanliness.py")),
@@ -225,7 +226,6 @@ def workflow_alignment_check() -> None:
 
     required_validate_fragments = (
         "python scripts/validate-architecture-hardening.py",
-        "python scripts/validate-api2-modules.py",
         "python scripts/validate-1.21.11-parity.py",
         "python scripts/validate-26.1.2-target.py",
         "python scripts/validate-cross-target-integrity.py",

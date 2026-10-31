@@ -124,6 +124,29 @@ public interface RequestService {
 import java.util.*;import net.minecraft.world.level.Level;
 public interface RobotService {Optional<RobotResourceLease> acquire(Level level,long id,RobotResourceRequest request);}
 ''',
+    # These are external to the task lifecycle under test. Compile the real AIRobot and
+    # AIRobotMain sources, but isolate their opt-in diagnostic and gate movement dependencies.
+    # Keep the method signatures aligned with the production classes so javac catches
+    # scheduler/API regressions without needing the full Minecraft runtime.
+    "buildcraft/robotics/RobotTrace.java": '''package buildcraft.robotics;
+import buildcraft.robotics.internal.legacy.robots.AIRobot;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+public final class RobotTrace {
+ public static boolean enabled(){return false;}
+ public static String name(AIRobot ai){return ai==null?"none":ai.getClass().getSimpleName();}
+ public static void cycle(AIRobot ai){}
+ public static void event(EntityRobotBase robot,String event,String format,Object... args){}
+} ''',
+    "buildcraft/robotics/ai/AIRobotGoAndLinkToDock.java": '''package buildcraft.robotics.ai;
+import buildcraft.robotics.internal.legacy.robots.AIRobot;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+public final class AIRobotGoAndLinkToDock extends AIRobot {
+ private final int destination;
+ public AIRobotGoAndLinkToDock(EntityRobotBase robot,int destination){super(robot);this.destination=destination;}
+ public boolean sameDestination(AIRobotGoAndLinkToDock other){
+  return other!=null && destination==other.destination;
+ }
+} ''',
     "buildcraft/robotics/internal/legacy/robots/IRobotRegistryProvider.java": 'package buildcraft.robotics.internal.legacy.robots; public interface IRobotRegistryProvider {}',
     "buildcraft/robotics/internal/legacy/robots/ResourceId.java": 'package buildcraft.robotics.internal.legacy.robots; public class ResourceId {}',
     "buildcraft/robotics/internal/legacy/robots/ResourceIdBlock.java": 'package buildcraft.robotics.internal.legacy.robots; public class ResourceIdBlock extends ResourceId {}',
@@ -353,6 +376,16 @@ public class RobotTaskFixture {
   unloadedRestored.cycle();
   ok(totalTicks==beforeBlocked+1 && completed==4,"task resumes only after lease reacquisition");
   ok(!reservations.containsKey("field"),"reacquired lease released after completion");
+  // Gate commands are an external AI type, but deduplication itself lives in the real scheduler.
+  AIRobotMain gate=create(13);
+  AIRobotGoAndLinkToDock firstDock=new AIRobotGoAndLinkToDock(gate.robot,41);
+  gate.setOverridingAI(firstDock);
+  gate.setOverridingAI(new AIRobotGoAndLinkToDock(gate.robot,41));
+  ok(gate.getOverridingAI()==firstDock,"repeated identical gate command restarted its AI");
+  gate.setOverridingAI(new AIRobotGoAndLinkToDock(gate.robot,42));
+  ok(gate.getOverridingAI()!=firstDock,"different gate station failed to change AI");
+  gate.setOverridingAI(null);
+  ok(gate.getOverridingAI()==null,"Wake Up failed to clear the gate override");
   System.out.println("PASS: queued, save/reload, migration, corrupt, unknown, lease, unload, resume, terminal");
  }
  static void registerTaskAgain(){register();}

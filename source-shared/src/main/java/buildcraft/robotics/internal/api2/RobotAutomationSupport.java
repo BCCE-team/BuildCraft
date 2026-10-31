@@ -61,6 +61,34 @@ public final class RobotAutomationSupport {
         }
     }
 
+    /**
+     * Fluid transfer counterpart of permitsInventory: validates the dock and
+     * the actual fluid-facing neighbor (not the item-facing neighbor).
+     */
+    public static boolean permitsFluidTransfer(EntityRobotBase robot, DockingStation station,
+                                               boolean withdrawing, OperationMode mode) {
+        if (robot == null || station == null) return false;
+        Level world = robot.getCommandSenderWorld();
+        if (!(world instanceof net.minecraft.server.level.ServerLevel)) return false;
+        BlockPos dock = new BlockPos(station.x(), station.y(), station.z());
+        WorldOperationKind kind = withdrawing ? WorldOperationKind.FLUID_DRAIN : WorldOperationKind.FLUID_PLACE;
+        try {
+            if (!world.hasChunkAt(dock)
+                    || !permitsBlock(robot, world, dock, WorldOperationKind.INVENTORY_ACCESS, mode)
+                    || !permitsBlock(robot, world, dock, kind, mode)) return false;
+            net.minecraft.core.Direction face = withdrawing ? station.getFluidInputSide() : station.getFluidOutputSide();
+            if (face != null) {
+                BlockPos adjacent = dock.relative(face);
+                if (!world.hasChunkAt(adjacent)
+                        || !permitsBlock(robot, world, adjacent, WorldOperationKind.INVENTORY_ACCESS, mode)
+                        || !permitsBlock(robot, world, adjacent, kind, mode)) return false;
+            }
+            return true;
+        } catch (RuntimeException failure) {
+            return false;
+        }
+    }
+
     public static boolean permitsEntity(EntityRobotBase robot, Level level, Entity target, WorldOperationKind operation, OperationMode mode) {
         return AutomationPermissionUtil.mayEntity(
             level, robot.blockPosition(), target, owner(robot), AutomationPermissionUtil.SOURCE_ROBOT, operation, mode
@@ -69,6 +97,8 @@ public final class RobotAutomationSupport {
 
     public static boolean permits(AutomationRequest request) {
         AutomationResult result = BuildCraftApi.service(BuildCraftServices.AUTOMATION).execute(request);
-        return result.status() != AutomationResult.Status.DENIED && result.status() != AutomationResult.Status.FAILED;
+        // PASS and RETRY are not permission grants. No mutation follows an
+        // automation request unless a provider explicitly accepts it.
+        return result.status() == AutomationResult.Status.SUCCESS;
     }
 }

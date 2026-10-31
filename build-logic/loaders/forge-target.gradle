@@ -298,12 +298,13 @@ repositories {
         filter { includeGroup 'maven.modrinth' }
     }
 
-    // Resolve ModLauncher from NeoForged Maven so a Sponge outage cannot block Forge targets.
+    // Resolve Forge's own ModLauncher from the Forge Maven, not NeoForge Maven.
+    // Keep the module exclusive so an unrelated Sponge outage cannot block these targets.
     exclusiveContent {
         forRepository {
             maven {
-                name = 'NeoForgedModLauncher'
-                url = 'https://maven.neoforged.net/releases'
+                name = 'MinecraftForgeModLauncher'
+                url = 'https://maven.minecraftforge.net/'
             }
         }
         filter { includeModule 'cpw.mods', 'modlauncher' }
@@ -315,6 +316,20 @@ repositories {
     }
 
     mavenCentral()
+}
+
+// Forge 43.x/47.x use ModLauncher 10.0.9. EventBus 6.0.3 requests
+// 10.0.+ transitively; pin it to avoid a network metadata lookup for a
+// dynamic version on every clean project configuration.
+configurations.configureEach {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'cpw.mods'
+                && details.requested.name == 'modlauncher'
+                && details.requested.version == '10.0.+') {
+            details.useVersion('10.0.9')
+            details.because('Forge 43.x and 47.x ship ModLauncher 10.0.9')
+        }
+    }
 }
 
 dependencies {

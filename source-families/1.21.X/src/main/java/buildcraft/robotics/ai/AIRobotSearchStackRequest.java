@@ -2,6 +2,8 @@ package buildcraft.robotics.ai;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.List;
 
 import buildcraft.lib.internal.core.IStackFilter;
@@ -24,6 +26,11 @@ public class AIRobotSearchStackRequest extends AIRobot {
 
     private Collection<ItemStack> blackList;
     private IStackFilter filter;
+    // A station is queried in both filter.matches() and after selection.
+    // Preserve its request snapshot for this one search rather than repeating
+    // a potentially 8192-item registry scan for every matching station.
+    private final Map<DockingStation, Collection<StackRequest>> stationRequests = new IdentityHashMap<>();
+    private final Map<ItemRequest, ItemStack> representativeCache = new IdentityHashMap<>();
 
     public AIRobotSearchStackRequest(EntityRobotBase robot) {
         super(robot);
@@ -88,8 +95,13 @@ public class AIRobotSearchStackRequest extends AIRobot {
 
     /** Check the actual matcher, not merely the first advisory example supplied by an addon. */
     private ItemStack selectMatchingStack(ItemRequest definition) {
+        ItemStack cached = representativeCache.get(definition);
+        if (cached != null) return cached.copy();
         for (ItemStack example : definition.matcher().examples()) {
-            if (acceptsRequest(definition, example)) return example.copy();
+            if (acceptsRequest(definition, example)) {
+                representativeCache.put(definition, example.copy());
+                return example.copy();
+            }
         }
         // Some composed predicates have no examples at all. Inspect the registered items
         // for a compatible non-empty representative, bounded per request to avoid abuse.
@@ -97,8 +109,12 @@ public class AIRobotSearchStackRequest extends AIRobot {
         for (var item : net.minecraft.core.registries.BuiltInRegistries.ITEM) {
             if (++scanned > 8192) break;
             ItemStack candidate = new ItemStack(item);
-            if (acceptsRequest(definition, candidate)) return candidate;
+            if (acceptsRequest(definition, candidate)) {
+                representativeCache.put(definition, candidate.copy());
+                return candidate;
+            }
         }
+        representativeCache.put(definition, ItemStack.EMPTY);
         return ItemStack.EMPTY;
     }
 
@@ -118,6 +134,8 @@ public class AIRobotSearchStackRequest extends AIRobot {
         if (station == null) {
             return result;
         }
+        Collection<StackRequest> cached = stationRequests.get(station);
+        if (cached != null) return cached;
 
         RequestProvider provider = station.getRequestProvider();
         if (provider == null) {
@@ -143,6 +161,7 @@ public class AIRobotSearchStackRequest extends AIRobot {
                 result.add(req);
             }
         }
+        stationRequests.put(station, result);
         return result;
     }
 

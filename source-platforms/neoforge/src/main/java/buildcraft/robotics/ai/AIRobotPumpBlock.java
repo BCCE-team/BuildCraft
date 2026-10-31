@@ -9,6 +9,8 @@ import buildcraft.lib.internal.core.BlockIndex;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.lib.misc.BlockUtil;
+import buildcraft.lib.internal.core.IFluidFilter;
+import buildcraft.robotics.statements.ActionRobotFilter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.neoforged.neoforge.fluids.FluidStack;
@@ -83,6 +85,14 @@ public class AIRobotPumpBlock extends AIRobot {
         }
 
         FluidStack simulated = BlockUtil.drainBlock(robot.level(), pos, false);
+        // The fluid and Gate rules may have changed during the 40-tick flight/use delay.
+        // Never drain a source that no longer satisfies the current filter.
+        IFluidFilter activeFilter = ActionRobotFilter.getGateFluidFilter(robot.getLinkedStation());
+        if (!simulated.isEmpty() && activeFilter != null && !activeFilter.matches(simulated)) {
+            setSuccess(false);
+            terminate();
+            return;
+        }
         if (!simulated.isEmpty()) {
             int accepted = robot.fill(simulated, FluidAction.SIMULATE);
             // A source block is indivisible here. If the robot cannot hold the complete simulated drain, leave the
@@ -90,6 +100,18 @@ public class AIRobotPumpBlock extends AIRobot {
             if (accepted >= simulated.getAmount()) {
                 FluidStack drained = BlockUtil.drainBlock(robot.level(), pos, true);
                 if (!drained.isEmpty()) {
+                    // Foreign fluid handlers are allowed to differ between simulate and execute.
+                    // A changed fluid must be put back, not silently bypass the Gate filter.
+                    if (activeFilter != null && !activeFilter.matches(drained)) {
+                        if (!restoreFluidBlock(pos, drained)) {
+                            pumped = robot.fill(drained, FluidAction.EXECUTE);
+                            BCLog.logger.error("Robot pump: filtered fluid changed during drain at " + pos
+                                + "; could not restore source, preserved " + pumped + "/" + drained.getAmount());
+                        }
+                        setSuccess(false);
+                        terminate();
+                        return;
+                    }
                     int acceptedAfterDrain = robot.fill(drained, FluidAction.SIMULATE);
                     if (acceptedAfterDrain < drained.getAmount()) {
                         if (!restoreFluidBlock(pos, drained)) {
