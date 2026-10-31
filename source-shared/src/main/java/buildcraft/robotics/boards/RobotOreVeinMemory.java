@@ -7,6 +7,7 @@ import java.util.Set;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.LongArrayTag;
 import net.minecraft.world.level.Level;
 
 /**
@@ -134,7 +135,10 @@ public final class RobotOreVeinMemory {
         String storedFamily = data.getString("family");
         if (storedFamily.isEmpty() || !data.contains("origin")) return;
         BlockPos storedOrigin = BlockPos.of(data.getLong("origin"));
-        for (long packed : data.getLongArray("remaining")) {
+        // CompoundTag#getLongArray returns Optional<long[]> on 1.21.11+,
+        // while earlier Minecraft versions return long[] directly.
+        if (!(data.get("remaining") instanceof LongArrayTag storedBlocks)) return;
+        for (long packed : storedBlocks.getAsLongArray()) {
             BlockPos pos = BlockPos.of(packed);
             if (Math.abs(pos.getX() - storedOrigin.getX()) <= MAX_HORIZONTAL_DISTANCE
                     && Math.abs(pos.getY() - storedOrigin.getY()) <= MAX_VERTICAL_DISTANCE

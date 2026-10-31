@@ -51,6 +51,10 @@ public class AIRobotGoAndLinkToDock extends AIRobot {
  public AIRobotGoAndLinkToDock(EntityRobotBase robot){this(robot,null);}
  public AIRobotGoAndLinkToDock(EntityRobotBase robot,DockingStation station){super(robot);target=station;}
  public boolean sameDestination(AIRobotGoAndLinkToDock other){return other!=null && target==other.target;}
+ // The recharge harness does not simulate persistent Gate commands, but AIRobotMain
+ // still needs the matching production interface to compile.
+ public void refreshGateSignal(){}
+ public boolean isHoldingAtStation(){return false;}
 }''',
 'buildcraft/robotics/IStationFilter': '''package buildcraft.robotics;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;

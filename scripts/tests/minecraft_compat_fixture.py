@@ -228,6 +228,19 @@ def run(java_root: Path, *, current: bool, probe: str) -> str:
             relative = 'buildcraft/lib/compat/minecraft/' + name + '.java'
             sources[relative] = (java_root / relative).read_text(encoding='utf-8')
         if current:
+            # BCRecipeDisplays calls the real guide fault-isolation boundary on
+            # 1.21.11. Compile that production source, not a replacement for it.
+            relative = 'buildcraft/lib/guide/GuideFaultIsolation.java'
+            sources[relative] = (java_root / relative).read_text(encoding='utf-8')
+            # Logging is unrelated to this offline Minecraft API harness. Keep
+            # just the BCLog surface required by GuideFaultIsolation.
+            sources['buildcraft/lib/internal/debug/BCLog.java'] = '''package buildcraft.lib.internal.debug;
+public final class BCLog {
+ public static final Logger logger = new Logger();
+ public static final class Logger {
+  public void warn(String message, Object... arguments) {}
+ }
+}'''
             for relative in ('buildcraft/lib/compat/minecraft/persistence/CompoundValueCodec.java',
                              'buildcraft/lib/compat/ItemNameKeys121111.java',
                              'buildcraft/lib/compat/minecraft/recipe/BCRecipeDisplays.java'):

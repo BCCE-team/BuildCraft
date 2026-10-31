@@ -305,10 +305,20 @@ def main() -> int:
         new_boards = java_set(new, "boards")
         old_ai = java_set(old, "ai")
         new_ai = java_set(new, "ai")
-        require(old_boards == new_boards and len(new_boards) == 20,
-                f"Robot board class set diverged: old={len(old_boards)} new={len(new_boards)}")
-        require(old_ai == new_ai and len(new_ai) == 41,
-                f"Robot AI class set diverged: old={len(old_ai)} new={len(new_ai)}")
+        # Keep the two effective source sets identical across versions. The pathfinding/vein-search
+        # update added RobotOreVeinMemory to boards/ and AIRobotSearchNearestBlock to ai/ on BOTH
+        # versions. Fixed exact counts (20 / 41) wrongly reject compatible additive changes.
+        # Retain a minimum baseline and require the new implementations, rather than weakening parity.
+        require(old_boards == new_boards and len(new_boards) >= 21
+                and "RobotOreVeinMemory.java" in new_boards,
+                f"Robot board sources diverged or lost ore-vein memory: old={len(old_boards)} "
+                f"new={len(new_boards)}, missing={sorted(old_boards - new_boards)}, "
+                f"extra={sorted(new_boards - old_boards)}")
+        require(old_ai == new_ai and len(new_ai) >= 42
+                and "AIRobotSearchNearestBlock.java" in new_ai,
+                f"Robot AI sources diverged or lost nearest-block search: old={len(old_ai)} "
+                f"new={len(new_ai)}, missing={sorted(old_ai - new_ai)}, "
+                f"extra={sorted(new_ai - old_ai)}")
 
         # Registration order, profession IDs, textures and programming costs drive item variants and board creation.
         def board_registrations(source: str) -> list[tuple[str, str, str, str, int]]:

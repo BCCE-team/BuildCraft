@@ -43,12 +43,13 @@ STUBS = {
         import net.minecraft.world.item.ItemStack;
         public class AIRobot {
           public final EntityRobotBase robot;
+          public AIRobot lastStartedDelegate;
           private boolean success=true;
           public AIRobot(EntityRobotBase robot){this.robot=robot;}
           public void start(){}
           public void end(){}
           public void delegateAIEnded(AIRobot ai){}
-          public void startDelegateAI(AIRobot delegate){delegate.start();}
+          public void startDelegateAI(AIRobot delegate){lastStartedDelegate=delegate;delegate.start();}
           public void terminate(){end();}
           protected void setSuccess(boolean success){this.success=success;}
           public boolean success(){return success;}
@@ -87,6 +88,21 @@ STUBS = {
           public boolean takeResource(){return robot.registry.take(new ResourceIdBlock(blockFound),robot);}
         }
     ''',
+    # The nearest-by-route search is intentionally stubbed here: this fixture tests
+    # reservation ownership in the real AIRobotSearchAndGotoBlock, not BFS pathfinding.
+    # Keep its public contract aligned with AIRobotSearchNearestBlock in production.
+    'buildcraft/robotics/ai/AIRobotSearchNearestBlock.java': '''
+        package buildcraft.robotics.ai;
+        import buildcraft.lib.internal.core.BlockIndex;
+        import buildcraft.robotics.internal.legacy.robots.*;
+        import java.util.LinkedList;
+        public class AIRobotSearchNearestBlock extends AIRobot {
+          public BlockIndex blockFound;
+          public LinkedList<BlockIndex> path = new LinkedList<>();
+          public AIRobotSearchNearestBlock(EntityRobotBase robot,IBlockFilter filter,double distance){super(robot);}
+          public boolean takeResource(){return robot.registry.take(new ResourceIdBlock(blockFound),robot);}
+        }
+    ''',
     'buildcraft/robotics/ai/AIRobotGotoBlock.java': '''
         package buildcraft.robotics.ai;
         import buildcraft.lib.internal.core.BlockIndex;
@@ -106,6 +122,16 @@ STUBS = {
             AIRobotSearchAndGotoBlock ai = new AIRobotSearchAndGotoBlock(robot,false,null);
             AIRobotSearchBlock search = new AIRobotSearchBlock(robot,false,null,0);
             search.blockFound=new BlockIndex(4,5,6);
+            // A non-empty path means arrival is still pending, so cancellation releases the claim.
+            search.path.add(new BlockIndex(3,5,6));
+            ai.delegateAIEnded(search);
+            return ai;
+          }
+          private static AIRobotSearchAndGotoBlock withNearestReservedTarget(EntityRobotBase robot,boolean adjacent){
+            AIRobotSearchAndGotoBlock ai = new AIRobotSearchAndGotoBlock(robot,false,null,0,true);
+            AIRobotSearchNearestBlock search = new AIRobotSearchNearestBlock(robot,null,0);
+            search.blockFound=new BlockIndex(4,5,6);
+            if(!adjacent)search.path.add(new BlockIndex(3,5,6));
             ai.delegateAIEnded(search);
             return ai;
           }
@@ -126,6 +152,46 @@ STUBS = {
             ai.delegateAIEnded(noPath);
             check(failed.registry.released==1,"Failed navigation must release reservation");
             check(!ai.success(),"Failed navigation must report failure");
+            // Route-based search is selected only for explicitly non-random nearest requests.
+            EntityRobotBase routing = new EntityRobotBase();
+            AIRobotSearchAndGotoBlock nearest = new AIRobotSearchAndGotoBlock(routing,false,null,0,true);
+            nearest.start();
+            check(nearest.lastStartedDelegate instanceof AIRobotSearchNearestBlock,
+                "Nearest-route search must start the nearest search AI");
+            AIRobotSearchAndGotoBlock random = new AIRobotSearchAndGotoBlock(routing,true,null,0,true);
+            random.start();
+            check(random.lastStartedDelegate instanceof AIRobotSearchBlock,
+                "Random searches must preserve the classic search AI");
+
+            EntityRobotBase nearestInterrupted = new EntityRobotBase();
+            ai = withNearestReservedTarget(nearestInterrupted,false);
+            check(nearestInterrupted.registry.taken==1,"Nearest search must reserve the target");
+            ai.end();
+            check(nearestInterrupted.registry.released==1,
+                "Interrupted nearest-route navigation must release reservation");
+
+            EntityRobotBase nearestSucceeded = new EntityRobotBase();
+            ai = withNearestReservedTarget(nearestSucceeded,false);
+            ai.delegateAIEnded(new AIRobotGotoBlock(nearestSucceeded,new java.util.LinkedList<>()));
+            check(nearestSucceeded.registry.released==0,"Nearest arrival must preserve board reservation");
+            check(ai.success(),"Nearest arrival must succeed");
+
+            EntityRobotBase nearestFailed = new EntityRobotBase();
+            ai = withNearestReservedTarget(nearestFailed,false);
+            AIRobotGotoBlock unreachable = new AIRobotGotoBlock(nearestFailed,new java.util.LinkedList<>());
+            unreachable.fail();
+            ai.delegateAIEnded(unreachable);
+            check(nearestFailed.registry.released==1,"Failed nearest-route navigation must release target");
+            check(!ai.success(),"Failed nearest-route navigation must propagate failure");
+
+            // An empty route is already adjacent: no movement should run or release the claim.
+            EntityRobotBase adjacent = new EntityRobotBase();
+            ai = withNearestReservedTarget(adjacent,true);
+            check(adjacent.registry.taken==1,"Adjacent nearest target must be reserved");
+            check(adjacent.registry.released==0,"Adjacent nearest target must remain owned by the board");
+            check(ai.success(),"Adjacent nearest target must complete without navigation");
+            check(ai.lastStartedDelegate==null,"Adjacent nearest target must not start an empty path");
+
             System.out.println("All AI reservation transfer checks passed");
           }
         }

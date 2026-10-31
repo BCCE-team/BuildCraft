@@ -345,8 +345,7 @@ class NearestOreRuntimeTest(unittest.TestCase):
                     inputs.append(str(path))
                 rel = f'source-platforms/{"forge" if name=="forge" else "neoforge"}/src/main/java/buildcraft/robotics/boards/BoardRobotMiner.java'
                 src = (ROOT / rel).read_text(encoding='utf-8')
-                if name.startswith('neoforge'):
-                    src = vein_test.materialize_neoforge(src, name == 'neoforge-26.2')
+                src = vein_test.materialize_board(src, name)
                 path = dest / 'buildcraft/robotics/boards/BoardRobotMiner.java'
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(src, encoding='utf-8')

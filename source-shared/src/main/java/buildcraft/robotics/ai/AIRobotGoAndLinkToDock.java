@@ -8,6 +8,7 @@ import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.Mth;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -25,9 +26,18 @@ public class AIRobotGoAndLinkToDock extends AIRobot {
     private boolean holdingAtStation;
     private long lastGateSignalTick = Long.MIN_VALUE;
 
+    /** Minecraft 1.19.2 exposes Entity.level as a field; later versions use level(). */
+    private Level robotLevel() {
+        //? if <1.20.1 {
+        return robot.level;
+        //?} else {
+        return robot.level();
+        //?}
+    }
+
     /** Called by AIRobotMain for every matching activation of the same Gate command. */
     public void refreshGateSignal() {
-        lastGateSignalTick = robot.level().getGameTime();
+        lastGateSignalTick = robotLevel().getGameTime();
     }
 
     public boolean isHoldingAtStation() {
@@ -113,7 +123,7 @@ public class AIRobotGoAndLinkToDock extends AIRobot {
     @Override
     public void update() {
         if (holdingAtStation) {
-            long now = robot.level().getGameTime();
+            long now = robotLevel().getGameTime();
             // A Gate action is level-triggered. Keep the robot docked while it is
             // active; otherwise the board undocks it one tick later and the Gate
             // immediately sends it back again. A missed full tick releases the hold.
@@ -235,6 +245,6 @@ public class AIRobotGoAndLinkToDock extends AIRobot {
         retryTicks = waitingToRetry ? Math.max(1, nbt.getInt("retryTicks")) : 0;
         holdingAtStation = nbt.getBoolean("holdingAtStation");
         // A saved Gate must not hold a robot forever when the signal is gone.
-        lastGateSignalTick = robot.level().getGameTime();
+        lastGateSignalTick = robotLevel().getGameTime();
     }
 }

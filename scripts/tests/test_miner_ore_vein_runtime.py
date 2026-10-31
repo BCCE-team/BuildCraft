@@ -5,12 +5,17 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+from source_preprocessor import preprocess_text
+
 VEIN = ROOT / "source-shared/src/main/java/buildcraft/robotics/boards/RobotOreVeinMemory.java"
 BOARDS = {
     "forge": ROOT / "source-platforms/forge/src/main/java/buildcraft/robotics/boards/BoardRobotMiner.java",
     "neoforge-1.21.1": ROOT / "source-platforms/neoforge/src/main/java/buildcraft/robotics/boards/BoardRobotMiner.java",
+    "neoforge-1.21.11": ROOT / "source-platforms/neoforge/src/main/java/buildcraft/robotics/boards/BoardRobotMiner.java",
     "neoforge-26.2": ROOT / "source-platforms/neoforge/src/main/java/buildcraft/robotics/boards/BoardRobotMiner.java",
 }
 
@@ -28,6 +33,14 @@ public final class BlockPos {
  @Override public int hashCode(){return java.util.Objects.hash(x,y,z);}
  public String toString(){return x+","+y+","+z;}
 }''',
+    "net/minecraft/nbt/Tag.java": '''package net.minecraft.nbt;
+public abstract class Tag {}''',
+    "net/minecraft/nbt/LongArrayTag.java": '''package net.minecraft.nbt;
+public final class LongArrayTag extends Tag {
+ private final long[] data;
+ public LongArrayTag(long[] source){data=source.clone();}
+ public long[] getAsLongArray(){return data.clone();}
+}''',
     "net/minecraft/nbt/CompoundTag.java": '''package net.minecraft.nbt;
 import java.util.*;
 public final class CompoundTag {
@@ -38,8 +51,9 @@ public final class CompoundTag {
  public long getLong(String k){return (long)values.getOrDefault(k,0L);}
  public void putString(String k,String v){values.put(k,v);}
  public String getString(String k){return (String)values.getOrDefault(k,"");}
- public void putLongArray(String k,long[] v){values.put(k,v.clone());}
- public long[] getLongArray(String k){return ((long[])values.getOrDefault(k,new long[0])).clone();}
+ public void putLongArray(String k,long[] v){values.put(k,new LongArrayTag(v));}
+ public Tag get(String k){return values.get(k) instanceof Tag tag?tag:null;}
+ public long[] getLongArray(String k){return values.get(k) instanceof LongArrayTag t?t.getAsLongArray():new long[0];}
  public CompoundTag getCompound(String k){return (CompoundTag)values.getOrDefault(k,new CompoundTag());}
 }''',
     "net/minecraft/tags/TagKey.java": "package net.minecraft.tags; public record TagKey<T>(String id){}",
@@ -238,7 +252,7 @@ public class MinerVeinFixture {
   zr.zone = p -> p.x()<15.5;
   var zoned=new BoardRobotMiner(zr);search(zoned,zr,a);
   CompoundTag onlyInside=new CompoundTag();zoned.writeSelfToNBT(onlyInside);
-  ok(onlyInside.getCompound("minerOreVein").getLongArray("remaining").length==1,
+  ok(((net.minecraft.nbt.LongArrayTag)onlyInside.getCompound("minerOreVein").get("remaining")).getAsLongArray().length==1,
       "Vein traversal crossed the configured work-zone boundary");
   breakOre(zoned,zr,zoneLevel,a);
   ok(!onlyInside.getCompound("minerOreVein").getString("family").isEmpty(),"Invalid zone fixture");
@@ -248,21 +262,18 @@ public class MinerVeinFixture {
 }
 
 
+def materialize_board(code: str, variant: str) -> str:
+    if variant == "forge":
+        minecraft, family, loader = "1.20.1", "old", "forge"
+    elif variant.startswith("neoforge-1.21."):
+        minecraft, family, loader = variant.removeprefix("neoforge-"), "1.21.X", "neoforge"
+    else:
+        minecraft, family, loader = "26.2", "26.X", "neoforge"
+    return preprocess_text(code, minecraft=minecraft, family=family, platform=loader)
+
+
 def materialize_neoforge(code: str, modern_26_2: bool) -> str:
-    active = [True]
-    output = []
-    for line in code.splitlines(keepends=True):
-        s = line.strip()
-        if s.startswith("//? if mc_26_x && (>=26.2) {"):
-            active.append(active[-1] and modern_26_2)
-        elif s.startswith("//? } else {"):
-            active.pop()
-            active.append(active[-1] and not modern_26_2)
-        elif s == "//?}":
-            active.pop()
-        elif active[-1]:
-            output.append(line)
-    return "".join(output)
+    return materialize_board(code, "neoforge-26.2" if modern_26_2 else "neoforge-1.21.1")
 
 
 class MinerVeinRuntimeTest(unittest.TestCase):
@@ -272,16 +283,24 @@ class MinerVeinRuntimeTest(unittest.TestCase):
             with self.subTest(variant=name), tempfile.TemporaryDirectory(prefix="bc-miner-vein-") as tmp:
                 root = Path(tmp)
                 paths = [str(VEIN)]
-                for rel, code in STUBS.items():
+                for rel, source_code in STUBS.items():
+                    code = source_code
+                    if name in ("neoforge-1.21.11", "neoforge-26.2") and rel == "net/minecraft/nbt/CompoundTag.java":
+                        # Modern CompoundTag has an Optional-returning convenience getter.
+                        # The real shared vein code must compile against both API shapes.
+                        old_getter = "public long[] getLongArray(String k)"
+                        assert old_getter in code
+                        code = code.replace(old_getter, "public java.util.Optional<long[]> getLongArray(String k)")
+                        code = code.replace(
+                            'return values.get(k) instanceof LongArrayTag t?t.getAsLongArray():new long[0];',
+                            'return values.get(k) instanceof LongArrayTag t?java.util.Optional.of(t.getAsLongArray()):java.util.Optional.empty();')
                     dest = root / rel
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     dest.write_text(code, encoding="utf-8")
                     paths.append(str(dest))
                 board = root / "buildcraft/robotics/boards/BoardRobotMiner.java"
                 board.parent.mkdir(parents=True, exist_ok=True)
-                src = source.read_text(encoding="utf-8")
-                if name.startswith("neoforge"):
-                    src = materialize_neoforge(src, name == "neoforge-26.2")
+                src = materialize_board(source.read_text(encoding="utf-8"), name)
                 board.write_text(src, encoding="utf-8")
                 paths.append(str(board))
                 classes = root / "classes"

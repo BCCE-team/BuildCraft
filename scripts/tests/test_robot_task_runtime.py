@@ -142,10 +142,16 @@ import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 public final class AIRobotGoAndLinkToDock extends AIRobot {
  private final int destination;
+ private int gateSignalRefreshes;
  public AIRobotGoAndLinkToDock(EntityRobotBase robot,int destination){super(robot);this.destination=destination;}
  public boolean sameDestination(AIRobotGoAndLinkToDock other){
   return other!=null && destination==other.destination;
  }
+ // Keep this isolated stub aligned with the production Gate AI. Holding is
+ // exercised separately by test_robot_gate_signal_runtime.py (real Java AI).
+ public void refreshGateSignal(){gateSignalRefreshes++;}
+ public boolean isHoldingAtStation(){return false;}
+ public int gateSignalRefreshes(){return gateSignalRefreshes;}
 } ''',
     "buildcraft/robotics/internal/legacy/robots/IRobotRegistryProvider.java": 'package buildcraft.robotics.internal.legacy.robots; public interface IRobotRegistryProvider {}',
     "buildcraft/robotics/internal/legacy/robots/ResourceId.java": 'package buildcraft.robotics.internal.legacy.robots; public class ResourceId {}',
@@ -382,7 +388,9 @@ public class RobotTaskFixture {
   gate.setOverridingAI(firstDock);
   gate.setOverridingAI(new AIRobotGoAndLinkToDock(gate.robot,41));
   ok(gate.getOverridingAI()==firstDock,"repeated identical gate command restarted its AI");
+  ok(firstDock.gateSignalRefreshes()==1,"identical gate command failed to refresh the active signal");
   gate.setOverridingAI(new AIRobotGoAndLinkToDock(gate.robot,42));
+  ok(firstDock.gateSignalRefreshes()==1,"different gate station incorrectly refreshed the old signal");
   ok(gate.getOverridingAI()!=firstDock,"different gate station failed to change AI");
   gate.setOverridingAI(null);
   ok(gate.getOverridingAI()==null,"Wake Up failed to clear the gate override");

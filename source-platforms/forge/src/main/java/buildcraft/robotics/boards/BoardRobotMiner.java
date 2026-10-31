@@ -32,6 +32,15 @@ public class BoardRobotMiner extends BoardRobotGenericBreakBlock {
         super(robot);
     }
 
+    /** Minecraft 1.19.2 exposes Entity.level as a field; later versions use level(). */
+    private Level robotLevel() {
+        //? if <1.20.1 {
+        return robot.level;
+        //?} else {
+        return robot.level();
+        //?}
+    }
+
     @Override
     public RedstoneBoardRobotNBT getNBTHandler() {
         return BCRoboticsBoards.getByKey("miner").nbt();
@@ -45,7 +54,7 @@ public class BoardRobotMiner extends BoardRobotGenericBreakBlock {
 
     @Override
     public void update() {
-        vein.prune(robot.level(), this::eligibleOreFamily);
+        vein.prune(robotLevel(), this::eligibleOreFamily);
         super.update();
     }
 
@@ -108,9 +117,9 @@ public class BoardRobotMiner extends BoardRobotGenericBreakBlock {
         super.delegateAIEnded(ai);
         if (ai instanceof AIRobotSearchAndGotoBlock search && search.success() && !vein.isActive()) {
             BlockIndex found = blockFound();
-            if (found != null) vein.remember(robot.level(), found.toBlockPos(), this::eligibleOreFamily);
+            if (found != null) vein.remember(robotLevel(), found.toBlockPos(), this::eligibleOreFamily);
         } else if (ai instanceof AIRobotBreak && completed != null && ai.success()) {
-            vein.mined(robot.level(), completed.toBlockPos(), this::eligibleOreFamily);
+            vein.mined(robotLevel(), completed.toBlockPos(), this::eligibleOreFamily);
         }
     }
 

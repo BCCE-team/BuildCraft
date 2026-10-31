@@ -116,12 +116,30 @@ class GuideBookFeatures(unittest.TestCase):
         self.assertIn("private static volatile boolean synchronised", cache)
         self.assertIn("if (synchronised) return entries;", cache)
 
-        self.assertIn("Identifier recipeId = recipe.id().identifier();", message)
-        self.assertIn("buffer.writeIdentifier(entry.recipeId());", message)
-        self.assertIn("Identifier recipeId = buffer.readIdentifier();", message)
+        # Fault isolation must preserve the authoritative datapack id, rather than
+        # synthesising an id from the client display or dropping healthy recipes.
+        self.assertIn('Identifier recipeId = GuideFaultIsolation.value("recipe id", "recipe list", () ->', message)
+        self.assertIn("recipe.id().identifier(), null);", message)
+        self.assertIn("if (recipeId == null) continue;", message)
         self.assertIn("new GuideRecipeDisplayCache.Entry(recipeId, display)", message)
-        self.assertIn("recipe.value().getType() != RecipeType.CRAFTING", message)
-        self.assertIn("recipe.value().getType() != BCSiliconRecipes.ASSEMBLY_TYPE.get()", message)
+        self.assertIn('Boolean selected = GuideFaultIsolation.value("recipe type", String.valueOf(recipeId), () ->', message)
+        self.assertIn("recipe.value().getType() == RecipeType.CRAFTING", message)
+        self.assertIn("|| recipe.value().getType() == BCSiliconRecipes.ASSEMBLY_TYPE.get()", message)
+        self.assertIn("if (!selected) continue;", message)
+
+        # The hardened protocol stages each display independently and transmits
+        # only successfully encoded, length-framed entries. Decoding reads the
+        # same id from each isolated frame, not from the surrounding packet.
+        self.assertIn("staging.writeIdentifier(entry.recipeId());", message)
+        self.assertIn("Identifier recipeId = entryBuffer.readIdentifier();", message)
+        self.assertIn("if (entryBuffer.readableBytes() != 0)", message)
+        self.assertIn("buffer.writeVarInt(WIRE_MAGIC);", message)
+        self.assertIn("buffer.writeVarInt(WIRE_VERSION);", message)
+        self.assertIn("buffer.writeVarInt(frames.size());", message)
+        self.assertIn("buffer.writeVarInt(frame.length);", message)
+        self.assertIn("buffer.readBytes(payload);", message)
+        self.assertLess(message.index("staging.writeIdentifier(entry.recipeId());"),
+                        message.index("buffer.writeVarInt(WIRE_MAGIC);"))
 
         self.assertIn("private long recipeDisplayRevision = GuideRecipeDisplayCache.revision();", gui)
         self.assertIn("if (revision != recipeDisplayRevision)", gui)
@@ -134,7 +152,12 @@ class GuideBookFeatures(unittest.TestCase):
         cache = self.java("1.21.11-neoforge", "buildcraft/lib/net/GuideRecipeDisplayCache.java")
         self.assertIn("Set<GuideRecipeDisplayKey> renderedRecipeDisplays", gui)
         self.assertIn("new GuideRecipeDisplayKey(id, value.id().index())", gui)
-        self.assertIn("renderedRecipeDisplays.add(recipe.displayKey())", gui)
+        # Faulty addon displays are ignored, but deduplication still uses both
+        # the datapack recipe id and the individual display id for healthy ones.
+        self.assertIn('GuideRecipeDisplayKey key = GuideFaultIsolation.value("guide layout",', gui)
+        self.assertIn("recipe::displayKey, null);", gui)
+        self.assertIn("if (key == null || !renderedRecipeDisplays.add(key)) return;", gui)
+        self.assertIn(".filter(recipe -> !renderedRecipeDisplays.contains(recipe.displayKey()))", gui)
         self.assertIn("Set<Identifier> directIds = recipes.stream().map(GuideRecipe::id)", gui)
         self.assertIn(".forEach(recipe -> addRecipe(recipe, ItemStack.EMPTY));", gui)
         self.assertNotIn(".findFirst()\n                    .ifPresent(recipe -> addRecipe(recipe, ItemStack.EMPTY));", gui)
