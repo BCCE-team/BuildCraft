@@ -127,7 +127,8 @@ public class AIRobotMain extends AIRobot {
         if (ai instanceof AIRobotGoAndLinkToDock requested) {
             AIRobot current = overridingAI != null ? overridingAI : getDelegateAI();
             if (current instanceof AIRobotGoAndLinkToDock existing && existing.sameDestination(requested)) {
-                if (RobotTrace.enabled()) RobotTrace.event(robot, "GATE_COMMAND_UNCHANGED",
+                existing.refreshGateSignal();
+                if (RobotTrace.enabled() && !existing.isHoldingAtStation()) RobotTrace.event(robot, "GATE_COMMAND_UNCHANGED",
                         "active=%s requested=%s", RobotTrace.name(current), RobotTrace.name(ai));
                 return;
             }

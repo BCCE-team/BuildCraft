@@ -11,10 +11,12 @@ import java.util.PriorityQueue;
 import java.util.Set;
 
 import buildcraft.lib.internal.core.BlockIndex;
+import buildcraft.robotics.RobotTrace;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -30,6 +32,13 @@ public class AIRobotGotoBlock extends AIRobotGoto {
     private int stuckTicks;
     private int repathAttempts;
     private static final int MAX_REPATH_ATTEMPTS = 3;
+
+    // Only station/charging returns opt in. Work-target path quotas are untouched.
+    private static final int RETURN_NODES_PER_TICK = 1024;
+    private static final int RETURN_CHUNK_RETRY_TICKS = 40;
+    private boolean stationReturn;
+    private int returnStationX, returnStationY, returnStationZ;
+    private RobotStationPathPlanner stationPlanner;
 
     public AIRobotGotoBlock(EntityRobotBase robot) {
         super(robot);
@@ -59,9 +68,28 @@ public class AIRobotGotoBlock extends AIRobotGoto {
         }
     }
 
+    /**
+     * Search the actually passable terrain for a route to any open face of the
+     * docking pipe. Unlike work searches this one can search winding paths over
+     * multiple ticks, without a small straight-line radius cutoff.
+     */
+    public AIRobotGotoBlock forStationReturn(int stationX, int stationY, int stationZ) {
+        stationReturn = true;
+        returnStationX = stationX;
+        returnStationY = stationY;
+        returnStationZ = stationZ;
+        return this;
+    }
+
     @Override
     public void start() {
         robot.undock();
+    }
+
+    @Override
+    public int getEnergyCost() {
+        // Deliberation is not travel: no battery cost before a route is ready.
+        return stationReturn && path == null ? 0 : super.getEnergyCost();
     }
 
     @Override
@@ -71,15 +99,42 @@ public class AIRobotGotoBlock extends AIRobotGoto {
             loadedFromNBT = false;
         }
         if (path == null) {
-            // Never run several expensive searches within the same tick after a blocked waypoint.
-            //? if <1.20 {
-            if (robot.level.getGameTime() < nextRepathTick) return;
-            //?} else {
-            /*?
-            if (robot.level().getGameTime() < nextRepathTick) return;
-            ?*/
-            //?}
-            path = findPath();
+            long now = robotLevel().getGameTime();
+            if (now < nextRepathTick) return;
+            if (stationReturn) {
+                if (stationPlanner == null) {
+                    stationPlanner = new RobotStationPathPlanner(robotLevel(), robot.blockPosition(),
+                        new BlockPos(returnStationX, returnStationY, returnStationZ),
+                        new BlockPos(finalX, finalY, finalZ));
+                    if (RobotTrace.enabled()) RobotTrace.event(robot, "RETURN_PATH_START",
+                        "station=(%d,%d,%d) start=%s", returnStationX, returnStationY,
+                        returnStationZ, robot.blockPosition());
+                }
+                RobotStationPathPlanner.Result result = stationPlanner.advance(robotLevel(), RETURN_NODES_PER_TICK);
+                if (result == RobotStationPathPlanner.Result.SEARCHING) return;
+                if (result == RobotStationPathPlanner.Result.WAITING_FOR_CHUNKS) {
+                    if (RobotTrace.enabled()) RobotTrace.event(robot, "RETURN_PATH_WAIT_CHUNKS",
+                        "visited=%d retryIn=%d", stationPlanner.exploredNodes(), RETURN_CHUNK_RETRY_TICKS);
+                    stationPlanner = null;
+                    nextRepathTick = now + RETURN_CHUNK_RETRY_TICKS;
+                    return;
+                }
+                if (result == RobotStationPathPlanner.Result.NO_ROUTE) {
+                    if (RobotTrace.enabled()) RobotTrace.event(robot, "RETURN_PATH_NO_ROUTE",
+                        "visited=%d station=(%d,%d,%d)", stationPlanner.exploredNodes(),
+                        returnStationX, returnStationY, returnStationZ);
+                    stationPlanner = null;
+                    setSuccess(false);
+                    terminate();
+                    return;
+                }
+                path = stationPlanner.path();
+                if (RobotTrace.enabled()) RobotTrace.event(robot, "RETURN_PATH_FOUND",
+                    "visited=%d waypoints=%d", stationPlanner.exploredNodes(), path.size());
+                stationPlanner = null;
+            } else {
+                path = findPath();
+            }
             if (path == null || path.isEmpty()) {
                 setSuccess(false);
                 terminate();
@@ -91,38 +146,51 @@ public class AIRobotGotoBlock extends AIRobotGoto {
 
         if (path != null && !path.isEmpty()) {
             double distance = distanceTo(nextX, nextY, nextZ);
-            boolean notProgressing = distance > prevDistance + 0.025D || !robot.isMoving();
-            if (distance <= 0.18D) {
+            boolean notProgressing = distance >= prevDistance - 0.005D;
+            // Station returns reach the center of every voxel before turning.
+            // The ordinary work route keeps its historic 0.18-block tolerance.
+            if (distance <= (stationReturn ? 0.05D : 0.18D)) {
                 repathAttempts = 0;
                 path.removeFirst();
                 setNextInPath();
             } else if (notProgressing && ++stuckTicks > 8) {
                 robot.setDeltaMovement(Vec3.ZERO);
-                // A stalled waypoint is not reached. Recalculate from the real
-                // position instead of silently skipping an obstruction.
                 if (++repathAttempts > MAX_REPATH_ATTEMPTS) {
                     setSuccess(false);
                     terminate();
                     return;
                 }
                 path = null;
-                //? if <1.20 {
-                nextRepathTick = robot.level.getGameTime() + 20;
-                //?} else {
-                /*?
-                nextRepathTick = robot.level().getGameTime() + 20;
-                ?*/
-                //?}
+                stationPlanner = null;
+                nextRepathTick = robotLevel().getGameTime() + 20;
                 prevDistance = Double.MAX_VALUE;
             } else {
                 stuckTicks = notProgressing ? stuckTicks : 0;
                 prevDistance = Math.min(prevDistance, distance);
+                if (stationReturn) {
+                    // Blocks can change AFTER the waypoint was planned. Do not
+                    // keep flying into a newly placed solid block.
+                    BlockPos waypoint = new BlockPos(Mth.floor(nextX), Mth.floor(nextY), Mth.floor(nextZ));
+                    if (!waypoint.equals(robot.blockPosition()) && !isSoft(robotLevel(), waypoint)) {
+                        path = null;
+                        stationPlanner = null;
+                        robot.setDeltaMovement(Vec3.ZERO);
+                        nextRepathTick = robotLevel().getGameTime() + 20;
+                        return;
+                    }
+                    // A tight turn at a cave corner must not drift through rock.
+                    setDestination(robot, nextX, nextY, nextZ);
+                    Vec3 motion = robot.getDeltaMovement();
+                    double velocity = motion.length();
+                    if (velocity > distance && velocity > 0.0D) {
+                        robot.setDeltaMovement(motion.scale(distance / velocity));
+                    }
+                }
             }
         }
 
         if (path != null && path.isEmpty()) {
             robot.setDeltaMovement(Vec3.ZERO);
-            // Every waypoint was reached physically; no forced end-of-path teleport.
             terminate();
         }
     }
@@ -136,25 +204,19 @@ public class AIRobotGotoBlock extends AIRobotGoto {
 
     private void setNextInPath() {
         if (path != null && !path.isEmpty()) {
-            boolean isFirst = prevDistance == Double.MAX_VALUE;
             BlockIndex next = path.getFirst();
             prevDistance = Double.MAX_VALUE;
             stuckTicks = 0;
 
-            // The pathfinder excludes hard blocks, but world state can change while the robot travels or after NBT load.
-            // Re-check the next node; the first node remains allowed so a robot embedded in a station/pipe block can
-            // escape instead of deadlocking.
-            //? if <1.20 {
-            if (isFirst || isSoft(robot.level, next.toBlockPos())) {
-            //?} else {
-            /*?
-            if (isFirst || isSoft(robot.level(), next.toBlockPos())) {
-            ?*/
-            //?}
+            // The robot may START inside a pipe, but must not fly through a newly
+            // blocked waypoint. The old isFirst check also accepted hard blocks
+            // that appeared midway through an existing route.
+            if (next.toBlockPos().equals(robot.blockPosition()) || isSoft(robotLevel(), next.toBlockPos())) {
                 setDestination(robot, next.x + 0.5D, next.y + 0.5D, next.z + 0.5D);
                 robot.aimItemAt(next.x, next.y, next.z);
             } else {
                 path = null;
+                stationPlanner = null;
                 robot.setDeltaMovement(Vec3.ZERO);
             }
         }
@@ -171,24 +233,11 @@ public class AIRobotGotoBlock extends AIRobotGoto {
             return single;
         }
 
-        //? if <1.20 {
-        Level level = robot.level;
-        //?} else {
-        /*?
-        Level level = robot.level();
-        ?*/
-        //?}
-        if (!isSoft(level, target)) {
-            return null;
-        }
+        Level level = robotLevel();
+        if (!isSoft(level, target)) return null;
 
-        // Most robot paths are long open-air runs. Try cheap axis-aligned paths first so breadth-first search keeps
-        // its node budget for obstacles and local detours.
         LinkedList<BlockIndex> direct = directFallback(start, target, level);
-        if (direct != null) {
-            return direct;
-        }
-
+        if (direct != null) return direct;
         return findAStarPath(start, target, level);
     }
 
@@ -210,20 +259,14 @@ public class AIRobotGotoBlock extends AIRobotGoto {
         while (!open.isEmpty() && closed.size() < maxVisited) {
             PathNode node = open.poll();
             BlockPos current = node.pos();
-            if (!closed.add(current)) {
-                continue;
-            }
-            if (current.equals(target)) {
-                return reconstruct(start, target, parent);
-            }
-
+            if (!closed.add(current)) continue;
+            if (current.equals(target)) return reconstruct(start, target, parent);
             int currentCost = bestCost.getOrDefault(current, Integer.MAX_VALUE);
             for (Direction dir : Direction.values()) {
                 BlockPos next = current.relative(dir);
                 if (closed.contains(next)) continue;
                 if (distanceSqr(next, start) > (long) hardLimit * hardLimit) continue;
                 if (!isSoft(level, next)) continue;
-
                 int newCost = currentCost + 1;
                 if (newCost < bestCost.getOrDefault(next, Integer.MAX_VALUE)) {
                     bestCost.put(next, newCost);
@@ -273,9 +316,7 @@ public class AIRobotGotoBlock extends AIRobotGoto {
         };
         for (int[] order : orders) {
             LinkedList<BlockIndex> out = traceAxisPath(start, target, level, order);
-            if (out != null) {
-                return out;
-            }
+            if (out != null) return out;
         }
         return null;
     }
@@ -289,21 +330,30 @@ public class AIRobotGotoBlock extends AIRobotGoto {
             while (current[axis] != end[axis]) {
                 current[axis] += Integer.compare(end[axis], current[axis]);
                 BlockPos pos = new BlockPos(current[0], current[1], current[2]);
-                if (!isSoft(level, pos)) {
-                    return null;
-                }
+                if (!isSoft(level, pos)) return null;
                 out.add(new BlockIndex(pos));
             }
         }
         return out;
     }
 
-    private record PathNode(BlockPos pos, double score, long sequence) {
+    private record PathNode(BlockPos pos, double score, long sequence) { }
+
+    // The old family includes both 1.19.2 (field) and 1.20.1 (method).
+    private Level robotLevel() {
+        //? if <1.20 {
+        return robot.level;
+        //?} else {
+        /*?
+        return robot.level();
+        ?*/
+        //?}
     }
 
     @Override
     public void end() {
         robot.setDeltaMovement(Vec3.ZERO);
+        stationPlanner = null;
     }
 
     @Override
@@ -317,6 +367,12 @@ public class AIRobotGotoBlock extends AIRobotGoto {
         nbt.putInt("finalY", finalY);
         nbt.putInt("finalZ", finalZ);
         nbt.putDouble("maxDistance", maxDistance);
+        nbt.putBoolean("stationReturn", stationReturn);
+        if (stationReturn) {
+            nbt.putInt("returnStationX", returnStationX);
+            nbt.putInt("returnStationY", returnStationY);
+            nbt.putInt("returnStationZ", returnStationZ);
+        }
     }
 
     @Override
@@ -325,6 +381,13 @@ public class AIRobotGotoBlock extends AIRobotGoto {
         finalY = nbt.getInt("finalY");
         finalZ = nbt.getInt("finalZ");
         maxDistance = nbt.getDouble("maxDistance");
+        stationReturn = nbt.getBoolean("stationReturn");
+        if (stationReturn) {
+            returnStationX = nbt.getInt("returnStationX");
+            returnStationY = nbt.getInt("returnStationY");
+            returnStationZ = nbt.getInt("returnStationZ");
+        }
+        stationPlanner = null; // Rebuild the transient search after a reload.
         loadedFromNBT = true;
     }
 }

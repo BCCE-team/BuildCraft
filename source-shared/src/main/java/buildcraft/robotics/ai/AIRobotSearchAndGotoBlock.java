@@ -11,6 +11,7 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
     private IBlockFilter filter;
     private boolean random;
     private double maxDistanceToEnd;
+    private boolean nearestByRoute;
     /** True only after the owning board has been notified of successful arrival. */
     private boolean keepReservationForBoard;
 
@@ -23,23 +24,40 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
     }
 
     public AIRobotSearchAndGotoBlock(EntityRobotBase robot, boolean random, IBlockFilter filter, double maxDistanceToEnd) {
+        this(robot, random, filter, maxDistanceToEnd, false);
+    }
+
+    /** Only boards explicitly requesting nearest-route search use the incremental BFS. */
+    public AIRobotSearchAndGotoBlock(EntityRobotBase robot, boolean random, IBlockFilter filter,
+            double maxDistanceToEnd, boolean nearestByRoute) {
         this(robot);
         this.random = random;
         this.filter = filter;
         this.maxDistanceToEnd = maxDistanceToEnd;
+        this.nearestByRoute = nearestByRoute;
     }
 
     @Override
     public void start() {
-        startDelegateAI(new AIRobotSearchBlock(robot, random, filter, maxDistanceToEnd));
+        if (nearestByRoute && !random) {
+            startDelegateAI(new AIRobotSearchNearestBlock(robot, filter, maxDistanceToEnd));
+        } else {
+            startDelegateAI(new AIRobotSearchBlock(robot, random, filter, maxDistanceToEnd));
+        }
     }
 
     @Override
     public void delegateAIEnded(AIRobot ai) {
         if (ai instanceof AIRobotSearchBlock search) {
             if (search.success() && search.takeResource()) {
-                blockFound = search.blockFound;
-                startDelegateAI(new AIRobotGotoBlock(robot, search.path));
+                acceptTarget(search.blockFound, search.path);
+            } else {
+                setSuccess(false);
+                terminate();
+            }
+        } else if (ai instanceof AIRobotSearchNearestBlock search) {
+            if (search.success() && search.takeResource()) {
+                acceptTarget(search.blockFound, search.path);
             } else {
                 setSuccess(false);
                 terminate();
@@ -52,6 +70,21 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
                 setSuccess(false);
             }
             terminate();
+        }
+    }
+
+    private void acceptTarget(BlockIndex target, java.util.LinkedList<BlockIndex> route) {
+        blockFound = target;
+        if (route == null) {
+            setSuccess(false);
+            terminate();
+        } else if (route.isEmpty()) {
+            // Already adjacent: a zero-waypoint route must not be treated as
+            // unreachable by AIRobotGotoBlock. Hand the reservation to the board.
+            keepReservationForBoard = true;
+            terminate();
+        } else {
+            startDelegateAI(new AIRobotGotoBlock(robot, route));
         }
     }
 
@@ -77,7 +110,10 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
 
     @Override
     public boolean success() {
-        return blockFound != null;
+        // Finding a target does not make the entire task successful. The robot
+        // must actually complete its route; propagate a failed GotoBlock through
+        // to all generic block workers (including Miner and Lumberjack).
+        return super.success() && blockFound != null;
     }
 
     @Override

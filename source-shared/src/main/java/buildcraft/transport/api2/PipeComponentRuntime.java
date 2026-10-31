@@ -218,6 +218,12 @@ public final class PipeComponentRuntime {
 
     public List<PipeComponent> components() { return components; }
 
+    /**
+     * Whether this instance is a client replica. Client copies cannot provide
+     * authoritative persistence state; save() remains server-only.
+     */
+    public boolean isClientReplica() { return client; }
+
     public <T> java.util.Optional<T> presentation(ResourceLocation channelId, Class<T> type) {
         Objects.requireNonNull(channelId, "channelId");
         Objects.requireNonNull(type, "type");

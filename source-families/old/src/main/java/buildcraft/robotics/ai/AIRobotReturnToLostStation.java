@@ -79,6 +79,14 @@ public class AIRobotReturnToLostStation extends AIRobot {
             return;
         }
 
+        // Being parked is a fact about the current position, not a permanent
+        // task state. Teleportation or an external move invalidates it.
+        if (parked && stationIndex != null && !isInsideReturnRadius(robot.blockPosition())) {
+            parked = false;
+            pathRetry = 0;
+            rebuildParkingCandidates();
+        }
+
         if (allowStationRebind) {
             if (stationRetry > 0) {
                 stationRetry--;

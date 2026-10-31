@@ -29,6 +29,14 @@ public abstract class BoardRobotGenericSearchBlock extends RedstoneBoardRobot {
     /** Must be safe to call from search code and avoid causing chunk loads. */
     public abstract boolean isExpectedBlock(Level level, BlockPos pos);
 
+    /**
+     * Only workers opting in (currently Miner) rank targets by shortest
+     * obstacle-aware path. Other boards retain their original search behavior.
+     */
+    protected boolean prioritizeShortestPath() {
+        return false;
+    }
+
     @Override
     public void update() {
         updateFilter();
@@ -40,7 +48,7 @@ public abstract class BoardRobotGenericSearchBlock extends RedstoneBoardRobot {
                 return false;
             }
             return matchesGateFilter(level, pos);
-        }));
+        }, 0, prioritizeShortestPath()));
     }
 
     @Override

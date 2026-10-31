@@ -59,6 +59,10 @@ public class ActionRobotGotoStation extends BCStatement implements IActionIntern
             }
             DockingStation target = requestedStation == null ? station : requestedStation;
             if (target != null) {
+                // Keep issuing the level-triggered signal even when docked.
+                // AIRobotMain deduplicates it, while AIRobotGoAndLinkToDock holds
+                // the fulfilled command until the signal stops. Otherwise the
+                // work board immediately undocks and triggers a return loop.
                 robot.setMainAIOverride(new AIRobotGoAndLinkToDock(robot, target));
             }
         }

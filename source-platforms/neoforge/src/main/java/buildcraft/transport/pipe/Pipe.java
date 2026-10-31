@@ -201,6 +201,15 @@ public final class Pipe implements IPipe, IDebuggable, PipeExecutionContext {
         CompoundTag nbt = new CompoundTag();
         nbt.put("col", NBTUtilBC.writeEnum(colour));
         nbt.putString("def", definition.identifier.toString());
+        if (apiRuntime.isClientReplica()) {
+            // Ctrl+pick serializes BlockEntity NBT on the render thread. A client
+            // replica cannot persist server-owned pipe flows or API components.
+            // Copy only the pipe's type and colour; the holder separately copies
+            // gate/station pluggable definitions, but never a live robot entity.
+            nbt.put("beh", new CompoundTag());
+            nbt.put("flow", new CompoundTag());
+            return nbt;
+        }
         nbt.put("beh", behaviour.writeToNbt());
         nbt.put("flow", flow.writeToNbt());
         byte[] components = apiRuntime.save();

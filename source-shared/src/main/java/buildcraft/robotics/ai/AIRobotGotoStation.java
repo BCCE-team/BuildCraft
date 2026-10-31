@@ -17,7 +17,10 @@ public class AIRobotGotoStation extends AIRobot {
     private boolean waitingForStation;
     private int ticksUntilRetry;
     private int unavailableRetries;
+    private int routeFailures;
     private static final int RETRY_TICKS = 20;
+    private static final int ROUTE_RETRY_TICKS = 40;
+    private static final int MAX_ROUTE_RETRIES = 3;
     private static final int MAX_UNAVAILABLE_RETRIES = 3;
 
     public AIRobotGotoStation(EntityRobotBase robot) {
@@ -57,7 +60,8 @@ public class AIRobotGotoStation extends AIRobot {
             int targetX = station.x() + dx;
             int targetY = station.y() + dy;
             int targetZ = station.z() + dz;
-            startDelegateAI(new AIRobotGotoBlock(robot, targetX, targetY, targetZ, pathRangeTo(targetX, targetY, targetZ)));
+            startDelegateAI(new AIRobotGotoBlock(robot, targetX, targetY, targetZ, pathRangeTo(targetX, targetY, targetZ))
+                    .forStationReturn(station.x(), station.y(), station.z()));
             return;
         }
         boolean occupied = station != null && station.robotIdTaking() != EntityRobotBase.NULL_ROBOT_ID
@@ -78,7 +82,11 @@ public class AIRobotGotoStation extends AIRobot {
 
     @Override
     public void update() {
-        if (waitingForStation && --ticksUntilRetry <= 0) {
+        if (waitingForStation) {
+            if (--ticksUntilRetry <= 0) attemptDocking();
+        } else if (getDelegateAI() == null) {
+            // An interrupted or older save may restore this parent without its
+            // transient path AI. Reconstruct the journey instead of idling forever.
             attemptDocking();
         }
     }
@@ -121,16 +129,24 @@ public class AIRobotGotoStation extends AIRobot {
         } else if (ai instanceof AIRobotGotoBlock) {
             if (ai.success()) {
                 if (RobotTrace.enabled()) RobotTrace.event(robot, "STATION_APPROACH_DONE", "station=%s", station);
-                Direction side = station.side();
-                int dx = side == null ? 0 : side.getStepX();
-                int dy = side == null ? 0 : side.getStepY();
-                int dz = side == null ? 0 : side.getStepZ();
-                startDelegateAI(new AIRobotStraightMoveTo(robot, station.x() + 0.5D + dx * 0.5D,
-                        station.y() + 0.5D + dy * 0.5D, station.z() + 0.5D + dz * 0.5D));
+                startFinalDockMove(station);
             } else {
+                // Return paths are affected by temporary obstructions. Recheck the
+                // world on a controlled schedule rather than abandon the trip after
+                // one failed scan or spin at full TPS.
                 releaseReservation(station);
-                setSuccess(false);
-                terminate();
+                if (++routeFailures <= MAX_ROUTE_RETRIES) {
+                    waitingForStation = true;
+                    ticksUntilRetry = ROUTE_RETRY_TICKS;
+                    robot.setDeltaMovement(Vec3.ZERO);
+                    if (RobotTrace.enabled()) RobotTrace.event(robot, "STATION_ROUTE_RETRY",
+                            "station=%s attempt=%d retryIn=%d", station, routeFailures, ticksUntilRetry);
+                } else {
+                    // Let the higher-level task choose another powered station or
+                    // report genuine failure; don't monopolize a broken dock forever.
+                    setSuccess(false);
+                    terminate();
+                }
             }
         } else if (ai instanceof AIRobotStraightMoveTo) {
             if (ai.success()) {
@@ -147,6 +163,15 @@ public class AIRobotGotoStation extends AIRobot {
             }
             terminate();
         }
+    }
+
+    private void startFinalDockMove(DockingStation station) {
+        Direction side = station.side();
+        int dx = side == null ? 0 : side.getStepX();
+        int dy = side == null ? 0 : side.getStepY();
+        int dz = side == null ? 0 : side.getStepZ();
+        startDelegateAI(new AIRobotStraightMoveTo(robot, station.x() + 0.5D + dx * 0.5D,
+                station.y() + 0.5D + dy * 0.5D, station.z() + 0.5D + dz * 0.5D));
     }
 
     private double pathRangeTo(int x, int y, int z) {
@@ -195,6 +220,7 @@ public class AIRobotGotoStation extends AIRobot {
             nbt.putBoolean("waitingForStation", waitingForStation);
             nbt.putInt("ticksUntilRetry", ticksUntilRetry);
             nbt.putInt("unavailableRetries", unavailableRetries);
+            nbt.putInt("routeFailures", routeFailures);
         }
     }
 
@@ -204,6 +230,7 @@ public class AIRobotGotoStation extends AIRobot {
         waitingForStation = nbt.getBoolean("waitingForStation");
         ticksUntilRetry = Math.max(1, nbt.getInt("ticksUntilRetry"));
         unavailableRetries = Math.max(0, nbt.getInt("unavailableRetries"));
+        routeFailures = Math.max(0, nbt.getInt("routeFailures"));
         if (nbt.contains("stationIndex")) {
             stationIndex = new BlockIndex(nbt.getCompound("stationIndex"));
             int side = nbt.getByte("stationSide");
