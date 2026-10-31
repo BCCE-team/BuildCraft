@@ -51,6 +51,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceLocation;
 //?}
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
@@ -302,18 +303,11 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
                         ).isEmpty()) {
                             AdvancementUtil.unlockAdvancement(GameProfileCompat.id(getOwner()), ADVANCEMENT_FLOOD_SINGLE);
 //? } else {
-                        if (FluidUtil.tryPlaceFluid(actor, level, null, currentPos, tank, fluid)) {
+                        if (FluidUtil.tryPlaceFluid(actor, level, InteractionHand.MAIN_HAND, currentPos, tank, fluid)) {
                             AdvancementUtil.unlockAdvancement(getOwner().getId(), ADVANCEMENT_FLOOD_SINGLE);
 //?}
-                            for (Direction side : Direction.values()) {
-//? if mc_26_x && (>=26.3) {
-                                level.neighborChanged(getBlockState(), currentPos.offset(side.getUnitVec3i()), BCFactoryBlocks.FLOOD_GATE_BLOCK.get(),
-                                    null, false);
-//? } else {
-                                level.neighborChanged(getBlockState(), currentPos.offset(side.getNormal()), BCFactoryBlocks.FLOOD_GATE_BLOCK.get(),
-                                    currentPos, false);
-//?}
-                            }
+                            // FluidUtil already performs vanilla neighbour updates for the placed fluid.
+                            // Never notify surrounding blocks using the Flood Gate's unrelated BlockState.
                             delayIndex = 0;
                             tick = 0;
                         }

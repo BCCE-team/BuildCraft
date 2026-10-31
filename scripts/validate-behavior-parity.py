@@ -1095,9 +1095,9 @@ def validate_network_hardening() -> None:
 
 def validate_gametest_runtime_guards() -> None:
     expected_tests = {
-        "1.19.2-forge": 103,
-        "1.20.1-forge": 103,
-        "1.21.1-neoforge": 104,
+        "1.19.2-forge": 108,
+        "1.20.1-forge": 108,
+        "1.21.1-neoforge": 109,
     }
     for target in TARGETS:
         test_root = TARGETS[target] / "src/gametest/java"

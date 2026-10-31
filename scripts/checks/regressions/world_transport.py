@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_DIR = ROOT / "scripts"
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
-from source_lookup import resolve_source_path
+from source_lookup import read_materialized_java, resolve_source_path
 errors = []
 
 def read(rel):
@@ -346,6 +346,36 @@ forbid(
     "source-platforms/forge/src/gametest/java/buildcraft/gametest/BuildCraftPipeTransportGameTests.java",
     "GameTestCompat.getBlockEntity",
 )
+
+# Verify the actual Stonecutter-selected placement path, not only both raw platform sources.
+# The 26.3 branch uses the native transactional ResourceHandler API instead of a hand.
+for target in (
+    "1.19.2-forge", "1.20.1-forge", "1.21.1-neoforge", "1.21.11-neoforge",
+    "26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge",
+):
+    logical = "src/main/java/buildcraft/factory/tile/TileFloodGate.java"
+    try:
+        source = read_materialized_java(target, logical)
+    except (OSError, ValueError) as exc:
+        errors.append(f"{target}: could not materialize Flood Gate: {exc}")
+        continue
+    if "level.neighborChanged(getBlockState()," in source:
+        errors.append(f"{target}: Flood Gate still passes its BlockState to neighbour notifications")
+    if target == "26.3-neoforge":
+        if "new FactoryTankResourceHandler263(tank)" not in source:
+            errors.append(f"{target}: native transactional Flood Gate placement missing")
+    elif "FluidUtil.tryPlaceFluid(actor, level, InteractionHand.MAIN_HAND," not in source:
+        errors.append(f"{target}: Flood Gate placement must supply a valid interaction hand")
+
+for platform in ("forge", "neoforge"):
+    require(
+        f"source-platforms/{platform}/src/gametest/java/buildcraft/gametest/FloodGateGameTests.java",
+        "floodGatePlacesBucketWaterAndConsumesOneBucket",
+        "floodGatePlacesWaterFromFluidHandlerAndConsumesOneBucket",
+        "floodGateDoesNotConsumeWaterWhenOutputIsBlocked",
+        "floodGatePausesWhenPoweredAndResumesAfterUnpowering",
+        "floodGateClosedOutputDoesNotConsumeWater",
+    )
 
 if errors:
     print("ERROR: world/transport regression validation failed")
