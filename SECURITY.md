@@ -1,21 +1,68 @@
 # Security Policy
 
+BuildCraft Community Edition (BCCE) is a community-maintained Minecraft mod. We take security reports seriously, especially issues that could affect multiplayer servers, player data, or world integrity.
+
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Security fixes are prioritized for the **latest stable BCCE release** available for each officially maintained Minecraft and mod-loader target. Older BCCE releases do not automatically receive backported security fixes; upgrading to the latest compatible release is recommended.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Minecraft version | Mod loader | Status |
+| --- | --- | --- |
+| 1.19.2 | Forge | Supported |
+| 1.20.1 | Forge | Supported |
+| 1.21.1 | NeoForge | Supported |
+| 1.21.11 | NeoForge | Supported |
+| 26.1.2 | NeoForge | Supported |
+| 26.2 | NeoForge | Supported |
+| 26.3 | NeoForge | Supported |
+| 1.21.1 | Forge | Discontinued |
+| 1.12.1 | Forge | Discontinued |
+
+Development builds and older releases may receive fixes at the maintainers' discretion, but are not guaranteed security updates. Planned ports, including Fabric targets, are not covered until officially released. See the [README](README.md) and [releases](https://github.com/BCCE-team/BuildCraft/releases) for the current support matrix and available versions.
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+**Please do not report suspected security vulnerabilities through public GitHub issues, pull requests, discussions, or Discord channels.** Public reports may expose affected servers and players before a fix is available.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Instead, submit a confidential report using GitHub's **[Report a vulnerability](https://github.com/BCCE-team/BuildCraft/security/advisories/new)** feature. This allows maintainers to investigate and discuss the issue privately.
+
+Please include as much of the following as you can:
+
+- A concise description of the vulnerability and its potential impact.
+- The affected BCCE version, Minecraft version, and mod loader (including loader version if known).
+- Whether the issue affects dedicated servers, integrated servers, clients, or a particular configuration.
+- Reproduction steps or a minimal proof of concept, including any required permissions or other mods.
+- Relevant logs, screenshots, or code references, with private information removed.
+- Whether the vulnerability has already been disclosed or is known to affect other projects.
+
+You do not need a complete exploit to submit a report. If you are unsure whether an issue is security-sensitive, reporting it privately is appropriate.
+
+If GitHub's private reporting feature is unavailable, contact a maintainer privately through a contact method listed in the [README](README.md). Do not send exploit details to a public channel.
+
+## What to Expect
+
+1. **Acknowledgment:** We aim to acknowledge reports within **7 days**, although responses may take longer because BCCE is maintained by volunteers.
+2. **Triage:** We will assess reproducibility, impact, affected versions, and whether the issue originates in BCCE. We may ask for more information or a minimal reproduction.
+3. **Remediation:** Confirmed vulnerabilities will be prioritized according to their severity and practical impact. Fixes may be developed and tested privately to avoid premature disclosure.
+4. **Release and disclosure:** When appropriate, we will publish a fixed release and a GitHub Security Advisory identifying affected versions, available fixes, and recommended mitigation steps.
+
+These are goals, not guaranteed response or resolution deadlines. Reports that cannot be reproduced or are outside BCCE's scope may be closed with an explanation.
+
+## Coordinated Disclosure
+
+Please give maintainers a reasonable opportunity to investigate and address the issue before publishing exploit details. We ask reporters to coordinate the timing of public disclosure with the project maintainers.
+
+We will avoid intentionally publishing sensitive technical details before a fix or coordinated disclosure. When an advisory is published, we can credit the reporter with their consent. A CVE identifier may be requested where appropriate, but is not guaranteed for every report.
+
+## Responsible Security Research
+
+- Test only on systems and Minecraft worlds you own or have explicit permission to assess.
+- Avoid disrupting public servers, accessing other players' data, or performing destructive tests.
+- Share only the information needed to demonstrate the issue, and redact credentials, tokens, IP addresses, and personal information from logs.
+- Do not publish a working exploit or a public patch that reveals the vulnerability before coordinated disclosure.
+
+## Scope
+
+This policy applies to **official BuildCraft Community Edition releases and code maintained in [BCCE-team/BuildCraft](https://github.com/BCCE-team/BuildCraft)**. It does not automatically cover the original BuildCraft project, unofficial forks, third-party addons, or unrelated Minecraft mods. If an issue originates in another project, please report it to that project's maintainers as well.
+
+For ordinary bugs, crashes without a security impact, compatibility problems, or feature requests, please use the [public issue tracker](https://github.com/BCCE-team/BuildCraft/issues/new/choose) instead.
