@@ -21,7 +21,11 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+//? if >=1.21.5 {
+import net.minecraft.world.level.block.VegetationBlock;
+//?} else {
 import net.minecraft.world.level.block.BushBlock;
+//?}
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.DoublePlantBlock;
 import net.minecraft.world.level.block.FlowerBlock;
@@ -44,7 +48,7 @@ public enum CropHandlerPlantable implements CropAdapter {
         }
         if (stack.getItem() instanceof BlockItem blockItem) {
             Block block = blockItem.getBlock();
-            return block instanceof BushBlock && block != Blocks.SUGAR_CANE;
+            return isPlantBlock(block) && block != Blocks.SUGAR_CANE;
         }
         return false;
     }
@@ -90,7 +94,7 @@ public enum CropHandlerPlantable implements CropAdapter {
             return ((CropBlock) block).isMaxAge(state);
         } else if (block instanceof NetherWartBlock) {
             return state.getValue(NetherWartBlock.AGE) == 3;
-        } else if (block instanceof BushBlock) {
+        } else if (isPlantBlock(block)) {
             if (blockAccess.getBlockState(pos.below()).getBlock() == block) {
                 return true;
             }
@@ -121,4 +125,12 @@ public enum CropHandlerPlantable implements CropAdapter {
         return true;
     }
 
+    /** Since 1.21.5 saplings, crops and other plants extend VegetationBlock; BushBlock is only the new bush block. */
+    private static boolean isPlantBlock(Block block) {
+        //? if >=1.21.5 {
+        return block instanceof VegetationBlock;
+        //?} else {
+        return block instanceof BushBlock;
+        //?}
+    }
 }
