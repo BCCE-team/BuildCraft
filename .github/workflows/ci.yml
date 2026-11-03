@@ -99,6 +99,11 @@ jobs:
 
       - name: Test balance INI and independent use_config modes
         run: python -m unittest discover -s scripts/tests -p test_balance_integration.py -v
+      - name: Test cross-target live GameTest trace collector
+        run: python -m unittest discover -s scripts/tests -p test_system_trace_parity.py -v
+      - name: Test modpack join and datapack-reload integration harness
+        run: python -m unittest discover -s scripts/tests -p test_modpack_world_join.py -v
+
       - name: Test machine recipe syncing
         run: python -m unittest discover -s scripts/tests -p test_machine_recipe_sync.py -v
       - name: Test Programming Table tooltip ranges
@@ -386,6 +391,15 @@ jobs:
             exit 1
           fi
 
+      - name: Extract semantic GameTest traces for cross-target parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/ci-system-trace-parity.py extract \
+            --target "${STONECUTTER_TARGET}" \
+            --log "run/${BUILD_GENERATION}/${STONECUTTER_TARGET}/logs/latest.log" \
+            --output "build/test-traces/${STONECUTTER_TARGET}.trace.json"
+
       - name: Run Create compatibility GameTests
         shell: bash
         run: |
@@ -433,6 +447,7 @@ jobs:
           retention-days: 7
           path: |
             build/*/*.jar
+            build/test-traces/**
             builds/${{ matrix.generation }}/versions/${{ matrix.target }}/build/reports/tests/**
             builds/${{ matrix.generation }}/versions/${{ matrix.target }}/build/test-results/**
             run/${{ matrix.generation }}/${{ matrix.target }}/logs/**
@@ -540,3 +555,24 @@ jobs:
             run/old/${{ matrix.target }}/logs/**
             run/old/${{ matrix.target }}/crash-reports/**
             ci-server-old-${{ matrix.target }}-${{ matrix.profile }}.log
+
+  compare-system-gameplay:
+    name: Cross-target GameTest gameplay trace parity
+    needs: build-test-server
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download per-target GameTest artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: buildcraft-*
+          path: build/aggregated-game-test-artifacts
+          merge-multiple: true
+      - name: Compare all seven observed gameplay traces
+        run: |
+          python3 scripts/ci-system-trace-parity.py compare \
+            --directory build/aggregated-game-test-artifacts

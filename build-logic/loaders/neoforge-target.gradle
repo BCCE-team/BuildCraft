@@ -202,10 +202,22 @@ public final class BuildCraftTarget {
 sourceSets.main.java.srcDir(generatedTargetSources)
 tasks.named('compileJava') { dependsOn(generateBuildCraftTarget) }
 
+// IT16: use distinct client/server game directories for a real two-process world join.
+def ciWorldJoin = providers.gradleProperty('ci_world_join').map { it.toBoolean() }.getOrElse(false)
+def ciWorldJoinAddress = providers.gradleProperty('ci_world_join_address').getOrElse('127.0.0.1:25588')
+def ciWorldJoinClientSlot = providers.gradleProperty('ci_world_join_client_slot').getOrElse('1')
+def ciWorldJoinUsername = providers.gradleProperty('ci_world_join_username').getOrElse('')
+if (ciWorldJoin && !(ciWorldJoinClientSlot in ['1', '2'])) {
+    throw new GradleException('Unknown ci_world_join_client_slot: ' + ciWorldJoinClientSlot)
+}
+if (ciWorldJoin && ciWorldJoinUsername && !(ciWorldJoinUsername ==~ /[A-Za-z0-9_]{1,16}/)) {
+    throw new GradleException('Invalid CI Minecraft username')
+}
+def ciWorldJoinRoot = new File(repositoryRoot, "run-modpack-join/${buildGeneration}/${targetName}")
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
         .map { it.trim().toLowerCase() }
         .getOrElse('default')
-def knownCiRuntimeProfiles = ['default', 'base', 'create', 'forestry', 'ic2', 'jei', 'jade', 'all']
+def knownCiRuntimeProfiles = ['default', 'base', 'create', 'forestry', 'ic2', 'jei', 'jade', 'all', 'modpack', 'modpack-no-create']
 if (!knownCiRuntimeProfiles.contains(ciRuntimeProfile)) {
     throw new GradleException("Unsupported ci_runtime_profile '${ciRuntimeProfile}'. Expected one of: ${knownCiRuntimeProfiles.sort().join(', ')}")
 }
@@ -216,7 +228,9 @@ def gameTestRequested = gradle.startParameter.taskNames.any {
 def runtimeEnabled = { String profile, boolean defaultEnabled ->
     if (gameTestRequested && ciRuntimeProfile == 'default') return false
     if (ciRuntimeProfile == 'default') return defaultEnabled
-    ciRuntimeProfile == 'all' || ciRuntimeProfile == profile
+    ciRuntimeProfile == 'all' || ciRuntimeProfile == profile ||
+        (ciRuntimeProfile == 'modpack' && ['jei', 'jade', 'create', 'forestry', 'ic2'].contains(profile)) ||
+        (ciRuntimeProfile == 'modpack-no-create' && ['jei', 'jade', 'forestry', 'ic2'].contains(profile))
 }
 
 def buildcraftModIds = [
@@ -246,19 +260,26 @@ neoForge {
     runs {
         client {
             client()
-            gameDirectory = runDirectory
+            gameDirectory = ciWorldJoin
+                    ? new File(ciWorldJoinRoot, ciWorldJoinClientSlot == '2' ? 'client-2' : 'client')
+                    : runDirectory
+            if (ciWorldJoin) {
+                programArguments.addAll('--quickPlayMultiplayer', ciWorldJoinAddress)
+                if (ciWorldJoinUsername) programArguments.addAll('--username', ciWorldJoinUsername)
+            }
             systemProperty 'neoforge.enabledGameTestNamespaces', 'buildcraftlib'
         }
 
         server {
             server()
-            gameDirectory = runDirectory
+            gameDirectory = ciWorldJoin ? new File(ciWorldJoinRoot, 'server') : runDirectory
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', 'buildcraftlib'
         }
 
         gameTestServer {
             type = 'gameTestServer'
+            systemProperty 'bcce.gametest.require_create', (ciRuntimeProfile == 'create').toString()
             // GameTest sources are merged into main only for this run so BuildCraft
             // is exposed as one module/source set at runtime.
             sourceSet = sourceSets.main

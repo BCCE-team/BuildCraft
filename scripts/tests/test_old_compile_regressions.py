@@ -66,6 +66,22 @@ class OldForgeCompilerRegressionTests(unittest.TestCase):
         self.assertIn((target, name), self.effective)
         return self.effective[(target, name)]
 
+    def test_legacy_gametest_compat_resolves_from_old_family(self):
+        relative = "src/gametest/java/buildcraft/gametest/GameTestCompat.java"
+        canonical = ROOT / "source-families/old" / relative
+        self.assertTrue(canonical.is_file(), "legacy GameTestCompat must belong to old family")
+        self.assertFalse((ROOT / "source-platforms/forge" / relative).exists())
+        props = load_properties()
+        for target in TARGETS[:2]:
+            with self.subTest(target=target):
+                layout = target_layout(target, props)
+                source = resolve_effective_source(layout, props, relative)
+                self.assertEqual(source, canonical)
+                text = source.read_text(encoding="utf-8")
+                self.assertIn("helper.absolutePos(relativePos)", text)
+                self.assertIn("return tag.getInt(key);", text)
+                self.assertNotIn("net.minecraftforge", text)
+
     def test_1192_compatible_schematic_positions(self):
         source = self.source("1.19.2-forge", SOURCES[0])
         self.assertNotIn("BlockPos.containing(getPos())", source)
@@ -161,6 +177,105 @@ public class AssemblyEqualsProbe {
                 self.assertIn("new MessageWireSystems(page, continuing, first, false), serverPlayer)", source)
                 self.assertIn("new MessageWireSystems(page, continuing, first, true), serverPlayer)", source)
                 self.assertNotIn("new MessageWireSystems(page, continuing, first, true), player)", source)
+
+
+    def test_pipe_event_handlers_do_not_reflect_client_only_descriptors(self):
+        bus = (ROOT / "source-shared/src/main/java/buildcraft/transport/pipe/PipeEventBus.java").read_text(encoding="utf-8")
+        scanner = bus.split("private static List<Handler> getHandlers", 1)[1].split("public void registerHandler", 1)[0]
+        self.assertNotIn("cls.getDeclaredMethods()", scanner)
+        self.assertIn("new ClassReader(input).accept(", scanner)
+        self.assertIn("Type.getDescriptor(PipeEventHandler.class)", scanner)
+        self.assertIn("MethodType.fromMethodDescriptorString(declaration.descriptor", scanner)
+        self.assertIn("findVirtual(cls, declaration.name, signature)", scanner)
+        self.assertIn("findStatic(cls, declaration.name, signature)", scanner)
+        self.assertIn('"receiveCancelled".equals(key)', scanner)
+        self.assertIn('"priority".equals(key)', scanner)
+        self.assertIn("list.addAll(getHandlers(superCls))", scanner)
+
+    def test_quarry_fixture_scans_after_world_blocks_are_placed(self):
+        for loader in ("forge", "neoforge"):
+            text = (ROOT / f"source-platforms/{loader}/src/gametest/java/buildcraft/gametest/SystemQuarryMiningGameTests.java").read_text(encoding="utf-8")
+            self.assertEqual(text.count("rig.activate(helper);"), 3)
+            self.assertIn('void activate(GameTestHelper helper)', text)
+            self.assertIn('invoke(quarry, "updatePoses");', text)
+            self.assertIn('Quarry did not recognise its populated mining area', text)
+
+    def test_farm_game_tests_use_independent_actor_profiles(self):
+        for loader in ("forge", "neoforge"):
+            text = (ROOT / f"source-platforms/{loader}/src/gametest/java/buildcraft/gametest/SystemRobotFarmWarehouseGameTests.java").read_text(encoding="utf-8")
+            self.assertIn('EntityRobot authorized = rig.robot(helper, AUTHORIZED_AFTER_DENIAL);', text)
+            self.assertIn('rig.plant(helper, authorized);', text)
+            self.assertIn('\"BCTestBlocked\"', text)
+            self.assertIn('EntityRobot robot = rig.robot(helper, WORKER);', text)
+            self.assertIn('UUID.fromString("7d298587-30f1-4350-8909-a9adf4f6645e")', text)
+            self.assertEqual(text.count('helper.runAfterDelay(8, () -> {'), 2)
+            self.assertIn('helper.setBlock(SOIL.above().north(), Blocks.GLOWSTONE.defaultBlockState());', text)
+            self.assertIn('Blocks.WHEAT.defaultBlockState().canSurvive(helper.getLevel(), cropPos)', text)
+            self.assertIn('helper.getLevel().getRawBrightness(cropPos, 0)', text)
+            # Real harvest ItemEntities must not fall out of the Obsidian pipe's
+            # pickup range before the first scheduled power offer.
+            self.assertIn('for (int x = FARM_ROBOT.getX() - 1; x <= FARM_ROBOT.getX() + 1; x++)', text)
+            self.assertIn('for (int z = FARM_ROBOT.getZ() - 1; z <= FARM_ROBOT.getZ() + 1; z++)', text)
+            self.assertIn('new BlockPos(x, FARM_ROBOT.getY() - 1, z)', text)
+            self.assertIn('"; warehouse wheat=" + wheatDelivered + ", seeds=" + seedsDelivered', text)
+            self.assertIn('"; obsidian inFlight="', text)
+            self.assertIn('"; remaining world wheat="', text)
+
+    def test_robot_blueprint_parity_guard_requires_canonical_payment(self):
+        # This guard must not revert to task.requirements(): those are restored
+        # from untrusted robot-task NBT, not calculated from the current blueprint.
+        guard = (ROOT / "scripts/validate-behavior-parity.py").read_text(encoding="utf-8")
+        self.assertIn('"consumeRobotRequirements(robot, canonicalRequirements);",', guard)
+        self.assertNotIn('"consumeRobotRequirements(robot, task.requirements());",', guard)
+        for loader in ("forge", "neoforge"):
+            path = ROOT / f"source-platforms/{loader}/src/main/java/buildcraft/builders/snapshot/BlueprintBuilder.java"
+            source = path.read_text(encoding="utf-8")
+            start = source.index("public RobotBuildResult buildRobotTaskResult(")
+            end = source.index("private boolean hasRobotRequirements(", start)
+            placement = source[start:end]
+            with self.subTest(loader=loader):
+                self.assertIn("getBuildingInfo().toPlaceRequiredItems[index]", placement)
+                self.assertIn("List<ItemStack> canonicalRequirements = StackUtil.mergeSameItems(", placement)
+                self.assertIn("!exactRobotRequirements(task.requirements(), canonicalRequirements)", placement)
+                self.assertIn("!hasRobotRequirements(robot, canonicalRequirements)", placement)
+                self.assertIn("consumeRobotRequirements(robot, canonicalRequirements);", placement)
+                self.assertNotIn("consumeRobotRequirements(robot, task.requirements());", placement)
+                self.assertLess(
+                    placement.index("committed = isBlockCorrect(blockPos);"),
+                    placement.index("consumeRobotRequirements(robot, canonicalRequirements);"),
+                )
+
+    def test_blueprint_sync_failure_is_verified_only_on_windows(self):
+        for loader in ("forge", "neoforge"):
+            path = ROOT / f"source-platforms/{loader}/src/main/java/buildcraft/builders/snapshot/GlobalSavedDataSnapshots.java"
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(loader=loader):
+                self.assertIn("catch (java.io.SyncFailedException syncFailure)", text)
+                self.assertIn('System.getProperty("os.name", "")', text)
+                self.assertIn("throw syncFailure;", text)
+                self.assertIn("output.getChannel().force(true)", text)
+                self.assertIn("validatedCopy(Snapshot.readFromNBT(NbtSquisher.expand(input)))", text)
+                self.assertIn("sameContentKey(restored.key, snapshot.key)", text)
+                self.assertIn("StandardCopyOption.ATOMIC_MOVE", text)
+
+    def test_long_running_fixtures_are_refueled_with_a_conservation_ledger(self):
+        for loader in ("forge", "neoforge"):
+            quarry = (ROOT / f"source-platforms/{loader}/src/gametest/java/buildcraft/gametest/SystemQuarryMiningGameTests.java").read_text(encoding="utf-8")
+            energy = (ROOT / f"source-platforms/{loader}/src/gametest/java/buildcraft/gametest/SystemEnergyGridGameTests.java").read_text(encoding="utf-8")
+            with self.subTest(loader=loader):
+                self.assertIn("rig.keepPowered(helper, 320, 2420);", quarry)
+                self.assertIn("totalInjected += missing;", quarry)
+                self.assertIn("rig.maintainFuel(helper)", energy)
+                self.assertIn("totalInputFe += inserted;", energy)
+
+    def test_fe_energy_recovery_has_real_io_and_conservation_budget(self):
+        for loader in ("forge", "neoforge"):
+            text = (ROOT / f"source-platforms/{loader}/src/gametest/java/buildcraft/gametest/SystemEnergyGridGameTests.java").read_text(encoding="utf-8")
+            self.assertIn("rig.drainFe(rig.first)", text)
+            self.assertIn("rig.drainFe(rig.second)", text)
+            self.assertIn("long inserted = engine.externalEnergyPort(Direction.NORTH)", text)
+            self.assertIn("totalInputFe += inserted", text)
+            self.assertIn("dynamoFe + exportedFe <= totalInputFe", text)
 
 
 if __name__ == "__main__":

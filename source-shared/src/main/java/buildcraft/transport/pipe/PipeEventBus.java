@@ -6,17 +6,24 @@
 
 package buildcraft.transport.pipe;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodType;
 import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.Parameter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.objectweb.asm.AnnotationVisitor;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 
 import buildcraft.lib.internal.debug.BCDebugging;
 import buildcraft.transport.internal.pipe.PipeEvent;
@@ -46,43 +53,94 @@ public class PipeEventBus {
         return list;
     }
 
+    /**
+     * Class#getDeclaredMethods resolves every method descriptor in the declaring class,
+     * including client-only RenderType parameters. Pipe events are registered while
+     * loading pluggables on a dedicated server, so reflective enumeration would try
+     * to load Minecraft's absent client renderer before it could filter annotations.
+     * Scan annotation metadata without resolving unrelated method signatures.
+     */
     private static List<Handler> getHandlers(Class<?> cls) {
-        if (!allHandlers.containsKey(cls)) {
-            List<Handler> list = new ArrayList<>();
-            Class<?> superCls = cls.getSuperclass();
-            if (superCls != null) {
-                list.addAll(getHandlers(superCls));
+        List<Handler> cached = allHandlers.get(cls);
+        if (cached != null) return cached;
+        if (cls == Object.class) return Collections.emptyList();
+
+        List<Handler> list = new ArrayList<>();
+        Class<?> superCls = cls.getSuperclass();
+        if (superCls != null) list.addAll(getHandlers(superCls));
+
+        for (HandlerMethod declaration : annotatedMethods(cls)) {
+            MethodType signature = MethodType.fromMethodDescriptorString(declaration.descriptor, cls.getClassLoader());
+            if (signature.parameterCount() != 1 || !PipeEvent.class.isAssignableFrom(signature.parameterType(0))) {
+                throw new IllegalStateException("Cannot annotate " + cls.getName() + "." + declaration.name
+                    + declaration.descriptor + " with @PipeEventHandler: expected one PipeEvent parameter");
             }
-            for (Method m : cls.getDeclaredMethods()) {
-                PipeEventHandler annot = m.getAnnotation(PipeEventHandler.class);
-                if (annot == null) {
-                    continue;
-                }
-
-                Parameter[] params = m.getParameters();
-                if (params.length != 1) {
-                    throw new IllegalStateException("Cannot annotate " + m + " with @PipeEventHandler as it had an incorrect number of parameters (" + Arrays.toString(params) + ")");
-                }
-                Parameter p = params[0];
-                if (!PipeEvent.class.isAssignableFrom(p.getType())) {
-                    throw new IllegalStateException("Cannot annotate " + m + " with @PipeEventHandler as it did not take a pipe event! (" + p.getType() + ")");
-                }
-
-                MethodHandle mh;
-                try {
-                    mh = MethodHandles.publicLookup().unreflect(m);
-                } catch (IllegalAccessException e) {
-                    throw new IllegalStateException("Cannot annotate " + m + " with @PipeEventHandler as there was a problem with it!", e);
-                }
-                boolean isStatic = Modifier.isStatic(m.getModifiers());
-                String methodName = m.toString();
-                list.add(new Handler(annot.priority(), annot.receiveCancelled(), isStatic, methodName, mh, p.getType()));
+            boolean isStatic = Modifier.isStatic(declaration.access);
+            MethodHandle handle;
+            try {
+                handle = isStatic
+                    ? MethodHandles.publicLookup().findStatic(cls, declaration.name, signature)
+                    : MethodHandles.publicLookup().findVirtual(cls, declaration.name, signature);
+            } catch (NoSuchMethodException | IllegalAccessException error) {
+                throw new IllegalStateException("Cannot resolve @PipeEventHandler " + cls.getName() + "."
+                    + declaration.name + declaration.descriptor + " as a public handler", error);
             }
-
-            allHandlers.put(cls, list);
-            return list;
+            list.add(new Handler(declaration.priority, declaration.receiveCancelled, isStatic,
+                cls.getName() + "." + declaration.name + declaration.descriptor, handle, signature.parameterType(0)));
         }
-        return allHandlers.get(cls);
+        allHandlers.put(cls, list);
+        return list;
+    }
+
+    private static List<HandlerMethod> annotatedMethods(Class<?> cls) {
+        List<HandlerMethod> declarations = new ArrayList<>();
+        String resource = "/" + cls.getName().replace('.', '/') + ".class";
+        try (InputStream input = cls.getResourceAsStream(resource)) {
+            if (input == null) {
+                throw new IllegalStateException("Cannot inspect pipe event handlers: missing class bytes for " + cls.getName());
+            }
+            new ClassReader(input).accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public MethodVisitor visitMethod(int access, String name, String descriptor,
+                    String signature, String[] exceptions) {
+                    return new MethodVisitor(Opcodes.ASM9) {
+                        @Override
+                        public AnnotationVisitor visitAnnotation(String annotation, boolean visible) {
+                            if (!Type.getDescriptor(PipeEventHandler.class).equals(annotation)) return null;
+                            HandlerMethod handler = new HandlerMethod(access, name, descriptor);
+                            declarations.add(handler);
+                            return new AnnotationVisitor(Opcodes.ASM9) {
+                                @Override
+                                public void visit(String key, Object value) {
+                                    if ("receiveCancelled".equals(key)) handler.receiveCancelled = (Boolean) value;
+                                }
+                                @Override
+                                public void visitEnum(String key, String type, String value) {
+                                    if ("priority".equals(key)) handler.priority = PipeEventPriority.valueOf(value);
+                                }
+                            };
+                        }
+                    };
+                }
+            }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+        } catch (IOException error) {
+            throw new IllegalStateException("Unable to inspect @PipeEventHandler metadata for " + cls.getName(), error);
+        }
+        return declarations;
+    }
+
+    private static final class HandlerMethod {
+        final int access;
+        final String name;
+        final String descriptor;
+        PipeEventPriority priority = PipeEventPriority.NORMAL;
+        boolean receiveCancelled;
+
+        HandlerMethod(int access, String name, String descriptor) {
+            this.access = access;
+            this.name = name;
+            this.descriptor = descriptor;
+        }
     }
 
     public void registerHandler(Object obj) {

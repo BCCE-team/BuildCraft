@@ -417,9 +417,47 @@ public final class GlobalSavedDataSnapshots {
         File temp = null;
         try {
             temp = File.createTempFile(".buildcraft-blueprint-", ".tmp", target.getParentFile());
+            boolean needsVerification = false;
             try (FileOutputStream output = new FileOutputStream(temp)) {
-                NbtSquisher.squishVanilla(Snapshot.writeToNBT(snapshot), output);
-                output.getFD().sync();
+                // NbtIo.writeCompressed may close the provided stream. Keep the
+                // file descriptor open until sync/force and the atomic move finish.
+                NbtSquisher.squishVanilla(Snapshot.writeToNBT(snapshot),
+                    new java.io.FilterOutputStream(output) {
+                        @Override
+                        public void close() throws IOException {
+                            flush();
+                        }
+                    });
+                try {
+                    output.getFD().sync();
+                } catch (java.io.SyncFailedException syncFailure) {
+                    // FileDescriptor.sync may fail on some Windows filesystems even though
+                    // the complete temporary file is readable. Never bypass an I/O error on
+                    // other systems, and never publish an unverified temporary snapshot.
+                    if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+                        throw syncFailure;
+                    }
+                    try {
+                        output.getChannel().force(true);
+                    } catch (IOException forceFailure) {
+                        needsVerification = true;
+                        BCLog.logger.warn("Windows could not force blueprint storage to disk; "
+                            + "verifying the temporary file before atomic publication: " + target,
+                            forceFailure);
+                    }
+                }
+            }
+            if (needsVerification) {
+                // This confirms content integrity, not power-loss durability. The atomic
+                // move still protects readers from a partially written final file.
+                try (FileInputStream input = new FileInputStream(temp)) {
+                    Snapshot restored = validatedCopy(Snapshot.readFromNBT(NbtSquisher.expand(input)));
+                    if (restored == null || !sameContentKey(restored.key, snapshot.key)) {
+                        throw new IOException("Blueprint write-back verification failed: " + target);
+                    }
+                } catch (RuntimeException invalid) {
+                    throw new IOException("Blueprint write-back verification failed: " + target, invalid);
+                }
             }
             try {
                 Files.move(temp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE,

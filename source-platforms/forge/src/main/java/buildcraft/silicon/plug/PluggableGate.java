@@ -47,6 +47,8 @@ import buildcraft.silicon.gate.GateLogic.StatementPair;
 import buildcraft.silicon.gate.GateVariant;
 import buildcraft.silicon.item.ItemGateCopier;
 import buildcraft.transport.pipe.PluggableHolder;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -228,6 +230,7 @@ public class PluggableGate extends PipePluggable implements MenuProvider{
         return BCSiliconItems.PLUG_GATE_ITEM.get().getStack(logic.variant);
     }
 
+    @OnlyIn(Dist.CLIENT)
     @Override
     public PluggableModelKey getModelRenderKey(RenderType layer) {
         if (layer == RenderType.cutout()) {

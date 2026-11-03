@@ -15,6 +15,11 @@ import javax.annotation.Nonnull;
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.lib.internal.core.InvalidInputDataException;
 import buildcraft.builders.internal.schematic.legacy.ISchematicBlock;
+import buildcraft.builders.snapshot.BlueprintSecurity;
+import buildcraft.lib.misc.BlockUtil;
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.player.Player;
+import javax.annotation.Nullable;
 import buildcraft.builders.internal.schematic.legacy.SchematicBlockContext;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.transport.BCTransportBlocks;
@@ -56,6 +61,7 @@ public class SchematicBlockPipe implements ISchematicBlock {
             throw new IllegalStateException("Pipe schematic was created without a pipe block entity at " + context.pos);
         }
         tileNbt = ensurePipeBlockEntityId(tileEntity.saveWithFullMetadata(context.world.registryAccess()));
+        tileNbt = BlueprintSecurity.forPipe(tileNbt);
         requiredItems = null;
         requFluidStacks = null;
     }
@@ -84,7 +90,7 @@ public class SchematicBlockPipe implements ISchematicBlock {
 
         BlockPipeHolder pipeBlock = BCTransportBlocks.pipeHolder.get();
         BlockState defaultBlockState = pipeBlock.defaultBlockState();
-        BlockEntity tile = BlockEntity.loadStatic(BlockPos.ZERO, defaultBlockState, ensurePipeBlockEntityId(tileNbt), serverLevel.registryAccess());
+        BlockEntity tile = BlockEntity.loadStatic(BlockPos.ZERO, defaultBlockState, BlueprintSecurity.forPipe(ensurePipeBlockEntityId(tileNbt)), serverLevel.registryAccess());
         if (tile == null) {
             BCLog.logger.warn("Unable to restore pipe block entity while calculating schematic requirements");
             return;
@@ -131,24 +137,31 @@ public class SchematicBlockPipe implements ISchematicBlock {
 
     @SuppressWarnings("Duplicates")
     public boolean build(Level world, BlockPos blockPos) {
-        if (world.setBlock(blockPos, BCTransportBlocks.pipeHolder.get().defaultBlockState(), 11)) {
-            BlockEntity tileEntity = BlockEntity.loadStatic(blockPos, BCTransportBlocks.pipeHolder.get().defaultBlockState(), ensurePipeBlockEntityId(tileNbt), world.registryAccess());
-            if (tileEntity != null) {
-                tileEntity.setLevel(world);
-                world.setBlockEntity(tileEntity);
-                if (tileRotation != Rotation.NONE && tileEntity instanceof TilePipeHolder pipeTile) {
-                	pipeTile.rotate(tileRotation);
-                }
-                return true;
-            }
-        }
-        return false;
+        return build(world, blockPos, null);
+    }
+
+    @Override
+    public boolean build(Level world, BlockPos blockPos, @Nullable Player actor) {
+        BlockState state = BCTransportBlocks.pipeHolder.get().defaultBlockState();
+        // Unlike world.setBlock, this dispatches the Forge/NeoForge place hook
+        // under the real automation actor, so claims can deny pipe construction.
+        if (!BlockUtil.placeBlock(world, blockPos, state, actor, Direction.UP, 11)) return false;
+        CompoundTag clean = BlueprintSecurity.forPipe(ensurePipeBlockEntityId(tileNbt));
+        BlockEntity tileEntity = BlockEntity.loadStatic(blockPos, state, clean, world.registryAccess());
+        if (!(tileEntity instanceof TilePipeHolder pipeTile)) return false;
+        tileEntity.setLevel(world);
+        world.setBlockEntity(tileEntity);
+        // The snapshot's owner is NEVER an execution identity. Even an old
+        // blueprint with a forged UUID must inherit the placement actor.
+        pipeTile.setOwnerProfile(actor == null ? null : actor.getGameProfile());
+        if (tileRotation != Rotation.NONE) pipeTile.rotate(tileRotation);
+        return true;
     }
 
     @SuppressWarnings("Duplicates")
     public boolean buildWithoutChecks(Level world, BlockPos blockPos) {
         if (world.setBlock(blockPos, BCTransportBlocks.pipeHolder.get().defaultBlockState(), 0)) {
-            BlockEntity tileEntity = BlockEntity.loadStatic(blockPos, BCTransportBlocks.pipeHolder.get().defaultBlockState(), ensurePipeBlockEntityId(tileNbt), world.registryAccess());
+            BlockEntity tileEntity = BlockEntity.loadStatic(blockPos, BCTransportBlocks.pipeHolder.get().defaultBlockState(), BlueprintSecurity.forPipe(ensurePipeBlockEntityId(tileNbt)), world.registryAccess());
             if (tileEntity != null) {
                 tileEntity.setLevel(world);
                 world.setBlockEntity(tileEntity);
@@ -218,6 +231,7 @@ public class SchematicBlockPipe implements ISchematicBlock {
 
     private static CompoundTag ensurePipeBlockEntityId(CompoundTag tag) {
         CompoundTag copy = tag == null ? new CompoundTag() : tag.copy();
+        copy.remove("id"); // Do not allow a snapshot to substitute a foreign BlockEntity type.
         if (!NbtCompat.contains(copy, "id", Tag.TAG_STRING)) {
             Identifier id = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(BCTransportBlocks.PIPE_HOLDER_BE.get());
             if (id != null) {
@@ -236,7 +250,16 @@ public class SchematicBlockPipe implements ISchematicBlock {
 
     public void deserializeNBT(CompoundTag nbt) throws InvalidInputDataException {
         tileNbt = ensurePipeBlockEntityId(NbtCompat.getCompound(nbt, "tileNbt"));
+        CompoundTag savedPipe = NbtCompat.getCompound(tileNbt, "pipe");
+        String definition = NbtCompat.getString(savedPipe, "def");
+        if (definition.isEmpty() || !NbtCompat.contains(savedPipe, "def", Tag.TAG_STRING)) {
+            throw new InvalidInputDataException("Missing or invalid blueprint pipe definition");
+        }
+        PipeRegistry.INSTANCE.loadDefinition(definition);
         tileRotation = NBTUtilBC.readEnum(nbt.get("tileRotation"), Rotation.class);
+        if (tileRotation == null) {
+            throw new InvalidInputDataException("Invalid blueprint rotation");
+        }
         requiredItems = null;
         requFluidStacks = null;
     }

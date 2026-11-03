@@ -99,6 +99,9 @@ public class SchematicBlockFluid implements ISchematicBlock {
     }
 
     private boolean buildInternal(Level world, BlockPos blockPos, Player actor, boolean firePlaceEvent) {
+        if (blockState == null || BlockUtil.getFluid(blockState.getBlock()) == Fluids.EMPTY
+            || blockState.getFluidState().isEmpty()
+            || isFlowing == blockState.getFluidState().isSource()) return false;
         if (isFlowing) {
             return true;
         }
@@ -147,6 +150,13 @@ public class SchematicBlockFluid implements ISchematicBlock {
         ?*/
         //?}
         isFlowing = nbt.getBoolean("isFlowing");
+        // The snapshot's schematic-type discriminator is not trusted. Re-run the
+        // fluid factory invariant on loaded data, including the source/flowing bit.
+        if (blockState == null || BlockUtil.getFluid(blockState.getBlock()) == Fluids.EMPTY
+            || blockState.getFluidState().isEmpty()
+            || isFlowing == blockState.getFluidState().isSource()) {
+            throw new InvalidInputDataException("Fluid schematic requires an actual source/flowing fluid block");
+        }
     }
 
     @Override

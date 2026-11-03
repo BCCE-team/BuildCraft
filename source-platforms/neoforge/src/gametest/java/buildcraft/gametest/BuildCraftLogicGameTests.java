@@ -48,6 +48,7 @@ import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.energy.MjAmount;
+import buildcraft.builders.internal.schematic.legacy.SchematicBlockContext;
 import buildcraft.builders.BCBuildersBlocks;
 import buildcraft.builders.snapshot.BlueprintBuilder;
 import buildcraft.builders.snapshot.ITileForBlueprintBuilder;
@@ -670,8 +671,18 @@ public final class BuildCraftLogicGameTests {
     @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 20)
     public static void schematicLeavesBecomePersistentAfterSerializationRoundTrip(GameTestHelper helper) {
         BlockState capturedLeaves = Blocks.OAK_LEAVES.defaultBlockState().setValue(BlockStateProperties.PERSISTENT, false);
-        ProbeSchematicBlock original = new ProbeSchematicBlock(capturedLeaves);
-        ProbeSchematicBlock restored = new ProbeSchematicBlock();
+        BlockPos target = new BlockPos(2, 2, 2);
+        BlockPos absolute = helper.absolutePos(target);
+        helper.setBlock(target, capturedLeaves);
+
+        // Exercise an actual captured schematic, not an uninitialized test-only
+        // SchematicBlockDefault. The security validator must continue rejecting
+        // snapshots that omit their trusted neighbor-update offsets.
+        SchematicBlockDefault original = new SchematicBlockDefault();
+        original.init(new SchematicBlockContext(
+            helper.getLevel(), absolute, absolute, capturedLeaves, Blocks.OAK_LEAVES
+        ));
+        SchematicBlockDefault restored = new SchematicBlockDefault();
         try {
             restored.deserializeNBT(original.serializeNBT());
         } catch (InvalidInputDataException e) {
@@ -679,8 +690,6 @@ public final class BuildCraftLogicGameTests {
             return;
         }
 
-        BlockPos target = new BlockPos(2, 2, 2);
-        BlockPos absolute = helper.absolutePos(target);
         helper.setBlock(target, Blocks.AIR.defaultBlockState());
         require(helper, restored.build(helper.getLevel(), absolute), "restored leaf schematic failed to build");
         BlockState placed = helper.getLevel().getBlockState(absolute);

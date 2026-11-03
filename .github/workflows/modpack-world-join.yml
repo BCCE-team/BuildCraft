@@ -1,0 +1,191 @@
+name: Modpack world join and rejoin (IT16)
+
+on:
+  workflow_dispatch:
+    inputs:
+      chunk_cycle:
+        description: 'Check actual remote chunk unload/reload and BCCE machine persistence (IT08)'
+        type: boolean
+        default: true
+      client_resource_reload:
+        description: 'IT06 manual: real F3+T after world join, require resource reload and new block atlas'
+        type: boolean
+        default: false
+      inflight_pipe:
+        description: 'IT01 manual: preserve an actively travelling enchanted item across real server restart'
+        type: boolean
+        default: false
+      two_player:
+        description: 'Also run two distinct clients and live shared-factory restart (IT15 subset)'
+        type: boolean
+        default: false
+      without_create:
+        description: 'IT11: launch without Create and verify it is absent from the running server registry'
+        type: boolean
+        default: false
+      without_ae2:
+        description: 'IT02/IT11: launch without AE2 and verify Guide/world startup is independent of AE2'
+        type: boolean
+        default: false
+      remove_ae2_after_restart:
+        description: 'IT14 experimental: load saved world after removing AE2 from both runtime modpacks'
+        type: boolean
+        default: false
+  schedule:
+    - cron: '20 3 * * 1'
+    - cron: '20 4 1 * *'
+    - cron: '20 4 15 * *'
+
+permissions:
+  contents: read
+
+jobs:
+  modpack-world-join:
+    name: IT16 ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - target: 1.19.2-forge
+            generation: old
+            java: '17'
+            smoke: true
+            ae2: true
+            create: true
+          - target: 1.20.1-forge
+            generation: old
+            java: '17'
+            smoke: false
+            ae2: true
+            create: true
+          - target: 1.21.1-neoforge
+            generation: 1.21.X
+            java: '21'
+            smoke: false
+            ae2: true
+            create: true
+          - target: 1.21.11-neoforge
+            generation: 1.21.X
+            java: '21'
+            smoke: true
+            ae2: false
+            create: false
+          - target: 26.1.2-neoforge
+            generation: 26.X
+            java: '25'
+            smoke: true
+            ae2: true
+            create: false
+          - target: 26.2-neoforge
+            generation: 26.X
+            java: '25'
+            smoke: true
+            ae2: true
+            create: false
+          - target: 26.3-neoforge
+            generation: 26.X
+            java: '25'
+            smoke: true
+            ae2: true
+            create: false
+    env:
+      STONECUTTER_TARGET: ${{ matrix.target }}
+      BUILD_GENERATION: ${{ matrix.generation }}
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dfile.encoding=UTF-8
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout localized assets
+        uses: actions/checkout@v4
+        with:
+          repository: BCCE-team/Localizations
+          ref: main
+          path: build/external/localizations
+          persist-credentials: false
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate modpack integration probes before launching Minecraft
+        run: |
+          python3 -m unittest discover -s scripts/tests -p test_modpack_world_join.py -v
+          python3 scripts/ci-modpack-world-join.py --target "${{ matrix.target }}" --validate-lock
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Install actual headless client runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xdotool libgl1-mesa-dri libglx-mesa0
+          chmod +x builds/old/gradlew builds/1.21.X/gradlew builds/26.X/gradlew
+      - name: Build target for world join
+        shell: bash
+        run: |
+          cd "builds/${BUILD_GENERATION}"
+          ./gradlew --no-daemon --console=plain ":${STONECUTTER_TARGET}:buildAndCollect"
+      - name: Launch modpack dedicated server and join world twice
+        shell: bash
+        run: |
+          flags=()
+          if [[ "${{ matrix.smoke }}" == "true" ]]; then
+            flags+=(--smoke-only)
+          fi
+          # The weekly run exercises the full chunk lifecycle; manual dispatch
+          # may disable it for focused two-player diagnostics.
+          if [[ "${{ matrix.smoke }}" != "true" ]] && ([[ "${{ github.event_name }}" != "workflow_dispatch" ]] || [[ "${{ inputs.chunk_cycle }}" == "true" ]]); then
+            flags+=(--chunk-cycle)
+          fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.client_resource_reload }}" == "true" ]]; then
+            flags+=(--client-resource-reload)
+          fi
+          if [[ "${{ matrix.smoke }}" != "true" &&
+                "${{ github.event_name }}" == "workflow_dispatch" &&
+                "${{ inputs.inflight_pipe }}" == "true" ]]; then
+            flags+=(--inflight-pipe)
+          fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.two_player }}" == "true" ]]; then
+            flags+=(--two-players)
+          fi
+          # Weekly runs keep Create installed; the monthly run tests the actual
+          # no-Create runtime, so optional integration regressions cannot hide.
+          if [[ "${{ matrix.create }}" == "true" ]] &&
+             ([[ "${{ github.event.schedule }}" == "20 4 1 * *" ]] ||
+              [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.without_create }}" == "true" ]]); then
+            flags+=(--without-create)
+          fi
+          # Separate monthly schedule tests the same actual world join without
+          # AE2. The full weekly profile still tests AE2 and Create together.
+          if [[ "${{ matrix.ae2 }}" == "true" ]] &&
+             ([[ "${{ github.event.schedule }}" == "20 4 15 * *" ]] ||
+              [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.without_ae2 }}" == "true" ]]); then
+            flags+=(--without-ae2)
+          fi
+          # Save migration with a disappearing optional addon is experimental:
+          # only a deliberate manual run should exercise it until game-verified.
+          if [[ "${{ matrix.ae2 }}" == "true" &&
+                "${{ github.event_name }}" == "workflow_dispatch" &&
+                "${{ inputs.remove_ae2_after_restart }}" == "true" ]]; then
+            flags+=(--remove-ae2-after-restart)
+          fi
+          python3 scripts/ci-modpack-world-join.py \
+            --target "${STONECUTTER_TARGET}" \
+            --startup-timeout 800 --join-timeout 650 --stable-seconds 30 "${flags[@]}"
+      - name: Collect modpack diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: modpack-it16-${{ matrix.target }}-${{ github.run_number }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            run-modpack-join/**/result.json
+            run-modpack-join/**/logs/**
+            run-modpack-join/**/*.log
+            run-modpack-join/**/crash-reports/**

@@ -33,6 +33,8 @@ import net.minecraft.world.level.block.Rotation;
 import net.neoforged.neoforge.fluids.FluidStack;
 
 public class Blueprint extends Snapshot {
+    public static final int MAX_PALETTE_ENTRIES = 16_384;
+    public static final int MAX_ENTITY_ENTRIES = 4_096;
     public final List<ISchematicBlock> palette = new ArrayList<>();
     public int[] data;
     public final List<ISchematicEntity> entities = new ArrayList<>();
@@ -187,8 +189,12 @@ public class Blueprint extends Snapshot {
     public void deserializeNBT(CompoundTag nbt) throws InvalidInputDataException {
         super.deserializeNBT(nbt);
         palette.clear();
-        for (CompoundTag schematicBlockTag :
-            NBTUtilBC.readCompoundList(nbt.get("palette")).collect(Collectors.toList())) {
+        List<CompoundTag> paletteTags = NBTUtilBC.readCompoundList(nbt.get("palette"))
+            .limit(MAX_PALETTE_ENTRIES + 1L).collect(Collectors.toList());
+        if (paletteTags.isEmpty() || paletteTags.size() > MAX_PALETTE_ENTRIES) {
+            throw new InvalidInputDataException("Blueprint palette exceeds the allowed size");
+        }
+        for (CompoundTag schematicBlockTag : paletteTags) {
             palette.add(SchematicBlockManager.readFromNBTAllowUnavailable(schematicBlockTag));
         }
         data = new int[Snapshot.getDataSize(size)];
@@ -225,9 +231,24 @@ public class Blueprint extends Snapshot {
                 }
             }
         }
-        for (CompoundTag schematicEntityTag :
-            NBTUtilBC.readCompoundList(nbt.get("entities")).collect(Collectors.toList())) {
-            entities.add(SchematicEntityManager.readFromNBTAllowUnavailable(schematicEntityTag));
+        entities.clear();
+        List<CompoundTag> entityTags = NBTUtilBC.readCompoundList(nbt.get("entities"))
+            .limit(MAX_ENTITY_ENTRIES + 1L).collect(Collectors.toList());
+        if (entityTags.size() > MAX_ENTITY_ENTRIES) {
+            throw new InvalidInputDataException("Blueprint has too many entities");
+        }
+        for (CompoundTag schematicEntityTag : entityTags) {
+            ISchematicEntity entity = SchematicEntityManager.readFromNBTAllowUnavailable(schematicEntityTag);
+            if (!SchematicEntityManager.isUnavailable(entity)) {
+                net.minecraft.world.phys.Vec3 position = entity.getPos();
+                if (position == null || !Double.isFinite(position.x) || !Double.isFinite(position.y)
+                    || !Double.isFinite(position.z) || position.x < 0 || position.y < 0 || position.z < 0
+                    || position.x >= size.getX() || position.y >= size.getY() || position.z >= size.getZ()
+                    || entity instanceof SchematicEntityDefault defaultEntity && !defaultEntity.isInside(size)) {
+                    throw new InvalidInputDataException("Blueprint entity is outside its snapshot bounds");
+                }
+            }
+            entities.add(entity);
         }
     }
 

@@ -21,7 +21,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.tuple.Pair;
 
 import buildcraft.lib.internal.core.InvalidInputDataException;
 import buildcraft.builders.internal.schematic.legacy.ISchematicBlock;
@@ -882,10 +881,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
                     .reduce(NBTUtilBC::merge)
                     .map(CompoundTag.class::cast)
                     .orElse(null);
-                CompoundTag newTileNbt = new CompoundTag();
-                tileNbt.getAllKeys().stream()
-                    .map(key -> Pair.of(key, tileNbt.get(key)))
-                    .forEach(kv -> newTileNbt.put(kv.getKey(), kv.getValue()));
+                CompoundTag newTileNbt = tileNbt.copy();
                 newTileNbt.putInt("x", blockPos.getX());
                 newTileNbt.putInt("y", blockPos.getY());
                 newTileNbt.putInt("z", blockPos.getZ());
@@ -898,6 +894,14 @@ public class SchematicBlockDefault implements ISchematicBlock {
                     InventoryContentPolicy.stripCopiedBlockContent(blockState, finalTileNbt, rules);
                 } else {
                     InventoryContentPolicy.stripDisallowedBlockContent(blockState, finalTileNbt, rules);
+                }
+                // Never hydrate machine inventories, energy, ownership or opaque addon
+                // state from a portable blueprint. The placed block determines the BE type.
+                finalTileNbt = BlueprintSecurity.forBlockEntity(placedBlockState, finalTileNbt);
+                BlockEntity freshBlockEntity = level.getBlockEntity(blockPos);
+                if (freshBlockEntity != null) {
+                    finalTileNbt.putString("id", net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE
+                        .getKey(freshBlockEntity.getType()).toString());
                 }
                 BlockEntity tileEntity = BlockEntity.loadStatic(
                     blockPos,
@@ -933,10 +937,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
     public boolean buildWithoutChecks(Level Level, BlockPos blockPos) {
         if (Level.setBlock(blockPos, blockState, 0)) {
             if (tileNbt != null && blockState.hasBlockEntity()) {
-                CompoundTag newTileNbt = new CompoundTag();
-                tileNbt.getAllKeys().stream()
-                    .map(key -> Pair.of(key, tileNbt.get(key)))
-                    .forEach(kv -> newTileNbt.put(kv.getKey(), kv.getValue()));
+                CompoundTag newTileNbt = tileNbt.copy();
                 newTileNbt.putInt("x", blockPos.getX());
                 newTileNbt.putInt("y", blockPos.getY());
                 newTileNbt.putInt("z", blockPos.getZ());
@@ -946,6 +947,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
                 } else {
                     InventoryContentPolicy.stripDisallowedBlockContent(blockState, newTileNbt, rules);
                 }
+                newTileNbt = BlueprintSecurity.forBlockEntity(blockState, newTileNbt);
                 BlockEntity tileEntity = BlockEntity.loadStatic(blockPos, blockState, newTileNbt, Level.registryAccess());
                 if (tileEntity != null) {
                     tileEntity.setLevel(Level);
@@ -1096,6 +1098,9 @@ public class SchematicBlockDefault implements ISchematicBlock {
             deferInventoryRuntimeClear = false;
         }
         tileRotation = NBTUtilBC.readEnum(nbt.get("tileRotation"), Rotation.class);
+        if (tileRotation == null) {
+            throw new InvalidInputDataException("Invalid blueprint rotation");
+        }
         ResourceLocation placeBlockId = ResourceLocation.parse(nbt.getString("placeBlock"));
         placeBlock = BuiltInRegistries.BLOCK.getOptional(placeBlockId)
             .orElseThrow(() -> new InvalidInputDataException("Unknown placement block " + placeBlockId));
@@ -1105,6 +1110,13 @@ public class SchematicBlockDefault implements ISchematicBlock {
             .map(ResourceLocation::parse)
             .flatMap(id -> BuiltInRegistries.BLOCK.getOptional(id).stream())
             .forEach(canBeReplacedWithBlocks::add);
+        // Deserialize-time trust boundary: factory names, pricing states, replacement
+        // allowlists and dependency/update offsets can all be edited by the client.
+        // Check them against current server rules BEFORE the Builder sees this element.
+        Set<JsonRule> trustedRules = RulesLoader.getRules(blockState, tileNbt);
+        BlueprintSecurity.validateDefaultBlock(blockState, placeBlock, tileNbt,
+            requiredBlockOffsets, updateBlockOffsets, canBeReplacedWithBlocks,
+            ignoredProperties, trustedRules);
     }
 
     @Override

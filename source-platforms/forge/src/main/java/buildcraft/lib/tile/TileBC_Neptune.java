@@ -432,6 +432,13 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
         return owner;
     }
 
+    /** Placement attribution must not come from a copied blueprint's NBT. */
+    public final void setOwnerProfile(@Nullable GameProfile profile) {
+        if (level != null && level.isClientSide) return;
+        owner = profile != null && profile.getId() != null ? profile : null;
+        if (level != null) setChanged();
+    }
+
     public PermissionUtil.PermissionBlock getPermBlock() {
         return new PermissionBlock(this, worldPosition);
     }

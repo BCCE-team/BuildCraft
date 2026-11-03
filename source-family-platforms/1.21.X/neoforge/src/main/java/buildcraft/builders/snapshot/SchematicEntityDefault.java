@@ -22,6 +22,7 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import buildcraft.lib.internal.core.InvalidInputDataException;
 import buildcraft.builders.internal.schematic.legacy.ISchematicEntity;
+import net.minecraft.core.registries.BuiltInRegistries;
 import buildcraft.builders.internal.schematic.legacy.SchematicEntityContext;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.lib.misc.RotationUtil;
@@ -162,6 +163,7 @@ public class SchematicEntityDefault implements ISchematicEntity {
         Vec3 placePos = Vec3.atLowerCornerOf(basePos).add(pos);
         BlockPos placeHangingPos = basePos.offset(hangingPos);
         CompoundTag newEntityNbt = entityNbt.copy();
+        BlueprintSecurity.stripUnsafeEntityState(newEntityNbt);
         newEntityNbt.put("Pos", NBTUtilBC.writeVec3(placePos));
         NbtCompat.putUUID(newEntityNbt, "UUID", UUID.randomUUID());
         boolean attached = newEntityNbt.contains("block_pos")
@@ -225,6 +227,34 @@ public class SchematicEntityDefault implements ISchematicEntity {
         hangingPos = BuildersNbtUtil.readBlockPos(nbt, "hangingPos");
         hangingFacing = NBTUtilBC.readEnum(nbt.get("hangingFacing"), Direction.class);
         entityRotation = NBTUtilBC.readEnum(nbt.get("entityRotation"), Rotation.class);
+
+        // An editable blueprint must never bypass the normal capture rules by
+        // supplying an arbitrary entity id (or an empty-cost entity).
+        try {
+            var requestedType = Identifier.parse(NbtCompat.getString(entityNbt, "id"));
+            if (requestedType == null || BuiltInRegistries.ENTITY_TYPE.getOptional(requestedType).isEmpty()
+                || !RulesLoader.READ_DOMAINS.contains(requestedType.getNamespace())
+                || RulesLoader.getRules(requestedType, entityNbt).stream().noneMatch(rule -> rule.capture)) {
+                throw new InvalidInputDataException("Blueprint contains a non-capturable entity type");
+            }
+        } catch (IllegalArgumentException malformedId) {
+            throw new InvalidInputDataException("Invalid blueprint entity identifier", malformedId);
+        }
+        if (pos == null || hangingPos == null || hangingFacing == null || entityRotation == null
+            || !Double.isFinite(pos.x) || !Double.isFinite(pos.y) || !Double.isFinite(pos.z)) {
+            throw new InvalidInputDataException("Invalid blueprint entity coordinates");
+        }
+    }
+
+    /** Validate local coordinates before a blueprint can spawn this entity. */
+    public boolean isInside(BlockPos size) {
+        if (pos == null || hangingPos == null || size == null) return false;
+        return Double.isFinite(pos.x) && Double.isFinite(pos.y) && Double.isFinite(pos.z)
+            && pos.x >= 0 && pos.y >= 0 && pos.z >= 0
+            && pos.x < size.getX() && pos.y < size.getY() && pos.z < size.getZ()
+            && hangingPos.getX() >= 0 && hangingPos.getX() < size.getX()
+            && hangingPos.getY() >= 0 && hangingPos.getY() < size.getY()
+            && hangingPos.getZ() >= 0 && hangingPos.getZ() < size.getZ();
     }
 
     public boolean equals(Object o) {

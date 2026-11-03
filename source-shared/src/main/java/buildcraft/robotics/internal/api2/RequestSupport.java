@@ -38,7 +38,7 @@ public final class RequestSupport {
         ItemMatcher matcher = new ItemMatcher() {
             @Override
             public boolean matches(ItemStack candidate) {
-                return candidate != null && !candidate.isEmpty() && StackUtil.isMatchingItemOrList(template, candidate);
+                return candidate != null && !candidate.isEmpty() && StackUtil.matchesStackOrList(template, candidate);
             }
 
             @Override

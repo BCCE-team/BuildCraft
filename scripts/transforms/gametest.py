@@ -22,6 +22,12 @@ _STRING_CONSTANT_RE = re.compile(
     r"(?m)^\s*(?:(?:public|protected|private)\s+)?static\s+final\s+String\s+"
     r"([A-Za-z_$][\w$]*)\s*=\s*(\"(?:\\.|[^\"\\])*\")\s*;"
 )
+# Java annotations can refer to an alias of another constant instead of a literal.
+# The generated registry is a different class, so a bare local name is invalid.
+_STRING_ALIAS_RE = re.compile(
+    r"(?m)^\s*(?:(?:public|protected|private)\s+)?static\s+final\s+String\s+"
+    r"([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*;"
+)
 _METHOD_RE = re.compile(
     r"\s*public\s+static\s+void\s+([A-Za-z_$][\w$]*)\s*\(\s*GameTestHelper\s+[A-Za-z_$][\w$]*\s*\)"
 )
@@ -132,11 +138,25 @@ def transform_gametest_source(text: str, *, minecraft: str, relative: str) -> st
         name: _java_string_value(literal)
         for name, literal in _STRING_CONSTANT_RE.findall(text)
     }
+    local_aliases = dict(_STRING_ALIAS_RE.findall(text))
+
+    def qualify_metadata(expr: str) -> str:
+        # Resolve this class's String constants before emitting expressions
+        # inside BuildCraftGeneratedGameTests. Imported or same-package public
+        # constants remain Java references; literals are inlined as before.
+        expr = expr.strip()
+        visited: set[str] = set()
+        while expr in local_aliases:
+            if expr in visited:
+                raise ValueError(f"{relative}: cyclic GameTest metadata constant {expr}")
+            visited.add(expr)
+            expr = local_aliases[expr]
+        return _qualify_expression(expr, imports, local_strings)
 
     holder = re.search(r"@GameTestHolder\(\s*([^\)]+?)\s*\)", text)
     if holder is None:
         raise ValueError(f"{relative}: GameTest class is missing @GameTestHolder")
-    test_namespace = _qualify_expression(holder.group(1), imports, local_strings)
+    test_namespace = qualify_metadata(holder.group(1))
 
     prefix = re.search(r"@PrefixGameTestTemplate\(\s*(true|false)\s*\)", text)
     if prefix is None or prefix.group(1) != "false":
@@ -174,8 +194,8 @@ def transform_gametest_source(text: str, *, minecraft: str, relative: str) -> st
         timeout = int(args["timeoutTicks"], 10)
         payload = {
             "test_namespace": test_namespace,
-            "template_namespace": _qualify_expression(args["templateNamespace"], imports, local_strings),
-            "template": _qualify_expression(args["template"], imports, local_strings),
+            "template_namespace": qualify_metadata(args["templateNamespace"]),
+            "template": qualify_metadata(args["template"]),
             "timeout": timeout,
             "owner": owner,
             "method": method,

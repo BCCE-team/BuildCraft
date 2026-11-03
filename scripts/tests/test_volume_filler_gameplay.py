@@ -45,8 +45,8 @@ RECIPE_ID={'volume_box':'buildcraftcore:volume_box','filler_planner':'buildcraft
 
 class VolumeFillerGameplayTests(unittest.TestCase):
     def test_snapshot_dimensions_respect_size_and_overflow_limits(self):
-        """Eight sizing bounds run against the actual Snapshot.getDataSize()."""
-        self.assertEqual(check_snapshot_sizing(), '8 Snapshot size bounds PASS')
+        """The real 2M-block size guard holds across both Snapshot source families."""
+        self.assertEqual(check_snapshot_sizing(), '23 Snapshot size bounds PASS (old, 1.21.X)')
 
     @classmethod
     def setUpClass(cls):

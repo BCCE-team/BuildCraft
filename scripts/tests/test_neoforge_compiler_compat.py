@@ -9,6 +9,7 @@ Minecraft/NeoForge dependencies.
 from __future__ import annotations
 
 import sys
+import json
 import tomllib
 import tempfile
 import unittest
@@ -30,7 +31,8 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
         for target in ("1.21.1-neoforge", "1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"):
             layout = target_layout(target, props)
             downports = [root for root in (layout.family_downport_root, layout.family_platform_downport_root) if root]
-            for name in ("core/blockEntity/TileEngineRedstone_BC8.java", "compat/jade/BuildCraftJadePlugin.java"):
+            for name in ("core/blockEntity/TileEngineRedstone_BC8.java", "compat/jade/BuildCraftJadePlugin.java",
+                         "lib/crops/CropHandlerPlantable.java"):
                 relative = "src/main/java/buildcraft/" + name
                 source = resolve_effective_source(layout, props, relative)
                 assert source is not None, f"No source found for {target}: {name}"
@@ -128,6 +130,57 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
                 else:
                     self.assertNotIn("BCTextFormat", source)
                     self.assertIn("ChatFormatting.WHITE", source)
+
+    def test_plantable_crop_adapter_survives_vegetation_hierarchy_change(self):
+        name = "lib/crops/CropHandlerPlantable.java"
+        legacy = self.source("1.21.1-neoforge", name)
+        self.assertIn("block instanceof BushBlock", legacy)
+        self.assertNotIn("import net.minecraft.world.level.block.VegetationBlock;", legacy)
+        for target in ("1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"):
+            with self.subTest(target=target):
+                current = self.source(target, name)
+                self.assertIn("block instanceof VegetationBlock", current)
+                self.assertNotIn("block instanceof BushBlock", current)
+
+    def test_guide_corruption_fixture_replaces_a_frame_instead_of_adding_one(self):
+        test = (ROOT / "source-platforms/neoforge/src/gametest/java/buildcraft/gametest/"
+                "SystemGuideRecipeBatchGameTests.java").read_text(encoding="utf-8")
+        self.assertIn("altered.writeVarInt(frameCount);", test)
+        self.assertNotIn("altered.writeVarInt(frameCount + 1);", test)
+        self.assertIn("i == CHUNK_SIZE / 2 ? new byte[] {0} : frame", test)
+        self.assertIn("received.size() == (part == 1 ? CHUNK_SIZE - 1 : CHUNK_SIZE)", test)
+
+    def test_pack_metadata_respects_1_21_11_supported_formats_boundary(self):
+        props = load_properties()
+        source = ROOT / "source-shared/src/main/resources/pack.mcmeta"
+        for target in ("1.21.1-neoforge", "1.21.11-neoforge", "26.1.2-neoforge",
+                       "26.2-neoforge", "26.3-neoforge"):
+            with self.subTest(target=target):
+                layout = target_layout(target, props)
+                output = Path(self.tmp.name) / target / "src/main/resources/pack.mcmeta"
+                _materialize_text_file(
+                    source, output, logical_relative="src/main/resources/pack.mcmeta",
+                    minecraft=props[f"target.{target}.deps.minecraft"],
+                    family=layout.family, platform=layout.platform, preprocess=True,
+                )
+                text = output.read_text(encoding="utf-8")
+                for key, prop_key in (("pack_format", "pack.format"),
+                                      ("resource_pack_format", "pack.resource_format"),
+                                      ("data_pack_format", "pack.data_format")):
+                    text = text.replace("${" + key + "}", props[f"target.{target}.{prop_key}"])
+                pack = json.loads(text)["pack"]
+                if target == "1.21.11-neoforge":
+                    self.assertEqual(pack["supported_formats"], [75, 81])
+                    self.assertNotIn("min_format", pack)
+                    self.assertNotIn("max_format", pack)
+                elif target.startswith("26."):
+                    self.assertEqual(pack["min_format"], pack["pack_format"])
+                    self.assertEqual(pack["max_format"], pack["pack_format"])
+                    self.assertNotIn("supported_formats", pack)
+                else:
+                    self.assertNotIn("supported_formats", pack)
+                    self.assertNotIn("min_format", pack)
+                    self.assertNotIn("max_format", pack)
 
 
 if __name__ == "__main__":

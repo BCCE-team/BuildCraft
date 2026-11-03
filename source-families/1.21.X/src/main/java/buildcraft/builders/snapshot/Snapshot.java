@@ -104,7 +104,9 @@ public abstract class Snapshot {
         // Two positive int dimensions fit in long; check the third before
         // multiplication so even a 2^31-by-2^31-by-2^31 input cannot wrap.
         long area = (long) x * y;
-        if (area > 16_777_216L / z) {
+        // The construction scheduler allocates several per-block arrays, not just
+        // one int[]; a 16M-block snapshot can exhaust the heap on load.
+        if (x > 512 || y > 512 || z > 512 || area > 2_097_152L / z) {
             throw new IllegalArgumentException("Snapshot is too large");
         }
         return (int) (area * z);

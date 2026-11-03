@@ -99,7 +99,7 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
             return true;
         }
         ItemStack template = getRequestTemplate(slot);
-        return !template.isEmpty() && StackUtil.isMatchingItemOrList(template, stack);
+        return !template.isEmpty() && matchesRequestedStack(template, stack);
     }
 
     private InsertionResult insertOnlyRequestedAmount(int slot, ItemStack existing, ItemStack offered) {
@@ -107,13 +107,13 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
             return new InsertionResult(existing, ItemStack.EMPTY);
         }
         ItemStack template = getRequestTemplate(slot);
-        if (template.isEmpty() || !StackUtil.isMatchingItemOrList(template, offered)) {
+        if (template.isEmpty() || !matchesRequestedStack(template, offered)) {
             return new InsertionResult(existing, offered);
         }
 
         int requested = Math.min(template.getCount(), offered.getMaxStackSize());
         if (!existing.isEmpty()) {
-            if (!StackUtil.isMatchingItemOrList(existing, offered) || existing.getCount() >= requested) {
+            if (!matchesRequestedStack(existing, offered) || existing.getCount() >= requested) {
                 return new InsertionResult(existing, offered);
             }
         }
@@ -141,7 +141,7 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
         }
         ItemStack existing = inv.getStackInSlot(index);
         return !existing.isEmpty()
-                && StackUtil.isMatchingItemOrList(template, existing)
+                && matchesRequestedStack(template, existing)
                 && RequestMath.fulfilled(template.getCount(), existing.getCount());
     }
 
@@ -155,7 +155,7 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
         if (existing.isEmpty()) {
             return request;
         }
-        if (!StackUtil.isMatchingItemOrList(request, existing)) {
+        if (!matchesRequestedStack(request, existing)) {
             return ItemStack.EMPTY;
         }
 
@@ -176,7 +176,7 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
         }
 
         ItemStack template = getRequestTemplate(index);
-        if (template.isEmpty() || !StackUtil.isMatchingItemOrList(template, stack)) {
+        if (template.isEmpty() || !matchesRequestedStack(template, stack)) {
             return stack;
         }
 
@@ -191,7 +191,7 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
             return copyRemainder(stack, accepted);
         }
 
-        if (!StackUtil.isMatchingItemOrList(existing, stack)) {
+        if (!matchesRequestedStack(existing, stack)) {
             return stack;
         }
 
@@ -285,7 +285,7 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
             if (template.isEmpty()) continue;
             requested[slot] = template.getCount();
             ItemStack existing = inv.getStackInSlot(slot);
-            if (!existing.isEmpty() && StackUtil.isMatchingItemOrList(template, existing)) {
+            if (!existing.isEmpty() && matchesRequestedStack(template, existing)) {
                 existingCounts[slot] = existing.getCount();
                 matching[slot] = true;
             }
@@ -310,6 +310,17 @@ public class TileRequester extends TileBC_Neptune implements RequestProvider, ID
         }
         left.add("active_requests = " + active);
         left.add("missing_requests = " + missing);
+    }
+
+    /** Ordinary requested stacks are component-exact; only an explicit Item List
+     * carries wildcard/filter semantics. Do not fulfil a charged-tool order with
+     * another charge variant merely because the item id is identical. */
+    private static boolean matchesRequestedStack(ItemStack expected, ItemStack actual) {
+        if (expected.isEmpty() || actual.isEmpty()) return false;
+        if (buildcraft.api.v2.BuildCraftApi.service(buildcraft.api.v2.BuildCraftServices.ITEM_LISTS).isList(expected)) {
+            return StackUtil.isMatchingItemOrList(expected, actual);
+        }
+        return StackUtil.isMatchingItem(expected, actual, true, true);
     }
 
     private static boolean isValidSlot(int index) {

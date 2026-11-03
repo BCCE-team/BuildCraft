@@ -393,7 +393,17 @@ def validate_persistence_and_reload_invariants() -> None:
             fail(f"{target}: robot blueprint task implementation is missing")
         else:
             robot_placement = blueprint[begin:end]
+            # Saved robot tasks are untrusted. Verify the entire chain: derive and
+            # merge the authoritative blueprint cost, compare the persisted task,
+            # check actual inventory, place transactionally and charge *only* the
+            # canonical cost after the world postcondition succeeds.
             expected_order = (
+                "List<ItemStack> realRequirements = tile.needMeterial()",
+                "getBuildingInfo().toPlaceRequiredItems[index]",
+                "List<ItemStack> canonicalRequirements = StackUtil.mergeSameItems(",
+                "task.energyCost() != computeRobotEnergyCost(blockPos)",
+                "!exactRobotRequirements(task.requirements(), canonicalRequirements)",
+                "!hasRobotRequirements(robot, canonicalRequirements)",
                 "PlacementRollback rollback = capturePlacementRollback(blockPos);",
                 "boolean committed = false;",
                 "try {",
@@ -403,9 +413,11 @@ def validate_persistence_and_reload_invariants() -> None:
                 "} finally {",
                 "if (!committed && !rollbackPlacement(rollback, blockPos)) {",
                 "if (committed) {",
-                "consumeRobotRequirements(robot, task.requirements());",
+                "consumeRobotRequirements(robot, canonicalRequirements);",
                 "return committed ? RobotBuildResult.COMMITTED : RobotBuildResult.FAILED;",
             )
+            if "consumeRobotRequirements(robot, task.requirements());" in robot_placement:
+                fail(f"{target}: robot must never consume client-supplied task requirements")
             cursor = 0
             for fragment in expected_order:
                 found = robot_placement.find(fragment, cursor)

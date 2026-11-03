@@ -285,10 +285,19 @@ def _apply_1_21_11_resource_compat(text: str, *, minecraft: str, relative: str) 
         text = re.sub(r'\n\s*"min_format"\s*:\s*(?:\[[^\]]+\]|\$\{pack_format\}|\d+(?:\.\d+)?)\s*,?', "", text)
         text = re.sub(r'\n\s*"max_format"\s*:\s*(?:\[[^\]]+\]|\$\{pack_format\}|\d+(?:\.\d+)?)\s*,?', "", text)
         text = re.sub(r'\n\s*"supported_formats"\s*:\s*(?:\[[^\]]+\]|\{[^}]+\})\s*,?', "", text)
-        text = text.replace(
-            '"pack_format": ${pack_format},',
-            '"pack_format": ${pack_format},\n    "min_format": ${pack_format},\n    "max_format": ${pack_format},',
-        )
+        if _version_tuple(minecraft) == _version_tuple("1.21.11"):
+            # Pack format 75 is in the legacy-supported range 17..81. Minecraft
+            # rejects min_format/max_format for this range without supported_formats.
+            text = text.replace(
+                '"pack_format": ${pack_format},',
+                '"pack_format": ${pack_format},\n    "supported_formats": [${pack_format}, 81],',
+            )
+        else:
+            # Format 82+ uses the newer min/max format declarations.
+            text = text.replace(
+                '"pack_format": ${pack_format},',
+                '"pack_format": ${pack_format},\n    "min_format": ${pack_format},\n    "max_format": ${pack_format},',
+            )
         return text
 
     if normalized.endswith(".json") and "/recipe/" in normalized and "/data/" in normalized:

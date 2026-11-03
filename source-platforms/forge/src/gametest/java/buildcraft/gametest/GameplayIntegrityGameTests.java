@@ -83,6 +83,56 @@ public final class GameplayIntegrityGameTests {
         helper.succeed();
     }
 
+
+    /** Two incompatible tank columns may be separated, repaired and merged without duplicating liquid. */
+    @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 170)
+    public static void tankColumnTransitionsFromIsolatedVariantsToMergedWater(GameTestHelper helper) {
+        BlockPos low = new BlockPos(1, 0, 1);
+        BlockPos bridge = new BlockPos(1, 1, 1);
+        BlockPos high = new BlockPos(1, 2, 1);
+        TileTank bottom = placeTank(helper, low);
+        TileTank top = placeTank(helper, high);
+        require(helper, bottom.tank.fill(new FluidStack(Fluids.WATER, 750), FluidAction.EXECUTE) == 750,
+            "could not fill lower water container");
+        require(helper, top.tank.fill(new FluidStack(Fluids.LAVA, 750), FluidAction.EXECUTE) == 750,
+            "could not fill upper lava container");
+        TileTank middle = placeTank(helper, bridge);
+        helper.runAfterDelay(15, () -> {
+            require(helper, bottom.getConnectedTanks().size() == 1 && top.getConnectedTanks().size() == 1,
+                "mixed columns incorrectly connected through empty bridge");
+            require(helper, middle.tank.getFluidAmount() == 0, "bridge acquired incompatible liquid");
+            helper.setBlock(bridge, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+        });
+        helper.runAfterDelay(35, () -> {
+            require(helper, bottom.tank.getFluidAmount() == 750 && top.tank.getFluidAmount() == 750,
+                "removing empty bridge destroyed source fluid");
+            require(helper, top.tank.drain(750, FluidAction.EXECUTE).getAmount() == 750,
+                "could not drain upper lava container for state transition");
+            require(helper, top.tank.fill(new FluidStack(Fluids.WATER, 750), FluidAction.EXECUTE) == 750,
+                "could not refill upper container with compatible water");
+            placeTank(helper, bridge);
+        });
+        helper.runAfterDelay(95, () -> {
+            TileTank restored = placeOrGetTank(helper, bridge);
+            require(helper, bottom.getConnectedTanks().size() == 3
+                && top.getConnectedTanks().size() == 3 && restored.getConnectedTanks().size() == 3,
+                "compatible tank column did not reconnect after rebuilding bridge");
+            int total = bottom.tank.getFluidAmount() + restored.tank.getFluidAmount() + top.tank.getFluidAmount();
+            require(helper, total == 1500, "column merge changed liquid count: " + total);
+            require(helper, (bottom.tank.isEmpty() || bottom.tank.getFluid().getFluid() == Fluids.WATER)
+                && (restored.tank.isEmpty() || restored.tank.getFluid().getFluid() == Fluids.WATER)
+                && (top.tank.isEmpty() || top.tank.getFluid().getFluid() == Fluids.WATER),
+                "repaired water column retained an incorrect variant");
+            helper.succeed();
+        });
+    }
+
+    private static TileTank placeOrGetTank(GameTestHelper helper, BlockPos pos) {
+        if (GameTestCompat.getBlockEntity(helper, pos) instanceof TileTank tank) return tank;
+        helper.fail("missing repaired tank at " + pos);
+        throw new IllegalStateException("missing repaired tank");
+    }
+
     private static TileTank placeTank(GameTestHelper helper, BlockPos pos) {
         helper.setBlock(pos, BCFactoryBlocks.TANK_BLOCK.get().defaultBlockState());
         if (!(helper.getBlockEntity(pos) instanceof TileTank tank)) {

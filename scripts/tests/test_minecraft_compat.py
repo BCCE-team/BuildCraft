@@ -2,6 +2,7 @@
 """Real internal Java boundaries against offline doubles, not Minecraft/Gradle tests."""
 from __future__ import annotations
 from pathlib import Path
+import json
 import re
 import sys
 import tempfile
@@ -150,8 +151,44 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertIn('GameTestCompat.readInt(', current_sources)
         self.assertIn('GameTestCompat.readString(', old_sources)
         self.assertIn('GameTestCompat.readString(', current_sources)
-        expected_generated_tests = old_sources.count('@GameTest(')
-        self.assertGreater(expected_generated_tests, 0)
+        # 1.21.11+ supports RecipeDisplay packet paths that do not exist on
+        # 1.21.1. Compare registrations by identity, not just equal counts:
+        # every legacy GameTest must survive, and only these deliberately
+        # modern-only scenarios may be added by the new registry generator.
+        old_tests = set()
+        old_test_count = 0
+        annotation_pattern = re.compile(
+            r'@GameTest\([^)]*\)\s*public\s+static\s+void\s+'
+            r'([A-Za-z_$][\w$]*)\s*\(\s*GameTestHelper\b',
+            re.DOTALL,
+        )
+        for path in old_root.rglob('*.java'):
+            source = path.read_text(encoding='utf-8')
+            methods = annotation_pattern.findall(source)
+            self.assertEqual(source.count('@GameTest('), len(methods), str(path))
+            old_test_count += len(methods)
+            old_tests.update((path.stem, method) for method in methods)
+        self.assertGreater(old_test_count, 0)
+        self.assertEqual(old_test_count, len(old_tests), 'duplicate legacy GameTest method')
+
+        modern_tests = []
+        for line in current_sources.splitlines():
+            marker = '// bc-gametest-v2: '
+            if marker not in line:
+                continue
+            entry = json.loads(line.split(marker, 1)[1])
+            modern_tests.append((entry['owner'].rsplit('.', 1)[-1], entry['method']))
+        self.assertEqual(len(modern_tests), len(set(modern_tests)), 'duplicate generated GameTest method')
+
+        modern_only_tests = {
+            ('SystemGuideRecipeBatchGameTests', 'invalidGuideFrameLengthRetainsValidPrefixAndDoesNotContaminateReconnect'),
+            ('SystemGuideRecipeBatchGameTests', 'multiPacketGuideIndexSkipsBadMiddleDisplayAndAcceptsFreshCompleteIndex'),
+            ('SystemGuideRecipeNetworkGameTests', 'guideNetworkFiltersInvalidEntriesAndRetainsValidNeighbors'),
+            ('SystemGuideRecipeNetworkGameTests', 'guideNetworkSkipsCorruptFramedRecipeAndRecoversOnFreshIndex'),
+        }
+        self.assertEqual(old_tests, set(modern_tests) - modern_only_tests)
+        self.assertTrue(modern_only_tests <= set(modern_tests))
+        expected_generated_tests = len(modern_tests)
         self.assertEqual(expected_generated_tests, current_sources.count('// bc-gametest-v2:'))
         self.assertTrue(registry.is_file())
 
@@ -159,6 +196,8 @@ class MinecraftBoundaries(unittest.TestCase):
         self.assertEqual(expected_generated_tests, registry_text.count('registry.register('))
         self.assertEqual(expected_generated_tests, registry_text.count('event.registerTest('))
         self.assertEqual(expected_generated_tests, registry_text.count('helper -> invoke(helper'))
+        for owner, method in modern_only_tests:
+            self.assertIn(f'buildcraft.gametest.{owner}::{method}', registry_text)
         self.assertIn('private interface CheckedGameTest', registry_text)
         self.assertIn('BuiltInRegistries.TEST_FUNCTION.key()', registry_text)
         self.assertIn('new FunctionGameTestInstance(', registry_text)

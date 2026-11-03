@@ -71,6 +71,10 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
     private final Map<Pair<List<ItemStack>, List<FluidStack>>, Optional<List<ItemStack>>> extractRequiredCache =
         new HashMap<>();
     private final Set<BlockPos> robotReservedBlocks = new HashSet<>();
+    /** A handler that reports a placement without the expected entity must not
+     * be invoked on every tick. In particular, never repeatedly spawn/refund an
+     * out-of-box or incorrectly typed entity supplied by a custom schematic. */
+    private final Set<ISchematicEntity> failedEntityPlacements = new HashSet<>();
     /** Fluids reserved by cancelled tasks that are waiting for room in the builder tanks. */
     private final List<FluidStack> pendingFluidRefunds = new ArrayList<>();
 
@@ -112,6 +116,7 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         }
         extractRequiredCache.clear();
         robotReservedBlocks.clear();
+        failedEntityPlacements.clear();
         deferredInventoryCursor = 0;
         int dataSize = getBuildingInfo().getSnapshot().getDataSize();
         // noinspection unchecked
@@ -152,6 +157,7 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         remainingDisplayRequired.clear();
         extractRequiredCache.clear();
         robotReservedBlocks.clear();
+        failedEntityPlacements.clear();
     }
 
     private Stream<ItemStack> getDisplayRequired(List<ItemStack> requiredItems, List<FluidStack> requiredFluids) {
@@ -413,6 +419,9 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         }
         try {
             if (task.breakTask()) {
+                // Persisted robot task NBT is a hint, never authority for free work.
+                if (task.energyCost() != computeRobotBreakEnergyCost(blockPos)
+                    || !task.requirements().isEmpty()) return RobotBuildResult.FAILED;
                 check(blockPos);
                 if (checkResults[posToIndex(blockPos)] == CHECK_RESULT_CORRECT || tile.getWorldBC().isEmptyBlock(blockPos)) {
                     return RobotBuildResult.NOOP;
@@ -454,7 +463,22 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
             if (checkResults[index] != CHECK_RESULT_TO_PLACE || !canPlace(blockPos) || !isReadyToPlace(blockPos)) {
                 return RobotBuildResult.FAILED;
             }
-            if (!hasRobotRequirements(robot, task.requirements())) {
+            // Re-evaluate the *current* blueprint, not the serialized robot job.
+            // Otherwise rewriting requirements/energyCost in a saved task mints blocks.
+            List<FluidStack> realFluids = getBuildingInfo().toPlaceRequiredFluids[index];
+            if (realFluids != null && realFluids.stream().anyMatch(fluid -> fluid != null && !fluid.isEmpty())) {
+                return RobotBuildResult.FAILED;
+            }
+            List<ItemStack> realRequirements = tile.needMeterial()
+                ? getBuildingInfo().toPlaceRequiredItems[index] : Collections.emptyList();
+            // Compare the serialized job with canonical requirements, but reserve
+            // and consume the *merged* list: split duplicate stacks must not
+            // each pass the availability check against the same physical item.
+            List<ItemStack> canonicalRequirements = StackUtil.mergeSameItems(
+                realRequirements == null ? Collections.emptyList() : realRequirements);
+            if (task.energyCost() != computeRobotEnergyCost(blockPos)
+                || !exactRobotRequirements(task.requirements(), canonicalRequirements)
+                || !hasRobotRequirements(robot, canonicalRequirements)) {
                 return RobotBuildResult.FAILED;
             }
             ISchematicBlock schematicBlock = getSchematicBlock(blockPos);
@@ -486,7 +510,7 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
             }
             if (committed) {
                 // Requirements are paid only after the world postcondition succeeded.
-                consumeRobotRequirements(robot, task.requirements());
+                consumeRobotRequirements(robot, canonicalRequirements);
             }
             if (check(blockPos)) {
                 afterChecks();
@@ -495,6 +519,14 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         } finally {
             releaseRobotTask(robot, task);
         }
+    }
+
+    private static boolean exactRobotRequirements(List<ItemStack> supplied, List<ItemStack> expected) {
+        List<ItemStack> claimed = StackUtil.mergeSameItems(supplied == null ? Collections.emptyList() : supplied);
+        List<ItemStack> canonical = StackUtil.mergeSameItems(expected == null ? Collections.emptyList() : expected);
+        return claimed.size() == canonical.size() && canonical.stream().allMatch(required ->
+            claimed.stream().anyMatch(found -> StackUtil.canMerge(required, found)
+                && required.getCount() == found.getCount()));
     }
 
     private boolean hasRobotRequirements(EntityRobotBase robot, List<ItemStack> requirements) {
@@ -955,6 +987,10 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         level.getProfiler().pop();
         level.getProfiler().push("toSpawn");
         List<ISchematicEntity> toSpawn = getBuildingInfo().entities.stream()
+            .filter(schematicEntity -> !failedEntityPlacements.contains(schematicEntity))
+            // Already rotated: use the world-space bounding box, not unrotated dimensions.
+            .filter(schematicEntity -> getBuildingInfo().box.getBoundingBox().contains(
+                schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos))))
             .filter(schematicEntity ->
                 entitiesWithinBox.stream()
                 .noneMatch($ ->
@@ -1038,7 +1074,7 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         // Spawn needed entities. Missing resources or failed entity placement must keep the builder active;
         // otherwise the tile marks the blueprint as finished and never retries item frames / armor stands.
         if (toSpawn.isEmpty()) {
-            return true;
+            return failedEntityPlacements.isEmpty();
         }
         if (!tile.getBattery().isFull()) {
             return false;
@@ -1047,11 +1083,28 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         boolean spawnedAll = true;
         level.getProfiler().push("spawn");
         for (ISchematicEntity schematicEntity : toSpawn) {
+            Vec3 expectedPosition = schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos));
+            //? if <1.20 {
+            BlockPos targetPos = new BlockPos(expectedPosition);
+            //? } else {
+            /*?
+            BlockPos targetPos = BlockPos.containing(expectedPosition);
+            ?*/
+            //? }
+            if (!AutomationPermissionUtil.mayBlock(
+                level, tile.getBuilderPos(), targetPos, tile.getOwner(), AutomationPermissionUtil.SOURCE_BUILDER,
+                WorldOperationKind.BLOCK_PLACE, OperationMode.EXECUTE
+            )) {
+                failedEntityPlacements.add(schematicEntity);
+                spawnedAll = false;
+                continue;
+            }
             List<ItemStack> requiredItems = getBuildingInfo().entitiesRequiredItems.get(schematicEntity);
             List<FluidStack> requiredFluids = getBuildingInfo().entitiesRequiredFluids.get(schematicEntity);
             if (!tile.needMeterial()) {
                 buildSchematicEntity(schematicEntity, level, getBuildingInfo().offsetPos);
                 if (!isSchematicEntityPresent(schematicEntity, level)) {
+                    failedEntityPlacements.add(schematicEntity);
                     spawnedAll = false;
                 }
                 continue;
@@ -1062,11 +1115,14 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
                 spawnedAll = false;
                 continue;
             }
-            buildSchematicEntity(schematicEntity, level, getBuildingInfo().offsetPos);
+            boolean reportedPlacement = buildSchematicEntity(schematicEntity, level, getBuildingInfo().offsetPos);
             if (!isSchematicEntityPresent(schematicEntity, level)) {
-                // Entity resources commit on the world postcondition, not on a handler's return value. This avoids
-                // free entities when a custom handler spawns first and reports failure afterwards.
-                cancelPlaceTask(new PlaceTask(tile.getBuilderPos(), extracted.get(), 0));
+                // An addon can spawn an entity and then report failure (or place it
+                // outside the expected box). Do not invoke it again on each tick.
+                failedEntityPlacements.add(schematicEntity);
+                if (!reportedPlacement) {
+                    cancelPlaceTask(new PlaceTask(tile.getBuilderPos(), extracted.get(), 0));
+                }
                 spawnedAll = false;
                 continue;
             }

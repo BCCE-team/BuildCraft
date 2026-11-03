@@ -620,6 +620,59 @@ public final class PipeFluidPowerGameTests {
         return event;
     }
 
+
+    /** A real wooden fluid extractor feeds a pipe and a nearly-full tank, then resumes after a drain. */
+    @GameTest(templateNamespace = BCLib.MODID, template = PipeGameTestSupport.LARGE_EMPTY_TEMPLATE,
+        timeoutTicks = 680)
+    public static void liveFluidTransportRecoversAfterDestinationBackpressure(GameTestHelper helper) {
+        TileTank source = placeTank(helper, new BlockPos(1, 1, 3));
+        TilePipeHolder wood = PipeGameTestSupport.placePipe(helper, new BlockPos(2, 1, 3), BCTransportPipes.woodFluid);
+        TilePipeHolder intermediate = PipeGameTestSupport.placePipe(helper, new BlockPos(3, 1, 3), BCTransportPipes.cobbleFluid);
+        TileTank target = placeTank(helper, new BlockPos(4, 1, 3));
+        int sourceInitial = FluidType.BUCKET_VOLUME;
+        int targetInitial = target.tank.getCapacity() - 100;
+        require(helper, source.tank.fill(new FluidStack(net.minecraft.world.level.material.Fluids.WATER, sourceInitial),
+            FluidAction.EXECUTE) == sourceInitial, "could not seed fluid source");
+        require(helper, target.tank.fill(new FluidStack(net.minecraft.world.level.material.Fluids.WATER, targetInitial),
+            FluidAction.EXECUTE) == targetInitial, "could not seed nearly-full receiver");
+        int[] extracted = { 0 };
+        helper.runAfterDelay(8, () -> {
+            require(helper, wood.getPipe().isConnected(Direction.WEST) && wood.getPipe().isConnected(Direction.EAST),
+                "wood extractor did not connect to real source/pipe");
+            require(helper, intermediate.getPipe().isConnected(Direction.WEST)
+                && intermediate.getPipe().isConnected(Direction.EAST), "transport segment disconnected");
+            PipeBehaviourWood behaviour = (PipeBehaviourWood) wood.getPipe().getBehaviour();
+            require(helper, behaviour.getCurrentDir() == Direction.WEST, "wood pipe faces wrong source");
+            long offered = BCTransportConfig.mjPerMillibucket * 250L;
+            long remaining = behaviour.receivePower(offered, FluidAction.EXECUTE);
+            extracted[0] = (int) ((offered - remaining) / BCTransportConfig.mjPerMillibucket);
+            require(helper, extracted[0] > 100, "fixture did not extract more fluid than receiver's free space");
+        });
+        helper.runAfterDelay(185, () -> {
+            int inNetwork = totalFluid((PipeFlowFluids) wood.getPipe().getFlow())
+                + totalFluid((PipeFlowFluids) intermediate.getPipe().getFlow());
+            require(helper, source.tank.getFluidAmount() + target.tank.getFluidAmount() + inNetwork
+                == sourceInitial + targetInitial, "fluid was lost or created under backpressure");
+            require(helper, source.tank.getFluidAmount() == sourceInitial - extracted[0],
+                "extraction debit disagreed with transferred amount");
+            require(helper, target.tank.getFluidAmount() <= target.tank.getCapacity(),
+                "target exceeded its capacity");
+            int drained = target.tank.drain(500, FluidAction.EXECUTE).getAmount();
+            require(helper, drained == 500, "test failed to free a receiver buffer");
+        });
+        helper.runAfterDelay(570, () -> {
+            int inNetwork = totalFluid((PipeFlowFluids) wood.getPipe().getFlow())
+                + totalFluid((PipeFlowFluids) intermediate.getPipe().getFlow());
+            require(helper, inNetwork == 0, "pipe still contains orphaned fluid after backpressure removal");
+            require(helper, target.tank.getFluidAmount() == targetInitial + extracted[0] - 500,
+                "network did not deliver the delayed fluid after receiver drained");
+            require(helper, source.tank.getFluidAmount() + target.tank.getFluidAmount()
+                == sourceInitial + targetInitial - 500,
+                "total water changed after congestion cleared");
+            helper.succeed();
+        });
+    }
+
     private static TileTank placeTank(GameTestHelper helper, BlockPos pos) {
         helper.setBlock(pos, BCFactoryBlocks.TANK_BLOCK.get().defaultBlockState());
         if (!(helper.getBlockEntity(pos) instanceof TileTank tank)) {
