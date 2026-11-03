@@ -52,7 +52,7 @@ public class GuiTank extends GuiBC8<ContainerTank> {
         TANK_X, TANK_Y, TANK_WIDTH, TANK_HEIGHT,
         16 * FluidType.BUCKET_VOLUME,
         176, 0,
-        2
+        8 // capacity: fifth 32-bit field, beginning at 16-bit slot 8
     );
 
     public GuiTank(ContainerTank menu, Inventory inventory, Component title) {

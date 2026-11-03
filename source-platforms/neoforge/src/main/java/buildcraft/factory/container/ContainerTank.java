@@ -11,6 +11,7 @@ import java.io.IOException;
 import buildcraft.factory.BCFactoryGuis;
 import buildcraft.factory.tile.TileTank;
 import buildcraft.lib.fluid.Tank;
+import buildcraft.lib.gui.TankContainerData;
 import buildcraft.lib.gui.ContainerBCTile;
 import buildcraft.lib.gui.MenuBC_Neptune;
 import buildcraft.lib.gui.widget.WidgetFluidTank;
@@ -210,31 +211,37 @@ public class ContainerTank extends ContainerBCTile<TileTank> {
         syncedCapacity = Math.max(0, capacity);
     }
 
+    /**
+     * Client-only view of the full-width tank packet. TankComponent consumes the same
+     * 16-bit word layout as TankContainerData, not three unsplit integer fields.
+     * Previously slot 2 (capacity) was decoded as fluid amount, making an empty
+     * 16-bucket tank display 16 buckets of minecraft:empty ("air").
+     */
     private final class SyncedTankData implements ContainerData {
         @Override
         public int get(int index) {
-            return switch (index) {
-                case 0 -> syncedFluidId;
-                case 1 -> syncedFluidAmount;
-                case 2 -> syncedCapacity;
+            if (index < 0 || index >= TankContainerData.LEN) {
+                return 0;
+            }
+            int packed = switch (index / 2) {
+                case 0, 2 -> syncedFluidId;       // server and render fluid IDs
+                case 1, 3 -> syncedFluidAmount;   // server and render amounts
+                case 4 -> syncedCapacity;
+                case 5, 6 -> -1;                  // no component cache ID in this packet
                 default -> 0;
             };
+            return ((index & 1) == 0 ? packed : packed >>> 16) & 0xFFFF;
         }
 
         @Override
         public void set(int index, int value) {
-            switch (index) {
-                case 0 -> syncedFluidId = Math.max(0, value);
-                case 1 -> syncedFluidAmount = Math.max(0, value);
-                case 2 -> syncedCapacity = Math.max(0, value);
-                default -> {
-                }
-            }
+            // This is a read-only GUI mirror, deliberately not registered with
+            // addDataSlots(). NET_TANK_STATE -> updateLocalState is authoritative.
         }
 
         @Override
         public int getCount() {
-            return 3;
+            return TankContainerData.LEN;
         }
     }
 }

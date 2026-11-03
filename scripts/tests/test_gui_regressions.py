@@ -238,4 +238,120 @@ class FillerGui26_1_2Regressions(unittest.TestCase):
         self.assertIn(binding, pre_load)
         self.assertLess(constructor.index('preLoad(jsonGui);'), constructor.index('jsonGui.load();'))
 
+
+
+class TankGuiPackedDataRegressions(unittest.TestCase):
+    """The tank's custom 32-bit network packet must match TankComponent's 16-bit GUI slots."""
+
+    TARGETS = (
+        '1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge', '1.21.11-neoforge',
+        '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge',
+    )
+    MENU = 'src/main/java/buildcraft/factory/container/ContainerTank.java'
+    SCREEN = 'src/main/java/buildcraft/factory/gui/GuiTank.java'
+    PACKED = 'src/main/java/buildcraft/lib/gui/TankContainerData.java'
+
+    def test_every_target_selects_matching_packed_layout(self):
+        layout = load_layout()
+        props = layout.load_properties()
+        for target in self.TARGETS:
+            with self.subTest(target=target):
+                selection = layout.target_layout(target, props)
+                menu = layout.resolve_effective_source(selection, props, self.MENU)
+                screen = layout.resolve_effective_source(selection, props, self.SCREEN)
+                packed = layout.resolve_effective_source(selection, props, self.PACKED)
+                self.assertIsNotNone(menu)
+                self.assertIsNotNone(screen)
+                self.assertIsNotNone(packed)
+                menu_source = menu.read_text(encoding='utf-8')
+                screen_source = screen.read_text(encoding='utf-8')
+                self.assertIn('return TankContainerData.LEN;', menu_source)
+                self.assertIn('case 1, 3 -> syncedFluidAmount;', menu_source)
+                self.assertIn('case 4 -> syncedCapacity;', menu_source)
+                self.assertIn('case 5, 6 -> -1;', menu_source)
+                self.assertRegex(screen_source, r'176,\s*0,\s*8\s*// capacity: fifth 32-bit field')
+                self.assertIn('getPacked(data, offset + 2)',
+                              layout.resolve_effective_source(selection, props,
+                                  'src/main/java/buildcraft/lib/gui/component/TankComponent.java')
+                                  .read_text(encoding='utf-8'))
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK required for live Java slot probes')
+    def test_real_java_gui_slot_mirror_roundtrips_zero_and_32bit_values(self):
+        """Compile the actual nested menu data view and TankContainerData.getPacked, not a Python copy."""
+        layout = load_layout()
+        props = layout.load_properties()
+        menus = {}
+        for target in self.TARGETS:
+            selection = layout.target_layout(target, props)
+            menu = layout.resolve_effective_source(selection, props, self.MENU)
+            packed = layout.resolve_effective_source(selection, props, self.PACKED)
+            menus[(str(menu), str(packed))] = target
+        self.assertEqual(4, len(menus), 'Unexpected new tank-menu/packed-reader combination; audit its GUI slots')
+        for (menu_path, packed_path), target in menus.items():
+            with self.subTest(implementation=target):
+                inner = java_method(Path(menu_path).read_text(encoding='utf-8'),
+                                    'private final class SyncedTankData implements ContainerData')
+                reader = java_method(Path(packed_path).read_text(encoding='utf-8'),
+                                     'public static int getPacked(ContainerData data, int lowWordIndex)')
+                probe = r'''
+interface ContainerData {
+    int get(int index);
+    void set(int index, int value);
+    int getCount();
+}
+final class TankContainerData {
+    static final int LEN = 14;
+    /* READ_PACKED */
+}
+public final class ContainerTank {
+    private int syncedFluidId;
+    private int syncedFluidAmount;
+    private int syncedCapacity;
+    /* GUI_DATA */
+
+    private void updateLocalState(int fluidId, int amount, int capacity) {
+        syncedFluidId = Math.max(0, fluidId);
+        syncedFluidAmount = Math.max(0, amount);
+        syncedCapacity = Math.max(0, capacity);
+    }
+    private static void check(boolean ok, String message) {
+        if (!ok) throw new AssertionError(message);
+    }
+    private void checkLayout(int fluidId, int amount, int capacity) {
+        updateLocalState(fluidId, amount, capacity);
+        ContainerData gui = new SyncedTankData();
+        check(gui.getCount() == 14, "14 slots for fluid, render fluid, capacity, and cache IDs");
+        check(TankContainerData.getPacked(gui, 0) == fluidId, "fluid type ID");
+        check(TankContainerData.getPacked(gui, 2) == amount, "fluid amount (not capacity)");
+        check(TankContainerData.getPacked(gui, 4) == fluidId, "render fluid type ID");
+        check(TankContainerData.getPacked(gui, 6) == amount, "render fluid amount");
+        check(TankContainerData.getPacked(gui, 8) == capacity, "tank capacity");
+        check(TankContainerData.getPacked(gui, 10) == -1, "no fabricated server cache entry");
+        check(TankContainerData.getPacked(gui, 12) == -1, "no fabricated render cache entry");
+        gui.set(2, 12345); // GUI must not override packet-authoritative state
+        check(TankContainerData.getPacked(gui, 2) == amount, "read-only GUI state");
+    }
+    public static void main(String[] args) {
+        ContainerTank tank = new ContainerTank();
+        tank.checkLayout(0, 0, 16000);        // empty must not show 16 buckets of air
+        tank.checkLayout(1, 500, 16000);      // partially filled tank
+        tank.checkLayout(3, 16000, 16000);    // exactly full tank
+        tank.checkLayout(77, 65539, 125000);  // values crossing signed 16-bit boundaries
+        tank.checkLayout(171, 200000, 1000000); // large multiblock capacity
+        tank.checkLayout(0, 0, 16000);        // drain/reopen must not retain previous content
+        System.out.println("Tank GUI packed data: 6 state transitions PASS");
+    }
+}
+'''.replace('/* READ_PACKED */', reader).replace('/* GUI_DATA */', inner)
+                with tempfile.TemporaryDirectory(prefix='bc-tank-gui-slot-probe-') as tmp:
+                    path = Path(tmp) / 'ContainerTank.java'
+                    path.write_text(probe, encoding='utf-8')
+                    compiled = subprocess.run(['javac', '--release', '17', str(path)],
+                                              cwd=tmp, capture_output=True, text=True, timeout=30)
+                    self.assertEqual(0, compiled.returncode, compiled.stdout + compiled.stderr)
+                    executed = subprocess.run(['java', '-ea', '-cp', tmp, 'ContainerTank'],
+                                              cwd=tmp, capture_output=True, text=True, timeout=15)
+                    self.assertEqual(0, executed.returncode, executed.stdout + executed.stderr)
+                    self.assertIn('6 state transitions PASS', executed.stdout)
+
 if __name__ == '__main__': unittest.main(verbosity=2)
