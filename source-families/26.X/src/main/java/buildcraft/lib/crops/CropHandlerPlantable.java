@@ -21,7 +21,7 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.BushBlock;
+import net.minecraft.world.level.block.VegetationBlock;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.DoublePlantBlock;
 import net.minecraft.world.level.block.FlowerBlock;
@@ -40,7 +40,7 @@ public enum CropHandlerPlantable implements CropAdapter {
         }
         if (stack.getItem() instanceof BlockItem blockItem) {
             Block block = blockItem.getBlock();
-            return block instanceof BushBlock && block != Blocks.SUGAR_CANE;
+            return block instanceof VegetationBlock && block != Blocks.SUGAR_CANE;
         }
         return false;
     }
@@ -74,7 +74,7 @@ public enum CropHandlerPlantable implements CropAdapter {
             return ((CropBlock) block).isMaxAge(state);
         } else if (block instanceof NetherWartBlock) {
             return state.getValue(NetherWartBlock.AGE) == 3;
-        } else if (block instanceof BushBlock) {
+        } else if (block instanceof VegetationBlock) {
             if (blockAccess.getBlockState(pos.below()).getBlock() == block) {
                 return true;
             }
