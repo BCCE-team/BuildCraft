@@ -320,11 +320,6 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             if (robotTag.contains("Owner")) {
                 tooltip.add(line("robot.owner", Component.literal(robotTag.getString("Owner")).withStyle(ChatFormatting.WHITE)));
             }
-            if (robotTag.contains("BoardKey")) {
-                tooltip.add(line("robot.board", Component.translatable("buildcraft.boardRobot." + robotTag.getString("BoardKey")).withStyle(ChatFormatting.WHITE)));
-            } else if (robotTag.contains("Board")) {
-                tooltip.add(line("robot.board", Component.literal(robotTag.getString("Board")).withStyle(ChatFormatting.WHITE)));
-            }
             tooltip.add(line("robot.state", robotState(robotTag)));
             if (accessor.showDetails()) {
                 if (robotTag.contains("LinkedStation")) {
@@ -1189,6 +1184,21 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
                 return block.getName();
             }
             return null;
+        }
+        if (accessor instanceof EntityAccessor entityAccessor && entityAccessor.getEntity() instanceof EntityRobot robot) {
+            // Jade's vanilla entity title is always "Robot". Use the board identity from the
+            // server-provided Jade payload, which is available even if the client's robot board
+            // state has not yet synchronized. Match the item name used for each robot type.
+            CompoundTag root = entityAccessor.getServerData().getCompound(DATA_ROOT);
+            CompoundTag robotTag = root.getCompound("Robot");
+            String boardKey = robotTag.getString("BoardKey");
+            if (boardKey.isBlank() && robot.getBoardEntry() != null) {
+                boardKey = robot.getBoardEntry().key();
+            }
+            String nameKey = boardKey == null || boardKey.isBlank()
+                ? "item.buildcraftrobotics.robot.empty"
+                : "item.buildcraftrobotics.robot." + boardKey;
+            return Component.translatable(nameKey).withStyle(ChatFormatting.WHITE);
         }
         if (accessor instanceof EntityAccessor entityAccessor && entityAccessor.getEntity() instanceof ItemEntity itemEntity) {
             ItemStack stack = itemEntity.getItem();
