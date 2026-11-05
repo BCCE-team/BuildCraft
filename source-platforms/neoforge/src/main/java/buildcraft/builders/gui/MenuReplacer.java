@@ -1,5 +1,11 @@
 package buildcraft.builders.gui;
 
+import java.io.IOException;
+
+import buildcraft.lib.misc.data.IdAllocator;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
+
 import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
@@ -33,6 +39,38 @@ import net.neoforged.neoforge.items.SlotItemHandler;
 //?}
 
 public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
+    private static final IdAllocator IDS = MenuBC_Neptune.IDS.makeChild("replacer");
+    public static final int NET_REPLACE = IDS.allocId("REPLACE");
+    public static final int MAX_BLUEPRINT_NAME_LENGTH = 64;
+
+    @Override
+    public IdAllocator getIdAllocator() {
+        return IDS;
+    }
+
+    /** Name is sent only on click, never on every keystroke. */
+    public void sendReplaceRequest(String name) {
+        String clean = name == null ? "" : name.strip();
+        if (clean.length() > MAX_BLUEPRINT_NAME_LENGTH) {
+            clean = clean.substring(0, MAX_BLUEPRINT_NAME_LENGTH);
+        }
+        final String requested = clean;
+        sendMessage(NET_REPLACE, buffer -> buffer.writeUtf(requested, MAX_BLUEPRINT_NAME_LENGTH));
+    }
+
+    @Override
+    public void readMessage(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
+        super.readMessage(id, buffer, side, ctx);
+        if (id == NET_REPLACE && side == BCNetworkSide.SERVER) {
+            String name = buffer.readUtf(MAX_BLUEPRINT_NAME_LENGTH);
+            Player sender = ctx == null ? playerInventory.player : ctx.player();
+            // A stale/replayed or remote menu packet must never edit the machine.
+            if (tile != null && sender != null && sender.containerMenu == this
+                && !sender.isSpectator() && stillValid(sender)) {
+                tile.doReplace(name);
+            }
+        }
+    }
 
     private static final int MACHINE_SLOT_COUNT = 3;
     private static final int PLAYER_INV_START = MACHINE_SLOT_COUNT;

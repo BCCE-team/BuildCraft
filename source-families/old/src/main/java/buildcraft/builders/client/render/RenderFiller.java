@@ -36,19 +36,23 @@ public class RenderFiller implements BlockEntityRenderer<TileFiller> {
 
     @Override
     public void render(TileFiller tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
+        FillerGhostPreview.render(tile, matrix, buffer);
         if (tile.getBuilder() != null) {
             matrix.pushPose();
             RenderSnapshotBuilder.render(tile.getBuilder(), tile.getLevel(), tile.getBlockPos(), partialTicks, matrix, buffer, itemRenderer);
             matrix.popPose();
         }
 
-        if (tile.markerBox) {
+        if (tile.markerBox || tile.getBuilder() != null) {
             VertexConsumer bb = buffer.getBuffer(RenderType.cutout());
             matrix.pushPose();
             matrix.translate(-tile.getBlockPos().getX(), -tile.getBlockPos().getY(), -tile.getBlockPos().getZ());
             Matrix4f boxPose = matrix.last().pose();
             Matrix3f boxNormal = matrix.last().normal();
-            LaserBoxRenderer.renderLaserBoxDynamic(tile.box, BuildCraftLaserManager.STRIPES_WRITE, boxPose, boxNormal, bb, true);
+            if (tile.markerBox) {
+                LaserBoxRenderer.renderLaserBoxDynamic(tile.box, BuildCraftLaserManager.STRIPES_WRITE, boxPose, boxNormal, bb, true);
+            }
+            BuilderTaskHighlights.render(tile.getBuilder(), boxPose, boxNormal, bb);
             matrix.popPose();
         }
     }

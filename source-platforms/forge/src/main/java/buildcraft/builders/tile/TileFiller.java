@@ -84,6 +84,7 @@ public class TileFiller extends TileBC_Neptune
     public static final int NET_INVERT = IDS.allocId("INVERT");
     public static final int NET_PATTERN = IDS.allocId("PATTERN");
     public static final int NET_BOX = IDS.allocId("BOX");
+    public static final int NET_PREVIEW = IDS.allocId("PREVIEW");
 
     @Override
     public IdAllocator getIdAllocator() {
@@ -108,6 +109,16 @@ public class TileFiller extends TileBC_Neptune
     public final Box box = new Box();
     public AddonFillerPlanner addon;
     public boolean markerBox = true;
+    /** Client-only ghost preview toggle; never changes the Filler's actual work or packets. */
+    private boolean previewEnabled = false;
+
+    public boolean isPreviewEnabled() {
+        return previewEnabled;
+    }
+
+    public void setPreviewEnabled(boolean enabled) {
+        previewEnabled = enabled;
+    }
 
     public final FullStatement<IFillerPattern> patternStatement = new FullStatement<>(
         FillerType.INSTANCE,
@@ -325,6 +336,7 @@ public class TileFiller extends TileBC_Neptune
                 writePayload(NET_INVERT, buffer, side);
                 writePayload(NET_PATTERN, buffer, side);
                 writePayload(NET_BOX, buffer, side);
+                writePayload(NET_PREVIEW, buffer, side);
                 builder.writeToByteBuf(buffer);
                 buffer.writeBoolean(finished);
                 buffer.writeBoolean(lockedTicks > 0);
@@ -343,6 +355,8 @@ public class TileFiller extends TileBC_Neptune
                 buffer.writeBoolean(inverted);
             } else if (id == NET_PATTERN) {
                 patternStatement.writeToBuffer(buffer);
+            } else if (id == NET_PREVIEW) {
+                buffer.writeBoolean(previewEnabled);
             }
         }
     }
@@ -359,6 +373,7 @@ public class TileFiller extends TileBC_Neptune
                 readPayload(NET_INVERT, buffer, side, ctx);
                 readPayload(NET_PATTERN, buffer, side, ctx);
                 readPayload(NET_BOX, buffer, side, ctx);
+                readPayload(NET_PREVIEW, buffer, side, ctx);
                 builder.readFromByteBuf(buffer);
                 finished = buffer.readBoolean();
                 lockedTicks = buffer.readBoolean() ? (byte) 1 : (byte) 0;
@@ -385,6 +400,8 @@ public class TileFiller extends TileBC_Neptune
                 inverted = buffer.readBoolean();
             } else if (id == NET_PATTERN) {
                 patternStatement.readFromBuffer(buffer);
+            } else if (id == NET_PREVIEW) {
+                previewEnabled = buffer.readBoolean();
             }
         }
         if (side == BCNetworkSide.SERVER) {
@@ -395,6 +412,12 @@ public class TileFiller extends TileBC_Neptune
                     setChanged();
                 }
                 sendNetworkGuiUpdate(NET_CAN_EXCAVATE);
+            } else if (id == NET_PREVIEW) {
+                boolean selected = buffer.readBoolean();
+                if (selected != previewEnabled) {
+                    previewEnabled = selected;
+                    sendNetworkGuiUpdate(NET_PREVIEW);
+                }
             }
         }
     }
@@ -435,6 +458,10 @@ public class TileFiller extends TileBC_Neptune
 
     public void sendCanExcavate(boolean newValue) {
         MessageManager.sendToServer(createMessage(NET_CAN_EXCAVATE, buffer -> buffer.writeBoolean(newValue)));
+    }
+
+    public void sendPreviewEnabled(boolean newValue) {
+        MessageManager.sendToServer(createMessage(NET_PREVIEW, buffer -> buffer.writeBoolean(newValue)));
     }
 
     public void onStatementChange() {

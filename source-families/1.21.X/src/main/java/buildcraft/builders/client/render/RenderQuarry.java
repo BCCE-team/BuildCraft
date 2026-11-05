@@ -70,6 +70,8 @@ public class RenderQuarry implements BlockEntityRenderer<TileQuarry>, LegacyLase
         }
     }
 
+    private final BuilderIndicatorLights indicatorLights = new BuilderIndicatorLights();
+
 	public RenderQuarry(BlockEntityRendererProvider.Context bpc) {
 	}
 
@@ -86,6 +88,7 @@ public class RenderQuarry implements BlockEntityRenderer<TileQuarry>, LegacyLase
 		// viewed at a distance or oblique angle. The mipped cutout layer preserves hard alpha
 		// edges while using the block atlas mip levels for stable minification.
 		VertexConsumer bb = buffer.getBuffer(RenderType.cutoutMipped());
+        indicatorLights.drawQuarry(tile, matrix.last().pose(), matrix.last().normal(), bb);
 //		matrix.translate(0.5f, 0.5f, 0.5f);
 		Matrix4f pose = matrix.last().pose();
 		Matrix3f normal = matrix.last().normal();

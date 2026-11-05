@@ -87,6 +87,7 @@ public class TileFiller extends TileBC_Neptune
     public static final int NET_INVERT = IDS.allocId("INVERT");
     public static final int NET_PATTERN = IDS.allocId("PATTERN");
     public static final int NET_BOX = IDS.allocId("BOX");
+    public static final int NET_PREVIEW = IDS.allocId("PREVIEW");
 
     @Override
     public IdAllocator getIdAllocator() {
@@ -111,6 +112,71 @@ public class TileFiller extends TileBC_Neptune
     public final Box box = new Box();
     public AddonFillerPlanner addon;
     public boolean markerBox = true;
+    /** Visual-only switch, synchronized to every player tracking the block (not just its menu). */
+    private boolean previewEnabled = false;
+    /** Client-only shape cache. The server's buildingInfo is not sent to clients. */
+    private transient Template.BuildingInfo clientPreviewBuildingInfo;
+    private transient CompoundTag clientPreviewPattern;
+    private transient BlockPos clientPreviewMin, clientPreviewMax;
+    private transient boolean clientPreviewInverted;
+
+    public boolean isPreviewEnabled() {
+        return previewEnabled;
+    }
+
+    public void setPreviewEnabled(boolean enabled) {
+        if (previewEnabled == enabled) return;
+        previewEnabled = enabled;
+        if (!enabled) {
+            clientPreviewBuildingInfo = null;
+            clientPreviewPattern = null;
+        }
+        // The BCU toggle survives unloading/reloading the chunk.
+        if (level != null && !level.isClientSide) setChanged();
+    }
+
+    /**
+     * The world projection needs its own client template. The server never sends a BuildingInfo:
+     * only the selected pattern, its parameters and the box are synchronized. Rebuild this
+     * projection when those change, but keep its identity stable between render frames so
+     * FillPreviewCache can finish a scan instead of restarting on every render-data packet.
+     * This does not change the machine's active builder or its task queues.
+     */
+    @Nullable
+    public Template.BuildingInfo getPreviewBuildingInfo() {
+        if (level == null || !previewEnabled) return null;
+        if (!level.isClientSide) return getTemplateBuildingInfo();
+        if (addon != null) return addon.buildingInfo;
+        if (!box.isInitialized()) return null;
+
+        BlockPos min = box.min();
+        BlockPos max = box.max();
+        CompoundTag currentPattern = patternStatement.writeToNbt();
+        if (clientPreviewPattern == null || !clientPreviewPattern.equals(currentPattern)
+            || !min.equals(clientPreviewMin) || !max.equals(clientPreviewMax)
+            || inverted != clientPreviewInverted) {
+            clientPreviewPattern = currentPattern;
+            clientPreviewMin = min;
+            clientPreviewMax = max;
+            clientPreviewInverted = inverted;
+            clientPreviewBuildingInfo = null;
+            // Filler Planner uses the same limit; avoid huge client allocations for an
+            // accidentally enormous area (the draw cache has its own smaller limit).
+            BlockPos size = box.size();
+            long volume = (long) size.getX() * size.getY() * size.getZ();
+            if (size.getX() > 0 && size.getY() > 0 && size.getZ() > 0
+                && volume <= 2_000_000L) {
+                clientPreviewBuildingInfo = FillerUtil.createBuildingInfo(
+                    this, patternStatement,
+                    IntStream.range(0, patternStatement.maxParams)
+                        .mapToObj(patternStatement::get)
+                        .toArray(IStatementParameter[]::new),
+                    inverted
+                );
+            }
+        }
+        return clientPreviewBuildingInfo;
+    }
 
     public final FullStatement<IFillerPattern> patternStatement = new FullStatement<>(
         FillerType.INSTANCE,
@@ -323,11 +389,19 @@ public class TileFiller extends TileBC_Neptune
             if (id == NET_RENDER_DATA) {
                 builder.writeToByteBuf(buffer);
                 writePayload(NET_BOX, buffer, side);
+                // Includes the initial chunk update, so the world preview is visible
+                // to nearby clients even if nobody has opened the Filler GUI.
+                writePayload(NET_PREVIEW, buffer, side);
+                if (previewEnabled) {
+                    writePayload(NET_INVERT, buffer, side);
+                    writePayload(NET_PATTERN, buffer, side);
+                }
             } else if (id == NET_GUI_DATA || id == NET_GUI_TICK) {
                 writePayload(NET_CAN_EXCAVATE, buffer, side);
                 writePayload(NET_INVERT, buffer, side);
                 writePayload(NET_PATTERN, buffer, side);
                 writePayload(NET_BOX, buffer, side);
+                writePayload(NET_PREVIEW, buffer, side);
                 builder.writeToByteBuf(buffer);
                 buffer.writeBoolean(finished);
                 buffer.writeBoolean(lockedTicks > 0);
@@ -346,6 +420,8 @@ public class TileFiller extends TileBC_Neptune
                 buffer.writeBoolean(inverted);
             } else if (id == NET_PATTERN) {
                 patternStatement.writeToBuffer(buffer);
+            } else if (id == NET_PREVIEW) {
+                buffer.writeBoolean(previewEnabled);
             }
         }
     }
@@ -357,11 +433,17 @@ public class TileFiller extends TileBC_Neptune
             if (id == NET_RENDER_DATA) {
                 builder.readFromByteBuf(buffer);
                 readPayload(NET_BOX, buffer, side, ctx);
+                readPayload(NET_PREVIEW, buffer, side, ctx);
+                if (previewEnabled) {
+                    readPayload(NET_INVERT, buffer, side, ctx);
+                    readPayload(NET_PATTERN, buffer, side, ctx);
+                }
             } else if (id == NET_GUI_DATA || id == NET_GUI_TICK) {
                 readPayload(NET_CAN_EXCAVATE, buffer, side, ctx);
                 readPayload(NET_INVERT, buffer, side, ctx);
                 readPayload(NET_PATTERN, buffer, side, ctx);
                 readPayload(NET_BOX, buffer, side, ctx);
+                readPayload(NET_PREVIEW, buffer, side, ctx);
                 builder.readFromByteBuf(buffer);
                 finished = buffer.readBoolean();
                 lockedTicks = buffer.readBoolean() ? (byte) 1 : (byte) 0;
@@ -388,6 +470,8 @@ public class TileFiller extends TileBC_Neptune
                 inverted = buffer.readBoolean();
             } else if (id == NET_PATTERN) {
                 patternStatement.readFromBuffer(buffer);
+            } else if (id == NET_PREVIEW) {
+                setPreviewEnabled(buffer.readBoolean());
             }
         }
         if (side == BCNetworkSide.SERVER) {
@@ -398,6 +482,15 @@ public class TileFiller extends TileBC_Neptune
                     setChanged();
                 }
                 sendNetworkGuiUpdate(NET_CAN_EXCAVATE);
+            } else if (id == NET_PREVIEW) {
+                boolean selected = buffer.readBoolean();
+                if (selected != previewEnabled) {
+                    setPreviewEnabled(selected);
+                    // A menu-only update cannot make the ghost appear in the world.
+                    // Broadcast the complete render state to every tracking player.
+                    sendNetworkUpdate(NET_RENDER_DATA);
+                }
+                sendNetworkGuiUpdate(NET_PREVIEW);
             }
         }
     }
@@ -440,9 +533,15 @@ public class TileFiller extends TileBC_Neptune
         MessageManager.sendToServer(createMessage(NET_CAN_EXCAVATE, buffer -> buffer.writeBoolean(newValue)));
     }
 
+    public void sendPreviewEnabled(boolean newValue) {
+        MessageManager.sendToServer(createMessage(NET_PREVIEW, buffer -> buffer.writeBoolean(newValue)));
+    }
+
     public void onStatementChange() {
         if (!level.isClientSide) {
             createAndSendMessage(NET_PATTERN, patternStatement::writeToBuffer);
+            // Invert, parameters and the pattern also affect the world hologram.
+            if (previewEnabled) sendNetworkUpdate(NET_RENDER_DATA);
         }
         finished = false;
         updateBuildingInfo();
@@ -459,6 +558,7 @@ public class TileFiller extends TileBC_Neptune
         nbt.put("battery", battery.serializeNBT(registries));
         bcData.writeBoolean("canExcavate", canExcavate);
         bcData.writeBoolean("inverted", inverted);
+        bcData.writeBoolean("showPreview", previewEnabled);
         bcData.writeBoolean("finished", finished);
         bcData.writeByte("lockedTicks", lockedTicks);
         nbt.put("mode", NBTUtilBC.writeEnum(mode));
@@ -487,6 +587,9 @@ public class TileFiller extends TileBC_Neptune
         battery.deserializeNBT(registries, bcData.readCompound("battery"));
         canExcavate = bcData.readBoolean("canExcavate");
         inverted = bcData.readBoolean("inverted");
+        previewEnabled = bcData.has("showPreview") && bcData.readBoolean("showPreview");
+        clientPreviewBuildingInfo = null;
+        clientPreviewPattern = null;
         finished = bcData.readBoolean("finished");
         lockedTicks = bcData.readByte("lockedTicks");
         mode = Optional.ofNullable(NBTUtilBC.readEnum(nbt.get("mode"), Mode.class)).orElse(Mode.ON);

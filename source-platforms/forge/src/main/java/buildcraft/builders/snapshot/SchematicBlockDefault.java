@@ -57,6 +57,11 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public class SchematicBlockDefault implements ISchematicBlock {
+    @Override
+    public BlockState getBlockStateForRender() {
+        return blockState;
+    }
+
     @SuppressWarnings("WeakerAccess")
     protected final Set<BlockPos> requiredBlockOffsets = new HashSet<>();
     @SuppressWarnings("WeakerAccess")

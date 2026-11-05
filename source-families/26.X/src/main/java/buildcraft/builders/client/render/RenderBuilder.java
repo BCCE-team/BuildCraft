@@ -22,7 +22,11 @@ import buildcraft.lib.compat.RenderCompat;
 import buildcraft.lib.misc.VecUtil;
 import buildcraft.lib.misc.data.Box;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
+//? if >=26.2 {
+import buildcraft.lib.compat.minecraft.render.BCVertexBuffers;
+//?} else {
+/*import net.minecraft.client.renderer.MultiBufferSource;*/
+//?}
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
@@ -36,7 +40,11 @@ public class RenderBuilder implements LegacyBlockEntityRenderer<TileBuilder>, Le
     public RenderBuilder(BlockEntityRendererProvider.Context context) {
     }
 
-    public void render(@Nonnull TileBuilder tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer,
+    //? if >=26.2 {
+    public void render(@Nonnull TileBuilder tile, float partialTicks, PoseStack matrix, BCVertexBuffers buffer,
+    //?} else {
+    /*public void render(@Nonnull TileBuilder tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer,*/
+    //?}
         int light, int overlay) {
         renderLasers(tile, partialTicks, matrix, buffer, light, overlay);
     }
@@ -53,7 +61,11 @@ public class RenderBuilder implements LegacyBlockEntityRenderer<TileBuilder>, Le
         matrix.popPose();
     }
 
-    public void renderLasers(@Nonnull TileBuilder tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer,
+    //? if >=26.2 {
+    public void renderLasers(@Nonnull TileBuilder tile, float partialTicks, PoseStack matrix, BCVertexBuffers buffer,
+    //?} else {
+    /*public void renderLasers(@Nonnull TileBuilder tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer,*/
+    //?}
         int light, int overlay) {
         LevelCompat.profilerPush(Minecraft.getInstance(), "bc");
         LevelCompat.profilerPush(Minecraft.getInstance(), "builder");
@@ -66,6 +78,8 @@ public class RenderBuilder implements LegacyBlockEntityRenderer<TileBuilder>, Le
         Box box = tile.getBox();
         matrix.translate(-pos.getX(), -pos.getY(), -pos.getZ());
         LaserBoxRenderer.renderLaserBoxDynamic(box, BuildCraftLaserManager.STRIPES_WRITE, pose, normal, bb, true);
+        // Redux-style live task visualization (red removal / green placement / robot break beams).
+        BuilderTaskHighlights.render(tile.getBuilder(), pose, normal, bb);
         LevelCompat.profilerPopPush(Minecraft.getInstance(), "path");
 
         List<BlockPos> path = tile.path;

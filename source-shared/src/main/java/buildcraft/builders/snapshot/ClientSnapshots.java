@@ -45,15 +45,14 @@ public enum ClientSnapshots {
     }
 
     /**
-     * 3D blueprint/template previews are intentionally disabled.
-     *
-     * Keep the renderer entry points so existing callers and addons remain source/binary compatible,
-     * but do not request, construct or render a preview world from them.
+     * Legacy PoseStack-only API kept for binary compatibility with older consumers.
+     * Modern GUI preview rendering is provided by BlueprintRenderer via GuiGraphics/PiP,
+     * which supplies the render-state context absent from these old signatures.
      */
     public void renderSnapshot(PoseStack pose, Snapshot.Header header, int offsetX, int offsetY, int sizeX, int sizeY) {
-        // Intentionally disabled on all maintained Minecraft versions.
+        // Requires GUI-scoped graphics; old callers may still invoke this stub safely.
     }
     public void renderSnapshot(PoseStack pose, Snapshot snapshot, int offsetX, int offsetY, int sizeX, int sizeY) {
-        // Intentionally disabled on all maintained Minecraft versions.
+        // Requires GUI-scoped graphics; old callers may still invoke this stub safely.
     }
 }

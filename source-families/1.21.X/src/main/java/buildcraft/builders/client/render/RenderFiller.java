@@ -16,10 +16,13 @@ import buildcraft.lib.compat.RenderCompat;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.state.CameraRenderState;
 import net.minecraft.world.phys.AABB;
 
 public class RenderFiller implements LegacyBlockEntityRenderer<TileFiller>, LegacyLaserBlockEntityRenderer<TileFiller> {
+    private final BuilderIndicatorLights indicatorLights = new BuilderIndicatorLights();
+
     public RenderFiller(BlockEntityRendererProvider.Context context) {
     }
 
@@ -32,9 +35,19 @@ public class RenderFiller implements LegacyBlockEntityRenderer<TileFiller>, Lega
         CameraRenderState cameraState) {
         LegacyBlockEntityRenderer.super.submit(state, matrix, collector, cameraState);
         TileFiller tile = state.blockEntity();
+        // The preview cubes are vertex-coloured translucent geometry, so submit them on the
+        // generic translucent pass instead of a scan-textured entity layer.
+        if (tile != null && tile.isPreviewEnabled() && tile.getLevel() != null) {
+            collector.submitCustomGeometry(matrix, RenderCompat.entityTranslucent(TextureAtlas.LOCATION_BLOCKS), (pose, consumer) -> {
+                PoseStack ghostPose = new PoseStack();
+                ghostPose.last().pose().set(pose.pose());
+                ghostPose.last().normal().set(pose.normal());
+                FillerGhostPreview.render(tile, ghostPose, consumer);
+            });
+        }
         if (tile == null || tile.getLevel() == null || tile.getBuilder() == null) return;
         matrix.pushPose();
-        RenderSnapshotBuilder.submit(
+        RenderSnapshotBuilder.submitFiller(
             tile.getBuilder(), tile.getLevel(), tile.getBlockPos(), state.partialTick(), matrix, collector
         );
         matrix.popPose();
@@ -42,13 +55,19 @@ public class RenderFiller implements LegacyBlockEntityRenderer<TileFiller>, Lega
 
     public void renderLasers(TileFiller tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer,
         int light, int overlay) {
-        if (!tile.markerBox) return;
+        if (tile.getLevel() == null) return;
         VertexConsumer bb = buffer.getBuffer(RenderCompat.cutout());
+        indicatorLights.drawFiller(tile, matrix.last().pose(), matrix.last().normal(), bb);
+        if (!tile.markerBox && tile.getBuilder() == null) return;
         matrix.pushPose();
         matrix.translate(-tile.getBlockPos().getX(), -tile.getBlockPos().getY(), -tile.getBlockPos().getZ());
         Matrix4f boxPose = matrix.last().pose();
         Matrix3f boxNormal = matrix.last().normal();
-        LaserBoxRenderer.renderLaserBoxDynamic(tile.box, BuildCraftLaserManager.STRIPES_WRITE, boxPose, boxNormal, bb, true);
+        if (tile.markerBox) {
+            LaserBoxRenderer.renderLaserBoxDynamic(tile.box, BuildCraftLaserManager.STRIPES_WRITE, boxPose, boxNormal, bb, true);
+        }
+        FillerWorkRenderer.render(tile.getBuilder(), tile.getLevel().getGameTime(), partialTicks,
+                boxPose, boxNormal, bb);
         matrix.popPose();
     }
 

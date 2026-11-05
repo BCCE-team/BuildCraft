@@ -838,7 +838,12 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
             } else if (!tile.getWorldBC().isEmptyBlock(blockPos)) {
                 checkResults[i] = CHECK_RESULT_TO_BREAK;
             } else {
-                checkResults[i] = CHECK_RESULT_TO_BREAK;
+                // A missing support or an occupied second half is NOT a block to excavate.
+                // Classify empty destinations as pending placement, even when canBuild()
+                // currently says 'not yet': isReadyToPlace/canPlace will retry once the
+                // prerequisite exists. Otherwise break tasks target air forever and can
+                // suppress every valid placement task (especially beds and doors).
+                checkResults[i] = CHECK_RESULT_TO_PLACE;
             }
         }
         byte current = checkResults[i];

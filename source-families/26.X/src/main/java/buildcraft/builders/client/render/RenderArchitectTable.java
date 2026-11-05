@@ -1,0 +1,90 @@
+/*
+ * Copyright (c) 2017 SpaceToad and the BuildCraft team
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/
+ */
+
+package buildcraft.builders.client.render;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import org.joml.Matrix3f;
+import org.joml.Matrix4f;
+
+import buildcraft.builders.tile.TileArchitectTable;
+import buildcraft.core.client.BuildCraftLaserManager;
+import buildcraft.lib.client.render.laser.LegacyLaserBlockEntityRenderer;
+import buildcraft.lib.client.render.laser.LaserBoxRenderer;
+//? if >=26.2 {
+import buildcraft.lib.compat.minecraft.render.BCVertexBuffers;
+//?} else {
+/*import net.minecraft.client.renderer.MultiBufferSource;*/
+//?}
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
+
+public class RenderArchitectTable implements BlockEntityRenderer<TileArchitectTable>, LegacyLaserBlockEntityRenderer<TileArchitectTable> {
+    private final BuilderIndicatorLights indicatorLights = new BuilderIndicatorLights();
+
+   
+	public RenderArchitectTable(BlockEntityRendererProvider.Context bpc) {
+	}
+	
+	@Override
+    //? if >=26.2 {
+    public void render(TileArchitectTable tile, float partialTicks, PoseStack matrix, BCVertexBuffers buffer, int light, int overlay) {
+    //?} else {
+    /*public void render(TileArchitectTable tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {*/
+    //?}
+        renderLasers(tile, partialTicks, matrix, buffer, light, overlay);
+    }
+
+	@Override
+    //? if >=26.2 {
+    public void renderLasers(TileArchitectTable tile, float partialTicks, PoseStack matrix, BCVertexBuffers buffer, int light, int overlay) {
+    //?} else {
+    /*public void renderLasers(TileArchitectTable tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {*/
+    //?}
+        if (tile.getLevel() == null) return;
+        VertexConsumer leds = buffer.getBuffer(RenderType.cutout());
+        indicatorLights.drawArchitect(tile, matrix.last().pose(), matrix.last().normal(), leds);
+        if (!tile.markerBox) return;
+		
+//        Minecraft.getInstance().getProfiler().push("bc");
+//        Minecraft.getInstance().getProfiler().push("architect_table");
+
+        matrix.pushPose();
+		VertexConsumer bb = buffer.getBuffer(RenderType.cutout());
+		Matrix4f pose = matrix.last().pose();
+		Matrix3f normal = matrix.last().normal();
+		BlockPos pos = tile.getBlockPos();
+		matrix.translate(-pos.getX(), -pos.getY(), -pos.getZ());
+//        Minecraft.getInstance().getProfiler().push("box");
+        LaserBoxRenderer.renderLaserBoxDynamic(tile.box, BuildCraftLaserManager.STRIPES_READ, pose, normal, bb, true);
+//        Minecraft.getInstance().getProfiler().pop();
+
+        matrix.popPose();
+
+//        Minecraft.getInstance().getProfiler().pop();
+//        Minecraft.getInstance().getProfiler().pop();
+    }
+
+    
+    @Override
+    public boolean shouldRenderOffScreen(TileArchitectTable te) {
+        return true;
+    }
+
+    @Override
+    public AABB getRenderBoundingBox(TileArchitectTable tile) {
+        return tile.getRenderBoundingBox();
+    }
+
+    @Override
+    public int getViewDistance() {
+        return 256;
+    }
+}

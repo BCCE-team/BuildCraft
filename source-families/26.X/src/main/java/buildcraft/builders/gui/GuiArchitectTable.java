@@ -137,6 +137,8 @@ public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
 		drawProgress(guiGraphics, RECT_PROGRESS, ICON_PROGRESS,
 				// DeltaInt.getDynamic(container.deltaProgress, partialTicks),
 				container.tile.deltaProgress.getDynamic(partialTicks), 1);
+        
+        
 	}
 
 	@Override
@@ -169,6 +171,11 @@ public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
             }
         }
 	}
+
+	@Override
+    public void removed() {
+        super.removed();
+    }
 
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {

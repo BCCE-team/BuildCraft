@@ -44,18 +44,31 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.DoublePlantBlock;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.StructureBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BedPart;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.neoforged.neoforge.fluids.FluidStack;
 import buildcraft.lib.compat.LevelCompat;
 import buildcraft.lib.compat.NbtCompat;
 
 public class SchematicBlockDefault implements ISchematicBlock {
+    /** Render the captured, orientation-preserving block state in blueprint previews.
+     * Do not derive geometry from an inventory item: beds, signs, levers and
+     * other stateful blocks require the saved facing/half/attachment properties.
+     */
+    @Override
+    public BlockState getBlockStateForRender() {
+        return blockState;
+    }
+
     @SuppressWarnings("WeakerAccess")
     protected final Set<BlockPos> requiredBlockOffsets = new HashSet<>();
     @SuppressWarnings("WeakerAccess")
@@ -569,13 +582,90 @@ public class SchematicBlockDefault implements ISchematicBlock {
         setCanBeReplacedWithBlocks /**/(context, rules);
     }
 
+    /**
+     * Dependencies implied by the block's actual state, not by old hard-coded registry names.
+     * Do NOT serialize them into requiredBlockOffsets: BlueprintSecurity authenticates that
+     * legacy NBT field against JSON rules. Keeping these virtual also migrates old blueprints
+     * and lets getRotated() calculate the offsets from its rotated BlockState correctly.
+     */
     @Nonnull
+    @Override
     public Set<BlockPos> getRequiredBlockOffsets() {
-        return requiredBlockOffsets;
+        Set<BlockPos> result = new HashSet<>(requiredBlockOffsets);
+        if (isBedPart(blockState)) {
+            Direction facing = blockState.getValue(BlockStateProperties.HORIZONTAL_FACING);
+            if (blockState.getValue(BlockStateProperties.BED_PART) == BedPart.HEAD) {
+                result.add(BlockPos.ZERO.relative(facing.getOpposite()));
+            } else {
+                // A foot also needs support below the future head, not just below itself.
+                result.add(new BlockPos(facing.getStepX(), -1, facing.getStepZ()));
+            }
+        } else if (blockState != null && blockState.getBlock() instanceof DoorBlock
+                && blockState.hasProperty(DoorBlock.HALF)) {
+            // Lower places both halves, upper is never an independent item-consuming job.
+            result.add(new BlockPos(0, -1, 0));
+        } else if (blockState != null && blockState.getBlock() instanceof DoublePlantBlock
+                && blockState.hasProperty(DoublePlantBlock.HALF)) {
+            // Tall flowers/plants behave like doors; require the lower half or soil below it.
+            result.add(new BlockPos(0, -1, 0));
+        }
+        return result;
+    }
+
+    private static boolean isBedPart(BlockState state) {
+        return state != null && state.hasProperty(BlockStateProperties.BED_PART)
+            && state.hasProperty(BlockStateProperties.HORIZONTAL_FACING);
+    }
+
+    private static boolean isSecondaryHalf(BlockState state) {
+        if (isBedPart(state)) {
+            return state.getValue(BlockStateProperties.BED_PART) == BedPart.HEAD;
+        }
+        if (state != null && state.getBlock() instanceof DoorBlock && state.hasProperty(DoorBlock.HALF)) {
+            return state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER;
+        }
+        return state != null && state.getBlock() instanceof DoublePlantBlock
+            && state.hasProperty(DoublePlantBlock.HALF)
+            && state.getValue(DoublePlantBlock.HALF) == DoubleBlockHalf.UPPER;
+    }
+
+    /** An item places BOTH halves. Return null for ordinary blocks and secondary halves. */
+    public BlockPos getSecondHalfPosition(BlockPos pos) {
+        if (placeBlock == Blocks.AIR) return null;
+        if (isBedPart(blockState)
+                && blockState.getValue(BlockStateProperties.BED_PART) == BedPart.FOOT) {
+            return pos.relative(blockState.getValue(BlockStateProperties.HORIZONTAL_FACING));
+        }
+        if (blockState != null && blockState.getBlock() instanceof DoorBlock
+                && blockState.hasProperty(DoorBlock.HALF)
+                && blockState.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER) {
+            return pos.above();
+        }
+        if (blockState != null && blockState.getBlock() instanceof DoublePlantBlock
+                && blockState.hasProperty(DoublePlantBlock.HALF)
+                && blockState.getValue(DoublePlantBlock.HALF) == DoubleBlockHalf.LOWER) {
+            return pos.above();
+        }
+        return null;
+    }
+
+    /** The other half's actual in-world state, used for cost-free paired placement checks. */
+    public BlockState getSecondHalfState(Level level, BlockPos pos) {
+        if (getSecondHalfPosition(pos) == null) return null;
+        BlockState primary = getPlacementState(level, pos);
+        if (isBedPart(primary)) {
+            return primary.setValue(BlockStateProperties.BED_PART, BedPart.HEAD);
+        }
+        if (primary.getBlock() instanceof DoorBlock) {
+            return primary.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER);
+        }
+        return primary.setValue(DoublePlantBlock.HALF, DoubleBlockHalf.UPPER);
     }
 
     @Nonnull
     public List<ItemStack> computeRequiredItems(Level level) {
+        // Do not count both halves as separate items.
+        if (isSecondaryHalf(blockState)) return java.util.Collections.emptyList();
         if (!deferInventoryContents) {
             return computeLegacyRequiredItems(level);
         }
@@ -586,6 +676,8 @@ public class SchematicBlockDefault implements ISchematicBlock {
 
     @Nonnull
     public List<ItemStack> computeRequiredItemsForPlacement(Level level) {
+        // Secondary halves are placed together with the primary.
+        if (isSecondaryHalf(blockState)) return java.util.Collections.emptyList();
         if (!deferInventoryContents) {
             // Keep specialised schematics (for example banners) compatible with their computeRequiredItems override.
             return computeRequiredItems(level);
@@ -806,7 +898,15 @@ public class SchematicBlockDefault implements ISchematicBlock {
         if (placeBlock == Blocks.AIR) {
             return true;
         }
-        return getPlacementState(level, blockPos).canSurvive(level, blockPos);
+        BlockPos other = getSecondHalfPosition(blockPos);
+        if (other != null && !level.isEmptyBlock(other)
+                && !level.getBlockState(other).equals(getSecondHalfState(level, blockPos))) {
+            // The other position is occupied: do not spend an item on a doomed half placement.
+            return false;
+        }
+        // The primary half of a bed/door cannot always pass canSurvive until its
+        // partner is present. placeBothHalves validates survival AFTER both exist.
+        return other != null || getPlacementState(level, blockPos).canSurvive(level, blockPos);
     }
 
     private BlockState getPlacementState(Level level, BlockPos blockPos) {
@@ -857,6 +957,10 @@ public class SchematicBlockDefault implements ISchematicBlock {
         }
         LevelCompat.profilerPush(level, "prepare block");
         BlockState newBlockState = getPlacementState(level, blockPos);
+        if (getSecondHalfPosition(blockPos) != null) {
+            LevelCompat.profilerPop(level);
+            return placeBothHalves(level, blockPos, actor, firePlaceEvent, newBlockState);
+        }
         if (!newBlockState.canSurvive(level, blockPos)) {
             LevelCompat.profilerPop(level);
             return false;
@@ -933,6 +1037,55 @@ public class SchematicBlockDefault implements ISchematicBlock {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Bed FOOT / door LOWER / tall plant LOWER placement is a single transaction.
+     * Vanilla neighbour updates can destroy a lone half before the second is placed, so
+     * suppress intermediate shape notifications and notify both neighbours afterwards.
+     * The Builder checks permissions at BOTH positions before calling this method.
+     */
+    private boolean placeBothHalves(Level level, BlockPos pos, Player actor,
+                                    boolean firePlaceEvent, BlockState firstState) {
+        BlockPos secondPos = getSecondHalfPosition(pos);
+        BlockState secondState = getSecondHalfState(level, pos);
+        if (secondPos == null || secondState == null || !level.isEmptyBlock(pos)) return false;
+        BlockState priorSecond = level.getBlockState(secondPos);
+        boolean needsSecond = !priorSecond.equals(secondState);
+        if (needsSecond && !priorSecond.isAir()) return false;
+
+        // Keep old state around so a rejected second-half place never leaves an orphan first half.
+        int silentFlags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
+        if (!(firePlaceEvent
+                ? BlockUtil.placeBlock(level, pos, firstState, actor, Direction.UP, silentFlags)
+                : level.setBlock(pos, firstState, silentFlags))) return false;
+        boolean complete = false;
+        try {
+            if (!secondState.canSurvive(level, secondPos)) return false;
+            if (needsSecond && !(firePlaceEvent
+                    ? BlockUtil.placeBlock(level, secondPos, secondState, actor, Direction.UP, silentFlags)
+                    : level.setBlock(secondPos, secondState, silentFlags))) return false;
+            if (!level.getBlockState(pos).equals(firstState)
+                    || !level.getBlockState(secondPos).equals(secondState)) return false;
+            // Both halves now exist: let vanilla settle connection, redstone and support state.
+            level.updateNeighborsAt(pos, firstState.getBlock());
+            level.updateNeighborsAt(secondPos, secondState.getBlock());
+            complete = level.getBlockState(pos).getBlock() == firstState.getBlock()
+                && level.getBlockState(secondPos).getBlock() == secondState.getBlock();
+            return complete;
+        } finally {
+            if (!complete) {
+                // Only touch positions we actually created, never a preexisting neighbour.
+                if (needsSecond && level.getBlockState(secondPos).getBlock() == secondState.getBlock()) {
+                    level.setBlock(secondPos, priorSecond, silentFlags);
+                }
+                if (level.getBlockState(pos).getBlock() == firstState.getBlock()) {
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), silentFlags);
+                }
+                level.updateNeighborsAt(pos, firstState.getBlock());
+                if (needsSecond) level.updateNeighborsAt(secondPos, secondState.getBlock());
+            }
+        }
     }
 
     @SuppressWarnings("Duplicates")

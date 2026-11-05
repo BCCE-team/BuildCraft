@@ -1,0 +1,182 @@
+{
+    "size": [
+        176,
+        100
+    ],
+    "texture": "buildcraftbuilders:gui/filler",
+    "types": {
+        "param": {
+            "type": "buildcraftlib:statement/parameter",
+            "area": [
+                "53 + 18 * index",
+                39,
+                18,
+                18
+            ],
+            "source": "filler.pattern"
+        },
+        "button_preview": {
+            "type": "buildcraftlib:button",
+            "size": [
+                16,
+                16
+            ],
+            "modes": {
+                "enabled": [
+                    0,
+                    0
+                ],
+                "hovered": [
+                    0,
+                    16
+                ],
+                "active": [
+                    16,
+                    0
+                ],
+                "active_hovered": [
+                    16,
+                    16
+                ],
+                "disabled": [
+                    0,
+                    0
+                ],
+                "active_disabled": [
+                    16,
+                    0
+                ]
+            },
+            "texture": "buildcraftbuilders:gui/filler_buttons",
+            "texture_size": 64
+        },
+        "button_excavate": {
+            "type": "buildcraftlib:button",
+            "size": [
+                16,
+                16
+            ],
+            "modes": {
+                "enabled": [
+                    32,
+                    0
+                ],
+                "hovered": [
+                    32,
+                    16
+                ],
+                "active": [
+                    48,
+                    0
+                ],
+                "active_hovered": [
+                    48,
+                    16
+                ],
+                "disabled": [
+                    32,
+                    0
+                ],
+                "active_disabled": [
+                    48,
+                    0
+                ]
+            },
+            "texture": "buildcraftbuilders:gui/filler_buttons",
+            "texture_size": 64
+        },
+        "button_invert": {
+            "type": "buildcraftlib:button",
+            "size": [
+                16,
+                16
+            ],
+            "modes": {
+                "enabled": [
+                    0,
+                    32
+                ],
+                "hovered": [
+                    0,
+                    48
+                ],
+                "active": [
+                    16,
+                    32
+                ],
+                "active_hovered": [
+                    16,
+                    48
+                ],
+                "disabled": [
+                    0,
+                    32
+                ],
+                "active_disabled": [
+                    16,
+                    32
+                ]
+            },
+            "texture": "buildcraftbuilders:gui/filler_buttons",
+            "texture_size": 64
+        }
+    },
+    "elements": {
+        "pattern_drag_target": {
+            "type": "buildcraftlib:statement/slot",
+            "source": "filler.pattern",
+            "area": [
+                12,
+                32,
+                32,
+                32
+            ],
+            "draw": false
+        },
+        "pattern_drawable": {
+            "type": "buildcraftlib:drawable",
+            "source": {
+                "sprite": "filler.pattern.sprite",
+                "area": [
+                    0,
+                    0,
+                    16,
+                    16
+                ]
+            },
+            "area": [
+                12,
+                32,
+                32,
+                32
+            ]
+        },
+        "params": {
+            "iterator": "index = [0, 4)",
+            "type": "param"
+        },
+        "pattern_possible": {
+            "type": "buildcraftlib:statement/source",
+            "source": "filler.possible"
+        },
+        "button_invert": {
+            "type": "button_invert",
+            "button": "filler.invert",
+            "area": [
+                152,
+                40,
+                16,
+                16
+            ],
+            "tooltip": {
+                "expression": "'tip.filler.invert.' + (filler.invert ? 'on' : 'off')"
+            },
+            "help": {
+                "colour": "0xFF_88_AA_CC",
+                "area": "button_invert.area.expand(2)",
+                "title": "buildcraft.help.filler.invert.title",
+                "text": "buildcraft.help.filler.invert.desc"
+            }
+        }
+    }
+}

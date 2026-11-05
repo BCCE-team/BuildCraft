@@ -1,18 +1,27 @@
 {
-    "size": [176,241],
+    "size": [
+        176,
+        241
+    ],
     "parent": "buildcraftbuilders:gui/filler_base",
     "texture": "buildcraftbuilders:gui/filler",
     "elements_below": {
         "background": {
             "type": "buildcraftlib:drawable",
-            "size": [176,241]
+            "size": [
+                176,
+                241
+            ]
         }
     },
     "elements": {
         "title": {
             "type": "buildcraftlib:text",
             "text": "block.buildcraftbuilders.filler",
-            "pos": [88,10],
+            "pos": [
+                88,
+                10
+            ],
             "colour": "0x40_40_40",
             "centered": true
         },
@@ -20,13 +29,19 @@
             "type": "buildcraftlib:text",
             "text": "gui.filling.resources",
             "colour": "0x40_40_40",
-            "pos": [7,74]
+            "pos": [
+                7,
+                74
+            ]
         },
         "player_inv_title": {
             "type": "buildcraftlib:text",
             "text": "gui.inventory",
             "colour": "0x40_40_40",
-            "pos": [7,141]
+            "pos": [
+                7,
+                141
+            ]
         },
         "ledger_progress": {
             "type": "buildcraftlib:ledger",
@@ -35,62 +50,113 @@
             "colour": "0xFF_6C_D4_1F",
             "closed": {
                 "icon": {
-                    "type":"buildcraftlib:drawable",
+                    "type": "buildcraftlib:drawable",
                     "source": {
                         "sprite": "minecraft:item/iron_ingot",
-                        "area": [0, 0, 16, 16]
+                        "area": [
+                            0,
+                            0,
+                            16,
+                            16
+                        ]
                     },
-                    "area": [0, 0, 16, 16]
+                    "area": [
+                        0,
+                        0,
+                        16,
+                        16
+                    ]
                 }
             },
             "children": {
                 "to_break": {
                     "type": "buildcraftlib:container",
-                    "pos": [ 0, 14 ],
-                    "tooltip": { 
+                    "pos": [
+                        0,
+                        14
+                    ],
+                    "tooltip": {
                         "text": "gui.leftToBreak"
                     },
                     "children": {
                         "icon": {
                             "type": "buildcraftlib:drawable",
-                            "size": [ 16, 16 ],
+                            "size": [
+                                16,
+                                16
+                            ],
                             "source.sprite": "minecraft:item/iron_pickaxe"
                         },
                         "text": {
                             "type": "buildcraftlib:text",
                             "expression": "filler.to_break",
                             "colour": "0xFF_33_33_33",
-                            "pos": [ 20, 5 ]
+                            "pos": [
+                                20,
+                                5
+                            ]
                         }
                     }
                 },
                 "to_place": {
                     "type": "buildcraftlib:container",
-                    "pos": [ 0, "14 + 16 + 2" ],
-                    "tooltip": { 
+                    "pos": [
+                        0,
+                        "14 + 16 + 2"
+                    ],
+                    "tooltip": {
                         "text": "gui.leftToPlace"
                     },
                     "children": {
                         "icon": {
                             "type": "buildcraftlib:drawable/stack",
-                            "size": [ 16, 16 ],
+                            "size": [
+                                16,
+                                16
+                            ],
                             "id": "minecraft:bricks"
                         },
                         "text": {
                             "type": "buildcraftlib:text",
                             "expression": "filler.to_place",
                             "colour": "0xFF_33_33_33",
-                            "pos": [ 20, 5 ]
+                            "pos": [
+                                20,
+                                5
+                            ]
                         }
                     }
                 }
             }
         },
+        "button_preview": {
+            "type": "button_preview",
+            "button": "filler.preview",
+            "area": [
+                152,
+                20,
+                16,
+                16
+            ],
+            "tooltip": {
+                "expression": "'tip.filler.preview.' + (filler.preview ? 'on' : 'off')"
+            },
+            "help": {
+                "colour": "0xFF_88_CC_88",
+                "area": "button_preview.area.expand(2)",
+                "title": "buildcraft.help.filler.preview.title",
+                "text": "buildcraft.help.filler.preview.desc"
+            }
+        },
         "button_excavate": {
-            "type": "four_button",
+            "type": "button_excavate",
             "button": "filler.excavate",
-            "u_start": 192,
-            "area": [130,40,16,16],
+            "area": [
+                130,
+                40,
+                16,
+                16
+            ],
             "tooltip": {
                 "expression": "'tip.filler.excavate.' + (filler.excavate ? 'on' : 'off')"
             },
@@ -106,19 +172,39 @@
             "visible": "filler.is_locked",
             "source": {
                 "sprite": "buildcraftlib:icons/lock",
-                "area": [0, 0, 16, 16]
+                "area": [
+                    0,
+                    0,
+                    16,
+                    16
+                ]
             },
-            "area": [12, 16, 16, 16]
+            "area": [
+                12,
+                16,
+                16,
+                16
+            ]
         },
         "is_locked_tooltip": {
             "type": "buildcraftlib:tooltip",
             "visible": "filler.is_locked",
             "text": "gui.buildcraftbuilders.filler.locked",
-            "area": [12, 16, 16, 16]
+            "area": [
+                12,
+                16,
+                16,
+                16
+            ]
         },
         "is_locked_help": {
             "type": "buildcraftlib:help",
-            "area": [10, 14, 19, 20],
+            "area": [
+                10,
+                14,
+                19,
+                20
+            ],
             "colour": "0xFF_FF_BB_33",
             "title": "buildcraft.help.filler.locked.title",
             "text": "buildcraft.help.filler.locked.desc"
@@ -128,19 +214,39 @@
             "visible": "controllable.mode != ControlMode.ON",
             "source": {
                 "sprite": "controllable.sprite",
-                "area": [0, 0, 16, 16]
+                "area": [
+                    0,
+                    0,
+                    16,
+                    16
+                ]
             },
-            "area": [32, 16, 16, 16]
+            "area": [
+                32,
+                16,
+                16,
+                16
+            ]
         },
         "mode_tooltip": {
             "type": "buildcraftlib:tooltip",
             "visible": "controllable.mode != ControlMode.ON",
             "expression": "'gui.buildcraft.mode.' + controllable.mode.toLowerCase()",
-            "area": [32, 16, 16, 16]
+            "area": [
+                32,
+                16,
+                16,
+                16
+            ]
         },
         "mode_help": {
             "type": "buildcraftlib:help",
-            "area": [30, 14, 20, 20],
+            "area": [
+                30,
+                14,
+                20,
+                20
+            ],
             "colour": "0xFF_33_BB_FF",
             "title": "buildcraft.help.filler.mode.title",
             "text": "buildcraft.help.filler.mode.desc"

@@ -19,7 +19,11 @@ import buildcraft.lib.client.render.laser.LaserRenderer_BC8;
 import buildcraft.lib.compat.RenderCompat;
 import buildcraft.lib.misc.data.Box;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
+//? if >=26.2 {
+import buildcraft.lib.compat.minecraft.render.BCVertexBuffers;
+//?} else {
+/*import net.minecraft.client.renderer.MultiBufferSource;*/
+//?}
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
@@ -38,8 +42,13 @@ public class RenderConstructionMarker implements LegacyBlockEntityRenderer<TileC
     public RenderConstructionMarker(BlockEntityRendererProvider.Context context) {
     }
 
+    //? if >=26.2 {
     public void render(@Nonnull TileConstructionMarker tile, float partialTicks, PoseStack matrix,
-        MultiBufferSource buffer, int light, int overlay) {
+        BCVertexBuffers buffer, int light, int overlay) {
+    //?} else {
+    /*public void render(@Nonnull TileConstructionMarker tile, float partialTicks, PoseStack matrix,
+        MultiBufferSource buffer, int light, int overlay) {*/
+    //?}
         // Deferred rendering invokes submit(), not this immediate-mode compatibility method. Lasers remain here so the
         // shared LegacyLaserBlockEntityRenderer bridge can submit them as custom geometry.
         renderLasers(tile, partialTicks, matrix, buffer, light, overlay);
@@ -73,8 +82,13 @@ public class RenderConstructionMarker implements LegacyBlockEntityRenderer<TileC
         matrix.popPose();
     }
 
+    //? if >=26.2 {
     public void renderLasers(@Nonnull TileConstructionMarker tile, float partialTicks, PoseStack matrix,
-        MultiBufferSource buffer, int light, int overlay) {
+        BCVertexBuffers buffer, int light, int overlay) {
+    //?} else {
+    /*public void renderLasers(@Nonnull TileConstructionMarker tile, float partialTicks, PoseStack matrix,
+        MultiBufferSource buffer, int light, int overlay) {*/
+    //?}
         matrix.pushPose();
         VertexConsumer bb = buffer.getBuffer(RenderCompat.cutout());
         BlockPos pos = tile.getBlockPos();

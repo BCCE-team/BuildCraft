@@ -88,6 +88,8 @@ public class BCBuilders {
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
             BCBuildersEventDist.registerGameplayEvents();
+            net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
+                buildcraft.builders.client.tooltip.BlueprintTooltipOverlay::onPreTooltip);
         }
         BCBuildersStatements.preInit();
     }
@@ -168,6 +170,16 @@ public class BCBuilders {
     public static void registryRender(EntityRenderersEvent.RegisterRenderers e) {
         BCBuildersClientRenderers.register(PlatformClientRegistration.renderers(e));
     }
+
+        //? if >=1.21.10 {
+        /** Offscreen rotating Blueprint/Template preview, matching the modern Redux PiP backend. */
+        @SubscribeEvent
+        public static void registerBlueprintPip(
+                net.neoforged.neoforge.client.event.RegisterPictureInPictureRenderersEvent event) {
+            event.register(buildcraft.builders.client.render.pip.BlueprintPipRenderState.class,
+                buildcraft.builders.client.render.pip.BlueprintPipRenderer::new);
+        }
+        //?}
 
         @SubscribeEvent
         public static void onModelBakePre(RegisterAdditional event) {

@@ -33,6 +33,11 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.FluidType;
 
 public class SchematicBlockFluid implements ISchematicBlock {
+    @Override
+    public BlockState getBlockStateForRender() {
+        return blockState;
+    }
+
     private BlockState blockState;
     private boolean isFlowing;
 

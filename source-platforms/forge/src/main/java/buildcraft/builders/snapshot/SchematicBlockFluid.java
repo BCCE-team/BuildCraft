@@ -37,6 +37,11 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidType;
 
 public class SchematicBlockFluid implements ISchematicBlock {
+    @Override
+    public BlockState getBlockStateForRender() {
+        return blockState;
+    }
+
     private BlockState blockState;
     private boolean isFlowing;
 

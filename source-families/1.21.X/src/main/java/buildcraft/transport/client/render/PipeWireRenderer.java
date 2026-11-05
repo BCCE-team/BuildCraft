@@ -8,6 +8,10 @@ package buildcraft.transport.client.render;
 
 import java.util.EnumMap;
 import java.util.Map;
+//? if >=1.21.10 {
+import buildcraft.lib.compat.NbtCompat;
+import net.minecraft.nbt.CompoundTag;
+//?}
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -237,6 +241,74 @@ public class PipeWireRenderer {
             renderQuads(pose, normal, bb, betweenQuads.get(between), wireSprites.get(color), isOn ? 15 : 0, isOn ? 240 : blockLight, skyLight, combinedOverlay);
         }
     }
+
+    //? if >=1.21.10 {
+    /**
+     * Draw the exact existing BuildCraft wire cubes and segments from a blueprint.
+     * No TilePipeHolder, level, wire-system rebuild or signal execution is needed.
+     * Local parts are stored in the pipe tile NBT; cross-pipe segments require a
+     * corresponding same-colour part in the adjacent blueprint cell.
+     */
+    public static void renderPreviewWires(CompoundTag tile, Map<Direction, CompoundTag> neighbours,
+        PoseStack.Pose pose, VertexConsumer consumer, int light, int overlay) {
+        EnumMap<EnumWirePart, DyeColor> parts = readPreviewParts(tile);
+        if (parts.isEmpty()) return;
+        int sky = light >>> 16 & 0xFFFF;
+        int block = light & 0xFFFF;
+        int[] litParts = NbtCompat.getIntArray(NbtCompat.getCompound(tile, "wireManager"), "previewPowered");
+        for (Map.Entry<EnumWirePart, DyeColor> entry : parts.entrySet()) {
+            DyeColor color = entry.getValue();
+            ISprite sprite = wireSprites.get(color);
+            if (sprite == null) continue;
+            boolean powered = isPreviewPowered(litParts, entry.getKey());
+            renderQuads(pose.pose(), pose.normal(), consumer, partQuads.get(entry.getKey()),
+                sprite, powered ? 15 : 0, powered ? 240 : block, sky, overlay);
+        }
+        EnumMap<Direction, EnumMap<EnumWirePart, DyeColor>> adjacent = new EnumMap<>(Direction.class);
+        for (EnumWireBetween between : EnumWireBetween.VALUES) {
+            DyeColor color = parts.get(between.parts[0]);
+            if (color == null) continue;
+            DyeColor neighbourColor;
+            if (between.to == null) {
+                neighbourColor = parts.get(between.parts[1]);
+            } else {
+                CompoundTag other = neighbours.get(between.to);
+                if (other == null) continue;
+                EnumMap<EnumWirePart, DyeColor> neighbourParts = adjacent.computeIfAbsent(
+                    between.to, ignored -> readPreviewParts(other));
+                neighbourColor = neighbourParts.get(between.parts[1]);
+            }
+            if (color != neighbourColor) continue;
+            ISprite sprite = wireSprites.get(color);
+            if (sprite == null) continue;
+            boolean powered = isPreviewPowered(litParts, between.parts[0]);
+            renderQuads(pose.pose(), pose.normal(), consumer, betweenQuads.get(between),
+                sprite, powered ? 15 : 0, powered ? 240 : block, sky, overlay);
+        }
+    }
+
+    private static boolean isPreviewPowered(int[] parts, EnumWirePart wire) {
+        for (int part : parts) if (part == wire.ordinal()) return true;
+        return false;
+    }
+
+    /** Reject malformed palette NBT instead of indexing EnumWirePart.VALUES out of bounds. */
+    private static EnumMap<EnumWirePart, DyeColor> readPreviewParts(CompoundTag tile) {
+        EnumMap<EnumWirePart, DyeColor> result = new EnumMap<>(EnumWirePart.class);
+        if (tile == null) return result;
+        int[] values = NbtCompat.getIntArray(NbtCompat.getCompound(tile, "wireManager"), "parts");
+        // There are eight possible local corners; duplicates and extra values are ignored.
+        for (int i = 0; i + 1 < values.length && i < 16; i += 2) {
+            int part = values[i];
+            int dye = values[i + 1];
+            if (part < 0 || part >= EnumWirePart.VALUES.length
+                || dye < 0 || dye >= DyeColor.values().length) continue;
+            result.putIfAbsent(EnumWirePart.VALUES[part], DyeColor.byId(dye));
+        }
+        return result;
+    }
+
+    //?}
 
     public static void init() {
         // make sure static runs

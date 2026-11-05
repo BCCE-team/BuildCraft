@@ -46,12 +46,14 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.Containers;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.Vec3;
@@ -491,7 +493,8 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
             if (!AutomationPermissionUtil.mayBlock(
                 tile.getWorldBC(), tile.getBuilderPos(), blockPos, owner, AutomationPermissionUtil.SOURCE_ROBOT,
                 WorldOperationKind.BLOCK_PLACE, OperationMode.EXECUTE
-            )) {
+            ) || !canPlacePairedHalf(blockPos, OperationMode.EXECUTE,
+                owner, AutomationPermissionUtil.SOURCE_ROBOT)) {
                 return RobotBuildResult.FAILED;
             }
             Player actor = getAutomationPlayer(robot, blockPos);
@@ -676,13 +679,36 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         return !isAir(blockPos) && getSchematicBlock(blockPos).canBuild(tile.getWorldBC(), blockPos);
     }
 
+    /** Prevent a two-cell placement from escaping the blueprint, rewriting an unrelated
+     * block or skipping the second cell's protection checks. No resources are reserved here. */
+    private boolean canPlacePairedHalf(BlockPos pos, OperationMode operation,
+                                       GameProfile owner, ResourceLocation sourceId) {
+        ISchematicBlock source = getSchematicBlock(pos);
+        if (!(source instanceof SchematicBlockDefault standard)) return true;
+        BlockPos otherPos = standard.getSecondHalfPosition(pos);
+        if (otherPos == null) return true;
+        if (!getBuildingInfo().box.contains(otherPos)) return false;
+        ISchematicBlock expectedOther = getSchematicBlock(otherPos);
+        if (!(expectedOther instanceof SchematicBlockDefault other)) return false;
+        BlockState desired = standard.getSecondHalfState(tile.getWorldBC(), pos);
+        if (desired == null || !desired.equals(other.getBlockStateForRender())) return false;
+        if (!tile.getWorldBC().isEmptyBlock(otherPos)
+                && !tile.getWorldBC().getBlockState(otherPos).equals(desired)) return false;
+        return AutomationPermissionUtil.mayBlock(
+            tile.getWorldBC(), tile.getBuilderPos(), otherPos, owner,
+            sourceId, WorldOperationKind.BLOCK_PLACE, operation
+        );
+    }
+
     @Override
     protected boolean isReadyToPlace(BlockPos blockPos) {
         // noinspection ConstantConditions
         return getSchematicBlock(blockPos).getRequiredBlockOffsets().stream()
             .map(blockPos::offset)
             .allMatch(pos -> getSchematicBlock(pos) == null || checkResults[posToIndex(pos)] == CHECK_RESULT_CORRECT) &&
-            getSchematicBlock(blockPos).isReadyToBuild(tile.getWorldBC(), blockPos);
+            getSchematicBlock(blockPos).isReadyToBuild(tile.getWorldBC(), blockPos)
+            && canPlacePairedHalf(blockPos, OperationMode.SIMULATE,
+                tile.getOwner(), AutomationPermissionUtil.SOURCE_BUILDER);
     }
 
     @Override
@@ -804,7 +830,8 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         if (!AutomationPermissionUtil.mayBlock(
             tile.getWorldBC(), tile.getBuilderPos(), placeTask.pos, tile.getOwner(),
             AutomationPermissionUtil.SOURCE_BUILDER, WorldOperationKind.BLOCK_PLACE, OperationMode.EXECUTE
-        )) {
+        ) || !canPlacePairedHalf(placeTask.pos, OperationMode.EXECUTE,
+                tile.getOwner(), AutomationPermissionUtil.SOURCE_BUILDER)) {
             return false;
         }
         Player actor = getAutomationPlayer(null, placeTask.pos);

@@ -66,6 +66,8 @@ public class RenderBuilder implements LegacyBlockEntityRenderer<TileBuilder>, Le
         Box box = tile.getBox();
         matrix.translate(-pos.getX(), -pos.getY(), -pos.getZ());
         LaserBoxRenderer.renderLaserBoxDynamic(box, BuildCraftLaserManager.STRIPES_WRITE, pose, normal, bb, true);
+        // Redux-style live task visualization (red removal / green placement / robot break beams).
+        BuilderTaskHighlights.render(tile.getBuilder(), pose, normal, bb);
         LevelCompat.profilerPopPush(Minecraft.getInstance(), "path");
 
         List<BlockPos> path = tile.path;

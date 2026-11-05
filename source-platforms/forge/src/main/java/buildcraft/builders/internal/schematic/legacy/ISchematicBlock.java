@@ -31,6 +31,12 @@ public interface ISchematicBlock extends SnapshotElement {
         return false;
     }
 
+    /** Client preview hint. Null for custom schematic types without a representable block state. */
+    @Nullable
+    default net.minecraft.world.level.block.state.BlockState getBlockStateForRender() {
+        return null;
+    }
+
     @Nonnull
     default Set<BlockPos> getRequiredBlockOffsets() {
         return Collections.emptySet();

@@ -178,7 +178,9 @@ public class LaserBoxRenderer {
         Direction faceForMax = VecUtil.getFacing(axis, false);
         Vec3 one = min.add(Vec3.atLowerCornerOf(faceForMin.getUnitVec3i()).scale(1 / 16D));
         Vec3 two = max.add(Vec3.atLowerCornerOf(faceForMax.getUnitVec3i()).scale(1 / 16D));
-        return new LaserData_BC8(type, one, two, RENDER_SCALE, true, false, 0, true);// Do not draw both windings: cull is disabled by the laser render state, and duplicate faces z-fight.
+        // The BCU area outline is visually emissive: minimum block light 15,
+        // with sky light left unchanged. It does not change the world light engine.
+        return new LaserData_BC8(type, one, two, RENDER_SCALE, true, false, 15, true);// Do not draw both windings: cull is disabled by the laser render state, and duplicate faces z-fight.
     }
 
 }

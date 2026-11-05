@@ -265,17 +265,22 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
     }
 
     private void scanMultipleBlocks() {
-        BlockPos lastScanned = null;
+        // BCU parity: each scanned position produces a fading green digitizing cube.
+        // Send ONE bounded packet per tick, not one packet per cell (or only the last cell).
+        List<BlockPos> scanned = new ArrayList<>(snapshotType.maxPerTick);
         for (int i = snapshotType.maxPerTick; i > 0; i--) {
-            lastScanned = scanSingleBlock();
+            scanned.add(scanSingleBlock());
             if (!scanning) {
                 break;
             }
         }
-        // One animation/update packet per tick instead of one per block.
-        if (lastScanned != null) {
-            BlockPos scanned = lastScanned;
-            createAndSendMessage(NET_SCAN, buffer -> MessageUtil.writeBlockPos(buffer, scanned));
+        if (!scanned.isEmpty()) {
+            createAndSendMessage(NET_SCAN, buffer -> {
+                buffer.writeVarInt(scanned.size());
+                for (BlockPos position : scanned) {
+                    MessageUtil.writeBlockPos(buffer, position);
+                }
+            });
             sendNetworkUpdate(NET_RENDER_DATA);
         }
     }
@@ -413,10 +418,19 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
                 box.readData(buffer);
                 markerBox = buffer.readBoolean();
             } else if (id == NET_SCAN) {
-                ClientArchitectTables.SCANNED_BLOCKS.put(
-                    MessageUtil.readBlockPos(buffer),
-                    ClientArchitectTables.START_SCANNED_BLOCK_VALUE
-                );
+                int count = buffer.readVarInt();
+                // Refuse malformed or oversized batches before touching client render state.
+                int bound = Math.max(EnumSnapshotType.TEMPLATE.maxPerTick,
+                    EnumSnapshotType.BLUEPRINT.maxPerTick);
+                if (count < 0 || count > bound) {
+                    throw new IOException("Invalid Architect Table scan batch size: " + count);
+                }
+                for (int i = 0; i < count; i++) {
+                    ClientArchitectTables.SCANNED_BLOCKS.put(
+                        MessageUtil.readBlockPos(buffer).immutable(),
+                        ClientArchitectTables.START_SCANNED_BLOCK_VALUE
+                    );
+                }
             }
         }
     }

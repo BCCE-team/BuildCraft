@@ -175,6 +175,11 @@ public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
 	}
 
 	@Override
+    public void removed() {
+        super.removed();
+    }
+
+	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
 		boolean handled = super.mouseClicked(mouseX, mouseY, mouseButton);
 		if (nameField != null) {

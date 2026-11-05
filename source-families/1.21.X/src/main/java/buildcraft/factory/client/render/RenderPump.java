@@ -133,14 +133,15 @@ public class RenderPump implements BCGeometryRenderer<TilePump>, LegacyLaserBloc
 
             Direction dir = Direction.from2DDataValue(i);
             BlockPos pos = tile.getBlockPos().relative(dir);
-            int block = combinedLight >> 4;
-            int sky = combinedLight >> 20;
+            int block = (combinedLight >> 4) & 0xF;
+            int sky = (combinedLight >> 20) & 0xF;
 
             LED_POWER[i].center.colouri(powerColour);
             LED_STATUS[i].center.colouri(statusColour);
 
             LED_POWER[i].center.lightf(percentFilled > 0.01 ? 1 : 0, 0);
-            LED_STATUS[i].center.lighti(Math.max(statusLight, block), sky);
+            // lighti(block, sky) takes levels 0..15, NOT a packed 0xF000F0 lightmap.
+            LED_STATUS[i].center.lighti(complete ? block : 15, complete ? sky : 15);
 
             LED_POWER[i].render(pose, normalMatrix, buffer);
             LED_STATUS[i].render(pose, normalMatrix, buffer);

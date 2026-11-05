@@ -23,6 +23,7 @@ import net.minecraft.client.renderer.entity.ItemRenderer;
 import net.minecraft.world.phys.AABB;
 public class RenderFiller implements BlockEntityRenderer<TileFiller>, LegacyLaserBlockEntityRenderer<TileFiller> {
 	
+    private final BuilderIndicatorLights indicatorLights = new BuilderIndicatorLights();
 	protected final ItemRenderer itemRenderer; 
 	
 	public RenderFiller(BlockEntityRendererProvider.Context bpc) {
@@ -33,22 +34,28 @@ public class RenderFiller implements BlockEntityRenderer<TileFiller>, LegacyLase
     public void render(TileFiller tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
         if (tile.getBuilder() != null) {
             matrix.pushPose();
-            RenderSnapshotBuilder.render(tile.getBuilder(), tile.getLevel(), tile.getBlockPos(), partialTicks, matrix, buffer, itemRenderer);
+            RenderSnapshotBuilder.renderFiller(tile.getBuilder(), tile.getLevel(), tile.getBlockPos(), partialTicks, matrix, buffer, itemRenderer);
             matrix.popPose();
         }
 
         renderLasers(tile, partialTicks, matrix, buffer, light, overlay);
+        FillerGhostPreview.render(tile, matrix, buffer);
     }
 
     @Override
     public void renderLasers(TileFiller tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
-        if (tile.markerBox) {
+        if (tile.getLevel() == null) return;
+        indicatorLights.drawFiller(tile, matrix.last().pose(), matrix.last().normal(),
+            buffer.getBuffer(RenderType.cutout()));
+        if (tile.markerBox || tile.getBuilder() != null) {
             VertexConsumer bb = buffer.getBuffer(RenderType.cutout());
             matrix.pushPose();
             matrix.translate(-tile.getBlockPos().getX(), -tile.getBlockPos().getY(), -tile.getBlockPos().getZ());
             Matrix4f boxPose = matrix.last().pose();
             Matrix3f boxNormal = matrix.last().normal();
-            LaserBoxRenderer.renderLaserBoxDynamic(tile.box, BuildCraftLaserManager.STRIPES_WRITE, boxPose, boxNormal, bb, true);
+            if (tile.markerBox) LaserBoxRenderer.renderLaserBoxDynamic(tile.box, BuildCraftLaserManager.STRIPES_WRITE, boxPose, boxNormal, bb, true);
+            FillerWorkRenderer.render(tile.getBuilder(), tile.getLevel().getGameTime(), partialTicks,
+                boxPose, boxNormal, bb);
             matrix.popPose();
         }
     }

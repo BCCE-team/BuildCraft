@@ -60,6 +60,15 @@ public class GuiFiller extends GuiBC8<ContainerFiller> {
         properties.put("filler.invert",
             (IButtonClickEventListener) (b, k) -> container.sendInverted(b.isButtonActive()));
 
+        context.put_b("filler.preview", () -> container.tile != null && container.tile.isPreviewEnabled());
+        properties.put("filler.preview", IButtonBehaviour.TOGGLE);
+        properties.put("filler.preview", container.tile != null && container.tile.isPreviewEnabled());
+        properties.put("filler.preview", (IButtonClickEventListener) (b, k) -> {
+            if (container.tile != null) {
+                container.tile.sendPreviewEnabled(b.isButtonActive());
+            }
+        });
+
         context.put_b("filler.excavate", () -> container.tile != null && container.tile.canExcavate());
         properties.put("filler.excavate", IButtonBehaviour.TOGGLE);
         properties.put("filler.excavate", container.tile != null && container.tile.canExcavate());

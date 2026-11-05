@@ -1,23 +1,93 @@
 {
-    "size": [176,100],
+    "size": [
+        176,
+        100
+    ],
     "texture": "buildcraftbuilders:gui/filler",
     "types": {
         "param": {
             "type": "buildcraftlib:statement/parameter",
-            "area": ["53 + 18 * index",39,18,18],
+            "area": [
+                "53 + 18 * index",
+                39,
+                18,
+                18
+            ],
             "source": "filler.pattern"
         },
-        "four_button": {
+        "button_preview": {
             "type": "buildcraftlib:button",
-            "args": {
-                "u_start": 0
-            },
-            "size": [16,16],
+            "size": [
+                16,
+                16
+            ],
             "modes": {
-                "enabled": ["u_start",0],
-                "hovered": ["u_start",16],
-                "active": ["u_start + 16",0],
-                "active_hovered": ["u_start + 16",16]
+                "enabled": [
+                    192,
+                    0
+                ],
+                "hovered": [
+                    192,
+                    16
+                ],
+                "active": [
+                    208,
+                    0
+                ],
+                "active_hovered": [
+                    208,
+                    16
+                ]
+            }
+        },
+        "button_excavate": {
+            "type": "buildcraftlib:button",
+            "size": [
+                16,
+                16
+            ],
+            "modes": {
+                "enabled": [
+                    224,
+                    0
+                ],
+                "hovered": [
+                    224,
+                    16
+                ],
+                "active": [
+                    240,
+                    0
+                ],
+                "active_hovered": [
+                    240,
+                    16
+                ]
+            }
+        },
+        "button_invert": {
+            "type": "buildcraftlib:button",
+            "size": [
+                16,
+                16
+            ],
+            "modes": {
+                "enabled": [
+                    192,
+                    32
+                ],
+                "hovered": [
+                    192,
+                    48
+                ],
+                "active": [
+                    208,
+                    32
+                ],
+                "active_hovered": [
+                    208,
+                    48
+                ]
             }
         }
     },
@@ -25,16 +95,31 @@
         "pattern_drag_target": {
             "type": "buildcraftlib:statement/slot",
             "source": "filler.pattern",
-            "area": [12,32,32,32],
-            "draw":false
+            "area": [
+                12,
+                32,
+                32,
+                32
+            ],
+            "draw": false
         },
         "pattern_drawable": {
             "type": "buildcraftlib:drawable",
             "source": {
                 "sprite": "filler.pattern.sprite",
-                "area": [0, 0, 16, 16]
+                "area": [
+                    0,
+                    0,
+                    16,
+                    16
+                ]
             },
-            "area": [12,32,32,32]
+            "area": [
+                12,
+                32,
+                32,
+                32
+            ]
         },
         "params": {
             "iterator": "index = [0, 4)",
@@ -45,10 +130,14 @@
             "source": "filler.possible"
         },
         "button_invert": {
-            "type": "four_button",
+            "type": "button_invert",
             "button": "filler.invert",
-            "u_start": 224,
-            "area": [152,40,16,16],
+            "area": [
+                152,
+                40,
+                16,
+                16
+            ],
             "tooltip": {
                 "expression": "'tip.filler.invert.' + (filler.invert ? 'on' : 'off')"
             },

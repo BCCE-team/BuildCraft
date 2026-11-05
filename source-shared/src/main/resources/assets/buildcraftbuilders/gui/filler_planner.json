@@ -5,7 +5,11 @@
 	"elements_below": {
 		"background": {
 			"type": "buildcraftlib:drawable",
-			"size": [176,81]
+			"size": [176,81],
+			"source": {
+				"texture": "buildcraftbuilders:gui/filler_planner",
+				"area": [0,0,176,81]
+			}
 		}
 	},
 	"elements": {

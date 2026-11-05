@@ -23,6 +23,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 
 public class RenderArchitectTable implements BlockEntityRenderer<TileArchitectTable>, LegacyLaserBlockEntityRenderer<TileArchitectTable> {
+    private final BuilderIndicatorLights indicatorLights = new BuilderIndicatorLights();
+
    
 	public RenderArchitectTable(BlockEntityRendererProvider.Context bpc) {
 	}
@@ -34,9 +36,10 @@ public class RenderArchitectTable implements BlockEntityRenderer<TileArchitectTa
 
 	@Override
     public void renderLasers(TileArchitectTable tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
-        if (!tile.markerBox) {
-            return;
-        }
+        if (tile.getLevel() == null) return;
+        VertexConsumer leds = buffer.getBuffer(RenderType.cutout());
+        indicatorLights.drawArchitect(tile, matrix.last().pose(), matrix.last().normal(), leds);
+        if (!tile.markerBox) return;
 		
 //        Minecraft.getInstance().getProfiler().push("bc");
 //        Minecraft.getInstance().getProfiler().push("architect_table");

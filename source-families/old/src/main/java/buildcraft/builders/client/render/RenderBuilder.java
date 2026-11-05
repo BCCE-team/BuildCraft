@@ -67,6 +67,8 @@ public class RenderBuilder implements BlockEntityRenderer<TileBuilder> {
         Box box = tile.getBox();
         matrix.translate(-posx, -posy, -posz);
         LaserBoxRenderer.renderLaserBoxDynamic(box, BuildCraftLaserManager.STRIPES_WRITE, pose, normal, bb, true);
+        // Redux-style live task visualization (red removal / green placement / robot break beams).
+        BuilderTaskHighlights.render(tile.getBuilder(), pose, normal, bb);
      //   matrix.translate(posx + 0.5 - face.getStepX(),posy + 0.5 - face.getStepY(),posz + 0.5 - face.getStepZ());
         Minecraft.getInstance().getProfiler().popPush("path");
         
