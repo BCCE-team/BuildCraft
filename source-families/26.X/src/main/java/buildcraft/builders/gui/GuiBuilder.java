@@ -97,8 +97,5 @@ public class GuiBuilder extends GuiBC8<ContainerBuilder> {
         ICON_GUI.drawAt(guiGraphics, mainGui.rootElement);
         ICON_BLUEPRINT_GUI.drawAt(guiGraphics, mainGui.rootElement.offset(SIZE_BLUEPRINT_X - BLUEPRINT_WIDTH, 0));
         
-        buildcraft.builders.client.render.BlueprintScreenPreview.draw(guiGraphics,
-            container.getSlot(36).getItem(), leftPos, topPos, imageWidth, width);
-        
     }
 }

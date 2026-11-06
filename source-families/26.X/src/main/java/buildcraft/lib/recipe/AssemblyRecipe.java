@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -51,20 +52,46 @@ public class AssemblyRecipe extends AssemblyRecipeBasic {
         Codec.STRING.optionalFieldOf("nbt", "").forGetter(LegacyResult::nbt)
     ).apply(instance, LegacyResult::new));
 
-    private static final MapCodec<AssemblyRecipe> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
-        Identifier.CODEC.optionalFieldOf("id", UNNAMED_ID).forGetter(AssemblyRecipe::getId),
-        Codec.STRING.optionalFieldOf("group", "").forGetter(AssemblyRecipe::getGroup),
-        Ingredient.CODEC.listOf().fieldOf("ingredients").forGetter(AssemblyRecipe::ingredientList),
-        Codec.INT.listOf().fieldOf("ingredient_counts").forGetter(AssemblyRecipe::ingredientCountList),
+    /** Decode the two parallel recipe arrays together, so malformed datapack recipes
+     * are returned as codec errors instead of throwing from RecordCodecBuilder.apply.
+     * The recipe loader can then identify and reject the bad entry without stopping
+     * the entire client/server reload. Never pad or truncate an ingredient cost. */
+    private record RecipeFields(Identifier id, String group, List<Ingredient> ingredients,
+        List<Integer> counts, LegacyResult result, long microJoules) {}
+
+    private static final MapCodec<RecipeFields> FIELDS_CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+        Identifier.CODEC.optionalFieldOf("id", UNNAMED_ID).forGetter(RecipeFields::id),
+        Codec.STRING.optionalFieldOf("group", "").forGetter(RecipeFields::group),
+        Ingredient.CODEC.listOf().fieldOf("ingredients").forGetter(RecipeFields::ingredients),
+        Codec.INT.listOf().fieldOf("ingredient_counts").forGetter(RecipeFields::counts),
+        LEGACY_RESULT_CODEC.fieldOf("result").forGetter(RecipeFields::result),
+        Codec.LONG.fieldOf("MJ").forGetter(RecipeFields::microJoules)
+    ).apply(instance, RecipeFields::new));
+
+    private static final MapCodec<AssemblyRecipe> CODEC = FIELDS_CODEC.flatXmap(
+        fields -> {
+            if (fields.ingredients().size() != fields.counts().size()) {
+                return DataResult.error(() -> "Assembly recipe " + fields.id() + ": "
+                    + fields.ingredients().size() + " ingredients but " + fields.counts().size()
+                    + " ingredient_counts (must match)");
+            }
+            if (fields.counts().stream().anyMatch(count -> count == null || count <= 0)) {
+                return DataResult.error(() -> "Assembly recipe " + fields.id()
+                    + ": ingredient_counts must all be positive");
+            }
+            return DataResult.success(fromCodec(fields.id(), fields.group(), fields.ingredients(),
+                fields.counts(), fields.result(), fields.microJoules()));
+        },
+        recipe -> DataResult.success(new RecipeFields(
+            recipe.getId(), recipe.getGroup(), recipe.ingredientList(), recipe.ingredientCountList(),
 //? if neoforge {
-        // When encoding a freshly decoded recipe, keep its raw result until item components are bound.
-        LEGACY_RESULT_CODEC.fieldOf("result").forGetter(recipe -> recipe.deferredResult != null
-            ? recipe.deferredResult : LegacyResult.fromStack(recipe.resultTemplate().create())),
+            recipe.deferredResult != null ? recipe.deferredResult
+                : LegacyResult.fromStack(recipe.resultTemplate().create()),
 //? } else {
-        LEGACY_RESULT_CODEC.fieldOf("result").forGetter(recipe -> LegacyResult.fromStack(recipe.output.create())),
-//?}
-        Codec.LONG.fieldOf("MJ").forGetter(recipe -> recipe.requiredMicroJoules)
-    ).apply(instance, AssemblyRecipe::fromCodec));
+            LegacyResult.fromStack(recipe.output.create()),
+//? }
+            recipe.requiredMicroJoules))
+    );
 
     private static final StreamCodec<RegistryFriendlyByteBuf, AssemblyRecipe> STREAM_CODEC =
         StreamCodec.ofMember(AssemblyRecipe::writeToNetwork, AssemblyRecipe::readFromNetwork);

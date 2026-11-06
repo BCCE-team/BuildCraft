@@ -22,7 +22,12 @@ class BuildersPreviewQuadCameraCompat(unittest.TestCase):
             with self.subTest(target=target):
                 filler = read_materialized_java(target, RENDER + "FillerGhostPreview.java")
                 self.assertIn("import buildcraft.lib.compat.minecraft.render.BCCamera;", filler)
-                self.assertIn("BCCamera.position(Minecraft.getInstance().gameRenderer.getMainCamera())", filler)
+                if target in ("26.2-neoforge", "26.3-neoforge"):
+                    self.assertIn("BCCamera.position(Minecraft.getInstance().gameRenderer.mainCamera())", filler)
+                    self.assertNotIn("gameRenderer.getMainCamera()", filler)
+                else:
+                    self.assertIn("BCCamera.position(Minecraft.getInstance().gameRenderer.getMainCamera())", filler)
+                    self.assertNotIn("gameRenderer.mainCamera()", filler)
                 self.assertNotIn("getMainCamera().getPosition()", filler)
 
     def test_preview_pipe_uses_same_legacy_quad_type_as_mutable_quad(self):

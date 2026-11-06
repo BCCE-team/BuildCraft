@@ -130,7 +130,11 @@ class Builders26Tests(unittest.TestCase):
             for r in ('RenderBuilder','RenderFiller','RenderConstructionMarker'):
                 render=self.text(version,'client/render/'+r+'.java')
                 self.assertIn('LegacyBlockEntityRenderer.super.submit(',render)
-                self.assertIn('RenderSnapshotBuilder.submit(',render)
+                # Filler has its own BCU-size animation path; Builder/marker
+                # retain the ordinary submission path.
+                expected = 'RenderSnapshotBuilder.submitFiller(' if r == 'RenderFiller' \
+                    else 'RenderSnapshotBuilder.submit('
+                self.assertIn(expected, render)
             self.assertIn('ItemStackRenderState',self.text(version,'client/render/RenderSnapshotBuilder.java'))
             self.assertIn('SubmitNodeCollector',self.text(version,'client/render/RenderSnapshotBuilder.java'))
 

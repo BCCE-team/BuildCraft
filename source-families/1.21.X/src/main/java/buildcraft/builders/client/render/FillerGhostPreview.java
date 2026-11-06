@@ -48,7 +48,12 @@ public final class FillerGhostPreview {
         boolean working = active != null && (!active.clientBreakTasks.isEmpty()
             || !active.clientPlaceTasks.isEmpty());
         if (!cache.isIdle(tile.getLevel().getGameTime(), working)) return;
-        Vec3 camera = BCCamera.position(Minecraft.getInstance().gameRenderer.getMainCamera());
+        // Minecraft 26.2 replaced GameRenderer.getMainCamera() with mainCamera().
+        //? if >=26.2 {
+        Vec3 camera = BCCamera.position(Minecraft.getInstance().gameRenderer.mainCamera());
+        //?} else {
+        /*Vec3 camera = BCCamera.position(Minecraft.getInstance().gameRenderer.getMainCamera());*/
+        //?}
         List<BlockPos> cells = cache.cellsToDraw(tile.getLevel(), info, camera);
         if (cells.isEmpty()) return;
         TextureAtlasSprite sprite = BCBuildersSprites.FILLER_PREVIEW_WHITE.getSprite();

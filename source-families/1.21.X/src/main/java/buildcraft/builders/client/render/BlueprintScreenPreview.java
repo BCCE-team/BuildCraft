@@ -5,6 +5,7 @@
  */
 package buildcraft.builders.client.render;
 
+import buildcraft.lib.compat.minecraft.gui.BCGraphics;
 import buildcraft.builders.item.ItemSnapshot;
 import buildcraft.builders.snapshot.ClientSnapshots;
 import buildcraft.builders.snapshot.Snapshot;
@@ -57,8 +58,14 @@ public final class BlueprintScreenPreview {
         int y = top + 8;
         graphics.fill(x - 3, y - 3, x + VIEW + 3, y + VIEW + 16, 0xDC101720);
         BlueprintRenderer.renderSnapshot(graphics, snapshot, x, y, VIEW, VIEW);
-        graphics.drawString(Minecraft.getInstance().font,
+        //? if >=26.1 {
+        BCGraphics.text(graphics, Minecraft.getInstance().font,
             Component.translatable("buildcraft.builders.blueprint.preview"), x + 3,
-            y + VIEW + 3, 0xFFE4E7ED);
+            y + VIEW + 3, 0xFFE4E7ED, true);
+        //?} else {
+        /*graphics.drawString(Minecraft.getInstance().font,
+            Component.translatable("buildcraft.builders.blueprint.preview"), x + 3,
+            y + VIEW + 3, 0xFFE4E7ED);*/
+        //?}
     }
 }

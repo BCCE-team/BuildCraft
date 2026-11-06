@@ -138,7 +138,6 @@ public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
 				// DeltaInt.getDynamic(container.deltaProgress, partialTicks),
 				container.tile.deltaProgress.getDynamic(partialTicks), 1);
         
-        
 	}
 
 	@Override

@@ -24,6 +24,7 @@ import buildcraft.builders.internal.schematic.legacy.ISchematicEntity;
 import net.minecraft.core.registries.BuiltInRegistries;
 import buildcraft.builders.internal.schematic.legacy.SchematicEntityContext;
 import buildcraft.lib.misc.NBTUtilBC;
+import buildcraft.lib.misc.ItemStackUtil;
 import buildcraft.lib.misc.RotationUtil;
 import buildcraft.builders.BuildersNbtUtil;
 import net.minecraft.core.BlockPos;
@@ -39,6 +40,7 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.entity.decoration.HangingEntity;
+import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
@@ -99,6 +101,32 @@ public class SchematicEntityDefault implements ISchematicEntity {
 
     public Vec3 getPos() {
         return pos;
+    }
+
+    /** Hanging entities are positioned from a supporting block and facing, not
+     * necessarily from exactly the same floating-point Pos as the source world.
+     * Compare the attachment instead of treating a valid frame as a failed spawn. */
+    public boolean matchesPlacedEntity(Entity entity, BlockPos basePos, double maxDistanceSquared) {
+        if (!matchesEntityType(entity) || basePos == null) return false;
+        if (entity instanceof HangingEntity hanging) {
+            if (!hanging.getPos().equals(basePos.offset(hangingPos))
+                || hanging.getDirection() != hangingFacing) return false;
+            if (entity instanceof ItemFrame frame) {
+                // A frame with a chest is not the same as an empty frame. Its
+                // contained item was charged by the blueprint's rules.
+                try {
+                    ItemStack captured = ItemStackUtil.parseOptional(entity.registryAccess(),
+                        NbtCompat.getCompound(entityNbt, "Item"));
+                    ItemStack installed = frame.getItem();
+                    return ItemStack.isSameItemSameComponents(captured, installed)
+                        && captured.getCount() == installed.getCount();
+                } catch (RuntimeException invalidItem) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return entity.distanceToSqr(pos.add(Vec3.atLowerCornerOf(basePos))) < maxDistanceSquared;
     }
 
     @Nonnull

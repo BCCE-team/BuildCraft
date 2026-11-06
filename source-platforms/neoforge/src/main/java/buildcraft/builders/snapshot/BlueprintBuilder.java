@@ -63,6 +63,12 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 
 public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> {
     private static final double MAX_ENTITY_DISTANCE = 0.1D;
+    //? if >=26.1 {
+    /** Entity construction spends energy like normal placement tasks. Never wait
+     * for the entire 16,000 MJ Builder battery to fill merely to place a frame
+     * or an armor stand. Energy is charged only after a verified placement. */
+    private static final long ENTITY_ACTION_MICRO_MJ = 4L * MjAmount.MICRO_MJ_PER_MJ;
+    //? }
     private static final String FLUID_STACK_KEY = "BuilderFluidStack";
     private static final int DEFERRED_INVENTORY_SCAN_BUDGET = 64;
     private static final int DEFERRED_INVENTORY_INSERT_BUDGET = 8;
@@ -86,6 +92,17 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
     public BlueprintBuilder(ITileForBlueprintBuilder tile) {
         super(tile);
     }
+
+    //? if >=26.1 {
+    private boolean hasEntityActionPower() {
+        return tile.getBattery().getStored() >= ENTITY_ACTION_MICRO_MJ;
+    }
+
+    /** The caller must verify that the operation took effect before charging MJ. */
+    private void chargeEntityAction() {
+        tile.getBattery().extractPower(ENTITY_ACTION_MICRO_MJ, ENTITY_ACTION_MICRO_MJ);
+    }
+    //? }
 
     private ISchematicBlock getSchematicBlock(BlockPos blockPos) {
         return getBuildingInfo().box.contains(blockPos)
@@ -1039,19 +1056,12 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         level.getProfiler().push("toSpawn");
         List<ISchematicEntity> toSpawn = getBuildingInfo().entities.stream()
             .filter(schematicEntity -> !failedEntityPlacements.contains(schematicEntity))
-            // Already rotated: use the world-space bounding box, not unrotated dimensions.
+            // Find entities by their recorded attachment or position. With a frame,
+            // the 26.x vanilla entity centre can move when the anchor is loaded.
             .filter(schematicEntity -> getBuildingInfo().box.getBoundingBox().contains(
                 schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos))))
-            .filter(schematicEntity ->
-                entitiesWithinBox.stream()
-                .noneMatch($ ->
-                    $.distanceToSqr(schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos))) < MAX_ENTITY_DISTANCE
-                        && isSameSchematicEntity(schematicEntity, $, level)
-                )
-/*                    .map(Entity::)
-                    .map(schematicEntity.getPos().add(new Vec3(getBuildingInfo().offsetPos))::distanceTo)
-                    .noneMatch(distance -> distance < MAX_ENTITY_DISTANCE)*/
-            )
+            .filter(schematicEntity -> entitiesWithinBox.stream()
+                .noneMatch(existing -> matchesPlacedEntity(schematicEntity, existing, level)))
             .collect(Collectors.toList());
         level.getProfiler().pop();
         // Compute needed stacks
@@ -1076,33 +1086,32 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         // Kill not needed entities
         level.getProfiler().push("toKill");
         List<Entity> toKill = entitiesWithinBox.stream()
-            .filter(entity ->
-                entity != null &&
-                    getBuildingInfo().entities.stream()
-                    	.noneMatch($ -> 
-                    	entity.distanceToSqr(Vec3.atLowerCornerOf(
-                    			getBuildingInfo().offsetPos)
-                    			.add($.getPos()))
-                            < MAX_ENTITY_DISTANCE
-                                && isSameSchematicEntity($, entity, level))&&
-/*                        .map(ISchematicEntity::getPos)
-                        .map(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos)::add)
-                        .map(entity::distanceToSqr)
-/                       .noneMatch(distance -> distance < MAX_ENTITY_DISTANCE)&&*/
-                    SchematicEntityManager.getSchematicEntity(new SchematicEntityContext(
-                        level,
-                        BlockPos.ZERO,
-                        entity
-                    )) != null
-            )
+            .filter(entity -> entity != null
+                && getBuildingInfo().entities.stream()
+                    .noneMatch(schematic -> matchesPlacedEntity(schematic, entity, level))
+                && SchematicEntityManager.getSchematicEntity(new SchematicEntityContext(
+                    level, BlockPos.ZERO, entity)) != null)
             .collect(Collectors.toList());
         if (!toKill.isEmpty()) {
-            if (!tile.getBattery().isFull()) {
+            //? if >=26.1 {
+            if (!hasEntityActionPower()) {
+            //? } else {
+            /*if (!tile.getBattery().isFull()) {*/
+            //? }
                 level.getProfiler().pop();
                 return false;
             } else {
                 level.getProfiler().push("kill");
+                //? if >=26.1 {
+                boolean needsMoreEntityPower = false;
+                //? }
                 for (Entity entity : toKill) {
+                    //? if >=26.1 {
+                    if (!hasEntityActionPower()) {
+                        needsMoreEntityPower = true;
+                        break;
+                    }
+                    //? }
                     if (AutomationPermissionUtil.mayEntity(
                         level, tile.getBuilderPos(), entity, tile.getOwner(), AutomationPermissionUtil.SOURCE_BUILDER,
                         WorldOperationKind.ENTITY_ATTACK, OperationMode.EXECUTE
@@ -1112,9 +1121,18 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
                         //? } else {
                         entity.kill();
                         //? }
+                        //? if >=26.1 {
+                        if (entity.isRemoved()) chargeEntityAction();
+                        //? }
                     }
                 }
                 level.getProfiler().pop();
+                //? if >=26.1 {
+                if (needsMoreEntityPower) {
+                    level.getProfiler().pop();
+                    return false;
+                }
+                //? }
             }
         }
         level.getProfiler().pop();
@@ -1131,13 +1149,23 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
         if (toSpawn.isEmpty()) {
             return failedEntityPlacements.isEmpty();
         }
-        if (!tile.getBattery().isFull()) {
+        //? if >=26.1 {
+        if (!hasEntityActionPower()) {
+        //? } else {
+        /*if (!tile.getBattery().isFull()) {*/
+        //? }
             return false;
         }
 
         boolean spawnedAll = true;
         level.getProfiler().push("spawn");
         for (ISchematicEntity schematicEntity : toSpawn) {
+            //? if >=26.1 {
+            if (!hasEntityActionPower()) {
+                spawnedAll = false;
+                break;
+            }
+            //? }
             Vec3 expectedPosition = schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos));
             BlockPos targetPos = BlockPos.containing(expectedPosition);
             if (!AutomationPermissionUtil.mayBlock(
@@ -1155,6 +1183,10 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
                 if (!isSchematicEntityPresent(schematicEntity, level)) {
                     failedEntityPlacements.add(schematicEntity);
                     spawnedAll = false;
+                //? if >=26.1 {
+                } else {
+                    chargeEntityAction();
+                //? }
                 }
                 continue;
             }
@@ -1175,16 +1207,29 @@ public class BlueprintBuilder extends SnapshotBuilder<ITileForBlueprintBuilder> 
                 spawnedAll = false;
                 continue;
             }
+            //? if >=26.1 {
+            chargeEntityAction();
+            //? }
         }
         level.getProfiler().pop();
         return spawnedAll;
     }
 
     private boolean isSchematicEntityPresent(ISchematicEntity schematicEntity, Level level) {
-        Vec3 expected = schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos));
         return level.getEntitiesOfClass(Entity.class, getBuildingInfo().box.getBoundingBox(), Objects::nonNull).stream()
-            .anyMatch(entity -> entity.distanceToSqr(expected) < MAX_ENTITY_DISTANCE
-                && isSameSchematicEntity(schematicEntity, entity, level));
+            .anyMatch(entity -> matchesPlacedEntity(schematicEntity, entity, level));
+    }
+
+    private boolean matchesPlacedEntity(ISchematicEntity schematicEntity, Entity entity, Level level) {
+        if (entity == null) return false;
+        //? if >=26.1 {
+        if (schematicEntity instanceof SchematicEntityDefault standard) {
+            return standard.matchesPlacedEntity(entity, getBuildingInfo().offsetPos, MAX_ENTITY_DISTANCE);
+        }
+        //? }
+        Vec3 expected = schematicEntity.getPos().add(Vec3.atLowerCornerOf(getBuildingInfo().offsetPos));
+        return entity.distanceToSqr(expected) < MAX_ENTITY_DISTANCE
+            && isSameSchematicEntity(schematicEntity, entity, level);
     }
 
     private static boolean isSameSchematicEntity(ISchematicEntity schematicEntity, Entity entity, Level level) {

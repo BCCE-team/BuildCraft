@@ -46,7 +46,11 @@ public final class PreviewFluidRenderer {
         Fluid fluid = fluidState.getType();
         TextureAtlasSprite sprite = FluidRenderer.getFluidSprite(FluidSpriteType.STILL, fluid, FluidStack.EMPTY);
         if (sprite == null) return;
-        int tint = IClientFluidTypeExtensions.of(fluid).getTintColor();
+        //? if >=26.1 {
+        int tint = PreviewFluidTint.color(fluidState);
+        //?} else {
+        /*int tint = IClientFluidTypeExtensions.of(fluid).getTintColor();*/
+        //?}
         int alpha = (tint >>> 24) & 255;
         if (alpha == 0) alpha = 255;
         final int red = (tint >>> 16) & 255;
