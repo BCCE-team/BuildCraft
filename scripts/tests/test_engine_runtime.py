@@ -240,8 +240,15 @@ public class EngineRuntimeFixture {
 
 class EngineRuntimeTests(unittest.TestCase):
     def test_actual_combustion_burn_preserves_paid_fuel_credits(self):
-        """Five fuel-accounting cases using the real 26.X burn() method."""
-        self.assertEqual(check_paid_combustion_burn(), '5 combustion fuel invariants PASS')
+        """Fuel depletion, refill and paid credits using each target's real burn()."""
+        targets = (
+            '1.19.2-forge', '1.20.1-forge',
+            '1.21.1-neoforge', '1.21.11-neoforge',
+            '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge',
+        )
+        for target in targets:
+            with self.subTest(target=target):
+                self.assertEqual(check_paid_combustion_burn(target), '6 combustion fuel invariants PASS')
 
     def test_compiled_host_and_independent_addon_engine(self):
         if not shutil.which('javac') or not shutil.which('java'):

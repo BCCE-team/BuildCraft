@@ -10,10 +10,12 @@ from __future__ import annotations
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-ACTUAL = ROOT / 'source-family-platforms/26.X/neoforge/src/main/java/buildcraft/energy/tile/TileEngineIron_BC8.java'
+sys.path.insert(0, str(ROOT / 'scripts'))
+from source_lookup import read_materialized_java
 
 HARNESS = r'''
 import java.util.*;
@@ -30,20 +32,24 @@ public class BurnHarness {
         void shrink(int amount) { count = Math.max(0, count-amount); }
         FluidStack copy() { return new FluidStack(name, count); }
     }
+    enum FluidAction { EXECUTE }
     static final class Tank {
         FluidStack fuel = FluidStack.EMPTY;
         // The real Tank#getFluid returns a defensive view after the P2 fix.
         FluidStack getFluid() { return fuel.copy(); }
         int getFluidAmount() { return fuel.getAmount(); }
         void setFluid(FluidStack next) { fuel=next.copy(); }
+        FluidStack drainInternal(int amount, FluidAction action) {
+            int drained = Math.min(Math.max(amount, 0), getFluidAmount());
+            if (drained == 0) return FluidStack.EMPTY;
+            FluidStack extracted = new FluidStack(fuel.name, drained);
+            fuel.shrink(drained);
+            return extracted;
+        }
     }
     static final class EnergyFluidResourceHandler {
         static FluidStack drainInternal(Tank tank, int amount, BurnHarness engine) {
-            int drained = Math.min(Math.max(amount, 0), tank.getFluidAmount());
-            if (drained == 0) return FluidStack.EMPTY;
-            FluidStack extracted = new FluidStack(tank.fuel.name, drained);
-            tank.fuel.shrink(drained);
-            return extracted;
+            return tank.drainInternal(amount, FluidAction.EXECUTE);
         }
     }
     record Amount(double milliBuckets) {}
@@ -116,24 +122,39 @@ BURN_BODY
         for(int i=0;i<89;i++)loaded.burn();
         eq(loaded.totalEnergy,89_000_000,"prepaid credit survives empty tank reload");
     }
+    static void testGaseousFuelDepletionAndRefill() {
+        BurnHarness a=new BurnHarness();
+        for(int cycle=1;cycle<=2;cycle++) {
+            a.tankFuel.setFluid(new FluidStack("gaseous",1));
+            a.burn();
+            if (!a.tankFuel.getFluid().isEmpty()) throw new AssertionError("last gaseous mB was not consumed");
+            eq(a.tankFuel.getFluidAmount(),0,"gaseous fuel tank empty");
+            for(int tick=0;tick<3;tick++) a.burn();
+            eq(a.currentOutput,0,"engine stops after gaseous fuel credit expires");
+            eq(a.totalEnergy,cycle*15_000_000L,"gaseous fuel energy conserved across refill");
+        }
+    }
     public static void main(String[] args) {
         service.types.put("slow",new FuelProfile(1_000_000,90_000));
         service.types.put("fast",new FuelProfile(1_000_000,100));
         service.types.put("high",new FuelProfile(8_000_000,1000));
         service.types.put("half",new FuelProfile(8_000_000,500));
+        // Built-in cool Gaseous Fuel: 8 MJ/t and 240000 / 8 / 16 ticks/bucket.
+        service.types.put("gaseous",new FuelProfile(8_000_000,1875));
         testStandard();testFast();testSwitch();testPartial();testReloadCredit();
-        System.out.println("5 combustion fuel invariants PASS");
+        testGaseousFuelDepletionAndRefill();
+        System.out.println("6 combustion fuel invariants PASS");
     }
 }
 '''
 
-def execute() -> str:
+def execute(target: str) -> str:
     if not shutil.which('javac') or not shutil.which('java'):
         raise RuntimeError('Java toolchain required for burn accounting fixture')
-    text = ACTUAL.read_text(encoding='utf-8')
+    text = read_materialized_java(target, 'src/main/java/buildcraft/energy/tile/TileEngineIron_BC8.java')
     start = text.index('    protected void burn() {')
     end = text.index('    public void updateHeatLevel()', start)
-    body = text[start:end]
+    body = text[start:text.rindex('}', start, end) + 1]
     if 'burnTime = ticksPerMb - used;' not in body:
         raise AssertionError('No remainder of prepaid fractional fuel was recorded')
     # Insert the exact production Java body, preserving its braces.
