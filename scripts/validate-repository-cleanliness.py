@@ -46,7 +46,11 @@ def tracked_repository_files() -> list[Path] | None:
     for raw_path in result.stdout.split(b"\0"):
         if not raw_path:
             continue
-        files.append(ROOT / raw_path.decode(sys.getfilesystemencoding(), errors="surrogateescape"))
+        path = ROOT / raw_path.decode(sys.getfilesystemencoding(), errors="surrogateescape")
+        # git apply removes files from the worktree without updating the Git
+        # index. Ignore pending deletions rather than flagging absent scripts.
+        if path.is_file():
+            files.append(path)
     return files
 
 

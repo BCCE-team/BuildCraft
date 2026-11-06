@@ -713,21 +713,11 @@ def validate_facade_swap_recipe(props: dict[str, str]) -> None:
         fail("1.19.2-forge: facade swap serializer id is not normalized to buildcraftsilicon:facade_swap")
 
 
-def validate_snapshot_renderer_and_client_isolation(props: dict[str, str]) -> None:
-    snapshot_rel = "buildcraft/builders/snapshot/ClientSnapshots.java"
-    for target in target_ids(props):
-        text = effective_java(target, snapshot_rel, props)
-        for token in (
-            "3D blueprint/template previews are intentionally disabled",
-            "Intentionally disabled on all maintained Minecraft versions.",
-            "public void renderSnapshot",
-        ):
-            if token not in text:
-                fail(f"{target}: snapshot preview is not explicitly disabled; missing {token!r}")
-        for token in ("RenderSystem.", "FakeWorld", "renderBlocks(", "renderBlockEntities(", "renderEntities("):
-            if token in text:
-                fail(f"{target}: disabled snapshot preview still contains live renderer token {token!r}")
-
+def validate_client_isolation(props: dict[str, str]) -> None:
+    # Snapshot rendering is handled by the version-specific GUI/tooltip renderers.
+    # ClientSnapshots retains only the legacy PoseStack entry points and caching.
+    # Do not mandate an obsolete "disabled 3D preview" implementation here;
+    # real preview rendering belongs to the GUI/Builders regression suites.
     bccore = effective_java("1.21.1-neoforge", "buildcraft/core/BCCore.java", props)
     for forbidden in (
         "net.minecraft.client",
@@ -963,7 +953,7 @@ def main() -> None:
     validate_item_pipe_gametest_isolation()
     validate_build_metadata_and_source_hygiene(props)
     validate_facade_swap_recipe(props)
-    validate_snapshot_renderer_and_client_isolation(props)
+    validate_client_isolation(props)
     validate_compat_runtime_dependencies(props)
     validate_ci_wiring(props)
     print("Cross-target integrity OK:")

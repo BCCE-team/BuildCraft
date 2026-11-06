@@ -617,6 +617,110 @@ class OilWorldgenPolicy(unittest.TestCase):
                 self.assertLess(policy.index(modded), policy.index(protected))
                 self.assertIn('return isNaturalTerrainPath(path);', policy)
 
+# Resource-level Filler atlas test. The old GUI was broken by removing
+# family-specific JSON; test resolved structured data and actual PNG alpha.
+class FillerButtonAtlasResourceTests(unittest.TestCase):
+    @staticmethod
+    def _rgba_alpha(png: bytes) -> tuple[int, int, bytes]:
+        import struct
+        import zlib
+        if png[:8] != b"\x89PNG\r\n\x1a\n":
+            raise ValueError("Not a PNG file")
+        offset, data, width, height = 8, bytearray(), None, None
+        while offset < len(png):
+            length = struct.unpack_from(">I", png, offset)[0]
+            kind = png[offset + 4:offset + 8]
+            payload = png[offset + 8:offset + 8 + length]
+            if kind == b"IHDR":
+                width, height, depth, color, compression, filtering, interlace = struct.unpack(
+                    ">IIBBBBB", payload)
+                if (depth, color, compression, filtering, interlace) != (8, 6, 0, 0, 0):
+                    raise ValueError("Filler atlas must be a non-interlaced RGBA PNG")
+            elif kind == b"IDAT":
+                data.extend(payload)
+            elif kind == b"IEND":
+                break
+            offset += length + 12
+        if not width or not height:
+            raise ValueError("Missing PNG dimensions")
+        scan = zlib.decompress(data)
+        stride = width * 4
+        previous = bytearray(stride)
+        alpha = bytearray()
+        cursor = 0
+        for _ in range(height):
+            method = scan[cursor]
+            cursor += 1
+            row = bytearray(scan[cursor:cursor + stride]); cursor += stride
+            for index in range(stride):
+                left = row[index - 4] if index >= 4 else 0
+                above = previous[index]
+                upper_left = previous[index - 4] if index >= 4 else 0
+                if method == 1:
+                    predictor = left
+                elif method == 2:
+                    predictor = above
+                elif method == 3:
+                    predictor = (left + above) // 2
+                elif method == 4:
+                    p = left + above - upper_left
+                    distances = (abs(p - left), abs(p - above), abs(p - upper_left))
+                    predictor = (left, above, upper_left)[distances.index(min(distances))]
+                elif method == 0:
+                    predictor = 0
+                else:
+                    raise ValueError(f"Unsupported PNG filter {method}")
+                row[index] = (row[index] + predictor) & 255
+            alpha.extend(row[3::4])
+            previous = row
+        if cursor != len(scan):
+            raise ValueError("Unexpected trailing PNG image data")
+        return width, height, bytes(alpha)
+
+    def test_filler_button_states_sample_nontransparent_shared_atlas(self):
+        import json
+        from source_config import load_properties, target_layout
+        from source_layout import resolve_effective_source
+
+        root = Path(__file__).resolve().parents[2]
+        raw = (root / "source-shared/src/main/resources/assets/buildcraftbuilders/"
+               "textures/gui/filler_buttons.png").read_bytes()
+        width, height, alpha = self._rgba_alpha(raw)
+        self.assertEqual((width, height), (64, 64))
+        props = load_properties()
+        targets = ("1.19.2-forge", "1.20.1-forge", "1.21.1-neoforge",
+                   "1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge",
+                   "26.3-neoforge")
+        modes = ("enabled", "hovered", "active", "active_hovered", "disabled",
+                 "active_disabled")
+        for target in targets:
+            with self.subTest(target=target):
+                selected = resolve_effective_source(
+                    target_layout(target, props), props,
+                    "src/main/resources/assets/buildcraftbuilders/gui/filler_base.json")
+                self.assertIsNotNone(selected)
+                config = json.loads(selected.read_text(encoding="utf-8"))
+                for button in ("button_preview", "button_excavate", "button_invert"):
+                    with self.subTest(button=button):
+                        entry = config["types"][button]
+                        self.assertEqual(entry["texture"], "buildcraftbuilders:gui/filler_buttons")
+                        self.assertEqual(entry["size"], [16, 16])
+                        for mode in modes:
+                            with self.subTest(mode=mode):
+                                uv = entry["modes"][mode]
+                                self.assertEqual(len(uv), 2)
+                                x, y = uv
+                                texture_size = entry.get("modes." + mode + ".texture_size",
+                                                         entry.get("texture_size"))
+                                self.assertEqual(texture_size, width)
+                                self.assertGreaterEqual(x, 0)
+                                self.assertGreaterEqual(y, 0)
+                                self.assertLessEqual(x + 16, width)
+                                self.assertLessEqual(y + 16, height)
+                                self.assertTrue(any(alpha[yy * width + xx] > 0
+                                    for yy in range(y, y + 16) for xx in range(x, x + 16)),
+                                    f"{target}: {button}/{mode} points to transparent pixels")
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -610,5 +610,45 @@ class RecipeContractsTest(unittest.TestCase):
         self.assertIn('packs.equals(Set.of("vanilla", "mod/neoforge"))', source)
         self.assertIn('warnings.add("Duplicate recipe ID "', source)
 
+# Builders gameplay/material regression probes belong to the maintained
+# recipe CI group instead of standalone patch-specific files.
+import builders_migration_fixture as _builders_probes
+import shutil as _builders_shutil
+
+@unittest.skipUnless(_builders_shutil.which("javac") and _builders_shutil.which("java"), "JDK required")
+class BuilderMaterialBehaviorTests(unittest.TestCase):
+    def test_all_engine_variant_material_costs(self):
+        _builders_probes.run_engine_variant_material_cost(self)
+
+
+class AssemblyDataConsistencyTests(unittest.TestCase):
+    def test_26x_assembly_recipes_have_matching_counts(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+        from source_config import load_properties, target_layout
+        from source_layout import effective_source_files
+
+        props = load_properties()
+        for target in ("26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"):
+            with self.subTest(target=target):
+                files = effective_source_files(target_layout(target, props), props,
+                                               "src/main/resources/data")
+                count = 0
+                for relative, path in files.items():
+                    if path.suffix != ".json" or "/recipe/" not in relative.replace("\\", "/"):
+                        continue
+                    recipe = json.loads(path.read_text(encoding="utf-8"))
+                    if not isinstance(recipe, dict) or recipe.get("type") != "buildcraftsilicon:assembly":
+                        continue
+                    count += 1
+                    with self.subTest(recipe=relative):
+                        ingredients = recipe["ingredients"]
+                        counts = recipe["ingredient_counts"]
+                        self.assertEqual(len(ingredients), len(counts))
+                        self.assertGreater(len(ingredients), 0)
+                        self.assertTrue(all(type(value) is int and value > 0 for value in counts))
+                self.assertGreater(count, 0, "Assembly recipe set is unexpectedly empty")
+
+
 if __name__ == "__main__":
     unittest.main()

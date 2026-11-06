@@ -354,4 +354,18 @@ public final class ContainerTank {
                     self.assertEqual(0, executed.returncode, executed.stdout + executed.stderr)
                     self.assertIn('6 state transitions PASS', executed.stdout)
 
+# Builders GUI preview behavior; the Java probes execute the selected
+# production cache and network codecs instead of checking method names.
+import builders_migration_fixture as _builders_probes
+
+@unittest.skipUnless(shutil.which("javac") and shutil.which("java"), "JDK required")
+class BuildersTooltipBehaviorTests(unittest.TestCase):
+    def test_single_block_scheme_cache_reuses_only_matching_nbt(self):
+        _builders_probes.run_single_block_schematic_cache(self)
+
+    def test_blueprint_snapshot_codec_consumes_complete_gzip_stream(self):
+        # One behavioral scenario covers 1.21.1, 1.21.11 and 26.1.2/26.2/26.3.
+        _builders_probes.run_snapshot_response_gzip(self)
+
+
 if __name__ == '__main__': unittest.main(verbosity=2)

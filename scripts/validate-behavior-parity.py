@@ -132,7 +132,6 @@ def validate_java_invariants() -> None:
     mining = "src/main/java/buildcraft/factory/tile/TileMiningWell.java"
     wrench = "src/main/java/buildcraft/core/item/ItemWrench.java"
     paint = "src/main/java/buildcraft/core/item/ItemPaintbrush_BC8.java"
-    snapshot = "src/main/java/buildcraft/builders/snapshot/ClientSnapshots.java"
     wire = "src/main/java/buildcraft/transport/wire/WireSystem.java"
     oil_generator = "src/main/java/buildcraft/energy/generation/features/OilGenerator.java"
     oil_structure = "src/main/java/buildcraft/energy/generation/features/OilStructure.java"
@@ -175,16 +174,6 @@ def validate_java_invariants() -> None:
                 "return InteractionResult.FAIL;",
                 "return InteractionResult.SUCCESS;")
         forbid(target, paint, "result.consumesAction()", "InteractionResult.sidedSuccess")
-        snapshot_text = require(
-            target,
-            snapshot,
-            "3D blueprint/template previews are intentionally disabled",
-            "Intentionally disabled on all maintained Minecraft versions.",
-            "public void renderSnapshot",
-        )
-        for token in ("RenderSystem.", "FakeWorld", "renderBlocks(", "renderBlockEntities(", "renderEntities("):
-            if token in snapshot_text:
-                fail(f"{target}: disabled snapshot preview still contains live renderer token {token!r}")
         require(target, wire, "chunkMap.getPlayers(chunkPos, false).contains(serverPlayer)")
         forbid(target, wire, "inBlockTickingRange", "isPlayerWatchingChunk")
         forbid(target, oil_generator, "genOilInEveryVanillaBiomes", "genOilInEveryModBiomes")
@@ -198,17 +187,6 @@ def validate_java_invariants() -> None:
                 ".getFluidState().isEmpty()")
         require(target, frame, "Direction.fromDelta")
         forbid(target, frame, "if (d != null)")
-
-    legacy_snapshot = require(
-        "1.19.2-forge",
-        snapshot,
-        "3D blueprint/template previews are intentionally disabled",
-        "Intentionally disabled on all maintained Minecraft versions.",
-        "public void renderSnapshot",
-    )
-    for token in ("RenderSystem.", "FakeWorld", "BufferUploader.drawWithShader"):
-        if token in legacy_snapshot:
-            fail(f"1.19.2-forge: disabled snapshot preview still contains live renderer token {token!r}")
 
     for target in NEWER:
         if target != "1.21.1-neoforge":

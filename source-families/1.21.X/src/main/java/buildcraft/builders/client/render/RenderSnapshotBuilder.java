@@ -19,6 +19,7 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.phys.Vec3;
 
 /** Native 1.21.11 snapshot item submission used by builder/filler/construction-marker renderers. */
@@ -61,27 +62,29 @@ public final class RenderSnapshotBuilder {
 
             matrix.pushPose();
             matrix.translate(pos.x, pos.y, pos.z);
+            if (filler) matrix.scale(.30F, .30F, .30F);
             int seed = 0;
             for (ItemStack item : placeTask.items) {
                 if (item == null || item.isEmpty()) continue;
-                if (filler && item.getItem() instanceof BlockItem blockItem) {
+                if (filler && item.getItem() instanceof BlockItem blockItem
+                    && blockItem.getBlock().defaultBlockState().getRenderShape()
+                        == RenderShape.MODEL) {
+                    // 1.21.1 draws the installed block model for flying Filler
+                    // cubes. 1.21.11 must submit that SAME model instead of
+                    // the inventory item (lever/rail/torch items are different).
                     matrix.pushPose();
-                    matrix.scale(.30F, .30F, .30F);
                     matrix.translate(-0.5F, -0.5F, -0.5F);
                     int packedLight = LaserRenderer_BC8.computeLightmap(pos.x, pos.y, pos.z, 0);
-                    collector.submitBlock(matrix, blockItem.getBlock().defaultBlockState(), packedLight,
-                        OverlayTexture.NO_OVERLAY);
+                    collector.submitBlock(matrix, blockItem.getBlock().defaultBlockState(),
+                        packedLight, OverlayTexture.NO_OVERLAY, 0);
                     matrix.popPose();
                 } else {
-                    matrix.pushPose();
-                    if (filler) matrix.scale(.30F, .30F, .30F);
                     ItemStackRenderState itemState = new ItemStackRenderState();
                     Minecraft.getInstance().getItemModelResolver().updateForTopItem(
                         itemState, item, filler ? ItemDisplayContext.FIXED : ItemDisplayContext.GROUND,
                         world, null, seed++
                     );
                     itemState.submit(matrix, collector, 15728640, OverlayTexture.NO_OVERLAY, 0);
-                    matrix.popPose();
                 }
             }
             matrix.popPose();

@@ -47,7 +47,12 @@ class LocalizationDeduplicationTests(unittest.TestCase):
         cls.aliases = cls.manifest['aliases']
 
     def test_canonical_keys_exist_and_removed_aliases_do_not(self):
-        self.assertEqual(len(self.language), self.manifest['final_keys'])
+        # The manifest records the historical deduplication baseline. New
+        # features may add translations without invalidating that cleanup.
+        self.assertGreaterEqual(
+            len(self.language), self.manifest['final_keys'],
+            'The locale has fewer keys than the deduplicated baseline',
+        )
         self.assertEqual(len(self.aliases), self.manifest['removed_keys'])
         for obsolete, canonical in self.aliases.items():
             with self.subTest(obsolete=obsolete):

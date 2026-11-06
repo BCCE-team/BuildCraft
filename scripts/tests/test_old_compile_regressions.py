@@ -277,6 +277,16 @@ public class AssemblyEqualsProbe {
             self.assertIn("totalInputFe += inserted", text)
             self.assertIn("dynamoFe + exportedFe <= totalInputFe", text)
 
+# Old Forge block preview compatibility; this compiles and runs the actual
+# preview-connection mask helper for all six directions.
+import builders_migration_fixture as _builders_probes
+import shutil as _builders_shutil
+
+@unittest.skipUnless(_builders_shutil.which("javac") and _builders_shutil.which("java"), "JDK required")
+class LegacyBuilderPreviewTests(unittest.TestCase):
+    def test_pipe_preview_connection_mask_packs_six_directions(self):
+        _builders_probes.run_old_pipe_connection_mask(self)
+
 
 if __name__ == "__main__":
     unittest.main()

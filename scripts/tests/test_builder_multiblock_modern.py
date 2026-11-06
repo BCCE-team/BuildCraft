@@ -88,6 +88,35 @@ class BuilderMultiBlockTests(unittest.TestCase):
                 self.assertIn('owner, AutomationPermissionUtil.SOURCE_ROBOT', source)
                 self.assertIn('sourceId, WorldOperationKind.BLOCK_PLACE, operation', source)
 
+    def test_bed_registry_fallback_uses_26_2_boundary(self):
+        # Compile-time 26.2 symbols changed before 26.3. The test body must
+        # never reference WHITE_BED constants on either target.
+        relative = 'src/gametest/java/buildcraft/gametest/BuilderTwoPartPlacementGameTests.java'
+        props = load_properties()
+        for target in ('26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge'):
+            with self.subTest(target=target):
+                layout = target_layout(target, props)
+                owner = resolve_effective_source(layout, props, relative)
+                self.assertIsNotNone(owner)
+                dst = Path(self.temp.name) / target / relative
+                _materialize_text_file(
+                    owner, dst, logical_relative=relative,
+                    minecraft=props[f'target.{target}.deps.minecraft'],
+                    family=layout.family, platform=layout.platform,
+                    preprocess=True,
+                )
+                code = dst.read_text(encoding='utf-8')
+                if target == '26.1.2-neoforge':
+                    self.assertIn('Blocks.WHITE_BED', code)
+                    self.assertIn('Items.WHITE_BED', code)
+                    self.assertNotIn('BuiltInRegistries.BLOCK.get(', code)
+                else:
+                    self.assertNotIn('Blocks.WHITE_BED', code)
+                    self.assertNotIn('Items.WHITE_BED', code)
+                    self.assertIn('BuiltInRegistries.BLOCK.get(Identifier.parse("minecraft:white_bed"))', code)
+                    self.assertIn('BuiltInRegistries.ITEM.get(Identifier.parse("minecraft:white_bed"))', code)
+                self.assertIn('0 errors', parse_sources([dst]))
+
     def test_java_syntax_of_effective_modern_code(self):
         for target, classes in self.targets.items():
             with self.subTest(target=target):

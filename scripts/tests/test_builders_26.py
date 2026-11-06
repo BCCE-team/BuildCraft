@@ -157,6 +157,34 @@ class Builders26Tests(unittest.TestCase):
                 self.assertEqual(len(self.files(version)), int(units), result)
                 self.assertEqual(0, int(errors), result)
 
+# Executable Builders migration regressions. These use materialized production
+# Java with small platform contracts rather than searching for source tokens.
+import builders_migration_fixture as _builders_probes
+import shutil as _builders_shutil
+
+@unittest.skipUnless(_builders_shutil.which("javac") and _builders_shutil.which("java"), "JDK required")
+class BuildersPreviewBehaviorTests(unittest.TestCase):
+    def test_preview_batches_large_schematic_and_reuses_geometry(self):
+        _builders_probes.run_preview_batch(self)
+
+    def test_preview_frame_budget_respects_rate_and_snapshot_identity(self):
+        _builders_probes.run_preview_budget(self)
+
+    def test_detached_preview_entities_receive_unique_ids(self):
+        _builders_probes.run_detached_entity_ids(self)
+
+    def test_pipe_vertex_consumer_compiles_against_262_and_263(self):
+        _builders_probes.run_pipe_vertex_consumer_compat(self)
+
+    def test_263_saved_blockstate_accepts_legacy_and_rejects_conflicts(self):
+        _builders_probes.run_saved_blockstate_nbt_263(self)
+
+    def test_hanging_entity_anchor_direction_and_armor_stand_matching(self):
+        _builders_probes.run_frame_anchor_matching(self)
+
+    def test_fluid_preview_tint_and_missing_model_fallback(self):
+        _builders_probes.run_fluid_preview_tint(self)
+
 
 if __name__ == '__main__':
     unittest.main()
