@@ -111,13 +111,60 @@ public class TileFiller extends TileBC_Neptune
     public boolean markerBox = true;
     /** Client-only ghost preview toggle; never changes the Filler's actual work or packets. */
     private boolean previewEnabled = false;
+    /** Client-only projection, never used for construction or persisted. */
+    private transient Template.BuildingInfo clientPreviewBuildingInfo;
+    private transient CompoundTag clientPreviewPattern;
+    private transient BlockPos clientPreviewMin, clientPreviewMax;
+    private transient boolean clientPreviewInverted;
 
     public boolean isPreviewEnabled() {
         return previewEnabled;
     }
 
     public void setPreviewEnabled(boolean enabled) {
+        if (previewEnabled == enabled) return;
         previewEnabled = enabled;
+        if (!enabled) {
+            clientPreviewBuildingInfo = null;
+            clientPreviewPattern = null;
+        }
+        if (level != null && !level.isClientSide) setChanged();
+    }
+
+    /**
+     * A Filler does not transmit its server BuildingInfo. Recreate only the
+     * client-side ghost pattern from the synchronized area and statement, and
+     * hold its identity stable while the draw cache scans its cells.
+     */
+    @Nullable
+    public Template.BuildingInfo getPreviewBuildingInfo() {
+        if (level == null || !previewEnabled) return null;
+        if (!level.isClientSide) return getTemplateBuildingInfo();
+        if (addon != null) return addon.buildingInfo;
+        if (!box.isInitialized()) return null;
+        BlockPos min = box.min();
+        BlockPos max = box.max();
+        CompoundTag pattern = patternStatement.writeToNbt();
+        if (clientPreviewPattern == null || !clientPreviewPattern.equals(pattern)
+            || !min.equals(clientPreviewMin) || !max.equals(clientPreviewMax)
+            || inverted != clientPreviewInverted) {
+            clientPreviewPattern = pattern;
+            clientPreviewMin = min;
+            clientPreviewMax = max;
+            clientPreviewInverted = inverted;
+            clientPreviewBuildingInfo = null;
+            BlockPos size = box.size();
+            long volume = (long) size.getX() * size.getY() * size.getZ();
+            if (size.getX() > 0 && size.getY() > 0 && size.getZ() > 0
+                && volume <= 2_000_000L) {
+                clientPreviewBuildingInfo = FillerUtil.createBuildingInfo(
+                    this, patternStatement,
+                    IntStream.range(0, patternStatement.maxParams)
+                        .mapToObj(patternStatement::get)
+                        .toArray(IStatementParameter[]::new), inverted);
+            }
+        }
+        return clientPreviewBuildingInfo;
     }
 
     public final FullStatement<IFillerPattern> patternStatement = new FullStatement<>(
@@ -401,7 +448,7 @@ public class TileFiller extends TileBC_Neptune
             } else if (id == NET_PATTERN) {
                 patternStatement.readFromBuffer(buffer);
             } else if (id == NET_PREVIEW) {
-                previewEnabled = buffer.readBoolean();
+                setPreviewEnabled(buffer.readBoolean());
             }
         }
         if (side == BCNetworkSide.SERVER) {
@@ -415,7 +462,7 @@ public class TileFiller extends TileBC_Neptune
             } else if (id == NET_PREVIEW) {
                 boolean selected = buffer.readBoolean();
                 if (selected != previewEnabled) {
-                    previewEnabled = selected;
+                    setPreviewEnabled(selected);
                     sendNetworkGuiUpdate(NET_PREVIEW);
                 }
             }

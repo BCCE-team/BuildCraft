@@ -9,6 +9,7 @@ import java.util.Map;
 
 import buildcraft.transport.client.model.ModelPipe;
 import buildcraft.transport.tile.TilePipeHolder;
+import buildcraft.transport.pipe.Pipe;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -58,12 +59,42 @@ public final class LegacyPipeAlphaRenderer {
     /** Invoked from the normal pipe BER; no alpha draw is permitted here. */
     public static void render(TilePipeHolder tile, PoseStack pose, MultiBufferSource buffers,
             int light, int overlay) {
-        if (tile == null || tile.getLevel() == null || !tile.getLevel().isClientSide()) return;
+        // The renderer used by GUI previews has a detached FakeWorld. Do not
+        // enqueue its pipes for the real world's late alpha pass: the queue is
+        // intentionally world-scoped and would discard them instead of drawing.
+        if (tile == null || tile.getLevel() != Minecraft.getInstance().level
+            || !tile.getLevel().isClientSide()) return;
         if (pendingLevel != tile.getLevel()) {
             PENDING.clear();
             pendingLevel = tile.getLevel();
         }
         PENDING.put(tile.getBlockPos().immutable(), new PendingPipe(tile, light, overlay));
+    }
+
+    /**
+     * Draw the alpha quads omitted from the pipe's baked block model in GUI
+     * previews. This path deliberately bypasses world AO and light sampling:
+     * FakeWorld returns zero directional shade and has no stable light engine.
+     * A full-bright item-style model pass preserves actual texture alpha without
+     * hiding the facades in both tooltip and Replacer previews.
+     * The caller has already translated the pose to the preview pipe's cell.
+     */
+    public static void renderPreview(TilePipeHolder tile, PoseStack pose,
+            MultiBufferSource.BufferSource buffer, int overlay) {
+        if (tile == null || tile.getPipe() == Pipe.EMPTY || tile.getLevel() == null) return;
+        Map<AlphaGroup, List<BakedQuad>> groups = groupAlphaQuads(ModelPipe.getAlphaQuads(tile));
+        if (groups.isEmpty()) return;
+        ModelBlockRenderer renderer = Minecraft.getInstance().getBlockRenderer().getModelRenderer();
+        for (Map.Entry<AlphaGroup, List<BakedQuad>> group : groups.entrySet()) {
+            AlphaQuadsModel model = new AlphaQuadsModel(group.getValue());
+            boolean glassFacade = group.getKey().glassFacade();
+            VertexConsumer consumer = new FixedAlphaConsumer(buffer.getBuffer(
+                glassFacade ? GLASS_LAYER : OTHER_LAYER), group.getKey().alpha(), tile, false);
+            // Stable across Forge 1.19.2 and 1.20.1: the legacy model rendering
+            // overload handles all faces of AlphaQuadsModel without world AO.
+            renderer.renderModel(pose.last(), consumer, tile.getBlockState(), model,
+                1.0F, 1.0F, 1.0F, 15728880, overlay);
+        }
     }
 
     /** Called once per view, after the regular world, entity and translucent passes. */
@@ -118,27 +149,7 @@ public final class LegacyPipeAlphaRenderer {
     /** Reuse Minecraft/Forge's actual world-block lighting (including neighboring-block AO). */
     private static void renderLitQuads(TilePipeHolder tile, List<BakedQuad> source,
             int overlay, PoseStack pose, MultiBufferSource.BufferSource batch) {
-        // Group by baked alpha so that the light/AO code may freely reorder vertices
-        // without changing the alpha of a facade or a coloured pipe overlay.
-        // The vanilla tessellator may force vertex alpha to 255, hence a consumer
-        // adapter restores the calibrated alpha *after* vanilla light/tint/AO.
-        Map<AlphaGroup, List<BakedQuad>> byAlpha = new LinkedHashMap<>();
-        for (BakedQuad quad : source) {
-            int[] raw = quad.getVertices();
-            int stride = raw.length / 4;
-            if (stride < 4) continue;
-            int bakedAlpha = (raw[3] >>> 24) & 0xFF;
-            int effectiveAlpha = bakedAlpha == 51 ? STAINED_GLASS_ALPHA
-                : bakedAlpha == 64 ? PAINT_AND_LENS_ALPHA : bakedAlpha;
-            // Facade baking warps the vanilla glass surface into a thin shell,
-            // but the legacy quad's face label and packed normal still describe
-            // the unwarped source block. AO therefore samples the wrong side on
-            // the bevels. Repair only stained glass; pipe/lens materials retain
-            // their own normals and their own lighting path.
-            BakedQuad litQuad = bakedAlpha == 51 ? alignGlassNormalToGeometry(quad) : quad;
-            byAlpha.computeIfAbsent(new AlphaGroup(effectiveAlpha, bakedAlpha == 51),
-                unused -> new ArrayList<>()).add(litQuad);
-        }
+        Map<AlphaGroup, List<BakedQuad>> byAlpha = groupAlphaQuads(source);
         if (byAlpha.isEmpty()) return;
 
         Minecraft client = Minecraft.getInstance();
@@ -166,6 +177,25 @@ public final class LegacyPipeAlphaRenderer {
                     alphaConsumer, false, random, 42L, overlay, ModelData.EMPTY, RenderType.translucent());
             }
         }
+    }
+
+    /** Apply exactly the same glass/lens alpha calibration for world and GUI. */
+    private static Map<AlphaGroup, List<BakedQuad>> groupAlphaQuads(List<BakedQuad> source) {
+        // World tessellation can reset the baked alpha to 255; FixedAlphaConsumer
+        // restores it after terrain shading or item-model quad emission.
+        Map<AlphaGroup, List<BakedQuad>> byAlpha = new LinkedHashMap<>();
+        for (BakedQuad quad : source) {
+            int[] raw = quad.getVertices();
+            int stride = raw.length / 4;
+            if (stride < 4) continue;
+            int bakedAlpha = (raw[3] >>> 24) & 0xFF;
+            int effectiveAlpha = bakedAlpha == 51 ? STAINED_GLASS_ALPHA
+                : bakedAlpha == 64 ? PAINT_AND_LENS_ALPHA : bakedAlpha;
+            BakedQuad litQuad = bakedAlpha == 51 ? alignGlassNormalToGeometry(quad) : quad;
+            byAlpha.computeIfAbsent(new AlphaGroup(effectiveAlpha, bakedAlpha == 51),
+                unused -> new ArrayList<>()).add(litQuad);
+        }
+        return byAlpha;
     }
 
     /**
@@ -255,11 +285,18 @@ public final class LegacyPipeAlphaRenderer {
         private final VertexConsumer delegate;
         private final int alpha;
         private final TilePipeHolder tile;
+        private final boolean worldOcclusion;
 
         FixedAlphaConsumer(VertexConsumer delegate, int alpha, TilePipeHolder tile) {
+            this(delegate, alpha, tile, true);
+        }
+
+        FixedAlphaConsumer(VertexConsumer delegate, int alpha, TilePipeHolder tile,
+                boolean worldOcclusion) {
             this.delegate = delegate;
             this.alpha = alpha;
             this.tile = tile;
+            this.worldOcclusion = worldOcclusion;
         }
 
         /**
@@ -271,7 +308,7 @@ public final class LegacyPipeAlphaRenderer {
          * maps, RGB tint and vertex alpha are all preserved.
          */
         private float[] addNeighborOcclusion(BakedQuad quad, float[] brightness) {
-            if (alpha != STAINED_GLASS_ALPHA || !Minecraft.useAmbientOcclusion()
+            if (!worldOcclusion || alpha != STAINED_GLASS_ALPHA || !Minecraft.useAmbientOcclusion()
                     || brightness == null || brightness.length < 4
                     || tile.getLevel() == null) {
                 return brightness;

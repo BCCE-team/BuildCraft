@@ -29,48 +29,67 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 public class RenderSnapshotBuilder {
     public static <T extends ITileForSnapshotBuilder> void render(
-            SnapshotBuilder<T> snapshotBuilder,
-            Level world,
-            BlockPos tilePos,
-            float partialTicks,
-            PoseStack matrix,
-            MultiBufferSource buffer,
-            ItemRenderer itemRenderer
-    ) {
-        matrix.translate(-tilePos.getX(), -tilePos.getY(), -tilePos.getZ());
-        for (SnapshotBuilder<T>.PlaceTask placeTask : snapshotBuilder.clientPlaceTasks) {
-            Vec3 prevPos = snapshotBuilder.prevClientPlaceTasks.stream()
-                .filter(renderTaskLocal -> renderTaskLocal.pos.equals(placeTask.pos))
-                .map(snapshotBuilder::getPlaceTaskItemPos)
-                .findFirst()
-                .orElse(snapshotBuilder.getPlaceTaskItemPos(snapshotBuilder.new PlaceTask(tilePos, Collections.emptyList(), 0L)));
-            Vec3 pos = prevPos.add(snapshotBuilder.getPlaceTaskItemPos(placeTask).subtract(prevPos).scale(partialTicks));
+            SnapshotBuilder<T> builder, Level world, BlockPos tilePos, float partialTicks,
+            PoseStack matrix, MultiBufferSource buffer, ItemRenderer itemRenderer) {
+        renderTasks(builder, world, tilePos, partialTicks, matrix, buffer, itemRenderer, false);
+    }
 
-            matrix.translate(pos.x, pos.y, pos.z);
-            int i = 0;
-            for (ItemStack item : placeTask.items) {
-                itemRenderer.renderStatic(
-                    item,
-                    //? if <1.20 {
-                    TransformType.GROUND,
-                    //?} else {
-                    /*?
-                    ItemDisplayContext.GROUND,
-                    ?*/
-                    //?}
-                    15728640,
-                    OverlayTexture.NO_OVERLAY,
-                    matrix,
-                    buffer,
-                    //? if >=1.20 {
-                    /*?
-                    world,
-                    ?*/
-                    //?}
-                    i++
-                );
+    /** Use the BCU small flying block animation for Filler tasks, not full item icons. */
+    public static <T extends ITileForSnapshotBuilder> void renderFiller(
+            SnapshotBuilder<T> builder, Level world, BlockPos tilePos, float partialTicks,
+            PoseStack matrix, MultiBufferSource buffer, ItemRenderer itemRenderer) {
+        renderTasks(builder, world, tilePos, partialTicks, matrix, buffer, itemRenderer, true);
+    }
+
+    private static <T extends ITileForSnapshotBuilder> void renderTasks(
+            SnapshotBuilder<T> builder, Level world, BlockPos tilePos, float partialTicks,
+            PoseStack matrix, MultiBufferSource buffer, ItemRenderer itemRenderer, boolean filler) {
+        if (builder == null || world == null) return;
+        matrix.pushPose();
+        try {
+            matrix.translate(-tilePos.getX(), -tilePos.getY(), -tilePos.getZ());
+            for (SnapshotBuilder<T>.PlaceTask task : builder.clientPlaceTasks) {
+                if (task.pos == null || task.items == null) continue;
+                Vec3 current = builder.getPlaceTaskItemPos(task);
+                Vec3 previous = builder.prevClientPlaceTasks.stream()
+                    .filter(other -> task.pos.equals(other.pos))
+                    .map(builder::getPlaceTaskItemPos).findFirst().orElse(current);
+                Vec3 position = previous.lerp(current, partialTicks);
+                matrix.pushPose();
+                try {
+                    matrix.translate(position.x, position.y, position.z);
+                    int seed = 0;
+                    for (ItemStack item : task.items) {
+                        if (item == null || item.isEmpty()) continue;
+                        matrix.pushPose();
+                        try {
+                            if (filler) matrix.scale(0.30F, 0.30F, 0.30F);
+                            itemRenderer.renderStatic(item,
+                                //? if <1.20 {
+                                TransformType.GROUND,
+                                //?} else {
+                                /*?
+                                ItemDisplayContext.FIXED,
+                                ?*/
+                                //?}
+                                15728640, OverlayTexture.NO_OVERLAY,
+                                matrix, buffer,
+                                //? if >=1.20 {
+                                /*?
+                                world,
+                                ?*/
+                                //?}
+                                seed++);
+                        } finally {
+                            matrix.popPose();
+                        }
+                    }
+                } finally {
+                    matrix.popPose();
+                }
             }
-            matrix.translate(-pos.x, -pos.y, -pos.z);
+        } finally {
+            matrix.popPose();
         }
     }
 }

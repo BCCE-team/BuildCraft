@@ -1,7 +1,7 @@
 package buildcraft.builders.gui;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Objects;
+
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -20,6 +20,8 @@ import buildcraft.lib.gui.ledger.LedgerHelp;
 import buildcraft.lib.gui.ledger.LedgerOwnership;
 import buildcraft.lib.gui.pos.GuiRectangle;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -37,14 +39,16 @@ public class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> {
     private static final int PREVIEW_Y = 9;
     private static final int PREVIEW_W = 160;
     private static final int PREVIEW_H = 100;
-    private static final int PREVIEW_COLS = 8;
-    private static final int PREVIEW_ROWS = 4;
-    private static final int PREVIEW_CELL = 18;
     private static final int TEXT_COLOUR = 4210752;
     private static final int ERROR_COLOUR = 0xAA0000;
     private static final int OK_COLOUR = 0x2F6F2F;
 
     private final BuildCraftGui mainGui;
+    private final ReplacerGuiPreview preview = new ReplacerGuiPreview();
+    private EditBox nameField;
+    private Button replaceButton;
+    private Snapshot.Key seededKey;
+    private String seededName;
 
     public ScreenReplacer(MenuReplacer menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -84,6 +88,16 @@ public class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> {
                 "buildcraft.help.replacer.to.desc"
             )
         ));
+        this.mainGui.shownElements.add(new DummyHelpElement(
+            new GuiRectangle(30, 117, 138, 12).offset(this.mainGui.rootElement),
+            new ElementHelpInfo("buildcraft.help.replacer.name.title", 0xFF_E1_C9_2F,
+                "buildcraft.help.replacer.name.desc")
+        ));
+        this.mainGui.shownElements.add(new DummyHelpElement(
+            new GuiRectangle(80, 135, 60, 20).offset(this.mainGui.rootElement),
+            new ElementHelpInfo("buildcraft.help.replacer.replace.title", 0xFF_CC_AA_88,
+                "buildcraft.help.replacer.replace.desc1", "buildcraft.help.replacer.replace.desc2")
+        ));
         this.mainGui.shownElements.add(new LedgerHelp(this.mainGui, false));
         this.imageWidth = SIZE_X;
         this.imageHeight = SIZE_Y;
@@ -94,9 +108,72 @@ public class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> {
     }
 
     @Override
+    protected void init() {
+        String existingName = nameField == null
+            ? (currentHeader() == null ? "" : currentHeader().name) : nameField.getValue();
+        boolean keepFocus = nameField != null && nameField.isFocused();
+        super.init();
+        nameField = new EditBox(font, leftPos + 30, topPos + 117, 138, 12, Component.empty());
+        nameField.setMaxLength(MenuReplacer.MAX_BLUEPRINT_NAME_LENGTH);
+        nameField.setValue(existingName);
+        // A newly constructed EditBox is unfocused. Its setFocused(boolean)
+        // method is protected in Minecraft 1.19.2, so do not call it here.
+        addRenderableWidget(nameField);
+        if (keepFocus) setFocused(nameField);
+        replaceButton = new Button(leftPos + 80, topPos + 135, 60, 20,
+            Component.translatable("gui.buildcraftbuilders.replacer.replace"),
+            button -> menu.sendReplaceRequest(nameField.getValue()));
+        addRenderableWidget(replaceButton);
+        Snapshot.Header header = currentHeader();
+        seededKey = header == null ? null : header.key;
+        seededName = header == null ? "" : header.name;
+        updateControls();
+    }
+
+    @Override
     public void containerTick() {
         super.containerTick();
         this.mainGui.tick();
+        updateControls();
+    }
+
+    private Snapshot.Header currentHeader() {
+        if (menu.slots.isEmpty()) return null;
+        return ItemSnapshot.getHeader(menu.getSlot(0).getItem());
+    }
+
+    private boolean isRemoving() {
+        return !menu.getSlot(1).getItem().isEmpty() && menu.getSlot(2).getItem().isEmpty();
+    }
+
+    private void updateControls() {
+        Snapshot.Header header = currentHeader();
+        Snapshot.Key key = header == null ? null : header.key;
+        String name = header == null ? "" : header.name;
+        if (!Objects.equals(seededKey, key) || !Objects.equals(seededName, name)) {
+            if (nameField != null && !nameField.isFocused()) nameField.setValue(name);
+            seededKey = key;
+            seededName = name;
+        }
+        if (replaceButton != null) {
+            replaceButton.active = ReplacerGuiPreview.canApply(menu.getSlot(0).getItem(),
+                menu.getSlot(1).getItem(), menu.getSlot(2).getItem());
+            replaceButton.setMessage(Component.translatable(isRemoving()
+                ? "gui.buildcraftbuilders.replacer.remove" : "gui.buildcraftbuilders.replacer.replace"));
+        }
+    }
+
+    private Blueprint preview() {
+        return preview.get(menu.getSlot(0).getItem(), menu.getSlot(1).getItem(), menu.getSlot(2).getItem());
+    }
+
+    private String summaryText() {
+        if (!preview.hasSummary()) return null;
+        String text = preview.summary(isRemoving()).getString();
+        int maxWidth = PREVIEW_W - 6;
+        if (font.width(text) <= maxWidth) return text;
+        String ellipsis = "...";
+        return font.plainSubstrByWidth(text, Math.max(0, maxWidth - font.width(ellipsis))) + ellipsis;
     }
 
     @Override
@@ -104,10 +181,6 @@ public class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> {
         this.renderBackground(pose);
         super.render(pose, mouseX, mouseY, partialTick);
         this.renderTooltip(pose, mouseX, mouseY);
-        ItemStack hoveredPreviewStack = getPreviewStackAt(mouseX, mouseY);
-        if (!hoveredPreviewStack.isEmpty()) {
-            this.renderTooltip(pose, hoveredPreviewStack, mouseX, mouseY);
-        }
     }
 
     @Override
@@ -125,10 +198,22 @@ public class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> {
         this.mainGui.preDrawForeground(pose);
         this.mainGui.drawElementForegrounds(pose, () -> {});
         this.mainGui.postDrawForeground(pose);
+        String summary = summaryText();
+        if (summary != null) {
+            pose.pushPose();
+            pose.translate(0, 0, 180);
+            fill(pose, PREVIEW_X, PREVIEW_Y + PREVIEW_H - 11,
+                PREVIEW_X + PREVIEW_W, PREVIEW_Y + PREVIEW_H, 0x99000000);
+            this.font.draw(pose, summary, PREVIEW_X + 3, PREVIEW_Y + PREVIEW_H - 9, 0xFFFFFFFF);
+            pose.popPose();
+        }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (nameField != null && nameField.isFocused() && !nameField.isMouseOver(mouseX, mouseY)) {
+            setFocused(null);
+        }
         boolean result = super.mouseClicked(mouseX, mouseY, button);
         this.mainGui.onMouseClicked(mouseX, mouseY, button);
         return result;
@@ -150,6 +235,11 @@ public class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (nameField != null && nameField.isFocused()) {
+            if (keyCode == 257 || keyCode == 335) { setFocused(null); return true; }
+            if (keyCode != 256 && (nameField.keyPressed(keyCode, scanCode, modifiers)
+                || nameField.canConsumeInput())) return true;
+        }
         if (this.mainGui.onKeyTyped(modifiers, InputConstants.getKey(keyCode, scanCode))) {
             return true;
         }
@@ -167,26 +257,11 @@ public class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> {
             return;
         }
 
-        List<ItemStack> previewStacks = getPreviewStacks(blueprint);
-        if (previewStacks.isEmpty()) {
-            renderPreviewMessage(pose, Component.translatable("gui.buildcraftbuilders.replacer.preview.empty"), TEXT_COLOUR);
-            return;
-        }
+        Blueprint candidate = preview();
+        if (candidate == null) return;
+        buildcraft.builders.client.render.LegacyBlueprintGuiRenderer.render(
+            candidate, pose, this.leftPos + PREVIEW_X, this.topPos + PREVIEW_Y, PREVIEW_W, PREVIEW_H);
 
-        int x0 = this.leftPos + PREVIEW_X + 8;
-        int y0 = this.topPos + PREVIEW_Y + 5;
-        int max = Math.min(previewStacks.size(), PREVIEW_COLS * PREVIEW_ROWS);
-        for (int i = 0; i < max; i++) {
-            int x = x0 + (i % PREVIEW_COLS) * PREVIEW_CELL;
-            int y = y0 + (i / PREVIEW_COLS) * PREVIEW_CELL;
-            ItemStack stack = previewStacks.get(i);
-            this.itemRenderer.renderAndDecorateItem(stack, x, y);
-            this.itemRenderer.renderGuiItemDecorations(this.font, stack, x, y);
-        }
-        if (previewStacks.size() > max) {
-            String more = "+" + (previewStacks.size() - max);
-            this.font.draw(pose, more, this.leftPos + PREVIEW_X + PREVIEW_W - this.font.width(more) - 4, this.topPos + PREVIEW_Y + PREVIEW_H - 23, TEXT_COLOUR);
-        }
     }
 
     private void renderReplacementStatus(PoseStack pose) {
@@ -255,51 +330,6 @@ public class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> {
         int x = this.leftPos + PREVIEW_X + (PREVIEW_W - this.font.width(message.getString())) / 2;
         int y = this.topPos + PREVIEW_Y + PREVIEW_H / 2 - 4;
         this.font.draw(pose, message, x, y, colour);
-    }
-
-    private List<ItemStack> getPreviewStacks(Blueprint blueprint) {
-        List<ItemStack> stacks = new ArrayList<>();
-        Level level = Minecraft.getInstance().level;
-        if (level == null) {
-            return stacks;
-        }
-        for (ISchematicBlock schematicBlock : blueprint.palette) {
-            if (schematicBlock == null || schematicBlock.isAir()) {
-                continue;
-            }
-            try {
-                List<ItemStack> requiredItems = schematicBlock.computeRequiredItems(level);
-                if (!requiredItems.isEmpty() && !requiredItems.get(0).isEmpty()) {
-                    stacks.add(requiredItems.get(0).copy());
-                }
-            } catch (RuntimeException ignored) {
-                // A broken schematic must not crash the GUI preview. The builder/replacer logic still validates it server-side.
-            }
-        }
-        return stacks;
-    }
-
-    private ItemStack getPreviewStackAt(int mouseX, int mouseY) {
-        Snapshot snapshot = getInsertedSnapshot();
-        if (!(snapshot instanceof Blueprint blueprint)) {
-            return ItemStack.EMPTY;
-        }
-        int relX = mouseX - (this.leftPos + PREVIEW_X + 8);
-        int relY = mouseY - (this.topPos + PREVIEW_Y + 5);
-        if (relX < 0 || relY < 0) {
-            return ItemStack.EMPTY;
-        }
-        int col = relX / PREVIEW_CELL;
-        int row = relY / PREVIEW_CELL;
-        if (col < 0 || col >= PREVIEW_COLS || row < 0 || row >= PREVIEW_ROWS) {
-            return ItemStack.EMPTY;
-        }
-        if (relX % PREVIEW_CELL >= 16 || relY % PREVIEW_CELL >= 16) {
-            return ItemStack.EMPTY;
-        }
-        int index = row * PREVIEW_COLS + col;
-        List<ItemStack> stacks = getPreviewStacks(blueprint);
-        return index >= 0 && index < stacks.size() ? stacks.get(index) : ItemStack.EMPTY;
     }
 
     private static final class StatusLine {

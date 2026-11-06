@@ -95,6 +95,32 @@ public class SchematicEntityDefault implements ISchematicEntity {
             && EntityType.getKey(entity.getType()).toString().equals(entityNbt.getString("id"));
     }
 
+    /** Match a placed vanilla decoration by anchor and facing, not only by its
+     * moving entity centre. Item-frame content is part of the schematic state.
+     * ItemStack comparison includes NBT in legacy Forge versions. */
+    public boolean matchesPlacedEntity(Entity entity, BlockPos basePos, double maxDistanceSq) {
+        if (!matchesEntityType(entity)) return false;
+        if (entity instanceof HangingEntity hanging) {
+            if (hangingPos == null || hangingFacing == null
+                || !hanging.getPos().equals(basePos.offset(hangingPos))
+                || hanging.getDirection() != hangingFacing) return false;
+        } else if (pos == null || entity.distanceToSqr(
+            Vec3.atLowerCornerOf(basePos).add(pos)) >= maxDistanceSq) {
+            return false;
+        }
+        if (entity instanceof net.minecraft.world.entity.decoration.ItemFrame frame) {
+            ItemStack stored = entityNbt.contains("Item", Tag.TAG_COMPOUND)
+                ? ItemStack.of(entityNbt.getCompound("Item")) : ItemStack.EMPTY;
+            ItemStack installed = frame.getItem();
+            if (stored.isEmpty() != installed.isEmpty()) return false;
+            if (!stored.isEmpty() && (!ItemStack.isSameItemSameTags(stored, installed)
+                || stored.getCount() != installed.getCount())) return false;
+            if (entityNbt.contains("ItemRotation", Tag.TAG_ANY_NUMERIC)
+                && frame.getRotation() != entityNbt.getByte("ItemRotation")) return false;
+        }
+        return true;
+    }
+
     @Override
     public Vec3 getPos() {
         return pos;

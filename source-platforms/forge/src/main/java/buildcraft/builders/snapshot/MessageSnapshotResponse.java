@@ -77,7 +77,13 @@ public class MessageSnapshotResponse {
     private static CompoundTag readCompressedLimited(FriendlyByteBuf buf) throws IOException {
         ByteBufInputStream byteStream = new ByteBufInputStream(buf);
         try (DataInputStream input = new DataInputStream(new GZIPInputStream(byteStream))) {
-            return NbtIo.read(input, new NbtAccounter(MAX_UNCOMPRESSED_SNAPSHOT_BYTES));
+            CompoundTag nbt = NbtIo.read(input, new NbtAccounter(MAX_UNCOMPRESSED_SNAPSHOT_BYTES));
+            // Consume and verify the GZIP checksum/trailer before the outer
+            // network codec checks for unread packet bytes.
+            if (input.read() != -1) {
+                throw new DecoderException("Trailing decompressed data in BuildCraft snapshot");
+            }
+            return nbt;
         }
     }
 

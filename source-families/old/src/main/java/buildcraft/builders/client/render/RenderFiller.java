@@ -27,6 +27,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.entity.ItemRenderer;
 public class RenderFiller implements BlockEntityRenderer<TileFiller> {
+    private final BuilderIndicatorLights indicatorLights = new BuilderIndicatorLights();
 	
 	protected final ItemRenderer itemRenderer; 
 	
@@ -36,13 +37,17 @@ public class RenderFiller implements BlockEntityRenderer<TileFiller> {
 
     @Override
     public void render(TileFiller tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
-        FillerGhostPreview.render(tile, matrix, buffer);
         if (tile.getBuilder() != null) {
             matrix.pushPose();
-            RenderSnapshotBuilder.render(tile.getBuilder(), tile.getLevel(), tile.getBlockPos(), partialTicks, matrix, buffer, itemRenderer);
+            RenderSnapshotBuilder.renderFiller(tile.getBuilder(), tile.getLevel(), tile.getBlockPos(), partialTicks, matrix, buffer, itemRenderer);
             matrix.popPose();
         }
 
+        FillerGhostPreview.render(tile, matrix, buffer);
+        if (tile.getLevel() != null) {
+            indicatorLights.drawFiller(tile, matrix.last().pose(), matrix.last().normal(),
+                buffer.getBuffer(RenderType.cutout()));
+        }
         if (tile.markerBox || tile.getBuilder() != null) {
             VertexConsumer bb = buffer.getBuffer(RenderType.cutout());
             matrix.pushPose();
@@ -52,7 +57,10 @@ public class RenderFiller implements BlockEntityRenderer<TileFiller> {
             if (tile.markerBox) {
                 LaserBoxRenderer.renderLaserBoxDynamic(tile.box, BuildCraftLaserManager.STRIPES_WRITE, boxPose, boxNormal, bb, true);
             }
-            BuilderTaskHighlights.render(tile.getBuilder(), boxPose, boxNormal, bb);
+            if (tile.getLevel() != null) {
+                FillerWorkRenderer.render(tile.getBuilder(), tile.getLevel().getGameTime(), partialTicks,
+                    boxPose, boxNormal, bb);
+            }
             matrix.popPose();
         }
     }

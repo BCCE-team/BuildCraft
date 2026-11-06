@@ -5,6 +5,7 @@
 package buildcraft.builders;
 
 import buildcraft.builders.BCBuildersClientRenderers;
+import buildcraft.builders.client.tooltip.LegacyBlueprintTooltipOverlay;
 import buildcraft.lib.platform.client.PlatformClientRegistration;
 import buildcraft.lib.platform.registry.RegistryBinding;
 import buildcraft.lib.platform.config.ConfigBinding;
@@ -25,6 +26,7 @@ import buildcraft.builders.snapshot.MessageSnapshotResponse;
 import buildcraft.lib.net.MessageManager;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.RenderTooltipEvent;
 import net.minecraftforge.client.event.ModelEvent.BakingCompleted;
 import net.minecraftforge.client.event.ModelEvent.RegisterAdditional;
 import net.minecraftforge.common.MinecraftForge;
@@ -75,6 +77,15 @@ public class BCBuilders {
         RulesLoader.loadAll();
     }
 
+
+    /** Forge's tooltip events are fired on the GAME bus, not the MOD bus. */
+    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+    public static class ClientTooltipEvents {
+        @SubscribeEvent
+        public static void onTooltipPre(RenderTooltipEvent.Pre event) {
+            LegacyBlueprintTooltipOverlay.onTooltipPre(event);
+        }
+    }
 
     @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static class ClientModEvents

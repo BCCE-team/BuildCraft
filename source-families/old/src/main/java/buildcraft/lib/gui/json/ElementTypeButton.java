@@ -46,26 +46,37 @@ public class ElementTypeButton extends ElementType {
         inheritProperty(json, "size[1]", "modes.enabled[3]");
         inheritProperty(json, "sprite", "modes.enabled.sprite");
         inheritProperty(json, "texture", "modes.enabled.texture");
+        inheritProperty(json, "texture_size", "modes.enabled.texture_size");
 
         inheritProperty(json, "size[0]", "modes.disabled[2]");
         inheritProperty(json, "size[1]", "modes.disabled[3]");
         inheritProperty(json, "sprite", "modes.disabled.sprite");
         inheritProperty(json, "texture", "modes.disabled.texture");
+        inheritProperty(json, "texture_size", "modes.disabled.texture_size");
 
         inheritProperty(json, "size[0]", "modes.active[2]");
         inheritProperty(json, "size[1]", "modes.active[3]");
         inheritProperty(json, "sprite", "modes.active.sprite");
         inheritProperty(json, "texture", "modes.active.texture");
+        inheritProperty(json, "texture_size", "modes.active.texture_size");
 
         inheritProperty(json, "size[0]", "modes.hovered[2]");
         inheritProperty(json, "size[1]", "modes.hovered[3]");
         inheritProperty(json, "sprite", "modes.hovered.sprite");
         inheritProperty(json, "texture", "modes.hovered.texture");
+        inheritProperty(json, "texture_size", "modes.hovered.texture_size");
 
         inheritProperty(json, "size[0]", "modes.active_hovered[2]");
         inheritProperty(json, "size[1]", "modes.active_hovered[3]");
         inheritProperty(json, "sprite", "modes.active_hovered.sprite");
         inheritProperty(json, "texture", "modes.active_hovered.texture");
+        inheritProperty(json, "texture_size", "modes.active_hovered.texture_size");
+
+        inheritProperty(json, "size[0]", "modes.active_disabled[2]");
+        inheritProperty(json, "size[1]", "modes.active_disabled[3]");
+        inheritProperty(json, "sprite", "modes.active_disabled.sprite");
+        inheritProperty(json, "texture", "modes.active_disabled.texture");
+        inheritProperty(json, "texture_size", "modes.active_disabled.texture_size");
 
         int posX = resolveEquationInt(json, "pos[0]", ctx);
         int posY = resolveEquationInt(json, "pos[1]", ctx);
@@ -113,12 +124,22 @@ public class ElementTypeButton extends ElementType {
             uvs[i] = resolveEquationDouble(json, key + "[" + i + "]", ctx);
         }
         SrcTexture texture = resolveTexture(guiInfo, json, key);
+        // The Filler button sheet is 64x64 rather than the historical 256x256
+        // GUI background. Keep source pixel coordinates separate from the
+        // on-screen button dimensions, and honour resource-pack overrides.
+        int texSize = texture.texSize;
+        if (json.properties.containsKey(key + ".texture_size")) {
+            texSize = resolveEquationInt(json, key + ".texture_size", ctx);
+            if (texSize <= 0) {
+                throw new IllegalArgumentException("Invalid GUI texture size " + texSize + " for " + key);
+            }
+        }
         ISprite sprite = gui.properties.get(texture.origin, ISprite.class);
         if (sprite != null) {
-            sprite = GuiUtil.subRelative(sprite, uvs[0], uvs[1], uvs[2], uvs[3], texture.texSize);
+            sprite = GuiUtil.subRelative(sprite, uvs[0], uvs[1], uvs[2], uvs[3], texSize);
         } else {
             ResourceLocation loc = SpriteUtil.transformLocation(new ResourceLocation(texture.origin));
-            sprite = new SpriteRaw(loc, uvs[0], uvs[1], uvs[2], uvs[3], texture.texSize);
+            sprite = new SpriteRaw(loc, uvs[0], uvs[1], uvs[2], uvs[3], texSize);
         }
         return new GuiSpriteScaled(sprite, sizeX, sizeY);
     }

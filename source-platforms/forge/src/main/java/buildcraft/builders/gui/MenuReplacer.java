@@ -1,5 +1,6 @@
 package buildcraft.builders.gui;
 
+import java.io.IOException;
 import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
@@ -11,6 +12,9 @@ import buildcraft.builders.item.ItemSnapshot;
 import buildcraft.builders.tile.TileReplacer;
 import buildcraft.lib.gui.IMenuBCTile;
 import buildcraft.lib.gui.MenuBC_Neptune;
+import buildcraft.lib.misc.data.IdAllocator;
+import buildcraft.lib.net.BCNetworkSide;
+import buildcraft.lib.net.BCPacketContext;
 import buildcraft.lib.tile.TileBC_Neptune;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
@@ -24,6 +28,37 @@ import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.items.SlotItemHandler;
 
 public class MenuReplacer extends MenuBC_Neptune implements IMenuBCTile {
+    private static final IdAllocator IDS = MenuBC_Neptune.IDS.makeChild("replacer");
+    public static final int NET_REPLACE = IDS.allocId("REPLACE");
+    public static final int MAX_BLUEPRINT_NAME_LENGTH = 64;
+
+    @Override
+    public IdAllocator getIdAllocator() {
+        return IDS;
+    }
+
+    public void sendReplaceRequest(String requestedName) {
+        String clean = requestedName == null ? "" : requestedName.strip();
+        if (clean.length() > MAX_BLUEPRINT_NAME_LENGTH) {
+            clean = clean.substring(0, MAX_BLUEPRINT_NAME_LENGTH);
+        }
+        final String name = clean;
+        sendMessage(NET_REPLACE, buffer -> buffer.writeUtf(name, MAX_BLUEPRINT_NAME_LENGTH));
+    }
+
+    @Override
+    public void readMessage(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
+        super.readMessage(id, buffer, side, ctx);
+        if (id == NET_REPLACE && side == BCNetworkSide.SERVER) {
+            String requested = buffer.readUtf(MAX_BLUEPRINT_NAME_LENGTH);
+            Player sender = ctx == null || ctx.getSender() == null ? playerInventory.player : ctx.getSender();
+            if (tile != null && sender != null && sender.containerMenu == this
+                && !sender.isSpectator() && stillValid(sender)) {
+                tile.doReplace(requested);
+            }
+        }
+    }
+
 
     private static final int MACHINE_SLOT_COUNT = 3;
     private static final int PLAYER_INV_START = MACHINE_SLOT_COUNT;

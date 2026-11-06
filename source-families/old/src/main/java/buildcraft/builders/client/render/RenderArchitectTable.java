@@ -28,15 +28,17 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
 
 public class RenderArchitectTable implements BlockEntityRenderer<TileArchitectTable> {
+    private final BuilderIndicatorLights indicatorLights = new BuilderIndicatorLights();
    
 	public RenderArchitectTable(BlockEntityRendererProvider.Context bpc) {
 	}
 	
 	@Override
     public void render(TileArchitectTable tile, float partialTicks, PoseStack matrix, MultiBufferSource buffer, int light, int overlay) {
-        if (!tile.markerBox) {
-            return;
-        }
+        if (tile.getLevel() == null) return;
+        indicatorLights.drawArchitect(tile, matrix.last().pose(), matrix.last().normal(),
+            buffer.getBuffer(RenderType.cutout()));
+        if (!tile.markerBox) return;
 		
 //        Minecraft.getInstance().getProfiler().push("bc");
 //        Minecraft.getInstance().getProfiler().push("architect_table");

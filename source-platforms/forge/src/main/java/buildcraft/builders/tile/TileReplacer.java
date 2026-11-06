@@ -69,95 +69,8 @@ public class TileReplacer extends TileBC_Neptune implements MenuProvider {
         ItemHandlerManager.EnumAccess.NONE
     );
 
-    private int lastSkippedInputFingerprint;
-    private long nextRetryTick;
-
     public TileReplacer(BlockPos pos, BlockState state) {
         super(BCBuildersBlocks.REPLACER_TILE_BC8.get(), pos, state);
-    }
-
-    @Override
-    public void update() {
-        if (level == null || level.isClientSide) {
-            return;
-        }
-
-        ItemStack snapshotStack = invSnapshot.getStackInSlot(0);
-        ItemStack fromStack = invSchematicFrom.getStackInSlot(0);
-        ItemStack toStack = invSchematicTo.getStackInSlot(0);
-        if (snapshotStack.isEmpty() || fromStack.isEmpty() || toStack.isEmpty()) {
-            return;
-        }
-
-        int inputFingerprint = getInputFingerprint(snapshotStack, fromStack, toStack);
-        if (inputFingerprint == lastSkippedInputFingerprint || level.getGameTime() < nextRetryTick) {
-            return;
-        }
-
-        Header header = ItemSnapshot.getHeader(snapshotStack);
-        if (header == null) {
-            lastSkippedInputFingerprint = inputFingerprint;
-            return;
-        }
-
-        Snapshot snapshot = GlobalSavedDataSnapshots.getSnapshotForConstruction(level, header.key);
-        if (!(snapshot instanceof Blueprint blueprint)) {
-            // Library/server data may arrive after the Replacer. Retry without permanently blacklisting inputs.
-            nextRetryTick = level.getGameTime() + 40;
-            return;
-        }
-
-        try {
-            ISchematicBlock from = ItemSchematicSingle.getSchematic(fromStack);
-            ISchematicBlock to = ItemSchematicSingle.getSchematic(toStack);
-            if (from == null || to == null) {
-                lastSkippedInputFingerprint = inputFingerprint;
-                return;
-            }
-            if (Blueprint.schematicMatchesForReplacement(from, to)) {
-                lastSkippedInputFingerprint = inputFingerprint;
-                return;
-            }
-
-            Blueprint newBlueprint = blueprint.copy();
-            int replacedBlocks = newBlueprint.replace(from, to);
-            if (replacedBlocks <= 0) {
-                lastSkippedInputFingerprint = inputFingerprint;
-                return;
-            }
-
-            newBlueprint.computeKey();
-            Header newHeader = new Header(
-                newBlueprint.key,
-                getOwnerId(header),
-                getOwnerName(header),
-                new Date(),
-                header.name,
-                header.allowCreative,
-                header.canRotate,
-                header.canExcavate
-            );
-            SnapshotCreationPersistence.persist(level, newBlueprint, newHeader);
-            invSnapshot.setStackInSlot(0, ItemSnapshot.getUsed(EnumSnapshotType.BLUEPRINT, newHeader));
-            invSchematicFrom.extractItem(0, 1, false);
-            invSchematicTo.extractItem(0, 1, false);
-            lastSkippedInputFingerprint = 0;
-            setChanged();
-        } catch (InvalidInputDataException e) {
-            lastSkippedInputFingerprint = inputFingerprint;
-            BCLog.logger.warn("Invalid schematic in replacer at " + worldPosition + ": " + e.getMessage());
-        } catch (RuntimeException e) {
-            // Temporary IO/library errors must not permanently disable this input combination.
-            nextRetryTick = level.getGameTime() + 40;
-            BCLog.logger.warn("Failed to replace blueprint blocks at " + worldPosition, e);
-        }
-    }
-
-    @Override
-    protected void onSlotChange(IItemHandlerModifiable handler, int slot, @Nonnull ItemStack before, @Nonnull ItemStack after) {
-        super.onSlotChange(handler, slot, before, after);
-        lastSkippedInputFingerprint = 0;
-        nextRetryTick = 0;
     }
 
     private static boolean isUsedBlueprint(int slot, @Nonnull ItemStack stack) {
@@ -169,12 +82,45 @@ public class TileReplacer extends TileBC_Neptune implements MenuProvider {
         return ItemSchematicSingle.isValidUsed(stack);
     }
 
-    private static int getInputFingerprint(ItemStack snapshotStack, ItemStack fromStack, ItemStack toStack) {
-        CompoundTag tag = new CompoundTag();
-        tag.put("snapshot", snapshotStack.save(new CompoundTag()));
-        tag.put("from", fromStack.save(new CompoundTag()));
-        tag.put("to", toStack.save(new CompoundTag()));
-        return tag.hashCode();
+    /** A Replacer never edits by itself: only an authenticated menu click may
+     * request the server to replace (or remove) the selected block schematic.
+     * The input single-block schematics remain reusable. */
+    public void doReplace(String requestedName) {
+        if (level == null || level.isClientSide) return;
+        ItemStack blueprintStack = invSnapshot.getStackInSlot(0);
+        ItemStack fromStack = invSchematicFrom.getStackInSlot(0);
+        ItemStack toStack = invSchematicTo.getStackInSlot(0);
+        if (blueprintStack.isEmpty() || fromStack.isEmpty()) return;
+        Header header = ItemSnapshot.getHeader(blueprintStack);
+        if (header == null) return;
+        Snapshot snapshot = GlobalSavedDataSnapshots.getSnapshotForConstruction(level, header.key);
+        if (!(snapshot instanceof Blueprint original)) return;
+        try {
+            ISchematicBlock from = ItemSchematicSingle.getSchematic(fromStack);
+            ISchematicBlock to = toStack.isEmpty()
+                ? new buildcraft.builders.snapshot.SchematicBlockAir()
+                : ItemSchematicSingle.getSchematic(toStack);
+            if (from == null || from.isAir() || to == null) return;
+            Blueprint modified = original.copy();
+            int replaced = modified.replace(from, to);
+            if (replaced <= 0) return;
+            modified.computeKey();
+            String newName = requestedName == null || requestedName.isBlank()
+                ? header.name : requestedName.strip();
+            if (newName.length() > MenuReplacer.MAX_BLUEPRINT_NAME_LENGTH) {
+                newName = newName.substring(0, MenuReplacer.MAX_BLUEPRINT_NAME_LENGTH);
+            }
+            Header newHeader = new Header(modified.key, getOwnerId(header), getOwnerName(header),
+                new Date(), newName, header.allowCreative, header.canRotate, header.canExcavate);
+            SnapshotCreationPersistence.persist(level, modified, newHeader);
+            invSnapshot.setStackInSlot(0, ItemSnapshot.getUsed(EnumSnapshotType.BLUEPRINT, newHeader));
+            // No invSchematicFrom/To extraction: a replacement does not consume patterns.
+            setChanged();
+        } catch (InvalidInputDataException e) {
+            BCLog.logger.warn("Invalid schematic in Replacer at " + worldPosition + ": " + e.getMessage());
+        } catch (RuntimeException e) {
+            BCLog.logger.warn("Unable to apply Replacer blueprint at " + worldPosition, e);
+        }
     }
 
     private UUID getOwnerId(Header fallbackHeader) {

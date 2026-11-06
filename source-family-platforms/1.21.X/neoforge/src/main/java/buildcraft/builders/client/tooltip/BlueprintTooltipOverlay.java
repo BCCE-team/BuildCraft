@@ -14,6 +14,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.event.RenderTooltipEvent;
 import buildcraft.builders.client.render.BlueprintRenderer;
 import buildcraft.builders.item.ItemSnapshot;
+import buildcraft.builders.item.ItemSchematicSingle;
 import buildcraft.builders.snapshot.ClientSnapshots;
 import buildcraft.builders.snapshot.Snapshot;
 
@@ -24,9 +25,17 @@ public final class BlueprintTooltipOverlay {
 
     public static void onPreTooltip(RenderTooltipEvent.Pre event) {
         ItemStack stack = event.getItemStack();
-        if (!(stack.getItem() instanceof ItemSnapshot)) return;
-        Snapshot.Header header = ItemSnapshot.getHeader(stack);
-        if (header == null) return;
+        Snapshot snapshot;
+        if (stack.getItem() instanceof ItemSnapshot) {
+            Snapshot.Header header = ItemSnapshot.getHeader(stack);
+            if (header == null || header.key == null) return;
+            snapshot = ClientSnapshots.INSTANCE.getSnapshot(header.key);
+        } else if (stack.getItem() instanceof ItemSchematicSingle) {
+            snapshot = SingleSchematicPreviewCache.previewFor(stack);
+            if (snapshot == null) return; // blank or invalid single scheme
+        } else {
+            return;
+        }
         List<ClientTooltipComponent> components = event.getComponents();
         if (components.isEmpty()) return;
         Font font = event.getFont();
@@ -52,7 +61,6 @@ public final class BlueprintTooltipOverlay {
         //?} else {
         /*TooltipRenderUtil.renderTooltipBackground(event.getGraphics(), x, y, SIDE, SIDE, null);*/
         //?}
-        Snapshot snapshot = ClientSnapshots.INSTANCE.getSnapshot(header.key);
         if (snapshot != null) BlueprintRenderer.renderSnapshot(event.getGraphics(), snapshot, x, y, SIDE, SIDE);
     }
 }

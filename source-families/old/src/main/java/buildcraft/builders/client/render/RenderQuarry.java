@@ -29,6 +29,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class RenderQuarry implements BlockEntityRenderer<TileQuarry>{
+    private final BuilderIndicatorLights indicatorLights = new BuilderIndicatorLights();
     public static final LaserData_BC8.LaserType FRAME;
     public static final LaserData_BC8.LaserType FRAME_BOTTOM;
     public static final LaserData_BC8.LaserType DRILL;
@@ -86,6 +87,9 @@ public class RenderQuarry implements BlockEntityRenderer<TileQuarry>{
 		// viewed at a distance or oblique angle. The mipped cutout layer preserves hard alpha
 		// edges while using the block atlas mip levels for stable minification.
 		VertexConsumer bb = buffer.getBuffer(RenderType.cutoutMipped());
+        if (tile.getLevel() != null) {
+            indicatorLights.drawQuarry(tile, matrix.last().pose(), matrix.last().normal(), bb);
+        }
 //		matrix.translate(0.5f, 0.5f, 0.5f);
 		Matrix4f pose = matrix.last().pose();
 		Matrix3f normal = matrix.last().normal();

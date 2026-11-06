@@ -22,7 +22,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtUtils;
+import buildcraft.lib.compat.SavedBlockStateNbt;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Rotation;
@@ -136,14 +136,14 @@ public class SchematicBlockFluid implements ISchematicBlock {
     @Override
     public CompoundTag serializeNBT() {
         CompoundTag nbt = new CompoundTag();
-        nbt.put("blockState", NbtUtils.writeBlockState(blockState));
+        nbt.put("blockState", SavedBlockStateNbt.write(blockState));
         nbt.putBoolean("isFlowing", isFlowing);
         return nbt;
     }
 
     @Override
     public void deserializeNBT(CompoundTag nbt) throws InvalidInputDataException {
-        blockState = NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(), nbt.getCompound("blockState"));
+        blockState = SavedBlockStateNbt.read(nbt.getCompound("blockState"));
         isFlowing = nbt.getBoolean("isFlowing");
         // The snapshot's schematic-type discriminator is not trusted. Re-run the
         // fluid factory invariant on loaded data, including the source/flowing bit.

@@ -35,7 +35,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtUtils;
+import buildcraft.lib.compat.SavedBlockStateNbt;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.Container;
@@ -1176,7 +1176,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
             "requiredBlockOffsets",
             BuildersNbtUtil.writeBlockPosList(requiredBlockOffsets.stream())
         );
-        nbt.put("blockState", NbtUtils.writeBlockState(blockState));
+        nbt.put("blockState", SavedBlockStateNbt.write(blockState));
         nbt.put(
             "ignoredProperties",
             NBTUtilBC.writeStringList(
@@ -1219,7 +1219,7 @@ public class SchematicBlockDefault implements ISchematicBlock {
     public void deserializeNBT(CompoundTag nbt) throws InvalidInputDataException {
         BuildersNbtUtil.readBlockPosList(nbt.get("requiredBlockOffsets"))
             .forEach(requiredBlockOffsets::add);
-        blockState = NbtUtils.readBlockState(BuiltInRegistries.BLOCK, NbtCompat.getCompound(nbt, "blockState"));
+        blockState = SavedBlockStateNbt.read(NbtCompat.getCompound(nbt, "blockState"));
         NBTUtilBC.readStringList(nbt.get("ignoredProperties"))
             .map(propertyName ->
                 blockState.getProperties().stream()
