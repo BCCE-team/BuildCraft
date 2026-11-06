@@ -360,7 +360,7 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
                     }
                     if (consumed) {
                         if (storedFuel.getAmount() <= 0) {
-                            tankFuel.setFluid(null);
+                            tankFuel.setFluid(FluidStack.EMPTY);
                         }
                         markChunkDirty();
                     }
