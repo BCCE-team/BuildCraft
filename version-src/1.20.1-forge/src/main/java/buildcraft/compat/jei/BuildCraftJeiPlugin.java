@@ -32,6 +32,7 @@ import buildcraft.lib.internal.recipes.IngredientStack;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.energy.BCEnergyBlocks;
 import buildcraft.factory.BCFactoryItems;
+import buildcraft.factory.client.gui.ScreenHeatExchange;
 import buildcraft.lib.BCLibConfig;
 import buildcraft.lib.gui.GuiBC8;
 import buildcraft.lib.gui.IGuiElement;
@@ -151,6 +152,8 @@ public class BuildCraftJeiPlugin implements IModPlugin {
 
     @Override
     public void registerGuiHandlers(IGuiHandlerRegistration registration) {
+        // BCU progress/help rectangle; intentionally excludes fluid tanks and item slots.
+        registration.addRecipeClickArea(ScreenHeatExchange.class, 73, 36, 30, 21, HEAT_EXCHANGE);
         registration.addGenericGuiContainerHandler(GuiBC8.class, new IGuiContainerHandler<GuiBC8<?>>() {
             @Override
             public List<Rect2i> getGuiExtraAreas(GuiBC8<?> screen) {

@@ -27,6 +27,19 @@ public abstract class ContainerScreenBase<T extends AbstractContainerMenu> exten
         size = componentSize;
     }
 
+    /**
+     * Sized constructor for modern Minecraft, where imageHeight is final.
+     * Use this for non-166px GUIs instead of mutating the field after super().
+     */
+    public ContainerScreenBase(T menu, Inventory inventory, Component name, int componentSize,
+                               Identifier texture, int imageWidth, int imageHeight) {
+        super(menu, inventory, name, imageWidth, imageHeight);
+        TEXTURE_BASE = texture;
+        components = new ContainerComponent[componentSize];
+        listenClick = new boolean[componentSize];
+        size = componentSize;
+    }
+
     public ContainerScreenBase(T menu, Inventory inventory, Component name, int componentSize) {
         this(menu, inventory, name, componentSize, null);
     }

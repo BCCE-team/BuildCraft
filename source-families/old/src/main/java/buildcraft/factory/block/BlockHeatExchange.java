@@ -107,6 +107,14 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
     @Override
     public BlockState updateShape(BlockState state, Direction direction, BlockState neighbourState,
         LevelAccessor world, BlockPos pos, BlockPos neighbourPos) {
+        // A shape update does not necessarily dispatch neighborChanged(). In particular,
+        // replacing a missing section must wake up the surviving exchanger tiles.
+        if (direction.getAxis().isHorizontal() && world instanceof Level level && !level.isClientSide()) {
+            BlockEntity tile = level.getBlockEntity(pos);
+            if (tile instanceof TileHeatExchange exchange) {
+                exchange.markCheckNeighbours();
+            }
+        }
         return withActualState(state, world, pos);
     }
 
@@ -119,6 +127,39 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
             state = actual;
         }
         super.neighborChanged(state, level, pos, block, fromPos, isMoving);
+    }
+
+    /** Mark the surviving segments even when Minecraft skips neighborChanged(). */
+    private static void invalidateAdjacent(Level level, BlockPos pos) {
+        if (level.isClientSide()) return;
+        for (Direction direction : new Direction[] {
+            Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
+        }) {
+            BlockPos neighbourPos = pos.relative(direction);
+            if (!level.hasChunkAt(neighbourPos)) continue;
+            BlockEntity tile = level.getBlockEntity(neighbourPos);
+            if (tile instanceof TileHeatExchange exchange) {
+                exchange.markCheckNeighbours();
+            }
+        }
+    }
+
+    @Override
+    public void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean isMoving) {
+        super.onPlace(state, level, pos, oldState, isMoving);
+        if (!oldState.is(state.getBlock())) {
+            invalidateAdjacent(level, pos);
+        }
+    }
+
+    @Override
+    public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+        // PART and connection flags can change without removing the physical block.
+        // Do not dismantle the exchanger or trigger a re-scan in that case.
+        if (!state.is(newState.getBlock())) {
+            invalidateAdjacent(level, pos);
+        }
+        super.onRemove(state, level, pos, newState, isMoving);
     }
 
     public static BlockState withActualState(BlockState state, BlockGetter world, BlockPos pos) {

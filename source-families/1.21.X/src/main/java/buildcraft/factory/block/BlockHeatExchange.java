@@ -20,6 +20,7 @@ import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.block.Block;
@@ -98,6 +99,14 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
         // Minecraft this updateShape path is the reliable callback used to invalidate TileHeatExchange topology.
         // Skipping super left START/END tiles linked through a block that had already been removed.
         BlockState updated = super.updateShape(state, world, scheduledTickAccess, pos, direction, neighbourPos, neighbourState, random);
+        // Also invalidate directly: different modern loaders do not dispatch the
+        // legacy neighbour callback for every replacement/removal path.
+        if (direction.getAxis().isHorizontal() && world instanceof Level level && !level.isClientSide()) {
+            BlockEntity tile = level.getBlockEntity(pos);
+            if (tile instanceof TileHeatExchange exchange) {
+                exchange.markCheckNeighbours();
+            }
+        }
         return withActualState(updated, world, pos);
     }
 
@@ -110,6 +119,35 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
             state = actual;
         }
         super.neighborChanged(state, level, pos, block, orientation, notify);
+    }
+
+    /** Mark the surviving segments even when Minecraft skips neighborChanged(). */
+    private static void invalidateAdjacent(Level level, BlockPos pos) {
+        if (level.isClientSide()) return;
+        for (Direction direction : new Direction[] {
+            Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
+        }) {
+            BlockPos neighbourPos = pos.relative(direction);
+            if (!level.hasChunkAt(neighbourPos)) continue;
+            BlockEntity tile = level.getBlockEntity(neighbourPos);
+            if (tile instanceof TileHeatExchange exchange) {
+                exchange.markCheckNeighbours();
+            }
+        }
+    }
+
+    @Override
+    public void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean isMoving) {
+        super.onPlace(state, level, pos, oldState, isMoving);
+        if (!oldState.is(state.getBlock())) {
+            invalidateAdjacent(level, pos);
+        }
+    }
+
+    @Override
+    protected void affectNeighborsAfterRemoval(BlockState state, ServerLevel level, BlockPos pos, boolean moved) {
+        super.affectNeighborsAfterRemoval(state, level, pos, moved);
+        invalidateAdjacent(level, pos);
     }
 
     public static BlockState withActualState(BlockState state, BlockGetter world, BlockPos pos) {

@@ -168,7 +168,8 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         registration.addRecipeClickArea(GuiIntegrationTable.class, 164, 22, 4, 70, INTEGRATION);
         registration.addRecipeClickArea(GuiAdvancedCraftingTable.class, 164, 7, 4, 70, RecipeTypes.CRAFTING);
         registration.addRecipeClickArea(GuiAutoCraftItems.class, 90, 47, 23, 10, RecipeTypes.CRAFTING);
-        registration.addRecipeClickArea(ScreenHeatExchange.class, 80, 34, 16, 24, HEAT_EXCHANGE);
+        // BCU progress/help rectangle; excludes fluid tanks and item slots.
+        registration.addRecipeClickArea(ScreenHeatExchange.class, 73, 36, 30, 21, HEAT_EXCHANGE);
         registration.addRecipeClickArea(GuiEngineStone_BC8.class, 81, 25, 14, 14, RecipeTypes.SMELTING_FUEL);
         registration.addGenericGuiContainerHandler(GuiBC8.class, new IGuiContainerHandler<GuiBC8<?>>() {
             public List<Rect2i> getGuiExtraAreas(GuiBC8<?> screen) {

@@ -20,6 +20,7 @@ import buildcraft.core.BCCoreItems;
 import buildcraft.core.item.ItemFragileFluidContainer;
 import buildcraft.lib.fluid.FluidCompatRegistry;
 import buildcraft.lib.fluid.Tank;
+import buildcraft.lib.tile.item.ItemHandlerSimple;
 import buildcraft.lib.fluid.TankManager;
 import buildcraft.lib.tile.TileBC_Neptune;
 
@@ -237,6 +238,20 @@ public class FluidUtilBC {
             remaining.shrink(filled);
         }
         return restored;
+    }
+
+    /** Transfer exactly one container through a single tank, preserving item and fluid on rejection. */
+    public static void transferHeatExchangeContainer(ItemHandlerSimple items, int slot, Tank tank, boolean emptyItem) {
+        if (items == null || tank == null) return;
+        ItemStack initial = items.getStackInSlot(slot);
+        if (initial.isEmpty() || initial.getCount() != 1) return;
+        ItemStack one = initial.copy();
+        var optional = FluidUtil.getFluidHandler(one);
+        if (!optional.isPresent()) return;
+        var handler = optional.orElse(null);
+        if (handler == null) return;
+        FluidStack moved = emptyItem ? move(handler, tank, 1000) : move(tank, handler, 1000);
+        if (moved != null && !moved.isEmpty()) items.setStackInSlot(slot, handler.getContainer().copy());
     }
 
     public static boolean onTankActivated(Player player, BlockPos pos, InteractionHand hand,

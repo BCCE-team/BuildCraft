@@ -32,6 +32,7 @@ import buildcraft.lib.fluid.FluidSmoother.FluidStackInterp;
 import buildcraft.lib.fluid.Tank;
 import buildcraft.lib.fluid.TankManager;
 import buildcraft.lib.gui.TankContainerData;
+import buildcraft.lib.tile.item.ItemHandlerSimple;
 import buildcraft.lib.misc.BoundingBoxUtil;
 import buildcraft.lib.misc.CapUtil;
 import buildcraft.lib.misc.FluidUtilBC;
@@ -95,8 +96,19 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
 
     protected TankContainerData tankData = null;
     protected Tank[] tanks = new Tank[4];
+    /** Bucket / fluid-shard slots, owned by the START section; maximum one item per slot. */
+    public final ItemHandlerSimple containerSlots = new ItemHandlerSimple(4, 1);
+
+    {
+        containerSlots.setCallback((handler, slot, before, after) -> markChunkDirty());
+    }
+
     protected DataSlot stateData = new DataSlot(){
         public int get() {
+            if (section instanceof ExchangeSectionStart start) {
+                int frames = Math.max(0, Math.min(120, (int) Math.round(start.getProgress(1.0F) * 120.0)));
+                return start.getProgressState().ordinal() * 128 + frames;
+            }
             return 0;
         }
         public void set(int index) {}
@@ -113,9 +125,16 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
     protected ExchangeSection section;
     private boolean checkNeighbours = true;
 
+    /** Re-evaluate the whole connected line on the next server tick.
+     * Called by the block's placement, removal and shape notifications. */
+    public void markCheckNeighbours() {
+        checkNeighbours = true;
+    }
+
 
     protected void readData(BCValueInput bcData) {
         super.readData(bcData);
+        containerSlots.deserializeNBT(bcData.registries(), bcData.readCompound("containerSlots"));
         CompoundTag nbtSection = bcData.readCompound("section");
         if (!nbtSection.isEmpty()) {
             if (NbtCompat.getBoolean(nbtSection, "start")) {
@@ -128,13 +147,14 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
     }
 
     public void onLoad() {
-//    	checkNeighbours = true;
+markCheckNeighbours();
         super.onLoad();
     }
 
     protected void writeData(BCValueOutput bcData) {
         CompoundTag nbt = bcData.tag();
         super.writeData(bcData);
+        nbt.put("containerSlots", containerSlots.serializeNBT(bcData.registries()));
         if (section != null) {
             nbt.put("section", section.writeToNbt());
         }
@@ -456,8 +476,11 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
         if (section != null&&FluidUtilBC.onTankActivated(player, worldPosition, hand, section.tankManager)) {
             return InteractionResult.SUCCESS;
         }
-        if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer && tankData != null && level.getBlockEntity(worldPosition) instanceof TileHeatExchange tile) {
-            serverPlayer.openMenu(tile, buffer -> buffer.writeBlockPos(worldPosition));
+        if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
+            TileHeatExchange controller = findStart();
+            if (controller != null && controller.tankData != null && controller.canPlayerEdit(player)) {
+                serverPlayer.openMenu(controller, buffer -> buffer.writeBlockPos(controller.worldPosition));
+            }
         }
         return InteractionResult.SUCCESS;
     }
@@ -490,6 +513,13 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
         super.addDrops(toDrop, fortune);
         if (section != null) {
             section.tankManager.addDrops(toDrop);
+        }
+        for (int slot = 0; slot < containerSlots.getSlots(); slot++) {
+            ItemStack item = containerSlots.getStackInSlot(slot);
+            if (!item.isEmpty()) {
+                toDrop.add(item.copy());
+                containerSlots.setStackInSlot(slot, ItemStack.EMPTY);
+            }
         }
     }
 
@@ -590,6 +620,23 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
 
     public boolean isEnd() {
         return section instanceof ExchangeSectionEnd;
+    }
+
+    /** Locate the controller without force-loading chunks. Also works when the clicked block is MIDDLE. */
+    @Nullable
+    public TileHeatExchange findStart() {
+        if (isStart()) return this;
+        if (level == null) return null;
+        Direction facing = getFacing();
+        if (facing == null) return null;
+        for (int offset = 1; offset <= 4; offset++) {
+            BlockPos candidate = worldPosition.relative(facing.getClockWise(), offset);
+            if (!level.hasChunkAt(candidate)) return null;
+            BlockEntity entity = level.getBlockEntity(candidate);
+            if (!(entity instanceof TileHeatExchange neighbour) || neighbour.getFacing() != facing) return null;
+            if (neighbour.isStart()) return neighbour;
+        }
+        return null;
     }
 
     public ExchangeSection getSection() {
@@ -742,6 +789,12 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             super(tile, nbt);
             inputCoolantAmountCharge = NbtCompat.getInt(nbt, "coolantCharge");
             inputHeatantAmountCharge = NbtCompat.getInt(nbt, "heatantCharge");
+            progress = Math.max(0, Math.min(120, NbtCompat.getInt(nbt, "progress")));
+            progressLast = progress;
+            int ordinal = NbtCompat.getInt(nbt, "progressState");
+            EnumProgressState[] states = EnumProgressState.values();
+            progressState = states[Math.max(0, Math.min(ordinal, states.length - 1))];
+            lastSentState = progressState;
         }
 
         CompoundTag writeToNbt() {
@@ -749,6 +802,8 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             nbt.putBoolean("start", true);
             nbt.putInt("coolantCharge", inputCoolantAmountCharge);
             nbt.putInt("heatantCharge", inputHeatantAmountCharge);
+            nbt.putInt("progress", progress);
+            nbt.putInt("progressState", progressState.ordinal());
             return nbt;
         }
 
@@ -811,10 +866,26 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
                 progressState = EnumProgressState.STOPPING;
             }
             output();
+            processContainerSlots();
             if (progressState != lastSentState) {
                 lastSentState = progressState;
                 getTile().sendNetworkUpdate(NET_ID_STATE);
             }
+        }
+
+        /** BCU-style fluid-container automation with the same 5-tick cadence as Distiller. */
+        private void processContainerSlots() {
+            TileHeatExchange controller = getTile();
+            if (controller.level == null || controller.level.getGameTime() % 5 != 0) return;
+            ItemHandlerSimple slots = controller.containerSlots;
+            if (endSection != null) {
+                FluidUtilBC.transferHeatExchangeContainer(slots, 0, endSection.tankInput, true);
+            }
+            FluidUtilBC.transferHeatExchangeContainer(slots, 1, tankInput, true);
+            if (endSection != null) {
+                FluidUtilBC.transferHeatExchangeContainer(slots, 2, endSection.tankOutput, false);
+            }
+            FluidUtilBC.transferHeatExchangeContainer(slots, 3, tankOutput, false);
         }
 
         private void updateProgress() {
@@ -862,7 +933,8 @@ public class TileHeatExchange extends TileBC_Neptune implements IDebuggable, Men
             int c_diff = c_recipe.heatFrom() - c_recipe.heatTo();
             int h_diff = h_recipe.heatTo() - h_recipe.heatFrom();
             if (h_diff < 1 || c_diff < 1) {
-                throw new IllegalStateException("Invalid recipe " + c_recipe + ", " + h_recipe);
+                progressState = EnumProgressState.STOPPING;
+                return;
             }
             if (middleCount < 1 || middleCount > FLUID_MULT.length) {
                 progressState = EnumProgressState.STOPPING;

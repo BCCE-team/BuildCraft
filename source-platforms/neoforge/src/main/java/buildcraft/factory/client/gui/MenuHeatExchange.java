@@ -9,6 +9,7 @@ import buildcraft.lib.fluid.Tank;
 import buildcraft.lib.gui.IMenuBCTile;
 import buildcraft.lib.gui.MenuBC_Neptune;
 import buildcraft.lib.gui.TankContainerData;
+import buildcraft.lib.tile.item.ItemHandlerSimple;
 import buildcraft.lib.tile.TileBC_Neptune;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
@@ -25,6 +26,11 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
 //?}
+//? if mc_26_x && (>=26.3) {
+import buildcraft.lib.compat.neoforge263.items.SlotItemHandler;
+//? } else {
+import net.neoforged.neoforge.items.SlotItemHandler;
+//?}
 
 public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
 
@@ -33,6 +39,8 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
 
     private final ContainerLevelAccess access;
     protected ContainerData data;
+    /** Synced animation state/progress packed into 16 bits. */
+    public final DataSlot progressData;
     @Nullable
     public final TileHeatExchange tile;
 
@@ -63,6 +71,7 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
         super(playerInventory, BCFactoryGuis.MENU_HEAT_EXCHANGE.get(), containerId);
         this.access = access;
         this.data = tank;
+        this.progressData = bg;
         this.tile = access.evaluate((level, pos) -> {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof TileHeatExchange heatExchange) {
@@ -78,6 +87,13 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
             return null;
         }, null);
 
+        // BCU: four one-item fluid-container slots, placed before player slots for shift-click logic.
+        ItemHandlerSimple fluidItems = tile == null ? new ItemHandlerSimple(TANK_COUNT, 1) : tile.containerSlots;
+        this.addSlot(new SlotItemHandler(fluidItems, 0, 8, 23));   // hot input
+        this.addSlot(new SlotItemHandler(fluidItems, 1, 8, 64));   // cold input
+        this.addSlot(new SlotItemHandler(fluidItems, 2, 152, 12)); // heated output
+        this.addSlot(new SlotItemHandler(fluidItems, 3, 152, 54)); // cooled output
+
         for (int i = 0; i < 3; ++i) {
             for (int j = 0; j < 9; ++j) {
                 this.addSlot(new Slot(playerInventory, j + i * 9 + 9, 8 + j * 18, 89 + i * 18));
@@ -88,6 +104,7 @@ public class MenuHeatExchange extends MenuBC_Neptune implements IMenuBCTile {
             this.addSlot(new Slot(playerInventory, k, 8 + k * 18, 147));
         }
         addDataSlots(tank);
+        addDataSlot(bg);
     }
 
 //? if mc_26_x && (>=26.3) {
