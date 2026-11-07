@@ -32,6 +32,11 @@ import buildcraft.lib.internal.recipes.IngredientStack;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.energy.BCEnergyBlocks;
 import buildcraft.factory.BCFactoryItems;
+import buildcraft.silicon.gui.GuiAssemblyTable;
+import buildcraft.silicon.gui.GuiProgrammingTable;
+import buildcraft.silicon.gui.GuiIntegrationTable;
+import buildcraft.silicon.gui.GuiAdvancedCraftingTable;
+import buildcraft.factory.gui.GuiAutoCraftItems;
 import buildcraft.factory.client.gui.ScreenHeatExchange;
 import buildcraft.lib.BCLibConfig;
 import buildcraft.lib.gui.GuiBC8;
@@ -152,6 +157,15 @@ public class BuildCraftJeiPlugin implements IModPlugin {
 
     @Override
     public void registerGuiHandlers(IGuiHandlerRegistration registration) {
+        // These rectangles are relative to each GUI's top-left corner, not the screen.
+        // Keep item slots, page selectors, and recipe-book controls outside the hit areas.
+        // The vertical power gauges are only 4px wide: pad their hitboxes so JEI is usable.
+        registration.addRecipeClickArea(GuiAssemblyTable.class, 83, 35, 10, 72, ASSEMBLY);
+        registration.addRecipeClickArea(GuiProgrammingTable.class, 160, 35, 12, 72, PROGRAMMING);
+        registration.addRecipeClickArea(GuiIntegrationTable.class, 160, 21, 12, 72, INTEGRATION);
+        // The advanced crafting arrow is a clearer shortcut than its thin power bar.
+        registration.addRecipeClickArea(GuiAdvancedCraftingTable.class, 93, 32, 23, 16, RecipeTypes.CRAFTING);
+        registration.addRecipeClickArea(GuiAutoCraftItems.class, 90, 47, 23, 10, RecipeTypes.CRAFTING);
         // BCU progress/help rectangle; intentionally excludes fluid tanks and item slots.
         registration.addRecipeClickArea(ScreenHeatExchange.class, 73, 36, 30, 21, HEAT_EXCHANGE);
         registration.addGenericGuiContainerHandler(GuiBC8.class, new IGuiContainerHandler<GuiBC8<?>>() {
