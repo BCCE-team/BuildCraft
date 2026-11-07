@@ -26,6 +26,7 @@ import buildcraft.lib.engine.EngineConnector;
 import buildcraft.lib.engine.TileEngineBase_BC8;
 import buildcraft.lib.misc.InventoryUtil;
 import buildcraft.lib.misc.AdvancementUtil;
+import buildcraft.lib.misc.WrenchUtil;
 import buildcraft.lib.tile.item.ItemHandlerManager.EnumAccess;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
 import net.minecraft.core.BlockPos;
@@ -150,6 +151,10 @@ public class TileEngineStone_BC8 extends TileEngineBase_BC8 implements MenuProvi
     @Override
 //?}
 	public InteractionResult onActivated(Player player, InteractionHand hand, BlockHitResult hit) {
+        // On every target, the wrench owns both normal and sneak rotation; never open the GUI.
+        if (WrenchUtil.isWrench(player.getItemInHand(hand))) {
+            return InteractionResult.PASS;
+        }
 //? if mc_26_x && (>=26.3) {
         if (!level.isClientSide() && player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
 //? } else {

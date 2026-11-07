@@ -11,7 +11,8 @@ sys.path[:0]=[str(ROOT/'scripts'),str(ROOT/'scripts/tests')]
 from source_config import load_properties,target_layout
 from source_layout import resolve_effective_source,_materialize_text_file
 from minecraft_compat_fixture import parse_sources
-from dynamo_rotation_fixture import execute as execute_rotation
+from dynamo_rotation_fixture import execute as execute_rotation, extract_method
+import subprocess
 from all_engine_wrench_fixture import execute as execute_wrench
 from quarry_lattice_fixture import execute as execute_quarry
 
@@ -21,6 +22,12 @@ FILES={
  'dynamo':'src/main/java/buildcraft/energy/block/BlockDynamoMJ.java',
  'engine':'src/main/java/buildcraft/lib/engine/TileEngineBase_BC8.java',
  'engine_block':'src/main/java/buildcraft/lib/engine/BlockEngineBase_BC8.java',
+ 'stone_engine':'src/main/java/buildcraft/energy/tile/TileEngineStone_BC8.java',
+ 'wrench_item':'src/main/java/buildcraft/core/item/ItemWrench.java',
+ 'creative_engine':'src/main/java/buildcraft/core/blockEntity/TileEngineCreative.java',
+ 'iron_engine':'src/main/java/buildcraft/energy/tile/TileEngineIron_BC8.java',
+ 'fe_engine':'src/main/java/buildcraft/energy/tile/TileEngineFE.java',
+ 'dynamo_engine':'src/main/java/buildcraft/energy/tile/TileDynamoMJ.java',
  'quarry':'src/main/java/buildcraft/builders/client/render/RenderQuarry.java',
  'quarry_tile':'src/main/java/buildcraft/builders/tile/TileQuarry.java',
 }
@@ -83,6 +90,125 @@ class DynamoAndQuarryAllTargets(unittest.TestCase):
         for source in unique.values():
             with self.subTest(source=source):
                 self.assertIn('145 assertions PASS', execute_wrench(source))
+
+    def test_stirling_engine_gui_defers_to_wrench_on_all_targets(self):
+        # Existing manual-rotation tests start at the rotation handler. They miss the
+        # right-click dispatch bug where the GUI consumes an interaction first.
+        for version in TARGETS:
+            with self.subTest(version=version):
+                stone = self.text(version, 'stone_engine')
+                wrench = self.text(version, 'wrench_item')
+                self.assertIn('BlockInteractionRuntime.rotate(', wrench)
+                self.assertIn('return engine.attemptManualRotation();', self.text(version, 'engine_block'))
+                guard = 'if (WrenchUtil.isWrench(player.getItemInHand(hand))) {'
+                start = stone.index('public InteractionResult onActivated(Player player, InteractionHand hand, BlockHitResult hit)')
+                body = stone[start:]
+                self.assertIn(guard, body)
+                self.assertLess(body.index(guard), body.index('openScreen(') if 'openScreen(' in body else body.index('openMenu('))
+                self.assertIn('return InteractionResult.PASS;', body[body.index(guard):body.index('openScreen(') if 'openScreen(' in body else body.index('openMenu(')])
+
+    def test_creative_wrench_click_modes_execute_in_java(self):
+        # Compile the actual materialized click handler, with only Minecraft dependencies
+        # represented by small test doubles. An ordinary wrench click cycles MJ/t, while
+        # sneak-wrench MUST return PASS so ItemWrench can rotate the engine instead.
+        variants = {}
+        for version in TARGETS:
+            java = self.text(version, 'creative_engine')
+            method = extract_method(java, 'public InteractionResult onActivated(Player player, InteractionHand hand, BlockHitResult hit) {')
+            variants.setdefault(method, []).append(version)
+        for method, versions in variants.items():
+            with self.subTest(versions=versions):
+                harness = '''
+import java.util.*;
+enum InteractionResult { SUCCESS, PASS }
+enum InteractionHand { MAIN_HAND }
+class BlockHitResult { }
+class ItemStack { final boolean wrench; ItemStack(boolean wrench) { this.wrench=wrench; } }
+class WrenchUtil { static boolean isWrench(ItemStack item) { return item.wrench; } }
+class Component { static Component translatable(String key, long value) { return new Component(); } }
+class Level { boolean isClientSide; boolean isClientSide() { return isClientSide; } }
+class Player {
+    ItemStack held; boolean shift; int messages;
+    Player(ItemStack item) { held=item; }
+    ItemStack getItemInHand(InteractionHand hand) { return held; }
+    boolean isShiftKeyDown() { return shift; }
+    void displayClientMessage(Component message, boolean overlay) { messages++; }
+    void sendOverlayMessage(Component message) { messages++; }
+}
+public class CreativeWrenchClickHarness {
+    final Level level = new Level();
+    static final long[] outputs = {1,2,4,8,16,32,64,128,256};
+    static final int NET_RENDER_DATA = 1;
+    int currentOutputIndex, changed, updates, assertions;
+    void setChanged() { changed++; }
+    void sendNetworkUpdate(int id) { updates++; }
+    void require(boolean condition) { assertions++; if (!condition) throw new AssertionError("assertion " + assertions); }
+''' + method + '''
+    void run() {
+        Player player = new Player(new ItemStack(true));
+        BlockHitResult hit = new BlockHitResult();
+        level.isClientSide=false;
+        require(onActivated(player, InteractionHand.MAIN_HAND, hit) == InteractionResult.SUCCESS);
+        require(currentOutputIndex == 1 && changed == 1 && updates == 1 && player.messages == 1);
+        player.shift=true;
+        for (int i=0;i<3;i++) {
+            require(onActivated(player, InteractionHand.MAIN_HAND, hit) == InteractionResult.PASS);
+            require(currentOutputIndex == 1 && changed == 1 && updates == 1 && player.messages == 1);
+        }
+        player.shift=false;
+        for (int i=0;i<9;i++) {
+            require(onActivated(player, InteractionHand.MAIN_HAND, hit) == InteractionResult.SUCCESS);
+        }
+        require(currentOutputIndex == 1 && changed == 10 && updates == 10 && player.messages == 10);
+        player.held=new ItemStack(false);
+        require(onActivated(player, InteractionHand.MAIN_HAND, hit) == InteractionResult.PASS);
+        require(currentOutputIndex == 1 && changed == 10);
+        player.held=new ItemStack(true);
+        level.isClientSide=true;
+        require(onActivated(player, InteractionHand.MAIN_HAND, hit) == InteractionResult.SUCCESS);
+        require(currentOutputIndex == 1 && changed == 10 && updates == 10);
+        player.shift=true;
+        require(onActivated(player, InteractionHand.MAIN_HAND, hit) == InteractionResult.PASS);
+        require(currentOutputIndex == 1 && changed == 10 && updates == 10);
+        System.out.println(assertions + " creative-wrench assertions PASS");
+    }
+    public static void main(String[] args) { new CreativeWrenchClickHarness().run(); }
+}
+'''
+                with tempfile.TemporaryDirectory(prefix='bc-creative-engine-wrench-') as tmp:
+                    java_file=Path(tmp)/'CreativeWrenchClickHarness.java'
+                    java_file.write_text(harness, encoding='utf-8')
+                    compile_result=subprocess.run(['javac','--release','17',str(java_file)],capture_output=True,text=True,timeout=35)
+                    self.assertEqual(0,compile_result.returncode,compile_result.stderr)
+                    run_result=subprocess.run(['java','-cp',tmp,'CreativeWrenchClickHarness'],capture_output=True,text=True,timeout=20)
+                    self.assertEqual(0,run_result.returncode,run_result.stderr)
+                    self.assertIn('creative-wrench assertions PASS',run_result.stdout)
+
+    def test_normal_and_sneak_wrench_dispatch_for_all_engine_types(self):
+        # The ordinary and shifted wrench path must both reach ItemWrench.useOn
+        # for Redstone, Stirling, Combustion, FE and MJ Dynamo, on all 7 targets.
+        for version in TARGETS:
+            with self.subTest(version=version):
+                wrench=self.text(version,'wrench_item')
+                self.assertIn('doesSneakBypassUse(', wrench)
+                self.assertIn('BlockInteractionRuntime.rotate(', wrench)
+                self.assertIn('return engine.attemptManualRotation();',self.text(version,'engine_block'))
+                stone=self.text(version,'stone_engine')
+                stone_handler=extract_method(stone,'public InteractionResult onActivated(Player player, InteractionHand hand, BlockHitResult hit) {')
+                self.assertIn('if (WrenchUtil.isWrench(player.getItemInHand(hand))) {',stone_handler)
+                self.assertIn('return InteractionResult.PASS;',stone_handler)
+                self.assertLess(stone_handler.index('WrenchUtil.isWrench('),stone_handler.index('openMenu(') if 'openMenu(' in stone_handler else stone_handler.index('openScreen('))
+                # The remaining engine GUIs must give their item interaction back
+                # to the wrench rather than swallowing it to open a menu.
+                for name in ('iron_engine','fe_engine','dynamo_engine'):
+                    handler=extract_method(self.text(version,name),'public InteractionResult onActivated(Player player, InteractionHand hand, BlockHitResult hit) {')
+                    self.assertIn('EntityUtil.getWrenchHand(player) != null',handler,(version,name))
+                    self.assertIn('return InteractionResult.PASS;',handler,(version,name))
+                    self.assertNotIn('isShiftKeyDown()',handler,(version,name))
+                creative=extract_method(self.text(version,'creative_engine'),
+                    'public InteractionResult onActivated(Player player, InteractionHand hand, BlockHitResult hit) {')
+                self.assertLess(creative.index('if (player.isShiftKeyDown())'),creative.index('currentOutputIndex++'))
+                self.assertIn('return InteractionResult.PASS;',creative)
 
     def test_all_targets_keep_wrench_direction_until_player_changes_it(self):
         for version in TARGETS:

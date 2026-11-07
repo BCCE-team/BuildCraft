@@ -130,6 +130,10 @@ public class TileEngineCreative extends TileEngineBase_BC8 {
 	public InteractionResult onActivated(Player player, InteractionHand hand, BlockHitResult hit) {
         ItemStack stack = player.getItemInHand(hand);
         if (WrenchUtil.isWrench(stack)) {
+            // The normal wrench click changes MJ/t; sneak-wrench belongs to item rotation.
+            if (player.isShiftKeyDown()) {
+                return InteractionResult.PASS;
+            }
             if (!level.isClientSide) {
                 currentOutputIndex++;
                 currentOutputIndex %= outputs.length;
