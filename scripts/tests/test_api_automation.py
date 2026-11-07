@@ -205,9 +205,39 @@ class StatementConformanceTest(unittest.TestCase):
 
 GATE_EXTRA = {
  "buildcraft/lib/internal/core/render/ISprite.java": "package buildcraft.lib.internal.core.render; public interface ISprite {}",
+ # The gate probe compiles the real bridge in isolation, so its rendering dependencies
+ # are represented by lightweight fixtures rather than loading a Minecraft client.
+ "buildcraft/lib/BCLibSprites.java": """package buildcraft.lib;
+ import buildcraft.lib.internal.core.render.ISprite;
+ public final class BCLibSprites {public static final ISprite HELP=new ISprite() {};}
+ """,
+ "buildcraft/lib/client/sprite/SpriteRaw.java": """package buildcraft.lib.client.sprite;
+ import buildcraft.lib.internal.core.render.ISprite;
+ import net.minecraft.resources.ResourceLocation;
+ public final class SpriteRaw implements ISprite {
+  public final ResourceLocation location;
+  public SpriteRaw(ResourceLocation location,double x,double y,double width,double height){this.location=location;}
+ }
+ """,
+ "buildcraft/api/v2/BuildCraftRegistries.java": """package buildcraft.api.v2;
+ import buildcraft.api.v2.statement.*;
+ import buildcraft.api.v2.client.*;
+ public final class BuildCraftRegistries {
+  public record Key<T>(){}
+  public static final Key<ParameterType<?>> PARAMETER_TYPES=new Key<>();
+  public static final Key<TriggerType> TRIGGER_TYPES=new Key<>();
+  public static final Key<ActionType> ACTION_TYPES=new Key<>();
+  public static final Key<StatementContributor> STATEMENT_CONTRIBUTORS=new Key<>();
+  public static final Key<StatementPresentation> STATEMENT_PRESENTATIONS=new Key<>();
+  public static final Key<ParameterPresentation> PARAMETER_PRESENTATIONS=new Key<>();
+ }
+ """,
  "net/minecraft/world/item/ItemStack.java": "package net.minecraft.world.item;public class ItemStack {public static final ItemStack EMPTY=new ItemStack();}",
  "net/minecraft/network/chat/Component.java": """package net.minecraft.network.chat;
- public record Component(String text){public static Component literal(String s){return new Component(s);}}""",
+ public record Component(String text){
+  public static Component literal(String s){return new Component(s);}
+  public static Component translatable(String s){return new Component(s);}
+ }""",
  "net/minecraft/nbt/CompoundTag.java": """package net.minecraft.nbt;
  import java.util.*;
  public class CompoundTag {
@@ -228,6 +258,11 @@ GATE_EXTRA = {
  public interface IStatement {
   String getUniqueTag();int maxParameters();int minParameters();
   IStatementParameter createParameter(int i);IStatement rotateLeft();IStatement[] getPossible();
+  default IStatementParameter createParameter(IStatementParameter old,int index) {
+   IStatementParameter current=createParameter(index);
+   if(old==null || current==null)return current;
+   return old.getClass()==current.getClass()?old:current;
+  }
   Component getDescription(); ISprite getSprite();
  }""",
  "buildcraft/lib/internal/statement/IStatementParameter.java": """package buildcraft.lib.internal.statement;
@@ -319,6 +354,7 @@ GATE_EXTRA = {
  public record ParameterType<T>(ResourceLocation id) {
   public ParameterType(ResourceLocation id,ApiCodec<T,OpaqueData> ignored){this(id);}
   public List<T> suggestions(StatementContext c){return List.of();}
+  public Optional<T> initialValue(StatementContext c){return Optional.empty();}
   public ApiCodec<T,OpaqueData> codec(){return new ApiCodec<>(){
     public CodecResult<T> decode(OpaqueData d){return CodecResult.failure("stub");}
     public CodecResult<OpaqueData> encode(T t){return CodecResult.failure("stub");}
@@ -375,6 +411,27 @@ public class RunBridge {
       Direction.WEST,StatementParameters.EMPTY)),"reject missing arguments");
   check(StatementApi2Bridge.validateSlot(new StatementSlot(StatementKind.TRIGGER,TestAddon.SIDE,
       Direction.WEST,parameters)),"accept valid typed args");
+  // No suggestions and no initializer must not silently produce a valid required argument.
+  BuildCraftApi.registry(BuildCraftRegistries.PARAMETER_TYPES).register(
+      TestAddon.TYPE,new ParameterType<Integer>(TestAddon.TYPE));
+  IStatementParameter unset=nativeStatement.createParameter(0);
+  check(unset!=null && unset.getDescription().text().startsWith("Unconfigured:"),
+      "required gate parameter uses explicit unset placeholder");
+  check(unset.getSprite()!=null,"unconfigured parameter has a visible icon");
+  check(nativeStatement.createParameter(unset,0)==unset,"preserve matching placeholder");
+  BuildCraftApi.registry(BuildCraftRegistries.STATEMENT_PRESENTATIONS).register(
+      TestAddon.SIDE,new buildcraft.api.v2.client.StatementPresentation(
+          TestAddon.SIDE,"addon.title","addon.description",new ResourceLocation("addon:statement_icon")));
+  check(nativeStatement.getDescription().text().equals("addon.title"),"statement presentation title");
+  check(nativeStatement.getSprite() instanceof buildcraft.lib.client.sprite.SpriteRaw,
+      "statement presentation icon");
+  BuildCraftApi.registry(BuildCraftRegistries.PARAMETER_PRESENTATIONS).register(
+      TestAddon.TYPE,new buildcraft.api.v2.client.ParameterPresentation(
+          TestAddon.TYPE,"addon.parameter","",new ResourceLocation("addon:parameter_icon"),
+          new ResourceLocation("addon:editor")));
+  check(legacy[0].getDescription().text().equals("addon.parameter"),"parameter presentation title");
+  check(legacy[0].getSprite() instanceof buildcraft.lib.client.sprite.SpriteRaw,
+      "parameter presentation icon");
  }
 }"""
 
@@ -386,7 +443,11 @@ class GateBridgeConformanceTest(unittest.TestCase):
             stubs=dict(STATEMENTS_STUBS);stubs.update(GATE_EXTRA)
             sources=[statements_put(base/"stub",name,body) for name,body in stubs.items()]
             api=[STATEMENTS_SRC/name for name in STATEMENTS_PUBLIC]
-            api.extend([STATEMENTS_SRC/"persistence/ApiCodec.java",STATEMENTS_SRC/"persistence/CodecResult.java",STATEMENTS_SRC/"persistence/OpaqueData.java",STATEMENTS_SRC/"statement/StatementKind.java",STATEMENTS_SRC/"statement/StatementSlot.java"])
+            api.extend([STATEMENTS_SRC/name for name in (
+                "persistence/ApiCodec.java", "persistence/CodecResult.java", "persistence/OpaqueData.java",
+                "statement/StatementKind.java", "statement/StatementSlot.java",
+                "client/StatementPresentation.java", "client/ParameterPresentation.java"
+            )])
             subprocess.run(["javac","-d",str(public),*[str(p) for p in sources],*[str(p) for p in api]],check=True,capture_output=True,text=True)
             addon_source=statements_put(base/"addon-src","addon/TestAddon.java",STATEMENTS_ADDON)
             subprocess.run(["javac","-cp",str(public),"-d",str(addon),str(addon_source)],check=True,capture_output=True,text=True)
