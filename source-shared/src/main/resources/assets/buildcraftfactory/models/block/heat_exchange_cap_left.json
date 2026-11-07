@@ -1,0 +1,79 @@
+{
+  "render_type": "minecraft:solid",
+  "textures": {
+    "cap": "buildcraftfactory:block/heat_exchange/cap",
+    "flange": "buildcraftfactory:block/heat_exchange/flange",
+    "particle": "buildcraftfactory:block/heat_exchange/shell_top"
+  },
+  "elements": [
+    {
+      "name": "cap_plate",
+      "from": [
+        1,
+        1,
+        1
+      ],
+      "to": [
+        2,
+        15,
+        15
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            14,
+            1,
+            15,
+            15
+          ],
+          "texture": "#flange"
+        },
+        "east": {
+          "uv": [
+            1,
+            1,
+            15,
+            15
+          ],
+          "texture": "#flange"
+        },
+        "south": {
+          "uv": [
+            1,
+            1,
+            2,
+            15
+          ],
+          "texture": "#flange"
+        },
+        "west": {
+          "uv": [
+            1,
+            1,
+            15,
+            15
+          ],
+          "texture": "#cap"
+        },
+        "up": {
+          "uv": [
+            1,
+            1,
+            2,
+            15
+          ],
+          "texture": "#flange"
+        },
+        "down": {
+          "uv": [
+            1,
+            1,
+            2,
+            15
+          ],
+          "texture": "#flange"
+        }
+      }
+    }
+  ]
+}

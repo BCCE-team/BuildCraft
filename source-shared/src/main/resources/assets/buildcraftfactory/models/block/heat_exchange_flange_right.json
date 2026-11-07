@@ -1,0 +1,69 @@
+{
+  "render_type": "minecraft:solid",
+  "textures": {
+    "flange": "buildcraftfactory:block/heat_exchange/flange",
+    "particle": "buildcraftfactory:block/heat_exchange/shell_top"
+  },
+  "elements": [
+    {
+      "name": "flange",
+      "from": [
+        14,
+        1,
+        1
+      ],
+      "to": [
+        16,
+        15,
+        15
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            1,
+            2,
+            15
+          ],
+          "texture": "#flange"
+        },
+        "south": {
+          "uv": [
+            14,
+            1,
+            16,
+            15
+          ],
+          "texture": "#flange"
+        },
+        "west": {
+          "uv": [
+            1,
+            1,
+            15,
+            15
+          ],
+          "texture": "#flange"
+        },
+        "up": {
+          "uv": [
+            14,
+            1,
+            16,
+            15
+          ],
+          "texture": "#flange"
+        },
+        "down": {
+          "uv": [
+            14,
+            1,
+            16,
+            15
+          ],
+          "texture": "#flange"
+        }
+      }
+    }
+  ]
+}
