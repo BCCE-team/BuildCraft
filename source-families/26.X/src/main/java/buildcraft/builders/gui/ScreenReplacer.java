@@ -82,12 +82,13 @@ public final class ScreenReplacer extends GuiBC8<MenuReplacer> {
         nameField.setMaxLength(MenuReplacer.MAX_BLUEPRINT_NAME_LENGTH);
         nameField.setValue(savedName);
         nameField.setFocused(false);
-        addRenderableWidget(nameField);
-        if (keepFocus) setFocused(nameField);
         replaceButton = Button.builder(Component.translatable("gui.buildcraftbuilders.replacer.replace"),
             button -> menu.sendReplaceRequest(nameField.getValue()))
             .bounds(leftPos + 80, topPos + 135, 60, 20).build();
         addRenderableWidget(replaceButton);
+        addRenderableWidget(nameField);
+        if (keepFocus) setFocused(nameField);
+        else setFocused(null);
         Snapshot.Header h = currentHeader();
         seededKey = h == null ? null : h.key;
         seededName = h == null ? "" : h.name;
@@ -177,7 +178,7 @@ public final class ScreenReplacer extends GuiBC8<MenuReplacer> {
 
     @Override
     public boolean mouseClicked(double x, double y, int button) {
-        if (nameField != null && nameField.isFocused() && !nameField.isMouseOver(x, y)) setFocused(null);
+        if (nameField != null && !nameField.isMouseOver(x, y)) setFocused(null);
         return super.mouseClicked(x, y, button);
     }
 }

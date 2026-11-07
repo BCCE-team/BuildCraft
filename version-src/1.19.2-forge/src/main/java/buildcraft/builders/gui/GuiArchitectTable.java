@@ -65,7 +65,7 @@ public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
 	@Override
 	public void init() {
 		String currentName = nameField == null ? container.tile.name : nameField.getValue();
-		boolean focusName = nameField == null || nameField.isFocused();
+		boolean focusName = nameField != null && nameField.isFocused();
 		super.init();
 		nameField = new EditBox(font, leftPos + NAME_X, topPos + NAME_Y, NAME_W, NAME_H, Component.empty());
 		nameField.setMaxLength(ContainerArchitectTable.MAX_BLUEPRINT_NAME_LENGTH);
@@ -113,6 +113,8 @@ public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
 		this.addWidget(nameField);
 		if (focusName) {
 			setInitialFocus(nameField);
+		} else {
+			setFocused(null);
 		}
 	}
 
@@ -172,9 +174,16 @@ public class GuiArchitectTable extends GuiBC8<ContainerArchitectTable> {
 
 	@Override
 	public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
+		boolean overName = nameField != null && nameField.isMouseOver(mouseX, mouseY);
+		if (!overName) {
+			// Do not keep keyboard input captured when the user clicks elsewhere.
+			setFocused(null);
+		}
 		boolean handled = super.mouseClicked(mouseX, mouseY, mouseButton);
-		if (nameField != null) {
-			handled |= nameField.mouseClicked(mouseX, mouseY, mouseButton);
+		if (overName) {
+			boolean nameHandled = nameField.mouseClicked(mouseX, mouseY, mouseButton);
+			if (nameHandled) setFocused(nameField);
+			handled |= nameHandled;
 		}
 		return handled;
 	}

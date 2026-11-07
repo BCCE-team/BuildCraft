@@ -86,12 +86,13 @@ public final class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> 
         nameField.setMaxLength(MenuReplacer.MAX_BLUEPRINT_NAME_LENGTH);
         nameField.setValue(savedName);
         nameField.setFocused(false);
-        addRenderableWidget(nameField);
-        if (keepFocus) setFocused(nameField);
         replaceButton = Button.builder(Component.translatable("gui.buildcraftbuilders.replacer.replace"),
             button -> menu.sendReplaceRequest(nameField.getValue()))
             .bounds(leftPos + 80, topPos + 135, 60, 20).build();
         addRenderableWidget(replaceButton);
+        addRenderableWidget(nameField);
+        if (keepFocus) setFocused(nameField);
+        else setFocused(null);
         Snapshot.Header h = currentHeader();
         seededKey = h == null ? null : h.key;
         seededName = h == null ? "" : h.name;
@@ -181,7 +182,7 @@ public final class ScreenReplacer extends AbstractContainerScreen<MenuReplacer> 
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (nameField != null && nameField.isFocused() && !nameField.isMouseOver(event.x(), event.y())) setFocused(null);
+        if (nameField != null && !nameField.isMouseOver(event.x(), event.y())) setFocused(null);
         boolean handled = super.mouseClicked(event, doubleClick);
         mainGui.onMouseClicked(event.x(), event.y(), event.button());
         return handled;
