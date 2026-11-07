@@ -63,6 +63,11 @@ public class ElementHelpInfo {
         return builder.toString();
     }
     public void addGuiElements(GuiElementContainerHelp container) {
+        addGuiElements(container, HELP_WRAP_WIDTH);
+    }
+
+    /** Wrap to the width actually available beside the open help ledger. */
+    public void addGuiElements(GuiElementContainerHelp container, int wrapWidth) {
         BuildCraftGui gui = container.gui;
         Font font = Minecraft.getInstance().font;
         int y = 20;
@@ -78,7 +83,7 @@ public class ElementHelpInfo {
                     y += font.lineHeight + 5;
                     continue;
                 }
-                for (String line : wrap(rawLine, font)) {
+                for (String line : wrap(rawLine, font, Math.max(10, wrapWidth))) {
                     GuiElementText elemText = new GuiElementText(gui, container.offset(0, y), Component.literal(line), 0);
                     container.add(elemText);
                     y += elemText.getHeight() + 5;
@@ -118,17 +123,17 @@ public class ElementHelpInfo {
         return Character.toUpperCase(tail.charAt(0)) + tail.substring(1);
     }
 
-    private static List<String> wrap(String line, Font font) {
+    private static List<String> wrap(String line, Font font, int width) {
         java.util.ArrayList<String> out = new java.util.ArrayList<>();
         String remaining = line;
-        while (font.width(remaining) > HELP_WRAP_WIDTH) {
-            String prefix = font.plainSubstrByWidth(remaining, HELP_WRAP_WIDTH);
+        while (font.width(remaining) > width) {
+            String prefix = font.plainSubstrByWidth(remaining, width);
             int split = prefix.lastIndexOf(' ');
             if (split > 0) {
                 prefix = prefix.substring(0, split);
             }
             if (prefix.isEmpty()) {
-                break;
+                prefix = remaining.substring(0, remaining.offsetByCodePoints(0, 1));
             }
             out.add(prefix);
             remaining = remaining.substring(prefix.length()).stripLeading();

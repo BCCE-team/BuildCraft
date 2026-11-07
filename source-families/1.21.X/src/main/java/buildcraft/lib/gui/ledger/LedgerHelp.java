@@ -41,6 +41,11 @@ public class LedgerHelp extends Ledger_Neptune {
             GuiUtil.slice(GuiUtil.subRelative(BCLibSprites.HELP_SPLIT, 8, 8, 8, 8, 16), 2, 2, 6, 6, 8);
     }
 
+    @Override
+    protected boolean fitToScreen() {
+        return true;
+    }
+
     private HelpPosition selected = null;
     private boolean foundAny = false;
 
@@ -95,11 +100,17 @@ public class LedgerHelp extends Ledger_Neptune {
         List<HelpPosition> positions = collectHelpPositions();
         foundAny = !positions.isEmpty();
 
+        // Small controls take precedence over enclosing panels. This matters in JSON GUIs where
+        // the Filler's pattern area surrounds separate invert/excavate parameter buttons.
         HelpPosition hovered = null;
+        double smallest = Double.POSITIVE_INFINITY;
         for (HelpPosition info : positions) {
             if (info.target.contains(gui.mouse)) {
-                hovered = info;
-                break;
+                double area = info.target.getWidth() * info.target.getHeight();
+                if (area < smallest) {
+                    smallest = area;
+                    hovered = info;
+                }
             }
         }
         if (hovered != null && (!sameTarget(hovered, selected) || !sameContent(hovered, selected))) {
@@ -129,7 +140,7 @@ public class LedgerHelp extends Ledger_Neptune {
     private void setSelected(HelpPosition info) {
         selected = info;
         GuiElementContainerHelp container = new GuiElementContainerHelp(gui, positionLedgerInnerStart);
-        info.info.addGuiElements(container);
+        info.info.addGuiElements(container, availableHelpTextWidth());
         removeSelectedContainer();
         openElements.add(container);
         title = Component.translatable("gui.ledger.help.selected", info.info.getLocalizedTitle());
@@ -151,7 +162,7 @@ public class LedgerHelp extends Ledger_Neptune {
         GuiElementContainerHelp container = new GuiElementContainerHelp(gui, positionLedgerInnerStart);
         buildcraft.lib.gui.help.ElementHelpInfo hint = new buildcraft.lib.gui.help.ElementHelpInfo(
             "gui.ledger.help", 0xFFCC99FF, "gui.ledger.help.hint");
-        hint.addGuiElements(container);
+        hint.addGuiElements(container, availableHelpTextWidth());
         openElements.add(container);
     }
 

@@ -69,7 +69,10 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
         GuiHelpUtil.addSlot(mainGui, 219, 57, "buildcraft.help.library.download_input.title", 0xFF_DD_CC_55, "buildcraft.help.library.download_input.desc");
         GuiHelpUtil.addSlot(mainGui, 175, 79, "buildcraft.help.library.upload_input.title", 0xFF_CC_AA_FF, "buildcraft.help.library.upload_input.desc");
         GuiHelpUtil.addSlot(mainGui, 219, 79, "buildcraft.help.library.upload_output.title", 0xFF_55_BB_DD, "buildcraft.help.library.upload_output.desc");
-        GuiHelpUtil.addRoot(mainGui, 194, 58, 22, 37, "buildcraft.help.library.progress.title", 0xFF_EE_DD_77, "buildcraft.help.library.progress.desc");
+        GuiHelpUtil.addRoot(mainGui, 194, 58, 22, 16, "buildcraft.help.library.download_arrow.title",
+            0xFF_88_CC_FF, "buildcraft.help.library.download_arrow.desc");
+        GuiHelpUtil.addRoot(mainGui, 194, 79, 22, 16, "buildcraft.help.library.upload_arrow.title",
+            0xFF_88_AA_FF, "buildcraft.help.library.upload_arrow.desc");
         GuiHelpUtil.addRoot(mainGui, (int) RECT_DELETE_BUTTON.x, (int) RECT_DELETE_BUTTON.y, (int) RECT_DELETE_BUTTON.width,
             (int) RECT_DELETE_BUTTON.height, "buildcraft.help.library.delete.title", 0xFF_CC_55_55,
             "buildcraft.help.library.delete.desc");

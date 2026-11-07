@@ -31,8 +31,12 @@ public class GuiFiller extends GuiBC8<ContainerFiller> {
         imageWidth = jsonGui.getSizeX();
         imageHeight = jsonGui.getSizeY();
         GuiHelpUtil.addRoot(mainGui, 8, 85, 162, 54, "buildcraft.help.filler.resources.title", 0xFF_88_CC_88, "buildcraft.help.filler.resources.desc");
-        GuiHelpUtil.addRoot(mainGui, 9, 35, 158, 30, "buildcraft.help.filler.pattern.title", 0xFF_66_AA_FF, "buildcraft.help.filler.pattern.desc");
-        GuiHelpUtil.addRoot(mainGui, 8, 64, 162, 14, "buildcraft.help.filler.work.title", 0xFF_DD_CC_55, "buildcraft.help.filler.work.desc");
+        // Pattern, parameters and toggles occupy different areas in filler_base.json.
+        // The old 158x30 highlight swallowed the contextual help for all three toggle buttons.
+        GuiHelpUtil.addRoot(mainGui, 12, 32, 32, 32, "buildcraft.help.filler.pattern.title", 0xFF_66_AA_FF,
+            "buildcraft.help.filler.pattern.desc");
+        GuiHelpUtil.addRoot(mainGui, 53, 39, 72, 18, "buildcraft.help.filler.params.title", 0xFF_DD_AA_FF,
+            "buildcraft.help.filler.params.desc");
     }
 
     protected void preLoad(BuildCraftJsonGui json) {

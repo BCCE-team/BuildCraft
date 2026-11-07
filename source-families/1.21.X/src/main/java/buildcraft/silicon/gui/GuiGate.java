@@ -40,8 +40,25 @@ public class GuiGate extends GuiBC8<ContainerGate> {
 
         for (int column = 0; column < horizontalSlotCount; column++) {
             int x = slotPairStart + 7 + column * (18 + slotPairWidth);
-            GuiHelpUtil.addRoot(mainGui, x, y, slotPairWidth, height, "buildcraft.help.gate.statements.title", 0xFF_66_AA_FF,
-                "buildcraft.help.gate.statements.desc");
+            int triggerArgs = gate.variant.numTriggerArgs;
+            int actionArgs = gate.variant.numActionArgs;
+            // These rectangles mirror gate.json's 18px trigger / argument / connector / action cells.
+            GuiHelpUtil.addRoot(mainGui, x, y, 18, height, "buildcraft.help.gate.trigger.title", 0xFF_FF_88_88,
+                "buildcraft.help.gate.trigger.desc1", "buildcraft.help.gate.trigger.desc2");
+            if (triggerArgs > 0) {
+                GuiHelpUtil.addRoot(mainGui, x + 18, y, 18 * triggerArgs, height,
+                    "buildcraft.help.gate.params.title", 0xFF_DD_AA_FF, "buildcraft.help.gate.params.desc");
+            }
+            int connectionX = x + 18 * (1 + triggerArgs);
+            GuiHelpUtil.addRoot(mainGui, connectionX, y, 18, height, "buildcraft.help.gate.connection.title",
+                0xFF_88_FF_AA, "buildcraft.help.gate.connection.desc");
+            int actionX = connectionX + 18;
+            GuiHelpUtil.addRoot(mainGui, actionX, y, 18, height, "buildcraft.help.gate.action.title", 0xFF_88_CC_FF,
+                "buildcraft.help.gate.action.desc1", "buildcraft.help.gate.action.desc2");
+            if (actionArgs > 0) {
+                GuiHelpUtil.addRoot(mainGui, actionX + 18, y, 18 * actionArgs, height,
+                    "buildcraft.help.gate.params.title", 0xFF_DD_AA_FF, "buildcraft.help.gate.params.desc");
+            }
         }
     }
 

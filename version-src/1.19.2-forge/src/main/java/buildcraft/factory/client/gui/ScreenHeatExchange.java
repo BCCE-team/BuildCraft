@@ -49,6 +49,10 @@ public class ScreenHeatExchange extends ContainerScreenBase<MenuHeatExchange> {
             "buildcraft.help.heat_exchange.input_b.desc");
         GuiHelpUtil.addRoot(mainGui, 116, 43, 16, 38, "buildcraft.help.heat_exchange.output_b.title", 0xFF_FF_CC_55,
             "buildcraft.help.heat_exchange.output_b.desc");
+        // BCU's precise center-wipe hitbox: does not cover any fluid gauge.
+        GuiHelpUtil.addRoot(mainGui, 73, 36, 30, 21, "buildcraft.help.heat_exchange.progress.title",
+            0xFF_88_CC_88, "buildcraft.help.heat_exchange.progress.desc1",
+            "buildcraft.help.heat_exchange.progress.desc2");
         mainGui.shownElements.add(new LedgerHelp(mainGui, false));
     }
 

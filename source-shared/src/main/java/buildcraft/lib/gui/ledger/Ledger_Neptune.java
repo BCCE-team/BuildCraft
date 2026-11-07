@@ -56,6 +56,9 @@ public class Ledger_Neptune implements IInteractionElement, IContainingElement {
     public final boolean expandPositive;
 
     public final IGuiPosition positionLedgerStart;
+    /** Fixed anchor: unlike positionLedgerStart it does not follow the animated width or vertical shift. */
+    private final IGuiPosition positionAnchor;
+    private double verticalShift;
     public final IGuiPosition positionLedgerIconStart;
     public final IGuiPosition positionLedgerInnerStart;
 
@@ -85,12 +88,15 @@ public class Ledger_Neptune implements IInteractionElement, IContainingElement {
         this.colour = colour;
         this.expandPositive = expandPositive;
         if (expandPositive) {
-            positionLedgerStart = gui.lowerRightLedgerPos;
-            gui.lowerRightLedgerPos = getPosition(-1, 1).offset(0, 5);
+            positionAnchor = gui.lowerRightLedgerPos;
+            positionLedgerStart = positionAnchor.offset(0, () -> -verticalShift);
+            // Stacking uses the original anchor, never the temporary vertical viewport shift.
+            gui.lowerRightLedgerPos = positionAnchor.offset(0, () -> getHeight() + 5);
             positionLedgerIconStart = positionLedgerStart.offset(2, LEDGER_GAP);
         } else {
-            positionLedgerStart = gui.lowerLeftLedgerPos.offset(() -> -getWidth(), 0);
-            gui.lowerLeftLedgerPos = getPosition(1, 1).offset(0, 5);
+            positionAnchor = gui.lowerLeftLedgerPos;
+            positionLedgerStart = positionAnchor.offset(() -> -getWidth(), () -> -verticalShift);
+            gui.lowerLeftLedgerPos = positionAnchor.offset(0, () -> getHeight() + 5);
             positionLedgerIconStart = positionLedgerStart.offset(LEDGER_GAP, LEDGER_GAP);
         }
         positionLedgerInnerStart = positionLedgerIconStart.offset(16 + LEDGER_GAP, 0);
@@ -163,7 +169,30 @@ public class Ledger_Neptune implements IInteractionElement, IContainingElement {
         h -= getY();
 
         maxWidth = w + LEDGER_GAP * 2;
+        if (fitToScreen()) {
+            maxWidth = Math.min(maxWidth, availablePanelWidth());
+        }
         maxHeight = h + LEDGER_GAP * 2;
+    }
+
+    /** Only help ledgers need screen-aware constraints; existing machinery ledgers keep their layout. */
+    protected boolean fitToScreen() {
+        return false;
+    }
+
+    protected final double availablePanelWidth() {
+        return HelpLedgerLayout.availableWidth(positionAnchor.getX(),
+            net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledWidth(),
+            expandPositive, CLOSED_WIDTH);
+    }
+
+    protected final int availableHelpTextWidth() {
+        return HelpLedgerLayout.textWidth(availablePanelWidth(), 150);
+    }
+
+    private void updateScreenShift() {
+        verticalShift = fitToScreen() ? HelpLedgerLayout.upwardShift(positionAnchor.getY(), interpHeight,
+            net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledHeight()) : 0;
     }
 
     @Override
@@ -250,12 +279,14 @@ public class Ledger_Neptune implements IInteractionElement, IContainingElement {
     @Override
     public void drawBackground(GuiGraphics guiGraphics, float partialTicks) {
         PoseStack pose = guiGraphics.pose();
+        interpWidth = interp(lastWidth, currentWidth, partialTicks);
+        interpHeight = interp(lastHeight, currentHeight, partialTicks);
+        // Recalculate the viewport shift before resolving the background coordinates.
+        // Otherwise the background stays at the old position while child elements move.
+        updateScreenShift();
         double startX = getX();
         double startY = getY();
         final SpriteNineSliced split;
-
-        interpWidth = interp(lastWidth, currentWidth, partialTicks);
-        interpHeight = interp(lastHeight, currentHeight, partialTicks);
 
         if (expandPositive) {
             split = SPRITE_SPLIT_POS;

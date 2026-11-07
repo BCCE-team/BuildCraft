@@ -50,7 +50,10 @@ public class GuiBuilder extends GuiBC8<ContainerBuilder> {
         GuiHelpUtil.addSlots(mainGui, 8, 72, 9, 3, "buildcraft.help.builder.resources.title", 0xFF_88_CC_88, "buildcraft.help.builder.resources.desc");
         GuiHelpUtil.addSlots(mainGui, 179, 18, 4, 6, "buildcraft.help.builder.required.title", 0xFF_DD_CC_55, "buildcraft.help.builder.required.desc");
         GuiHelpUtil.addRoot(mainGui, 179, 145, 72, 47, "buildcraft.help.builder.fluids.title", 0xFF_55_BB_DD, "buildcraft.help.builder.fluids.desc");
-        GuiHelpUtil.addRoot(mainGui, 176, 0, 80, 222, "buildcraft.help.replacer.preview.title", 0xFF_CC_AA_FF, "buildcraft.help.builder.preview.desc");
+        // Keep the overview help on the decorative header. Do not cover the required-items
+        // grid and fluid gauges with a giant, competing 80x222 highlight.
+        GuiHelpUtil.addRoot(mainGui, 176, 0, 80, 18, "buildcraft.help.replacer.preview.title",
+            0xFF_CC_AA_FF, "buildcraft.help.builder.preview.desc");
     }
 
     @Override
