@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +120,23 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
     private boolean scanForInfiniteWater;
     private int scanMaxLengthSquared;
     private boolean scanInProgress;
+    private final List<IntakeCandidate> intakeCandidates = new ArrayList<>();
+    private int nextIntakeCandidate;
+
+    /** One accessible fluid reached from the unobstructed vertical pump shaft. */
+    private static final class IntakeCandidate {
+        final BlockPos shaftPos;
+        final BlockPos fluidPos;
+        final Fluid fluid;
+        final boolean source;
+
+        IntakeCandidate(BlockPos shaftPos, BlockPos fluidPos, Fluid fluid, boolean source) {
+            this.shaftPos = shaftPos;
+            this.fluidPos = fluidPos;
+            this.fluid = fluid;
+            this.source = source;
+        }
+    }
 
     /** The position just below the bottom of the pump tube. */
     private BlockPos targetPos;
@@ -140,39 +158,110 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
         return new MjRedstoneBatteryReceiver(battery);
     }
 
+    /**
+     * The pump's bore can descend to the world's bottom. Unlike a mining well, it must not stop above oil merely
+     * because the configurable maximum mining depth is shorter than the remaining world height. TileMiner uses
+     * this same limit to retract the tube when the pump is broken.
+     */
+    @Override
+    protected int getMaxShaftDepth() {
+        return Math.max(0, worldPosition.getY() - level.getMinBuildHeight());
+    }
+
+    /**
+     * Record the closest usable seed per fluid type. Prefer a source over a flowing block of the same fluid; a
+     * flowing seed is retained when there is no visible source because the normal fluid graph may reach one.
+     * Ignore fluid inside the pump's own tubes, including waterlogged tubes.
+     */
+    private void collectIntakeCandidate(Map<FluidType, IntakeCandidate> candidates, BlockPos shaftPos, BlockPos pos) {
+        if (!level.hasChunkAt(pos)) return;
+        BlockState block = level.getBlockState(pos);
+        if (block.getBlock() == BCFactoryBlocks.TUBE_BLOCK.get()) return;
+        Fluid fluid = BlockUtil.getFluidWithFlowing(level, pos);
+        // A waterlogged solid is not a reachable liquid block; the tube cannot open this space.
+        if (fluid == Fluids.EMPTY || !BlockUtil.isReplaceable(level, pos)) return;
+        boolean source = level.getFluidState(pos).isSource();
+        FluidType type = fluid.getFluidType();
+        IntakeCandidate previous = candidates.get(type);
+        if (previous == null || (source && !previous.source)) {
+            candidates.put(type, new IntakeCandidate(shaftPos.immutable(), pos.immutable(), fluid, source));
+        }
+    }
+
+    /** Any non-water liquid has priority; continuing the fluid in the tank is preferred among non-water types. */
+    private int intakePriority(IntakeCandidate candidate, Fluid previousFluid) {
+        if (isWater(candidate.fluid)) return 2;
+        return previousFluid != Fluids.EMPTY && FluidUtilBC.areFluidsEqual(candidate.fluid, previousFluid) ? 0 : 1;
+    }
+
+    /**
+     * Examine the entire passable column before choosing a liquid. Water in a cleared shaft is traversable: it
+     * never prevents oil or any other non-water liquid further down from being considered. Fluid beside each shaft
+     * cell is also reachable through the tube opening. Solid obstacles stop the bore; unloaded chunks are not read.
+     */
     private void beginQueueBuild() {
+        Fluid previousFluid = tank.isEmpty() ? scanFluid : tank.getFluidType();
         queue.clear();
         paths.clear();
         scanFrontier.clear();
         scanChecked.clear();
+        intakeCandidates.clear();
+        nextIntakeCandidate = 0;
         oilSpringPos = null;
         fluidConnection = null;
         scanFluid = Fluids.EMPTY;
         isInfiniteWaterSource = false;
         scanInProgress = true;
+        targetPos = worldPosition.below();
 
-        for (targetPos = worldPosition.below(); !level.isOutsideBuildHeight(targetPos); targetPos = targetPos.below()) {
-            if (worldPosition.getY() - targetPos.getY() > BCCoreConfig.miningMaxDepth) break;
-            Fluid fluid = BlockUtil.getFluidWithFlowing(level, targetPos);
-            if (fluid != Fluids.EMPTY) {
-                scanFluid = fluid;
-                scanFrontier.add(targetPos);
-                scanChecked.add(targetPos);
-                paths.put(targetPos, new FluidPath(targetPos, null));
-                if (BlockUtil.getFluid(level, targetPos) != Fluids.EMPTY) queue.add(targetPos);
-                fluidConnection = targetPos;
-                break;
+        Map<FluidType, IntakeCandidate> candidates = new LinkedHashMap<>();
+        for (BlockPos shaft = worldPosition.below(); !level.isOutsideBuildHeight(shaft); shaft = shaft.below()) {
+            if (worldPosition.getY() - shaft.getY() > getMaxShaftDepth() || !level.hasChunkAt(shaft)) break;
+            BlockState block = level.getBlockState(shaft);
+            boolean tube = block.getBlock() == BCFactoryBlocks.TUBE_BLOCK.get();
+            Fluid fluid = tube ? Fluids.EMPTY : BlockUtil.getFluidWithFlowing(level, shaft);
+            // A wall cannot be passed by either the search or the physical tube, even if fluid exists beyond it.
+            if (!tube && !block.isAir() && !BlockUtil.isReplaceable(level, shaft)) break;
+            if (fluid != Fluids.EMPTY) collectIntakeCandidate(candidates, shaft, shaft);
+            for (Direction side : INFINITE_WATER_NEIGHBORS) {
+                collectIntakeCandidate(candidates, shaft, shaft.relative(side));
             }
-            BlockState state = level.getBlockState(targetPos);
-            if (!state.isAir() && state.getBlock() != BCFactoryBlocks.TUBE_BLOCK.get()) break;
         }
-        if (scanFrontier.isEmpty() || scanFluid == Fluids.EMPTY) {
-            finishQueueBuild();
-            return;
+
+        intakeCandidates.addAll(candidates.values());
+        intakeCandidates.sort(Comparator.comparingInt((IntakeCandidate c) -> intakePriority(c, previousFluid))
+            .thenComparingInt(c -> c.source ? 0 : 1)
+            .thenComparingInt(c -> -c.shaftPos.getY()));
+        if (!startNextIntakeScan()) finishQueueBuild();
+    }
+
+    /** Start one of the selected fluid graphs without restarting the full vertical probe. */
+    private boolean startNextIntakeScan() {
+        while (nextIntakeCandidate < intakeCandidates.size()) {
+            IntakeCandidate candidate = intakeCandidates.get(nextIntakeCandidate++);
+            if (!level.hasChunkAt(candidate.fluidPos)) continue;
+            Fluid fluid = BlockUtil.getFluidWithFlowing(level, candidate.fluidPos);
+            if (fluid == Fluids.EMPTY || fluid.getFluidType() != candidate.fluid.getFluidType()) continue;
+
+            queue.clear();
+            paths.clear();
+            scanFrontier.clear();
+            scanChecked.clear();
+            isInfiniteWaterSource = false;
+            scanFluid = fluid;
+            targetPos = candidate.shaftPos;
+            fluidConnection = candidate.fluidPos;
+            scanFrontier.add(candidate.fluidPos);
+            scanChecked.add(candidate.fluidPos);
+            paths.put(candidate.fluidPos, new FluidPath(candidate.fluidPos, null));
+            if (BlockUtil.getFluid(level, candidate.fluidPos) != Fluids.EMPTY) queue.add(candidate.fluidPos);
+            scanDirections = fluid.getFluidType().isLighterThanAir() ? SEARCH_GASEOUS : SEARCH_NORMAL;
+            scanForInfiniteWater = !BCCoreConfig.pumpsConsumeWater && isWater(fluid);
+            scanMaxLengthSquared = BCCoreConfig.pumpMaxDistance * BCCoreConfig.pumpMaxDistance;
+            return true;
         }
-        scanDirections = scanFluid.getFluidType().isLighterThanAir() ? SEARCH_GASEOUS : SEARCH_NORMAL;
-        scanForInfiniteWater = !BCCoreConfig.pumpsConsumeWater && isWater(scanFluid);
-        scanMaxLengthSquared = BCCoreConfig.pumpMaxDistance * BCCoreConfig.pumpMaxDistance;
+        scanFluid = Fluids.EMPTY;
+        return false;
     }
 
     /** Processes a bounded part of the fluid graph so an ocean cannot monopolise one server tick. */
@@ -202,6 +291,9 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
             }
         }
         if (scanFrontier.isEmpty() || isInfiniteWaterSource) {
+            // A flowing non-water patch without any reachable source is not worth stalling on. Try the next non-water
+            // candidate, then water. One candidate is scanned per update, preserving the 512-node tick budget.
+            if (!isInfiniteWaterSource && queue.isEmpty() && startNextIntakeScan()) return;
             finishQueueBuild();
         }
     }
@@ -254,6 +346,8 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
     }
 
     private void finishQueueBuild() {
+        intakeCandidates.clear();
+        nextIntakeCandidate = 0;
         if (isOil(scanFluid)) {
             List<BlockPos> springPositions = new ArrayList<>();
             int minY = level.getMinBuildHeight();
@@ -280,6 +374,8 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
     private void scheduleQueueRebuild() {
         queueBuilt = false;
         scanInProgress = false;
+        intakeCandidates.clear();
+        nextIntakeCandidate = 0;
         scanFrontier.clear();
         scanChecked.clear();
     }

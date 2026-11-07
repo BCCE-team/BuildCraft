@@ -511,6 +511,163 @@ public final class BuildCraftLogicGameTests {
         helper.succeed();
     }
 
+    /** A drained oil block may be replaced by water before the remaining oil pool is empty. */
+    @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 40)
+    public static void pumpContinuesOilWhenWaterReplacesIntake(GameTestHelper helper) {
+        BlockPos pumpPos = new BlockPos(1, 2, 1);
+        BlockPos intake = pumpPos.below();
+        BlockPos remainingOil = intake.east();
+        Fluid oil = BCEnergyFluids.OIL_SOURCE.get(0).get();
+        helper.setBlock(intake.below(), Blocks.STONE.defaultBlockState());
+        helper.setBlock(remainingOil.below(), Blocks.STONE.defaultBlockState());
+        helper.setBlock(intake, Blocks.WATER.defaultBlockState());
+        helper.setBlock(remainingOil, BCEnergyFluids.OIL_BLOCK.get(0).get().defaultBlockState());
+        helper.setBlock(pumpPos, BCFactoryBlocks.PUMP_BLOCK.get().defaultBlockState());
+        BlockEntity entity = GameTestCompat.getBlockEntity(helper, pumpPos);
+        require(helper, entity instanceof TilePump, "missing Pump tile for mixed-fluid intake test");
+        TilePump pump = (TilePump) entity;
+
+        // Reproduce the next rebuild after oil was pumped out and water flowed into the former intake.
+        // The buffer can be empty because a fluid pipe is extracting as quickly as the pump drains.
+        try {
+            Field scannedFluid = TilePump.class.getDeclaredField("scanFluid");
+            scannedFluid.setAccessible(true);
+            scannedFluid.set(pump, oil);
+        } catch (ReflectiveOperationException e) {
+            helper.fail("Cannot set the previous oil scan: " + e);
+            return;
+        }
+        invoke(pump, "beginQueueBuild");
+        for (int i = 0; i < 32 && readBooleanField(pump, "scanInProgress"); i++) {
+            invoke(pump, "continueQueueBuild");
+        }
+        require(helper, !readBooleanField(pump, "scanInProgress"), "oil reconnect scan never completed");
+        require(helper, readField(pump, "scanFluid") == oil,
+            "pump switched to water despite a remaining oil source next to the old intake");
+        require(helper, helper.absolutePos(remainingOil).equals(readField(pump, "currentPos")),
+            "pump selected the wrong block instead of the remaining oil source");
+
+        MjBattery battery = (MjBattery) readField(pump, "battery");
+        battery.addPower(20L * MjAmount.MICRO_MJ_PER_MJ, FluidAction.EXECUTE);
+        pump.mine();
+        Tank tank = (Tank) readField(pump, "tank");
+        require(helper, tank.getFluidAmount() == 1_000 && tank.getFluidType().getFluidType() == oil.getFluidType(),
+            "pump did not store one bucket of oil from the remaining source");
+        require(helper, helper.getLevel().getFluidState(helper.absolutePos(intake)).getType() == Fluids.WATER,
+            "pump incorrectly drained the intruding water");
+
+        // Once the oil is genuinely gone, an ordinary water scan must still be possible.
+        invoke(pump, "beginQueueBuild");
+        require(helper, readField(pump, "scanFluid") == Fluids.WATER,
+            "pump permanently locked its scan to exhausted oil");
+        helper.succeed();
+    }
+
+    /** A water source in the shaft must not hide oil immediately below it. */
+    @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 40)
+    public static void pumpScansThroughWaterToOilBelow(GameTestHelper helper) {
+        BlockPos pumpPos = new BlockPos(1, 2, 1);
+        BlockPos waterPos = pumpPos.below();
+        BlockPos oilPos = waterPos.below();
+        Fluid oil = BCEnergyFluids.OIL_SOURCE.get(0).get();
+        helper.setBlock(oilPos, BCEnergyFluids.OIL_BLOCK.get(0).get().defaultBlockState());
+        helper.setBlock(waterPos, Blocks.WATER.defaultBlockState());
+        helper.setBlock(pumpPos, BCFactoryBlocks.PUMP_BLOCK.get().defaultBlockState());
+        TilePump pump = (TilePump) GameTestCompat.getBlockEntity(helper, pumpPos);
+        require(helper, pump != null, "missing pump in deep-oil scan fixture");
+
+        invoke(pump, "beginQueueBuild");
+        finishPumpScan(pump);
+        require(helper, !readBooleanField(pump, "scanInProgress"), "deep-oil graph scan did not finish");
+        require(helper, ((Fluid) readField(pump, "scanFluid")).getFluidType() == oil.getFluidType(),
+            "water above oil took precedence over oil deeper in the shaft");
+        require(helper, helper.absolutePos(oilPos).equals(readField(pump, "currentPos")),
+            "pump did not reach the oil beneath the water");
+        require(helper, helper.getLevel().getBlockState(helper.absolutePos(waterPos))
+                .getBlock() == BCFactoryBlocks.TUBE_BLOCK.get(),
+            "pump did not extend its tube through the water to the deeper oil");
+        require(helper, ((Integer) invoke(pump, "getMaxShaftDepth"))
+                >= pump.getBlockPos().getY() - helper.getLevel().getMinBuildHeight(),
+            "pump shaft cannot reach the world floor");
+        helper.succeed();
+    }
+
+    /** A solid barrier is not a cleared shaft, so fluid beyond it must not be reached. */
+    @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 40)
+    public static void pumpDoesNotScanThroughStone(GameTestHelper helper) {
+        BlockPos pumpPos = new BlockPos(1, 2, 1);
+        helper.setBlock(pumpPos.below(), Blocks.STONE.defaultBlockState());
+        helper.setBlock(pumpPos.below(2), BCEnergyFluids.OIL_BLOCK.get(0).get().defaultBlockState());
+        helper.setBlock(pumpPos, BCFactoryBlocks.PUMP_BLOCK.get().defaultBlockState());
+        TilePump pump = (TilePump) GameTestCompat.getBlockEntity(helper, pumpPos);
+        require(helper, pump != null, "missing pump in solid-barrier fixture");
+        invoke(pump, "beginQueueBuild");
+        require(helper, readField(pump, "scanFluid") == Fluids.EMPTY,
+            "pump scanned oil through an unbreakable shaft obstruction");
+        require(helper, readField(pump, "currentPos") == null,
+            "pump selected a source beyond the shaft obstruction");
+        helper.succeed();
+    }
+
+    /** Water is a fallback only when the open shaft has no non-water source, including horizontal openings. */
+    @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 40)
+    public static void pumpSelectsWaterOnlyAfterAllNonWaterCandidates(GameTestHelper helper) {
+        BlockPos pumpPos = new BlockPos(1, 2, 1);
+        BlockPos waterPos = pumpPos.below();
+        BlockPos oilPos = waterPos.east();
+        Fluid oil = BCEnergyFluids.OIL_SOURCE.get(0).get();
+        helper.setBlock(waterPos, Blocks.WATER.defaultBlockState());
+        helper.setBlock(oilPos, BCEnergyFluids.OIL_BLOCK.get(0).get().defaultBlockState());
+        helper.setBlock(pumpPos, BCFactoryBlocks.PUMP_BLOCK.get().defaultBlockState());
+        TilePump pump = (TilePump) GameTestCompat.getBlockEntity(helper, pumpPos);
+        require(helper, pump != null, "missing pump in water-fallback fixture");
+
+        invoke(pump, "beginQueueBuild");
+        finishPumpScan(pump);
+        require(helper, ((Fluid) readField(pump, "scanFluid")).getFluidType() == oil.getFluidType(),
+            "pump selected water despite adjacent oil");
+        require(helper, helper.absolutePos(oilPos).equals(readField(pump, "currentPos")),
+            "pump did not select the adjacent oil source");
+
+        // Source disappears while the water intake remains: next scan must choose water.
+        helper.setBlock(oilPos, Blocks.AIR.defaultBlockState());
+        invoke(pump, "beginQueueBuild");
+        finishPumpScan(pump);
+        require(helper, readField(pump, "scanFluid") == Fluids.WATER,
+            "pump did not fall back to water after oil was removed");
+        helper.succeed();
+    }
+
+    /** The tank is not allowed to mix water with oil even when oil has selection priority. */
+    @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 40)
+    public static void pumpPrioritizesOilButDoesNotMixLiquids(GameTestHelper helper) {
+        BlockPos pumpPos = new BlockPos(1, 2, 1);
+        BlockPos waterPos = pumpPos.below();
+        BlockPos oilPos = waterPos.east();
+        helper.setBlock(waterPos, Blocks.WATER.defaultBlockState());
+        helper.setBlock(oilPos, BCEnergyFluids.OIL_BLOCK.get(0).get().defaultBlockState());
+        helper.setBlock(pumpPos, BCFactoryBlocks.PUMP_BLOCK.get().defaultBlockState());
+        TilePump pump = (TilePump) GameTestCompat.getBlockEntity(helper, pumpPos);
+        require(helper, pump != null, "missing pump in tank-type fixture");
+        Tank tank = (Tank) readField(pump, "tank");
+        require(helper, tank.fillInternal(new FluidStack(Fluids.WATER, 1_000), FluidAction.EXECUTE) == 1_000,
+            "could not seed the buffered water");
+        invoke(pump, "beginQueueBuild");
+        finishPumpScan(pump);
+        require(helper, ((Fluid) readField(pump, "scanFluid")).getFluidType()
+                == BCEnergyFluids.OIL_SOURCE.get(0).get().getFluidType(),
+            "tank contents incorrectly made pump choose water over oil");
+        require(helper, tank.getFluidAmount() == 1_000 && tank.getFluidType() == Fluids.WATER,
+            "priority selection incorrectly mixed oil into the water buffer");
+        helper.succeed();
+    }
+
+    private static void finishPumpScan(TilePump pump) {
+        for (int i = 0; i < 40 && readBooleanField(pump, "scanInProgress"); i++) {
+            invoke(pump, "continueQueueBuild");
+        }
+    }
+
     @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 20)
     public static void fillerTreatsReplaceableBlocksAsPlacementTargets(GameTestHelper helper) {
         BlockPos target = new BlockPos(1, 1, 1);

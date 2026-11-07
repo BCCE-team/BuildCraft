@@ -108,7 +108,8 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     @Override
     public void onRemove(boolean dropSelf) {
         super.onRemove(dropSelf);
-        for (int y = worldPosition.getY() - 1; y > worldPosition.getY() - BCCoreConfig.miningMaxDepth; y--) {
+        for (int y = worldPosition.getY() - 1;
+            y >= Math.max(level.getMinBuildHeight(), worldPosition.getY() - getMaxShaftDepth()); y--) {
             BlockPos blockPos = new BlockPos(worldPosition.getX(), y, worldPosition.getZ());
             if (!level.hasChunkAt(blockPos)) break;
             if (level.getBlockState(blockPos).getBlock() == BCFactoryBlocks.TUBE_BLOCK.get()) {
@@ -118,6 +119,11 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
                 break;
             }
         }
+    }
+
+    /** Shaft depth is configurable for miners; pumps override this to reach the bottom of the world. */
+    protected int getMaxShaftDepth() {
+        return BCCoreConfig.miningMaxDepth;
     }
 
     private boolean mayChangeTube(BlockPos pos, WorldOperationKind operation) {
@@ -135,7 +141,8 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
         int newY = getTargetPos() != null ? getTargetPos().getY() : worldPosition.getY();
         int newLength = worldPosition.getY() - newY;
         if (newLength != wantedLength || shaftBlocked) {
-            for (int y = worldPosition.getY() - 1; y > worldPosition.getY() - BCCoreConfig.miningMaxDepth; y--) {
+            for (int y = worldPosition.getY() - 1;
+            y >= Math.max(level.getMinBuildHeight(), worldPosition.getY() - getMaxShaftDepth()); y--) {
                 BlockPos blockPos = new BlockPos(worldPosition.getX(), y, worldPosition.getZ());
                 if (!level.hasChunkAt(blockPos)) break;
                 if (level.getBlockState(blockPos).getBlock() == BCFactoryBlocks.TUBE_BLOCK.get()) {
