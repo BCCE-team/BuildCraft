@@ -260,6 +260,8 @@ neoForge {
     runs {
         client {
             client()
+            // Gradle's org.gradle.jvmargs does not limit the Minecraft client process.
+            jvmArgument '-Xmx4G'
             gameDirectory = ciWorldJoin
                     ? new File(ciWorldJoinRoot, ciWorldJoinClientSlot == '2' ? 'client-2' : 'client')
                     : runDirectory

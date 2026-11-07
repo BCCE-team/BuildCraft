@@ -268,6 +268,8 @@ minecraft {
         }
 
         client {
+            // Gradle's org.gradle.jvmargs does not limit the Minecraft client process.
+            jvmArg '-Xmx4G'
             if (ciWorldJoin) {
                 workingDirectory new File(ciWorldJoinRoot, ciWorldJoinClientSlot == '2' ? 'client-2' : 'client')
                 args '--quickPlayMultiplayer', ciWorldJoinAddress
