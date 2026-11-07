@@ -354,18 +354,617 @@ public final class ContainerTank {
                     self.assertEqual(0, executed.returncode, executed.stdout + executed.stderr)
                     self.assertIn('6 state transitions PASS', executed.stdout)
 
-# Builders GUI preview behavior; the Java probes execute the selected
-# production cache and network codecs instead of checking method names.
-import builders_migration_fixture as _builders_probes
+class ElectronicLibraryScrollingRegressions(unittest.TestCase):
+    # The viewport must scroll by snapshot keys, not by names or old row positions.
 
-@unittest.skipUnless(shutil.which("javac") and shutil.which("java"), "JDK required")
-class BuildersTooltipBehaviorTests(unittest.TestCase):
-    def test_single_block_scheme_cache_reuses_only_matching_nbt(self):
-        _builders_probes.run_single_block_schematic_cache(self)
+    TARGETS = (
+        '1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge', '1.21.11-neoforge',
+        '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge',
+    )
+    SCREEN = 'src/main/java/buildcraft/builders/gui/GuiElectronicLibrary.java'
+    VIEWPORT = 'src/main/java/buildcraft/builders/gui/ElectronicLibraryViewport.java'
 
-    def test_blueprint_snapshot_codec_consumes_complete_gzip_stream(self):
-        # One behavioral scenario covers 1.21.1, 1.21.11 and 26.1.2/26.2/26.3.
-        _builders_probes.run_snapshot_response_gzip(self)
+    def test_all_targets_use_the_same_scroll_index_for_display_and_click(self):
+        layout = load_layout()
+        props = layout.load_properties()
+        for target in self.TARGETS:
+            with self.subTest(target=target):
+                selection = layout.target_layout(target, props)
+                path = layout.resolve_effective_source(selection, props, self.SCREEN)
+                helper = layout.resolve_effective_source(selection, props, self.VIEWPORT)
+                self.assertIsNotNone(path)
+                self.assertIsNotNone(helper)
+                source = path.read_text(encoding='utf-8')
+                self.assertIn('viewport.firstIndex(entries)', source)
+                self.assertIn('viewport.entryAtRow(entries, row)', source)
+                self.assertIn('iterateSnapshots(entries,', source)
+                self.assertIn('viewport.scrollBy(GlobalSavedDataSnapshots.getClientSnapshotList()', source)
+                self.assertIn('viewport.scrollToFraction(entries,', source)
+                self.assertIn('draggingScrollbar = true;', source)
+                self.assertIn('container.sendSelectedToServer(key);', source)
+                self.assertIn('fitSnapshotName(text, LIST_TEXT_WIDTH)', source)
+                self.assertIn('entries.contains(container.tile.selected)', source)
+                self.assertNotIn('Math.min(list.size(), MAX_VISIBLE_SNAPSHOTS)', source)
+                self.assertNotIn('rect.contains(mainGui.mouse)', source)
+                self.assertEqual(1, source.count('private void drawScrollbar('))
+                self.assertEqual(1, source.count('public boolean mouseScrolled('))
+
+    def test_hover_resolves_scrolled_row_and_uses_inventory_blueprint_preview(self):
+        layout = load_layout()
+        props = layout.load_properties()
+        for target in self.TARGETS:
+            with self.subTest(target=target):
+                selection = layout.target_layout(target, props)
+                path = layout.resolve_effective_source(selection, props, self.SCREEN)
+                item = layout.resolve_effective_source(selection, props,
+                    'src/main/java/buildcraft/builders/item/ItemSnapshot.java')
+                helper = layout.resolve_effective_source(selection, props,
+                    'src/main/java/buildcraft/builders/gui/ElectronicLibraryEntryTooltip.java')
+                self.assertTrue(path and item and helper)
+                screen = path.read_text(encoding='utf-8')
+                item_source = item.read_text(encoding='utf-8')
+                mapping = helper.read_text(encoding='utf-8')
+                self.assertIn('ElectronicLibraryEntryTooltip.displayName(key)', screen)
+                self.assertNotIn('header == null ? key.toString() : header.name', screen)
+                self.assertIn('viewport.entryAtRow(entries, row)', java_method(screen,
+                    'private Snapshot.Key hoveredEntry('))
+                self.assertIn('mouseX >= listLeft() + LIST_TEXT_WIDTH + 1', screen)
+                self.assertIn('draggingScrollbar || !insideList(mouseX, mouseY)', screen)
+                hover = java_method(screen, 'private void renderLibraryEntryTooltip(')
+                # Named and unnamed entries share one short tooltip, never the full ItemStack text.
+                self.assertIn('ElectronicLibraryEntryTooltip.compactLines(key)', hover)
+                self.assertNotIn('ElectronicLibraryEntryTooltip.inventoryItem(', hover)
+                self.assertNotIn('GuiUtil.getUnFormattedTooltip(', hover)
+                self.assertNotIn('ElectronicLibraryEntryTooltip.fallbackLines(key)', hover)
+                self.assertIn('ItemSnapshot.getUsed(snapshot.getType(), header)', mapping)
+                self.assertIn('Component.translatable("item.blueprint.unnamed")', mapping)
+                self.assertIn('"item.buildcraftbuilders.snapshot.hash"', mapping)
+                self.assertIn('HashUtil.convertHashToString(header.key.hash)', item_source)
+                self.assertLess(item_source.index('"item.buildcraftbuilders.snapshot.hash"'),
+                    item_source.index('if (flag.isAdvanced())'))
+                self.assertIn('renderLibraryEntryTooltip(', screen)
+                if target in ('1.19.2-forge', '1.20.1-forge'):
+                    self.assertIn('LegacyBlueprintGuiRenderer.render(', screen)
+                else:
+                    self.assertIn('BlueprintRenderer.renderSnapshot(', screen)
+                if target.startswith('26.'):
+                    self.assertIn('RenderCompat.renderComponentTooltip(graphics, font,', hover)
+                    self.assertIn('List<Component> tooltipLines = ElectronicLibraryEntryTooltip.compactLines(key);', hover)
+                elif target.startswith('1.19.'):
+                    self.assertIn('renderComponentTooltip(pose, ElectronicLibraryEntryTooltip.compactLines(key),', hover)
+                elif target.startswith('1.21.'):
+                    # RenderCompat is selected only for >=1.21.11; both 1.21.X
+                    # targets must call the family-neutral tooltip boundary.
+                    self.assertIn('import buildcraft.lib.compat.minecraft.gui.BCGuiTooltip;', screen)
+                    self.assertIn('BCGuiTooltip.components(graphics, font, ElectronicLibraryEntryTooltip.compactLines(key), mouseX, mouseY);', hover)
+                    self.assertNotIn('graphics.renderComponentTooltip(', hover)
+                    self.assertNotIn('RenderCompat.renderComponentTooltip(', hover)
+                    compat = layout.resolve_effective_source(selection, props,
+                        'src/main/java/buildcraft/lib/compat/minecraft/gui/BCGuiTooltip.java')
+                    self.assertIsNotNone(compat)
+                    adapter = compat.read_text(encoding='utf-8')
+                    self.assertIn('public static void components(', adapter)
+                    if target == '1.21.11-neoforge':
+                        self.assertIn('graphics.setComponentTooltipForNextFrame(', adapter)
+                    else:
+                        self.assertIn('graphics.renderComponentTooltip(', adapter)
+                else:
+                    self.assertIn('graphics.renderComponentTooltip(font, ElectronicLibraryEntryTooltip.compactLines(key),', hover)
+
+    def test_library_snapshot_names_survive_copy_and_client_storage_all_targets(self):
+        # The library obtains its keys from copies of snapshots read from disk.
+        # A copy must not discard the Header that owns the user-supplied name.
+        layout = load_layout()
+        props = layout.load_properties()
+        for target in self.TARGETS:
+            with self.subTest(target=target):
+                selection = layout.target_layout(target, props)
+                for relative, instance in (
+                    ('src/main/java/buildcraft/builders/snapshot/Template.java', 'template'),
+                    ('src/main/java/buildcraft/builders/snapshot/Blueprint.java', 'blueprint'),
+                ):
+                    file = layout.resolve_effective_source(selection, props, relative)
+                    self.assertIsNotNone(file, (target, relative))
+                    method = java_method(file.read_text(encoding='utf-8'),
+                        f'public {instance.capitalize()} copy(')
+                    self.assertIn(f'{instance}.computeKey();', method)
+                    self.assertIn(f'{instance}.key = new Snapshot.Key({instance}.key, key.header);', method)
+                storage = layout.resolve_effective_source(selection, props,
+                    'src/main/java/buildcraft/builders/snapshot/GlobalSavedDataSnapshots.java')
+                self.assertIsNotNone(storage, target)
+                contents = storage.read_text(encoding='utf-8')
+                validator = java_method(contents, 'private static Snapshot validatedCopy(')
+                self.assertIn('Snapshot.Header header = snapshot.key.header;', validator)
+                self.assertIn('new Snapshot.Key(copy.key, header)', validator)
+                self.assertIn('sameContentKey(header.key, copy.key)', validator)
+                writer = java_method(contents, 'private void writeClientSnapshot(')
+                self.assertIn('contentMatch.getLeft().key.header == null', writer)
+                self.assertIn('writeSnapshotFile(contentMatch.getRight(), checked)', writer)
+                self.assertIn('invalidate(checked.key);', writer)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK required for snapshot metadata probe')
+    def test_real_java_snapshot_copy_cache_and_library_name(self):
+        # Execute the real copy() and validatedCopy() bodies with small Minecraft API-contract fixtures.
+        # The prior bug caused the Header to disappear on both copies and disk reads.
+        folder_root = ROOT
+        template = java_method((folder_root/'source-shared/src/main/java/buildcraft/builders/snapshot/Template.java')
+                               .read_text(encoding='utf-8'), 'public Template copy(')
+        blueprint = java_method((folder_root/'source-platforms/neoforge/src/main/java/buildcraft/builders/snapshot/Blueprint.java')
+                                .read_text(encoding='utf-8'), 'public Blueprint copy(')
+        validated = java_method((folder_root/'source-platforms/neoforge/src/main/java/buildcraft/builders/snapshot/GlobalSavedDataSnapshots.java')
+                                 .read_text(encoding='utf-8'), 'private static Snapshot validatedCopy(')
+        fixture = r'''package buildcraft.builders.snapshot;
+import java.util.*;
+public abstract class Snapshot {
+    public Key key = new Key(new byte[] {1, 2, 3}, null);
+    public String size = "size", facing = "north", offset = "origin";
+    public abstract Snapshot copy();
+    public String getType() { return "BLUEPRINT"; }
+    public void computeKey() { key = new Key(key, new byte[] {1, 2, 3}); }
+    public static final class Key {
+        public final byte[] hash;
+        public final Header header;
+        public Key(byte[] hash, Header header) { this.hash=hash;this.header=header; }
+        public Key(Key old, byte[] hash) { this(hash,old.header); }
+        public Key(Key old, Header header) { this(old.hash,header); }
+        public String toString() { return "abc123"; }
+    }
+    public static final class Header {
+        public final Key key;
+        public final String name;
+        public Header(Key key, String name) { this.key=key;this.name=name; }
+    }
+}
+class Template extends Snapshot {
+    java.util.BitSet data = new java.util.BitSet();
+    @Override
+''' + template + '''
+}
+class Blueprint extends Snapshot {
+    java.util.List<String> palette = new java.util.ArrayList<>();
+    int[] data = new int[1];
+    java.util.List<String> entities = new java.util.ArrayList<>();
+    @Override
+''' + blueprint + '''
+}
+class BCLog {
+    static final Logger logger = new Logger();
+    static class Logger { void warn(String message, Throwable throwable) { throw new AssertionError(message, throwable); } }
+}
+class GlobalSavedDataSnapshots {
+    static boolean sameContentKey(Snapshot.Key a, Snapshot.Key b) {
+        return a != null && b != null && java.util.Arrays.equals(a.hash,b.hash);
+    }
+    static Snapshot validate(Snapshot snapshot) { return validatedCopy(snapshot); }
+''' + validated + '''
+}
+'''
+        probe = r'''package buildcraft.builders.snapshot;
+import buildcraft.builders.gui.ElectronicLibraryEntryTooltip;
+import java.util.*;
+public class HeaderCopyProbe {
+    static void check(boolean ok, String message) { if (!ok) throw new AssertionError(message); }
+    static void checkNamed(Snapshot input, boolean headerPreservingCopy) {
+        Snapshot.Key content = new Snapshot.Key(new byte[]{1,2,3}, null);
+        Snapshot.Header header = new Snapshot.Header(content, "Named library blueprint");
+        input.key = new Snapshot.Key(content, header);
+        Snapshot copy = input.copy();
+        check(copy.key.header == header || !headerPreservingCopy, "copy must retain user-visible name");
+        Snapshot saved = GlobalSavedDataSnapshots.validate(input);
+        check(saved != null && saved.key.header == header, "validated file read must retain name");
+        check(ElectronicLibraryEntryTooltip.displayName(saved.key).equals("Named library blueprint"),
+            "library list must display the real name");
+        check(ElectronicLibraryEntryTooltip.inventoryItem(saved.key, saved).id.equals("BLUEPRINT:Named library blueprint"),
+            "inventory preview must receive the named used blueprint");
+        input.key = new Snapshot.Key(content, new Snapshot.Header(new Snapshot.Key(new byte[]{9}, null), "Wrong"));
+        check(GlobalSavedDataSnapshots.validate(input) == null, "invalid header hash should be rejected");
+    }
+    static final class HeaderDroppingSnapshot extends Snapshot {
+        @Override public HeaderDroppingSnapshot copy() { return new HeaderDroppingSnapshot(); }
+    }
+    public static void main(String[] ignored) {
+        Template template = new Template();
+        template.data.set(3);
+        checkNamed(template, true);
+        Blueprint blueprint = new Blueprint();
+        blueprint.palette.add("stone");
+        blueprint.entities.add("frame");
+        checkNamed(blueprint, true);
+        checkNamed(new HeaderDroppingSnapshot(), false);
+        System.out.println("snapshot copy, validated storage, and name/preview PASS");
+    }
+}'''
+        component = r'''package net.minecraft.network.chat;
+public class Component {
+    private final String value;
+    private Component(String s){this.value=s;}
+    public static Component literal(String s){return new Component(s);}
+    public static Component translatable(String s, Object... args){return new Component(s+(args.length==0?"": ": "+args[0]));}
+    public Component withStyle(net.minecraft.ChatFormatting ignored){return this;}
+    public String getString(){return value;}
+}'''
+        files = {
+            'buildcraft/builders/snapshot/Snapshot.java': fixture,
+            'buildcraft/builders/snapshot/HeaderCopyProbe.java': probe,
+            'net/minecraft/ChatFormatting.java': 'package net.minecraft; public enum ChatFormatting { DARK_GRAY }',
+            'net/minecraft/network/chat/Component.java': component,
+            'net/minecraft/world/item/ItemStack.java': 'package net.minecraft.world.item; public class ItemStack { '
+                'public static final ItemStack EMPTY = new ItemStack("empty"); public final String id; '
+                'public ItemStack(String id){this.id=id;} }',
+            'buildcraft/builders/item/ItemSnapshot.java': 'package buildcraft.builders.item; '
+                'public class ItemSnapshot {public static net.minecraft.world.item.ItemStack getUsed('
+                'String type, buildcraft.builders.snapshot.Snapshot.Header header) {'
+                'return new net.minecraft.world.item.ItemStack(type+":"+header.name);} }',
+        }
+        with tempfile.TemporaryDirectory(prefix='bc-lib-header-copy-') as tmp:
+            directory = Path(tmp)
+            for rel, source in files.items():
+                path = directory/rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(source, encoding='utf-8')
+            target = directory/'buildcraft/builders/gui/ElectronicLibraryEntryTooltip.java'
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT/'source-shared/src/main/java/buildcraft/builders/gui/ElectronicLibraryEntryTooltip.java',target)
+            sources = [str(p) for p in directory.rglob('*.java')]
+            compilation = subprocess.run(['javac','--release','17','-d',str(directory/'classes'),*sources],
+                capture_output=True,text=True,timeout=35)
+            self.assertEqual(0, compilation.returncode, compilation.stderr)
+            result = subprocess.run(['java','-ea','-cp',str(directory/'classes'),
+                'buildcraft.builders.snapshot.HeaderCopyProbe'],capture_output=True,text=True,timeout=15)
+            self.assertEqual(0, result.returncode, result.stdout+result.stderr)
+            self.assertIn('snapshot copy, validated storage, and name/preview PASS', result.stdout)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK required for library entry helper probe')
+    def test_real_java_library_entry_names_and_inventory_hover_payload(self):
+        root = ROOT/'source-shared/src/main/java/buildcraft/builders/gui/ElectronicLibraryEntryTooltip.java'
+        files = {
+            'net/minecraft/ChatFormatting.java': 'package net.minecraft; public enum ChatFormatting { DARK_GRAY }',
+            'net/minecraft/network/chat/Component.java': r'''package net.minecraft.network.chat;
+public class Component {
+    final String value;
+    Component(String value) { this.value=value; }
+    public static Component literal(String text) { return new Component(text); }
+    public static Component translatable(String key, Object... args) {
+        return new Component(key + (args.length == 0 ? "" : ": " + args[0]));
+    }
+    public Component withStyle(net.minecraft.ChatFormatting style) { return this; }
+    public String getString() { return value; }
+}''',
+            'net/minecraft/world/item/ItemStack.java': r'''package net.minecraft.world.item;
+public class ItemStack {
+    public static final ItemStack EMPTY = new ItemStack("empty");
+    public final String id;
+    public ItemStack(String id) { this.id=id; }
+}''',
+            'buildcraft/builders/snapshot/Snapshot.java': r'''package buildcraft.builders.snapshot;
+public class Snapshot {
+    public final Key key;
+    final String type;
+    public Snapshot(Key key, String type) { this.key=key;this.type=type; }
+    public String getType() { return type; }
+    public static class Header {
+        public final String name;
+        public Header(String name) {this.name=name;}
+    }
+    public static class Key {
+        public final Header header;
+        final String hash;
+        public Key(String hash, Header header) {this.hash=hash; this.header=header;}
+        public String toString() {return hash;}
+    }
+}''',
+            'buildcraft/builders/item/ItemSnapshot.java': r'''package buildcraft.builders.item;
+import buildcraft.builders.snapshot.Snapshot;
+import net.minecraft.world.item.ItemStack;
+public class ItemSnapshot {
+  public static ItemStack getUsed(String type, Snapshot.Header header) {
+    return new ItemStack(type + ":" + header.name);
+  }
+}''',
+            'ElectronicLibraryEntryTooltipProbe.java': r'''import buildcraft.builders.gui.ElectronicLibraryEntryTooltip;
+import buildcraft.builders.snapshot.Snapshot;
+class ElectronicLibraryEntryTooltipProbe {
+    static void check(boolean ok, String message) {
+        if (!ok) throw new AssertionError(message);
+    }
+    public static void main(String[] args) {
+        Snapshot.Header named = new Snapshot.Header("Castle with a roof");
+        Snapshot.Key key = new Snapshot.Key("0123deadbeef", named);
+        Snapshot stored = new Snapshot(key, "BLUEPRINT");
+        check(ElectronicLibraryEntryTooltip.displayName(key).equals("Castle with a roof"), "saved name");
+        check(ElectronicLibraryEntryTooltip.inventoryItem(key, stored).id.equals("BLUEPRINT:Castle with a roof"), "used inventory item");
+        Snapshot.Key empty = new Snapshot.Key("0123deadbeef", null);
+        Snapshot old = new Snapshot(empty, "TEMPLATE");
+        check(ElectronicLibraryEntryTooltip.displayName(empty).equals("item.blueprint.unnamed"), "legacy unnamed");
+        check(ElectronicLibraryEntryTooltip.inventoryItem(empty, old).id.equals("empty"), "do not invent metadata");
+        check(ElectronicLibraryEntryTooltip.fallbackLines(empty).get(1).getString().contains("0123deadbeef"), "hash in fallback");
+        check(ElectronicLibraryEntryTooltip.compactLines(key).size() == 2, "named tooltip has only name and hash");
+        check(ElectronicLibraryEntryTooltip.compactLines(key).get(0).getString().equals("Castle with a roof"), "named tooltip displays saved name");
+        check(ElectronicLibraryEntryTooltip.compactLines(key).get(1).getString().contains("0123deadbeef"), "named tooltip displays hash");
+        check(ElectronicLibraryEntryTooltip.compactLines(empty).size() == 2, "headerless tooltip has only name and hash");
+        check(ElectronicLibraryEntryTooltip.compactLines(empty).get(0).getString().equals("item.blueprint.unnamed"), "unnamed fallback");
+        check(ElectronicLibraryEntryTooltip.inventoryItem(key, null).id.equals("empty"), "missing local file");
+        check(ElectronicLibraryEntryTooltip.displayName(new Snapshot.Key("h", new Snapshot.Header("<unnamed>")))
+            .equals("item.blueprint.unnamed"), "placeholder");
+        System.out.println("Library entry hover: name, item payload, missing header, hash PASS");
+    }
+}''',
+        }
+        with tempfile.TemporaryDirectory(prefix='bc-library-hover-') as tmp:
+            folder = Path(tmp)
+            for rel, data in files.items():
+                target = folder/rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(data, encoding='utf-8')
+            (folder/'buildcraft/builders/gui').mkdir(parents=True, exist_ok=True)
+            shutil.copy2(root, folder/'buildcraft/builders/gui/ElectronicLibraryEntryTooltip.java')
+            sources = [str(p) for p in folder.rglob('*.java')]
+            result = subprocess.run(['javac','--release','17','-d',str(folder/'classes'),*sources],
+                capture_output=True,text=True,timeout=25)
+            self.assertEqual(0,result.returncode,result.stderr)
+            result = subprocess.run(['java','-ea','-cp',str(folder/'classes'),
+                'ElectronicLibraryEntryTooltipProbe'],capture_output=True,text=True,timeout=10)
+            self.assertEqual(0,result.returncode,result.stderr)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK required for viewport probe')
+    def test_real_java_viewport_handles_100_entries_deletion_duplicates_and_reopen(self):
+        source = ROOT / 'source-shared/src/main/java/buildcraft/builders/gui/ElectronicLibraryViewport.java'
+        probe = r'''
+import buildcraft.builders.gui.ElectronicLibraryViewport;
+import java.util.*;
+public class LibraryViewportProbe {
+    record Entry(int id, String title) {}
+    static void check(boolean result, String message) {
+        if (!result) throw new AssertionError(message);
+    }
+    public static void main(String[] args) {
+        List<Entry> entries = new ArrayList<>();
+        for (int i = 1; i <= 100; i++) entries.add(new Entry(i, i == 1 || i == 100 ? "Duplicate" : "Blueprint " + i));
+        ElectronicLibraryViewport<Entry> viewport = new ElectronicLibraryViewport<>(13);
+        check(viewport.firstIndex(entries) == 0, "initial viewport");
+        check(viewport.maxFirstIndex(entries.size()) == 87, "100/13 scroll extent");
+        viewport.scrollToFraction(entries, 1);
+        check(viewport.firstIndex(entries) == 87, "bottom of 100-entry list");
+        check(viewport.entryAtRow(entries, 12).id() == 100, "last blueprint reachable");
+        check(!viewport.entryAtRow(entries, 12).equals(entries.get(0)), "duplicate names retain distinct keys");
+        viewport.scrollBy(entries, -3);
+        check(viewport.entryAtRow(entries, 0).id() == 85, "upward wheel scroll");
+        check(viewport.entryAtRow(entries, 12).id() == 97, "click row matches visible range");
+        check(viewport.entryAtRow(entries, 13) == null, "bottom spillover not selectable");
+        entries.add(0, new Entry(101, "Inserted"));
+        viewport.update(entries);
+        check(viewport.entryAtRow(entries, 0).id() == 85, "anchor survives new leading entry");
+        entries.removeIf(entry -> entry.id() == 85);
+        viewport.update(entries);
+        check(viewport.entryAtRow(entries, 0).id() == 86, "anchor removal keeps valid row");
+        viewport.scrollToFraction(entries, 1);
+        check(viewport.entryAtRow(entries, 12).id() == 100, "last item still accessible after deletion");
+        entries.removeIf(entry -> entry.id() == 100);
+        viewport.update(entries);
+        check(viewport.entryAtRow(entries, 12) != null && viewport.entryAtRow(entries, 12).id() == 99,
+            "deleting last item re-clamps viewport");
+        entries.subList(4, entries.size()).clear();
+        viewport.update(entries);
+        check(viewport.firstIndex(entries) == 0, "short collection clamps to start");
+        check(viewport.entryAtRow(entries, 4) == null, "empty rows unselectable");
+        ElectronicLibraryViewport<Entry> reopened = new ElectronicLibraryViewport<>(13);
+        check(reopened.firstIndex(entries) == 0, "reopening shows valid range");
+        List<Entry> fresh = new ArrayList<>();
+        for (int i = 1; i <= 100; i++) fresh.add(new Entry(i, "Library " + i));
+        reopened.scrollToFraction(fresh, 1);
+        check(reopened.entryAtRow(fresh, 12).id() == 100, "reopen still scrolls to entry 100");
+        System.out.println("Electronic library viewport: 100 entries, edits, duplicate names, reopen PASS");
+    }
+}
+'''
+        with tempfile.TemporaryDirectory(prefix='bc-electronic-library-viewport-') as tmp:
+            root = Path(tmp)
+            (root/'LibraryViewportProbe.java').write_text(probe, encoding='utf-8')
+            compiled = subprocess.run(['javac', '--release', '17', '-d', str(root),
+                str(source), str(root/'LibraryViewportProbe.java')],
+                capture_output=True, text=True, timeout=30)
+            self.assertEqual(0, compiled.returncode, compiled.stdout+compiled.stderr)
+            executed = subprocess.run(['java', '-ea', '-cp', str(root), 'LibraryViewportProbe'],
+                capture_output=True, text=True, timeout=15)
+            self.assertEqual(0, executed.returncode, executed.stdout+executed.stderr)
+            self.assertIn('reopen PASS', executed.stdout)
+
+
+class BlueprintPreviewFrameRegressions(unittest.TestCase):
+    """Small target-aware test: no full target materialization required."""
+
+    def test_legacy_forge_inventory_preview_ignores_horizontal_text_tooltip_flip(self):
+        source = ROOT / 'source-platforms/forge/src/main/java/buildcraft/builders/client/tooltip/LegacyBlueprintTooltipOverlay.java'
+        code = source.read_text(encoding='utf-8')
+        self.assertIn('BlueprintPreviewFrame.tooltipX(event.getX(), event.getScreenWidth(), SIZE)', code)
+        self.assertNotIn('Math.min(tooltipX,', code)
+        self.assertNotIn('int x = tooltipX;', code)
+        self.assertNotIn('int x = location.x();', code)
+        # On old Forge, the long hash moves the text tooltip to the opposite
+        # side of the cursor. The 3D panel must not inherit that X position.
+        for target in ('1.19.2-forge', '1.20.1-forge'):
+            with self.subTest(target=target):
+                self.assertIn('int tooltipY', code)
+                self.assertIn('if (x < 0) return;', code)
+
+
+    def test_inventory_preview_anchors_to_cursor_not_repositioned_text_tooltip(self):
+        layout = load_layout()
+        props = layout.load_properties()
+        rel = 'src/main/java/buildcraft/builders/client/tooltip/BlueprintTooltipOverlay.java'
+        targets = ('1.21.1-neoforge', '1.21.11-neoforge',
+            '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge')
+        for target in targets:
+            with self.subTest(target=target):
+                source = layout.resolve_effective_source(layout.target_layout(target, props), props, rel)
+                self.assertIsNotNone(source)
+                code = source.read_text(encoding='utf-8')
+                self.assertIn('BlueprintPreviewFrame.tooltipXFromWindowMouse(', code)
+                self.assertIn('minecraft.mouseHandler.xpos()', code)
+                self.assertIn('minecraft.getWindow().getWidth()', code)
+                self.assertNotIn('tooltipX(event.getX()', code)
+                self.assertNotIn('int x = position.x();', code)
+                self.assertIn('if (x < 0 || event.getScreenHeight() < SIDE + 8) return;', code)
+                self.assertIn('Math.min(y, event.getScreenHeight() - SIDE - 4)', code)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK required')
+    def test_inventory_preview_uses_real_mouse_not_repositioned_tooltip_origin(self):
+        source = ROOT / 'source-shared/src/main/java/buildcraft/builders/gui/BlueprintPreviewFrame.java'
+        probe = r"""import buildcraft.builders.gui.BlueprintPreviewFrame;
+public final class BlueprintTooltipCursorProbe {
+  static int preview(double mousePixels, int physicalWidth, int guiWidth) {
+    return BlueprintPreviewFrame.tooltipXFromWindowMouse(mousePixels, physicalWidth, guiWidth, 100);
+  }
+  public static void main(String[] args) {
+    // A very long tooltip may be clamped to X=0 despite hovering at X=720.
+    if (preview(1440, 1920, 960) != 732) throw new AssertionError("cursor anchoring: ignores tooltip X=0");
+    if (preview(1400, 1920, 960) != 712) throw new AssertionError("pixel-to-GUI scale conversion");
+    if (preview(1918, 1920, 960) != 856) throw new AssertionError("right edge clamp");
+    if (preview(0, 1920, 960) != 12) throw new AssertionError("left edge");
+    if (preview(500, 0, 960) != -1) throw new AssertionError("invalid physical window");
+    if (preview(Double.NaN, 1920, 960) != -1) throw new AssertionError("invalid pointer");
+    if (preview(200, 1920, 98) != -1) throw new AssertionError("insufficient gui space");
+    for (int physical = 0; physical < 1920; physical++) {
+      int x = preview(physical, 1920, 960);
+      if (x < 4 || x + 100 + 4 > 960) throw new AssertionError("offscreen at " + physical);
+    }
+    System.out.println("Actual cursor tooltip position PASS");
+  }
+}"""
+        with tempfile.TemporaryDirectory(prefix='bc-tooltip-cursor-') as tmp:
+            work = Path(tmp)
+            (work/'BlueprintTooltipCursorProbe.java').write_text(probe, encoding='utf-8')
+            compilation = subprocess.run(['javac', '--release', '17', '-d', str(work),
+                str(source), str(work/'BlueprintTooltipCursorProbe.java')],
+                capture_output=True, text=True, timeout=30)
+            self.assertEqual(0, compilation.returncode, compilation.stdout + compilation.stderr)
+            execution = subprocess.run(['java', '-ea', '-cp', str(work), 'BlueprintTooltipCursorProbe'],
+                capture_output=True, text=True, timeout=15)
+            self.assertEqual(0, execution.returncode, execution.stdout + execution.stderr)
+            self.assertIn('Actual cursor tooltip position PASS', execution.stdout)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK required')
+    def test_inventory_preview_stays_on_screen_without_horizontal_jumps(self):
+        source = ROOT / 'source-shared/src/main/java/buildcraft/builders/gui/BlueprintPreviewFrame.java'
+        probe = r"""import buildcraft.builders.gui.BlueprintPreviewFrame;
+public final class BlueprintTooltipPositionProbe {
+  private static int x(int cursor, int screen) {
+    return BlueprintPreviewFrame.tooltipX(cursor, screen, 100);
+  }
+  public static void main(String[] args) {
+    if (x(270, 320) != 216) throw new AssertionError("long tooltip moved preview to left edge");
+    if (x(10, 320) != 22) throw new AssertionError("near cursor alignment");
+    if (x(0, 320) != 12) throw new AssertionError("left edge placement");
+    if (x(120, 100) != -1) throw new AssertionError("too small GUI scale");
+    for (int width : new int[]{108, 136, 220, 320, 640}) {
+      int previous = -1;
+      for (int mouse = 0; mouse < width; mouse++) {
+        int current = x(mouse, width);
+        if (current < 4 || current + 100 + 4 > width)
+          throw new AssertionError("preview outside screen at " + mouse + ", width " + width);
+        if (previous >= 0 && (current < previous || current > previous + 1))
+          throw new AssertionError("preview jumps at " + mouse + ", width " + width);
+        previous = current;
+      }
+    }
+    System.out.println("Inventory preview positioning PASS");
+  }
+}"""
+        with tempfile.TemporaryDirectory(prefix='bc-tooltip-placement-') as tmp:
+            work = Path(tmp)
+            (work/'BlueprintTooltipPositionProbe.java').write_text(probe, encoding='utf-8')
+            compilation = subprocess.run(['javac', '--release', '17', '-d', str(work),
+                str(source), str(work/'BlueprintTooltipPositionProbe.java')],
+                capture_output=True, text=True, timeout=30)
+            self.assertEqual(0, compilation.returncode, compilation.stdout + compilation.stderr)
+            execution = subprocess.run(['java', '-ea', '-cp', str(work), 'BlueprintTooltipPositionProbe'],
+                capture_output=True, text=True, timeout=15)
+            self.assertEqual(0, execution.returncode, execution.stdout + execution.stderr)
+            self.assertIn('Inventory preview positioning PASS', execution.stdout)
+    TARGETS = ('1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge',
+        '1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge')
+
+    def test_all_library_previews_and_inventory_overlay_draw_a_frame(self):
+        layout = load_layout()
+        props = layout.load_properties()
+        screen_path = 'src/main/java/buildcraft/builders/gui/GuiElectronicLibrary.java'
+        overlay_path = 'src/main/java/buildcraft/builders/client/tooltip/BlueprintTooltipOverlay.java'
+        frame = ROOT/'source-shared/src/main/java/buildcraft/builders/gui/BlueprintPreviewFrame.java'
+        helper = frame.read_text(encoding='utf-8')
+        self.assertIn('public static void draw(', helper)
+        self.assertIn('public static void drawOutline(', helper)
+        for target in self.TARGETS:
+            with self.subTest(target=target):
+                selection = layout.target_layout(target, props)
+                source_path = layout.resolve_effective_source(selection, props, screen_path)
+                self.assertIsNotNone(source_path)
+                gui = source_path.read_text(encoding='utf-8')
+                self.assertIn('BlueprintPreviewFrame.draw(', gui)
+                if target.startswith('1.19.') or target.startswith('1.20.'):
+                    method = java_method(gui, 'private void renderLibraryEntryTooltip(')
+                    self.assertNotIn('GuiUtil.getUnFormattedTooltip(item)', method)
+                    self.assertIn('ElectronicLibraryEntryTooltip.compactLines(key)', method)
+                    self.assertIn('LegacyBlueprintGuiRenderer.render(', method)
+                    self.assertIn('BlueprintPreviewFrame.draw(', method)
+                    self.assertLess(method.index('renderComponentTooltip('), method.index('BlueprintPreviewFrame.draw('))
+                    # Rendering the ItemStack's tooltip would trigger a second preview.
+                    self.assertNotRegex(method, r'(?<!Component)renderTooltip\(')
+                    self.assertEqual(1, method.count('LegacyBlueprintGuiRenderer.render('))
+                else:
+                    # The inventory preview overlay remains available outside the library.
+                    overlay = layout.resolve_effective_source(selection, props, overlay_path)
+                    self.assertIsNotNone(overlay, target)
+                    self.assertIn('BlueprintPreviewFrame.drawOutline(', overlay.read_text(encoding='utf-8'))
+                    method = java_method(gui, 'private void renderLibraryEntryTooltip(')
+                    self.assertNotIn('GuiUtil.getUnFormattedTooltip(item)', method)
+                    self.assertIn('ElectronicLibraryEntryTooltip.compactLines(key)', method)
+                    self.assertIn('BlueprintPreviewFrame.draw(', method)
+                    self.assertEqual(1, method.count('BlueprintRenderer.renderSnapshot('))
+                    self.assertNotRegex(method, r'(?<!Component)renderTooltip\(')
+                    if target.startswith('1.21.'):
+                        self.assertIn('BCGuiTooltip.components(', method)
+                    else:
+                        self.assertIn('renderComponentTooltip(', method)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK required')
+    def test_frame_geometry_has_visible_outline_and_clear_viewport(self):
+        source = ROOT/'source-shared/src/main/java/buildcraft/builders/gui/BlueprintPreviewFrame.java'
+        probe = r"""import buildcraft.builders.gui.BlueprintPreviewFrame;
+import java.util.*;
+public final class FrameProbe {
+  static record Rect(int l, int t, int r, int b, int c) {}
+  public static void main(String[] args) {
+    List<Rect> rects = new ArrayList<>();
+    BlueprintPreviewFrame.Fill fill = (l,t,r,b,c) -> rects.add(new Rect(l,t,r,b,c));
+    BlueprintPreviewFrame.draw(fill, 20, 40, 100, 100);
+    if (rects.size() != 5) throw new AssertionError("missing backing or borders");
+    if (!rects.get(0).equals(new Rect(16,36,124,144,0xF0100010)))
+      throw new AssertionError("background geometry");
+    for (int i = 1; i < rects.size(); i++) {
+      Rect r = rects.get(i);
+      if (r.c() == 0 || r.l() >= r.r() || r.t() >= r.b())
+        throw new AssertionError("invisible or invalid border " + i);
+    }
+    rects.clear();
+    BlueprintPreviewFrame.drawOutline(fill, 20, 40, 100, 100);
+    if (rects.size() != 4) throw new AssertionError("tooltip border missing");
+    for (Rect r: rects) {
+      if (r.l() < 17 || r.t() < 37 || r.r() > 123 || r.b() > 143)
+        throw new AssertionError("stroke outside panel");
+    }
+    System.out.println("Blueprint preview framed viewport PASS");
+  }
+}"""
+        with tempfile.TemporaryDirectory(prefix='bc-blueprint-preview-frame-') as tmp:
+            work = Path(tmp)
+            (work/'FrameProbe.java').write_text(probe, encoding='utf-8')
+            result = subprocess.run(['javac', '--release', '17', '-d', str(work),
+                str(source), str(work/'FrameProbe.java')], capture_output=True, text=True, timeout=30)
+            self.assertEqual(0, result.returncode, result.stdout+result.stderr)
+            result = subprocess.run(['java','-ea','-cp',str(work),'FrameProbe'],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(0, result.returncode, result.stdout+result.stderr)
+            self.assertIn('PASS', result.stdout)
 
 
 if __name__ == '__main__': unittest.main(verbosity=2)

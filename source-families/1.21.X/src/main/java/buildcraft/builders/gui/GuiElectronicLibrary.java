@@ -5,7 +5,6 @@
 package buildcraft.builders.gui;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -16,9 +15,10 @@ import buildcraft.lib.internal.core.render.ISprite;
 import buildcraft.builders.menu.ContainerElectronicLibrary;
 import buildcraft.builders.snapshot.GlobalSavedDataSnapshots;
 import buildcraft.builders.snapshot.Snapshot;
-import buildcraft.builders.snapshot.Snapshot.Header;
 import buildcraft.lib.gui.GuiBC8;
 import buildcraft.lib.gui.GuiIcon;
+import buildcraft.lib.misc.GuiUtil;
+import buildcraft.lib.compat.minecraft.gui.BCGuiTooltip;
 import buildcraft.lib.gui.button.GuiButtonDrawable;
 import buildcraft.lib.gui.button.IButtonClickEventTrigger;
 import buildcraft.lib.gui.button.StandardSpriteButtons;
@@ -28,7 +28,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import buildcraft.lib.gui.help.GuiHelpUtil;
-import buildcraft.lib.misc.GuiUtil;
 
 public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
     private static final ResourceLocation TEXTURE_BASE =
@@ -43,9 +42,16 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
     private static final int SNAPSHOT_ROW_HEIGHT = 8;
     private static final int MAX_VISIBLE_SNAPSHOTS = RECT_SNAPSHOT_LIST.height < SNAPSHOT_ROW_HEIGHT ? 0
         : (int) (RECT_SNAPSHOT_LIST.height / SNAPSHOT_ROW_HEIGHT);
+    private static final int SCROLLBAR_WIDTH = 7;
+    private static final int SCROLLBAR_GAP = 3;
+    private static final int SCROLLBAR_MIN_THUMB_HEIGHT = 12;
+    private static final int LIST_TEXT_WIDTH = (int) RECT_SNAPSHOT_LIST.width - SCROLLBAR_WIDTH - SCROLLBAR_GAP - 3;
     private static final GuiRectangle RECT_DELETE_BUTTON = new GuiRectangle(174, 109, 25, 15);
 
     private final GuiButtonDrawable delButton;
+    private final ElectronicLibraryViewport<Snapshot.Key> viewport = new ElectronicLibraryViewport<>(MAX_VISIBLE_SNAPSHOTS);
+    private boolean draggingScrollbar;
+    private double scrollbarDragOffset;
 
     public GuiElectronicLibrary(ContainerElectronicLibrary container, Inventory inv, Component title) {
         super(container, inv, title);
@@ -70,12 +76,48 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
             "buildcraft.help.library.delete.desc");
     }
 
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        super.render(graphics, mouseX, mouseY, partialTicks);
+        renderLibraryEntryTooltip(graphics, mouseX, mouseY);
+    }
+
+    private void renderLibraryEntryTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        Snapshot.Key key = hoveredEntry(mouseX, mouseY);
+        if (key == null) return;
+        Snapshot snapshot = GlobalSavedDataSnapshots.getClientSnapshot(key);
+        // The library renders its own framed preview. Do not ask ItemStack for
+        // its inventory tooltip, which also contains preview-specific details.
+        BCGuiTooltip.components(graphics, font, ElectronicLibraryEntryTooltip.compactLines(key), mouseX, mouseY);
+        if (snapshot != null) {
+            int x = Math.max(4, Math.min(width - 108, mouseX + 16));
+            int y = Math.max(4, Math.min(height - 108, mouseY + 36));
+            BlueprintPreviewFrame.draw(graphics::fill, x, y, 100, 100);
+            buildcraft.builders.client.render.BlueprintRenderer.renderSnapshot(graphics, snapshot, x, y, 100, 100);
+        }
+    }
+
+    private Snapshot.Key hoveredEntry(int mouseX, int mouseY) {
+        // The scrollbar/gap is not an entry, and an empty row must never show a stale tooltip.
+        if (draggingScrollbar || !insideList(mouseX, mouseY)
+            || mouseX >= listLeft() + LIST_TEXT_WIDTH + 1) {
+            return null;
+        }
+        List<Snapshot.Key> entries = GlobalSavedDataSnapshots.getClientSnapshotList();
+        viewport.update(entries);
+        int row = (int) ((mouseY - listTop()) / SNAPSHOT_ROW_HEIGHT);
+        return viewport.entryAtRow(entries, row);
+    }
+
     private void onDelButtonClick(IButtonClickEventTrigger button, int buttonKey) {
         if (container.tile.selected != null) {
             Snapshot snapshot = GlobalSavedDataSnapshots.getClientSnapshot(container.tile.selected);
             if (snapshot != null) {
                 container.sendSelectedToServer(null);
+                container.tile.selected = null;
                 GlobalSavedDataSnapshots.removeClientSnapshot(snapshot.key);
+                viewport.update(GlobalSavedDataSnapshots.getClientSnapshotList());
+                delButton.enabled = false;
             }
         }
     }
@@ -87,35 +129,39 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
         ICON_GUI.drawAt(guiGraphics, mainGui.rootElement);
         drawHorizontalProgress(guiGraphics, RECT_PROGRESS_DOWN, ICON_PROGRESS_DOWN, container.tile.getDownloadProgress(partialTicks), true);
         drawHorizontalProgress(guiGraphics, RECT_PROGRESS_UP, ICON_PROGRESS_UP, container.tile.getUploadProgress(partialTicks), false);
-        iterateSnapshots((i, rect, key) -> {
+        List<Snapshot.Key> entries = GlobalSavedDataSnapshots.getClientSnapshotList();
+        viewport.update(entries);
+        // A removed blueprint must not remain selected for an upload/download.
+        if (container.tile.selected != null && !entries.contains(container.tile.selected)) {
+            container.sendSelectedToServer(null);
+            container.tile.selected = null;
+        }
+        iterateSnapshots(entries, (i, rect, key) -> {
             boolean isSelected = key.equals(container.tile.selected);
             if (isSelected) {
                 drawGradientRect(guiGraphics, rect, 0xFF_55_55_55, 0xFF_55_55_55);
             }
             int colour = isSelected ? 0xffffa0 : 0xe0e0e0;
-            Header header = key.header;
-            String text = header == null ? key.toString() : header.name;
-            drawString(guiGraphics, font, fitSnapshotName(text, (int) rect.width), rect.x, rect.y, colour);
+            String text = ElectronicLibraryEntryTooltip.displayName(key);
+            drawString(guiGraphics, font, fitSnapshotName(text, LIST_TEXT_WIDTH), rect.x, rect.y, colour);
         });
-        delButton.enabled = GlobalSavedDataSnapshots.getClientSnapshot(container.tile.selected) != null;
+        drawScrollbar(guiGraphics, entries);
+        delButton.enabled = container.tile.selected != null && entries.contains(container.tile.selected)
+            && GlobalSavedDataSnapshots.getClientSnapshot(container.tile.selected) != null;
     }
 
 
 
     private String fitSnapshotName(String text, int maxWidth) {
         if (text == null || text.isEmpty() || font.width(text) <= maxWidth) {
-            return text;
+            return text == null ? "" : text;
         }
         String ellipsis = "...";
-        int ellipsisWidth = font.width(ellipsis);
-        if (ellipsisWidth >= maxWidth) {
+        int prefixWidth = maxWidth - font.width(ellipsis);
+        if (prefixWidth <= 0) {
             return font.plainSubstrByWidth(text, maxWidth);
         }
-        String prefix = font.plainSubstrByWidth(text, Math.max(0, maxWidth - ellipsisWidth));
-        while (!prefix.isEmpty() && font.width(prefix + ellipsis) > maxWidth) {
-            prefix = prefix.substring(0, prefix.length() - 1);
-        }
-        return prefix + ellipsis;
+        return font.plainSubstrByWidth(text, prefixWidth) + ellipsis;
     }
 
     private void drawHorizontalProgress(GuiGraphics guiGraphics, GuiRectangle rect, GuiIcon icon, double progress, boolean rightToLeft) {
@@ -135,32 +181,125 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
     }
 
 
-    private void iterateSnapshots(ISnapshotIterator iterator) {
-        List<Snapshot.Key> list = GlobalSavedDataSnapshots.getClientSnapshotList();
+    private void iterateSnapshots(List<Snapshot.Key> entries, ISnapshotIterator iterator) {
+        int first = viewport.firstIndex(entries);
+        int count = viewport.visibleCount(entries);
         GuiRectangle rect = new GuiRectangle(mainGui.rootElement.getX() + RECT_SNAPSHOT_LIST.x,
-            mainGui.rootElement.getY() + RECT_SNAPSHOT_LIST.y, RECT_SNAPSHOT_LIST.width, SNAPSHOT_ROW_HEIGHT);
-        int max = Math.min(list.size(), MAX_VISIBLE_SNAPSHOTS);
-        for (int i = 0; i < max; i++) {
-            iterator.call(i, rect, list.get(i));
+            mainGui.rootElement.getY() + RECT_SNAPSHOT_LIST.y,
+            LIST_TEXT_WIDTH + 1, SNAPSHOT_ROW_HEIGHT);
+        for (int row = 0; row < count; row++) {
+            iterator.call(first + row, rect, entries.get(first + row));
             rect = rect.offset(0, SNAPSHOT_ROW_HEIGHT);
         }
     }
-    
+
+    private double listLeft() {
+        return mainGui.rootElement.getX() + RECT_SNAPSHOT_LIST.x;
+    }
+
+    private double listTop() {
+        return mainGui.rootElement.getY() + RECT_SNAPSHOT_LIST.y;
+    }
+
+    private double scrollbarLeft() {
+        return listLeft() + RECT_SNAPSHOT_LIST.width - SCROLLBAR_WIDTH;
+    }
+
+    private boolean insideList(double x, double y) {
+        return x >= listLeft() && x < listLeft() + RECT_SNAPSHOT_LIST.width
+            && y >= listTop() && y < listTop() + RECT_SNAPSHOT_LIST.height;
+    }
+
+    private int scrollbarThumbHeight(int total) {
+        if (total <= MAX_VISIBLE_SNAPSHOTS) {
+            return (int) RECT_SNAPSHOT_LIST.height;
+        }
+        return Math.max(SCROLLBAR_MIN_THUMB_HEIGHT,
+            (int) Math.round(RECT_SNAPSHOT_LIST.height * MAX_VISIBLE_SNAPSHOTS / (double) total));
+    }
+
+    private double scrollbarThumbTop(List<Snapshot.Key> entries) {
+        int movement = (int) RECT_SNAPSHOT_LIST.height - scrollbarThumbHeight(entries.size());
+        int max = viewport.maxFirstIndex(entries.size());
+        return listTop() + (max == 0 ? 0 : movement * viewport.firstIndex(entries) / (double) max);
+    }
+
+    private void drawScrollbar(GuiGraphics guiGraphics, List<Snapshot.Key> entries) {
+        if (entries.size() <= MAX_VISIBLE_SNAPSHOTS) {
+            return;
+        }
+        double x = scrollbarLeft();
+        double y = listTop();
+        drawGradientRect(guiGraphics, new GuiRectangle(x, y, SCROLLBAR_WIDTH, RECT_SNAPSHOT_LIST.height),
+            0xFF_33_33_33, 0xFF_33_33_33);
+        drawGradientRect(guiGraphics, new GuiRectangle(x + 1, scrollbarThumbTop(entries) + 1,
+            SCROLLBAR_WIDTH - 2, scrollbarThumbHeight(entries.size()) - 2),
+            draggingScrollbar ? 0xFF_DD_DD_DD : 0xFF_B8_B8_B8,
+            draggingScrollbar ? 0xFF_DD_DD_DD : 0xFF_B8_B8_B8);
+    }
+
+    private void scrollFromMouse(List<Snapshot.Key> entries, double mouseY) {
+        int travel = (int) RECT_SNAPSHOT_LIST.height - scrollbarThumbHeight(entries.size());
+        if (travel <= 0) {
+            return;
+        }
+        viewport.scrollToFraction(entries, (mouseY - scrollbarDragOffset - listTop()) / travel);
+    }
 
     @Override
-	public boolean mouseClicked(double mouseX, double mouseY, int mouseButton){
-        AtomicBoolean found = new AtomicBoolean(false);
-        iterateSnapshots((i, rect, key) -> {
-            if (rect.contains(mainGui.mouse)) {
-                container.sendSelectedToServer(key);
-                delButton.enabled = true;
-                found.set(true);
+    public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
+        if (mouseButton == 0 && insideList(mouseX, mouseY)) {
+            List<Snapshot.Key> entries = GlobalSavedDataSnapshots.getClientSnapshotList();
+            viewport.update(entries);
+            if (mouseX >= scrollbarLeft()) {
+                if (entries.size() > MAX_VISIBLE_SNAPSHOTS) {
+                    double thumbTop = scrollbarThumbTop(entries);
+                    double thumbHeight = scrollbarThumbHeight(entries.size());
+                    scrollbarDragOffset = mouseY >= thumbTop && mouseY < thumbTop + thumbHeight
+                        ? mouseY - thumbTop : thumbHeight / 2.0;
+                    draggingScrollbar = true;
+                    scrollFromMouse(entries, mouseY);
+                }
+                return true;
             }
-        });
-        if (!found.get()) {
-            return super.mouseClicked(mouseX, mouseY, mouseButton);
+            int row = (int) ((mouseY - listTop()) / SNAPSHOT_ROW_HEIGHT);
+            Snapshot.Key key = viewport.entryAtRow(entries, row);
+            if (key != null) {
+                container.sendSelectedToServer(key);
+                container.tile.selected = key;
+                delButton.enabled = GlobalSavedDataSnapshots.getClientSnapshot(key) != null;
+            }
+            return true;
         }
-        return true;
+        return super.mouseClicked(mouseX, mouseY, mouseButton);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (draggingScrollbar && button == 0) {
+            scrollFromMouse(GlobalSavedDataSnapshots.getClientSnapshotList(), mouseY);
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (draggingScrollbar && button == 0) {
+            draggingScrollbar = false;
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (insideList(mouseX, mouseY) && scrollY != 0) {
+            int rows = Math.max(1, (int) Math.round(Math.abs(scrollY) * 3));
+            viewport.scrollBy(GlobalSavedDataSnapshots.getClientSnapshotList(), scrollY > 0 ? -rows : rows);
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
     @FunctionalInterface

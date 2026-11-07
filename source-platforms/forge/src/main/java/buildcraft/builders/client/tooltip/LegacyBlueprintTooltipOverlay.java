@@ -4,8 +4,8 @@ package buildcraft.builders.client.tooltip;
 import java.util.List;
 
 import buildcraft.builders.client.render.LegacyBlueprintGuiRenderer;
+import buildcraft.builders.gui.BlueprintPreviewFrame;
 import buildcraft.builders.item.ItemSnapshot;
-import buildcraft.builders.item.ItemSchematicSingle;
 import buildcraft.builders.snapshot.ClientSnapshots;
 import buildcraft.builders.snapshot.Snapshot;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -35,19 +35,9 @@ public final class LegacyBlueprintTooltipOverlay {
 
     public static void onTooltipPre(RenderTooltipEvent.Pre event) {
         ItemStack stack = event.getItemStack();
-        Snapshot snapshot;
-        if (stack.getItem() instanceof ItemSnapshot) {
-            Snapshot.Header header = ItemSnapshot.getHeader(stack);
-            if (header == null || header.key == null) return;
-            // Existing Blueprint/Template behavior: draw a frame immediately,
-            // even before the asynchronous snapshot response arrives.
-            snapshot = ClientSnapshots.INSTANCE.getSnapshot(header.key);
-        } else if (stack.getItem() instanceof ItemSchematicSingle) {
-            snapshot = SingleSchematicPreviewCache.previewFor(stack);
-            if (snapshot == null) return; // blank/invalid single schemes
-        } else {
-            return;
-        }
+        if (!(stack.getItem() instanceof ItemSnapshot)) return;
+        Snapshot.Header header = ItemSnapshot.getHeader(stack);
+        if (header == null || header.key == null) return;
         List<ClientTooltipComponent> components = event.getComponents();
         if (components.isEmpty()) return;
 
@@ -61,9 +51,9 @@ public final class LegacyBlueprintTooltipOverlay {
 
         //? if <1.20 {
         // Forge 1.19.2 still uses the legacy (mouse +12,-12) tooltip positioning.
-        int tooltipX = event.getX() + 12;
+        // The vanilla text tooltip may flip to the left when its hash line
+        // no longer fits; only its vertical placement is relevant here.
         int tooltipY = event.getY() - 12;
-        if (tooltipX + textWidth + 8 > event.getScreenWidth()) tooltipX = event.getX() - 28 - textWidth;
         if (tooltipY + textHeight + 6 > event.getScreenHeight()) tooltipY = event.getScreenHeight() - textHeight - 6;
         if (tooltipY < 4) tooltipY = 4;
         PoseStack pose = event.getPoseStack();
@@ -72,12 +62,15 @@ public final class LegacyBlueprintTooltipOverlay {
         // 1.20.1 uses the actual tooltip positioner, not raw mouse coordinates.
         Vector2ic location = event.getTooltipPositioner().positionTooltip(
             event.getScreenWidth(), event.getScreenHeight(), event.getX(), event.getY(), textWidth, textHeight);
-        int tooltipX = location.x();
         int tooltipY = location.y();
         PoseStack pose = event.getGraphics().pose();
         ?*/
         //?}
-        int x = Math.max(4, Math.min(tooltipX, event.getScreenWidth() - SIZE - 4));
+        // Anchor the framed 3D panel to the cursor, NOT to the text tooltip.
+        // A long blueprint hash makes the vanilla tooltip flip horizontally,
+        // sometimes to X=0 halfway across the hovered inventory slot.
+        int x = BlueprintPreviewFrame.tooltipX(event.getX(), event.getScreenWidth(), SIZE);
+        if (x < 0) return;
         int y = tooltipY + textHeight + GAP;
         if (y + SIZE + 4 > event.getScreenHeight()) y = tooltipY - SIZE - GAP;
         y = Math.max(4, Math.min(y, event.getScreenHeight() - SIZE - 4));
@@ -108,6 +101,7 @@ public final class LegacyBlueprintTooltipOverlay {
             pose.popPose();
         }
 
+        Snapshot snapshot = ClientSnapshots.INSTANCE.getSnapshot(header.key);
         if (snapshot != null) LegacyBlueprintGuiRenderer.render(snapshot, pose, x, y, SIZE, SIZE);
     }
 }

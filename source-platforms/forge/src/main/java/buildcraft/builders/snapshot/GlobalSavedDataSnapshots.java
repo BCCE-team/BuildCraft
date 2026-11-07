@@ -265,6 +265,18 @@ public final class GlobalSavedDataSnapshots {
         if (existing != null && existing.getRight().getName().toLowerCase(Locale.ROOT).endsWith(SNAPSHOT_FILE_EXTENSION)) {
             return;
         }
+        // Older builds discarded the header when copying a snapshot into the client
+        // library. If the player downloads that same named item again, repair the
+        // existing headerless file instead of adding a duplicate by content hash.
+        if (checked.key.header != null) {
+            Pair<Snapshot, File> contentMatch = findClientSnapshot(checked.key, false);
+            if (contentMatch != null && contentMatch.getLeft().key.header == null
+                && contentMatch.getRight().getName().toLowerCase(Locale.ROOT).endsWith(SNAPSHOT_FILE_EXTENSION)) {
+                writeSnapshotFile(contentMatch.getRight(), checked);
+                invalidate(checked.key);
+                return;
+            }
+        }
         writeSnapshotFile(nextClientFile(checked), checked);
         invalidate(checked.key);
     }
@@ -309,16 +321,19 @@ public final class GlobalSavedDataSnapshots {
             return null;
         }
         try {
+            // Do not take the header from the freshly copied key: some snapshot
+            // implementations recompute the hash while copying and can drop metadata.
+            Snapshot.Header header = snapshot.key.header;
             Snapshot copy = snapshot.copy();
-            Snapshot.Key originalKey = copy.key;
+            Snapshot.Key computedKey = copy.key;
             copy.computeKey();
-            if (!sameContentKey(originalKey, copy.key)) {
+            if (!sameContentKey(computedKey, copy.key)) {
                 return null;
             }
-            if (originalKey.header != null && !sameContentKey(originalKey.header.key, copy.key)) {
+            if (header != null && !sameContentKey(header.key, copy.key)) {
                 return null;
             }
-            copy.key = new Snapshot.Key(copy.key, originalKey.header);
+            copy.key = new Snapshot.Key(copy.key, header);
             return copy;
         } catch (RuntimeException e) {
             BCLog.logger.warn("Failed to validate BuildCraft snapshot", e);

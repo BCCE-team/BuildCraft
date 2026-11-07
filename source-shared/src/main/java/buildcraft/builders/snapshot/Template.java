@@ -30,6 +30,9 @@ public class Template extends Snapshot {
         template.offset = offset;
         template.data = (BitSet) data.clone();
         template.computeKey();
+        // The content hash is recomputed, but the user-visible blueprint metadata
+        // (name, author and creation date) must survive a copy.
+        template.key = new Snapshot.Key(template.key, key.header);
         return template;
     }
 

@@ -165,11 +165,12 @@ public class ItemSnapshot extends Item implements ICreativeTabItemProvider {
                 : "item.buildcraftbuilders.template.used_hint"
         ).withStyle(ChatFormatting.DARK_GRAY));
 
+        // The hash identifies a saved blueprint and is useful without advanced tooltips (F3+H).
+        tooltip.accept(Component.translatable(
+            "item.buildcraftbuilders.snapshot.hash",
+            HashUtil.convertHashToString(header.key.hash)
+        ).withStyle(ChatFormatting.DARK_GRAY));
         if (flag.isAdvanced()) {
-            tooltip.accept(Component.translatable(
-                "item.buildcraftbuilders.snapshot.hash",
-                HashUtil.convertHashToString(header.key.hash)
-            ).withStyle(ChatFormatting.DARK_GRAY));
             tooltip.accept(Component.translatable(
                 "item.buildcraftbuilders.snapshot.created",
                 header.created.toInstant().toString()

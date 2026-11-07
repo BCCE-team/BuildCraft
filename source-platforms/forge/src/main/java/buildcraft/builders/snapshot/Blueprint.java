@@ -52,6 +52,9 @@ public class Blueprint extends Snapshot {
         blueprint.data = data.clone();
         blueprint.entities.addAll(entities);
         blueprint.computeKey();
+        // The content hash is recomputed, but the user-visible blueprint metadata
+        // (name, author and creation date) must survive a copy.
+        blueprint.key = new Snapshot.Key(blueprint.key, key.header);
         return blueprint;
     }
 

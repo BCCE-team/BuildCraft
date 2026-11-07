@@ -157,11 +157,12 @@ public class ItemSnapshot extends Item {
                 : "item.buildcraftbuilders.template.used_hint"
         ).withStyle(ChatFormatting.DARK_GRAY));
 
+        // The hash identifies a saved blueprint and is useful without advanced tooltips (F3+H).
+        tooltip.add(Component.translatable(
+            "item.buildcraftbuilders.snapshot.hash",
+            HashUtil.convertHashToString(header.key.hash)
+        ).withStyle(ChatFormatting.DARK_GRAY));
         if (flag.isAdvanced()) {
-            tooltip.add(Component.translatable(
-                "item.buildcraftbuilders.snapshot.hash",
-                HashUtil.convertHashToString(header.key.hash)
-            ).withStyle(ChatFormatting.DARK_GRAY));
             tooltip.add(Component.translatable(
                 "item.buildcraftbuilders.snapshot.created",
                 header.created.toInstant().toString()

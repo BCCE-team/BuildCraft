@@ -230,7 +230,8 @@ class ClientIntegrations(unittest.TestCase):
         # Window resize and GUI-scale changes rebuild the screen widget tree. The unsent/current
         # edit state must survive that re-init instead of reverting to TileArchitectTable.name.
         self.assertIn('String currentName = nameField == null ? container.tile.name : nameField.getValue();', current)
-        self.assertIn('boolean focusName = nameField == null || nameField.isFocused();', current)
+        # The first opening must not steal keyboard focus; resizing preserves an existing focus.
+        self.assertIn('boolean focusName = nameField != null && nameField.isFocused();', current)
         self.assertIn('nameField.setValue(currentName);', current)
         self.assertIn('nameField.setMaxLength(ContainerArchitectTable.MAX_BLUEPRINT_NAME_LENGTH);', current)
         self.assertIn('if (focusName)', current)
@@ -255,6 +256,7 @@ class ClientIntegrations(unittest.TestCase):
         # same resize behavior instead of adding another 1.21.11-only branch.
         old = self.java('buildcraft/builders/gui/GuiArchitectTable.java', old=True)
         self.assertIn('String currentName = nameField == null ? container.tile.name : nameField.getValue();', old)
+        self.assertIn('boolean focusName = nameField != null && nameField.isFocused();', old)
         self.assertIn('nameField.setMaxLength(ContainerArchitectTable.MAX_BLUEPRINT_NAME_LENGTH);', old)
         legacy_menu = self.java('buildcraft/builders/menu/ContainerArchitectTable.java', old=True)
         self.assertIn('public static final int MAX_BLUEPRINT_NAME_LENGTH = 128;', legacy_menu)
@@ -267,7 +269,14 @@ class ClientIntegrations(unittest.TestCase):
         # Architect handles only its BC elements/edit box. Unhandled clicks continue through the
         # 1.21.11 native container screen, preserving slot and third-party/sidebar interaction.
         self.assertIn('boolean handled = super.mouseClicked(mouseX, mouseY, mouseButton);', current)
-        self.assertIn('handled |= RenderCompat.mouseClicked(nameField, mouseX, mouseY, mouseButton);', current)
+        # The edit box is hit-tested separately and an accepted click restores screen focus.
+        # Its result is OR-ed into the native result, without losing slot/sidebar events.
+        self.assertIn('boolean overName = nameField != null && nameField.isMouseOver(mouseX, mouseY);', current)
+        self.assertIn('if (!overName)', current)
+        self.assertIn('setFocused(null);', current)
+        self.assertIn('boolean nameHandled = RenderCompat.mouseClicked(nameField, mouseX, mouseY, mouseButton);', current)
+        self.assertIn('if (nameHandled) setFocused(nameField);', current)
+        self.assertIn('handled |= nameHandled;', current)
         self.assertIn('mouseClicked(event.x(), event.y(), event.button()) || super.mouseClicked(event, doubleClick)', boundary)
 
         # JEI computes ledger exclusion areas from live element coordinates, so after a resize the
