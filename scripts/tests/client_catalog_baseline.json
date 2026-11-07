@@ -11,10 +11,6 @@
         [
           "BlockEntityRenderer",
           "BCSiliconBlocks.LASER_TILE.get(),RenderLaser::new"
-        ],
-        [
-          "BlockEntityRenderer",
-          "BCSiliconBlocks.PROGRAMMING_TABLE_TILE.get(),RenderProgrammingTable::new"
         ]
       ],
       "energy/BCEnergyClientProxy.java": [
@@ -165,10 +161,6 @@
         [
           "BlockEntityRenderer",
           "BCSiliconBlocks.LASER_TILE.get(),RenderLaser::new"
-        ],
-        [
-          "BlockEntityRenderer",
-          "BCSiliconBlocks.PROGRAMMING_TABLE_TILE.get(),RenderProgrammingTable::new"
         ]
       ],
       "energy/BCEnergyClientProxy.java": [
@@ -319,10 +311,6 @@
         [
           "BlockEntityRenderer",
           "BCSiliconBlocks.LASER_TILE.get(),RenderLaser::new"
-        ],
-        [
-          "BlockEntityRenderer",
-          "BCSiliconBlocks.PROGRAMMING_TABLE_TILE.get(),RenderProgrammingTable::new"
         ]
       ],
       "energy/BCEnergyClientProxy.java": [
@@ -470,10 +458,6 @@
         [
           "BlockEntityRenderer",
           "BCSiliconBlocks.LASER_TILE.get(),RenderLaser::new"
-        ],
-        [
-          "BlockEntityRenderer",
-          "BCSiliconBlocks.PROGRAMMING_TABLE_TILE.get(),RenderProgrammingTable::new"
         ]
       ],
       "energy/BCEnergyClientProxy.java": [

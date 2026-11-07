@@ -1,3 +1,4 @@
 {
-    "parent": "buildcraftsilicon:block/table/programming/transparent"
+  "parent": "buildcraftsilicon:block/table/programming/transparent",
+  "render_type": "minecraft:translucent"
 }

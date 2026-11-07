@@ -1,7 +1,7 @@
 {
-"parent": "buildcraftsilicon:block/table/programming",
-	"render_type": "cutout",
-	"textures": {
-		"glass": "buildcraftsilicon:blocks/table/programming/transparent"
-	}
+  "parent": "buildcraftsilicon:block/table/programming",
+  "render_type": "minecraft:translucent",
+  "textures": {
+    "glass": "minecraft:block/white_stained_glass"
+  }
 }
