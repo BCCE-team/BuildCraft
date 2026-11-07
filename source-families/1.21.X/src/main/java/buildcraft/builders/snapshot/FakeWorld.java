@@ -30,7 +30,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.item.alchemy.PotionBrewing;
-import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeManager;
@@ -239,8 +238,6 @@ public abstract class FakeWorld extends Level {
         return superLevel.getScoreboard();
     }
 
-    public RecipeManager getRecipeManager() { return null; }
-
 
     public FeatureFlagSet enabledFeatures() {
         return superLevel.enabledFeatures();
@@ -250,9 +247,13 @@ public abstract class FakeWorld extends Level {
         return superLevel.tickRateManager();
     }
 
-    public net.minecraft.world.item.crafting.RecipeAccess recipeAccess() { return null; }
+    public net.minecraft.world.item.crafting.RecipeAccess recipeAccess() {
+        return superLevel.recipeAccess();
+    }
 
-    public net.minecraft.world.level.block.entity.FuelValues fuelValues() { return null; }
+    public net.minecraft.world.level.block.entity.FuelValues fuelValues() {
+        return superLevel.fuelValues();
+    }
 
     public PotionBrewing potionBrewing() {
         return superLevel.potionBrewing();

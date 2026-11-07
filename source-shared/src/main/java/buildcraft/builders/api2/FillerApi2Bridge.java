@@ -1,6 +1,9 @@
 package buildcraft.builders.api2;
 
 import buildcraft.lib.internal.core.render.ISprite;
+import buildcraft.lib.BCLibSprites;
+import buildcraft.lib.client.sprite.SpriteRaw;
+import buildcraft.api.v2.client.ContentPresentation;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftRegistries;
 import buildcraft.api.v2.area.BlockBox;
@@ -99,7 +102,11 @@ public final class FillerApi2Bridge {
         @Override public IFillerPattern rotateLeft() { return this; }
         @Override public IFillerPattern[] getPossible() { return new IFillerPattern[] { this }; }
         @Override public Component getDescription() { return Component.literal(type.id().toString()); }
-        @Override public ISprite getSprite() { return null; }
+        @Override public ISprite getSprite() {
+            ContentPresentation presentation = BuildCraftApi.registry(BuildCraftRegistries.CLIENT_PRESENTATIONS).get(type.id());
+            return presentation == null || presentation.icon() == null
+                ? BCLibSprites.HELP : new SpriteRaw(presentation.icon(), 0, 0, 1, 1);
+        }
         @Override
         public IFilledTemplate createTemplate(IFillerStatementContainer filler, IStatementParameter[] params) {
             if (!filler.hasBox()) return null;

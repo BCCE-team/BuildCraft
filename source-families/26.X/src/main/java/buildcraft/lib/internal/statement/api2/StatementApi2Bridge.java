@@ -1,9 +1,13 @@
 package buildcraft.lib.internal.statement.api2;
 
 import buildcraft.lib.internal.core.render.ISprite;
+import buildcraft.lib.BCLibSprites;
+import buildcraft.lib.client.sprite.SpriteRaw;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftRegistries;
 import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.client.ParameterPresentation;
+import buildcraft.api.v2.client.StatementPresentation;
 import buildcraft.api.v2.context.ContextKey;
 import buildcraft.api.v2.context.ExtensionContext;
 import buildcraft.api.v2.gate.GateView;
@@ -300,7 +304,7 @@ public final class StatementApi2Bridge {
         ParameterType<OpaqueData> legacyType = legacyParameterType();
         for (int i = 0; i < parameters.length; i++) {
             IStatementParameter parameter = parameters[i];
-            if (parameter == null) continue;
+            if (parameter == null || parameter instanceof UnsetApi2Parameter) continue;
             Identifier slot = parameterSlot(statement, i);
             if (parameter instanceof Api2ParameterAdapter api2) {
                 values.put(slot, api2.parameterValue());
@@ -444,6 +448,11 @@ public final class StatementApi2Bridge {
         return Objects.requireNonNull(Identifier.tryParse("buildcraft:" + path));
     }
 
+    /** GUI-only: an addon icon is a standalone texture; absent metadata uses the BC help glyph. */
+    private static ISprite iconSprite(Identifier icon) {
+        return icon == null ? BCLibSprites.HELP : new SpriteRaw(icon, 0, 0, 1, 1);
+    }
+
     private interface NativeStatementAdapter {}
 
     private abstract static class BaseNativeAdapter implements IStatement, NativeStatementAdapter {
@@ -458,15 +467,41 @@ public final class StatementApi2Bridge {
             ParameterSpec spec = schema.parameters().get(index);
             ParameterType<?> type = BuildCraftApi.registry(BuildCraftRegistries.PARAMETER_TYPES).get(spec.typeId());
             if (type == null) return null;
+            // There is no safe generic value for an arbitrary addon codec. Prefer the
+            // addon-provided initializer, then a suggested value. A required parameter
+            // with neither remains an interactive, explicitly unconfigured slot.
             try {
-                List<?> suggestions = type.suggestions(new StatementContext(ExtensionContext.empty(), AutomationActor.unknown(), OperationMode.SIMULATE, null));
-                return suggestions.isEmpty() ? null : Api2ParameterAdapter.of(type, suggestions.get(0));
-            } catch (RuntimeException | LinkageError ignored) { return null; }
+                StatementContext initial = new StatementContext(
+                    ExtensionContext.empty(), AutomationActor.unknown(), OperationMode.SIMULATE, null);
+                Object value = type.initialValue(initial).orElse(null);
+                if (value == null) {
+                    List<?> suggestions = type.suggestions(initial);
+                    if (!suggestions.isEmpty()) value = suggestions.get(0);
+                }
+                if (value != null) return Api2ParameterAdapter.of(type, value);
+            } catch (RuntimeException | LinkageError ignored) { /* A broken addon must not break the gate GUI. */ }
+            return spec.required() ? new UnsetApi2Parameter(type) : null;
+        }
+
+        public IStatementParameter createParameter(IStatementParameter old, int index) {
+            if (index < 0 || index >= schema.parameters().size()) return null;
+            Identifier requiredType = schema.parameters().get(index).typeId();
+            if (old instanceof Api2ParameterAdapter adapter
+                && adapter.value.type().id().equals(requiredType)) return old;
+            if (old instanceof UnsetApi2Parameter unset
+                && unset.type.id().equals(requiredType)) return old;
+            return createParameter(index);
         }
         public IStatement rotateLeft() { return this; }
         public IStatement[] getPossible() { return new IStatement[] { this }; }
-        public Component getDescription() { return Component.literal(id.toString()); }
-        public ISprite getSprite() { return null; }
+        public Component getDescription() {
+            StatementPresentation presentation = BuildCraftApi.registry(BuildCraftRegistries.STATEMENT_PRESENTATIONS).get(id);
+            return presentation == null ? Component.literal(id.toString()) : Component.translatable(presentation.titleKey());
+        }
+        public ISprite getSprite() {
+            StatementPresentation presentation = BuildCraftApi.registry(BuildCraftRegistries.STATEMENT_PRESENTATIONS).get(id);
+            return iconSprite(presentation == null ? null : presentation.icon());
+        }
     }
 
     private static boolean evaluate(TriggerType type, StatementContext context, StatementParameters parameters) {
@@ -529,6 +564,38 @@ public final class StatementApi2Bridge {
         }
     }
 
+    /** A visible, selectable placeholder; it is never passed as a real ParameterValue to addons. */
+    private static final class UnsetApi2Parameter implements IStatementParameter {
+        private final ParameterType<?> type;
+        UnsetApi2Parameter(ParameterType<?> type) { this.type = type; }
+        public String getUniqueTag() { return API2_PARAMETER_TAG.toString(); }
+        public ItemStack getItemStack() { return ItemStack.EMPTY; }
+        public Component getDescription() { return Component.literal("Unconfigured: " + type.id()); }
+        public ISprite getSprite() { return BCLibSprites.HELP; }
+        public void writeToNbt(CompoundTag nbt) { nbt.putString("api2UnsetType", type.id().toString()); }
+        public IStatementParameter rotateLeft() { return this; }
+        public IStatementParameter onClick(IStatementContainer source, IStatement statement,
+            ItemStack stack, StatementMouseClick mouse) {
+            try {
+                StatementContext ctx = context(source, null, OperationMode.SIMULATE);
+                if (type.suggestions(ctx).isEmpty()) {
+                    Object initial = type.initialValue(ctx).orElse(null);
+                    if (initial != null) return Api2ParameterAdapter.of(type, initial);
+                    return this; // No value can be invented for an arbitrary codec.
+                }
+            } catch (RuntimeException | LinkageError ignored) { return this; }
+            return null; // Open the normal choices menu using the real gate context.
+        }
+        public IStatementParameter[] getPossible(IStatementContainer source) {
+            try {
+                List<?> suggestions = type.suggestions(context(source, null, OperationMode.SIMULATE));
+                IStatementParameter[] out = new IStatementParameter[suggestions.size()];
+                for (int i = 0; i < suggestions.size(); i++) out[i] = Api2ParameterAdapter.of(type, suggestions.get(i));
+                return out;
+            } catch (RuntimeException | LinkageError ignored) { return new IStatementParameter[0]; }
+        }
+    }
+
     private static final class Api2ParameterAdapter implements IStatementParameter {
         private final ParameterValue<?> value;
         Api2ParameterAdapter(ParameterValue<?> value) { this.value = Objects.requireNonNull(value, "value"); }
@@ -538,8 +605,15 @@ public final class StatementApi2Bridge {
         ParameterValue<?> parameterValue() { return value; }
         public String getUniqueTag() { return API2_PARAMETER_TAG.toString(); }
         public ItemStack getItemStack() { return ItemStack.EMPTY; }
-        public Component getDescription() { return Component.literal(value.type().id().toString()); }
-        public ISprite getSprite() { return null; }
+        public Component getDescription() {
+            ParameterPresentation presentation = BuildCraftApi.registry(BuildCraftRegistries.PARAMETER_PRESENTATIONS).get(value.type().id());
+            return presentation == null ? Component.literal(value.type().id().toString())
+                : Component.translatable(presentation.titleKey());
+        }
+        public ISprite getSprite() {
+            ParameterPresentation presentation = BuildCraftApi.registry(BuildCraftRegistries.PARAMETER_PRESENTATIONS).get(value.type().id());
+            return iconSprite(presentation == null ? null : presentation.icon());
+        }
         public IStatementParameter onClick(IStatementContainer source, IStatement stmt, ItemStack stack, StatementMouseClick mouse) { return null; }
         public void writeToNbt(CompoundTag nbt) {
             try {
@@ -556,6 +630,11 @@ public final class StatementApi2Bridge {
         static IStatementParameter readFromNbt(CompoundTag nbt) {
             if (nbt == null) return null;
             try {
+                Identifier unsetType = parse(NbtCompat.getString(nbt, "api2UnsetType"));
+                if (unsetType != null) {
+                    ParameterType<?> type = BuildCraftApi.registry(BuildCraftRegistries.PARAMETER_TYPES).get(unsetType);
+                    return type == null ? null : new UnsetApi2Parameter(type);
+                }
                 var typeId = parse(NbtCompat.getString(nbt, "api2Type"));
                 var format = parse(NbtCompat.getString(nbt, "format"));
                 if (typeId == null || format == null) return null;

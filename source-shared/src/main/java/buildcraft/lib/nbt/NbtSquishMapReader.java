@@ -269,6 +269,9 @@ class NbtSquishMapReader {
             int bitsetSize = readCount(in, "packed list bitset bytes");
             byte[] bitsetData = new byte[bitsetSize];
             in.readFully(bitsetData);
+            if ((long) bitsetSize * Byte.SIZE < (long) bits * left.size()) {
+                throw new InvalidInputDataException("Truncated packed list bitset at bit width " + bits);
+            }
             DecompactingBitSet decompactor = new DecompactingBitSet(bits, bitsetData);
 
             IntArrayList nextLeft = new IntArrayList();
@@ -277,6 +280,9 @@ class NbtSquishMapReader {
             for (int i : left) {
                 int index = decompactor.next();
                 if (index < maxVal) {
+                    if (index < 0 || index >= dictionary.size()) {
+                        throw new InvalidInputDataException("Invalid packed list dictionary index " + index);
+                    }
                     list.set(i, dictionary.get(index));
                 } else {
                     nextLeft.add(i);
@@ -288,6 +294,9 @@ class NbtSquishMapReader {
             bits++;
         }
 
+        if (!left.isEmpty()) {
+            throw new InvalidInputDataException("Packed list leaves " + left.size() + " entries unresolved");
+        }
         ListTag tag = new ListTag();
         for (Tag base : list) {
             tag.add(base);

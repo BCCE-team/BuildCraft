@@ -106,6 +106,10 @@ public final class ApiV2FixtureAddon {
     private static final ParameterType<Boolean> BOOL_PARAMETER = new ParameterType<>(
         BOOL_PARAMETER_ID, BOOL_CODEC, context -> List.of(Boolean.TRUE, Boolean.FALSE)
     );
+    // Required gate values can now initialize without a suggestion menu.
+    private static final ParameterType<Boolean> DEFAULT_ONLY_PARAMETER = new ParameterType<>(
+        id("default_only_parameter"), BOOL_CODEC, context -> List.of(), context -> Boolean.FALSE
+    );
     private static final ResourceLocation ROBOT_FORMAT = id("robot_payload");
     private static final PersistentType<FixtureRobotTask, OpaqueData> ROBOT_TASK_PERSISTENCE = PersistentType
         .<FixtureRobotTask, OpaqueData>builder(FixtureRobotTask.TYPE, 0, unitCodec(ROBOT_FORMAT, FixtureRobotTask::new))

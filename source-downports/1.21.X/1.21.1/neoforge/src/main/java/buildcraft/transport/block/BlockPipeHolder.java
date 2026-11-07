@@ -236,7 +236,12 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 	}
 	
 	public BCBlockHitResult rayTrace(BlockGetter world, BlockPos pos, Vec3 start, Vec3 end) {
-        Pipe pipe = getPipe(world, pos, false).getPipe();
+        TilePipeHolder holder = getPipe(world, pos, false);
+        // The block state may outlive its block entity during chunk transitions.
+        if (holder == null) {
+            return new BCBlockHitResult(Shapes.block().clip(start, end, pos), 400);
+        }
+        Pipe pipe = holder.getPipe();
         VoxelShape centerShape = pipe == Pipe.EMPTY ? BOX_CENTER : getCachedConnectionShapes(pipe).combined();
         return rayTrace(world, pos, start, end, centerShape);
     }

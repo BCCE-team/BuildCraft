@@ -45,6 +45,7 @@ import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.scores.Scoreboard;
+import net.minecraft.world.ticks.BlackholeTickAccess;
 import net.minecraft.world.ticks.LevelTickAccess;
 import net.minecraft.world.ticks.TickPriority;
 import net.minecraftforge.api.distmarker.Dist;
@@ -64,32 +65,50 @@ public class FakeWorld extends Level {
     
     protected final LevelEntityGetter<Entity> entityGetter = new LevelEntityGetter(){
     	
-		@Override
-		public EntityAccess get(int p_156931_) {
-			return null;
-		}
+        @Override
+        public EntityAccess get(int id) {
+            for (Entity entity : entitys) {
+                if (entity.getId() == id) return entity;
+            }
+            return null;
+        }
 
-		@Override
-		public EntityAccess get(UUID p_156939_) {
-			return null;
-		}
+        @Override
+        public EntityAccess get(UUID uuid) {
+            for (Entity entity : entitys) {
+                if (entity.getUUID().equals(uuid)) return entity;
+            }
+            return null;
+        }
 
-		@Override
-		public Iterable getAll() {
-			return null;
-		}
+        @Override
+        public Iterable<Entity> getAll() {
+            return ImmutableList.copyOf(entitys);
+        }
 
-		@Override
-		public void get(EntityTypeTest p_156935_, Consumer p_156936_) {
-		}
+        @Override
+        public void get(EntityTypeTest type, Consumer consumer) {
+            for (Entity entity : entitys) {
+                Object matching = type.tryCast(entity);
+                if (matching != null) consumer.accept(matching);
+            }
+        }
 
-		@Override
-		public void get(AABB p_156937_, Consumer p_156938_) {
-		}
+        @Override
+        public void get(AABB bounds, Consumer consumer) {
+            for (Entity entity : entitys) {
+                if (bounds.intersects(entity.getBoundingBox())) consumer.accept(entity);
+            }
+        }
 
-		@Override
-		public void get(EntityTypeTest p_156932_, AABB p_156933_, Consumer p_156934_) {
-		}
+        @Override
+        public void get(EntityTypeTest type, AABB bounds, Consumer consumer) {
+            for (Entity entity : entitys) {
+                if (!bounds.intersects(entity.getBoundingBox())) continue;
+                Object matching = type.tryCast(entity);
+                if (matching != null) consumer.accept(matching);
+            }
+        }
     	
     };
     
@@ -111,6 +130,7 @@ public class FakeWorld extends Level {
 
     public void clear() {
         ((FakeChunkProvider) chunkProvider).chunks.clear();
+        entitys.clear();
     }
 
     @SuppressWarnings("WeakerAccess")
@@ -173,13 +193,13 @@ public class FakeWorld extends Level {
     @Deprecated
 	@Override
 	public LevelTickAccess<Block> getBlockTicks() {
-		return null;
+		return BlackholeTickAccess.emptyLevelList();
 	}
     
     @Deprecated
 	@Override
 	public LevelTickAccess<Fluid> getFluidTicks() {
-		return null;
+		return BlackholeTickAccess.emptyLevelList();
 	}
 
     @Deprecated
@@ -240,8 +260,8 @@ public class FakeWorld extends Level {
 
 	@Deprecated
 	@Override
-	public Entity getEntity(int p_46492_) {
-		return null;
+	public Entity getEntity(int id) {
+		return (Entity) entityGetter.get(id);
 	}
 
 	@Deprecated
@@ -284,6 +304,6 @@ public class FakeWorld extends Level {
 	
 	@Override
 	protected LevelEntityGetter<Entity> getEntities() {
-		return null;
+		return entityGetter;
 	}
 }
