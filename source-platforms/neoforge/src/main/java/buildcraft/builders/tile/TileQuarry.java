@@ -78,6 +78,7 @@ import buildcraft.lib.misc.data.BoxIterator;
 import buildcraft.lib.misc.data.EnumAxisOrder;
 import buildcraft.lib.internal.mj.MjBatteryReceiver;
 import buildcraft.lib.tile.TileBC_Neptune;
+import buildcraft.lib.tile.IPumpHost;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
@@ -113,7 +114,7 @@ import buildcraft.lib.net.BCPacketContext;
 
 
 
-public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoadingTile, IHasWork, MachineRuntimeView {
+public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoadingTile, IHasWork, MachineRuntimeView, IPumpHost {
     public static final boolean DEBUG_QUARRY = BCDebugging.shouldDebugLog("builders.quarry");
     private static final long DEFAULT_MAX_POWER_PER_TICK = 512 * MjAmount.MICRO_MJ_PER_MJ;
     private static final ResourceLocation ADVANCEMENT_COMPLETE
@@ -131,6 +132,16 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     public final Box frameBox = new Box();
     private final Box miningBox = new Box();
     private BoxIterator boxIterator;
+    /** The first blocking, high-viscosity fluid met by a quarry sweep. Runtime-only. */
+    @Nullable private BlockPos blockingFluid;
+    private boolean drainedSinceWalk;
+    private int ticksSinceWalk;
+    private boolean revisitPending;
+    private boolean lastRevisitFruitless;
+    private long pumpWantsPowerUntil = Long.MIN_VALUE;
+    private static final int REVISIT_MIN_TICKS = 20;
+    private static final int REVISIT_MAX_TICKS = 200;
+    private static final int PUMP_POWER_GRACE_TICKS = 40;
     public final List<BlockPos> framePoses = new ArrayList<>();
     private int frameBoxPosesCount = 0;
     private BoxIterator initialFrameScan;
@@ -223,17 +234,17 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
         caps.addProvider(new MjCapabilityHelper(new MjBatteryReceiver(battery) {
             @Override
             public long getPowerRequested() {
-                return hasWork() ? super.getPowerRequested() : 0;
+                return wantsPower() ? super.getPowerRequested() : 0;
             }
 
             @Override
             public long receivePower(long microJoules, FluidAction action) {
-                return hasWork() ? super.receivePower(microJoules, action) : microJoules;
+                return wantsPower() ? super.receivePower(microJoules, action) : microJoules;
             }
 
             @Override
             public boolean canReceive() {
-                return hasWork();
+                return wantsPower();
             }
         }));
         caps.addCapabilityInstance(
@@ -519,6 +530,83 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
         return true;
     }
 
+    /** The first high-viscosity standalone fluid above a prospective mining cell. */
+    @Nullable
+    private BlockPos firstBlockingFluidAbove(BlockPos target) {
+        if (!miningBox.isInitialized()) return null;
+        for (int y = miningBox.max().getY(); y > target.getY(); y--) {
+            BlockPos above = new BlockPos(target.getX(), y, target.getZ());
+            if (!canMoveThrough(above)) {
+                return isBlockingFluid(above) ? above : null;
+            }
+        }
+        return null;
+    }
+
+    private boolean isBlockingFluid(BlockPos pos) {
+        if (level == null || !level.hasChunkAt(pos)) return false;
+        Fluid fluid = getStandaloneFluid(level.getBlockState(pos));
+        return fluid != Fluids.EMPTY && fluid.getFluidType().getViscosity() > 1000;
+    }
+
+    private void noteBlockingFluid(BlockPos candidate) {
+        if (candidate != null && isBlockingFluid(candidate)
+            && (blockingFluid == null || !isBlockingFluid(blockingFluid))) {
+            blockingFluid = candidate.immutable();
+        }
+    }
+
+    /** Do not let the drill tunnel below thick fluid while searching for the next target. */
+    private void skipUnworkableCells() {
+        while (boxIterator != null && boxIterator.hasNext()) {
+            BlockPos pos = boxIterator.getCurrent();
+            if (!canMoveThrough(pos) && canMine(pos) && canMoveDownTo(pos)) return;
+            if (isBlockingFluid(pos)) {
+                noteBlockingFluid(pos);
+            } else if (!canMoveDownTo(pos)) {
+                noteBlockingFluid(firstBlockingFluidAbove(pos));
+            }
+            boxIterator.advance();
+        }
+    }
+
+    @Override
+    @Nullable
+    public BlockPos getBlockingFluid() {
+        return blockingFluid;
+    }
+
+    @Override
+    public MjBattery getBattery() {
+        return battery;
+    }
+
+    @Override
+    public void onBlockingFluidDrained() {
+        drainedSinceWalk = true;
+    }
+
+    @Override
+    public void onPumpWantsPower() {
+        if (level != null && !level.isClientSide) {
+            pumpWantsPowerUntil = level.getGameTime() + PUMP_POWER_GRACE_TICKS;
+        }
+    }
+
+    /** Completed quarries request MJ again only while an attached Pump needs it. */
+    public boolean wantsPower() {
+        return hasWork() || (level != null && level.getGameTime() < pumpWantsPowerUntil);
+    }
+
+    private boolean shouldRevisitBlockedColumns() {
+        if (!drainedSinceWalk || currentTask != null || boxIterator == null || boxIterator.hasNext()
+            || ticksSinceWalk < (lastRevisitFruitless ? REVISIT_MAX_TICKS : REVISIT_MIN_TICKS)) {
+            return false;
+        }
+        if (ticksSinceWalk >= REVISIT_MAX_TICKS || blockingFluid == null) return true;
+        return level.hasChunkAt(blockingFluid) && !isBlockingFluid(blockingFluid);
+    }
+
     /**
      * BC8 listened to every world block-state update, so placing a block into an already-cleared quarry column rewound
      * the iterator and the drill came back for it. Modern GameEvent listeners are spatially dispatched around the event
@@ -557,6 +645,14 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             if (candidate.getY() < miningBox.min().getY()) {
                 continue;
             }
+            // After a world reload the finished iterator is restored from NBT,
+            // but the cached obstruction is intentionally not persisted. The
+            // existing bounded column watchdog can rediscover it without
+            // restarting a completed Quarry or loading remote chunks.
+            if (isBlockingFluid(candidate)) {
+                noteBlockingFluid(candidate);
+                continue;
+            }
             // The quarry's mining bounds can change after an iterator was created or
             // restored (for example, while the frame is still being established).
             // A stale iterator must not be rewound to an out-of-bounds world position.
@@ -567,6 +663,9 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
                 }
             }
             boolean visited = boxIterator.hasFinished() || boxIterator.hasVisited(candidate);
+            if (!canMoveDownTo(candidate)) {
+                noteBlockingFluid(firstBlockingFluidAbove(candidate));
+            }
             if (!visited || !canMine(candidate) || !canMoveDownTo(candidate)) {
                 continue;
             }
@@ -678,6 +777,12 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
         frameEdgeScanIndex = 0;
         miningColumnScanIndex = 0;
         nextFrameWatchdogTick = 0;
+        blockingFluid = null;
+        drainedSinceWalk = false;
+        ticksSinceWalk = 0;
+        revisitPending = false;
+        lastRevisitFruitless = false;
+        pumpWantsPowerUntil = Long.MIN_VALUE;
         lastCollisionBlocksDrillPos = null;
         deniedBreakUntil.clear();
         BlockState state = level.getBlockState(worldPosition);
@@ -862,6 +967,12 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             rescanVisitedMiningColumns();
         }
 
+        ticksSinceWalk = Math.min(REVISIT_MAX_TICKS, ticksSinceWalk + 1);
+        if (shouldRevisitBlockedColumns()) {
+            boxIterator = null;
+            revisitPending = true;
+        }
+
         if (!hasWork()) {
             updateCollisionBlocksIfNeeded();
             return;
@@ -960,26 +1071,19 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
 
             if (boxIterator == null || drillPos == null) {
                 boxIterator = createBoxIterator();
-                while (
-                    canMoveThrough(boxIterator.getCurrent()) || !canMine(boxIterator.getCurrent())
-                    || !canMoveDownTo(boxIterator.getCurrent())
-                ) {
-                    if (boxIterator.advance() == null) {
-                        break;
-                    }
+                // A new sweep rechecks columns whose fluids the Pump has drained.
+                drainedSinceWalk = false;
+                ticksSinceWalk = 0;
+                skipUnworkableCells();
+                if (revisitPending) {
+                    lastRevisitFruitless = !boxIterator.hasNext();
                 }
+                revisitPending = false;
                 drillPos = Vec3.atLowerCornerOf(miningBox.closestInsideTo(worldPosition));
             }
 
             if (boxIterator != null && boxIterator.hasNext()) {
-                while (
-                    canMoveThrough(boxIterator.getCurrent()) || !canMine(boxIterator.getCurrent())
-                    || !canMoveDownTo(boxIterator.getCurrent())
-                ) {
-                    if (boxIterator.advance() == null) {
-                        break;
-                    }
-                }
+                skipUnworkableCells();
 
                 if (boxIterator.hasNext()) {
                     boolean found = false;
@@ -1402,6 +1506,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
 
         BoxIterator iter = boxIterator;
         left.add("current = " + (iter == null ? "null" : iter.getCurrent()));
+        left.add("pump blocking fluid = " + blockingFluid + (drainedSinceWalk ? " (rescan pending)" : ""));
 
         Task task = currentTask;
         if (task != null) {

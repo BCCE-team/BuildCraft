@@ -14,6 +14,7 @@ import buildcraft.api.v2.permission.WorldOperationKind;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import com.mojang.authlib.GameProfile;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
@@ -47,6 +48,7 @@ import buildcraft.lib.misc.AutomationPermissionUtil;
 import buildcraft.lib.misc.BlockUtil;
 import buildcraft.lib.misc.CapUtil;
 import buildcraft.lib.misc.FluidUtilBC;
+import buildcraft.lib.tile.IPumpHost;
 import buildcraft.lib.mj.MjRedstoneBatteryReceiver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -123,6 +125,8 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
     private boolean scanForInfiniteWater;
     private int scanMaxLengthSquared;
     private boolean scanInProgress;
+    /** Avoid reusing the previous world/host fluid graph when the base block changes. */
+    private boolean wasHosted;
     private final List<IntakeCandidate> intakeCandidates = new ArrayList<>();
     private int nextIntakeCandidate;
 
@@ -197,6 +201,32 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
         return previousFluid != Fluids.EMPTY && FluidUtilBC.areFluidsEqual(candidate.fluid, previousFluid) ? 0 : 1;
     }
 
+    /** A Pump sitting directly on a Quarry drains the quarry's obstruction, not its own column. */
+    @Nullable
+    public IPumpHost getHost() {
+        if (level == null || !level.hasChunkAt(worldPosition.below())) return null;
+        BlockEntity below = level.getBlockEntity(worldPosition.below());
+        return below instanceof IPumpHost ? (IPumpHost) below : null;
+    }
+
+    private boolean sameOwner(IPumpHost host) {
+        GameProfile pumpOwner = getOwner();
+        GameProfile hostOwner = host.getOwner();
+        if (pumpOwner == null || hostOwner == null) return pumpOwner == hostOwner;
+        return pumpOwner.getId() != null && pumpOwner.getId().equals(hostOwner.getId());
+    }
+
+    /** Use the Pump's battery first; only borrow idle Quarry power with matching owners. */
+    private long drawPower(long amount) {
+        long supplied = battery.extractPower(0, amount);
+        IPumpHost host = getHost();
+        if (supplied < amount && host != null && !host.hasWork() && sameOwner(host)) {
+            host.onPumpWantsPower();
+            supplied += host.getBattery().extractPower(0, amount - supplied);
+        }
+        return supplied;
+    }
+
     /**
      * Examine the entire passable column before choosing a liquid. Water in a cleared shaft is traversable: it
      * never prevents oil or any other non-water liquid further down from being considered. Fluid beside each shaft
@@ -218,6 +248,20 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
         targetPos = worldPosition.below();
 
         Map<FluidType, IntakeCandidate> candidates = new LinkedHashMap<>();
+        IPumpHost host = getHost();
+        if (host != null) {
+            // The Quarry itself obstructs the bore. Its cached thick-fluid target
+            // replaces the vertical intake probe without loading extra chunks.
+            BlockPos blocking = host.getBlockingFluid();
+            if (blocking != null && level.hasChunkAt(blocking)) {
+                BlockState state = level.getBlockState(blocking);
+                Fluid fluid = BlockUtil.getFluidWithFlowing(level, blocking);
+                if (fluid != Fluids.EMPTY && fluid.getFluidType().getViscosity() > 1000
+                    && BlockUtil.isReplaceable(level, blocking)) {
+                    collectIntakeCandidate(candidates, blocking, blocking);
+                }
+            }
+        } else {
         for (BlockPos shaft = worldPosition.below(); !level.isOutsideBuildHeight(shaft); shaft = shaft.below()) {
             if (worldPosition.getY() - shaft.getY() > getMaxShaftDepth() || !level.hasChunkAt(shaft)) break;
             BlockState block = level.getBlockState(shaft);
@@ -229,6 +273,7 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
             for (Direction side : INFINITE_WATER_NEIGHBORS) {
                 collectIntakeCandidate(candidates, shaft, shaft.relative(side));
             }
+        }
         }
 
         intakeCandidates.addAll(candidates.values());
@@ -415,6 +460,8 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
 
     @Override
     protected BlockPos getTargetPos() {
+        // The Quarry owns its excavation rig; never place a Pump tube through it.
+        if (getHost() != null) return null;
         if (queue.isEmpty() && currentPos == null) {
             return null;
         }
@@ -431,7 +478,18 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
 
     @Override
     public void update() {
-        if (!level.isClientSide) reconcileTankCapacity();
+        if (!level.isClientSide) {
+            boolean hosted = getHost() != null;
+            if (hosted != wasHosted) {
+                wasHosted = hosted;
+                currentPos = null;
+                progress = 0;
+                queue.clear();
+                scheduleQueueRebuild();
+                updateLength();
+            }
+            reconcileTankCapacity();
+        }
         if (!level.isClientSide && !queueBuilt) {
             if (!scanInProgress) beginQueueBuild();
             if (scanInProgress) continueQueueBuild();
@@ -462,7 +520,7 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
             if (!level.hasChunkAt(currentPos)) {
                 return;
             }
-            progress += battery.extractPower(0, target - progress);
+            progress += drawPower(target - progress);
             if (progress < target) {
                 return;
             }
@@ -543,6 +601,12 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
                 }
 
                 progress = 0;
+                // The mine that encountered this fluid needs to rescan the column
+                // now that real world fluid has been removed.
+                if (!keepSource) {
+                    IPumpHost host = getHost();
+                    if (host != null) host.onBlockingFluidDrained();
+                }
                 // The discovered renewable pool and this block's renewable status are independent.
                 AdvancementUtil.unlockAdvancement(getOwner().getId(), ADVANCEMENT_DRAIN_ANY);
                 if (!keepSource) {
