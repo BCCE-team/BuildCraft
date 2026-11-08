@@ -170,7 +170,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
         // The advanced crafting arrow is a clearer shortcut than its thin power bar.
         registration.addRecipeClickArea(GuiAdvancedCraftingTable.class, 93, 32, 23, 16, RecipeTypes.CRAFTING);
         registration.addRecipeClickArea(GuiAutoCraftItems.class, 90, 47, 23, 10, RecipeTypes.CRAFTING);
-        // BCU progress/help rectangle; intentionally excludes fluid tanks and item slots.
+        // progress/help rectangle; intentionally excludes fluid tanks and item slots.
         registration.addRecipeClickArea(ScreenHeatExchange.class, 73, 36, 30, 21, HEAT_EXCHANGE);
         registration.addGenericGuiContainerHandler(GuiBC8.class, new IGuiContainerHandler<GuiBC8<?>>() {
             @Override

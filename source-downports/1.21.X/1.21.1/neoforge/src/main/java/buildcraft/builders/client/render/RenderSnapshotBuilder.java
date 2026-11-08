@@ -36,7 +36,7 @@ public class RenderSnapshotBuilder {
         renderTasks(snapshotBuilder, world, tilePos, partialTicks, matrix, buffer, itemRenderer, false);
     }
 
-    /** BCU's small flying block geometry, reserved for the Filler construction animation. */
+    /** small flying block geometry, reserved for the Filler construction animation. */
     public static <T extends ITileForSnapshotBuilder> void renderFiller(
             SnapshotBuilder<T> snapshotBuilder, Level world, BlockPos tilePos,
             float partialTicks, PoseStack matrix, MultiBufferSource buffer, ItemRenderer itemRenderer

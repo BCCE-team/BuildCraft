@@ -32,7 +32,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * BCU/BC8-style in-progress Filler construction effects. Unlike the independent
+ * BC8-style in-progress Filler construction effects. Unlike the independent
  * white pattern preview, these are shown only for actual synchronized break tasks.
  * Never mutates tasks, block states, the battery, or construction scheduling.
  *

@@ -12,6 +12,7 @@ import buildcraft.energy.client.gui.GuiEngineFE;
 import buildcraft.energy.client.gui.GuiEngineIron_BC8;
 import buildcraft.energy.client.gui.GuiEngineStone_BC8;
 import buildcraft.energy.client.render.RenderDynamoMJ;
+import buildcraft.energy.fluid.BCFluidFog;
 import buildcraft.energy.fluid.BCFluidType;
 //? if mc_26_x {
 import buildcraft.lib.fluid.BCFluid;
@@ -135,17 +136,28 @@ public abstract class BCEnergyClientProxy {
                 public Vector4f modifyFogColor(Camera camera, float partialTick, ClientLevel level,
 //?}
                         int renderDistance, float darkenWorldAmount, Vector4f fluidFogColor) {
+                    // Fog colour comes from the source fluid palette, not the white sprite tint.
+                    int color = type.getFogColor();
+                    float red = BCFluidFog.channel(color, 16);
+                    float green = BCFluidFog.channel(color, 8);
+                    float blue = BCFluidFog.channel(color, 0);
 //? if mc_26_x {
-                    // BuildCraft deliberately uses a neutral grey immersion fog for every
+                    fluidFogColor.set(red, green, blue, fluidFogColor.w);
 //? } else {
-                    // 1.21.1 deliberately uses a neutral grey immersion fog for every BuildCraft
+                    return new Vector4f(red, green, blue, fluidFogColor.w);
 //?}
-                    // oil/fuel variant. Preserve the incoming alpha used by the modern fog pipeline.
-//? if mc_26_x {
-                    fluidFogColor.set(0.5f, 0.5f, 0.5f, fluidFogColor.w);
-//? } else {
-                    return new Vector4f(0.5f, 0.5f, 0.5f, fluidFogColor.w);
-//?}
+                }
+
+                @Override
+                public void modifyFogRender(Camera camera,
+                        net.minecraft.client.renderer.fog.environment.FogEnvironment environment,
+                        float renderDistance, float partialTick,
+                        net.minecraft.client.renderer.fog.FogData fogData) {
+                    // NeoForge invokes this hook when the camera is submerged in our fluid.
+                    fogData.environmentalStart = 0.0F;
+                    fogData.environmentalEnd = type.getFogDistance();
+                    fogData.renderDistanceStart = 0.0F;
+                    fogData.renderDistanceEnd = type.getFogDistance();
                 }
             }, type);
         }

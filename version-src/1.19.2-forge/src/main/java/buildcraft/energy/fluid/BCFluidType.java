@@ -20,12 +20,17 @@ public class BCFluidType extends FluidType{
 	private final ResourceLocation stillTexture;
 	private final ResourceLocation flowTexture;
 	private final int tintColor;
+    private final int fogColor;
+    private final float fogDistance;
 	
-	public BCFluidType(Properties properties, ResourceLocation stillTexture, ResourceLocation flowTexture, int tintColor) {
+	public BCFluidType(Properties properties, ResourceLocation stillTexture, ResourceLocation flowTexture,
+            int tintColor, int fogColor, float fogDistance) {
 		super(properties);
 		this.stillTexture = stillTexture;
 		this.flowTexture = flowTexture;
 		this.tintColor = tintColor;
+        this.fogColor = fogColor;
+        this.fogDistance = fogDistance;
 	}
 
 	@Override
@@ -66,12 +71,19 @@ public class BCFluidType extends FluidType{
 			@Override
 			public @NotNull Vector3f modifyFogColor(Camera camera, float partialTick, ClientLevel level,
 					int renderDistance, float darkenWorldAmount, Vector3f fluidFogColor) {
-				//afluidFogColor.mul(((tintColor>>16)&0xff)/255f, ((tintColor>>8)&0xff)/255f, ((tintColor)&0xff)/255f);
-				return new Vector3f(0.5f, 0.5f, 0.5f);
-			}
-			
-			
-			
+                return new Vector3f(
+                    BCFluidFog.channel(fogColor, 16),
+                    BCFluidFog.channel(fogColor, 8),
+                    BCFluidFog.channel(fogColor, 0));
+            }
+
+            @Override
+            public void modifyFogRender(Camera camera, net.minecraft.client.renderer.FogRenderer.FogMode mode,
+                    float renderDistance, float partialTick, float nearDistance, float farDistance,
+                    com.mojang.blaze3d.shaders.FogShape shape) {
+                com.mojang.blaze3d.systems.RenderSystem.setShaderFogStart(0.0F);
+                com.mojang.blaze3d.systems.RenderSystem.setShaderFogEnd(fogDistance);
+            }
 
 		});
     }

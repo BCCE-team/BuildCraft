@@ -265,7 +265,7 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
     }
 
     private void scanMultipleBlocks() {
-        // BCU parity: each scanned position produces a fading green digitizing cube.
+        //  parity: each scanned position produces a fading green digitizing cube.
         // Send ONE bounded packet per tick, not one packet per cell (or only the last cell).
         List<BlockPos> scanned = new ArrayList<>(snapshotType.maxPerTick);
         for (int i = snapshotType.maxPerTick; i > 0; i--) {

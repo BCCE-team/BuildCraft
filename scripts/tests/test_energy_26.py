@@ -149,8 +149,8 @@ class Energy26EffectiveContracts(unittest.TestCase):
     def test_native_energy_java_syntax(self):
         roots = [self.materialized[version] / ENERGY for version in ('26.2', '26.3')]
         result = parse_sources(roots)
-        self.assertIn('35 units, 0 errors', result)
         self.assertIn('36 units, 0 errors', result)
+        self.assertIn('37 units, 0 errors', result)
         print(result, flush=True)
 
 

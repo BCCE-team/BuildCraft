@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import buildcraft.core.BCCore;
+import buildcraft.energy.fluid.BCFluidFog;
 import buildcraft.energy.fluid.BCFluidType;
 import buildcraft.energy.fluid.BCLiquidBlock;
 import buildcraft.lib.fluid.BCFluid;
@@ -189,12 +190,14 @@ public class BCEnergyFluids {
         String fullName = name + (heat == 0 ? "" : "_heat_" + heat);
         int tempAdjustedViscosity = baseViscosity * (4 - heat) / 4;
         int boilAdjustedDensity = density * (heat >= boilPoint ? -1 : 1);
+        int fogColor = BCFluidFog.color(data[4], data[5], heat);
+        float fogDistance = BCFluidFog.distance(boilAdjustedDensity);
 
         String fluidTexture = "buildcraftenergy:blocks/fluids/" + name + "/"+ HEAT_NAMES[heat];
 
         BCRegistryEntry<BCFluidType> TYPE = FLUID_TYPES.register(fullName, () ->
             new BCFluidType(FluidType.Properties.create().canSwim(false).sound(SoundActions.BUCKET_FILL, SoundEvents.BUCKET_FILL).sound(SoundActions.BUCKET_EMPTY, SoundEvents.BUCKET_EMPTY).density(boilAdjustedDensity).viscosity(tempAdjustedViscosity).temperature(300 + 50*heat).rarity(Rarity.UNCOMMON)
-                    , new ResourceLocation(fluidTexture + "_still"), new ResourceLocation(fluidTexture + "_flow"), /*(texLight + texDark)/2)*/0xFFFFFFFF));
+                    , new ResourceLocation(fluidTexture + "_still"), new ResourceLocation(fluidTexture + "_flow"), /* texture tint */ 0xFFFFFFFF, fogColor, fogDistance));
         FluidReferences refs = new FluidReferences();
         java.util.function.Supplier<BCFluid> SOURCE = () -> refs.source.get();
         java.util.function.Supplier<BCFluid> FLOWING = () -> refs.flowing.get();

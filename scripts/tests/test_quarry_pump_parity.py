@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+from source_config import load_properties, target_layout
+from source_layout import _materialize_text_file, resolve_effective_source
 PUMPS = (
     'source-platforms/forge/src/main/java/buildcraft/factory/tile/TilePump.java',
     'source-platforms/neoforge/src/main/java/buildcraft/factory/tile/TilePump.java',
@@ -76,21 +80,40 @@ class QuarryPumpParity(unittest.TestCase):
                 self.assertIn('if (!keepSource)', source)
 
     def test_host_ownership_power_transfer_runs_real_java_methods(self):
-        # Compile exactly the two methods in production, not Python imitations.
-        method_sets = [
-            (rel, extract_method((ROOT / rel).read_text(), 'private boolean sameOwner(IPumpHost host)'),
-             extract_method((ROOT / rel).read_text(), 'private long drawPower(long amount)'))
-            for rel in PUMPS
-        ]
-        for rel, check_owner, draw in method_sets:
-            with self.subTest(source=rel), tempfile.TemporaryDirectory(prefix='bcce-host-power-') as tmp:
+        # Test the materialized code for each target: modern GameProfile exposes id(),
+        # whereas Forge and NeoForge 1.21.1 expose getId().
+        props = load_properties()
+        relative = 'src/main/java/buildcraft/factory/tile/TilePump.java'
+        targets = ('1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge',
+                   '1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge')
+        for target in targets:
+            with self.subTest(target=target), tempfile.TemporaryDirectory(prefix='bcce-host-power-') as tmp:
+                layout = target_layout(target, props)
+                source = resolve_effective_source(layout, props, relative)
+                self.assertIsNotNone(source)
+                materialized = Path(tmp) / 'TilePump.java'
+                _materialize_text_file(
+                    source, materialized, logical_relative=relative,
+                    minecraft=props[f'target.{target}.deps.minecraft'],
+                    family=layout.family, platform=layout.platform, preprocess=True,
+                )
+                code = materialized.read_text(encoding='utf-8')
+                modern = target.endswith('-neoforge') and target != '1.21.1-neoforge'
+                self.assertEqual('import buildcraft.lib.compat.GameProfileCompat;' in code, modern)
+                check_owner = extract_method(code, 'private boolean sameOwner(IPumpHost host)')
+                draw = extract_method(code, 'private long drawPower(long amount)')
+                self.assertNotIn('//?', check_owner)
+                if modern:
+                    self.assertNotIn('pumpOwner.getId()', check_owner)
+                    self.assertIn('GameProfileCompat.id(pumpOwner)', check_owner)
                 src = r'''import java.util.UUID;
 public class QuarryPumpHostProbe {
     static final class GameProfile {
         private final UUID id;
         GameProfile(UUID id) { this.id = id; }
-        UUID getId() { return id; }
+        /*PROFILE_ACCESSOR*/
     }
+    /*COMPAT_CLASS*/
     static final class Battery {
         long energy;
         Battery(long energy) { this.energy = energy; }
@@ -149,6 +172,8 @@ public class QuarryPumpHostProbe {
     }
 }
 '''.replace('/*OWNER_METHOD*/', check_owner).replace('/*DRAW_METHOD*/', draw)
+                src = src.replace('/*PROFILE_ACCESSOR*/', 'UUID id() { return id; }' if modern else 'UUID getId() { return id; }')
+                src = src.replace('/*COMPAT_CLASS*/', ('static final class GameProfileCompat { static UUID id(GameProfile profile) { return profile.id(); } }' if modern else ''))
                 java = Path(tmp) / 'QuarryPumpHostProbe.java'
                 java.write_text(src)
                 subprocess.run(['javac', str(java)], capture_output=True, text=True, check=True)

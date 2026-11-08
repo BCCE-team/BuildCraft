@@ -197,7 +197,7 @@ class ClientIntegrations(unittest.TestCase):
         self.assertIn('registration.blockOperations().pick(', plugin)
         self.assertNotIn('.getCompound(DATA_ROOT)', plugin)
 
-    def test_oil_fuel_immersion_matches_1_21_1(self):
+    def test_oil_fuel_immersion_matches(self):
         current_proxy = self.java('buildcraft/energy/BCEnergyClientProxy.java')
         current_type = self.java('buildcraft/energy/fluid/BCFluidType.java')
         old_type = self.java('buildcraft/energy/fluid/BCFluidType.java', old=True)
@@ -211,13 +211,16 @@ class ClientIntegrations(unittest.TestCase):
         self.assertIn('getOverlayTexture()', current_proxy)
         self.assertIn('return null;', current_proxy)
         self.assertIn('modifyFogColor(Camera camera', current_proxy)
-        self.assertIn('new Vector4f(0.5f, 0.5f, 0.5f, fluidFogColor.w)', current_proxy)
+        self.assertIn('return new Vector4f(red, green, blue, fluidFogColor.w)', current_proxy)
+        self.assertIn('BCFluidFog.channel(color, 16)', current_proxy)
+        self.assertIn('fogData.environmentalEnd = type.getFogDistance()', current_proxy)
+        self.assertIn('fogData.renderDistanceEnd = type.getFogDistance()', current_proxy)
 
-        # The 1.21.1 reference target installs the same underwater overlay and neutral-grey
-        # fog from BCFluidType.initializeClient.
+        # The 1.21.1 target keeps its existing underwater overlay, but the fog now
         self.assertIn('initializeClient(Consumer<IClientFluidTypeExtensions> consumer)', old_type)
         self.assertIn('textures/misc/underwater.png', old_type)
-        self.assertIn('new Vector3f(0.5f, 0.5f, 0.5f)', old_type)
+        self.assertIn('BCFluidFog.channel(fogColor, 16)', old_type)
+        self.assertIn('RenderSystem.setShaderFogEnd(fogDistance)', old_type)
 
         # Keep client-only camera/fog classes out of the common 1.21.11 FluidType itself.
         self.assertNotIn('net.minecraft.client.', current_type)

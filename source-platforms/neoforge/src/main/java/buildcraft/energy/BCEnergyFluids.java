@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import buildcraft.energy.fluid.BCFluidFog;
 import buildcraft.energy.fluid.BCFluidType;
 import buildcraft.energy.fluid.BCLiquidBlock;
 import buildcraft.lib.fluid.BCFluid;
@@ -172,6 +173,8 @@ public final class BCEnergyFluids {
         String fullName = name + (heat == 0 ? "" : "_heat_" + heat);
         int tempAdjustedViscosity = baseViscosity * (4 - heat) / 4;
         int boilAdjustedDensity = density * (heat >= boilPoint ? -1 : 1);
+        int fogColor = BCFluidFog.color(data[4], data[5], heat);
+        float fogDistance = BCFluidFog.distance(boilAdjustedDensity);
         int tint = 0xFFFFFFFF;
         String texture = BCEnergy.MODID + ":blocks/fluids/" + name + "/" + HEAT_NAMES[heat];
 
@@ -186,7 +189,7 @@ public final class BCEnergyFluids {
                 .rarity(Rarity.UNCOMMON),
             ResourceLocation.parse(texture + "_still"),
             ResourceLocation.parse(texture + "_flow"),
-            tint
+            tint, fogColor, fogDistance
         ));
 
         FluidReferences refs = new FluidReferences();

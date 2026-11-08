@@ -8,6 +8,9 @@ package buildcraft.factory.tile;
 
 import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
+//? if >=1.21.11 {
+import buildcraft.lib.compat.GameProfileCompat;
+//? }
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.api.v2.permission.WorldOperationKind;
@@ -213,7 +216,12 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
         GameProfile pumpOwner = getOwner();
         GameProfile hostOwner = host.getOwner();
         if (pumpOwner == null || hostOwner == null) return pumpOwner == hostOwner;
+//? if >=1.21.11 {
+        var pumpId = GameProfileCompat.id(pumpOwner);
+        return pumpId != null && pumpId.equals(GameProfileCompat.id(hostOwner));
+//? } else {
         return pumpOwner.getId() != null && pumpOwner.getId().equals(hostOwner.getId());
+//? }
     }
 
     /** Use the Pump's battery first; only borrow idle Quarry power with matching owners. */

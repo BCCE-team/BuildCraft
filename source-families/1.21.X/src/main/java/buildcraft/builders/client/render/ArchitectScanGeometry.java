@@ -16,9 +16,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
 
-/** World-space BCU digitizing cubes. Called in a translucent world pass, after camera translation. */
+/** World-space digitizing cubes. Called in a translucent world pass, after camera translation. */
 public final class ArchitectScanGeometry {
-    // BCU's lifetime is 50 ticks; most recent scans glow faint green then fade away.
+
     private static final int MAX_DRAWN_CELLS = 4096;
     private static final double MAX_DISTANCE_SQR = 192.0 * 192.0;
     private static final Vector3f CENTER = new Vector3f(.5f, .5f, .5f);
