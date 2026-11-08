@@ -290,3 +290,113 @@ class LegacyBuilderPreviewTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Ic2FluidCellStackingTests(unittest.TestCase):
+    """IC2 Classic cells stack to 64, without a destructive Forge fluid drain.
+
+    The IC2 integration is compiled only on Forge 1.19.2; use a real Java
+    method probe to exercise the actual IFluidHandlerItem drain implementation
+    independently of the optional IC2 runtime.
+    """
+
+    def test_stack_limit_registration_and_safe_fluid_handling(self):
+        source = (ROOT / "version-src/1.19.2-forge/src/main/java/buildcraft/compat/ic2/Ic2FluidCellItem.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(".stacksTo(64)", source)
+        self.assertNotIn(".stacksTo(1)", source)
+        self.assertIn(".craftRemainder(IC2Items.CELL_EMPTY)", source)
+        self.assertIn("CellItem.registerFluidFilling(fluid, this, false);", source)
+        self.assertIn("container.getCount() != 1", source)
+
+        # Compile the exact real drain(int, FluidAction) method, not a Python
+        # approximation. A stacked input cannot be replaced by one empty item:
+        # the leftover filled items would otherwise disappear.
+        signature = "public @Nonnull FluidStack drain(int maxDrain, FluidAction action) {"
+        start = source.index(signature)
+        opening = source.index("{", start)
+        end, depth = opening + 1, 1
+        while depth:
+            depth += (source[end] == "{") - (source[end] == "}")
+            end += 1
+        method = source[start:end]
+
+        probe = r"""public class Ic2FluidCellStackProbe {
+    @interface Nonnull {}
+    static final int CAPACITY = 1_000;
+    static class Fluid {}
+    static class Item {}
+    static class Cell extends Item {
+        final Fluid fluid;
+        Cell(Fluid fluid) { this.fluid = fluid; }
+    }
+    static final class IC2Items { static final Item CELL_EMPTY = new Item(); }
+    static class ItemStack {
+        private final Item item;
+        private final int count;
+        ItemStack(Item item) { this(item, 1); }
+        ItemStack(Item item, int count) { this.item = item; this.count = count; }
+        Item getItem() { return item; }
+        int getCount() { return count; }
+    }
+    static class FluidStack {
+        static final FluidStack EMPTY = new FluidStack(null, 0);
+        final Fluid fluid;
+        final int amount;
+        FluidStack(Fluid fluid, int amount) { this.fluid = fluid; this.amount = amount; }
+    }
+    enum FluidAction {
+        SIMULATE, EXECUTE;
+        boolean execute() { return this == EXECUTE; }
+    }
+    static class Handler {
+        private ItemStack container;
+        private final Cell cell;
+        Handler(ItemStack input, Cell cell) { this.container = input; this.cell = cell; }
+        /* REAL_DRAIN_METHOD */
+        ItemStack getContainer() { return container; }
+    }
+    static void check(boolean value, String message) {
+        if (!value) throw new AssertionError(message);
+    }
+    public static void main(String[] args) {
+        Fluid oil = new Fluid();
+        Cell cell = new Cell(oil);
+        Handler fullStack = new Handler(new ItemStack(cell, 64), cell);
+        check(fullStack.drain(1000, FluidAction.SIMULATE) == FluidStack.EMPTY,
+            "a full stack must not simulate a destructive drain");
+        check(fullStack.drain(1000, FluidAction.EXECUTE) == FluidStack.EMPTY,
+            "a full stack must not execute a destructive drain");
+        check(fullStack.getContainer().getItem() == cell && fullStack.getContainer().getCount() == 64,
+            "stacked filled cells must be preserved exactly");
+
+        Handler twoCells = new Handler(new ItemStack(cell, 2), cell);
+        check(twoCells.drain(1000, FluidAction.EXECUTE) == FluidStack.EMPTY,
+            "two filled cells must not lose one empty shell or the remaining cell");
+        check(twoCells.getContainer().getCount() == 2,
+            "two-cell input must be unchanged");
+
+        Handler single = new Handler(new ItemStack(cell), cell);
+        check(single.drain(999, FluidAction.EXECUTE) == FluidStack.EMPTY,
+            "partial-bucket requests must not consume the cell");
+        FluidStack simulated = single.drain(1000, FluidAction.SIMULATE);
+        check(simulated.amount == 1000 && simulated.fluid == oil,
+            "simulation must represent exactly one bucket of the correct fluid");
+        check(single.getContainer().getItem() == cell,
+            "simulation must not mutate the container");
+        FluidStack extracted = single.drain(1000, FluidAction.EXECUTE);
+        check(extracted.amount == 1000 && extracted.fluid == oil,
+            "single-cell drain must extract one correct bucket");
+        check(single.getContainer().getItem() == IC2Items.CELL_EMPTY &&
+            single.getContainer().getCount() == 1,
+            "single-cell drain must return exactly one empty IC2 cell");
+    }
+}
+""".replace("/* REAL_DRAIN_METHOD */", method)
+        with tempfile.TemporaryDirectory(prefix="bcce-ic2-cells-") as tmp:
+            java = Path(tmp) / "Ic2FluidCellStackProbe.java"
+            java.write_text(probe, encoding="utf-8")
+            subprocess.run(["javac", str(java)], check=True, capture_output=True, text=True)
+            subprocess.run(["java", "-cp", tmp, "Ic2FluidCellStackProbe"],
+                           check=True, capture_output=True, text=True)

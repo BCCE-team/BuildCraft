@@ -34,9 +34,10 @@ public final class Ic2FluidCellItem extends Item {
 
     public Ic2FluidCellItem(Fluid fluid) {
         super(new Item.Properties()
-            // A fluid-item handler replaces a single container on drain. Stacking
-            // filled cells would silently destroy the other 63 containers.
-            .stacksTo(1)
+            // IC2 Classic's filled cells stack like ordinary items. The Forge fluid
+            // handler below only drains a SINGLE cell: it cannot return both a
+            // remaining filled stack and an empty cell in one getContainer() result.
+            .stacksTo(64)
             .tab(BCCore.tabFluids)
             .craftRemainder(IC2Items.CELL_EMPTY));
         this.fluid = fluid;
@@ -106,8 +107,10 @@ public final class Ic2FluidCellItem extends Item {
 
         @Override
         public @Nonnull FluidStack drain(int maxDrain, FluidAction action) {
-            // Older worlds may still contain stacked filled cells. Refuse the
-            // whole-stack drain instead of deleting the remaining cells.
+            // The IFluidHandlerItem contract returns only one ItemStack. When
+            // IC2 cells are stacked, callers must split off one before using the
+            // fluid capability, or the remaining filled cells/empty shell would
+            // be lost. Do not silently consume an entire filled stack.
             if (maxDrain < CAPACITY || container.getItem() != cell || container.getCount() != 1) {
                 return FluidStack.EMPTY;
             }
