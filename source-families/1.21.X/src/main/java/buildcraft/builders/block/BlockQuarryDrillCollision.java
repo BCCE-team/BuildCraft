@@ -3,8 +3,21 @@ package buildcraft.builders.block;
 import buildcraft.builders.BCBuildersBlocks;
 import buildcraft.builders.tile.TileQuarryDrillCollision;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.level.block.SimpleWaterloggedBlock;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+//? if >=1.21.5 {
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ScheduledTickAccess;
+import net.minecraft.util.RandomSource;
+//?}
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
@@ -20,7 +33,8 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-public class BlockQuarryDrillCollision extends Block implements EntityBlock {
+public class BlockQuarryDrillCollision extends Block implements EntityBlock, SimpleWaterloggedBlock {
+    public static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
     public static final int MASK_X_BEAM = 1;
     public static final int MASK_Z_BEAM = 2;
     public static final int MASK_DRILL = 4;
@@ -50,14 +64,46 @@ public class BlockQuarryDrillCollision extends Block implements EntityBlock {
 
     public BlockQuarryDrillCollision() {
         super(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(-1.0F, 3600000.0F).noLootTable().noOcclusion());
-        registerDefaultState(stateDefinition.any().setValue(MASK, MASK_DRILL));
+        registerDefaultState(stateDefinition.any().setValue(MASK, MASK_DRILL).setValue(WATERLOGGED, false));
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(MASK);
+        builder.add(MASK, WATERLOGGED);
         super.createBlockStateDefinition(builder);
     }
+
+    @Override
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        BlockState state = super.getStateForPlacement(context);
+        return state == null ? null : state.setValue(WATERLOGGED,
+            context.getLevel().getFluidState(context.getClickedPos()).getType() == Fluids.WATER);
+    }
+
+    @Override
+    public FluidState getFluidState(BlockState state) {
+        return state.getValue(WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(state);
+    }
+
+    //? if >=1.21.5 {
+    @Override
+    protected BlockState updateShape(BlockState state, LevelReader world, ScheduledTickAccess tickAccess,
+            BlockPos pos, Direction direction, BlockPos neighbourPos, BlockState neighbourState, RandomSource random) {
+        if (state.getValue(WATERLOGGED)) {
+            tickAccess.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(world));
+        }
+        return super.updateShape(state, world, tickAccess, pos, direction, neighbourPos, neighbourState, random);
+    }
+    //?} else {
+    @Override
+    public BlockState updateShape(BlockState state, Direction direction, BlockState neighbourState,
+            LevelAccessor world, BlockPos pos, BlockPos neighbourPos) {
+        if (state.getValue(WATERLOGGED)) {
+            world.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(world));
+        }
+        return super.updateShape(state, direction, neighbourState, world, pos, neighbourPos);
+    }
+    //?}
 
     @Override
     public RenderShape getRenderShape(BlockState state) {

@@ -46,7 +46,7 @@ public class TileQuarryDrillCollision extends BlockEntity {
 
     private void removeSelf() {
         if (level != null && level.getBlockState(worldPosition).getBlock() == BCBuildersBlocks.QUARRY_DRILL_COLLISION.get()) {
-            level.setBlock(worldPosition, Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(worldPosition, level.getBlockState(worldPosition).getFluidState().createLegacyBlock(), 3);
         }
     }
 

@@ -1,5 +1,10 @@
 {
-	"variants":{
-		"":{"model":"buildcraftfactory:block/tube"}
-	}
+  "variants": {
+    "waterlogged=false": {
+      "model": "buildcraftfactory:block/tube"
+    },
+    "waterlogged=true": {
+      "model": "buildcraftfactory:block/tube"
+    }
+  }
 }

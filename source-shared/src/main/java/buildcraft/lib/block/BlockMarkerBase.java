@@ -53,7 +53,7 @@ public abstract class BlockMarkerBase extends BlockBCTile_Neptune implements ICu
 
     public BlockMarkerBase(Properties material) {
         super(material.strength(0.25f).sound(SoundType.METAL));
-        this.registerDefaultState(this.stateDefinition.any()
+        this.registerDefaultState(this.defaultBlockState()
 //        		.setValue(FACING, Direction.NORTH)
         		.setValue(ACTIVE, false));
     }
@@ -115,7 +115,7 @@ public abstract class BlockMarkerBase extends BlockBCTile_Neptune implements ICu
 
 
     public BlockState updateShape(BlockState p_58143_, Direction p_58144_, BlockState p_58145_, LevelAccessor p_58146_, BlockPos p_58147_, BlockPos p_58148_) {
-        return p_58144_.getOpposite() == p_58143_.getValue(FACING) && !p_58143_.canSurvive(p_58146_, p_58147_) ? Blocks.AIR.defaultBlockState() : p_58143_;
+        return p_58144_.getOpposite() == p_58143_.getValue(FACING) && !p_58143_.canSurvive(p_58146_, p_58147_) ? p_58143_.getFluidState().createLegacyBlock() : super.updateShape(p_58143_, p_58144_, p_58145_, p_58146_, p_58147_, p_58148_);
      }
 
 

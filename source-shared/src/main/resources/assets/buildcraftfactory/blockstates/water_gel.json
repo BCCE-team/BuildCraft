@@ -1,25 +1,46 @@
 {
-	"variants": {
-		"stage=spread_0": {
-			"model": "buildcraftfactory:block/gel/spread_0"
-		},
-		"stage=spread_1": {
-			"model": "buildcraftfactory:block/gel/spread_1"
-		},
-		"stage=spread_2": {
-			"model": "buildcraftfactory:block/gel/spread_2"
-		},
-		"stage=spread_3": {
-			"model": "buildcraftfactory:block/gel/spread_3"
-		},
-		"stage=gelling_0": {
-			"model": "buildcraftfactory:block/gel/gelling_0"
-		},
-		"stage=gelling_1": {
-			"model": "buildcraftfactory:block/gel/gelling_1"
-		},
-		"stage=gel": {
-			"model": "buildcraftfactory:block/gel/gel"
-		}
-	}
+  "variants": {
+    "stage=spread_0,waterlogged=false": {
+      "model": "buildcraftfactory:block/gel/spread_0"
+    },
+    "stage=spread_0,waterlogged=true": {
+      "model": "buildcraftfactory:block/gel/spread_0"
+    },
+    "stage=spread_1,waterlogged=false": {
+      "model": "buildcraftfactory:block/gel/spread_1"
+    },
+    "stage=spread_1,waterlogged=true": {
+      "model": "buildcraftfactory:block/gel/spread_1"
+    },
+    "stage=spread_2,waterlogged=false": {
+      "model": "buildcraftfactory:block/gel/spread_2"
+    },
+    "stage=spread_2,waterlogged=true": {
+      "model": "buildcraftfactory:block/gel/spread_2"
+    },
+    "stage=spread_3,waterlogged=false": {
+      "model": "buildcraftfactory:block/gel/spread_3"
+    },
+    "stage=spread_3,waterlogged=true": {
+      "model": "buildcraftfactory:block/gel/spread_3"
+    },
+    "stage=gelling_0,waterlogged=false": {
+      "model": "buildcraftfactory:block/gel/gelling_0"
+    },
+    "stage=gelling_0,waterlogged=true": {
+      "model": "buildcraftfactory:block/gel/gelling_0"
+    },
+    "stage=gelling_1,waterlogged=false": {
+      "model": "buildcraftfactory:block/gel/gelling_1"
+    },
+    "stage=gelling_1,waterlogged=true": {
+      "model": "buildcraftfactory:block/gel/gelling_1"
+    },
+    "stage=gel,waterlogged=false": {
+      "model": "buildcraftfactory:block/gel/gel"
+    },
+    "stage=gel,waterlogged=true": {
+      "model": "buildcraftfactory:block/gel/gel"
+    }
+  }
 }

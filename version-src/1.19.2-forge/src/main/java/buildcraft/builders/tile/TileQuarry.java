@@ -1252,7 +1252,10 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     private boolean placeOrUpdateCollisionBlock(BlockPos pos, int mask) {
         BlockState current = level.getBlockState(pos);
         BlockState wanted = BCBuildersBlocks.QUARRY_DRILL_COLLISION.get().defaultBlockState()
-            .setValue(BlockQuarryDrillCollision.MASK, mask);
+            .setValue(BlockQuarryDrillCollision.MASK, mask)
+            .setValue(BlockQuarryDrillCollision.WATERLOGGED, isQuarryCollisionBlock(current)
+                ? current.getValue(BlockQuarryDrillCollision.WATERLOGGED)
+                : current.getFluidState().getType() == Fluids.WATER);
         if (isQuarryCollisionBlock(current)) {
             if (!canClaimCollisionBlock(pos)) {
                 return false;
@@ -1263,7 +1266,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             setCollisionBlockOwner(pos);
             return true;
         }
-        if (!current.isAir()) {
+        if (!current.isAir() && current.getFluidState().getType() != Fluids.WATER) {
             return false;
         }
         level.setBlock(pos, wanted, 3);
@@ -1297,8 +1300,9 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     }
 
     private void removeCollisionBlock(BlockPos pos) {
-        if (isQuarryCollisionBlock(level.getBlockState(pos)) && canClaimCollisionBlock(pos)) {
-            level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
+        BlockState state = level.getBlockState(pos);
+        if (isQuarryCollisionBlock(state) && canClaimCollisionBlock(pos)) {
+            level.setBlock(pos, state.getFluidState().createLegacyBlock(), 3);
         }
     }
 
@@ -1862,7 +1866,10 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             }
             Player actor = buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer(serverLevel, getOwner(), framePos);
             boolean placed = BlockUtil.placeBlock(
-                serverLevel, framePos, BCBuildersBlocks.FRAME.get().defaultBlockState(), actor, Direction.UP, 3
+                serverLevel, framePos, BCBuildersBlocks.FRAME.get().defaultBlockState()
+                    .setValue(BlockBCBase_Neptune.WATERLOGGED,
+                        serverLevel.getFluidState(framePos).getType() == Fluids.WATER),
+                actor, Direction.UP, 3
             );
             if (placed) {
                 deniedBreakUntil.remove(framePos);

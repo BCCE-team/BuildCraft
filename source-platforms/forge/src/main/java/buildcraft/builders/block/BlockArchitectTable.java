@@ -28,7 +28,7 @@ public class BlockArchitectTable extends BlockBCTile_Neptune implements IBlockWi
 
     public BlockArchitectTable() {
         super();
-        registerDefaultState(stateDefinition.any().setValue(PROP_VALID, Boolean.TRUE));
+        registerDefaultState(defaultBlockState().setValue(PROP_VALID, Boolean.TRUE));
     }
 
     

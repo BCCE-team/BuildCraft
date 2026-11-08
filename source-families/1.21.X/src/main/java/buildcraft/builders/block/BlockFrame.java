@@ -49,7 +49,7 @@ public class BlockFrame extends BlockBCBase_Neptune {
         super(BlockBehaviour.Properties.of().mapColor(MapColor.STONE).sound(SoundType.METAL).strength(0.25f)
                 .forceSolidOn()
 				.explosionResistance(3.0f));
-        this.registerDefaultState(this.stateDefinition.any()
+        this.registerDefaultState(this.defaultBlockState()
         		.setValue(BuildCraftProperties.CONNECTED_DOWN, false)
             	.setValue(BuildCraftProperties.CONNECTED_EAST, false)
             	.setValue(BuildCraftProperties.CONNECTED_NORTH, false)
@@ -68,7 +68,8 @@ public class BlockFrame extends BlockBCBase_Neptune {
 
     @Override
 	public BlockState getStateForPlacement(BlockPlaceContext bpc) {
-    	BlockState state = defaultBlockState();
+        BlockState state = super.getStateForPlacement(bpc);
+        if (state == null) return null;
         for (Direction side : CONNECTED_MAP.keySet()) {
             Block block = bpc.getLevel().getBlockState(bpc.getClickedPos().offset(side.getNormal())).getBlock();
             state = state.setValue(CONNECTED_MAP.get(side), block instanceof BlockFrame || block instanceof BlockQuarry);
@@ -88,6 +89,7 @@ public class BlockFrame extends BlockBCBase_Neptune {
     protected BlockState updateShape(BlockState state, LevelReader world, ScheduledTickAccess scheduledTickAccess,
             BlockPos pos, Direction direction, BlockPos neighbourPos, BlockState neighbourState, RandomSource random) {
         Block neighbour = neighbourState.getBlock();
+        state = super.updateShape(state, world, scheduledTickAccess, pos, direction, neighbourPos, neighbourState, random);
         return state.setValue(CONNECTED_MAP.get(direction),
             neighbour instanceof BlockFrame || neighbour instanceof BlockQuarry);
     }

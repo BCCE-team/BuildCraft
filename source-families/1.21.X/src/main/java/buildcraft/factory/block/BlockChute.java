@@ -45,7 +45,7 @@ public class BlockChute extends BlockBCTile_Neptune implements IBlockWithFacing 
             .requiresCorrectToolForDrops()
             .noOcclusion());
         this.registerDefaultState(withConnections(
-            this.stateDefinition.any().setValue(getFacingProperty(), Direction.DOWN),
+            this.defaultBlockState().setValue(getFacingProperty(), Direction.DOWN),
             null,
             null
         ));
@@ -69,7 +69,7 @@ public class BlockChute extends BlockBCTile_Neptune implements IBlockWithFacing 
     }
 
     protected BlockState updateShape(BlockState state, LevelReader world, ScheduledTickAccess scheduledTickAccess, BlockPos pos, Direction direction, BlockPos neighbourPos, BlockState neighbourState, RandomSource random) {
-        return withConnection(state, world, pos, direction);
+        return withConnection(super.updateShape(state, world, scheduledTickAccess, pos, direction, neighbourPos, neighbourState, random), world, pos, direction);
     }
 
     public void neighborChanged(BlockState state, Level level, BlockPos pos, Block block, BlockPos fromPos,

@@ -93,12 +93,16 @@ public final class BCCoreClientModEvents {
             event.getModels().get(new ModelResourceLocation(DYNAMO_MJ_TEXTURE_MODEL, "standalone"))
         );
         ModelEngine.init(event.getModels().get(new ModelResourceLocation(ENGINE_MODEL, "standalone")));
-        event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(BCCore.MODID, "engine"), "type=wood"), new ModelEngine(RenderEngine_BC8.REDSTONE_BACK, RenderEngine_BC8.REDSTONE_SIDE));
-        event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(BCCore.MODID, "engine"), "type=creative"), new ModelEngine(RenderEngine_BC8.CREATIVE_BACK, RenderEngine_BC8.CREATIVE_SIDE));
-        event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(BCCore.MODID, "engine"), "type=stone"), new ModelEngine(RenderEngine_BC8.STONE_BACK, RenderEngine_BC8.STONE_SIDE));
-        event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(BCCore.MODID, "engine"), "type=iron"), new ModelEngine(RenderEngine_BC8.IRON_BACK, RenderEngine_BC8.IRON_SIDE));
-        event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(BCCore.MODID, "engine"), "type=fe"), new ModelEngine(RenderEngine_BC8.FE_BACK, RenderEngine_BC8.FE_SIDE));
-        event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath("buildcraftenergy", "mj_dynamo"), ""), new ModelEngine(RenderEngine_BC8.DYNAMO_BACK, RenderEngine_BC8.DYNAMO_SIDE));
+        // Waterlogging adds a second BlockState variant for every engine.
+        // Override both variants or ModelEngine will be replaced by the static JSON model.
+        for (boolean waterlogged : new boolean[] { false, true }) {
+            event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(BCCore.MODID, "engine"), "type=wood,waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.REDSTONE_BACK, RenderEngine_BC8.REDSTONE_SIDE));
+            event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(BCCore.MODID, "engine"), "type=creative,waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.CREATIVE_BACK, RenderEngine_BC8.CREATIVE_SIDE));
+            event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(BCCore.MODID, "engine"), "type=stone,waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.STONE_BACK, RenderEngine_BC8.STONE_SIDE));
+            event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(BCCore.MODID, "engine"), "type=iron,waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.IRON_BACK, RenderEngine_BC8.IRON_SIDE));
+            event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(BCCore.MODID, "engine"), "type=fe,waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.FE_BACK, RenderEngine_BC8.FE_SIDE));
+            event.getModels().put(new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath("buildcraftenergy", "mj_dynamo"), "waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.DYNAMO_BACK, RenderEngine_BC8.DYNAMO_SIDE));
+        }
         ModelEngine.release();
     }
 

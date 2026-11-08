@@ -91,6 +91,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Validate JEI crafting layout parity", (sys.executable, "scripts/validate-jei-crafting-layouts.py")),
     ("Validate gameplay, render and performance regressions", (sys.executable, "scripts/validate-regressions.py")),
     ("Validate guidebook runtime claims", (sys.executable, "scripts/validate-guide-runtime-claims.py")),
+    ("Test all-target waterlogging parity", _unittest_command("test_waterlogging_parity.py")),
     ("Test internal Minecraft compatibility boundaries", _unittest_command("test_minecraft_compat.py")),
     ("Test actor tickets and client registration boundaries", _unittest_command("test_actor_client_boundaries.py")),
     ("Test loader-neutral packet boundaries", _unittest_command("test_loader_boundaries.py")),

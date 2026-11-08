@@ -56,7 +56,7 @@ public class BlockFrame extends BlockBCBase_Neptune {
         ?*/
         //?}
 				.explosionResistance(3.0f));
-        this.registerDefaultState(this.stateDefinition.any()
+        this.registerDefaultState(this.defaultBlockState()
         		.setValue(BuildCraftProperties.CONNECTED_DOWN, false)
             	.setValue(BuildCraftProperties.CONNECTED_EAST, false)
             	.setValue(BuildCraftProperties.CONNECTED_NORTH, false)
@@ -75,7 +75,8 @@ public class BlockFrame extends BlockBCBase_Neptune {
 
     @Override
 	public BlockState getStateForPlacement(BlockPlaceContext bpc) {
-    	BlockState state = defaultBlockState();
+        BlockState state = super.getStateForPlacement(bpc);
+        if (state == null) return null;
         for (Direction side : CONNECTED_MAP.keySet()) {
             Block block = bpc.getLevel().getBlockState(bpc.getClickedPos().offset(side.getNormal())).getBlock();
             state = state.setValue(CONNECTED_MAP.get(side), block instanceof BlockFrame || block instanceof BlockQuarry);

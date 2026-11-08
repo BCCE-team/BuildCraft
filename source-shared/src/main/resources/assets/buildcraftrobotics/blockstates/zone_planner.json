@@ -1,8 +1,34 @@
 {
   "variants": {
-    "facing=north": { "model": "buildcraftrobotics:block/zone_planner" },
-    "facing=east":  { "model": "buildcraftrobotics:block/zone_planner", "y": 90 },
-    "facing=south": { "model": "buildcraftrobotics:block/zone_planner", "y": 180 },
-    "facing=west":  { "model": "buildcraftrobotics:block/zone_planner", "y": 270 }
+    "facing=north,waterlogged=false": {
+      "model": "buildcraftrobotics:block/zone_planner"
+    },
+    "facing=north,waterlogged=true": {
+      "model": "buildcraftrobotics:block/zone_planner"
+    },
+    "facing=east,waterlogged=false": {
+      "model": "buildcraftrobotics:block/zone_planner",
+      "y": 90
+    },
+    "facing=east,waterlogged=true": {
+      "model": "buildcraftrobotics:block/zone_planner",
+      "y": 90
+    },
+    "facing=south,waterlogged=false": {
+      "model": "buildcraftrobotics:block/zone_planner",
+      "y": 180
+    },
+    "facing=south,waterlogged=true": {
+      "model": "buildcraftrobotics:block/zone_planner",
+      "y": 180
+    },
+    "facing=west,waterlogged=false": {
+      "model": "buildcraftrobotics:block/zone_planner",
+      "y": 270
+    },
+    "facing=west,waterlogged=true": {
+      "model": "buildcraftrobotics:block/zone_planner",
+      "y": 270
+    }
   }
 }

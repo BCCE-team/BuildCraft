@@ -1,11 +1,46 @@
 {
   "variants": {
-    "mask=1": { "model": "buildcraftbuilders:block/quarry_drill_collision" },
-    "mask=2": { "model": "buildcraftbuilders:block/quarry_drill_collision" },
-    "mask=3": { "model": "buildcraftbuilders:block/quarry_drill_collision" },
-    "mask=4": { "model": "buildcraftbuilders:block/quarry_drill_collision" },
-    "mask=5": { "model": "buildcraftbuilders:block/quarry_drill_collision" },
-    "mask=6": { "model": "buildcraftbuilders:block/quarry_drill_collision" },
-    "mask=7": { "model": "buildcraftbuilders:block/quarry_drill_collision" }
+    "mask=1,waterlogged=false": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=1,waterlogged=true": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=2,waterlogged=false": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=2,waterlogged=true": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=3,waterlogged=false": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=3,waterlogged=true": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=4,waterlogged=false": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=4,waterlogged=true": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=5,waterlogged=false": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=5,waterlogged=true": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=6,waterlogged=false": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=6,waterlogged=true": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=7,waterlogged=false": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    },
+    "mask=7,waterlogged=true": {
+      "model": "buildcraftbuilders:block/quarry_drill_collision"
+    }
   }
 }

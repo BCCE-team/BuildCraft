@@ -1,8 +1,34 @@
 {
-    "variants": {
-        "facing=south": {"model": "buildcraftfactory:block/distiller", "y": 270 },
-        "facing=east": {"model": "buildcraftfactory:block/distiller", "y": 180 },
-        "facing=north": {"model": "buildcraftfactory:block/distiller", "y": 90  },
-        "facing=west": {"model": "buildcraftfactory:block/distiller"}
+  "variants": {
+    "facing=south,waterlogged=false": {
+      "model": "buildcraftfactory:block/distiller",
+      "y": 270
+    },
+    "facing=south,waterlogged=true": {
+      "model": "buildcraftfactory:block/distiller",
+      "y": 270
+    },
+    "facing=east,waterlogged=false": {
+      "model": "buildcraftfactory:block/distiller",
+      "y": 180
+    },
+    "facing=east,waterlogged=true": {
+      "model": "buildcraftfactory:block/distiller",
+      "y": 180
+    },
+    "facing=north,waterlogged=false": {
+      "model": "buildcraftfactory:block/distiller",
+      "y": 90
+    },
+    "facing=north,waterlogged=true": {
+      "model": "buildcraftfactory:block/distiller",
+      "y": 90
+    },
+    "facing=west,waterlogged=false": {
+      "model": "buildcraftfactory:block/distiller"
+    },
+    "facing=west,waterlogged=true": {
+      "model": "buildcraftfactory:block/distiller"
     }
+  }
 }

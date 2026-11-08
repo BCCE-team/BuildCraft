@@ -22,7 +22,7 @@ import org.joml.Vector2ic;
 //?}
 
 /**
- * Separate 3D panel for used Blueprint and Template items, as in BuildCraft Redux.
+ * Separate 3D panel for used Blueprint and Template items.
  * Forge 1.19.2 / 1.20.1 only expose the Pre and Color tooltip events: there is
  * no PostText event. The preview is drawn outside the main tooltip before it.
  * Never registers on dedicated servers and never changes a saved snapshot.

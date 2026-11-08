@@ -1,6 +1,9 @@
 {
   "variants": {
-    "": {
+    "waterlogged=false": {
+      "model": "buildcraftsilicon:block/table/advanced_crafting"
+    },
+    "waterlogged=true": {
       "model": "buildcraftsilicon:block/table/advanced_crafting"
     }
   }

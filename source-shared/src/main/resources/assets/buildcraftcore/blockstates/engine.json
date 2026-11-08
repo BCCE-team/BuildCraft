@@ -1,9 +1,34 @@
 {
-  "variants":{
-	  "type=wood":{"model":"buildcraftcore:block/engine_redstone"},
-	  "type=stone":{"model":"buildcraftcore:block/engine_redstone"},
-	  "type=iron":{"model":"buildcraftcore:block/engine_redstone"},
-	  "type=creative":{"model":"buildcraftcore:block/engine_redstone"},
-	  "type=fe":{"model":"buildcraftcore:block/engine_redstone"}
-	}
+  "variants": {
+    "type=wood,waterlogged=false": {
+      "model": "buildcraftcore:block/engine_redstone"
+    },
+    "type=wood,waterlogged=true": {
+      "model": "buildcraftcore:block/engine_redstone"
+    },
+    "type=stone,waterlogged=false": {
+      "model": "buildcraftcore:block/engine_redstone"
+    },
+    "type=stone,waterlogged=true": {
+      "model": "buildcraftcore:block/engine_redstone"
+    },
+    "type=iron,waterlogged=false": {
+      "model": "buildcraftcore:block/engine_redstone"
+    },
+    "type=iron,waterlogged=true": {
+      "model": "buildcraftcore:block/engine_redstone"
+    },
+    "type=creative,waterlogged=false": {
+      "model": "buildcraftcore:block/engine_redstone"
+    },
+    "type=creative,waterlogged=true": {
+      "model": "buildcraftcore:block/engine_redstone"
+    },
+    "type=fe,waterlogged=false": {
+      "model": "buildcraftcore:block/engine_redstone"
+    },
+    "type=fe,waterlogged=true": {
+      "model": "buildcraftcore:block/engine_redstone"
+    }
+  }
 }

@@ -11,6 +11,9 @@ import buildcraft.lib.platform.storage.PlatformStorage;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.SimpleWaterloggedBlock;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
@@ -46,7 +49,8 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-public class BlockEngine extends Block implements EntityBlock {
+public class BlockEngine extends Block implements EntityBlock, SimpleWaterloggedBlock {
+    public static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
 	
 	public static final Direction[] directions = new Direction[]{
 		Direction.UP ,Direction.DOWN,Direction.EAST,Direction.WEST,Direction.SOUTH,Direction.NORTH
@@ -100,7 +104,7 @@ public class BlockEngine extends Block implements EntityBlock {
 		?*/
 		//?}
 		this.registerDefaultState(
-				  this.stateDefinition.any().setValue(ENABLED, false).setValue(FACING, Direction.UP).setValue(STAGE, EnumPowerStage.BLUE)
+				  this.stateDefinition.any().setValue(ENABLED, false).setValue(FACING, Direction.UP).setValue(STAGE, EnumPowerStage.BLUE).setValue(WATERLOGGED, false)
 				);
 		this.newTile = newTile;
 		this.type = type;
@@ -162,7 +166,7 @@ public class BlockEngine extends Block implements EntityBlock {
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> bs) {
 		super.createBlockStateDefinition(bs);
-		bs.add(ENABLED).add(FACING).add(CONNECTED).add(STAGE);
+		bs.add(ENABLED).add(FACING).add(CONNECTED).add(STAGE).add(WATERLOGGED);
 	}
 	@Override
 	public BlockState getStateForPlacement(BlockPlaceContext bps) {
@@ -181,10 +185,25 @@ public class BlockEngine extends Block implements EntityBlock {
 				break;
 			}
 		}
-		return super.getStateForPlacement(bps).setValue(ENABLED, flag).setValue(FACING, d0).setValue(CONNECTED, b);
+		return super.getStateForPlacement(bps).setValue(ENABLED, flag).setValue(FACING, d0).setValue(CONNECTED, b)
+            .setValue(WATERLOGGED, lev.getFluidState(pos).getType() == Fluids.WATER);
 	}
 	
 
+
+    @Override
+    public FluidState getFluidState(BlockState state) {
+        return state.getValue(WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(state);
+    }
+
+    @Override
+    public BlockState updateShape(BlockState state, Direction direction, BlockState neighbourState,
+            LevelAccessor world, BlockPos pos, BlockPos neighbourPos) {
+        if (state.getValue(WATERLOGGED)) {
+            world.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(world));
+        }
+        return super.updateShape(state, direction, neighbourState, world, pos, neighbourPos);
+    }
 
 	@Override
 	public InteractionResult use(BlockState p_60503_, Level lev, BlockPos pos, Player p_60506_,

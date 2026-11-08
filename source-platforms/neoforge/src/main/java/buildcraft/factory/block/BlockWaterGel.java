@@ -115,7 +115,7 @@ public class BlockWaterGel extends BlockBCBase_Neptune {
     public BlockWaterGel() {
         super(BlockBehaviour.Properties.of().mapColor(MapColor.CLAY)
         		.sound(SoundType.SLIME_BLOCK).destroyTime(0.2f).explosionResistance(10f));
-        this.registerDefaultState(this.stateDefinition.any().setValue(PROP_STAGE, GelStage.SPREAD_0));
+        this.registerDefaultState(this.defaultBlockState().setValue(PROP_STAGE, GelStage.SPREAD_0));
     }
 
     // BlockState

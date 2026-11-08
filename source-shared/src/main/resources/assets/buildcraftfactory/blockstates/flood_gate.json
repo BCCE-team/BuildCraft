@@ -1,5 +1,10 @@
 {
-    "variants": {
-        "": {"model": "buildcraftfactory:block/flood_gate"}
+  "variants": {
+    "waterlogged=false": {
+      "model": "buildcraftfactory:block/flood_gate"
+    },
+    "waterlogged=true": {
+      "model": "buildcraftfactory:block/flood_gate"
     }
+  }
 }

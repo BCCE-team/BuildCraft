@@ -56,7 +56,7 @@ public class BlockSpring extends BlockBCBase_Neptune implements EntityBlock {
 		?*/
 		//?}
 				.sound(SoundType.STONE).randomTicks());
-		this.registerDefaultState(this.stateDefinition.any().setValue(SPRING_TYPE, EnumSpring.WATER));
+		this.registerDefaultState(this.defaultBlockState().setValue(SPRING_TYPE, EnumSpring.WATER));
 	}
 
 	// BlockState

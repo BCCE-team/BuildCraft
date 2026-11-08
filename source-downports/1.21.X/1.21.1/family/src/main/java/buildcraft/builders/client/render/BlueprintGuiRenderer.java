@@ -1,5 +1,4 @@
 /* Copyright (c) 2026 BuildCraft Community Edition contributors
- * Adapted from BuildCraft Redux direct 1.21.1 blueprint viewport (MPL 2.0).
  */
 package buildcraft.builders.client.render;
 

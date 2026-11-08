@@ -78,7 +78,7 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
             .sound(SoundType.METAL)
             .requiresCorrectToolForDrops()
             .noOcclusion());
-        this.registerDefaultState(this.stateDefinition.any()
+        this.registerDefaultState(this.defaultBlockState()
             .setValue(PROP_FACING, Direction.NORTH)
             .setValue(PROP_PART, EnumExchangePart.MIDDLE)
             .setValue(PROP_CONNECTED_Y, false)
@@ -115,7 +115,7 @@ public class BlockHeatExchange extends BlockBCTile_Neptune implements ICustomPip
                 exchange.markCheckNeighbours();
             }
         }
-        return withActualState(state, world, pos);
+        return withActualState(super.updateShape(state, direction, neighbourState, world, pos, neighbourPos), world, pos);
     }
 
     @Override

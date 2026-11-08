@@ -142,7 +142,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         super.createBlockStateDefinition(builder);
-        builder.add(WATERLOGGED);
+        // WATERLOGGED is inherited from BlockBCBase_Neptune.
     }
 
     public BlockState getStateForPlacement(BlockPlaceContext context) {

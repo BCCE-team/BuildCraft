@@ -1,6 +1,16 @@
 {
-    "variants": {
-        "type=water": { "model": "minecraft:block/bedrock" },
-        "type=oil": { "model": "minecraft:block/bedrock" }
+  "variants": {
+    "type=water,waterlogged=false": {
+      "model": "minecraft:block/bedrock"
+    },
+    "type=water,waterlogged=true": {
+      "model": "minecraft:block/bedrock"
+    },
+    "type=oil,waterlogged=false": {
+      "model": "minecraft:block/bedrock"
+    },
+    "type=oil,waterlogged=true": {
+      "model": "minecraft:block/bedrock"
     }
+  }
 }

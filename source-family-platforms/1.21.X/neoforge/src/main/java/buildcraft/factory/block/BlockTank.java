@@ -46,7 +46,7 @@ public class BlockTank extends BlockBCTile_Neptune implements ICustomPipeConnect
 
 	protected BlockTank(BlockBehaviour.Properties properties) {
 		super(properties);
-		this.registerDefaultState(this.stateDefinition.any().setValue(JOINED_BELOW, false));
+		this.registerDefaultState(this.defaultBlockState().setValue(JOINED_BELOW, false));
 	}
 
 	protected static BlockBehaviour.Properties defaultProperties() {
@@ -84,7 +84,8 @@ public class BlockTank extends BlockBCTile_Neptune implements ICustomPipeConnect
     public BlockState getStateForPlacement(BlockPlaceContext bpc) {
         boolean isTankBelow = bpc.getLevel().getBlockState(bpc.getClickedPos().below())
                 .getBlock() instanceof ITankBlockConnector;
-        return defaultBlockState().setValue(JOINED_BELOW, isTankBelow);
+        BlockState state = super.getStateForPlacement(bpc);
+        return state == null ? null : state.setValue(JOINED_BELOW, isTankBelow);
     }
 
     public int getLightEmission(BlockState state, BlockGetter level, BlockPos pos) {

@@ -1,6 +1,5 @@
 //? source if >=1.21.10
 /* Copyright (c) 2026 BuildCraft Community Edition contributors
- * Adapted from the BuildCraft Redux BlueprintTooltipOverlay (MPL 2.0).
  */
 package buildcraft.builders.client.tooltip;
 

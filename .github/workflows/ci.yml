@@ -190,6 +190,9 @@ jobs:
       - name: Validate guidebook runtime claims
         run: python scripts/validate-guide-runtime-claims.py
 
+      - name: Test all-target waterlogging parity
+        run: python -m unittest discover -s scripts/tests -p test_waterlogging_parity.py -v
+
       - name: Test internal Minecraft compatibility boundaries
         run: python -m unittest discover -s scripts/tests -p test_minecraft_compat.py -v
 

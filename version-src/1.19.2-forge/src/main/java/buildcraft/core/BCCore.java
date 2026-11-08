@@ -179,12 +179,16 @@ public class BCCore {
             // Baking runs for every resource reload. Ensure the model uses sprites from the new atlas.
             RenderEngine_BC8.reloadSprites(Minecraft.getInstance().getModelManager().getAtlas(InventoryMenu.BLOCK_ATLAS));
             ModelEngine.init(event.getModels().get(ENGINE_MODEL));
-            event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=wood"), new ModelEngine(RenderEngine_BC8.REDSTONE_BACK, RenderEngine_BC8.REDSTONE_SIDE));
-            event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=creative"), new ModelEngine(RenderEngine_BC8.CREATIVE_BACK, RenderEngine_BC8.CREATIVE_SIDE));
-            event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=stone"), new ModelEngine(RenderEngine_BC8.STONE_BACK, RenderEngine_BC8.STONE_SIDE));
-            event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=iron"), new ModelEngine(RenderEngine_BC8.IRON_BACK, RenderEngine_BC8.IRON_SIDE));
-            event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=fe"), new ModelEngine(RenderEngine_BC8.FE_BACK, RenderEngine_BC8.FE_SIDE));
-            event.getModels().put(new ModelResourceLocation("buildcraftenergy:mj_dynamo#"), new ModelEngine(RenderEngine_BC8.DYNAMO_BACK, RenderEngine_BC8.DYNAMO_SIDE));
+            // Waterlogging adds a second BlockState variant for every engine.
+            // Override both variants or ModelEngine will be replaced by the static JSON model.
+            for (boolean waterlogged : new boolean[] { false, true }) {
+                event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=wood,waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.REDSTONE_BACK, RenderEngine_BC8.REDSTONE_SIDE));
+                event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=creative,waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.CREATIVE_BACK, RenderEngine_BC8.CREATIVE_SIDE));
+                event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=stone,waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.STONE_BACK, RenderEngine_BC8.STONE_SIDE));
+                event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=iron,waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.IRON_BACK, RenderEngine_BC8.IRON_SIDE));
+                event.getModels().put(new ModelResourceLocation("buildcraftcore:engine#type=fe,waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.FE_BACK, RenderEngine_BC8.FE_SIDE));
+                event.getModels().put(new ModelResourceLocation("buildcraftenergy:mj_dynamo#waterlogged=" + waterlogged), new ModelEngine(RenderEngine_BC8.DYNAMO_BACK, RenderEngine_BC8.DYNAMO_SIDE));
+            }
             ModelEngine.release();
         }
 

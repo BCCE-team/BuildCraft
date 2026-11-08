@@ -33,7 +33,7 @@ public class BlockBuilder extends BlockBCTile_Neptune implements IBlockWithFacin
 
     public BlockBuilder() {
         super();
-        registerDefaultState(stateDefinition.any().setValue(SNAPSHOT_TYPE, EnumOptionalSnapshotType.NONE));
+        registerDefaultState(defaultBlockState().setValue(SNAPSHOT_TYPE, EnumOptionalSnapshotType.NONE));
     }
 
     // BlockState

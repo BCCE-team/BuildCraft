@@ -7,6 +7,10 @@ package buildcraft.lib.block;
 import buildcraft.lib.tile.TileBC_Neptune;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.SimpleWaterloggedBlock;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -29,7 +33,8 @@ import net.minecraft.world.level.material.MapColor;
 ?*/
 //?}
 
-public class BlockBCBase_Neptune extends Block {
+public class BlockBCBase_Neptune extends Block implements SimpleWaterloggedBlock {
+    public static final BooleanProperty WATERLOGGED = BlockStateProperties.WATERLOGGED;
     public static final DirectionProperty PROP_FACING = BlockStateProperties.HORIZONTAL_FACING;
     public static final DirectionProperty BLOCK_FACING_6 = BlockStateProperties.FACING;
 
@@ -37,8 +42,9 @@ public class BlockBCBase_Neptune extends Block {
     	super(prop);
     	if (this instanceof IBlockWithFacing) {
             EnumProperty<Direction> facingProp = ((IBlockWithFacing) this).getFacingProperty();
-    		this.registerDefaultState(this.stateDefinition.any().setValue(facingProp, Direction.NORTH));
+            this.registerDefaultState(this.defaultBlockState().setValue(facingProp, Direction.NORTH));
         }
+        this.registerDefaultState(this.defaultBlockState().setValue(WATERLOGGED, false));
     }
 
     public BlockBCBase_Neptune() {
@@ -57,6 +63,7 @@ public class BlockBCBase_Neptune extends Block {
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> bs) {
         if (this instanceof IBlockWithFacing) 
             bs.add(((IBlockWithFacing) this).getFacingProperty());
+        bs.add(WATERLOGGED);
 		super.createBlockStateDefinition(bs);
     }
 
@@ -88,6 +95,8 @@ public class BlockBCBase_Neptune extends Block {
     	LivingEntity placer = bpc.getPlayer();
     	BlockPos pos = bpc.getClickedPos();
         BlockState state = super.getStateForPlacement(bpc);
+        if (state == null) return null;
+        state = state.setValue(WATERLOGGED, bpc.getLevel().getFluidState(pos).getType() == Fluids.WATER);
         if (this instanceof IBlockWithFacing) {
             Direction orientation = bpc.getHorizontalDirection();
             IBlockWithFacing b = (IBlockWithFacing) this;
@@ -115,7 +124,21 @@ public class BlockBCBase_Neptune extends Block {
     
     
 
-	@Override
+    @Override
+    public FluidState getFluidState(BlockState state) {
+        return state.getValue(WATERLOGGED) ? Fluids.WATER.getSource(false) : super.getFluidState(state);
+    }
+
+    @Override
+    public BlockState updateShape(BlockState state, Direction direction, BlockState neighbourState,
+            LevelAccessor world, BlockPos pos, BlockPos neighbourPos) {
+        if (state.getValue(WATERLOGGED)) {
+            world.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(world));
+        }
+        return super.updateShape(state, direction, neighbourState, world, pos, neighbourPos);
+    }
+
+    @Override
     public BlockState rotate(BlockState state, LevelAccessor world, BlockPos pos, Rotation axis) {
         if(world.getBlockEntity(pos) instanceof TileBC_Neptune tile) 
         	tile.rotate(axis);

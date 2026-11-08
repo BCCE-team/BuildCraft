@@ -1,5 +1,10 @@
 {
-    "variants": {
-        "": {"model": "buildcraftfactory:block/pump"}
+  "variants": {
+    "waterlogged=false": {
+      "model": "buildcraftfactory:block/pump"
+    },
+    "waterlogged=true": {
+      "model": "buildcraftfactory:block/pump"
     }
+  }
 }

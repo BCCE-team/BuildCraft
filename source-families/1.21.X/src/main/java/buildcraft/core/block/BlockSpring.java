@@ -42,7 +42,7 @@ public class BlockSpring extends BlockBCBase_Neptune implements EntityBlock {
 	public BlockSpring() {
 		super(BlockBehaviour.Properties.of().mapColor(MapColor.STONE).strength(-1.0F, 3600000.0F).noLootTable()
 				.sound(SoundType.STONE).randomTicks());
-		this.registerDefaultState(this.stateDefinition.any().setValue(SPRING_TYPE, EnumSpring.WATER));
+		this.registerDefaultState(this.defaultBlockState().setValue(SPRING_TYPE, EnumSpring.WATER));
 	}
 
 	// BlockState

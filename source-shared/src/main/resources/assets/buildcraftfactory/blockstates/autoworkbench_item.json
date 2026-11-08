@@ -1,5 +1,10 @@
 {
-    "variants": {
-        "": { "model": "buildcraftfactory:block/autoworkbench_item" }
+  "variants": {
+    "waterlogged=false": {
+      "model": "buildcraftfactory:block/autoworkbench_item"
+    },
+    "waterlogged=true": {
+      "model": "buildcraftfactory:block/autoworkbench_item"
     }
+  }
 }
