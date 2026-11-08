@@ -15,6 +15,44 @@ from minecraft_compat_fixture import run, parse_sources
 from minecraft_compat_probes import probe
 
 
+class FloodGatePipelineFixtureIsolation(unittest.TestCase):
+    """The physical Flood Gate GameTest must not accept external flowing water."""
+
+    def test_outlet_is_sealed_but_redstone_and_pipe_paths_remain_accessible(self):
+        pattern = re.compile(r'private static final BlockPos (SOURCE|WOOD|TRANSIT|GATE|OUTPUT|POWER)'
+                             r' = new BlockPos\((\d+), (\d+), (\d+)\);')
+        for loader in ('forge', 'neoforge'):
+            path = (ROOT / f'source-platforms/{loader}/src/gametest/java/buildcraft/gametest/'
+                    'SystemFloodGatePipelineGameTests.java')
+            source = path.read_text(encoding='utf-8')
+            with self.subTest(loader=loader):
+                positions = {match.group(1): tuple(map(int, match.groups()[1:]))
+                             for match in pattern.finditer(source)}
+                self.assertEqual(6, len(positions))
+                for xyz in positions.values():
+                    self.assertTrue(all(0 <= component < dimension
+                                        for component, dimension in zip(xyz, (7, 3, 7))), xyz)
+                output = positions['OUTPUT']
+                gate = positions['GATE']
+                power = positions['POWER']
+                self.assertEqual((gate[0], gate[1] - 1, gate[2]), output)
+                self.assertGreater(output[1], 0, 'outlet must have a floor inside the template')
+                self.assertEqual(1, sum(abs(a - b) for a, b in zip(gate, power)),
+                                 'redstone must be adjacent to the gate')
+                self.assertEqual(gate[1], positions['TRANSIT'][1])
+                self.assertEqual(gate[1], positions['WOOD'][1])
+                self.assertEqual(gate[1], positions['SOURCE'][1])
+                self.assertEqual(1, positions['GATE'][0] - positions['TRANSIT'][0])
+                self.assertEqual(1, positions['TRANSIT'][0] - positions['WOOD'][0])
+                self.assertEqual(1, positions['WOOD'][0] - positions['SOURCE'][0])
+                self.assertIn('helper.setBlock(OUTPUT.below(), Blocks.STONE.defaultBlockState());', source)
+                self.assertIn('for (Direction side : Direction.Plane.HORIZONTAL)', source)
+                self.assertIn('helper.setBlock(OUTPUT.relative(side), Blocks.STONE.defaultBlockState());', source)
+                self.assertIn('helper.setBlock(OUTPUT, Blocks.AIR.defaultBlockState());', source)
+                self.assertIn('"isolated Flood Gate output was not empty before extraction"', source)
+                self.assertIn('"redstone block did not power the Flood Gate at the start of extraction"', source)
+
+
 class SymbolDownports(unittest.TestCase):
     def old(self, text: str, relative: str = 'Example.java') -> str:
         return downport_symbols(text, minecraft='1.21.1', relative=relative)

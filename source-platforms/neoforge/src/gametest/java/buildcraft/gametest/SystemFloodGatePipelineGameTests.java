@@ -28,12 +28,14 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @PrefixGameTestTemplate(false)
 public final class SystemFloodGatePipelineGameTests {
     private static final String TEMPLATE = PipeGameTestSupport.LARGE_EMPTY_TEMPLATE;
-    private static final BlockPos SOURCE = new BlockPos(1, 1, 3);
-    private static final BlockPos WOOD = new BlockPos(2, 1, 3);
-    private static final BlockPos TRANSIT = new BlockPos(3, 1, 3);
-    private static final BlockPos GATE = new BlockPos(4, 1, 3);
-    private static final BlockPos OUTPUT = new BlockPos(4, 0, 3);
-    private static final BlockPos POWER = new BlockPos(4, 2, 3);
+    // Keep the outlet inside the template so its floor and four side walls
+    // can exclude water from other GameTests running in the same world.
+    private static final BlockPos SOURCE = new BlockPos(1, 2, 3);
+    private static final BlockPos WOOD = new BlockPos(2, 2, 3);
+    private static final BlockPos TRANSIT = new BlockPos(3, 2, 3);
+    private static final BlockPos GATE = new BlockPos(4, 2, 3);
+    private static final BlockPos OUTPUT = new BlockPos(4, 1, 3);
+    private static final BlockPos POWER = new BlockPos(4, 2, 4);
     private static final int WATER = FluidType.BUCKET_VOLUME;
 
     private SystemFloodGatePipelineGameTests() {}
@@ -42,6 +44,8 @@ public final class SystemFloodGatePipelineGameTests {
     public static void extractedWaterWaitsAtPoweredFloodGateThenPlacesExactlyOneSource(GameTestHelper helper) {
         Rig rig = new Rig(helper);
         helper.setBlock(POWER, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        require(helper, helper.getLevel().hasNeighborSignal(rig.gate.getBlockPos()),
+            "redstone block did not power the Flood Gate at the start of extraction");
         rig.startExtraction(helper);
         helper.runAfterDelay(520, () -> {
             require(helper, helper.getLevel().hasNeighborSignal(rig.gate.getBlockPos()),
@@ -98,6 +102,13 @@ public final class SystemFloodGatePipelineGameTests {
         private final int[] extracted = { 0 };
 
         Rig(GameTestHelper helper) {
+            // Other water-placement tests run in parallel. Seal the output
+            // so external flowing water cannot masquerade as a gate placement.
+            helper.setBlock(OUTPUT.below(), Blocks.STONE.defaultBlockState());
+            for (Direction side : Direction.Plane.HORIZONTAL) {
+                helper.setBlock(OUTPUT.relative(side), Blocks.STONE.defaultBlockState());
+            }
+            helper.setBlock(OUTPUT, Blocks.AIR.defaultBlockState());
             helper.setBlock(SOURCE, BCFactoryBlocks.TANK_BLOCK.get().defaultBlockState());
             source = requireTile(helper, SOURCE, TileTank.class);
             wood = PipeGameTestSupport.placePipe(helper, WOOD, BCTransportPipes.woodFluid);
@@ -109,6 +120,8 @@ public final class SystemFloodGatePipelineGameTests {
             require(helper, source.tank.fill(new FluidStack(Fluids.WATER, WATER), FluidAction.EXECUTE) == WATER,
                 "failed to seed the physical source tank");
             gate.onOpenSidesChanged();
+            require(helper, helper.getLevel().getFluidState(helper.absolutePos(OUTPUT)).isEmpty(),
+                "isolated Flood Gate output was not empty before extraction");
         }
 
         void startExtraction(GameTestHelper helper) {

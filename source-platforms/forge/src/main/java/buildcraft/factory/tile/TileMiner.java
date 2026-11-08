@@ -108,8 +108,9 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     @Override
     public void onRemove(boolean dropSelf) {
         super.onRemove(dropSelf);
-        for (int y = worldPosition.getY() - 1;
-            y >= Math.max(level.getMinBuildHeight(), worldPosition.getY() - getMaxShaftDepth()); y--) {
+        int minimumBuildY = level.getMinBuildHeight();
+        int lowestShaftY = Math.max(minimumBuildY, worldPosition.getY() - getMaxShaftDepth());
+        for (int y = worldPosition.getY() - 1; y >= lowestShaftY; y--) {
             BlockPos blockPos = new BlockPos(worldPosition.getX(), y, worldPosition.getZ());
             if (!level.hasChunkAt(blockPos)) break;
             if (level.getBlockState(blockPos).getBlock() == BCFactoryBlocks.TUBE_BLOCK.get()) {
@@ -141,8 +142,9 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
         int newY = getTargetPos() != null ? getTargetPos().getY() : worldPosition.getY();
         int newLength = worldPosition.getY() - newY;
         if (newLength != wantedLength || shaftBlocked) {
-            for (int y = worldPosition.getY() - 1;
-            y >= Math.max(level.getMinBuildHeight(), worldPosition.getY() - getMaxShaftDepth()); y--) {
+            int minimumBuildY = level.getMinBuildHeight();
+            int lowestShaftY = Math.max(minimumBuildY, worldPosition.getY() - getMaxShaftDepth());
+            for (int y = worldPosition.getY() - 1; y >= lowestShaftY; y--) {
                 BlockPos blockPos = new BlockPos(worldPosition.getX(), y, worldPosition.getZ());
                 if (!level.hasChunkAt(blockPos)) break;
                 if (level.getBlockState(blockPos).getBlock() == BCFactoryBlocks.TUBE_BLOCK.get()) {

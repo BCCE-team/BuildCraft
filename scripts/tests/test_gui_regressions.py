@@ -99,7 +99,10 @@ class GuiRegressions(unittest.TestCase):
         self.assertNotIn('setGLColor', ledger)
         help = self.src('lib/gui/ledger/LedgerHelp.java')
         self.assertIn('split.draw(guiGraphics, rect, 0xFF000000', help)
-        self.assertIn('info.info.addGuiElements(container)', help)
+        # Help text must use the available panel width, both for a selected target and the initial hint.
+        self.assertIn('info.info.addGuiElements(container, availableHelpTextWidth());', help)
+        self.assertIn('hint.addGuiElements(container, availableHelpTextWidth());', help)
+        self.assertIn('return HelpLedgerLayout.textWidth(availablePanelWidth(), 150);', ledger)
         self.assertIn('gui.ledger.help.hint', help)
         self.assertIn('gui.ledger.help.hint', self.lang)
         self.assertEqual(2, self.src('lib/gui/elem/GuiElementText.java').count('opaqueRgb(colourValue)'))

@@ -256,7 +256,7 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
             paths.put(candidate.fluidPos, new FluidPath(candidate.fluidPos, null));
             if (BlockUtil.getFluid(level, candidate.fluidPos) != Fluids.EMPTY) queue.add(candidate.fluidPos);
             scanDirections = fluid.getFluidType().isLighterThanAir() ? SEARCH_GASEOUS : SEARCH_NORMAL;
-            scanForInfiniteWater = !BCCoreConfig.pumpsConsumeWater && isWater(fluid);
+            scanForInfiniteWater = !BCCoreConfig.pumpsConsumeWater && isWater(scanFluid);
             scanMaxLengthSquared = BCCoreConfig.pumpMaxDistance * BCCoreConfig.pumpMaxDistance;
             return true;
         }
