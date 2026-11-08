@@ -130,6 +130,8 @@ public final class SystemBuilderLifecycleGameTests {
         }
         buildcraft.transport.tile.TilePipeHolder extractor = PipeGameTestSupport.placePipe(
             helper, pipePos, buildcraft.transport.BCTransportPipes.woodItem);
+        buildcraft.transport.pipe.behaviour.PipeBehaviourWood wood =
+            (buildcraft.transport.pipe.behaviour.PipeBehaviourWood) extractor.getPipe().getBehaviour();
 
         helper.runAfterDelay(190, () -> {
             require(helper, blocks(helper, placement, Blocks.COBBLESTONE) == 0,
@@ -141,8 +143,6 @@ public final class SystemBuilderLifecycleGameTests {
                 "Wooden Pipe is not connected from source warehouse to Builder");
             chest.setItem(0, new ItemStack(Items.COBBLESTONE, 2));
             chest.setChanged();
-            buildcraft.transport.pipe.behaviour.PipeBehaviourWood wood =
-                (buildcraft.transport.pipe.behaviour.PipeBehaviourWood) extractor.getPipe().getBehaviour();
             // Both Builder and chest expose inventories. Aim the wooden pipe at
             // the warehouse explicitly, as a player would with a wrench.
             for (int attempt = 0; attempt < 6 && wood.getCurrentDir() != Direction.SOUTH; attempt++) {
@@ -152,11 +152,31 @@ public final class SystemBuilderLifecycleGameTests {
                 "Wooden Pipe could not face the real material warehouse");
             long offered = buildcraft.transport.BCTransportConfig.mjPerItem * 2L;
             require(helper, wood.receivePower(offered, FluidAction.EXECUTE) < offered,
-                "powered Wooden Pipe failed to withdraw the two required Builder blocks");
+                "powered Wooden Pipe failed to withdraw Builder materials");
+        });
+        // Wooden Pipes are allowed to accept only part of an offered item stack per power
+        // pulse. This test must actually transfer both blocks, rather than treating the
+        // first nonzero extraction as proof that the entire warehouse was emptied.
+        helper.runAfterDelay(225, () -> {
+            int remaining = chest.getItem(0).getCount();
+            if (remaining > 0) {
+                require(helper, wood.getCurrentDir() == Direction.SOUTH,
+                    "Wooden Pipe lost its warehouse-facing direction before the retry");
+                long retryOffer = buildcraft.transport.BCTransportConfig.mjPerItem * (long) remaining;
+                require(helper, wood.receivePower(retryOffer, FluidAction.EXECUTE) < retryOffer,
+                    "Wooden Pipe failed to extract the warehouse remainder");
+            }
+            require(helper, chest.getItem(0).isEmpty(),
+                "Wooden Pipe failed to withdraw both cobblestone blocks from its warehouse");
         });
         helper.runAfterDelay(755, () -> {
-            require(helper, blocks(helper, placement, Blocks.COBBLESTONE) == 2,
-                "Builder did not finish real Template placement after pipe material delivery");
+            int placed = blocks(helper, placement, Blocks.COBBLESTONE);
+            require(helper, placed == 2,
+                "Builder did not finish real Template placement after pipe material delivery"
+                    + "; placed=" + placed + ", warehouse=" + chest.getItem(0).getCount()
+                    + ", builderInventory=" + remainingCobblestone(builder)
+                    + ", pipeInFlight=" + ((buildcraft.transport.pipe.flow.PipeFlowItems)
+                        extractor.getPipe().getFlow()).doesContainItems());
             require(helper, remainingCobblestone(builder) == 0 && chest.getItem(0).isEmpty(),
                 "completed Builder consumed a different number of items than the warehouse sent");
             require(helper, !((buildcraft.transport.pipe.flow.PipeFlowItems) extractor.getPipe().getFlow()).doesContainItems(),

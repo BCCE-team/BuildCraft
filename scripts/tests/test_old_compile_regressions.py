@@ -192,6 +192,26 @@ public class AssemblyEqualsProbe {
         self.assertIn('"priority".equals(key)', scanner)
         self.assertIn("list.addAll(getHandlers(superCls))", scanner)
 
+    def test_builder_wooden_pipe_fixture_delivers_all_materials(self):
+        # The first receivePower pulse is allowed to extract only part of the
+        # chest stack. A second pulse and an empty-warehouse assertion keep the
+        # real-world Builder scenario independent of partial item extraction.
+        for loader in ("forge", "neoforge"):
+            path = ROOT / f"source-platforms/{loader}/src/gametest/java/buildcraft/gametest/SystemBuilderLifecycleGameTests.java"
+            source = path.read_text(encoding="utf-8")
+            method = source.split(
+                "void starvedTemplateBuilderResumesFromRealWoodenPipeMaterialDelivery(", 1
+            )[1].split("private static Template template(", 1)[0]
+            with self.subTest(loader=loader):
+                self.assertEqual(2, method.count("wood.receivePower("))
+                self.assertIn("helper.runAfterDelay(225, () -> {", method)
+                self.assertIn("int remaining = chest.getItem(0).getCount();", method)
+                self.assertIn("wood.receivePower(retryOffer, FluidAction.EXECUTE)", method)
+                self.assertIn("require(helper, chest.getItem(0).isEmpty(),", method)
+                self.assertIn('"; placed=" + placed + ", warehouse="', method)
+                self.assertIn('", builderInventory="', method)
+                self.assertIn('", pipeInFlight="', method)
+
     def test_quarry_fixture_scans_after_world_blocks_are_placed(self):
         for loader in ("forge", "neoforge"):
             text = (ROOT / f"source-platforms/{loader}/src/gametest/java/buildcraft/gametest/SystemQuarryMiningGameTests.java").read_text(encoding="utf-8")
