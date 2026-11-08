@@ -54,7 +54,10 @@ public class BurnHarness {
     }
     record Amount(double milliBuckets) {}
     record Residue(Amount amount) {}
-    record FuelProfile(long powerPerTickMicroMj, int burnTicksPerBucket) {
+    record FuelProfile(long powerPerTickMicroMj, int burnTicksPerBucket, long heatPerTickMicroMj) {
+        FuelProfile(long powerPerTickMicroMj, int burnTicksPerBucket) {
+            this(powerPerTickMicroMj, burnTicksPerBucket, powerPerTickMicroMj);
+        }
         boolean hasResidue() { return false; }
         Residue residuePerBucket() { return new Residue(new Amount(0)); }
     }
@@ -77,7 +80,7 @@ public class BurnHarness {
     boolean isRedstonePowered = true, lastPowered, residueBlocked;
     int penaltyCooling;
     double burnTime, residueAmount, heat;
-    long activePowerPerTick, currentOutput, totalEnergy;
+    long activePowerPerTick, activeHeatPerTick, currentOutput, totalEnergy;
     FuelProfile currentFuel;
     void addPower(long amount) { totalEnergy += amount; }
     void markChunkDirty() {}
@@ -119,8 +122,49 @@ BURN_BODY
         BurnHarness first=new BurnHarness();first.tankFuel.setFluid(new FluidStack("slow",1));first.burn();
         BurnHarness loaded=new BurnHarness();loaded.burnTime=first.burnTime;
         loaded.activePowerPerTick=first.activePowerPerTick;
+        loaded.activeHeatPerTick=first.activeHeatPerTick;
         for(int i=0;i<89;i++)loaded.burn();
         eq(loaded.totalEnergy,89_000_000,"prepaid credit survives empty tank reload");
+        near(loaded.heat,89,"prepaid heat survives empty tank reload");
+    }
+    static void near(double actual, double expected, String detail) {
+        if (Math.abs(actual-expected) > 1e-8) throw new AssertionError(detail+": got="+actual+" wanted="+expected);
+    }
+    static void testTemperatureTiers() {
+        long[] energy={90_000_000L,112_500_000L,135_000_000L};
+        double[] heat={90,135,180};
+        String[] names={"cold", "hot", "searing"};
+        for(int i=0;i<3;i++) {
+            BurnHarness engine=new BurnHarness();
+            engine.tankFuel.setFluid(new FluidStack(names[i],1));
+            for(int tick=0;tick<90;tick++) engine.burn();
+            eq(engine.totalEnergy,energy[i],names[i]+" total MJ");
+            near(engine.heat,heat[i],names[i]+" generated heat");
+            eq(engine.tankFuel.getFluidAmount(),0,names[i]+" consumption");
+            engine.burn();
+            eq(engine.currentOutput,0,names[i]+" no unpaid output");
+        }
+    }
+    static void testSearingHeatPaidAcrossReload() {
+        BurnHarness first=new BurnHarness();
+        first.tankFuel.setFluid(new FluidStack("searing",1));
+        first.burn();
+        near(first.heat,2,"first tick searing heat");
+        BurnHarness loaded=new BurnHarness();
+        loaded.burnTime=first.burnTime;
+        loaded.activePowerPerTick=first.activePowerPerTick;
+        loaded.activeHeatPerTick=first.activeHeatPerTick;
+        // The already-consumed fuel must burn with its own thermal rate, with no fuel remaining.
+        for(int tick=0;tick<89;tick++)loaded.burn();
+        eq(loaded.totalEnergy,133_500_000L,"searing paid MJ across reload");
+        near(loaded.heat,178,"searing paid heat across reload");
+        // Legacy worlds have no activeHeatPerTick. They must retain their old heat == power behavior.
+        BurnHarness legacy=new BurnHarness();
+        legacy.burnTime=1;
+        legacy.activePowerPerTick=2_000_000L;
+        legacy.burn();
+        eq(legacy.totalEnergy,2_000_000L,"old save credit");
+        near(legacy.heat,2,"old save heat fallback");
     }
     static void testGaseousFuelDepletionAndRefill() {
         BurnHarness a=new BurnHarness();
@@ -141,9 +185,12 @@ BURN_BODY
         service.types.put("half",new FuelProfile(8_000_000,500));
         // Built-in cool Gaseous Fuel: 8 MJ/t and 240000 / 8 / 16 ticks/bucket.
         service.types.put("gaseous",new FuelProfile(8_000_000,1875));
+        service.types.put("cold",new FuelProfile(1_000_000,90_000,1_000_000));
+        service.types.put("hot",new FuelProfile(1_250_000,90_000,1_500_000));
+        service.types.put("searing",new FuelProfile(1_500_000,90_000,2_000_000));
         testStandard();testFast();testSwitch();testPartial();testReloadCredit();
-        testGaseousFuelDepletionAndRefill();
-        System.out.println("6 combustion fuel invariants PASS");
+        testGaseousFuelDepletionAndRefill();testTemperatureTiers();testSearingHeatPaidAcrossReload();
+        System.out.println("8 combustion fuel invariants PASS");
     }
 }
 '''

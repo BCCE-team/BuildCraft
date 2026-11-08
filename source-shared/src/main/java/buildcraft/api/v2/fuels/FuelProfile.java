@@ -25,8 +25,10 @@ public final class FuelProfile implements EnergyFluidDefinition {
                     residue = FluidVolume.of(variant, FluidAmount.of(data.residueMilliBuckets()));
                     if (residue.isEmpty()) return CodecResult.failure("Fuel residue must be non-empty when specified");
                 }
+                long heat = data.heatPerTickMicroMj() == null
+                    ? data.powerPerTickMicroMj() : data.heatPerTickMicroMj();
                 return CodecResult.success(new FuelProfile(
-                    selector.valueOrThrow(), data.powerPerTickMicroMj(), data.burnTicksPerBucket(), residue
+                    selector.valueOrThrow(), data.powerPerTickMicroMj(), data.burnTicksPerBucket(), heat, residue
                 ));
             } catch (RuntimeException ex) {
                 return CodecResult.failure(safeMessage(ex));
@@ -43,7 +45,8 @@ public final class FuelProfile implements EnergyFluidDefinition {
             if (!selectorData.successful()) return CodecResult.failure(String.join("; ", selectorData.errors()));
             if (value.residuePerBucket.isEmpty()) {
                 return CodecResult.success(new FuelProfileData(
-                    selectorData.valueOrThrow(), value.powerPerTickMicroMj, value.burnTicksPerBucket, null, 0
+                    selectorData.valueOrThrow(), value.powerPerTickMicroMj, value.burnTicksPerBucket, null, 0,
+                    value.heatPerTickMicroMj
                 ));
             }
             FluidVolume residue = value.residuePerBucket;
@@ -52,7 +55,7 @@ public final class FuelProfile implements EnergyFluidDefinition {
             if (!encodedVariant.successful()) return CodecResult.failure(String.join("; ", encodedVariant.errors()));
             return CodecResult.success(new FuelProfileData(
                 selectorData.valueOrThrow(), value.powerPerTickMicroMj, value.burnTicksPerBucket,
-                encodedVariant.valueOrThrow(), residue.amount().milliBuckets()
+                encodedVariant.valueOrThrow(), residue.amount().milliBuckets(), value.heatPerTickMicroMj
             ));
         }
 
@@ -64,35 +67,57 @@ public final class FuelProfile implements EnergyFluidDefinition {
 
     private final FluidMatcher matcher;
     private final long powerPerTickMicroMj;
+    private final long heatPerTickMicroMj;
     private final int burnTicksPerBucket;
     private final FluidVolume residuePerBucket;
 
+    /** Legacy constructor: fuel thermal output used to match its MJ output. */
     public FuelProfile(FluidMatcher matcher, long powerPerTickMicroMj, int burnTicksPerBucket, FluidVolume residuePerBucket) {
+        this(matcher, powerPerTickMicroMj, burnTicksPerBucket, powerPerTickMicroMj, residuePerBucket);
+    }
+
+    /** Separate energy generation from combustion heat, as in the BC8 fuel registry. */
+    public FuelProfile(FluidMatcher matcher, long powerPerTickMicroMj, int burnTicksPerBucket,
+            long heatPerTickMicroMj, FluidVolume residuePerBucket) {
         this.matcher = Objects.requireNonNull(matcher, "matcher");
         if (powerPerTickMicroMj <= 0) throw new IllegalArgumentException("powerPerTickMicroMj must be > 0");
+        if (heatPerTickMicroMj <= 0) throw new IllegalArgumentException("heatPerTickMicroMj must be > 0");
         if (burnTicksPerBucket <= 0) throw new IllegalArgumentException("burnTicksPerBucket must be > 0");
         this.powerPerTickMicroMj = powerPerTickMicroMj;
+        this.heatPerTickMicroMj = heatPerTickMicroMj;
         this.burnTicksPerBucket = burnTicksPerBucket;
         this.residuePerBucket = Objects.requireNonNull(residuePerBucket, "residuePerBucket");
     }
 
     public static FuelProfile clean(FluidMatcher matcher, long powerPerTickMicroMj, int burnTicksPerBucket) {
-        return new FuelProfile(matcher, powerPerTickMicroMj, burnTicksPerBucket, FluidVolume.empty());
+        return clean(matcher, powerPerTickMicroMj, burnTicksPerBucket, powerPerTickMicroMj);
+    }
+
+    public static FuelProfile clean(FluidMatcher matcher, long powerPerTickMicroMj,
+            int burnTicksPerBucket, long heatPerTickMicroMj) {
+        return new FuelProfile(matcher, powerPerTickMicroMj, burnTicksPerBucket, heatPerTickMicroMj, FluidVolume.empty());
     }
 
     public static FuelProfile dirty(
         FluidMatcher matcher, long powerPerTickMicroMj, int burnTicksPerBucket, FluidVolume residuePerBucket
     ) {
+        return dirty(matcher, powerPerTickMicroMj, burnTicksPerBucket, powerPerTickMicroMj, residuePerBucket);
+    }
+
+    public static FuelProfile dirty(FluidMatcher matcher, long powerPerTickMicroMj,
+            int burnTicksPerBucket, long heatPerTickMicroMj, FluidVolume residuePerBucket) {
         if (Objects.requireNonNull(residuePerBucket, "residuePerBucket").isEmpty()) {
             throw new IllegalArgumentException("Dirty fuel residue must not be empty");
         }
-        return new FuelProfile(matcher, powerPerTickMicroMj, burnTicksPerBucket, residuePerBucket);
+        return new FuelProfile(matcher, powerPerTickMicroMj, burnTicksPerBucket, heatPerTickMicroMj, residuePerBucket);
     }
 
     @Override
     public Kind kind() { return Kind.FUEL; }
     public FluidMatcher matcher() { return matcher; }
     public long powerPerTickMicroMj() { return powerPerTickMicroMj; }
+    /** MJ-equivalent heat produced per tick, independent of generated mechanical energy. */
+    public long heatPerTickMicroMj() { return heatPerTickMicroMj; }
     public int burnTicksPerBucket() { return burnTicksPerBucket; }
     public FluidVolume residuePerBucket() { return residuePerBucket; }
     public boolean hasResidue() { return !residuePerBucket.isEmpty(); }

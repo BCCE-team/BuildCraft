@@ -248,7 +248,7 @@ class EngineRuntimeTests(unittest.TestCase):
         )
         for target in targets:
             with self.subTest(target=target):
-                self.assertEqual(check_paid_combustion_burn(target), '6 combustion fuel invariants PASS')
+                self.assertEqual(check_paid_combustion_burn(target), '8 combustion fuel invariants PASS')
 
     def test_compiled_host_and_independent_addon_engine(self):
         if not shutil.which('javac') or not shutil.which('java'):

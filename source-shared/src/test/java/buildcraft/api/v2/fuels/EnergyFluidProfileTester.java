@@ -17,6 +17,7 @@ public class EnergyFluidProfileTester {
         FuelProfile clean = FuelProfile.clean(FluidSelector.fluid(id("fuel")), 4_000_000L, 12_000);
         FuelProfile decodedClean = FuelProfile.CODEC.decode(FuelProfile.CODEC.encode(clean).valueOrThrow()).valueOrThrow();
         assertEquals(clean.powerPerTickMicroMj(), decodedClean.powerPerTickMicroMj());
+        assertEquals(clean.powerPerTickMicroMj(), decodedClean.heatPerTickMicroMj());
         assertEquals(clean.burnTicksPerBucket(), decodedClean.burnTicksPerBucket());
         assertFalse(decodedClean.hasResidue());
 
@@ -30,6 +31,31 @@ public class EnergyFluidProfileTester {
         assertTrue(decodedDirty.hasResidue());
         assertEquals(250, decodedDirty.residuePerBucket().amount().milliBuckets());
         assertEquals(id("residue"), decodedDirty.residuePerBucket().requireVariant().fluidId());
+    }
+
+    @Test
+    public void temperatureSensitiveFuelPreservesSeparateHeatingAcrossCodec() {
+        FuelProfile hot = FuelProfile.clean(FluidSelector.fluid(id("hot_fuel")), 5_000_000L, 12_000, 6_000_000L);
+        FuelProfile restoredHot = FuelProfile.CODEC.decode(FuelProfile.CODEC.encode(hot).valueOrThrow()).valueOrThrow();
+        assertEquals(5_000_000L, restoredHot.powerPerTickMicroMj());
+        assertEquals(6_000_000L, restoredHot.heatPerTickMicroMj());
+        assertEquals(12_000, restoredHot.burnTicksPerBucket());
+
+        FluidVolume residue = FluidVolume.of(FluidVariant.of(id("residue")), FluidAmount.of(250));
+        FuelProfile searing = FuelProfile.dirty(FluidSelector.fluid(id("searing_fuel")),
+            6_000_000L, 12_000, 8_000_000L, residue);
+        FuelProfile restoredSearing = FuelProfile.CODEC.decode(FuelProfile.CODEC.encode(searing).valueOrThrow()).valueOrThrow();
+        assertEquals(6_000_000L, restoredSearing.powerPerTickMicroMj());
+        assertEquals(8_000_000L, restoredSearing.heatPerTickMicroMj());
+        assertEquals(residue, restoredSearing.residuePerBucket());
+
+        // Existing API users and older serialized definitions must retain heat == power by default.
+        FuelProfile oldData = FuelProfile.CODEC.decode(new FuelProfileData(
+            FuelProfile.CODEC.encode(hot).valueOrThrow().selector(), 5_000_000L, 12_000, null, 0
+        )).valueOrThrow();
+        assertEquals(oldData.powerPerTickMicroMj(), oldData.heatPerTickMicroMj());
+        FuelProfile oldAddon = FuelProfile.clean(FluidSelector.fluid(id("legacy")), 3_000_000L, 12_000);
+        assertEquals(3_000_000L, oldAddon.heatPerTickMicroMj());
     }
 
     @Test

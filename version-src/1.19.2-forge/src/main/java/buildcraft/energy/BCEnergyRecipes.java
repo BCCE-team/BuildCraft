@@ -41,6 +41,10 @@ import net.minecraftforge.fluids.FluidStack;
 public class BCEnergyRecipes {
 
     private static final int TIME_BASE = 240_000;
+    /** Cold / hot / searing: generated power 100% / 125% / 150%. */
+    private static final int[] POWER_QUARTERS_BY_HEAT = { 4, 5, 6 };
+    /** Cold / hot / searing: engine heating 100% / 150% / 200%. */
+    private static final int[] HEAT_QUARTERS_BY_HEAT = { 4, 6, 8 };
     private static final DefinitionProvenance BUILTIN =
         new DefinitionProvenance("buildcraftenergy", "built-in", 0);
     private static boolean initialized;
@@ -124,24 +128,29 @@ public class BCEnergyRecipes {
     private static void registerFuel(
         Fluid[] input, int amountDifference, int multiplier, int boostOverFour, boolean dirty
     ) {
-        Fluid fuel = getFirstOrNull(input);
-        if (fuel == null) return;
-        long powerPerTick = multiplier * MjAmount.MICRO_MJ_PER_MJ;
+        if (input == null) return;
+        // Burn duration and residue stay identical across all three heat tiers.
         int totalTime = TIME_BASE * boostOverFour / 4 / multiplier / amountDifference;
-        FluidVariant fuelVariant = FuelApiBridge.variantOf(new FluidStack(fuel, 1));
-        FuelProfile profile;
+        long basePowerPerTick = (long) multiplier * MjAmount.MICRO_MJ_PER_MJ;
         Fluid residue = dirty ? getFirstOrNull(BCEnergyFluids.oilResidue) : null;
-        if (residue == null) {
-            profile = FuelProfile.clean(FluidSelector.fluid(fuelVariant.fluidId()), powerPerTick, totalTime);
-        } else {
-            FluidVolume residuePerBucket = FluidVolume.of(
-                FuelApiBridge.variantOf(new FluidStack(residue, 1)), FluidAmount.of(1000L / amountDifference)
-            );
-            profile = FuelProfile.dirty(
-                FluidSelector.fluid(fuelVariant.fluidId()), powerPerTick, totalTime, residuePerBucket
+        FluidVolume residuePerBucket = residue == null ? FluidVolume.empty() : FluidVolume.of(
+            FuelApiBridge.variantOf(new FluidStack(residue, 1)), FluidAmount.of(1000L / amountDifference)
+        );
+        for (int heat = 0; heat < POWER_QUARTERS_BY_HEAT.length && heat < input.length; heat++) {
+            Fluid fuel = input[heat];
+            if (fuel == null) continue;
+            FluidVariant fuelVariant = FuelApiBridge.variantOf(new FluidStack(fuel, 1));
+            long powerPerTick = basePowerPerTick * POWER_QUARTERS_BY_HEAT[heat] / 4;
+            long heatPerTick = basePowerPerTick * HEAT_QUARTERS_BY_HEAT[heat] / 4;
+            FluidSelector selector = FluidSelector.fluid(fuelVariant.fluidId());
+            FuelProfile profile = residuePerBucket.isEmpty()
+                ? FuelProfile.clean(selector, powerPerTick, totalTime, heatPerTick)
+                : FuelProfile.dirty(selector, powerPerTick, totalTime, heatPerTick, residuePerBucket);
+            energyFluids().register(
+                id("fuel/" + fuelVariant.fluidId().getNamespace() + "/" + fuelVariant.fluidId().getPath()),
+                profile, BUILTIN
             );
         }
-        energyFluids().register(id("fuel/" + fuelVariant.fluidId().getNamespace() + "/" + fuelVariant.fluidId().getPath()), profile, BUILTIN);
     }
 
     public static class BCEnergyRecipeProvider extends RecipeProvider{
