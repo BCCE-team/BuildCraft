@@ -121,9 +121,9 @@ Crash reports require a crash log in addition to the information above.
 
 [CurseForge](https://www.curseforge.com/minecraft/mc-mods/iron-tanks-community-edition) | [Modrinth](https://modrinth.com/mod/irontanks-community-edition) | [GitHub](https://github.com/BCCE-team/IronTanks)
 
-### Additional Pipes for BuildCraft Community Edition (in dev)
+### Additional Pipes for BuildCraft Community Edition
 
-[GitHub](https://github.com/BCCE-team/AdditionalPipes)
+*   [CurseForge](https://www.curseforge.com/minecraft/mc-mods/additional-pipes-for-buildcraft-community-edition) | [Modrinth](https://modrinth.com/mod/additional-pipes-for-buildcraft-community-edition) | [GitHub](https://github.com/BCCE-team/AdditionalPipes)
 
 ## Credits
 
