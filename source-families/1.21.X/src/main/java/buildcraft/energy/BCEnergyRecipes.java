@@ -52,6 +52,7 @@ public final class BCEnergyRecipes {
         registerCoolant("coolant/water", Fluids.WATER, 0.0023);
         registerSolidCoolant("solid_coolant/ice", Blocks.ICE.asItem(), 1.5);
         registerSolidCoolant("solid_coolant/packed_ice", Blocks.PACKED_ICE.asItem(), 2.0);
+        registerSolidCoolant("solid_coolant/blue_ice", Blocks.BLUE_ICE.asItem(), 3.0);
 
         final int oil = 8;
         final int gas = 16;
