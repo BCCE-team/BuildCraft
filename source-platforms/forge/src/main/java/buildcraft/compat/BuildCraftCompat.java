@@ -21,9 +21,6 @@ public final class BuildCraftCompat {
         if (ModList.get().isLoaded("forestry")) {
             invokeOptionalRegistration("buildcraft.compat.forestry.ForestryCompat", modBus);
         }
-        if (ModList.get().isLoaded("create")) {
-            invokeOptionalRegistration("buildcraft.compat.create.CreateCompat", modBus);
-        }
     }
 
     private static void invokeOptionalRegistration(String className, IEventBus modBus) {

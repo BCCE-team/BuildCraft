@@ -34,7 +34,6 @@ def effectiveDirs = bc.effectiveDirs
 def centralJarOutputDir = bc.centralJarOutputDir
 def jeiCompatEnabled = booleanProperty('compat.jei.enabled', true)
 def jadeCompatEnabled = booleanProperty('compat.jade.enabled', true)
-def createCompatEnabled = booleanProperty('compat.create.enabled', false)
 def ic2CompatEnabled = booleanProperty('compat.ic2.enabled', true)
 def forestryCompatEnabled = booleanProperty('compat.forestry.enabled', true)
 
@@ -95,9 +94,8 @@ if (!jeiCompatEnabled) {
 if (!jadeCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/jade/**'
 }
-if (!createCompatEnabled) {
-    sourceSets.main.java.exclude 'buildcraft/compat/create/**'
-}
+// Keep Create out of compiled classes and distributed JARs.
+sourceSets.main.java.exclude 'buildcraft/compat/create/**'
 if (!ic2CompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/ic2/**'
 }
@@ -223,7 +221,7 @@ def ciWorldJoinRoot = new File(repositoryRoot, "run-modpack-join/${buildGenerati
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
         .map { it.trim().toLowerCase() }
         .getOrElse('default')
-def knownCiRuntimeProfiles = ['default', 'base', 'create', 'forestry', 'ic2', 'jei', 'jade', 'all', 'modpack', 'modpack-no-create']
+def knownCiRuntimeProfiles = ['default', 'base', 'forestry', 'ic2', 'jei', 'jade', 'all', 'modpack']
 if (!knownCiRuntimeProfiles.contains(ciRuntimeProfile)) {
     throw new GradleException("Unsupported ci_runtime_profile '${ciRuntimeProfile}'. Expected one of: ${knownCiRuntimeProfiles.sort().join(', ')}")
 }
@@ -235,8 +233,7 @@ def runtimeEnabled = { String profile, boolean defaultEnabled ->
     if (gameTestRequested && ciRuntimeProfile == 'default') return false
     if (ciRuntimeProfile == 'default') return defaultEnabled
     ciRuntimeProfile == 'all' || ciRuntimeProfile == profile ||
-        (ciRuntimeProfile == 'modpack' && ['jei', 'jade', 'create', 'forestry', 'ic2'].contains(profile)) ||
-        (ciRuntimeProfile == 'modpack-no-create' && ['jei', 'jade', 'forestry', 'ic2'].contains(profile))
+        (ciRuntimeProfile == 'modpack' && ['jei', 'jade', 'forestry', 'ic2'].contains(profile))
 }
 
 def runDirectory = new File(repositoryRoot, "run/${buildGeneration}/${targetName}")
@@ -286,7 +283,6 @@ minecraft {
         }
 
         gameTestServer {
-            property 'bcce.gametest.require_create', (ciRuntimeProfile == 'create').toString()
             // GameTest sources are merged into main only for this run. Loading
             // sourceSets.gameTest as a second exploded mod breaks discovery on
             // the maintained legacy Forge targets.
@@ -375,14 +371,6 @@ dependencies {
         compileOnly fg.deobf(jadeDependency)
         if (runtimeEnabled('jade', true)) {
             runtimeOnly fg.deobf(jadeDependency)
-        }
-    }
-
-    def createDependency = optionalProperty('deps.create')
-    if (createCompatEnabled && createDependency) {
-        compileOnly fg.deobf(createDependency)
-        if (runtimeEnabled('create', true)) {
-            runtimeOnly fg.deobf(createDependency)
         }
     }
 

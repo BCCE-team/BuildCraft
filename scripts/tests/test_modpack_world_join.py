@@ -347,6 +347,19 @@ class HeadlessWorldJoinDiagnosticsTest(unittest.TestCase):
         self.assertIn(["xdotool", "click", "--repeat", "2", "--delay", "150", "1"], commands)
         self.assertIn(["xdotool", "key", "--clearmodifiers", "Return"], commands)
 
+    def test_26_2_ui_retry_returns_to_title_before_rejoining(self):
+        commands = []
+        def run(command, **_kwargs):
+            commands.append(command)
+            output = "WIDTH=854\nHEIGHT=480\n" if "getwindowgeometry" in command else ""
+            return probe.subprocess.CompletedProcess(args=command, returncode=0, stdout=output, stderr="")
+        with mock.patch.object(probe, "find_minecraft_window", return_value="2026"), \
+             mock.patch.object(probe.subprocess, "run", side_effect=run), \
+             mock.patch.object(probe.time, "sleep"):
+            probe.open_26_2_saved_server_via_ui({"DISPLAY": ":402"}, retry=True)
+        self.assertEqual(commands.count(["xdotool", "key", "--clearmodifiers", "Escape"]), 2)
+        self.assertIn(["xdotool", "click", "--repeat", "2", "--delay", "150", "1"], commands)
+
     def test_26_2_no_window_is_not_a_fake_world_join(self):
         with mock.patch.object(probe, "find_minecraft_window", return_value=None):
             with self.assertRaisesRegex(RuntimeError, "cannot locate"):
@@ -607,15 +620,21 @@ class ModpackCoverageContractTest(unittest.TestCase):
 
 
 class OptionalCreateRealWorldTest(unittest.TestCase):
-    def test_profile_matches_both_gradle_loader_registries(self):
-        self.assertEqual(probe.modpack_runtime_profile(without_create=False), "modpack")
-        self.assertEqual(probe.modpack_runtime_profile(without_create=True), "modpack-no-create")
+    def test_create_is_absent_from_every_target_build(self):
+        self.assertEqual(probe.modpack_runtime_profile(), "modpack")
+        for target in probe.TARGETS:
+            with self.subTest(target=target):
+                props = probe.target_properties(target)
+                self.assertFalse(probe.native_mod_present(props, "create"))
+                self.assertFalse(probe.validate_modpack_lock(target)["present"]["create"])
         for loader in ("forge", "neoforge"):
-            path = probe.ROOT / "build-logic/loaders" / (loader + "-target.gradle")
-            source = path.read_text(encoding="utf-8")
-            self.assertIn("'modpack-no-create'", source)
-            self.assertIn("ciRuntimeProfile == 'modpack-no-create' && ['jei', 'jade', 'forestry', 'ic2'].contains(profile)", source)
-            self.assertIn("ciRuntimeProfile == 'modpack' && ['jei', 'jade', 'create', 'forestry', 'ic2'].contains(profile)", source)
+            source = (probe.ROOT / "build-logic/loaders" / (loader + "-target.gradle")).read_text()
+            self.assertIn("sourceSets.main.java.exclude 'buildcraft/compat/create/**'", source)
+            self.assertNotIn("optionalProperty('deps.create')", source)
+            self.assertNotIn("modpack-no-create", source)
+            self.assertIn("ciRuntimeProfile == 'modpack' && ['jei', 'jade', 'forestry', 'ic2'].contains(profile)", source)
+        workflow = (probe.ROOT / ".github/workflows/ci.yml").read_text()
+        self.assertNotIn("Run Create compatibility GameTests", workflow)
 
     def test_runtime_absence_requires_specific_unknown_block_error(self):
         requests = []
@@ -888,6 +907,8 @@ class RemoteChunkLifecycleTest(unittest.TestCase):
             state["commands"].append(command)
             if command.startswith("gamemode creative"):
                 return "Set Dev_Test's game mode to Creative Mode"
+            if command.startswith("execute if entity @a[name="):
+                return "Test passed, count: 1"
             if command.startswith("tp "):
                 xyz = tuple(map(int, command.split()[-3:]))
                 state["pos"] = xyz
@@ -962,6 +983,20 @@ class RemoteChunkLifecycleTest(unittest.TestCase):
         self.assertEqual(sum(c.startswith("data merge block") for c in state["commands"]), 1)
         self.assertEqual(sum(c.startswith("setblock") for c in state["commands"]), 2)
         self.assertIn("8765432", actual)
+
+    def test_creative_mode_noop_rcon_reply_is_accepted_after_state_check(self):
+        commands = []
+        def rcon(_port, _password, command):
+            commands.append(command)
+            return "" if command.startswith("gamemode creative") else "Test passed, count: 1"
+        with mock.patch.object(probe, "rcon_command", side_effect=rcon):
+            probe.ensure_creative_probe_mode(25589, "pw", "Dev_Test")
+        self.assertIn("execute if entity @a[name=Dev_Test,gamemode=creative]", commands)
+
+    def test_creative_mode_requires_authoritative_confirmation(self):
+        with mock.patch.object(probe, "rcon_command", side_effect=["", "Test failed"]):
+            with self.assertRaisesRegex(RuntimeError, "Could not set harmless probe game mode"):
+                probe.ensure_creative_probe_mode(25589, "pw", "Dev_Test")
 
     def test_chunk_never_unloaded_is_not_false_success(self):
         rcon, state = self.fake_server(refuse_unload=True)

@@ -78,8 +78,8 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
                 self.assertNotIn("BCTextFormat", source)
 
     def test_121_metadata_preprocesses_to_valid_toml(self):
-        # The 1.21.1-only Create dependency block must not leave Java-style //
-        # comments in TOML, which would crash NeoForge before mods initialize.
+        # All targets must materialize valid TOML without an optional
+        # Create dependency: Create is no longer part of the build.
         metadata = ROOT / "source-platforms/neoforge/src/main/resources/META-INF/neoforge.mods.toml"
         props = load_properties()
         for target in ("1.21.1-neoforge", "1.21.11-neoforge", "26.1.2-neoforge",
@@ -98,7 +98,7 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
                 self.assertIn("buildcraftrobotics", [m["modId"] for m in parsed["mods"]])
                 create_deps = [d for d in parsed["dependencies"]["buildcraftcompat"]
                                if d["modId"] == "create"]
-                self.assertEqual(len(create_deps), 1 if target.startswith("1.21.1-") else 0)
+                self.assertEqual(create_deps, [])
                 self.assertEqual(bool(parsed.get("mixins")), not target.startswith("1.21.1-"))
 
     def test_moddev_gametest_metadata_is_staged_and_cleaned(self):

@@ -403,20 +403,6 @@ jobs:
             --log "run/${BUILD_GENERATION}/${STONECUTTER_TARGET}/logs/latest.log" \
             --output "build/test-traces/${STONECUTTER_TARGET}.trace.json"
 
-      - name: Run Create compatibility GameTests
-        shell: bash
-        run: |
-          set -euo pipefail
-          key="target.${STONECUTTER_TARGET}.deps.create"
-          dependency="$(awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' build-config/targets.properties)"
-          if [[ -z "$dependency" ]]; then
-            echo "Create is not configured for ${STONECUTTER_TARGET}; skipping Create GameTests."
-            exit 0
-          fi
-          cd "builds/${BUILD_GENERATION}"
-          echo "Game-testing ${BUILD_GENERATION}/${STONECUTTER_TARGET} with Create"
-          ./gradlew --no-daemon --console=plain --stacktrace -Pci_runtime_profile=create ":${STONECUTTER_TARGET}:runGameTestServer"
-
       # One blocking runtime gate replaces separate server-boot/client-menu smokes.
       # Run a real dedicated server and real client in the same job and verify
       # joined-world behavior, save/stop, restart and rejoin. Full data/pipe/chunk

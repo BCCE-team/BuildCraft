@@ -43,9 +43,9 @@ TARGETS = {
 # These expectations are intentionally independent of the lock contents: removing
 # a dependency from the lock must not silently turn the world-join test green.
 EXPECTED_PRESENCE = {
-    "1.19.2-forge": (True, True, True, True),
-    "1.20.1-forge": (True, True, False, True),
-    "1.21.1-neoforge": (True, True, False, True),
+    "1.19.2-forge": (True, True, True, False),
+    "1.20.1-forge": (True, True, False, False),
+    "1.21.1-neoforge": (True, True, False, False),
     "1.21.11-neoforge": (False, False, False, False),
     "26.1.2-neoforge": (True, False, False, False),
     "26.2-neoforge": (True, False, False, False),
@@ -309,8 +309,9 @@ def verify_ae2_absent(port: int, password: str, position: str) -> None:
         )
 
 
-def modpack_runtime_profile(*, without_create: bool) -> str:
-    return "modpack-no-create" if without_create else "modpack"
+def modpack_runtime_profile() -> str:
+    # Create is excluded from every CI profile and release target.
+    return "modpack"
 
 
 def parse_entity_position(reply: str) -> tuple[int, int, int]:
@@ -594,6 +595,21 @@ def teleport_and_confirm(port: int, password: str, player: str,
                == (x, z), processes, 40)
 
 
+def ensure_creative_probe_mode(port: int, password: str, player: str) -> None:
+    """Require authoritative player game mode, not /gamemode feedback text.
+
+    Minecraft returns an empty RCON reply if the player already has
+    the requested game mode. That successful no-op is not an error.
+    """
+    command_result = rcon_command(port, password, f"gamemode creative {player}")
+    state_result = rcon_command(
+        port, password, f"execute if entity @a[name={player},gamemode=creative]")
+    if not execute_test_result(state_result):
+        raise RuntimeError(
+            f"Could not set harmless probe game mode: command={command_result!r}, "
+            f"state={state_result!r}")
+
+
 def verify_chunk_unload_and_machine_persistence(port: int, password: str, target: str,
                                                   player: str, origin: tuple[int, int, int],
                                                   processes: list[subprocess.Popen],
@@ -607,9 +623,7 @@ def verify_chunk_unload_and_machine_persistence(port: int, password: str, target
     """
     chest, machine, near, far = chunk_fixture_positions(origin)
     # Prevent fixture visits from killing a survival-mode test player on return.
-    gamemode = rcon_command(port, password, f"gamemode creative {player}")
-    if not re.search(r"creative|game mode", gamemode, re.IGNORECASE):
-        raise RuntimeError(f"Could not set harmless probe game mode: {gamemode!r}")
+    ensure_creative_probe_mode(port, password, player)
     if expected is not None:
         # The server just restarted. Before approaching the remote site, its
         # chunks must not be kept alive by an orphaned chunk-loading ticket.
@@ -824,7 +838,7 @@ def find_minecraft_window(env: dict[str, str]) -> str | None:
     return ids[0]
 
 
-def open_26_2_saved_server_via_ui(env: dict[str, str]) -> None:
+def open_26_2_saved_server_via_ui(env: dict[str, str], *, retry: bool = False) -> None:
     """Fallback when 26.2 Quick Play stalls at its already-rendering title screen.
 
     The 26.2 client has completed mod/resource loading but its Quick Play path
@@ -854,10 +868,13 @@ def open_26_2_saved_server_via_ui(env: dict[str, str]) -> None:
         subprocess.run(command, env=env, check=True, text=True,
                        capture_output=True, timeout=15)
 
-    # TitleScreen's Multiplayer button is centered at 55% of the client area
-    # across vanilla's GUI-scale variants. The first saved server is the first
-    # row of the multiplayer screen. A first-launch legal warning is explicitly
-    # suppressed in this isolated test client's options.txt.
+    # Return from a failed connection/sub-screen to the title menu before retry.
+    if retry:
+        for _ in range(2):
+            subprocess.run(["xdotool", "key", "--clearmodifiers", "Escape"],
+                           env=env, check=True, text=True, capture_output=True, timeout=15)
+            time.sleep(1)
+    # IT16 pins guiScale=2 for repeatable window coordinates.
     print(f"IT16 26.2: driving actual client UI {width}x{height} to join saved localhost server", flush=True)
     click(width // 2, round(height * 0.55))
     time.sleep(2)
@@ -1164,6 +1181,7 @@ def create_run_directories(generation: str, target: str, mods: dict[str, str], p
                 "enableVsync:false\n"
                 "mipmapLevels:0\n"
                 "graphicsMode:0\n"
+                f"guiScale:{2 if target == '26.2-neoforge' else 0}\n"
                 "narrator:0\n"
                 "pauseOnLostFocus:false\n",
                 encoding="utf-8",
@@ -1274,8 +1292,6 @@ def main() -> int:
                         help="IT15 subset: second real client, online reconfiguration and restart")
     parser.add_argument("--client-resource-reload", action="store_true",
                         help="IT06 manual: press F3+T in real joined client and verify a newly rebuilt block atlas")
-    parser.add_argument("--without-create", action="store_true",
-                        help="IT11: run with JEI/Jade and all supported mods except Create")
     parser.add_argument("--without-ae2", action="store_true",
                         help="IT02/IT11: run with JEI/Jade and all supported mods except AE2/GuideME")
     parser.add_argument("--remove-ae2-after-restart", action="store_true",
@@ -1293,8 +1309,6 @@ def main() -> int:
     config = validate_modpack_lock(args.target)
     if args.without_ae2 and not config["present"]["ae2"]:
         parser.error("--without-ae2 requires a target with AE2 in its normal profile")
-    if args.without_create and not config["present"]["create"]:
-        parser.error("--without-create requires a target with Create in its normal profile")
     generation, mods = select_locked_mods(args.target, without_ae2=args.without_ae2)
     if args.validate_lock:
         print(json.dumps({"target": args.target, "generation": generation, "mods": mods,
@@ -1316,7 +1330,7 @@ def main() -> int:
     launch_dir = gradlew.parent
     connection = f"127.0.0.1:{args.port}"
     flags = ["--no-daemon", "--console=plain", "--stacktrace",
-             "-Pci_runtime_profile=" + modpack_runtime_profile(without_create=args.without_create),
+             "-Pci_runtime_profile=" + modpack_runtime_profile(),
              "-Pci_world_join=true", f"-Pci_world_join_address={connection}"]
     remapped = forge_remap_gradle_argument(args.target, mods)
     if remapped is not None:
@@ -1335,12 +1349,12 @@ def main() -> int:
         "test": "IT02/IT11/IT16 optional-mod compatibility world join",
         "target": args.target,
         "locked_external_mods": mods,
-        "runtime_profile": modpack_runtime_profile(without_create=args.without_create),
+        "runtime_profile": modpack_runtime_profile(),
         "required_client_mods": ["jei", "jade"],
         "expected_mods": config["present"],
         "mode": "join-smoke" if args.smoke_only else "full-integration",
         "ae2_requested": config["present"]["ae2"] and not args.without_ae2,
-        "create_requested": config["present"]["create"] and not args.without_create,
+        "create_requested": config["present"]["create"],
         "remove_ae2_after_restart": args.remove_ae2_after_restart,
         "client_resource_reload_requested": args.client_resource_reload,
         "inflight_pipe_requested": args.inflight_pipe,
@@ -1374,18 +1388,21 @@ def main() -> int:
             # 26.2 can reach a fully-rendering title screen without executing
             # --quickPlayMultiplayer. Recover with a real UI join, but require
             # the *server's* joined-the-game log as the sole success criterion.
-            started_waiting = time.monotonic()
-            ui_join_attempted = False
+            last_ui_attempt = time.monotonic()
+            ui_attempts = 0
             def joined_or_trigger_ui() -> bool:
-                nonlocal ui_join_attempted
+                nonlocal ui_attempts, last_ui_attempt
                 if has_joined_world():
                     return True
+                now = time.monotonic()
                 if (args.target == "26.2-neoforge" and os.name != "nt"
-                    and not ui_join_attempted and time.monotonic() - started_waiting >= 55
-                    and "Mods loaded with" in read_text(client_log)
+                    and ui_attempts < 6 and now - last_ui_attempt >= 60
+                    and "minecraft:textures/atlas/gui.png-atlas" in read_text(client_log)
                     and find_minecraft_window(env) is not None):
-                    ui_join_attempted = True
-                    open_26_2_saved_server_via_ui(env)
+                    ui_attempts += 1
+                    last_ui_attempt = now
+                    print(f"IT16 26.2: live UI login attempt {ui_attempts}/6", flush=True)
+                    open_26_2_saved_server_via_ui(env, retry=ui_attempts > 1)
                 return has_joined_world()
             wait_until(f"client {attempt} joined world", joined_or_trigger_ui,
                        [server, client], args.join_timeout)
@@ -1393,7 +1410,7 @@ def main() -> int:
             verify_mandatory_client_mods(client_log, client_gradle_log)
             ae2_expected = config["present"]["ae2"] and not args.without_ae2 and not (
                 args.remove_ae2_after_restart and attempt == 2)
-            create_expected = config["present"]["create"] and not args.without_create
+            create_expected = config["present"]["create"]
             probe_origin = verify_actual_modded_world(
                 args.rcon_port, password, player, origin=probe_origin,
                 include_create=create_expected, include_ae2=ae2_expected,
@@ -1538,14 +1555,13 @@ def main() -> int:
         check_fatal(server_log, world_log, client_gradle_log, client_log)
         results.update(success=True, joined=2, world=str(level_file),
                        charged_cargo_persisted=not args.smoke_only,
-                       create_registry="present" if config["present"]["create"] and not args.without_create else "absent",
+                       create_registry="present" if config["present"]["create"] else "absent",
                        ae2_registry=("removed_after_restart" if args.remove_ae2_after_restart else
                                      "present" if config["present"]["ae2"] and not args.without_ae2 else "absent"),
                        verified_client_mods=["jei", "jade"],
                        tested_content_mods=[name for name in ("ae2", "forestry", "ic2", "create")
-                                            if config["present"][name] and not (
-                                                (name == "ae2" and args.without_ae2) or
-                                                (name == "create" and args.without_create))])
+                                            if config["present"][name] and not
+                                            (name == "ae2" and args.without_ae2)])
         if args.two_players:
             results["two_player_factory"] = "two distinct clients joined twice; one-client disconnect and factory restart survived"
         print("PASS IT11/IT16: modpack joined with JEI/Jade plus supported optional mods; "
