@@ -817,15 +817,43 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
         "python scripts/validate-1.20.1-target.py --source-root version-src/1.20.1-forge",
         '":${STONECUTTER_TARGET}:buildAndCollect"',
         '":${STONECUTTER_TARGET}:runGameTestServer"',
-        "SERVER_RUNTIME_PROFILE: base",
-        "scripts/ci-server-smoke.sh",
-        "CLIENT_RUNTIME_PROFILE: jei",
-        "scripts/ci-client-smoke.sh",
         "name: buildcraft-${{ matrix.target }}-${{ github.run_number }}-${{ github.run_attempt }}",
         "build/*/*.jar",
     ):
         if token not in runtime:
             fail(f"target runtime CI lost required isolated coverage: {token}")
+
+    # One mandatory IT16 gate replaces separate client-main-menu and server-boot
+    # smokes. It must run after GameTests for every matrix target, connect the
+    # client to the dedicated server, restart/rejoin, then check the release JAR.
+    # Check the actual step body, not strings anywhere in the workflow: a
+    # commented-out call or a detached diagnostic job is not runtime coverage.
+    gametest_step = "      - name: Run GameTests\n"
+    world_join_step = "      - name: Start dedicated server, join world with client and rejoin (IT16)\n"
+    if runtime.count(gametest_step) != 1 or runtime.count(world_join_step) != 1 or runtime.find(gametest_step) >= runtime.find(world_join_step):
+        fail("target runtime CI must run exactly one blocking IT16 world-join gate after GameTests")
+    world_join = runtime.split(world_join_step, 1)[1].split("\n      - name:", 1)[0]
+    for token in (
+        "set -euo pipefail",
+        'case "${STONECUTTER_TARGET}" in',
+        "1.20.1-forge|1.21.1-neoforge)",
+        "flags+=(--chunk-cycle)",
+        "flags+=(--smoke-only)",
+        "python3 scripts/ci-modpack-world-join.py",
+        '--target "${STONECUTTER_TARGET}"',
+        "--startup-timeout 800 --join-timeout 650",
+        "--restart-timeout 800 --stable-seconds 30",
+        '"${flags[@]}"',
+        "SERVER_RUNTIME_PROFILE=base bash scripts/ci-server-smoke.sh",
+    ):
+        if token not in world_join:
+            fail(f"target runtime CI lost mandatory IT16 world-join coverage: {token}")
+    if world_join.index("python3 scripts/ci-modpack-world-join.py") > world_join.index("SERVER_RUNTIME_PROFILE=base bash scripts/ci-server-smoke.sh"):
+        fail("target runtime CI must perform the world join before the release-JAR server smoke")
+    if "continue-on-error:" in world_join or "|| true" in world_join:
+        fail("target runtime CI must not bypass failures of its IT16 world-join gate")
+    if "run-modpack-join/${{ matrix.generation }}/${{ matrix.target }}/result.json" not in runtime:
+        fail("target runtime CI must upload per-target IT16 world-join diagnostics")
 
     for forbidden in (
         "Build, test and smoke ${{ matrix.generation }} targets",
@@ -967,7 +995,7 @@ def main() -> None:
     print(" - Java build metadata placeholders and production .jsonx files forbidden")
     print(" - facade swap production recipe and snapshot/client isolation guarded")
     print(" - IC2 compatibility uses the dedicated-server-safe Carbon Config hotfix")
-    print(" - target-isolated build, GameTest, client/server smoke and blocking compatibility CI coverage guarded")
+    print(" - target-isolated build, GameTest, live client/server world join and blocking compatibility CI coverage guarded")
 
 
 if __name__ == "__main__":
