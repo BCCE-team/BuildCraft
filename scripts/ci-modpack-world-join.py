@@ -212,6 +212,23 @@ def rcon_command(port: int, password: str, command: str) -> str:
         raise RuntimeError(f"No RCON response for {command!r}")
 
 
+def execute_test_result(reply: str) -> bool:
+    """Parse vanilla /execute if/unless terminal feedback, never a /say broadcast.
+
+    Minecraft's /say commonly has no RCON command response even when executed.
+    Terminating the predicate directly returns an explicit success/failure
+    result; empty, unexpected or inconsistent replies must fail closed.
+    """
+    match = re.fullmatch(r"Test (passed|failed)(?:, count: (\d+))?", reply.strip(), re.IGNORECASE)
+    if match is None:
+        raise RuntimeError(f"Unrecognized /execute condition result: {reply!r}")
+    passed = match.group(1).lower() == "passed"
+    count = int(match.group(2)) if match.group(2) is not None else None
+    if count is not None and (passed != (count > 0)):
+        raise RuntimeError(f"Inconsistent /execute condition result: {reply!r}")
+    return passed
+
+
 def player_name_from_join_log(log: str) -> str:
     matches = list(JOIN_PLAYER_RE.finditer(log))
     if not matches:
@@ -250,10 +267,9 @@ def verify_second_client_and_factory(port: int, password: str, player: str,
             reply = rcon_command(port, password, f"setblock {position} {block}")
             if "changed the block" not in reply.lower():
                 raise RuntimeError(f"Second-player factory mutation failed for {block}: {reply!r}")
-    token = "BCCE_IT15_FACTORY_PERSISTED"
     reply = rcon_command(port, password, f"execute if block {position} "
-                         f"buildcraftfactory:autoworkbench_item run say {token}")
-    if token not in reply:
+                         "buildcraftfactory:autoworkbench_item")
+    if not execute_test_result(reply):
         raise RuntimeError(f"Shared BCCE factory changed across two-player restart: {reply!r}")
     data = rcon_command(port, password, f"data get block {position}")
     if "following block data" not in data.lower():
@@ -264,10 +280,9 @@ def verify_second_client_factory_alone(port: int, password: str,
                                        origin: tuple[int, int, int]) -> None:
     x, y, z = origin
     position = f"{x + 12} {y} {z + 2}"
-    token = "BCCE_IT15_SECOND_PLAYER_SURVIVED"
     reply = rcon_command(port, password, f"execute if block {position} "
-                         f"buildcraftfactory:autoworkbench_item run say {token}")
-    if token not in reply:
+                         "buildcraftfactory:autoworkbench_item")
+    if not execute_test_result(reply):
         raise RuntimeError("Factory disappeared when only the second client remained online")
 
 
@@ -348,16 +363,21 @@ def verify_actual_modded_world(port: int, password: str, player: str, *,
                 raise RuntimeError(f"Modded block {block_id} could not be placed: {placed!r}")
         # The Create shaft is a real modded block but has no Block Entity.
         # Requiring /data get block for every registered block is incorrect.
-        token = "BCCE_IT16_BLOCK_VERIFIED"
         checked = rcon_command(port, password,
-            f"execute if block {position} {block_id} run say {token}")
-        if token not in checked:
+            f"execute if block {position} {block_id}")
+        try:
+            block_present = execute_test_result(checked)
+        except RuntimeError:
+            # Preserve the full world-state diagnostics for an invalid or
+            # empty RCON reply; it is never equivalent to a successful test.
+            block_present = False
+        if not block_present:
             evidence = {}
             for label, command in (
                 ("block_entity", f"data get block {position}"),
-                ("air", f"execute if block {position} minecraft:air run say IT16_AIR"),
-                ("water", f"execute if block {position} minecraft:water run say IT16_WATER"),
-                ("lava", f"execute if block {position} minecraft:lava run say IT16_LAVA"),
+                ("air", f"execute if block {position} minecraft:air"),
+                ("water", f"execute if block {position} minecraft:water"),
+                ("lava", f"execute if block {position} minecraft:lava"),
             ):
                 try:
                     evidence[label] = rcon_command(port, password, command)
@@ -502,10 +522,9 @@ def verify_saved_inflight_pipe_delivered(port: int, password: str,
     """Fail unless the restarted world naturally delivers exactly one intact stack."""
     _, first, second, chest_out = in_flight_positions(origin)
     for position in (first, second):
-        token = "BCCE_IT01_PIPE_EXISTS"
         reply = rcon_command(port, password,
-                             f"execute if block {position} {FLIGHT_PIPE} run say {token}")
-        if token not in reply:
+                             f"execute if block {position} {FLIGHT_PIPE}")
+        if not execute_test_result(reply):
             raise RuntimeError(f"IT01 pipeline block was missing after server restart: {position}: {reply!r}")
 
     def destination_received() -> bool:
@@ -531,8 +550,8 @@ def verify_saved_inflight_pipe_delivered(port: int, password: str,
     x, y, z = origin
     check = rcon_command(port, password,
         f"execute positioned {x + 16} {y} {z + 2} if entity "
-        f"@e[type=minecraft:item,distance=..6] run say BCCE_IT01_DROP")
-    if "BCCE_IT01_DROP" in check:
+        f"@e[type=minecraft:item,distance=..6]")
+    if execute_test_result(check):
         raise RuntimeError("IT01 pipeline leaked an ItemEntity into the world after restart")
 
 

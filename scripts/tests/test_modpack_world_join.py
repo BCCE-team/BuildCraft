@@ -45,6 +45,25 @@ class ModpackWorldJoinTest(unittest.TestCase):
         self.assertEqual(struct.unpack("<ii", packet[4:12]), (42, probe.RCON_EXEC))
         self.assertTrue(packet.endswith(b"list\0\0"))
 
+    def test_execute_condition_has_explicit_feedback_instead_of_say_token(self):
+        for reply in ("Test passed", "Test passed, count: 1", "Test passed, count: 3"):
+            with self.subTest(reply=reply):
+                self.assertTrue(probe.execute_test_result(reply))
+        for reply in ("Test failed", "Test failed, count: 0"):
+            with self.subTest(reply=reply):
+                self.assertFalse(probe.execute_test_result(reply))
+        for reply in ("", "BCCE_IT16_BLOCK_VERIFIED", "[Server] BCCE_IT16_BLOCK_VERIFIED",
+                      "Test passed, count: 0", "Test failed, count: 1", "Some Test passed",
+                      "Unknown command", "Test passed, count: nope"):
+            with self.subTest(reply=reply), self.assertRaises(RuntimeError):
+                probe.execute_test_result(reply)
+
+    def test_it16_never_uses_rcon_say_to_verify_a_predicate(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertNotIn("run say", source)
+        self.assertIn("execute if block {position} {block_id}", source)
+        self.assertIn("execute_test_result(checked)", source)
+
     def test_rcon_rejects_truncated_frames(self):
         reader, writer = socket.socketpair()
         try:
@@ -80,7 +99,7 @@ class ModpackWorldJoinTest(unittest.TestCase):
             if command.startswith("setblock "):
                 return "Changed the block at -10, 64, 10"
             if command.startswith("execute if block "):
-                return "[Server] BCCE_IT16_BLOCK_VERIFIED"
+                return "Test passed, count: 1"
             if command.startswith("data get block "):
                 return "The block at -10, 64, 10 has the following block data: {id: 'buildcraftfactory:entity_tank'}"
             raise AssertionError("Unexpected RCON command: " + command)
@@ -98,13 +117,14 @@ class ModpackWorldJoinTest(unittest.TestCase):
             self.assertEqual(probe.verify_actual_modded_world(25589, "secret", "Dev_Test", origin=origin), origin)
             self.assertEqual(sum(x.startswith("setblock ") for x in executed), 0)
             self.assertEqual(sum(x.startswith("execute if block ") for x in executed), 4)
+            self.assertTrue(all(" run say " not in x for x in executed))
 
     def test_block_without_block_entity_still_passes_actual_world_probe(self):
         def fake_command(port, password, command):
             if command == "list":
                 return "There are 1 of a max of 2 players online: Dev_Test"
             if command.startswith("execute if block "):
-                return "[Server] BCCE_IT16_BLOCK_VERIFIED"
+                return "Test passed, count: 1"
             if command.startswith("data get block "):
                 return "The block at 0, 64, 0 has the following block data: {id:'buildcraftfactory:tank'}"
             raise AssertionError(f"unexpected command: {command}")
@@ -117,7 +137,7 @@ class ModpackWorldJoinTest(unittest.TestCase):
             if command == "list":
                 return "There are 1 of a max of 2 players online: Dev_Test"
             if command.startswith("execute if block "):
-                return ""
+                return "Test failed"
             return "The block at 0, 64, 0 has the following block data: {id: 'dummy'}"
         with mock.patch.object(probe, "rcon_command", side_effect=fake_command):
             with self.assertRaisesRegex(RuntimeError, "Block registry/world check failed"):
@@ -425,7 +445,7 @@ class ModpackCoverageContractTest(unittest.TestCase):
             if command == "list": return "There are 1 of a max of 2 players online: Dev_Test"
             if command == "data get entity Dev_Test Pos": return "Dev_Test has the following entity data: [0d, 64d, 0d]"
             if command.startswith("setblock "): return "Changed the block"
-            if command.startswith("execute if block "): return "BCCE_IT16_BLOCK_VERIFIED"
+            if command.startswith("execute if block "): return "Test passed, count: 1"
             if command.startswith("data get block "): return "The block has the following block data"
             raise AssertionError(command)
         with mock.patch.object(probe, "rcon_command", side_effect=rcon):
@@ -575,7 +595,7 @@ class OptionalCreateRealWorldTest(unittest.TestCase):
                     return "Unknown block type 'create:shaft'"
                 return "Changed the block at 0, 64, 0"
             if command.startswith("execute if block "):
-                return "[Server] BCCE_IT16_BLOCK_VERIFIED"
+                return "Test passed, count: 1"
             if command.startswith("data get block "):
                 return "The block at 0, 64, 0 has the following block data: {id:'buildcraftfactory:tank'}"
             raise AssertionError(command)
@@ -645,7 +665,7 @@ class OptionalCreateRealWorldTest(unittest.TestCase):
     def test_it14_ae2_absent_after_restart_probe_does_not_accept_stale_registry(self):
         def rcon(_port, _password, command):
             if command == "list": return "There are 1 of a max of 2 players online: Dev_Test"
-            if command.startswith("execute if block "): return "BCCE_IT16_BLOCK_VERIFIED"
+            if command.startswith("execute if block "): return "Test passed, count: 1"
             if command.startswith("data get block "):
                 return "The block at 0, 64, 0 has the following block data: {id:'buildcraftfactory:tank'}"
             if command.startswith("setblock "): return "Changed the block at 0, 64, 0"
@@ -673,7 +693,7 @@ class OptionalCreateRealWorldTest(unittest.TestCase):
                 if command.endswith("ae2:controller"):
                     return "Unknown block type 'ae2:controller'"
                 return "Changed the block at 0, 64, 0"
-            if command.startswith("execute if block "): return "BCCE_IT16_BLOCK_VERIFIED"
+            if command.startswith("execute if block "): return "Test passed, count: 1"
             if command.startswith("data get block "):
                 return "The block at 0, 64, 0 has the following block data: {id:'buildcraftfactory:tank'}"
             raise AssertionError(command)
@@ -687,7 +707,7 @@ class OptionalCreateRealWorldTest(unittest.TestCase):
         def rcon(_port, _password, command):
             if command == "list": return "There are 1 of a max of 2 players online: Dev_Test"
             if command.startswith("setblock "): return "Changed the block at 0, 64, 0"
-            if command.startswith("execute if block "): return "BCCE_IT16_BLOCK_VERIFIED"
+            if command.startswith("execute if block "): return "Test passed, count: 1"
             if command.startswith("data get block "):
                 return "The block at 0, 64, 0 has the following block data: {id:'buildcraftfactory:tank'}"
             raise AssertionError(command)
@@ -700,7 +720,7 @@ class OptionalCreateRealWorldTest(unittest.TestCase):
         def rcon(_port, _password, command):
             if command == "list": return "There are 1 of a max of 2 players online: Dev_Test"
             if command.startswith("setblock "): return "Changed the block at 0, 64, 0"
-            if command.startswith("execute if block "): return "[Server] BCCE_IT16_BLOCK_VERIFIED"
+            if command.startswith("execute if block "): return "Test passed, count: 1"
             if command.startswith("data get block "):
                 return "The block at 0, 64, 0 has the following block data: {id:'buildcraftfactory:tank'}"
             raise AssertionError(command)
@@ -735,7 +755,7 @@ class TwoPlayerFactoryProbeTest(unittest.TestCase):
             if request.startswith("setblock"):
                 return "Changed the block at 12, 64, 2"
             if request.startswith("execute if block"):
-                return "[Server] BCCE_IT15_FACTORY_PERSISTED"
+                return "Test passed, count: 1"
             if request.startswith("data get block"):
                 return "The block at 12, 64, 2 has the following block data: {id: 'buildcraftfactory:entity_autobench'}"
             raise AssertionError(request)
@@ -757,7 +777,7 @@ class TwoPlayerFactoryProbeTest(unittest.TestCase):
             if request == "list":
                 return "There are 2 of a max of 2 players online: Dev, BCCE_Tester2"
             if request.startswith("execute if block"):
-                return ""  # real server did not execute the conditional
+                return "Test failed"  # conditional detected the missing factory
             raise AssertionError(request)
         with mock.patch.object(probe, "rcon_command", side_effect=command):
             with self.assertRaisesRegex(RuntimeError, "factory changed"):
@@ -1121,7 +1141,7 @@ class PersistedInFlightPipeProbeTest(unittest.TestCase):
                    'custom_name:"IT16 charged sword"')
         def rcon(_port, _password, cmd):
             commands.append(cmd)
-            if cmd.startswith('execute if block '): return '[Server] BCCE_IT01_PIPE_EXISTS'
+            if cmd.startswith('execute if block '): return 'Test passed, count: 1'
             if cmd.endswith(' Items[0]'): return charged
             if cmd.endswith(' Items'): return '[{' + charged + '}]'
             if cmd.endswith(' pipe.flow.items'): return 'The following block data: []'
@@ -1140,14 +1160,14 @@ class PersistedInFlightPipeProbeTest(unittest.TestCase):
         charged = 'Slot:0b,Count:1b,minecraft:diamond_sword,117,sharpness,8765432,BCCEProbeNested,IT16 charged sword,owner'
         for fault in ('duplicate', 'in_pipe', 'drop'):
             def rcon(_port, _password, cmd):
-                if cmd.startswith('execute if block '): return 'BCCE_IT01_PIPE_EXISTS'
+                if cmd.startswith('execute if block '): return 'Test passed, count: 1'
                 if cmd.endswith(' Items[0]'): return charged
                 if cmd.endswith(' Items'):
                     return charged * (2 if fault == 'duplicate' else 1)
                 if cmd.endswith(' pipe.flow.items'):
                     return charged if fault == 'in_pipe' else '[]'
                 if 'if entity @e[type=minecraft:item' in cmd:
-                    return 'BCCE_IT01_DROP' if fault == 'drop' else 'Test failed'
+                    return 'Test passed, count: 1' if fault == 'drop' else 'Test failed'
                 raise AssertionError(cmd)
             with self.subTest(fault=fault), \
                  mock.patch.object(probe, 'rcon_command', side_effect=rcon), \
