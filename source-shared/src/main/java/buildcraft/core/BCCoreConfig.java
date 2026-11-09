@@ -176,7 +176,7 @@ public class BCCoreConfig {
 
         minePlayerProtected = propMinePlayerProtected.get();
         // The optional diagnostic flag can be null while Forge 1.19.2 is normalizing a fresh
-        // COMMON config during ModConfigEvent.Loading. Treat that transient value as its
+        // COMMON config during the loader config-loading callback. Treat that transient value as its
         // declared default (false) instead of aborting dedicated-server startup.
         verboseRobotLogging = Boolean.TRUE.equals(propVerboseRobotLogging.get());
         BCLibConfig.useColouredLabels = propUseColouredLabels.get();
