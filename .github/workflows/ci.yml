@@ -325,7 +325,7 @@ jobs:
       - name: Install headless client runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0
+          sudo apt-get install -y xvfb xdotool libgl1-mesa-dri libglx-mesa0
           # Minecraft 26.3 uses SDL3/RenderPearl: Xvfb cannot create its requested GLX
           # visual, so install Mesa's CPU Vulkan implementation as a real fallback.
           if [[ "${STONECUTTER_TARGET}" == "26.3-neoforge" ]]; then
@@ -417,29 +417,32 @@ jobs:
           echo "Game-testing ${BUILD_GENERATION}/${STONECUTTER_TARGET} with Create"
           ./gradlew --no-daemon --console=plain --stacktrace -Pci_runtime_profile=create ":${STONECUTTER_TARGET}:runGameTestServer"
 
-      - name: Smoke-test production jar
+      # One blocking runtime gate replaces separate server-boot/client-menu smokes.
+      # Run a real dedicated server and real client in the same job and verify
+      # joined-world behavior, save/stop, restart and rejoin. Full data/pipe/chunk
+      # probes are enabled on the two targets with supported native fixtures.
+      - name: Start dedicated server, join world with client and rejoin (IT16)
         shell: bash
         env:
-          SERVER_STARTUP_TIMEOUT: '360'
-          SERVER_RUNTIME_PROFILE: base
+          ALSOFT_DRIVERS: 'null'
         run: |
           set -euo pipefail
-          echo "Smoke-testing ${BUILD_GENERATION}/${STONECUTTER_TARGET}"
-          bash scripts/ci-server-smoke.sh
-
-      - name: Client smoke-test production target
-        shell: bash
-        env:
-          CLIENT_STARTUP_TIMEOUT: '480'
-          CLIENT_STABILITY_SECONDS: '20'
-          CLIENT_RUNTIME_PROFILE: jei
-        run: |
-          set -euo pipefail
-          echo "Client smoke-testing ${BUILD_GENERATION}/${STONECUTTER_TARGET}"
-          if ! bash scripts/ci-client-smoke.sh; then
-            echo "::error title=Client smoke failed::${BUILD_GENERATION}/${STONECUTTER_TARGET} client smoke failed"
-            exit 1
-          fi
+          flags=()
+          case "${STONECUTTER_TARGET}" in
+            1.20.1-forge|1.21.1-neoforge)
+              flags+=(--chunk-cycle)
+              ;;
+            *)
+              flags+=(--smoke-only)
+              ;;
+          esac
+          python3 scripts/ci-modpack-world-join.py \
+            --target "${STONECUTTER_TARGET}" \
+            --startup-timeout 800 --join-timeout 650 \
+            --restart-timeout 800 --stable-seconds 30 "${flags[@]}"
+          # Keep the distributable JAR deployment check inside the same blocking
+          # runtime gate. No disconnected client-only smoke is considered a pass.
+          SERVER_STARTUP_TIMEOUT=360 SERVER_RUNTIME_PROFILE=base bash scripts/ci-server-smoke.sh
 
       - name: Upload build products and diagnostics
         if: always()
@@ -459,7 +462,10 @@ jobs:
             run-server/${{ matrix.generation }}/${{ matrix.target }}/crash-reports/**
             ci-server-${{ matrix.generation }}-${{ matrix.target }}-*.log
             ci-server-install-${{ matrix.generation }}-${{ matrix.target }}.log
-            ci-client-${{ matrix.generation }}-${{ matrix.target }}-*.log
+            run-modpack-join/${{ matrix.generation }}/${{ matrix.target }}/result.json
+            run-modpack-join/${{ matrix.generation }}/${{ matrix.target }}/**/*.log
+            run-modpack-join/${{ matrix.generation }}/${{ matrix.target }}/**/logs/**
+            run-modpack-join/${{ matrix.generation }}/${{ matrix.target }}/**/crash-reports/**
 
   Compatibility:
     needs:

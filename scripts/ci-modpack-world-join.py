@@ -52,7 +52,12 @@ EXPECTED_PRESENCE = {
 }
 OPTIONAL_NAMES = ("ae2", "forestry", "ic2", "create")
 MODRINTH_PROJECTS = {"ae2": "XxWD5pD3", "forestry": "2oORTOi2", "guideme": "Ck4E7v7R",
-    "theoneprobe": "Eyw0UxEx", "curios": "vvuO3ImH"}
+    "theoneprobe": "Eyw0UxEx", "curios": "vvuO3ImH", "modernfix": "nmDcB62a",
+    "patchouli": "nU0bVIaL"}
+# External release JARs cannot be loaded directly into ForgeGradle's Mojmap
+# userdev mods directory: mixin @Shadow members then retain obfuscated names.
+# Only allow reviewed, immutable Modrinth versions through fg.deobf.
+FORGE_REMAPPED_MODS = frozenset(("ae2", "guideme", "modernfix", "curios", "theoneprobe"))
 FULL_FIXTURE_TARGETS = {"1.20.1-forge", "1.21.1-neoforge"}
 TARGET_PROPERTIES = ROOT / "build-config" / "targets.properties"
 
@@ -96,11 +101,15 @@ def validate_modpack_lock(target: str) -> dict:
         raise ValueError(f"AE2 requires a pinned GuideME release on {target}")
     if target == "1.19.2-forge" and (not mods.get("curios") or not mods.get("theoneprobe")):
         raise ValueError("IC2 Classic 1.19.2 requires pinned Curios and The One Probe")
-    allowed_external_mods = {"ae2", "modernfix", "forestry", "guideme", "curios", "theoneprobe"}
+    allowed_external_mods = {"ae2", "modernfix", "forestry", "guideme", "curios", "theoneprobe", "patchouli"}
     if not set(mods) <= allowed_external_mods:
         raise ValueError(f"IT16 includes unreviewed third-party JARs on {target}: {set(mods)-allowed_external_mods}")
     if "guideme" in mods and not entry["present"]["ae2"]:
         raise ValueError("GuideME must not remain installed without AE2 in normal lock")
+    if entry["present"]["forestry"] and target == "1.21.1-neoforge" and not mods.get("patchouli"):
+        raise ValueError("Forestry on 1.21.1 requires a pinned Patchouli runtime")
+    if "patchouli" in mods and not entry["present"]["forestry"]:
+        raise ValueError("Patchouli must not remain installed without Forestry in the IT16 lock")
     for mod in ("forestry", "ic2", "create"):
         present = bool(mods.get(mod)) or native_mod_present(props, mod)
         if present != entry["present"][mod]:
@@ -821,9 +830,13 @@ def start_process(cmd: list[str], log: Path, cwd: Path, env: dict[str, str]) -> 
     log.parent.mkdir(parents=True, exist_ok=True)
     stream = log.open("wb")
     try:
+        # On Windows, allow taskkill /T to terminate the batch-wrapper and its
+        # Java descendants; on Linux, isolate the Gradle process group.
         proc = subprocess.Popen(
             cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
-            stdout=stream, stderr=subprocess.STDOUT, start_new_session=True,
+            stdout=stream, stderr=subprocess.STDOUT,
+            start_new_session=os.name != "nt",
+            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
         )
     finally:
         stream.close()
@@ -833,6 +846,14 @@ def start_process(cmd: list[str], log: Path, cwd: Path, env: dict[str, str]) -> 
 
 def stop_process(proc: subprocess.Popen | None) -> None:
     if proc is None or proc.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                       capture_output=True, text=True, check=False, timeout=20)
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
         return
     try:
         os.killpg(proc.pid, signal.SIGTERM)
@@ -856,12 +877,65 @@ def resolve_locked_mods(target: str) -> tuple[str, dict[str, str]]:
 def select_locked_mods(target: str, *, without_ae2: bool) -> tuple[str, dict[str, str]]:
     generation, mods = resolve_locked_mods(target)
     if without_ae2:
-        # AE2 is an external pinned JAR, not a Gradle runtime dependency.
-        # Suppress it for every game directory in the negative profile.
+        # NeoForge loads pinned AE2 from mods/; ForgeGradle gets the same pin
+        # through its remapped runtime classpath. Both must exclude it here.
         if "ae2" not in mods:
             raise RuntimeError("Cannot exercise optional AE2 removal without an AE2 lock entry")
         mods = {name: version for name, version in mods.items() if name not in ("ae2", "guideme")}
     return generation, mods
+
+
+def forge_remap_gradle_argument(target: str, mods: dict[str, str]) -> str | None:
+    """Give ForgeGradle pinned, remappable dependencies instead of obfuscated mods/."""
+    if not target.endswith("-forge"):
+        return None
+    unknown = set(mods) - FORGE_REMAPPED_MODS
+    if unknown:
+        raise ValueError(f"Forge IT16 has unconfigured external mods: {sorted(unknown)}")
+    if not mods:
+        return None
+    for name, version in mods.items():
+        if name not in MODRINTH_PROJECTS or not re.fullmatch(r"[A-Za-z0-9]{8}", version):
+            raise ValueError(f"Forge IT16 requires an immutable Modrinth version ID for {name}")
+    return "-Pci_world_join_external_mods=" + ",".join(f"{name}:{mods[name]}" for name in sorted(mods))
+
+
+def prepare_headless_client_environment(target: str, env: dict[str, str]) -> None:
+    """Run Minecraft clients without audio hardware and enable Mesa Vulkan on 26.3."""
+    # OpenAL Soft's null backend avoids the missing physical audio device on CI.
+    # It preserves sound initialization while keeping the real render/game path.
+    env["ALSOFT_DRIVERS"] = "null"
+    env["LIBGL_ALWAYS_SOFTWARE"] = "1"
+    if target != "26.3-neoforge" or os.name == "nt":
+        return
+    candidates = (Path("/usr/share/vulkan/icd.d/lvp_icd.x86_64.json"),
+                  Path("/usr/share/vulkan/icd.d/lvp_icd.json"))
+    icd = next((path for path in candidates if path.is_file()), None)
+    if icd is None:
+        raise RuntimeError("Minecraft 26.3 requires mesa-vulkan-drivers (Lavapipe ICD)")
+    env["VK_DRIVER_FILES"] = str(icd)
+    env["VK_ICD_FILENAMES"] = str(icd)
+    env["SDL_VIDEO_DRIVER"] = "x11"
+    if shutil.which("vulkaninfo") is None:
+        raise RuntimeError("Minecraft 26.3 requires vulkan-tools for Vulkan WSI preflight")
+    completed = subprocess.run(
+        ["xvfb-run", "-a", "-s", "-screen 0 1280x720x24", "vulkaninfo"],
+        env=env, capture_output=True, text=True, timeout=60, check=False)
+    evidence = completed.stdout + completed.stderr
+    required = ("VK_KHR_surface", "VK_KHR_swapchain")
+    if completed.returncode or any(token not in evidence for token in required):
+        raise RuntimeError("26.3 Lavapipe cannot create Vulkan display/swapchain under Xvfb: "
+                           + evidence[-1800:])
+    print("IT16 26.3 Vulkan Lavapipe display/swapchain preflight OK", flush=True)
+
+
+def fail_fast_on_client_runtime_errors(client_log: Path) -> None:
+    log = read_text(client_log)
+    if "Failed to create backend OpenGL" in log and "Failed to create backend Vulkan" in log:
+        raise RuntimeError("Minecraft client failed to initialize both OpenGL and Vulkan")
+    if "Failed to open OpenAL device" in log:
+        raise RuntimeError("Minecraft client sound initialization failed (null OpenAL backend)")
+    check_fatal(client_log)
 
 
 def download_locked_mod(version_id: str, target: str, destination: Path,
@@ -946,6 +1020,9 @@ def create_run_directories(generation: str, target: str, mods: dict[str, str], p
     (client / "logs").mkdir(parents=True, exist_ok=True)
     if second_client:
         (base / "client-2" / "logs").mkdir(parents=True, exist_ok=True)
+    # ForgeGradle must own external mod loading; see forge_remap_gradle_argument.
+    # NeoForge dev runs still use the pinned release files in mods/.
+    copy_to_mods = not target.endswith("-forge")
     if offline:
         for name, version in mods.items():
             # project@exact-version pins may be cached under the resolved Modrinth
@@ -955,13 +1032,15 @@ def create_run_directories(generation: str, target: str, mods: dict[str, str], p
             if len(matches) != 1:
                 raise RuntimeError(f"Offline mode: expected 1 cached JAR for {name} ({version}), found {len(matches)}")
             jar = matches[0]
-            for run in run_directories:
-                shutil.copy2(jar, run / "mods" / jar.name)
+            if copy_to_mods:
+                for run in run_directories:
+                    shutil.copy2(jar, run / "mods" / jar.name)
     else:
         for name, version in mods.items():
             jar = download_locked_mod(version, target, ROOT / "ci-modpack-cache", mod_name=name)
-            for run in run_directories:
-                shutil.copy2(jar, run / "mods" / jar.name)
+            if copy_to_mods:
+                for run in run_directories:
+                    shutil.copy2(jar, run / "mods" / jar.name)
     return base, server, client
 
 
@@ -1052,12 +1131,14 @@ def main() -> int:
         print(json.dumps({"target": args.target, "generation": generation, "mods": mods,
                           "present": config["present"], "required_client": ["jei", "jade"]}, indent=2))
         return 0
-    if shutil.which("xvfb-run") is None:
-        raise RuntimeError("xvfb-run is required for a real client world join")
+    if os.name != "nt" and shutil.which("xvfb-run") is None:
+        raise RuntimeError("xvfb-run is required for a real client world join on Linux")
+    if args.client_resource_reload and os.name == "nt":
+        raise RuntimeError("F3+T automation requires Xvfb/xdotool; Windows world-join smoke is supported without it")
     if args.client_resource_reload and (shutil.which("Xvfb") is None or shutil.which("xdotool") is None):
         raise RuntimeError("IT06 requires Xvfb and xdotool for real client keyboard input")
     # The per-target Java version is selected by the workflow environment / JAVA_HOME.
-    gradlew = ROOT / "builds" / generation / "gradlew"
+    gradlew = ROOT / "builds" / generation / ("gradlew.bat" if os.name == "nt" else "gradlew")
     if not gradlew.is_file():
         raise FileNotFoundError(gradlew)
     password = secrets.token_hex(24)
@@ -1068,6 +1149,9 @@ def main() -> int:
     flags = ["--no-daemon", "--console=plain", "--stacktrace",
              "-Pci_runtime_profile=" + modpack_runtime_profile(without_create=args.without_create),
              "-Pci_world_join=true", f"-Pci_world_join_address={connection}"]
+    remapped = forge_remap_gradle_argument(args.target, mods)
+    if remapped is not None:
+        flags.append(remapped)
     server_log = base / "server-gradle.log"
     client_gradle_log = base / "client-gradle.log"
     world_log = server_dir / "logs" / "latest.log"
@@ -1095,6 +1179,7 @@ def main() -> int:
     }
     try:
         env = os.environ.copy()
+        prepare_headless_client_environment(args.target, env)
         if args.client_resource_reload:
             private_display, display = start_private_display(base / "xvfb-display.log", launch_dir, env)
             env["DISPLAY"] = display
@@ -1109,12 +1194,14 @@ def main() -> int:
         for attempt in range(1, 3):
             existing = len(JOIN_RE.findall(read_text(world_log)))
             # Forge/NeoForge runs need an actual graphical display, not the server-side atlas smoke probe.
-            graphical_prefix = [] if args.client_resource_reload else [
+            graphical_prefix = [] if args.client_resource_reload or os.name == "nt" else [
                 "xvfb-run", "-a", "-s", "-screen 0 1280x720x24"]
             client_cmd = [*graphical_prefix, str(gradlew), *flags, f":{args.target}:runClient"]
             client = start_process(client_cmd, client_gradle_log, launch_dir, env)
-            wait_until(f"client {attempt} joined world", lambda:
-                       len(JOIN_RE.findall(read_text(world_log))) > existing,
+            def has_joined_world() -> bool:
+                fail_fast_on_client_runtime_errors(client_log)
+                return len(JOIN_RE.findall(read_text(world_log))) > existing
+            wait_until(f"client {attempt} joined world", has_joined_world,
                        [server, client], args.join_timeout)
             player = player_name_from_join_log(read_text(world_log))
             verify_mandatory_client_mods(client_log, client_gradle_log)
@@ -1163,8 +1250,10 @@ def main() -> int:
                 second_flags = [*flags,
                     "-Pci_world_join_client_slot=2",
                     f"-Pci_world_join_username={SECOND_PLAYER}"]
-                secondary_cmd = ["xvfb-run", "-a", "-s", "-screen 0 1280x720x24",
-                    str(gradlew), *second_flags, f":{args.target}:runClient"]
+                secondary_prefix = [] if os.name == "nt" else [
+                    "xvfb-run", "-a", "-s", "-screen 0 1280x720x24"]
+                secondary_cmd = [*secondary_prefix, str(gradlew), *second_flags,
+                                 f":{args.target}:runClient"]
                 secondary_client = start_process(secondary_cmd, secondary_log, launch_dir, env)
                 wait_until(f"second actual client joined world (attempt {attempt})", lambda:
                     sum(match.group("name") == SECOND_PLAYER for match
@@ -1231,10 +1320,21 @@ def main() -> int:
                     raise RuntimeError("Minecraft server failed to stop after /stop")
                 server = None
                 if args.remove_ae2_after_restart:
-                    remove_pinned_ae2_after_shutdown(
-                        base, mods["ae2"], two_players=args.two_players)
+                    if args.target.endswith("-forge"):
+                        # The Forge dependency is on Gradle's remapped classpath,
+                        # not in mods/. Change the second process's runtime graph.
+                        flags = [flag for flag in flags if not flag.startswith(
+                            "-Pci_world_join_external_mods=")]
+                        remaining = {name: version for name, version in mods.items()
+                                     if name not in ("ae2", "guideme")}
+                        remapped = forge_remap_gradle_argument(args.target, remaining)
+                        if remapped is not None:
+                            flags.append(remapped)
+                    else:
+                        remove_pinned_ae2_after_shutdown(
+                            base, mods["ae2"], two_players=args.two_players)
                     results["ae2_removed_between_processes"] = True
-                    print("IT14: removed pinned AE2 JAR from all runtime directories after save/stop", flush=True)
+                    print("IT14: removed pinned AE2 from all runtime launch profiles after save/stop", flush=True)
                 world_log.unlink(missing_ok=True)
                 server_log = base / "server-restart-gradle.log"
                 server = start_process([str(gradlew), *flags, f":{args.target}:runServer"],

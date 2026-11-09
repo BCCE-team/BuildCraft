@@ -742,10 +742,21 @@ def validate_modpack_interop_fixes() -> None:
         require(target, pipe_holder,
                 "implements ICustomPaintHandler, EntityBlock, SimpleWaterloggedBlock",
                 "BlockStateProperties.WATERLOGGED",
-                "builder.add(WATERLOGGED)",
                 "fluid.getType() == Fluids.WATER",
                 "Fluids.WATER.getSource(false)",
                 "world.scheduleTick(pos, Fluids.WATER, Fluids.WATER.getTickDelay(world))")
+        # WATERLOGGED is registered by BlockBCBase_Neptune for every BC block.
+        # Re-registering it in BlockPipeHolder duplicates the property and can
+        # prevent the block's state definition from initializing at runtime.
+        base_block = "src/main/java/buildcraft/lib/block/BlockBCBase_Neptune.java"
+        require(target, base_block,
+                "implements SimpleWaterloggedBlock",
+                "BlockStateProperties.WATERLOGGED",
+                "bs.add(WATERLOGGED);",
+                "this.registerDefaultState(this.defaultBlockState().setValue(WATERLOGGED, false));",
+                "state = state.setValue(WATERLOGGED,",
+                "return state.getValue(WATERLOGGED) ? Fluids.WATER.getSource(false)")
+        forbid(target, pipe_holder, "builder.add(WATERLOGGED)")
 
     legacy_tag = ROOT / "source-families/old/src/main/resources/data/c/tags/items/tools/wrench.json"
     modern_tag = ROOT / "source-families/1.21.X/src/main/resources/data/c/tags/item/tools/wrench.json"

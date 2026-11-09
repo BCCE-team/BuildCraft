@@ -18,6 +18,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
@@ -115,11 +116,15 @@ public final class SystemQuarryMiningGameTests {
                 "Quarry mined stone despite having no MJ during the power outage");
             require(helper, PipeGameTestSupport.countItem(rig.warehouse, Items.COBBLESTONE) == 0,
                 "Quarry generated drops while no block was mined");
+            require(helper, rig.quarry.hasWork(),
+                "Quarry lost its pending mining work during the MJ outage: " + rig.diagnostics());
             long rejected = rig.power.addPowerChecking(removed, FluidAction.EXECUTE);
             require(helper, rejected == 0, "Quarry did not accept the saved MJ after refuel");
         });
         rig.keepPowered(helper, 320, 2420);
         helper.runAfterDelay(2420, () -> {
+            require(helper, rig.dryBoundaryIntact(),
+                "Quarry mining fixture was flooded or mined outside its area: " + rig.diagnostics());
             require(helper, rig.isMined(helper, FIRST)
                 && rig.isMined(helper, SECOND),
                 "Quarry never resumed both pending blocks after its MJ was restored: " + rig.diagnostics());
@@ -136,12 +141,14 @@ public final class SystemQuarryMiningGameTests {
     }
 
     private static final class Rig {
+        final GameTestHelper helper;
         final TileQuarry quarry;
         final ChestBlockEntity warehouse;
         final MjBattery power;
         long totalInjected;
 
         Rig(GameTestHelper helper) {
+            this.helper = helper;
             helper.setBlock(CHEST, Blocks.CHEST.defaultBlockState());
             BlockEntity output = GameTestCompat.getBlockEntity(helper, CHEST);
             if (!(output instanceof ChestBlockEntity chest)) throw new IllegalStateException("missing Quarry warehouse");
@@ -178,9 +185,23 @@ public final class SystemQuarryMiningGameTests {
                     }
                 }
             }
+            // Keep the mining plane isolated from other tests and from water
+            // left in the persistent GameTest world. The 7x3x7 template is
+            // empty, but its neighbours are not part of the structure reset.
+            // A dry, breakable glass perimeter is outside miningBox AND below
+            // frameBox, so it cannot become a frame obstacle or be excavated.
+            for (int x = 2; x <= 5; x++) {
+                for (int z = 1; z <= 5; z++) {
+                    if (x == 2 || x == 5 || z == 1 || z == 5) {
+                        helper.setBlock(new BlockPos(x, 0, z), Blocks.GLASS.defaultBlockState());
+                    }
+                }
+            }
             for (int x = 3; x <= 4; x++) {
                 for (int z = 2; z <= 4; z++) {
                     helper.setBlock(new BlockPos(x, 0, z), Blocks.AIR.defaultBlockState());
+                    helper.setBlock(new BlockPos(x, 1, z), Blocks.AIR.defaultBlockState());
+                    helper.setBlock(new BlockPos(x, 2, z), Blocks.AIR.defaultBlockState());
                 }
             }
             // Do not scan the mining area before each test has populated its target blocks.
@@ -215,19 +236,50 @@ public final class SystemQuarryMiningGameTests {
             }
         }
 
+        boolean dryBoundaryIntact() {
+            for (int x = 2; x <= 5; x++) {
+                for (int z = 1; z <= 5; z++) {
+                    if (x == 2 || x == 5 || z == 1 || z == 5) {
+                        if (!helper.getLevel().getBlockState(helper.absolutePos(new BlockPos(x, 0, z)))
+                            .is(Blocks.GLASS)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
         boolean isMined(GameTestHelper helper, BlockPos relative) {
             BlockPos pos = helper.absolutePos(relative);
-            if (helper.getLevel().getBlockState(pos).isAir()) return true;
-            if (!helper.getLevel().getBlockState(pos).is(BCBuildersBlocks.QUARRY_DRILL_COLLISION.get())) {
-                return false;
+            BlockState state = helper.getLevel().getBlockState(pos);
+            if (state.isAir()) return true;
+            if (state.is(BCBuildersBlocks.QUARRY_DRILL_COLLISION.get())) {
+                // Only the active Quarry's own drill placeholder counts as mined,
+                // even if that placeholder is waterlogged.
+                BlockEntity tile = helper.getLevel().getBlockEntity(pos);
+                return tile instanceof TileQuarryDrillCollision collision
+                    && quarry.getBlockPos().equals(collision.getOwner());
             }
-            BlockEntity tile = helper.getLevel().getBlockEntity(pos);
-            return tile instanceof TileQuarryDrillCollision collision
-                && quarry.getBlockPos().equals(collision.getOwner());
+            // A mined cell may be refilled by flowing water/lava before the
+            // final assertion. Exactly two cobblestone drops are independently
+            // required by the tests, so a fluid here cannot mask a lost drop.
+            return !state.getFluidState().isEmpty();
+        }
+
+        private String blockSnapshot(BlockPos relative) {
+            BlockPos absolute = helper.absolutePos(relative);
+            BlockState state = helper.getLevel().getBlockState(absolute);
+            BlockEntity tile = helper.getLevel().getBlockEntity(absolute);
+            return state + " fluid=" + state.getFluidState()
+                + (tile instanceof TileQuarryDrillCollision collision
+                    ? " collisionOwner=" + collision.getOwner() : "");
         }
 
         String diagnostics() {
-            return "firstChecked=" + field(quarry, "firstChecked")
+            return "first=" + blockSnapshot(FIRST) + ", second=" + blockSnapshot(SECOND)
+                + ", cobblestone=" + PipeGameTestSupport.countItem(warehouse, Items.COBBLESTONE)
+                + ", firstChecked=" + field(quarry, "firstChecked")
                 + ", frameBuild=" + ((java.util.Set<?>) field(quarry, "framePlaceFramePoses")).size()
                 + ", frameBreak=" + ((java.util.Set<?>) field(quarry, "frameBreakBlockPoses")).size()
                 + ", iterator=" + field(quarry, "boxIterator")

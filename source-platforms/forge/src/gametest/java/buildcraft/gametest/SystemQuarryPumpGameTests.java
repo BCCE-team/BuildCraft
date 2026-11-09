@@ -29,8 +29,10 @@ import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
 /**
  * A real Quarry with a Pump installed on top. The lava seals the column above
  * stone, so the drill cannot cheat by digging through the liquid. All four
- * lateral sides of the lava are solid or frame blocks; it cannot spill into
- * another GameTest while waiting for the Pump.
+ * lateral sides of the lava are part of the Quarry's own frame, so it
+ * cannot spread while the Pump drains it. No unbreakable blocks are placed
+ * inside the frame: otherwise the Quarry would remain busy trying to clear
+ * them and could never lend energy to the Pump.
  */
 @GameTestHolder(BCLib.MODID)
 @PrefixGameTestTemplate(false)
@@ -56,16 +58,21 @@ public final class SystemQuarryPumpGameTests {
         }
         quarry.onPlacedBy(buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer(
             helper.getLevel(), OWNER, helper.absolutePos(QUARRY)), ItemStack.EMPTY);
-        BlockPos frameMin = helper.absolutePos(new BlockPos(2, 1, 1));
-        BlockPos frameMax = helper.absolutePos(new BlockPos(5, 2, 5));
+        // A compact 3x2x3 frame encloses just the lava/stone column. The
+        // frame itself seals lava on all four sides. Placing BEDROCK inside
+        // the frame is invalid: the Quarry queues every interior solid for
+        // removal, but cannot break bedrock, leaving hasWork() true forever
+        // and preventing the attached Pump from borrowing idle Quarry MJ.
+        BlockPos frameMin = helper.absolutePos(new BlockPos(2, 1, 2));
+        BlockPos frameMax = helper.absolutePos(new BlockPos(4, 2, 4));
         quarry.frameBox.setMin(frameMin);
         quarry.frameBox.setMax(frameMax);
         Box mining = (Box) field(quarry, "miningBox");
-        mining.setMin(helper.absolutePos(new BlockPos(3, 0, 2)));
-        mining.setMax(helper.absolutePos(new BlockPos(4, 1, 4)));
-        for (int x = 2; x <= 5; x++) {
+        mining.setMin(helper.absolutePos(STONE));
+        mining.setMax(helper.absolutePos(LAVA));
+        for (int x = 2; x <= 4; x++) {
             for (int y = 1; y <= 2; y++) {
-                for (int z = 1; z <= 5; z++) {
+                for (int z = 2; z <= 4; z++) {
                     BlockPos local = new BlockPos(x, y, z);
                     if (quarry.frameBox.isOnEdge(helper.absolutePos(local))) {
                         helper.setBlock(local, BCBuildersBlocks.FRAME.get().defaultBlockState());
@@ -73,16 +80,20 @@ public final class SystemQuarryPumpGameTests {
                 }
             }
         }
-        // The three non-frame neighbours are permanent walls; the fourth is the frame.
-        for (BlockPos wall : new BlockPos[]{LAVA.north(), LAVA.south(), LAVA.east()}) {
-            helper.setBlock(wall, Blocks.BEDROCK.defaultBlockState());
+        // Verify the sealed lava fixture without introducing unmineable
+        // interior obstacles that would permanently block pump power sharing.
+        for (BlockPos wall : new BlockPos[]{LAVA.north(), LAVA.south(), LAVA.east(), LAVA.west()}) {
+            require(helper, quarry.frameBox.isOnEdge(helper.absolutePos(wall))
+                    && helper.getLevel().getBlockState(helper.absolutePos(wall))
+                        .is(BCBuildersBlocks.FRAME.get()),
+                "Quarry frame did not seal the lava fixture at " + wall);
         }
         helper.setBlock(STONE, Blocks.STONE.defaultBlockState());
         helper.setBlock(LAVA, Blocks.LAVA.defaultBlockState());
         // Match the ordinary Quarry fixture: placement callbacks are not invoked by setBlock.
         invoke(quarry, "updatePoses");
 
-        helper.setBlock(PUMP, BCFactoryBlocks.PUMP.get().defaultBlockState());
+        helper.setBlock(PUMP, BCFactoryBlocks.PUMP_BLOCK.get().defaultBlockState());
         BlockEntity above = GameTestCompat.getBlockEntity(helper, PUMP);
         if (!(above instanceof TilePump pump)) {
             helper.fail("missing physical Pump on top of Quarry");
@@ -119,7 +130,12 @@ public final class SystemQuarryPumpGameTests {
                 "Quarry/Pump failed to drain blocking lava and mine the newly accessible stone"
                     + "; lavaGone=" + lavaGone + ", stoneMined=" + stoneMined
                     + ", lavaCaptured=" + lavaCaptured + ", blocking=" + quarry.getBlockingFluid()
-                    + ", quarryMJ=" + quarryPower.getStored() + ", hasWork=" + quarry.hasWork());
+                    + ", quarryMJ=" + quarryPower.getStored() + ", hasWork=" + quarry.hasWork()
+                    + ", frameBreak=" + ((java.util.Set<?>) field(quarry, "frameBreakBlockPoses")).size()
+                    + ", framePlace=" + ((java.util.Set<?>) field(quarry, "framePlaceFramePoses")).size()
+                    + ", firstChecked=" + field(quarry, "firstChecked")
+                    + ", task=" + (quarry.currentTask == null ? "none"
+                        : ((Object) quarry.currentTask).getClass().getSimpleName()));
             require(helper, pump.getLength(1.0F) == 0,
                 "Pump on Quarry laid a separate tube through the quarry body");
             helper.succeed();

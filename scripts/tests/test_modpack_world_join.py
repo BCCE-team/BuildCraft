@@ -23,7 +23,7 @@ class ModpackWorldJoinTest(unittest.TestCase):
         self.assertEqual(old_generation, "old")
         self.assertEqual(new_generation, "1.21.X")
         self.assertEqual(set(old), {"ae2", "modernfix", "guideme"})
-        self.assertEqual(set(new), {"ae2", "modernfix", "forestry", "guideme"})
+        self.assertEqual(set(new), {"ae2", "modernfix", "forestry", "guideme", "patchouli"})
         self.assertTrue(all(old.values()))
         self.assertTrue(all(new.values()))
 
@@ -367,16 +367,63 @@ class ModpackCoverageContractTest(unittest.TestCase):
         self.assertTrue(any("forestry:apiary" in cmd for cmd in commands if cmd.startswith("execute if block ")))
         self.assertTrue(any("ic2:generator" in cmd for cmd in commands if cmd.startswith("execute if block ")))
 
-    def test_workflow_launches_all_targets_and_safe_negative_profiles(self):
-        workflow=(ROOT/".github/workflows/modpack-world-join.yml").read_text(encoding="utf-8")
+    def test_standard_ci_runs_real_world_join_for_all_targets_without_separate_workflow(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         for target in probe.TARGETS:
-            self.assertIn("- target: "+target,workflow)
-        self.assertEqual(workflow.count("            ae2: "),len(probe.TARGETS))
-        self.assertEqual(workflow.count("            create: "),len(probe.TARGETS))
-        self.assertIn('matrix.ae2',workflow)
-        self.assertIn('matrix.create',workflow)
-        self.assertIn('flags+=(--smoke-only)',workflow)
-        self.assertIn('python3 scripts/ci-modpack-world-join.py',workflow)
+            self.assertIn("- target: " + target, workflow)
+        self.assertIn('Start dedicated server, join world with client and rejoin (IT16)', workflow)
+        self.assertIn('python3 scripts/ci-modpack-world-join.py', workflow)
+        self.assertIn('flags+=(--chunk-cycle)', workflow)
+        self.assertIn('flags+=(--smoke-only)', workflow)
+        self.assertIn('run-modpack-join/${{ matrix.generation }}/${{ matrix.target }}/result.json', workflow)
+        self.assertNotIn('Smoke-test production jar', workflow)
+        self.assertNotIn('Client smoke-test production target', workflow)
+        self.assertIn('SERVER_RUNTIME_PROFILE=base bash scripts/ci-server-smoke.sh', workflow)
+        # The real client/server join belongs to GitHub Actions only.
+        # Local CI deliberately remains validators + builds + GameTests.
+        runner = (ROOT / "scripts/run-ci-local.py").read_text()
+        self.assertNotIn('Join world with client and rejoin [{target}]', runner)
+        self.assertNotIn('scripts/ci-modpack-world-join.py', runner)
+        self.assertIn('GameTests -> artifacts', runner)
+        powershell_runner = (ROOT / "run-ci-local.ps1").read_text()
+        self.assertIn('Client and dedicated-server smoke tests are GitHub CI-only.', powershell_runner)
+        self.assertFalse((ROOT / ".github/workflows/modpack-world-join.yml").exists())
+
+    def test_required_optional_mod_dependencies_are_pinned(self):
+        lock = json.loads((ROOT / "build-config/modpack-world-join-lock.json").read_text())
+        self.assertEqual(lock["targets"]["1.21.1-neoforge"]["mods"]["patchouli"], "h6hKI2ob")
+        self.assertEqual(lock["targets"]["26.1.2-neoforge"]["mods"]["guideme"], "Vvte0XiA")
+        properties = (ROOT / "build-config/targets.properties").read_text()
+        self.assertIn('target.26.2-neoforge.deps.jei=maven.modrinth:u6dRKJwZ:2Uf4rjR5', properties)
+        self.assertTrue(probe.validate_modpack_lock("1.21.1-neoforge"))
+
+    def test_forge_userdev_external_mods_are_remapped_and_not_copied_raw(self):
+        deps = {"ae2": "U8JDlAX0", "modernfix": "dFQ9fgvb"}
+        flag = probe.forge_remap_gradle_argument("1.20.1-forge", deps)
+        self.assertEqual(flag, '-Pci_world_join_external_mods=ae2:U8JDlAX0,modernfix:dFQ9fgvb')
+        self.assertIsNone(probe.forge_remap_gradle_argument("1.21.1-neoforge", deps))
+        with self.assertRaisesRegex(ValueError, 'unconfigured external'):
+            probe.forge_remap_gradle_argument("1.20.1-forge", {"untrusted": "ABC12345"})
+        with self.assertRaisesRegex(ValueError, 'immutable'):
+            probe.forge_remap_gradle_argument("1.20.1-forge", {"ae2": "ae2@not-immutable"})
+        gradle = (ROOT / "build-logic/loaders/forge-target.gradle").read_text()
+        self.assertIn('ci_world_join_external_mods', gradle)
+        self.assertIn('runtimeOnly fg.deobf("maven.modrinth:', gradle)
+
+    def test_headless_world_join_uses_null_openal_driver(self):
+        env = {}
+        probe.prepare_headless_client_environment("1.21.11-neoforge", env)
+        self.assertEqual(env["ALSOFT_DRIVERS"], "null")
+        self.assertEqual(env["LIBGL_ALWAYS_SOFTWARE"], "1")
+        self.assertNotIn("VK_DRIVER_FILES", env)
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "client.log"
+            log.write_text("Failed to create backend OpenGL\nFailed to create backend Vulkan\n")
+            with self.assertRaisesRegex(RuntimeError, "both OpenGL and Vulkan"):
+                probe.fail_fast_on_client_runtime_errors(log)
+            log.write_text("Failed to open OpenAL device\n")
+            with self.assertRaisesRegex(RuntimeError, "sound initialization"):
+                probe.fail_fast_on_client_runtime_errors(log)
 
     def test_modrinth_jar_integrity_and_target_identity_fail_closed(self):
         class FakeResponse:
@@ -496,9 +543,10 @@ class OptionalCreateRealWorldTest(unittest.TestCase):
                     "old", "1.20.1-forge", selected, 25588, True, second_client=True)
             for path in (server, client, home / "client-2"):
                 files = [p.name for p in (path / "mods").iterdir()]
-                self.assertEqual(len(files), 1)
-                self.assertTrue("modernfix" in files[0])
-                self.assertFalse(any("ae2" in name for name in files))
+                self.assertEqual(files, [])  # ForgeGradle remaps the version-locked dependency.
+            flag = probe.forge_remap_gradle_argument("1.20.1-forge", selected)
+            self.assertIn("modernfix:" + selected["modernfix"], flag)
+            self.assertNotIn("ae2:", flag)
 
     def test_it14_removes_exact_ae2_jar_from_every_stopped_game_directory(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -654,12 +702,24 @@ class TwoPlayerFactoryProbeTest(unittest.TestCase):
                 (base / "ci-modpack-cache" / (ident + "-probe.jar")).write_bytes(b"dummy jar data")
             with mock.patch.object(probe, "ROOT", base):
                 home, server, client = probe.create_run_directories(
-                    "old", "1.20.1-forge", {"one": "modA", "two": "modB"},
+                    "1.21.X", "1.21.1-neoforge", {"one": "modA", "two": "modB"},
                     25588, True, second_client=True)
             for path in (server, client, home / "client-2"):
                 self.assertTrue((path / "mods" / "modA-probe.jar").is_file())
                 self.assertTrue((path / "mods" / "modB-probe.jar").is_file())
             self.assertTrue((home / "client-2" / "logs").is_dir())
+
+    def test_forge_world_join_leaves_raw_mod_dirs_empty_for_fg_deobf(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / "ci-modpack-cache").mkdir()
+            (base / "ci-modpack-cache" / "U8JDlAX0-ae2.jar").write_bytes(b"verified fixture")
+            with mock.patch.object(probe, "ROOT", base):
+                home, server, client = probe.create_run_directories(
+                    "old", "1.19.2-forge", {"ae2": "U8JDlAX0"},
+                    25588, True, second_client=True)
+            for run_dir in (server, client, home / "client-2"):
+                self.assertEqual(list((run_dir / "mods").glob("*.jar")), [])
 
     def test_gradle_client_slot_isolation_is_configured_for_both_loaders(self):
         for loader in ("forge", "neoforge"):
@@ -817,13 +877,12 @@ class RemoteChunkLifecycleTest(unittest.TestCase):
 
 
 class ChunkCycleWorkflowTest(unittest.TestCase):
-    def test_weekly_real_world_join_runs_chunk_cycle_and_manual_can_disable(self):
-        workflow = (ROOT / ".github/workflows/modpack-world-join.yml").read_text(encoding="utf-8")
-        self.assertIn("      chunk_cycle:", workflow)
-        self.assertIn("default: true", workflow)
-        self.assertIn("flags+=(--chunk-cycle)", workflow)
-        self.assertIn('github.event_name', workflow)
-        self.assertIn('inputs.chunk_cycle', workflow)
+    def test_full_fixture_targets_run_chunk_cycle_in_standard_ci(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn('1.20.1-forge|1.21.1-neoforge)', workflow)
+        self.assertIn('flags+=(--chunk-cycle)', workflow)
+        self.assertIn('flags+=(--smoke-only)', workflow)
+        self.assertFalse((ROOT / ".github/workflows/modpack-world-join.yml").exists())
 
 class ClientResourceReloadTest(unittest.TestCase):
     def test_stale_startup_atlas_cannot_count_as_client_reload(self):
@@ -902,11 +961,10 @@ class ClientResourceReloadTest(unittest.TestCase):
                 with self.assertRaisesRegex(TimeoutError, "block atlas"):
                     probe.verify_client_resource_reload(log, 25589, "secret", "Dev_Test", [], {"DISPLAY": ":400"})
 
-    def test_ui_mode_is_explicitly_manual_and_incompatible_with_two_clients(self):
-        workflow = (ROOT / ".github/workflows/modpack-world-join.yml").read_text(encoding="utf-8")
-        self.assertIn("client_resource_reload:", workflow)
-        self.assertIn('inputs.client_resource_reload', workflow)
-        self.assertIn('flags+=(--client-resource-reload)', workflow)
+    def test_ui_mode_is_cli_only_and_incompatible_with_two_clients(self):
+        self.assertFalse((ROOT / ".github/workflows/modpack-world-join.yml").exists())
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        self.assertNotIn('flags+=(--client-resource-reload)', workflow)
         with mock.patch.object(probe.sys, "argv", ["probe", "--target", "1.20.1-forge",
                                                        "--client-resource-reload", "--two-players"]):
             with self.assertRaises(SystemExit) as failure:

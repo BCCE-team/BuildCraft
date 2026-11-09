@@ -211,6 +211,7 @@ if (useProductionJarRuntime) {
 def ciWorldJoin = providers.gradleProperty('ci_world_join').map { it.toBoolean() }.getOrElse(false)
 def ciWorldJoinAddress = providers.gradleProperty('ci_world_join_address').getOrElse('127.0.0.1:25588')
 def ciWorldJoinClientSlot = providers.gradleProperty('ci_world_join_client_slot').getOrElse('1')
+def ciWorldJoinExternalMods = providers.gradleProperty('ci_world_join_external_mods').getOrElse('')
 def ciWorldJoinUsername = providers.gradleProperty('ci_world_join_username').getOrElse('')
 if (ciWorldJoin && !(ciWorldJoinClientSlot in ['1', '2'])) {
     throw new GradleException('Unknown ci_world_join_client_slot: ' + ciWorldJoinClientSlot)
@@ -413,6 +414,30 @@ dependencies {
         compileOnly fg.deobf(patchouliDependency)
         if (runtimeEnabled('forestry', true)) {
             runtimeOnly fg.deobf(patchouliDependency)
+        }
+    }
+
+    // CI real-world join: ForgeGradle userdev is Mojmap, not the obfuscated
+    // production namespace. Do not put release AE2/ModernFix JARs into run/mods:
+    // fg.deobf must remap their classes and Mixin reference maps first.
+    if (ciWorldJoinExternalMods) {
+        if (!ciWorldJoin || !ciRuntimeProfile.startsWith('modpack')) {
+            throw new GradleException('ci_world_join_external_mods is restricted to IT16 modpack runs')
+        }
+        def modrinthProjects = [
+            ae2: 'XxWD5pD3', modernfix: 'nmDcB62a', guideme: 'Ck4E7v7R',
+            curios: 'vvuO3ImH', theoneprobe: 'Eyw0UxEx'
+        ]
+        def seen = [] as Set
+        ciWorldJoinExternalMods.split(',').each { token ->
+            if (!(token ==~ /[a-z0-9_]+:[A-Za-z0-9]{8}/)) {
+                throw new GradleException("Invalid immutable CI mod pin: ${token}")
+            }
+            def parts = token.split(':')
+            if (!modrinthProjects.containsKey(parts[0]) || !seen.add(parts[0])) {
+                throw new GradleException("Unknown or repeated CI mod: ${parts[0]}")
+            }
+            runtimeOnly fg.deobf("maven.modrinth:${modrinthProjects[parts[0]]}:${parts[1]}")
         }
     }
 

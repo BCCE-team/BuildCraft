@@ -6,7 +6,7 @@ import buildcraft.core.BCCoreBlocks;
 import buildcraft.lib.BCLib;
 import buildcraft.lib.block.BlockBCBase_Neptune;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.level.block.Block;
@@ -27,8 +27,8 @@ public final class WaterloggingGameTests {
     @GameTest(templateNamespace = BCLib.MODID, template = PipeGameTestSupport.LARGE_EMPTY_TEMPLATE, timeoutTicks = 100)
     public static void everyBuildCraftBlockExceptFluidsExposesWaterlogging(GameTestHelper helper) {
         int checked = 0;
-        for (Block block : BuiltInRegistries.BLOCK) {
-            String key = BuiltInRegistries.BLOCK.getKey(block).toString();
+        for (Block block : ForgeRegistries.BLOCKS) {
+            String key = ForgeRegistries.BLOCKS.getKey(block).toString();
             if (!key.startsWith("buildcraft") || block instanceof LiquidBlock) {
                 continue;
             }
@@ -72,13 +72,13 @@ public final class WaterloggingGameTests {
     private static void checkDry(GameTestHelper helper, BlockPos pos, Block block) {
         BlockState dry = block.defaultBlockState();
         if (dry.getValue(BlockStateProperties.WATERLOGGED) || !dry.getFluidState().isEmpty()) {
-            helper.fail("Default block state creates water: " + BuiltInRegistries.BLOCK.getKey(block));
+            helper.fail("Default block state creates water: " + ForgeRegistries.BLOCKS.getKey(block));
             return;
         }
         helper.setBlock(pos, dry);
         BlockState stored = helper.getLevel().getBlockState(helper.absolutePos(pos));
         if (stored.getBlock() != block || !stored.getFluidState().isEmpty()) {
-            helper.fail("Dry machine introduced water in air: " + BuiltInRegistries.BLOCK.getKey(block));
+            helper.fail("Dry machine introduced water in air: " + ForgeRegistries.BLOCKS.getKey(block));
         }
     }
 

@@ -192,5 +192,36 @@ public class QuarryPumpHostProbe {
                 self.assertIn('quarry.getBattery()', src)
 
 
+    def test_hosted_pump_fixture_has_no_unbreakable_frame_obstructions(self):
+        # A live regression: BEDROCK placed inside frameBox gets queued as an
+        # unbreakable frame-break task, so host.hasWork() never becomes false
+        # and the Pump cannot borrow power. Seal lava with the frame itself.
+        from itertools import product
+        frame_min, frame_max = (2, 1, 2), (4, 2, 4)
+        lava = (3, 1, 3)
+        stone = (3, 0, 3)
+        def on_frame_edge(pos):
+            return sum(pos[i] in (frame_min[i], frame_max[i]) for i in range(3)) >= 2
+        ring = {(x, y, z) for x, y, z in product(range(2, 5), range(1, 3), range(2, 5))
+                if on_frame_edge((x, y, z))}
+        for side in ((3, 1, 2), (3, 1, 4), (2, 1, 3), (4, 1, 3)):
+            self.assertIn(side, ring)
+        self.assertNotIn(lava, ring)
+        self.assertEqual((lava[0], lava[1] - 1, lava[2]), stone)
+        for loader in ('forge', 'neoforge'):
+            rel = f'source-platforms/{loader}/src/gametest/java/buildcraft/gametest/SystemQuarryPumpGameTests.java'
+            with self.subTest(loader=loader):
+                src = (ROOT / rel).read_text(encoding='utf-8')
+                self.assertIn('new BlockPos(2, 1, 2)', src)
+                self.assertIn('new BlockPos(4, 2, 4)', src)
+                self.assertIn('mining.setMin(helper.absolutePos(STONE));', src)
+                self.assertIn('mining.setMax(helper.absolutePos(LAVA));', src)
+                self.assertIn('LAVA.north(), LAVA.south(), LAVA.east(), LAVA.west()', src)
+                self.assertNotIn('Blocks.BEDROCK.defaultBlockState()', src)
+                self.assertIn('quarry.frameBox.isOnEdge(helper.absolutePos(wall))', src)
+                self.assertIn('quarry.getBlockingFluid()', src)
+                self.assertIn('lavaGone && stoneMined && lavaCaptured', src)
+
+
 if __name__ == '__main__':
     unittest.main()

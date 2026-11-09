@@ -175,6 +175,24 @@ class WaterloggingParity(unittest.TestCase):
                     self.assertIn('waterlogged=' + wet, dynamo_json['variants'])
                 self.assertTrue(any('waterlogged=" + waterlogged' in line for line in lines), target)
 
+    def test_loader_gametests_use_supported_registry_and_pump_names(self):
+        # The first real 1.19.2 runGameTestServer compile must not be bypassed
+        # by the lightweight Java syntax checks used in the parity suite.
+        for target in TARGETS:
+            with self.subTest(target=target):
+                water = self.resolve(target, TEST)
+                quarry_pump = self.resolve(target,
+                    'src/gametest/java/buildcraft/gametest/SystemQuarryPumpGameTests.java')
+                self.assertIn('BCFactoryBlocks.PUMP_BLOCK.get()', quarry_pump)
+                self.assertNotIn('BCFactoryBlocks.PUMP.get()', quarry_pump)
+                if target.endswith('-forge'):
+                    # BuiltInRegistries was introduced after Minecraft 1.19.2;
+                    # ForgeRegistries.BLOCKS is stable on both legacy targets.
+                    self.assertIn('import net.minecraftforge.registries.ForgeRegistries;', water)
+                    self.assertIn('for (Block block : ForgeRegistries.BLOCKS)', water)
+                    self.assertIn('ForgeRegistries.BLOCKS.getKey(block)', water)
+                    self.assertNotIn('BuiltInRegistries', water)
+
     def test_loader_gametests_are_materializable(self):
         for target in TARGETS:
             with self.subTest(target=target):
