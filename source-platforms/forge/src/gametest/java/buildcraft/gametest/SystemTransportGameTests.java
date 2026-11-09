@@ -178,6 +178,15 @@ public final class SystemTransportGameTests {
     @GameTest(templateNamespace = BCLib.MODID, template = TEMPLATE, timeoutTicks = 465)
     public static void brokenPipeDoesNotDuplicateCargoAndCanBeRebuilt(GameTestHelper helper) {
         BlockPos origin = new BlockPos(2, 1, 3);
+        // The empty GameTest template has no guaranteed solid floor. Items
+        // released by breaking a pipe must remain inside the collection volume
+        // for the complete 375-tick regression, rather than falling into the
+        // void and being mistaken for lost cargo.
+        for (int x = 1; x <= 4; x++) {
+            for (int z = 2; z <= 4; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE.defaultBlockState());
+            }
+        }
         chest(helper, new BlockPos(1, 1, 3));
         TilePipeHolder first = PipeGameTestSupport.placePipe(helper, origin, BCTransportPipes.cobbleItem);
         PipeGameTestSupport.placePipe(helper, new BlockPos(3, 1, 3), BCTransportPipes.cobbleItem);

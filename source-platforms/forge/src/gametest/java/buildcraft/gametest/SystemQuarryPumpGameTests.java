@@ -118,17 +118,27 @@ public final class SystemQuarryPumpGameTests {
         }
         helper.runAfterDelay(2850, () -> {
             boolean lavaGone = !helper.getLevel().getFluidState(helper.absolutePos(LAVA)).is(Fluids.LAVA);
-            boolean stoneMined = helper.getLevel().getBlockState(helper.absolutePos(STONE)).isAir();
-            if (!stoneMined && helper.getLevel().getBlockState(helper.absolutePos(STONE))
-                .is(BCBuildersBlocks.QUARRY_DRILL_COLLISION.get())) {
+            net.minecraft.world.level.block.state.BlockState stoneState =
+                helper.getLevel().getBlockState(helper.absolutePos(STONE));
+            boolean stoneMined = stoneState.isAir();
+            if (!stoneMined && stoneState.is(BCBuildersBlocks.QUARRY_DRILL_COLLISION.get())) {
                 BlockEntity collision = GameTestCompat.getBlockEntity(helper, STONE);
                 stoneMined = collision instanceof TileQuarryDrillCollision drill
                     && quarry.getBlockPos().equals(drill.getOwner());
+            }
+            // As in SystemQuarryMiningGameTests, a mined cell can be refilled
+            // by flowing liquid before the final assertion. An intact stone
+            // cannot acquire a fluid state, so this does not accept an unmined
+            // block or a foreign drill placeholder.
+            if (!stoneMined && !stoneState.is(Blocks.STONE)
+                && !stoneState.getFluidState().isEmpty()) {
+                stoneMined = true;
             }
             boolean lavaCaptured = FluidUtilBC.areFluidsEqual(pump.getFluidInTank(), Fluids.LAVA);
             require(helper, lavaGone && stoneMined && lavaCaptured,
                 "Quarry/Pump failed to drain blocking lava and mine the newly accessible stone"
                     + "; lavaGone=" + lavaGone + ", stoneMined=" + stoneMined
+                    + ", stoneState=" + stoneState + ", stoneFluid=" + stoneState.getFluidState()
                     + ", lavaCaptured=" + lavaCaptured + ", blocking=" + quarry.getBlockingFluid()
                     + ", quarryMJ=" + quarryPower.getStored() + ", hasWork=" + quarry.hasWork()
                     + ", frameBreak=" + ((java.util.Set<?>) field(quarry, "frameBreakBlockPoses")).size()

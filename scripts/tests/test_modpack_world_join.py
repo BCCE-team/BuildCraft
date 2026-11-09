@@ -87,7 +87,9 @@ class ModpackWorldJoinTest(unittest.TestCase):
         with mock.patch.object(probe, "rcon_command", side_effect=fake_command):
             origin = probe.verify_actual_modded_world(25589, "secret", "Dev_Test", origin=None)
             self.assertEqual(origin, (-13, 64, 8))
-            self.assertEqual(sum(x.startswith("setblock ") for x in executed), 4)
+            self.assertEqual(sum(x.startswith("setblock ") for x in executed), 8)
+            self.assertEqual(sum("minecraft:stone" in x for x in executed), 4)
+            self.assertIn("setblock -11 63 10 minecraft:stone", executed)
             self.assertIn("setblock -11 64 10 buildcraftfactory:tank", executed)
             self.assertIn("setblock -9 64 10 ae2:controller", executed)
             self.assertIn("setblock -7 64 10 create:shaft", executed)
@@ -266,6 +268,73 @@ class ModpackWorldJoinTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "lost"):
                 probe.verify_persisted_charged_cargo(25589, "secret", "1.20.1-forge",
                                                     (0, 64, 0), expected="saved")
+
+
+class HeadlessWorldJoinDiagnosticsTest(unittest.TestCase):
+    def test_real_clients_use_bounded_software_rendering_settings(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(probe, "ROOT", Path(tmp)):
+            base, server, client = probe.create_run_directories(
+                "1.21.X", "1.21.11-neoforge", {}, 25588, True,
+                second_client=True)
+            self.assertFalse((server / "options.txt").exists())
+            for path in (client / "options.txt", base / "client-2/options.txt"):
+                options = path.read_text(encoding="utf-8")
+                self.assertIn("renderDistance:2", options)
+                self.assertIn("maxFps:10", options)
+                self.assertIn("mipmapLevels:0", options)
+                self.assertIn("narrator:0", options)
+                self.assertTrue((path.parent / "mods").is_dir())
+
+    def test_failed_block_identity_probe_reports_live_world_state(self):
+        commands=[]
+        def fake_rcon(_port, _password, command):
+            commands.append(command)
+            if command == "list":
+                return "There are 1 of a max of 2 players online: Dev_Test"
+            if command.startswith("setblock "):
+                return "Changed the block"
+            if command.startswith("execute if block "):
+                return ""
+            if command.startswith("data get block "):
+                return "Target block is not a block entity"
+            raise AssertionError(command)
+        with mock.patch.object(probe, "rcon_command", side_effect=fake_rcon):
+            with self.assertRaisesRegex(RuntimeError, "diagnostics=.*block_entity"):
+                probe.verify_actual_modded_world(25589, "secret", "Dev_Test",
+                                                 origin=(0,64,0), include_ae2=False,
+                                                 include_create=True)
+        self.assertTrue(any("minecraft:water" in cmd for cmd in commands))
+        self.assertTrue(any("data get block" in cmd for cmd in commands))
+
+    def test_timeout_thread_dump_skips_windows_and_absent_launcher(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / "diagnostics.log"
+            probe.dump_client_threads(None, destination)
+            self.assertFalse(destination.exists())
+
+    def test_thread_dump_only_attaches_to_client_process_descendants(self):
+        class ClientLauncher:
+            pid = 102
+        commands = []
+        def run(args, **kwargs):
+            commands.append(args)
+            if args[0] == "ps":
+                return probe.subprocess.CompletedProcess(args, 0, stdout=(
+                    "102 1 /usr/bin/env bash gradlew\n"
+                    "104 102 java org.gradle.wrapper.GradleWrapperMain\n"
+                    "105 104 java net.neoforged.devlaunch.Main\n"
+                    "999 1 java net.neoforged.devlaunch.Main SERVER\n"))
+            if args[0] == "jcmd":
+                return probe.subprocess.CompletedProcess(args, 0, stdout="Threads: Render thread WAITING")
+            raise AssertionError(args)
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / "client-thread-dump.log"
+            with mock.patch.object(probe.shutil, "which", return_value="/usr/bin/jcmd"), \
+                    mock.patch.object(probe.subprocess, "run", side_effect=run):
+                probe.dump_client_threads(ClientLauncher(), destination)
+            self.assertIn("Render thread WAITING", destination.read_text())
+            self.assertTrue(any(cmd[:2] == ["jcmd", "105"] for cmd in commands))
+            self.assertFalse(any(cmd[:2] == ["jcmd", "999"] for cmd in commands))
 
 
 class ModpackCoverageContractTest(unittest.TestCase):

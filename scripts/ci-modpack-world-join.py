@@ -335,11 +335,14 @@ def verify_actual_modded_world(port: int, password: str, player: str, *,
     for block_id, px in blocks:
         position = f"{px} {y} {z + 2}"
         if first_join:
-            if block_id in ("forestry:apiary", "ic2:generator"):
-                # Give industrial machines a stable support block across updates.
-                support = rcon_command(port, password, f"setblock {px} {y - 1} {z + 2} minecraft:stone")
-                if "changed the block" not in support.lower():
-                    raise RuntimeError(f"Failed to prepare support for {block_id}: {support!r}")
+            # A random world spawn is not necessarily flat: all BCCE/compat
+            # probe machines need a stable platform for the entire live tick
+            # interval. A pre-existing stone support is also acceptable.
+            support = rcon_command(port, password,
+                                   f"setblock {px} {y - 1} {z + 2} minecraft:stone")
+            if ("changed the block" not in support.lower()
+                and "could not set the block" not in support.lower()):
+                raise RuntimeError(f"Failed to prepare support for {block_id}: {support!r}")
             placed = rcon_command(port, password, f"setblock {position} {block_id}")
             if "changed the block" not in placed.lower():
                 raise RuntimeError(f"Modded block {block_id} could not be placed: {placed!r}")
@@ -349,7 +352,21 @@ def verify_actual_modded_world(port: int, password: str, player: str, *,
         checked = rcon_command(port, password,
             f"execute if block {position} {block_id} run say {token}")
         if token not in checked:
-            raise RuntimeError(f"Block registry/world check failed for {block_id}: {checked!r}")
+            evidence = {}
+            for label, command in (
+                ("block_entity", f"data get block {position}"),
+                ("air", f"execute if block {position} minecraft:air run say IT16_AIR"),
+                ("water", f"execute if block {position} minecraft:water run say IT16_WATER"),
+                ("lava", f"execute if block {position} minecraft:lava run say IT16_LAVA"),
+            ):
+                try:
+                    evidence[label] = rcon_command(port, password, command)
+                except (ConnectionError, OSError, RuntimeError) as diagnostic_error:
+                    evidence[label] = f"{type(diagnostic_error).__name__}: {diagnostic_error}"
+            raise RuntimeError(
+                f"Block registry/world check failed for {block_id} at {position}: "
+                f"execute_reply={checked!r}, diagnostics={evidence!r}"
+            )
     if not include_create:
         # Negative, runtime-visible compatibility probe: the server command
         # parser MUST reject a Create-only block ID. Merely omitting a JAR from
@@ -826,6 +843,48 @@ def wait_until(label: str, predicate, processes: list[subprocess.Popen], timeout
     raise TimeoutError(f"{label}: timed out after {timeout:g}s")
 
 
+def dump_client_threads(launcher: subprocess.Popen | None, destination: Path) -> None:
+    """Preserve a Java thread dump if modded client resource reload stalls on CI.
+
+    The forked Gradle/launcher JVM may be several descendants below the shell
+    command, so inspect the Linux process tree. Never claim this is a pass and
+    never attach to unrelated Java processes (including the dedicated server).
+    """
+    if os.name == "nt" or launcher is None or shutil.which("jcmd") is None:
+        return
+    try:
+        result = subprocess.run(["ps", "-eo", "pid=,ppid=,args="],
+                                capture_output=True, text=True, timeout=10, check=True)
+        processes = {}
+        for line in result.stdout.splitlines():
+            parts = line.strip().split(None, 2)
+            if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
+                processes[int(parts[0])] = (int(parts[1]), parts[2])
+        descendants = {launcher.pid}
+        while True:
+            newer = {pid for pid, (ppid, _) in processes.items() if ppid in descendants}
+            if newer.issubset(descendants):
+                break
+            descendants.update(newer)
+        candidates = sorted((pid for pid in descendants if pid in processes
+                             and "java" in processes[pid][1].lower()), reverse=True)
+        # A log with the process tree is useful even if an attach is blocked.
+        report = [f"IT16 client launcher PID={launcher.pid}",
+                  "Descendant Java processes:"]
+        report.extend(f"{pid}: {processes[pid][1][:1800]}" for pid in candidates)
+        for pid in candidates[:3]:
+            try:
+                dump = subprocess.run(["jcmd", str(pid), "Thread.print", "-l"],
+                                      capture_output=True, text=True, timeout=22, check=False)
+                report.append(f"\n=== jcmd Thread.print -l, pid={pid}, rc={dump.returncode} ===\n"
+                              + (dump.stdout or "") + (dump.stderr or ""))
+            except (OSError, subprocess.TimeoutExpired) as error:
+                report.append(f"jcmd failed for pid={pid}: {error}")
+        destination.write_text("\n".join(report) + "\n", encoding="utf-8")
+    except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+        destination.write_text(f"Could not capture client threads: {error}\n", encoding="utf-8")
+
+
 def start_process(cmd: list[str], log: Path, cwd: Path, env: dict[str, str]) -> subprocess.Popen:
     log.parent.mkdir(parents=True, exist_ok=True)
     stream = log.open("wb")
@@ -1006,6 +1065,20 @@ def create_run_directories(generation: str, target: str, mods: dict[str, str], p
     run_directories = (server, client, base / "client-2") if second_client else (server, client)
     for directory in run_directories:
         (directory / "mods").mkdir(parents=True, exist_ok=True)
+        if directory != server:
+            # The real client still renders, joins a world and loads JEI/Jade;
+            # these settings only bound CPU-side software rendering in Xvfb.
+            (directory / "options.txt").write_text(
+                "renderDistance:2\n"
+                "simulationDistance:2\n"
+                "maxFps:10\n"
+                "enableVsync:false\n"
+                "mipmapLevels:0\n"
+                "graphicsMode:0\n"
+                "narrator:0\n"
+                "pauseOnLostFocus:false\n",
+                encoding="utf-8",
+            )
     (server / "eula.txt").write_text("eula=true\n", encoding="utf-8")
     (server / "server.properties").write_text(
         "\n".join([
@@ -1367,6 +1440,8 @@ def main() -> int:
         return 0
     except Exception as error:
         results["error"] = str(error)
+        if isinstance(error, TimeoutError) and client is not None:
+            dump_client_threads(client, base / "client-thread-dump.log")
         print("FAIL IT16:", error, file=sys.stderr)
         tail_logs(server_log, world_log, client_gradle_log, client_log)
         if args.two_players:
