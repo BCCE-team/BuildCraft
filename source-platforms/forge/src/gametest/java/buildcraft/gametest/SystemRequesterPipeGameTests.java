@@ -191,9 +191,14 @@ public final class SystemRequesterPipeGameTests {
                 "requester accepted an obsolete item after a live order change");
             require(helper, rig.requester.requests().size() == 1,
                 "requester erased the new replacement order");
-            int accounted = count(rig.source, old) + count(robot, old) + countDrops(helper, old);
+            int inSource = count(rig.source, old);
+            int inRobot = count(robot, old);
+            int dropped = countDrops(helper, old);
+            int accounted = inSource + inRobot + dropped;
             require(helper, accounted == 8 && !rig.inFlight(),
-                "stale in-flight shipment was lost or duplicated while rejected: " + accounted);
+                "stale in-flight shipment was lost or duplicated while rejected: " + accounted
+                    + "; source=" + inSource + ", robot=" + inRobot + ", dropped=" + dropped
+                    + ", inFlight=" + rig.inFlight());
             rig.source.setItem(1, replacement.copy());
             rig.source.setChanged();
             require(helper, AIRobotLoad.load(robot, pickup, stack -> same(stack, replacement), 8, true),
@@ -273,6 +278,20 @@ public final class SystemRequesterPipeGameTests {
         final TileRequester requester;
 
         Rig(GameTestHelper helper) {
+            // empty7x3x7 contains only air. Rejected cargo is a real ItemEntity;
+            // without a floor it falls out of countDrops()'s 0..2 height range
+            // before the delayed conservation assertion, making the GameTest
+            // depend on routing/tick timing rather than actual item survival.
+            // Confine ONLY the fixture; neither pipe logic nor item counts change.
+            for (int x = 0; x <= 6; x++) {
+                for (int z = 0; z <= 6; z++) {
+                    helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE.defaultBlockState());
+                    if (x == 0 || x == 6 || z == 0 || z == 6) {
+                        helper.setBlock(new BlockPos(x, 1, z), Blocks.GLASS.defaultBlockState());
+                        helper.setBlock(new BlockPos(x, 2, z), Blocks.GLASS.defaultBlockState());
+                    }
+                }
+            }
             helper.setBlock(SOURCE, Blocks.CHEST.defaultBlockState());
             BlockEntity src = GameTestCompat.getBlockEntity(helper, SOURCE);
             if (!(src instanceof ChestBlockEntity chest)) throw new IllegalStateException("missing source chest");

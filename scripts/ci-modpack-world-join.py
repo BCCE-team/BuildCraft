@@ -10,6 +10,7 @@ server+client join/rejoin smoke until equivalent NBT fixtures are available.
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import json
 import math
@@ -689,7 +690,7 @@ def recipe_reply_state(reply: str) -> str:
     # The RCON response may reflect a previously granted/unlocked recipe. Both
     # positive outcomes prove the recipe ID was recognized by the server parser.
     lower = reply.lower()
-    if re.search(r"\bgave\b.+\brecipe|\bno new recipes\b", lower):
+    if re.search(r"\bgave\b.+\brecipe|\bno new recipes\b|\bunlocked\s+[1-9]\d*\s+recipes?\s+for\b", lower):
         return "present"
     if re.search(r"unknown recipe|invalid recipe|incorrect argument|expected recipe", lower):
         return "absent"
@@ -821,6 +822,49 @@ def find_minecraft_window(env: dict[str, str]) -> str | None:
     if len(ids) != 1:
         raise RuntimeError(f"Expected one visible Minecraft window, found {ids}")
     return ids[0]
+
+
+def open_26_2_saved_server_via_ui(env: dict[str, str]) -> None:
+    """Fallback when 26.2 Quick Play stalls at its already-rendering title screen.
+
+    The 26.2 client has completed mod/resource loading but its Quick Play path
+    never sends a login packet on the observed CI runner. Use real X11 input to
+    select the preconfigured localhost server. Never synthesize a join marker.
+    """
+    window = find_minecraft_window(env)
+    if window is None:
+        raise RuntimeError("26.2 UI fallback cannot locate the live Minecraft client window")
+    geometry = subprocess.run(["xdotool", "getwindowgeometry", "--shell", window],
+                              env=env, text=True, capture_output=True, timeout=15, check=True)
+    values = dict(re.findall(r"^(WIDTH|HEIGHT)=(\d+)$", geometry.stdout, flags=re.MULTILINE))
+    if not {"WIDTH", "HEIGHT"}.issubset(values):
+        raise RuntimeError(f"26.2 UI fallback cannot read Minecraft window size: {geometry.stdout!r}")
+    width, height = int(values["WIDTH"]), int(values["HEIGHT"])
+    if width < 320 or height < 240:
+        raise RuntimeError(f"26.2 UI fallback found an invalid client window: {width}x{height}")
+    subprocess.run(["xdotool", "windowfocus", "--sync", window],
+                   env=env, check=True, text=True, capture_output=True, timeout=20)
+    def click(x: int, y: int, *, twice: bool = False) -> None:
+        subprocess.run(["xdotool", "mousemove", "--window", window, str(x), str(y)],
+                       env=env, check=True, text=True, capture_output=True, timeout=15)
+        command = ["xdotool", "click"]
+        if twice:
+            command.extend(["--repeat", "2", "--delay", "150"])
+        command.append("1")
+        subprocess.run(command, env=env, check=True, text=True,
+                       capture_output=True, timeout=15)
+
+    # TitleScreen's Multiplayer button is centered at 55% of the client area
+    # across vanilla's GUI-scale variants. The first saved server is the first
+    # row of the multiplayer screen. A first-launch legal warning is explicitly
+    # suppressed in this isolated test client's options.txt.
+    print(f"IT16 26.2: driving actual client UI {width}x{height} to join saved localhost server", flush=True)
+    click(width // 2, round(height * 0.55))
+    time.sleep(2)
+    click(width // 2, round(height * 0.22), twice=True)
+    # Press Enter as an alternative to double-clicking the selected list row.
+    subprocess.run(["xdotool", "key", "--clearmodifiers", "Return"],
+                   env=env, check=True, text=True, capture_output=True, timeout=15)
 
 
 def verify_client_resource_reload(client_log: Path, port: int, password: str, player: str,
@@ -1073,6 +1117,29 @@ def download_locked_mod(version_id: str, target: str, destination: Path,
     return path
 
 
+def write_26_2_saved_server_list(directory: Path, address: str) -> None:
+    """Write one vanilla compressed-NBT multiplayer shortcut for the 26.2 UI fallback.
+
+    This is a *real client* server-list entry, not a synthetic join result. IT16
+    still requires the server's own player login event to consider joining done.
+    """
+    def string(text: str) -> bytes:
+        raw = text.encode("utf-8")
+        if len(raw) > 65535:
+            raise ValueError("NBT string is too long")
+        return struct.pack(">H", len(raw)) + raw
+
+    def named_string(name: str, value: str) -> bytes:
+        return b"\x08" + string(name) + string(value)
+
+    item = (named_string("name", "BCCE IT16 localhost")
+            + named_string("ip", address)
+            + b"\x01" + string("hidden") + b"\x00" + b"\x00")
+    data = (b"\x0a\x00\x00" + b"\x09" + string("servers")
+            + b"\x0a" + struct.pack(">i", 1) + item + b"\x00")
+    (directory / "servers.dat").write_bytes(gzip.compress(data, mtime=0))
+
+
 def create_run_directories(generation: str, target: str, mods: dict[str, str], port: int, offline: bool,
                            rcon_port: int = 25589, rcon_password: str = "",
                            second_client: bool = False) -> tuple[Path, Path, Path]:
@@ -1089,7 +1156,10 @@ def create_run_directories(generation: str, target: str, mods: dict[str, str], p
             # these settings only bound CPU-side software rendering in Xvfb.
             (directory / "options.txt").write_text(
                 "renderDistance:2\n"
-                "simulationDistance:2\n"
+                # Modern 26.2+ clients reject simulationDistance=2 (minimum is 5).
+                f"simulationDistance:{5 if target in ('26.2-neoforge', '26.3-neoforge') else 2}\n"
+                "skipMultiplayerWarning:true\n"
+                "joinedFirstServer:true\n"
                 "maxFps:10\n"
                 "enableVsync:false\n"
                 "mipmapLevels:0\n"
@@ -1098,10 +1168,17 @@ def create_run_directories(generation: str, target: str, mods: dict[str, str], p
                 "pauseOnLostFocus:false\n",
                 encoding="utf-8",
             )
+            if target == "26.2-neoforge":
+                write_26_2_saved_server_list(directory, f"127.0.0.1:{port}")
     (server / "eula.txt").write_text("eula=true\n", encoding="utf-8")
     (server / "server.properties").write_text(
         "\n".join([
             "online-mode=false", "enforce-secure-profile=false", "server-ip=127.0.0.1",
+            # 26.3 defaults its whitelist ON, so a fresh IT16 server would reject
+            # its own temporary offline Dev player before any world checks run.
+            "white-list=false", "enforce-whitelist=false",
+            # Keep the dedicated server ticking while the software-rendered client starts.
+            "pause-when-empty-seconds=-1",
             f"server-port={port}", "max-players=2", "spawn-protection=0", "allow-flight=true",
             "view-distance=4", "simulation-distance=4", "level-name=bcce-it16-world",
             "enable-rcon=true", f"rcon.port={rcon_port}", f"rcon.password={rcon_password}",
@@ -1272,7 +1349,8 @@ def main() -> int:
     try:
         env = os.environ.copy()
         prepare_headless_client_environment(args.target, env)
-        if args.client_resource_reload:
+        if args.client_resource_reload or (args.target == "26.2-neoforge" and os.name != "nt"):
+            # 26.2 needs an X11 UI fallback if Quick Play never initiates a login.
             private_display, display = start_private_display(base / "xvfb-display.log", launch_dir, env)
             env["DISPLAY"] = display
         server = start_process([str(gradlew), *flags, f":{args.target}:runServer"], server_log, launch_dir, env)
@@ -1286,14 +1364,30 @@ def main() -> int:
         for attempt in range(1, 3):
             existing = len(JOIN_RE.findall(read_text(world_log)))
             # Forge/NeoForge runs need an actual graphical display, not the server-side atlas smoke probe.
-            graphical_prefix = [] if args.client_resource_reload or os.name == "nt" else [
+            graphical_prefix = [] if private_display is not None or os.name == "nt" else [
                 "xvfb-run", "-a", "-s", "-screen 0 1280x720x24"]
             client_cmd = [*graphical_prefix, str(gradlew), *flags, f":{args.target}:runClient"]
             client = start_process(client_cmd, client_gradle_log, launch_dir, env)
             def has_joined_world() -> bool:
                 fail_fast_on_client_runtime_errors(client_log)
                 return len(JOIN_RE.findall(read_text(world_log))) > existing
-            wait_until(f"client {attempt} joined world", has_joined_world,
+            # 26.2 can reach a fully-rendering title screen without executing
+            # --quickPlayMultiplayer. Recover with a real UI join, but require
+            # the *server's* joined-the-game log as the sole success criterion.
+            started_waiting = time.monotonic()
+            ui_join_attempted = False
+            def joined_or_trigger_ui() -> bool:
+                nonlocal ui_join_attempted
+                if has_joined_world():
+                    return True
+                if (args.target == "26.2-neoforge" and os.name != "nt"
+                    and not ui_join_attempted and time.monotonic() - started_waiting >= 55
+                    and "Mods loaded with" in read_text(client_log)
+                    and find_minecraft_window(env) is not None):
+                    ui_join_attempted = True
+                    open_26_2_saved_server_via_ui(env)
+                return has_joined_world()
+            wait_until(f"client {attempt} joined world", joined_or_trigger_ui,
                        [server, client], args.join_timeout)
             player = player_name_from_join_log(read_text(world_log))
             verify_mandatory_client_mods(client_log, client_gradle_log)

@@ -32,6 +32,27 @@ class RequesterComponentMatchingTests(unittest.TestCase):
                 self.assertEqual(text.count("matchesRequestedStack("), 9)
                 self.assertNotIn("StackUtil.isMatchingItemOrList(template, offered)", text)
 
+    def test_requester_rejected_cargo_fixture_cannot_fall_out_of_drop_counter(self):
+        # The shared empty7x3x7 NBT structure contains no blocks, including a
+        # floor. Both loader GameTests must keep ejected cargo inside the
+        # accounting AABB until the 300/685-tick assertions.
+        for loader in ("forge", "neoforge"):
+            path = (ROOT / "source-platforms" / loader / "src/gametest/java/buildcraft/gametest"
+                    / "SystemRequesterPipeGameTests.java")
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(loader=loader):
+                self.assertIn("for (int x = 0; x <= 6; x++)", source)
+                self.assertIn("for (int z = 0; z <= 6; z++)", source)
+                self.assertIn("helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE.defaultBlockState());", source)
+                self.assertIn("helper.setBlock(new BlockPos(x, 1, z), Blocks.GLASS.defaultBlockState());", source)
+                self.assertIn("helper.setBlock(new BlockPos(x, 2, z), Blocks.GLASS.defaultBlockState());", source)
+                self.assertLess(source.index("for (int x = 0; x <= 6; x++)"),
+                                source.index("helper.setBlock(SOURCE, Blocks.CHEST.defaultBlockState());"))
+                # Conservation and exact-stack matching remain mandatory.
+                self.assertIn("accounted == 8 && !rig.inFlight()", source)
+                self.assertIn("count(rig.source, old) + count(robot, old) + countDrops(helper, old) == 8", source)
+                self.assertIn("ItemStack.isSameItemSameTags(a, b)", source) if loader == "forge" else self.assertIn("same(ItemStack a, ItemStack b)", source)
+
     def test_request_support_does_not_discard_item_components(self):
         source = ROOT / "source-shared/src/main/java/buildcraft/robotics/internal/api2/RequestSupport.java"
         text = source.read_text(encoding="utf-8")

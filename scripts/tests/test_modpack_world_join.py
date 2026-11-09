@@ -168,10 +168,14 @@ class ModpackWorldJoinTest(unittest.TestCase):
 
     def test_recipe_rcon_reply_must_be_recognized_not_assumed(self):
         self.assertEqual(probe.recipe_reply_state("Gave 1 recipe to Dev_Test"), "present")
+        self.assertEqual(probe.recipe_reply_state("Unlocked 1 recipes for Dev"), "present")
+        self.assertEqual(probe.recipe_reply_state("Unlocked 1 recipe for Dev"), "present")
         self.assertEqual(probe.recipe_reply_state("No new recipes were given to Dev_Test"), "present")
         self.assertEqual(probe.recipe_reply_state("Unknown recipe 'bcce_ci:reload_probe'"), "absent")
         with self.assertRaises(RuntimeError):
             probe.recipe_reply_state("Reloading ResourceManager")
+        with self.assertRaises(RuntimeError):
+            probe.recipe_reply_state("Unlocked 0 recipes for Dev")
 
     def test_live_recipe_reload_is_real_state_cycle_and_client_stays_online(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -300,10 +304,53 @@ class HeadlessWorldJoinDiagnosticsTest(unittest.TestCase):
             for path in (client / "options.txt", base / "client-2/options.txt"):
                 options = path.read_text(encoding="utf-8")
                 self.assertIn("renderDistance:2", options)
+                self.assertIn("skipMultiplayerWarning:true", options)
+                self.assertIn("joinedFirstServer:true", options)
                 self.assertIn("maxFps:10", options)
                 self.assertIn("mipmapLevels:0", options)
                 self.assertIn("narrator:0", options)
                 self.assertTrue((path.parent / "mods").is_dir())
+
+    def test_it16_26_3_has_explicit_safe_localhost_whitelist_policy(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(probe, "ROOT", Path(tmp)):
+            _base, server, client = probe.create_run_directories(
+                "26.X", "26.3-neoforge", {}, 25588, True)
+            properties = (server / "server.properties").read_text()
+            self.assertIn("server-ip=127.0.0.1", properties)
+            self.assertIn("white-list=false", properties)
+            self.assertIn("pause-when-empty-seconds=-1", properties)
+            self.assertIn("simulationDistance:5", (client / "options.txt").read_text())
+
+    def test_26_2_client_gets_real_compressed_nbt_saved_server(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(probe, "ROOT", Path(tmp)):
+            _base, _server, client = probe.create_run_directories(
+                "26.X", "26.2-neoforge", {}, 25588, True, second_client=True)
+            for directory in (client, client.parent / "client-2"):
+                payload = probe.gzip.decompress((directory / "servers.dat").read_bytes())
+                self.assertTrue(payload.startswith(b"\x0a\x00\x00\x09\x00\x07servers\x0a\x00\x00\x00\x01"))
+                self.assertIn(b"127.0.0.1:25588", payload)
+                self.assertIn(b"BCCE IT16 localhost", payload)
+                self.assertIn("simulationDistance:5", (directory / "options.txt").read_text())
+
+    def test_26_2_live_ui_fallback_clicks_multiplayer_and_saved_server(self):
+        commands = []
+        def run(command, **_kwargs):
+            commands.append(command)
+            output = "WIDTH=854\nHEIGHT=480\n" if "getwindowgeometry" in command else ""
+            return probe.subprocess.CompletedProcess(args=command, returncode=0, stdout=output, stderr="")
+        with mock.patch.object(probe, "find_minecraft_window", return_value="2026"), \
+             mock.patch.object(probe.subprocess, "run", side_effect=run), \
+             mock.patch.object(probe.time, "sleep"):
+            probe.open_26_2_saved_server_via_ui({"DISPLAY": ":402"})
+        self.assertIn(["xdotool", "mousemove", "--window", "2026", "427", "264"], commands)
+        self.assertIn(["xdotool", "mousemove", "--window", "2026", "427", "106"], commands)
+        self.assertIn(["xdotool", "click", "--repeat", "2", "--delay", "150", "1"], commands)
+        self.assertIn(["xdotool", "key", "--clearmodifiers", "Return"], commands)
+
+    def test_26_2_no_window_is_not_a_fake_world_join(self):
+        with mock.patch.object(probe, "find_minecraft_window", return_value=None):
+            with self.assertRaisesRegex(RuntimeError, "cannot locate"):
+                probe.open_26_2_saved_server_via_ui({"DISPLAY": ":402"})
 
     def test_failed_block_identity_probe_reports_live_world_state(self):
         commands=[]
