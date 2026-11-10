@@ -212,6 +212,23 @@ if (ciWorldJoin && ciWorldJoinUsername && !(ciWorldJoinUsername ==~ /[A-Za-z0-9_
     throw new GradleException('Invalid CI Minecraft username')
 }
 def ciWorldJoinRoot = new File(repositoryRoot, "run-modpack-join/${buildGeneration}/${targetName}")
+
+// 26.2 NeoForge presents non-fatal mod-loading warnings as a blocking screen.
+// IT16 starts a headless client with no user to press Continue. The warning
+// details remain in the log; only the modal is disabled for this disposable
+// client, never for ordinary developer runs or packaged releases.
+// Do this immediately before runClient: the Python IT16 harness recreates its
+// run-modpack-join directory at the start of each invocation.
+if (ciWorldJoin && targetName == '26.2-neoforge') {
+    tasks.matching { it.name == 'runClient' }.configureEach {
+        doFirst {
+            def slot = ciWorldJoinClientSlot == '2' ? 'client-2' : 'client'
+            def neoforgeClientConfig = new File(ciWorldJoinRoot, "${slot}/config/neoforge-client.toml")
+            neoforgeClientConfig.parentFile.mkdirs()
+            neoforgeClientConfig.setText('showLoadWarnings = false\n', 'UTF-8')
+        }
+    }
+}
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
         .map { it.trim().toLowerCase() }
         .getOrElse('default')

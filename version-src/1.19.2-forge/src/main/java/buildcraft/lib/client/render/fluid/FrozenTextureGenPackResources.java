@@ -95,24 +95,39 @@ public class FrozenTextureGenPackResources implements PackResources{
 	}
 
 	@Override
-	public InputStream getResource(PackType p_10289_, ResourceLocation location) throws IOException {
-		return load(transLocations.get(location));
+	public InputStream getResource(PackType type, ResourceLocation location) throws IOException {
+		// Generated PNGs exist only in the client asset pack. Never offer their
+		// binary contents to a data/recipe/guide loader looking for another file.
+		if (type != PackType.CLIENT_RESOURCES) {
+			return null;
+		}
+		ResourceLocation source = transLocations.get(location);
+		return source == null ? null : load(source);
 	}
 
 	@Override
-	public Collection<ResourceLocation> getResources(PackType p_215339_, String p_215340_, String p_215341_,
-			Predicate<ResourceLocation> p_215342_) {
-		return transLocations.keySet();
+	public Collection<ResourceLocation> getResources(PackType type, String namespace, String pathPrefix,
+			Predicate<ResourceLocation> filter) {
+		// ResourceManager.listResources() relies on all four arguments. Returning
+		// every frozen texture here made JSON listeners and AE2's guide loader
+		// interpret PNG bytes as JSON/Markdown (1.19.2 IT16 crash).
+		if (type != PackType.CLIENT_RESOURCES || !BCLib.MODID.equals(namespace)) {
+			return Set.of();
+		}
+		return transLocations.keySet().stream()
+			.filter(location -> location.getPath().startsWith(pathPrefix))
+			.filter(filter)
+			.toList();
 	}
 
 	@Override
-	public boolean hasResource(PackType p_10292_, ResourceLocation location) {
-		return transLocations.containsKey(location);
+	public boolean hasResource(PackType type, ResourceLocation location) {
+		return type == PackType.CLIENT_RESOURCES && transLocations.containsKey(location);
 	}
 
 	@Override
-	public Set<String> getNamespaces(PackType p_10283_) {
-		return Set.of(BCLib.MODID);
+	public Set<String> getNamespaces(PackType type) {
+		return type == PackType.CLIENT_RESOURCES ? Set.of(BCLib.MODID) : Set.of();
 	}
 
 	@Override
