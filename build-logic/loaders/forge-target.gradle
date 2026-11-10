@@ -270,7 +270,21 @@ minecraft {
             jvmArg '-Xmx4G'
             if (ciWorldJoin) {
                 workingDirectory new File(ciWorldJoinRoot, ciWorldJoinClientSlot == '2' ? 'client-2' : 'client')
-                args '--quickPlayMultiplayer', ciWorldJoinAddress
+                // Minecraft 1.19.2 predates Quick Play; use the legacy direct-join CLI.
+                if (minecraftVersion == '1.19.2') {
+                    def separator = ciWorldJoinAddress.lastIndexOf(':')
+                    if (separator <= 0 || separator == ciWorldJoinAddress.length() - 1) {
+                        throw new GradleException("Invalid IT16 server address: ${ciWorldJoinAddress}")
+                    }
+                    def host = ciWorldJoinAddress.substring(0, separator)
+                    def port = ciWorldJoinAddress.substring(separator + 1)
+                    if (!(port ==~ /[0-9]{1,5}/) || port.toInteger() < 1 || port.toInteger() > 65535) {
+                        throw new GradleException("Invalid IT16 server port: ${port}")
+                    }
+                    args '--server', host, '--port', port
+                } else {
+                    args '--quickPlayMultiplayer', ciWorldJoinAddress
+                }
                 if (ciWorldJoinUsername) args '--username', ciWorldJoinUsername
             }
         }
