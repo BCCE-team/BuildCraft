@@ -78,19 +78,21 @@ public enum PipeFlowRendererItems implements IPipeFlowRenderer<PipeFlowItems> {
 			int lightc, int combinedOverlay) {
     	if(itemRender == null) itemRender = Minecraft.getInstance().getItemRenderer();
         Level world = flow.pipe.getHolder().getPipeWorld();
-        long now = world.getGameTime();
+        // Use the same monotonic client tick as the transport timing wheel.
+        // ClientLevel#getGameTime is reset by vanilla's periodic time packets;
+        // using it for rendering would make all fast items blink together.
+        long now = flow.getVisualTick();
         List<TravellingItem> toRender = flow.getAllItemsForRender();
         
         matrix.translate(0.5f, 0.5f, 0.5f);
         for (TravellingItem item : toRender) {
-            if (!item.shouldRender(now, partialTicks)) {
-                continue;
-            }
+            if (!flow.shouldRenderClientItem(item, partialTicks)) continue;
             Vec3 pos = item.getRenderPosition(BlockPos.ZERO, now, partialTicks, flow);
             
             ItemStack stack = item.clientItemLink.get();
-            
-            if (!stack.isEmpty()) {
+            if (stack == null || stack.isEmpty()) stack = item.getStack();
+
+            if (stack != null && !stack.isEmpty()) {
             	matrix.translate(pos.x, -0.2f+pos.y, pos.z);
             	//? if <1.20 {
             	itemRender.renderStatic(stack, TransformType.GROUND, lightc, combinedOverlay, matrix, buffer, 0);

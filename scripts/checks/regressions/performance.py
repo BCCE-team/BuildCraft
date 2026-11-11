@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -87,6 +88,22 @@ forbid(
     "new FluidStack(sourceFluid, accepted)",
 )
 
+# Forge old: queue individual cargo events in causal order across chunk borders.
+# Re-grouping announcements by chunk via WeakHashMap can reverse two successive
+# movements of a fast item and cause mid-line gold-pipe jitter.
+require(
+    'source-platforms/forge/src/main/java/buildcraft/transport/net/OrderedForgeItemPacketQueue.java',
+    'last.chunk != chunk',
+    'message.items.containsKey(pos)',
+    'MessageManager.sendToAllWatching(batch.message, batch.chunk);',
+    'event.phase == TickEvent.Phase.END',
+)
+require(
+    'source-platforms/forge/src/main/java/buildcraft/transport/net/MessageMultiPipeItem.java',
+    'OrderedForgeItemPacketQueue.append(world, pos, -1, stackCount,',
+    'OrderedForgeItemPacketQueue.append(world, pos, stackId, stackCount,',
+)
+
 # Fluid-pipe throughput, round-robin and rendering contracts.
 for platform in ("forge", "neoforge"):
     require(
@@ -152,35 +169,101 @@ for platform in ("forge", "neoforge"):
         f"source-platforms/{platform}/src/main/java/buildcraft/lib/misc/StackUtil.java",
         'remove("display")',
     )
-    require(
-        f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
-        "getConnectedDist(side)",
-        "clientBoundaryPrediction",
-        "clientCenterPrediction",
-        "CLIENT_INTERPOLATION_DELAY_TICKS = 1",
-        "CLIENT_PREDICTION_TICKS = 4",
-        "clientSuccessorLinked",
-        "predecessor == null ? now + CLIENT_INTERPOLATION_DELAY_TICKS : predecessor.tickFinished",
-        "scheduleClientItem(item, stackId)",
-        "claimClientPredecessor(item)",
-        "previousFlow.claimClientPredecessorInThisFlow",
-        "TravellingItem localBounce = claimClientPredecessorInThisFlow",
-        "items.add(CLIENT_PREDICTION_TICKS - 1, item)",
-        "inherits its finish tick",
-        "lastItemsAdvanceTick",
-        "scheduleTravellingItem(item)",
-        "getQueueDelay(item.tickFinished, now)",
-        "if (lastItemsAdvanceTick == now && remaining > 0L)",
-        "remaining--",
-    )
-    forbid(
-        f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
-        "clientAtDestination",
-        "tickFinished = currentTime + 1",
-        "items.add(1, item)",
-        "getGameTime() + 1",
-        "item.timeToDest + 1",
-    )
+    if platform == "forge":
+        # The old family keeps BCU's inline ItemStacks and stable cargo IDs,
+        # and adds 26.3-style bounded continuation for late successor packets.
+        require(
+            "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+            "getConnectedDist(side)",
+            "CLIENT_INTERPOLATION_DELAY_TICKS = ClientItemSegmentTimeline.PLAYOUT_BUFFER_TICKS",
+            "buffer.writeItem(item.stack)",
+            "ItemStack stack = buffer.readItem()",
+            "MessageMultiPipeItem.appendTracked(",
+            "scheduleClientItem(item)",
+            "lastItemsAdvanceTick",
+            "clientRetained",
+            "if (world.isClientSide()) {",
+            "return new ArrayList<>(clientRetained);",
+            "clientRetained.add(item);",
+            "CLIENT_SEGMENTS",
+            "ClientItemSegmentTimeline.TAIL_TICKS",
+            "timeline.startFor(item.visualTransitId, now, serverStartTick, serverSentTick)",
+            "scheduleClientItem(item, data.serverStartTick, data.serverSentTick)",
+            "buffer.writeVarLong(serverSentTick)",
+            "long serverSentTick = buffer.readVarLong()",
+            "scheduleTravellingItem(item)",
+            "getQueueDelay(item.tickFinished, now)",
+            "if (lastItemsAdvanceTick == now && remaining > 0L)",
+        )
+        forbid(
+            "source-platforms/forge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+            "claimClientPredecessor", "clientBoundaryPrediction", "clientCenterPrediction",
+            "CLIENT_PREDICTION_TICKS", "storeItemStack(item.stack)",
+            "clientAtDestination", "tickFinished = currentTime + 1",
+            "items.add(1, item)", "getGameTime() + 1", "item.timeToDest + 1",
+        )
+        require(
+            "source-platforms/forge/src/main/java/buildcraft/transport/net/MessageMultiPipeItem.java",
+            "serverStartTick", "serverSentTick", "buf.writeItem(stack)", "stack = buf.readItem()",
+            "buf.writeVarLong(serverSentTick)", "buf.readVarLong()",
+            "items = new LinkedHashMap<>()",
+        )
+        require(
+            "source-families/old/src/main/java/buildcraft/transport/client/render/PipeFlowRendererItems.java",
+            "item.getStack()", "flow.getVisualTick()",
+            "flow.shouldRenderClientItem(item, partialTicks)",
+        )
+        require(
+            "source-platforms/forge/src/main/java/buildcraft/transport/client/ClientItemSegmentTimeline.java",
+            "PLAYOUT_BUFFER_TICKS = 3", "TAIL_TICKS = 6",
+            "MAX_LATE_BACKFILL_TICKS = 1",
+            "now - MAX_LATE_BACKFILL_TICKS",
+            "track.serverToClientOffset += start - desiredStart",
+            "return previous.finish;",
+            "startFor(long visualId, long now, long serverStart, long serverSent)",
+            "track.serverToClientOffset", "minimumArrivalOffset",
+            "record(long visualId, T item", "visible(long visualId, T item",
+            "MAX_TRACKED_CARGO = 8192", "MAX_SEGMENTS_PER_CARGO = 24",
+            "TRACK_CLOCK_RETENTION_TICKS = 40",
+            "ArrayDeque<Segment<T>>", "active = segment", "prune(long now)",
+        )
+        forbid(
+            "source-families/old/src/main/java/buildcraft/transport/client/render/PipeFlowRendererItems.java",
+            "item.shouldRender(now, partialTicks)",
+        )
+        require("build-config/targets.properties",
+            "target.1.19.2-forge.network.protocol=BC8.0.x-1.19.2-net5",
+            "target.1.20.1-forge.network.protocol=BC8.0.x-1.20.1-net5")
+    else:
+        require(
+            f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+            "getConnectedDist(side)",
+            "clientBoundaryPrediction",
+            "clientCenterPrediction",
+            "CLIENT_INTERPOLATION_DELAY_TICKS = 1",
+            "CLIENT_PREDICTION_TICKS = 4",
+            "clientSuccessorLinked",
+            "predecessor == null ? now + CLIENT_INTERPOLATION_DELAY_TICKS : predecessor.tickFinished",
+            "scheduleClientItem(item, stackId)",
+            "claimClientPredecessor(item)",
+            "previousFlow.claimClientPredecessorInThisFlow",
+            "TravellingItem localBounce = claimClientPredecessorInThisFlow",
+            "items.add(CLIENT_PREDICTION_TICKS - 1, item)",
+            "inherits its finish tick",
+            "lastItemsAdvanceTick",
+            "scheduleTravellingItem(item)",
+            "getQueueDelay(item.tickFinished, now)",
+            "if (lastItemsAdvanceTick == now && remaining > 0L)",
+            "remaining--",
+        )
+        forbid(
+            f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+            "clientAtDestination",
+            "tickFinished = currentTime + 1",
+            "items.add(1, item)",
+            "getGameTime() + 1",
+            "item.timeToDest + 1",
+        )
     require(
         f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowPower.java",
         "getCapabilityFromPipe(from",
@@ -296,23 +379,84 @@ for family in ("old", "1.21.X"):
         "getFluidStackForRender",
         "FluidRenderer.renderFluid",
     )
-    require(
-        f"source-families/{family}/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
-        "clientBoundaryPrediction",
-        "clientCenterPrediction",
-        "clientCenterPredictionSide",
-        "int clientStackId = -1",
-        "clientSuccessorLinked",
-        "tick + partialTicks - tickFinished",
-        "float maxInterp = clientBoundaryPrediction ? 2.0f : 1.0f",
-        "public boolean shouldRender(long tick, float partialTicks)",
-        "renderTime >= tickFinished",
-        "clientSuccessorLinked && !clientBoundaryPrediction && !clientCenterPrediction",
-    )
+    if family == "old":
+        require(
+            "source-families/old/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
+            "public boolean shouldRender(long tick, float partialTicks)",
+            "return true;",
+            "public ItemStack getStack()",
+            "Math.max(0.0, Math.min(1.0,",
+            "getConnectedType(side) == ConnectedType.PIPE",
+            "double elapsed = Math.min(4.0, renderTime - tickFinished)",
+            "if (forward != null) return position;",
+            "visualTransitId <= 0L || isPhantom",
+        )
+        forbid(
+            "source-families/old/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
+            "clientBoundaryPrediction", "clientCenterPrediction", "clientSuccessorLinked",
+            "clientStackId", "clientCenterPredictionSide",
+        )
+    else:
+        require(
+            f"source-families/{family}/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
+            "clientBoundaryPrediction",
+            "clientCenterPrediction",
+            "clientCenterPredictionSide",
+            "int clientStackId = -1",
+            "clientSuccessorLinked",
+            "tick + partialTicks - tickFinished",
+            "float maxInterp = clientBoundaryPrediction ? 2.0f : 1.0f",
+            "public boolean shouldRender(long tick, float partialTicks)",
+            "renderTime >= tickFinished",
+            "clientSuccessorLinked && !clientBoundaryPrediction && !clientCenterPrediction",
+        )
     forbid(
         f"source-families/{family}/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
         "clientAtDestination",
     )
+
+# 1.21.11 uses the legacy partial-tick spatial path with a longer network
+# grace period. The server still owns the routes, speeds and item lifecycle;
+# modern packet arrival jitter must not turn into visual disappearances.
+require(
+    "version-src/1.21.11-neoforge/src/main/java/buildcraft/transport/client/ClientItemSegmentTimeline.java",
+    "PLAYOUT_BUFFER_TICKS = 3",
+    "MAX_LATE_BACKFILL_TICKS = 1",
+    "TAIL_TICKS = 24",
+    "TRACK_CLOCK_RETENTION_TICKS = 64",
+    "track.lastFinish == Long.MIN_VALUE",
+    "now - MAX_LATE_BACKFILL_TICKS",
+    "track.serverToClientOffset += start - desiredStart",
+    "isStale(long visualId, long serverStart)",
+    "serverStart < track.lastServerStart",
+)
+require(
+    "version-src/1.21.11-neoforge/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",
+    "mayContinueClientItem(TravellingItem item)",
+    "clientRenderEnd(TravellingItem item)",
+    "currentTime > clientRenderEnd(item)",
+    "timeline.isStale(item.visualTransitId, serverStartTick)",
+    "timeline.record(item.visualTransitId, item, item.tickStarted, item.tickFinished, now, serverStartTick)",
+)
+require(
+    "version-src/1.21.11-neoforge/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
+    "MAX_CLIENT_PREDICTION_TICKS = 1.0",
+    "Math.min(MAX_CLIENT_PREDICTION_TICKS, renderTime - tickFinished)",
+    "double fraction = Math.max(0.0, Math.min(1.0,",
+)
+forbid(
+    "version-src/1.21.11-neoforge/src/main/java/buildcraft/transport/client/ClientItemSegmentTimeline.java",
+    "TAIL_TICKS = 6",
+    "track.segments.isEmpty() && !track.hasServerOffset",
+)
+
+require(
+    "version-src/1.21.11-neoforge/src/main/java/buildcraft/transport/client/render/PipeFlowRendererItems.java",
+    "flow.getVisualTick()",
+    "flow.shouldRenderClientItem(item, partialTicks)",
+    "item.getRenderPosition(BlockPos.ZERO, now, partialTicks, flow)",
+    "itemState.submit(matrix, collector, light, overlay, 0)",
+)
 
 # Legacy/1.21.1 still build the pipe item body from cached quads. 1.21.11 instead keeps the
 # already-baked JSON item body and composes only the colour overlay, avoiding an empty/stale custom body after reload.
