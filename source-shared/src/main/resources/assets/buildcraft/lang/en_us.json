@@ -1,5 +1,14 @@
 {
   "_comment": "Unified BuildCraft language file; completed against current source usage",
+  "gui.buildcraftlib.update.title": "A new version is available!",
+  "gui.buildcraftlib.update.description": "A newer BCCE release is available.",
+  "gui.buildcraftlib.update.installed": "Installed version: %s",
+  "gui.buildcraftlib.update.latest": "Latest version: %s",
+  "gui.buildcraftlib.update.target": "Build: %s",
+  "gui.buildcraftlib.update.open": "Open release page",
+  "gui.buildcraftlib.update.ignore": "Don't show this version again",
+  "gui.buildcraftlib.update.continue": "Continue",
+  "gui.buildcraftlib.update.link_copied": "Could not open the browser. The release link was copied to the clipboard.",
   "advancements.buildcraftbuilders.architect.description": "Record a marked area in a Blueprint or Template with an Architect Table",
   "advancements.buildcraftbuilders.architect.title": "Architect",
   "advancements.buildcraftbuilders.building_for_the_future.description": "Obtain a Filler",
@@ -1497,5 +1506,12 @@
   "buildcraft.help.heat_exchange.heated_out.desc": "Receives fluid from the cold input after heat has been transferred from the hot side.",
   "buildcraft.help.heat_exchange.progress.title": "Exchange Progress",
   "buildcraft.help.heat_exchange.progress.desc1": "The centre wipe visualises the exchanger spinning up (PREPARING), running at full transfer (RUNNING), and bleeding off remaining heat after a fluid runs out (STOPPING).",
-  "buildcraft.help.heat_exchange.progress.desc2": "Heat only flows while both inputs hold compatible fluids and the hot side is strictly hotter than the cold side."
+  "buildcraft.help.heat_exchange.progress.desc2": "Heat only flows while both inputs hold compatible fluids and the hot side is strictly hotter than the cold side.",
+  "gui.buildcraftlib.update.settings": "Update settings",
+  "gui.buildcraftlib.update.settings.title": "BuildCraft Community Edition Updates",
+  "gui.buildcraftlib.update.settings.description": "Manage update checks and ignored releases.",
+  "gui.buildcraftlib.update.settings.automatic": "Automatically check for updates: %s",
+  "gui.buildcraftlib.update.settings.check_now": "Check for updates now",
+  "gui.buildcraftlib.update.settings.reset_ignored": "Reset ignored versions",
+  "gui.buildcraftlib.update.settings.reset_done": "Ignored versions have been reset."
 }

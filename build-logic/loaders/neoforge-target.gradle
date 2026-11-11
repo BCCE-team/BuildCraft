@@ -153,10 +153,11 @@ def gitCommitHash = providers.environmentVariable('GITHUB_SHA')
 def gitCommitMessage = gitMetadata(['log', '-1', '--pretty=%s'], 'unknown')
 def gitCommitAuthor = gitMetadata(['log', '-1', '--pretty=%an <%ae>'], 'unknown')
 def targetValues = [
+        targetId: targetName,
         minecraft: minecraftVersion,
         loader: 'neoforge',
         protocol: requiredProperty('network.protocol'),
-        modVersion: project.version.toString(),
+        modVersion: modVersion,
         gitBranch: gitBranch,
         gitCommitHash: gitCommitHash,
         gitCommitMessage: gitCommitMessage,
@@ -186,6 +187,7 @@ public final class BuildCraftTarget {
     public static final String LOADER = \"${javaLiteral(targetValues.loader)}\";
     public static final String NETWORK_PROTOCOL = \"${javaLiteral(targetValues.protocol)}\";
     public static final String MOD_VERSION = \"${javaLiteral(targetValues.modVersion)}\";
+    public static final String TARGET_ID = \"${javaLiteral(targetValues.targetId)}\";
     public static final String GIT_BRANCH = \"${javaLiteral(targetValues.gitBranch)}\";
     public static final String GIT_COMMIT_HASH = \"${javaLiteral(targetValues.gitCommitHash)}\";
     public static final String GIT_COMMIT_MESSAGE = \"${javaLiteral(targetValues.gitCommitMessage)}\";

@@ -224,6 +224,7 @@ public class BCLibEventDist {
         BuildCraftObjectCaches.onClientTick();
         MessageUtil.postClientTick();
         MessageMarkerClientHandler.flushQueuedMessages();
+            buildcraft.lib.update.client.UpdateNotificationManager.tick();
         Minecraft mc = Minecraft.getInstance();
         ItemStackUtil.setClientRegistryProvider(mc.level == null ? null : mc.level.registryAccess());
         LocalPlayer player = mc.player;

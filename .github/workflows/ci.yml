@@ -215,6 +215,9 @@ jobs:
       - name: Test pipe items, recipe book and optional client integrations
         run: python -m unittest discover -s scripts/tests -p test_client_integrations.py -v
 
+      - name: Test BCCE update notification and release manifest
+        run: python -m unittest discover -s scripts/tests -p test_update_notification_system.py -v
+
       - name: Test GUI regressions
         run: python -m unittest discover -s scripts/tests -p test_gui_regressions.py -v
 

@@ -61,6 +61,7 @@ jobs:
           python scripts/validate-repository-cleanliness.py
           python -m unittest discover -s scripts/tests -p test_external_addon_conformance.py -v
           python -m unittest discover -s scripts/tests -p test_presentation_runtime.py -v
+          python -m unittest discover -s scripts/tests -p test_update_notification_system.py -v
 
       - name: Validate Gradle wrappers
         uses: gradle/actions/wrapper-validation@v4
@@ -411,3 +412,29 @@ jobs:
           github-tag: ${{ github.event.release.tag_name }}
           github-changelog: ''
 
+      - name: Generate and attach BCCE release manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          python - <<'PYCODE'
+          import json, os, pathlib, re, subprocess
+          targets = []
+          pattern = re.compile(r"^BuildCraft-Community-Edition-(.+)\+([0-9.]+)\+(forge|neoforge|fabric)\.jar$")
+          published_assets = subprocess.check_output([
+              "gh", "release", "view", os.environ["RELEASE_TAG"],
+              "--json", "assets", "--jq", ".assets[].name"
+          ], text=True).splitlines()
+          for asset_name in sorted(published_assets):
+              match = pattern.match(asset_name)
+              if match:
+                  targets.append(f"{match.group(2)}-{match.group(3)}")
+          if not targets:
+              raise SystemExit("No published BuildCraft targets found; refusing to publish an empty manifest")
+          manifest = {"version": os.environ["RELEASE_TAG"], "targets": sorted(set(targets))}
+          pathlib.Path("bcce-release-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          print(json.dumps(manifest, indent=2))
+          PYCODE
+          gh release upload "$RELEASE_TAG" bcce-release-manifest.json --clobber
