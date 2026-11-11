@@ -950,11 +950,44 @@ class RemoteChunkLifecycleTest(unittest.TestCase):
 
     def test_remote_fixture_is_outside_spawn_radius_even_for_negative_spawn(self):
         chest, machine, near, far = probe.chunk_fixture_positions((-129, 70, -225))
-        self.assertEqual(near, (127, 220, 31))
-        self.assertEqual(far, (895, 220, 799))
-        self.assertEqual(chest, "128 219 32")
-        self.assertEqual(machine, "130 219 32")
+        self.assertEqual(near, (120, 220, 24))
+        self.assertEqual(far, (888, 220, 792))
+        self.assertEqual(chest, "121 219 25")
+        self.assertEqual(machine, "123 219 25")
         self.assertGreater(abs(far[0] - near[0]), 600)
+
+    def test_remote_chest_and_machine_never_cross_chunk_boundary(self):
+        # The CI failure occurred when the first player's origin was
+        # (13, 64, -38): the old fixture put the chest in chunk 16 and the
+        # Auto Workbench in chunk 17, despite teleporting into chunk 16.
+        origins = [(13, 64, -38), (-129, 70, -225), (15, 70, 15),
+                   (-1, 70, -1), (0, 64, 0), (16, 64, 16)]
+        for origin in origins:
+            with self.subTest(origin=origin):
+                chest, machine, near, far = probe.chunk_fixture_positions(origin)
+                near_chunk = (near[0] // 16, near[2] // 16)
+                self.assertEqual(near[0] % 16, 8)
+                self.assertEqual(near[2] % 16, 8)
+                for position in (chest, machine):
+                    px, py, pz = map(int, position.split())
+                    self.assertEqual((px // 16, pz // 16), near_chunk)
+                    self.assertEqual(py, near[1] - 1)
+                self.assertNotEqual((far[0] // 16, far[2] // 16), near_chunk)
+
+    def test_it08_reports_actual_chunk_failure_without_suppressing_it(self):
+        _, machine, _, _ = probe.chunk_fixture_positions((13, 64, -38))
+        rcon, _ = self.fake_server(origin=(13, 64, -38))
+
+        def fail_machine_when_unloaded(port, password, command):
+            if command == f"data get block {machine}":
+                return "The target position is not loaded"
+            return rcon(port, password, command)
+
+        with mock.patch.object(probe, "rcon_command", side_effect=fail_machine_when_unloaded):
+            with self.assertRaisesRegex(RuntimeError, "chunk is not loaded"):
+                probe.verify_chunk_unload_and_machine_persistence(
+                    25589, "secret", "1.21.1-neoforge", "Dev_Test", (13, 64, -38),
+                    [self.DummyProcess()], expected=None)
 
     def test_chunk_unload_parser_rejects_ambiguous_errors(self):
         self.assertFalse(probe.chunk_loaded_reply("The target position is not loaded"))

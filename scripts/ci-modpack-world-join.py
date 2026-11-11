@@ -568,8 +568,17 @@ UNLOADED_REPLY_RE = re.compile(r"\b(?:not loaded|is unloaded|chunk is unloaded)\
 
 def chunk_fixture_positions(origin: tuple[int, int, int]) -> tuple[str, str, tuple[int, int, int], tuple[int, int, int]]:
     x, _, z = origin
-    visit = (x + REMOTE_OFFSET, 220, z + REMOTE_OFFSET)
-    escape = (x + REMOTE_ESCAPE_OFFSET, 220, z + REMOTE_ESCAPE_OFFSET)
+
+    def chunk_center(coordinate: int) -> int:
+        # Floor division works for both positive and negative chunk coordinates.
+        return (coordinate // 16) * 16 + 8
+
+    # Teleport to the centre of the remote chunk. Both fixtures must remain
+    # in that *same* chunk: at the old origin-dependent offset, the Auto
+    # Workbench could land one chunk beyond the chest (CI run 42866133310).
+    visit = (chunk_center(x + REMOTE_OFFSET), 220, chunk_center(z + REMOTE_OFFSET))
+    escape = (chunk_center(x + REMOTE_ESCAPE_OFFSET), 220,
+              chunk_center(z + REMOTE_ESCAPE_OFFSET))
     chest = f"{visit[0] + 1} 219 {visit[2] + 1}"
     workbench = f"{visit[0] + 3} 219 {visit[2] + 1}"
     return chest, workbench, visit, escape
@@ -649,7 +658,10 @@ def verify_chunk_unload_and_machine_persistence(port: int, password: str, target
         raise RuntimeError(f"IT08 remote chest changed across real server restart: {snapshot!r} != {expected!r}")
     block_data = rcon_command(port, password, f"data get block {machine}")
     if not chunk_loaded_reply(block_data):
-        raise RuntimeError("IT08 remote BCCE Auto Workbench Block Entity missing after world reload")
+        raise RuntimeError(
+            f"IT08 remote Auto Workbench chunk is not loaded at {machine} "
+            f"after teleporting to {near}: {block_data!r}"
+        )
 
     if expected is None:
         # Walking far away must release the remote machine chunk. Its contents
