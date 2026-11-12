@@ -903,7 +903,8 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
         "expected_buildcraft_version",
         'jar_dir="${repo_root}/build/${minecraft_version}"',
         'production_jar="${jar_dir}/${archive_name}-${expected_buildcraft_version}.jar"',
-        "Starting BuildCraft ${expected_buildcraft_version}",
+        'banner_version_regex="${mod_version//./\\\\.}"',
+        "Starting BuildCraft[[:space:]]+${banner_version_regex}",
         "unresolved BuildCraft Java build metadata",
     ):
         if token not in server:

@@ -32,7 +32,8 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
             layout = target_layout(target, props)
             downports = [root for root in (layout.family_downport_root, layout.family_platform_downport_root) if root]
             for name in ("core/blockEntity/TileEngineRedstone_BC8.java", "compat/jade/BuildCraftJadePlugin.java",
-                         "lib/crops/CropHandlerPlantable.java"):
+                         "lib/crops/CropHandlerPlantable.java",
+                         "transport/pipe/flow/TravellingItem.java"):
                 relative = "src/main/java/buildcraft/" + name
                 source = resolve_effective_source(layout, props, relative)
                 assert source is not None, f"No source found for {target}: {name}"
@@ -51,6 +52,33 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
 
     def source(self, target: str, path: str) -> str:
         return self.sources[target, path]
+
+    def test_travelling_item_nbt_accessor_compatibility_across_neoforge(self):
+        name = "transport/pipe/flow/TravellingItem.java"
+        old = self.source("1.21.1-neoforge", name)
+        # The 1.21.1 downport must not select the modern Optional facade.
+        self.assertNotIn('NbtCompat.getCompound(nbt, "stack")', old)
+
+        # 1.21.11 and all 26.X targets expose Optional-returning getters.
+        # Test the effective source so preprocessing and downports cannot
+        # silently bypass this compatibility contract.
+        guarded = (
+            'ItemStackUtil.parseOptional(registries, NbtCompat.getCompound(nbt, "stack"))',
+            'NbtCompat.getByte(nbt, "colour")',
+            'NbtCompat.getBoolean(nbt, "toCenter")',
+            'NbtCompat.getBoolean(nbt, "pausedAtCenter")',
+            'NbtCompat.getDouble(nbt, "speed")',
+            'NbtCompat.getInt(nbt, "timeToDest")',
+            'NbtCompat.getInt(nbt, "tickFinished")',
+            'NbtCompat.getBoolean(nbt, "isPhantom")',
+            'NbtCompat.getAllKeys(entries)',
+        )
+        for target in ("1.21.11-neoforge", "26.1.2-neoforge",
+                       "26.2-neoforge", "26.3-neoforge"):
+            with self.subTest(target=target):
+                java = self.source(target, name)
+                for token in guarded:
+                    self.assertIn(token, java)
 
     def test_redstone_advancement_uses_1211_profile_api(self):
         name = "core/blockEntity/TileEngineRedstone_BC8.java"

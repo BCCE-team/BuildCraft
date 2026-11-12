@@ -110,20 +110,20 @@ public class TravellingItem {
         	BCLog.d("empty");
         	return ItemStack.EMPTY;
         };
-        stack = ItemStackUtil.parseOptional(registries, nbt.getCompound("stack"));
-        int c = nbt.getByte("colour");
+        stack = ItemStackUtil.parseOptional(registries, NbtCompat.getCompound(nbt, "stack"));
+        int c = NbtCompat.getByte(nbt, "colour");
         this.colour = c == 0 ? null : DyeColor.byId(c - 1);
-        this.toCenter = nbt.getBoolean("toCenter");
-        this.pausedAtCenter = nbt.getBoolean("pausedAtCenter");
-        this.speed = nbt.getDouble("speed");
+        this.toCenter = NbtCompat.getBoolean(nbt, "toCenter");
+        this.pausedAtCenter = NbtCompat.getBoolean(nbt, "pausedAtCenter");
+        this.speed = NbtCompat.getDouble(nbt, "speed");
         if (!Double.isFinite(speed) || speed < 0.001) {
             // Just to make sure that we don't have an invalid speed
             speed = 0.001;
         }
         // The saved times are relative to the old world clock. Bound both the
         // remaining ETA and total travel duration before allocating delay buckets.
-        timeToDest = Math.max(1, Math.min(MAX_TRANSIT_TICKS, nbt.getInt("timeToDest")));
-        long remaining = Math.max(0L, Math.min(MAX_TRANSIT_TICKS, (long) nbt.getInt("tickFinished")));
+        timeToDest = Math.max(1, Math.min(MAX_TRANSIT_TICKS, NbtCompat.getInt(nbt, "timeToDest")));
+        long remaining = Math.max(0L, Math.min(MAX_TRANSIT_TICKS, (long) NbtCompat.getInt(nbt, "tickFinished")));
         tickFinished = tickNow + remaining;
         tickStarted = tickFinished - timeToDest;
 
@@ -133,7 +133,7 @@ public class TravellingItem {
             toCenter = true;
         }
         tried = NBTUtilBC.readEnumSet(nbt.get("tried"), Direction.class);
-        isPhantom = nbt.getBoolean("isPhantom");
+        isPhantom = NbtCompat.getBoolean(nbt, "isPhantom");
         if (nbt.contains("apiTransitPayload")) {
             // Unknown addon entries survive a save/load cycle without requiring an installed decoder.
             //? if >=1.21.11 {
@@ -144,7 +144,7 @@ public class TravellingItem {
             ?*/
             //? }
             java.util.Map<String, byte[]> data = new java.util.LinkedHashMap<>();
-            for (String key : entries.getAllKeys()) {
+            for (String key : NbtCompat.getAllKeys(entries)) {
                 //? if >=1.21.11 {
                 byte[] bytes = NbtCompat.getByteArray(entries, key);
                 //? } else {
