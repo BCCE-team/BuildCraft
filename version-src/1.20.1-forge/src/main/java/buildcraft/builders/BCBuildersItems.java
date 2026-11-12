@@ -8,6 +8,7 @@ import java.util.List;
 
 import buildcraft.lib.internal.enums.EnumSnapshotType;
 import buildcraft.builders.item.ItemConstructionMarker;
+import buildcraft.builders.item.ItemQuarry;
 import buildcraft.builders.item.ItemFillerPlanner;
 import buildcraft.builders.item.ItemSchematicSingle;
 import buildcraft.builders.item.ItemSnapshot;
@@ -35,7 +36,7 @@ public class BCBuildersItems {
     public static final BCRegistryEntry<BlockItem> REPLACER_BLOCK_ITEM = ITEMS.register("replacer", () -> new BlockItem(BCBuildersBlocks.REPLACER.get(),new Item.Properties()));
     public static final BCRegistryEntry<ItemConstructionMarker> CONSTRUCTION_MARKER = ITEMS.register("marker_construction", () -> new ItemConstructionMarker(new Item.Properties()));
     public static final BCRegistryEntry<BlockItem> FRAME_BLOCK_ITEM = ITEMS.register("frame", () -> new BlockItem(BCBuildersBlocks.FRAME.get(),new Item.Properties()));
-    public static final BCRegistryEntry<BlockItem> QUARRY_BLOCK_ITEM = ITEMS.register("quarry", () -> new BlockItem(BCBuildersBlocks.QUARRY.get(),new Item.Properties()));
+    public static final BCRegistryEntry<ItemQuarry> QUARRY_BLOCK_ITEM = ITEMS.register("quarry", () -> new ItemQuarry(BCBuildersBlocks.QUARRY.get(),new Item.Properties().stacksTo(1)));
 
 
 

@@ -8,6 +8,15 @@ package buildcraft.builders.block;
 
 import java.util.ArrayList;
 import java.util.List;
+//? if <1.20 {
+import net.minecraft.world.level.storage.loot.LootContext.Builder;
+//?} else {
+/*?
+import net.minecraft.world.level.storage.loot.LootParams.Builder;
+?*/
+//?}
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+
 
 import buildcraft.builders.BCBuildersBlocks;
 import buildcraft.builders.tile.TileQuarry;
@@ -45,6 +54,22 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class BlockQuarry extends BlockBCTile_Neptune implements IBlockWithFacing {
     private static final ResourceLocation ADVANCEMENT = new ResourceLocation("buildcraftbuilders:shaping_the_world");
+
+    /** Keep the enchanted item when the Quarry is harvested or exploded. */
+    @Override
+    public List<ItemStack> getDrops(BlockState state, Builder loot) {
+        List<ItemStack> drops = super.getDrops(state, loot);
+        BlockEntity blockEntity = loot.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
+        if (blockEntity instanceof TileQuarry quarry) {
+            for (int i = 0; i < drops.size(); i++) {
+                if (drops.get(i).is(asItem())) {
+                    drops.set(i, quarry.getQuarryDropStack());
+                    break;
+                }
+            }
+        }
+        return drops;
+    }
 
     public BlockQuarry() {
         //? if <1.20 {

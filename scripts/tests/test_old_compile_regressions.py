@@ -213,12 +213,28 @@ public class AssemblyEqualsProbe {
                 self.assertIn('", pipeInFlight="', method)
 
     def test_quarry_fixture_scans_after_world_blocks_are_placed(self):
+        # Adding another Quarry scenario must not invalidate the fixture guard.
+        # Check setup order for each named scenario rather than a global call count.
+        scenarios = (
+            "liveQuarryMinesInsideAreaExportsDropsAndSkipsUnbreakables",
+            "liveQuarryRevisitsReplacedStoneAndKeepsExportLedgerConservative",
+            "unpoweredQuarryPausesThenMinesAfterRefuelWithoutDuplicateDrops",
+            "enchantedQuarryUsesSilkTouchAndKeepsEnchantmentsOnBreak",
+        )
         for loader in ("forge", "neoforge"):
             text = (ROOT / f"source-platforms/{loader}/src/gametest/java/buildcraft/gametest/SystemQuarryMiningGameTests.java").read_text(encoding="utf-8")
-            self.assertEqual(text.count("rig.activate(helper);"), 3)
-            self.assertIn('void activate(GameTestHelper helper)', text)
-            self.assertIn('invoke(quarry, "updatePoses");', text)
-            self.assertIn('Quarry did not recognise its populated mining area', text)
+            with self.subTest(loader=loader):
+                self.assertIn('void activate(GameTestHelper helper)', text)
+                self.assertIn('invoke(quarry, "updatePoses");', text)
+                self.assertIn('Quarry did not recognise its populated mining area', text)
+                for name in scenarios:
+                    with self.subTest(scenario=name):
+                        marker = f"void {name}(GameTestHelper helper)"
+                        self.assertIn(marker, text)
+                        body = text.split(marker, 1)[1].split("@GameTest", 1)[0]
+                        self.assertEqual(body.count("rig.activate(helper);"), 1)
+                        self.assertIn("helper.setBlock(", body)
+                        self.assertLess(body.index("helper.setBlock("), body.index("rig.activate(helper);"))
 
     def test_farm_game_tests_use_independent_actor_profiles(self):
         for loader in ("forge", "neoforge"):

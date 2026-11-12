@@ -6,6 +6,7 @@ import java.lang.reflect.Method;
 import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.builders.BCBuildersBlocks;
 import buildcraft.builders.tile.TileQuarry;
+import buildcraft.builders.item.QuarryEnchantments;
 import buildcraft.builders.tile.TileQuarryDrillCollision;
 import buildcraft.lib.BCLib;
 import buildcraft.lib.internal.mj.MjBattery;
@@ -15,6 +16,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
@@ -140,6 +146,41 @@ public final class SystemQuarryMiningGameTests {
         });
     }
 
+    @GameTest(templateNamespace = BCLib.MODID, template = TEMPLATE, timeoutTicks = 1950)
+    public static void enchantedQuarryUsesSilkTouchAndKeepsEnchantmentsOnBreak(GameTestHelper helper) {
+        ItemStack item = new ItemStack(BCBuildersBlocks.QUARRY.get());
+        item.enchant(Enchantments.SILK_TOUCH, 1);
+        item.enchant(Enchantments.BLOCK_EFFICIENCY, 3);
+        Rig rig = new Rig(helper, item);
+        helper.setBlock(FIRST, Blocks.STONE.defaultBlockState());
+        helper.setBlock(SECOND, Blocks.BEDROCK.defaultBlockState());
+        require(helper, QuarryEnchantments.breakPowerTarget(1_000_000L, 3) < 1_000_000L,
+            "Efficiency did not improve Quarry's own energy-driven work rate");
+        rig.activate(helper);
+        rig.keepPowered(helper, 20, 1720);
+        helper.runAfterDelay(1720, () -> {
+            require(helper, rig.isMined(helper, FIRST), "enchanted Quarry failed to mine stone");
+            require(helper, PipeGameTestSupport.countItem(rig.warehouse, Items.STONE) == 1,
+                "Silk Touch on the Quarry failed to preserve mined stone");
+            require(helper, PipeGameTestSupport.countItem(rig.warehouse, Items.COBBLESTONE) == 0,
+                "enchanted Quarry emitted cobblestone as well as Silk Touch stone");
+            helper.getLevel().destroyBlock(helper.absolutePos(QUARRY), true);
+            BlockPos pos = helper.absolutePos(QUARRY);
+            boolean found = false;
+            for (ItemEntity entity : helper.getLevel().getEntitiesOfClass(ItemEntity.class,
+                    new AABB(pos).inflate(2.0))) {
+                ItemStack dropped = entity.getItem();
+                if (dropped.is(BCBuildersBlocks.QUARRY.get().asItem())) {
+                    require(helper, EnchantmentHelper.getItemEnchantmentLevel(Enchantments.SILK_TOUCH, dropped) == 1,
+                        "Quarry lost its Silk Touch enchantment when broken");
+                    found = true;
+                }
+            }
+            require(helper, found, "breaking the enchanted Quarry did not drop its item");
+            helper.succeed();
+        });
+    }
+
     private static final class Rig {
         final GameTestHelper helper;
         final TileQuarry quarry;
@@ -148,6 +189,10 @@ public final class SystemQuarryMiningGameTests {
         long totalInjected;
 
         Rig(GameTestHelper helper) {
+            this(helper, ItemStack.EMPTY);
+        }
+
+        Rig(GameTestHelper helper, ItemStack placedItem) {
             this.helper = helper;
             helper.setBlock(CHEST, Blocks.CHEST.defaultBlockState());
             BlockEntity output = GameTestCompat.getBlockEntity(helper, CHEST);
@@ -163,7 +208,7 @@ public final class SystemQuarryMiningGameTests {
             quarry.onPlacedBy(buildcraft.lib.misc.FakePlayerProvider.INSTANCE.getFakePlayer(
                 helper.getLevel(), new com.mojang.authlib.GameProfile(
                     java.util.UUID.fromString("54ca00f5-48cd-47ad-9d32-0bca71b5fcfe"), "BCTestQuarry"),
-                helper.absolutePos(QUARRY)), net.minecraft.world.item.ItemStack.EMPTY);
+                helper.absolutePos(QUARRY)), placedItem);
 
             // The frame is wholly inside the structure at Y=1..2, while the real
             // mining plane lies beneath it at Y=0. A normal initial frame scan

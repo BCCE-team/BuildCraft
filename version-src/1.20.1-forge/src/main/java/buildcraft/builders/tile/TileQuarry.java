@@ -49,6 +49,7 @@ import buildcraft.lib.internal.tiles.IHasWork;
 import buildcraft.lib.internal.tiles.TilesAPI;
 import buildcraft.builders.BCBuildersBlocks;
 import buildcraft.builders.BCBuildersConfig;
+import buildcraft.builders.item.QuarryEnchantments;
 import buildcraft.builders.block.BlockQuarryDrillCollision;
 import buildcraft.core.BCCoreConfig;
 import buildcraft.core.blockEntity.TileMarkerVolume;
@@ -119,6 +120,23 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
         = new ResourceLocation("buildcraftbuilders:destroying_the_world");
     private static final Map<ServerLevel, Map<UUID, Map<BlockPos, Long>>> FULL_SPEED_QUARRIES
         = new WeakHashMap<>();
+
+    /** The placed Quarry stack, including all enchantments and item components, persists with this block entity. */
+    private ItemStack placedQuarryItem = ItemStack.EMPTY;
+
+    public ItemStack getQuarryDropStack() {
+        if (!placedQuarryItem.isEmpty() && placedQuarryItem.is(BCBuildersBlocks.QUARRY.get().asItem())) {
+            return placedQuarryItem.copy();
+        }
+        return new ItemStack(BCBuildersBlocks.QUARRY.get());
+    }
+
+    private void setPlacedQuarryItem(ItemStack placed) {
+        placedQuarryItem = placed != null && placed.is(BCBuildersBlocks.QUARRY.get().asItem())
+            ? placed.copy() : ItemStack.EMPTY;
+        if (!placedQuarryItem.isEmpty()) placedQuarryItem.setCount(1);
+        setChanged();
+    }
 
     private final MjBattery battery;
     private final long maxPowerPerTick;
@@ -365,6 +383,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     @Override
     public void onPlacedBy(LivingEntity placer, ItemStack stack) {
         super.onPlacedBy(placer, stack);
+        if (level != null && !level.isClientSide) setPlacedQuarryItem(stack);
         if (placer.level().isClientSide) {
             return;
         }
@@ -1314,6 +1333,9 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     @Override
     public void saveAdditional(CompoundTag nbt) {
         super.saveAdditional(nbt);
+        if (!placedQuarryItem.isEmpty()) {
+            nbt.put("placedQuarryItem", placedQuarryItem.save(new CompoundTag()));
+        }
         nbt.put("box", miningBox.writeToNBT());
         nbt.put("frame", frameBox.writeToNBT());
         if (boxIterator != null) {
@@ -1340,6 +1362,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     @Override
     public void load(CompoundTag nbt) {
         super.load(nbt);
+        setPlacedQuarryItem(ItemStack.of(nbt.getCompound("placedQuarryItem")));
         miningBox.initialize(nbt.getCompound("box"));
         frameBox.initialize(nbt.getCompound("frame"));
         boxIterator = BoxIterator.readFromNbt(nbt.getCompound("boxIterator"));
@@ -1706,7 +1729,10 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
 
         @Override
         public long getTarget() {
-            return scaleTaskEnergy(BlockUtil.computeBlockBreakPower(level, breakPos));
+            long normalTarget = scaleTaskEnergy(BlockUtil.computeBlockBreakPower(level, breakPos));
+            return QuarryEnchantments.breakPowerTarget(
+                normalTarget, QuarryEnchantments.efficiencyLevel(placedQuarryItem, level)
+            );
         }
 
         @Override
@@ -1763,7 +1789,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             }
             level.destroyBlockProgress(breakPos.hashCode(), breakPos, -1);
             Optional<List<ItemStack>> stacks = BlockUtil.breakBlockAndGetDrops(
-                (ServerLevel) level, breakPos, new ItemStack(Items.DIAMOND_PICKAXE), getOwner(), true
+                (ServerLevel) level, breakPos, QuarryEnchantments.miningTool(placedQuarryItem), getOwner(), true
             );
             if (stacks.isPresent()) {
                 // The drill pos will be null if we are making the frame: this is when we want to destroy the block, not

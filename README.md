@@ -123,7 +123,7 @@ Crash reports require a crash log in addition to the information above.
 
 ### Additional Pipes for BuildCraft Community Edition
 
-*   [CurseForge](https://www.curseforge.com/minecraft/mc-mods/additional-pipes-for-buildcraft-community-edition) | [Modrinth](https://modrinth.com/mod/additional-pipes-for-buildcraft-community-edition) | [GitHub](https://github.com/BCCE-team/AdditionalPipes)
+[CurseForge](https://www.curseforge.com/minecraft/mc-mods/additional-pipes-for-buildcraft-community-edition) | [Modrinth](https://modrinth.com/mod/additional-pipes-for-buildcraft-community-edition) | [GitHub](https://github.com/BCCE-team/AdditionalPipes)
 
 ## Credits
 

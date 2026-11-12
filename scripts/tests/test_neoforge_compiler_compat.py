@@ -33,7 +33,8 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
             downports = [root for root in (layout.family_downport_root, layout.family_platform_downport_root) if root]
             for name in ("core/blockEntity/TileEngineRedstone_BC8.java", "compat/jade/BuildCraftJadePlugin.java",
                          "lib/crops/CropHandlerPlantable.java",
-                         "transport/pipe/flow/TravellingItem.java"):
+                         "transport/pipe/flow/TravellingItem.java",
+                         "builders/BCBuildersItems.java", "builders/item/ItemQuarry.java"):
                 relative = "src/main/java/buildcraft/" + name
                 source = resolve_effective_source(layout, props, relative)
                 assert source is not None, f"No source found for {target}: {name}"
@@ -79,6 +80,27 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
                 java = self.source(target, name)
                 for token in guarded:
                     self.assertIn(token, java)
+
+    def test_quarry_enchantability_uses_native_1211_hooks(self):
+        item_1211 = self.source("1.21.1-neoforge", "builders/BCBuildersItems.java")
+        quarry_1211 = self.source("1.21.1-neoforge", "builders/item/ItemQuarry.java")
+        self.assertIn('new Item.Properties().stacksTo(1)', item_1211)
+        self.assertNotIn('.enchantable(', item_1211)
+        for required in (
+            'boolean isEnchantable(ItemStack stack)',
+            'int getEnchantmentValue(ItemStack stack)',
+            'boolean isPrimaryItemFor(ItemStack stack, Holder<Enchantment> enchantment)',
+            'boolean supportsEnchantment(ItemStack stack, Holder<Enchantment> enchantment)',
+            'Items.DIAMOND_PICKAXE.supportsEnchantment(',
+        ):
+            self.assertIn(required, quarry_1211)
+
+        for target in ("1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"):
+            with self.subTest(target=target):
+                registry = self.source(target, "builders/BCBuildersItems.java")
+                quarry = self.source(target, "builders/item/ItemQuarry.java")
+                self.assertIn('.enchantable(10)', registry)
+                self.assertNotIn('getEnchantmentValue(ItemStack stack)', quarry)
 
     def test_redstone_advancement_uses_1211_profile_api(self):
         name = "core/blockEntity/TileEngineRedstone_BC8.java"
