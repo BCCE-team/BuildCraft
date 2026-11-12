@@ -33,6 +33,22 @@ def forbid(rel, *tokens):
             errors.append(f"{rel}: forbidden performance regression token {token!r}")
 
 
+def forbid_code(rel, *tokens):
+    """Reject identifiers used in Java code, not identifiers mentioned in comments."""
+    source = re.sub(r"/\*.*?\*/|//[^\r\n]*", "", text(rel), flags=re.DOTALL)
+    for token in tokens:
+        if token in source:
+            errors.append(f"{rel}: forbidden performance regression token {token!r}")
+
+
+def require_pattern(rel, *patterns):
+    """Check call structure while allowing harmless Java whitespace changes."""
+    source = text(rel)
+    for pattern in patterns:
+        if not re.search(pattern, source, re.MULTILINE):
+            errors.append(f"{rel}: missing performance regression pattern {pattern!r}")
+
+
 # Legacy GUI scale.
 require(
     "version-src/1.19.2-forge/src/main/java/buildcraft/lib/gui/elem/GuiElementText.java",
@@ -98,10 +114,12 @@ require(
     'MessageManager.sendToAllWatching(batch.message, batch.chunk);',
     'event.phase == TickEvent.Phase.END',
 )
-require(
+# Modern packets enqueue complete cargo records; check both inline-stack and
+# legacy cache-ID entry points instead of requiring the retired 8-arg queue API.
+require_pattern(
     'source-platforms/forge/src/main/java/buildcraft/transport/net/MessageMultiPipeItem.java',
-    'OrderedForgeItemPacketQueue.append(world, pos, -1, stackCount,',
-    'OrderedForgeItemPacketQueue.append(world, pos, stackId, stackCount,',
+    r'OrderedForgeItemPacketQueue\.append\(world,\s*pos,\s*new TravellingItemData\(-1,\s*stack,\s*stackCount,',
+    r'OrderedForgeItemPacketQueue\.append\(world,\s*pos,\s*new TravellingItemData\(stackId,\s*stackCount,',
 )
 
 # Fluid-pipe throughput, round-robin and rendering contracts.
@@ -391,12 +409,14 @@ for family in ("old", "1.21.X"):
             "if (forward != null) return position;",
             "visualTransitId <= 0L || isPhantom",
         )
-        forbid(
+        forbid_code(
             "source-families/old/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
             "clientBoundaryPrediction", "clientCenterPrediction", "clientSuccessorLinked",
             "clientStackId", "clientCenterPredictionSide",
         )
     else:
+        # 1.21.11 uses a timestamped, bounded, one-tick render continuation.
+        # The four old tick-wheel interpolation tokens belong to 26.X now.
         require(
             f"source-families/{family}/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
             "clientBoundaryPrediction",
@@ -404,16 +424,33 @@ for family in ("old", "1.21.X"):
             "clientCenterPredictionSide",
             "int clientStackId = -1",
             "clientSuccessorLinked",
-            "tick + partialTicks - tickFinished",
-            "float maxInterp = clientBoundaryPrediction ? 2.0f : 1.0f",
             "public boolean shouldRender(long tick, float partialTicks)",
-            "renderTime >= tickFinished",
-            "clientSuccessorLinked && !clientBoundaryPrediction && !clientCenterPrediction",
+            "double renderTime = tick + Math.max(0.0f, Math.min(1.0f, partialTicks));",
+            "Math.min(MAX_CLIENT_PREDICTION_TICKS, renderTime - tickFinished)",
+            "renderTime <= tickFinished || visualTransitId <= 0L || isPhantom",
+            "getConnectedType(side) == ConnectedType.PIPE",
+        )
+        # 1.21.1 has its own downport and a separate four-tick fallback.
+        require(
+            "source-downports/1.21.X/1.21.1/family/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
+            "public boolean shouldRender(long tick, float partialTicks)",
+            "double elapsed = Math.min(4.0, renderTime - tickFinished)",
+            "renderTime <= tickFinished || visualTransitId <= 0L || isPhantom",
+            "getConnectedType(side) == ConnectedType.PIPE",
         )
     forbid(
         f"source-families/{family}/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
         "clientAtDestination",
     )
+
+# The old prediction-wheel interpolation is still maintained for 26.X.
+require(
+    "source-families/26.X/src/main/java/buildcraft/transport/pipe/flow/TravellingItem.java",
+    "tick + partialTicks - tickFinished",
+    "float maxInterp = clientBoundaryPrediction ? 2.0f : 1.0f",
+    "renderTime >= tickFinished",
+    "clientSuccessorLinked && !clientBoundaryPrediction && !clientCenterPrediction",
+)
 
 # 1.21.11 uses the legacy partial-tick spatial path with a longer network
 # grace period. The server still owns the routes, speeds and item lifecycle;
