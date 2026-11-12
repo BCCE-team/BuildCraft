@@ -102,6 +102,33 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
                 self.assertIn('.enchantable(10)', registry)
                 self.assertNotIn('getEnchantmentValue(ItemStack stack)', quarry)
 
+    def test_quarry_enchantment_tags_follow_minecraft_generation(self):
+        # The enchantable/item registry tags start with modern Minecraft.
+        # They must not leak into old Forge resources and must survive the
+        # family split so both 1.21.X and 26.X get the same pickaxe rules.
+        props = load_properties()
+        for target in (
+            "1.19.2-forge", "1.20.1-forge", "1.21.1-neoforge",
+            "1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge",
+            "26.3-neoforge",
+        ):
+            layout = target_layout(target, props)
+            for tag in ("mining", "mining_loot", "durability", "vanishing"):
+                with self.subTest(target=target, tag=tag):
+                    relative = f"src/main/resources/data/minecraft/tags/item/enchantable/{tag}.json"
+                    source = resolve_effective_source(layout, props, relative)
+                    if layout.family == "old":
+                        self.assertIsNone(source)
+                    else:
+                        self.assertIsNotNone(source)
+                        self.assertTrue(source.is_relative_to(
+                            ROOT / "source-families" / layout.family
+                        ))
+                        self.assertEqual(json.loads(source.read_text(encoding="utf-8")), {
+                            "replace": False,
+                            "values": ["buildcraftbuilders:quarry"],
+                        })
+
     def test_redstone_advancement_uses_1211_profile_api(self):
         name = "core/blockEntity/TileEngineRedstone_BC8.java"
         source = self.source("1.21.1-neoforge", name)
