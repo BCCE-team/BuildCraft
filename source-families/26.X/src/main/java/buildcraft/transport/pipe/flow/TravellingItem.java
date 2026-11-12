@@ -7,8 +7,6 @@
 package buildcraft.transport.pipe.flow;
 
 import java.util.EnumSet;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -22,7 +20,6 @@ import buildcraft.lib.misc.ItemStackUtil;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.lib.misc.StackUtil;
 import buildcraft.lib.misc.VecUtil;
-import buildcraft.transport.internal.pipe.IPipe.ConnectedType;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -34,16 +31,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 public class TravellingItem {
-    // Distinct server cargo IDs survive across fast pipe-to-pipe handoffs.
-    private static final AtomicLong NEXT_VISUAL_TRANSIT_ID = new AtomicLong(
-        ThreadLocalRandom.current().nextLong(1L, Long.MAX_VALUE >>> 1));
-
-    public static long allocateVisualTransitId() {
-        return NEXT_VISUAL_TRANSIT_ID.getAndIncrement();
-    }
-
-    /** Shared by the two 1.21.X clients, not the type cache's stackId. */
-    public long visualTransitId;
     // Client fields - public for rendering
     @Nonnull
     public final Supplier<ItemStack> clientItemLink;
@@ -106,8 +93,10 @@ public class TravellingItem {
 
     public TravellingItem(@Nonnull ItemStack stack) {
         this.stack = stack;
-        this.visualTransitId = allocateVisualTransitId();
-        this.clientItemLink = () -> this.stack;
+        clientItemLink = () ->{
+        	BCLog.d("empty");
+        	return ItemStack.EMPTY;
+        };
     }
 
     public TravellingItem(Supplier<ItemStack> clientStackLink, int count) {
@@ -117,16 +106,10 @@ public class TravellingItem {
     }
 
     public TravellingItem(CompoundTag nbt, long tickNow, HolderLookup.Provider registries) {
-        clientItemLink = () -> this.stack;
-        //? if >=1.21.11 {
-        long savedVisualId = NbtCompat.getLong(nbt, "visualTransitId");
-        //? } else {
-        /*?
-        long savedVisualId = nbt.getLong("visualTransitId");
-        ?*/
-        //? }
-        visualTransitId = savedVisualId > 0 && savedVisualId < Long.MAX_VALUE
-            ? savedVisualId : allocateVisualTransitId();
+        clientItemLink = () ->{
+        	BCLog.d("empty");
+        	return ItemStack.EMPTY;
+        };
         stack = ItemStackUtil.parseOptional(registries, nbt.getCompound("stack"));
         int c = nbt.getByte("colour");
         this.colour = c == 0 ? null : DyeColor.byId(c - 1);
@@ -198,7 +181,6 @@ public class TravellingItem {
         nbt.putInt("tickStarted", (int) (tickStarted - tickNow));
         nbt.putInt("tickFinished", (int) (tickFinished - tickNow));
         nbt.putInt("timeToDest", timeToDest);
-        nbt.putLong("visualTransitId", visualTransitId);
         nbt.put("side", NBTUtilBC.writeEnum(side));
         nbt.put("tried", NBTUtilBC.writeEnumSet(tried, Direction.class));
         if (isPhantom) {
@@ -276,72 +258,63 @@ public class TravellingItem {
         return new Vec3(x, y, z);
     }
 
-    /**
-     * Frame-interpolated client motion, including a short prediction while the
-     * following authoritative packet is in flight. 26.3 NeoForge already uses
-     * this approach for fast pipes: clamping *every* completed segment to its
-     * endpoint (as the earlier BCU-style port did) creates a visible micro-stop
-     * at every two-tick gold-pipe handoff when the next packet arrives late.
-     *
-     * Prediction is render-only, bounded to one connected half-pipe, and never
-     * changes the server route, item ownership, speed or NBT.
-     */
     public Vec3 getRenderPosition(BlockPos pos, long tick, float partialTicks, PipeFlowItems flow) {
         if (pausedAtCenter) return Vec3.ZERO;
-        long duration = Math.max(1L, tickFinished - tickStarted);
-        double renderTime = tick + Math.max(0.0f, Math.min(1.0f, partialTicks));
-        double fraction = Math.max(0.0, Math.min(1.0,
-            (renderTime - tickStarted) / duration));
-        Vec3 center = Vec3.ZERO;
-        Vec3 sidePosition = side == null ? center : VecUtil.offset(center, side, flow.getPipeLength(side));
-        Vec3 from = toCenter ? sidePosition : center;
-        Vec3 to = toCenter ? center : sidePosition;
-        Vec3 position = VecUtil.scale(from, 1.0 - fraction).add(VecUtil.scale(to, fraction));
+        long diff = tickFinished - tickStarted;
+        long afterTick = tick - tickStarted;
 
-        // Nothing to extrapolate while the authoritative segment is in motion.
-        // Legacy addon packets have no persistent cargo ID; do not guess their
-        // routes. Phantom/paused segments must remain at their declared position.
-        if (renderTime <= tickFinished || visualTransitId <= 0L || isPhantom || side == null) {
-            return position;
+        float interp = (afterTick + partialTicks) / diff;
+
+        Vec3 center = Vec3.ZERO;//Vec3.atCenterOf(pos);
+        Vec3 vecSide = side == null ? center : VecUtil.offset(center, side, flow.getPipeLength(side));
+
+        if (clientCenterPrediction) {
+            if (clientCenterPredictionSide == null || side == null) {
+                return center;
+            }
+            // Continue from the center for as long as the short client prediction is retained. This is based on
+            // elapsed whole ticks as well as partialTicks, so a delayed successor packet does not make the item
+            // disappear every other pipe. Junctions still hold at the center because guessing a branch is unsafe.
+            double incomingDistance = flow.getPipeLength(side);
+            double distancePerTick = incomingDistance / Math.max(1L, diff);
+            double elapsed = Math.max(0.0, tick + partialTicks - tickFinished);
+            double predictedDistance = Math.min(flow.getPipeLength(clientCenterPredictionSide),
+                distancePerTick * elapsed);
+            return VecUtil.offset(center, clientCenterPredictionSide, predictedDistance);
         }
-        double elapsed = Math.min(4.0, renderTime - tickFinished);
-        double perTick = flow.getPipeLength(side) / duration;
-        double extra = perTick * elapsed;
 
+        // Normal segments stop exactly at their destination. A boundary prediction may continue through the shared
+        // face as far as the neighbouring pipe centre while the real successor packet is still in flight.
+        float maxInterp = clientBoundaryPrediction ? 2.0f : 1.0f;
+        interp = Math.max(0, Math.min(maxInterp, interp));
+
+        Vec3 vecFrom;
+        Vec3 vecTo;
         if (toCenter) {
-            // At a straight pipe's centre the outgoing direction is unique.
-            // A junction/filter has an authoritative routing decision that we
-            // cannot know client-side, so stop at its centre instead of inventing
-            // a branch. This is especially useful on a line of gold pipes.
-            Direction forward = null;
-            for (Direction candidate : Direction.values()) {
-                if (candidate == side || !flow.pipe.isConnected(candidate)) continue;
-                if (forward != null) return position; // ambiguous junction
-                forward = candidate;
-            }
-            if (forward != null) {
-                double distance = Math.min(flow.getPipeLength(forward), extra);
-                return VecUtil.offset(center, forward, distance);
-            }
-        } else if (flow.pipe.isConnected(side)
-            && flow.pipe.getConnectedType(side) == ConnectedType.PIPE) {
-            // Continue through the shared boundary up to the neighbouring pipe
-            // centre, just like 26.3's clientBoundaryPrediction. The new packet
-            // takes over by cargo ID without duplicating the predecessor.
-            double distance = Math.min(flow.getPipeLength(side), extra);
-            return VecUtil.offset(sidePosition, side, distance);
+            vecFrom = vecSide;
+            vecTo = center;
+        } else {
+            vecFrom = center;
+            vecTo = vecSide;
         }
-        return position;
+        return VecUtil.scale(vecFrom, 1 - interp).add(VecUtil.scale(vecTo, interp));
     }
 
-    /** Retained for source/binary compatibility; BCU's renderer does not gate items by time. */
     public boolean shouldRender(long tick, float partialTicks) {
+        double renderTime = tick + partialTicks;
+        // Successor packets can arrive before the predecessor segment has reached its hand-off point. Keep the
+        // successor scheduled, but do not render it pinned at its start until its linked start time is reached.
+        if (renderTime < tickStarted) {
+            return false;
+        }
+        // Once an authoritative successor is already queued, the predecessor must stop rendering exactly at the
+        // hand-off. DelayedList may retain it until the next client tick; drawing both segments during that remainder
+        // produced a boundary double-image that is especially visible as a forward/back snap at high speed.
+        if (clientSuccessorLinked && !clientBoundaryPrediction && !clientCenterPrediction
+            && renderTime >= tickFinished) {
+            return false;
+        }
         return true;
-    }
-
-    /** Direct-ItemStack fallback for the legacy renderer and external render hooks. */
-    public ItemStack getStack() {
-        return stack;
     }
 
     public Direction getRenderDirection(long tick, float partialTicks) {

@@ -99,6 +99,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test platform contracts", _unittest_command("test_platform_contracts.py")),
     ("Test pure Java gameplay algorithms", _unittest_command("test_pure_logic.py")),
     ("Test pipe items, recipe book and optional client integrations", _unittest_command("test_client_integrations.py")),
+    ("Test BCCE update notification and release manifest", _unittest_command("test_update_notification_system.py")),
     ("Test GUI regressions", _unittest_command("test_gui_regressions.py")),
     ("Test blueprint inventory-copy edge cases", _unittest_command("test_inventory_copy_edge_cases.py")),
     ("Test Silicon recipe discovery and selection", _unittest_command("test_silicon_recipe_book.py")),

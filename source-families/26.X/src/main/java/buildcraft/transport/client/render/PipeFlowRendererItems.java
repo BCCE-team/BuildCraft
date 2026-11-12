@@ -67,19 +67,18 @@ public enum PipeFlowRendererItems implements IPipeFlowRenderer<PipeFlowItems> {
     public void submit(PipeFlowItems flow, float partialTicks, PoseStack matrix, SubmitNodeCollector collector,
         int light, int overlay) {
         Level world = flow.pipe.getHolder().getPipeWorld();
-        long now = flow.getVisualTick();
+        long now = world.getGameTime();
         List<TravellingItem> toRender = flow.getAllItemsForRender();
 
         matrix.pushPose();
         matrix.translate(0.5f, 0.5f, 0.5f);
         try {
             for (TravellingItem item : toRender) {
-                if (!flow.shouldRenderClientItem(item, partialTicks)) {
+                if (!item.shouldRender(now, partialTicks)) {
                     continue;
                 }
                 Vec3 pos = item.getRenderPosition(BlockPos.ZERO, now, partialTicks, flow);
                 ItemStack stack = item.clientItemLink.get();
-                if (stack == null || stack.isEmpty()) stack = item.getStack();
 
                 if (!stack.isEmpty()) {
                     matrix.pushPose();

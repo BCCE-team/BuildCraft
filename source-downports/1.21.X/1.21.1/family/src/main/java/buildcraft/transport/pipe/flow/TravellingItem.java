@@ -15,9 +15,6 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 
 import buildcraft.lib.internal.debug.BCLog;
-//? if >=1.21.11 {
-import buildcraft.lib.compat.NbtCompat;
-//? }
 import buildcraft.lib.misc.ItemStackUtil;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.lib.misc.StackUtil;
@@ -67,8 +64,6 @@ public class TravellingItem {
     /** Relative times (from tickStarted) until an event needs to be fired or this item needs changing. */
     /** Upper bound for in-pipe travel; even the minimum legitimate speed needs under 1000 ticks. */
     public static final int MAX_TRANSIT_TICKS = 1200;
-    /** Render-only prediction budget while the next segment packet is in flight. */
-    private static final double MAX_CLIENT_PREDICTION_TICKS = 1.0;
     int timeToDest;
     /** If {@link #toCenter} is true then this represents the side that the item is coming from, otherwise this
      * represents the side that the item is going to. */
@@ -120,13 +115,7 @@ public class TravellingItem {
 
     public TravellingItem(CompoundTag nbt, long tickNow, HolderLookup.Provider registries) {
         clientItemLink = () -> this.stack;
-        //? if >=1.21.11 {
-        long savedVisualId = NbtCompat.getLong(nbt, "visualTransitId");
-        //? } else {
-        /*?
         long savedVisualId = nbt.getLong("visualTransitId");
-        ?*/
-        //? }
         visualTransitId = savedVisualId > 0 && savedVisualId < Long.MAX_VALUE
             ? savedVisualId : allocateVisualTransitId();
         stack = ItemStackUtil.parseOptional(registries, nbt.getCompound("stack"));
@@ -155,22 +144,10 @@ public class TravellingItem {
         isPhantom = nbt.getBoolean("isPhantom");
         if (nbt.contains("apiTransitPayload")) {
             // Unknown addon entries survive a save/load cycle without requiring an installed decoder.
-            //? if >=1.21.11 {
-            CompoundTag entries = NbtCompat.getCompound(nbt, "apiTransitPayload");
-            //? } else {
-            /*?
             CompoundTag entries = nbt.getCompound("apiTransitPayload");
-            ?*/
-            //? }
             java.util.Map<String, byte[]> data = new java.util.LinkedHashMap<>();
             for (String key : entries.getAllKeys()) {
-                //? if >=1.21.11 {
-                byte[] bytes = NbtCompat.getByteArray(entries, key);
-                //? } else {
-                /*?
                 byte[] bytes = entries.getByteArray(key);
-                ?*/
-                //? }
                 data.put(key, bytes);
             }
             try { apiTransitPayload = new ItemTransitPayload(data); }
@@ -178,13 +155,7 @@ public class TravellingItem {
         }
         if (nbt.contains("apiTransitId")) {
             try {
-                //? if >=1.21.11 {
-                apiTransitId = UUID.fromString(NbtCompat.getString(nbt, "apiTransitId"));
-                //? } else {
-                /*?
                 apiTransitId = UUID.fromString(nbt.getString("apiTransitId"));
-                ?*/
-                //? }
             }
             catch (IllegalArgumentException ignored) { apiTransitId = null; }
         }
@@ -306,13 +277,7 @@ public class TravellingItem {
         if (renderTime <= tickFinished || visualTransitId <= 0L || isPhantom || side == null) {
             return position;
         }
-        // The next packet is backfilled by at most one tick. Predicting four
-        // ticks while its predecessor is still visible placed the model at the
-        // neighbour's centre, but the late successor then resumed at its entry
-        // boundary: a large visible backward snap. Advance only one tick and
-        // hold there until the real route/time arrives. The packet, not the
-        // prediction, still determines the final direction and travel speed.
-        double elapsed = Math.min(MAX_CLIENT_PREDICTION_TICKS, renderTime - tickFinished);
+        double elapsed = Math.min(4.0, renderTime - tickFinished);
         double perTick = flow.getPipeLength(side) / duration;
         double extra = perTick * elapsed;
 

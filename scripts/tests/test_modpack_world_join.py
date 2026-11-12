@@ -387,10 +387,22 @@ class HeadlessWorldJoinDiagnosticsTest(unittest.TestCase):
         self.assertTrue(any("data get block" in cmd for cmd in commands))
 
     def test_timeout_thread_dump_skips_windows_and_absent_launcher(self):
+        class ClientLauncher:
+            pid = 102
+
         with tempfile.TemporaryDirectory() as tmp:
             destination = Path(tmp) / "diagnostics.log"
             probe.dump_client_threads(None, destination)
             self.assertFalse(destination.exists())
+
+            # Thread-dump collection uses the Linux process tree and is intentionally
+            # disabled on Windows, even if jcmd happens to be on PATH.
+            with mock.patch.object(probe.os, "name", "nt"), \
+                    mock.patch.object(probe.shutil, "which", return_value="/usr/bin/jcmd"), \
+                    mock.patch.object(probe.subprocess, "run") as process_run:
+                probe.dump_client_threads(ClientLauncher(), destination)
+            self.assertFalse(destination.exists())
+            process_run.assert_not_called()
 
     def test_thread_dump_only_attaches_to_client_process_descendants(self):
         class ClientLauncher:
@@ -409,7 +421,10 @@ class HeadlessWorldJoinDiagnosticsTest(unittest.TestCase):
             raise AssertionError(args)
         with tempfile.TemporaryDirectory() as tmp:
             destination = Path(tmp) / "client-thread-dump.log"
-            with mock.patch.object(probe.shutil, "which", return_value="/usr/bin/jcmd"), \
+            # Exercise the Linux-only diagnostic path on every CI host, including
+            # Windows. The fake process tree and jcmd output remain platform-neutral.
+            with mock.patch.object(probe.os, "name", "posix"), \
+                    mock.patch.object(probe.shutil, "which", return_value="/usr/bin/jcmd"), \
                     mock.patch.object(probe.subprocess, "run", side_effect=run):
                 probe.dump_client_threads(ClientLauncher(), destination)
             self.assertIn("Render thread WAITING", destination.read_text())

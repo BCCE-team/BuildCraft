@@ -1,3 +1,4 @@
+//? source if >=1.21.11 && <26
 /* Copyright (c) the BuildCraft team. SPDX-License-Identifier: MPL-2.0 */
 package buildcraft.transport.client;
 

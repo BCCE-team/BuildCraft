@@ -1,4 +1,4 @@
-//? source if >=1.21.11
+//? source if >=1.21.11 && <26
 /*
  * Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
@@ -67,18 +67,19 @@ public enum PipeFlowRendererItems implements IPipeFlowRenderer<PipeFlowItems> {
     public void submit(PipeFlowItems flow, float partialTicks, PoseStack matrix, SubmitNodeCollector collector,
         int light, int overlay) {
         Level world = flow.pipe.getHolder().getPipeWorld();
-        long now = world.getGameTime();
+        long now = flow.getVisualTick();
         List<TravellingItem> toRender = flow.getAllItemsForRender();
 
         matrix.pushPose();
         matrix.translate(0.5f, 0.5f, 0.5f);
         try {
             for (TravellingItem item : toRender) {
-                if (!item.shouldRender(now, partialTicks)) {
+                if (!flow.shouldRenderClientItem(item, partialTicks)) {
                     continue;
                 }
                 Vec3 pos = item.getRenderPosition(BlockPos.ZERO, now, partialTicks, flow);
                 ItemStack stack = item.clientItemLink.get();
+                if (stack == null || stack.isEmpty()) stack = item.getStack();
 
                 if (!stack.isEmpty()) {
                     matrix.pushPose();
