@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "comment": "IT16 REAL client+server world join. JEI and Jade are REQUIRED on every target and come from build-config/targets.properties via the modpack Gradle runtime profile. Forestry CE and IC2 Classic use that same profile on supported Forge targets. Other JARs are pinned Modrinth releases (id, or project@exact-version). The present map is an enforced coverage contract, NOT an optional download list.",
+  "comment": "IT16 REAL client+server world join. JEI and Jade are REQUIRED on every target and come from build-config/targets.properties via the modpack Gradle runtime profile. Forestry CE and IC2 Classic use that same profile on supported Forge targets; 1.21.1 NeoForge uses Forestry CE alpha9 with a pinned Patchouli runtime. Other JARs are pinned Modrinth releases (id, or project@exact-version). The present map is an enforced coverage contract, NOT an optional download list.",
   "targets": {
     "1.19.2-forge": {
       "generation": "old",
@@ -35,9 +35,9 @@
       "mods": {
         "ae2": "kfyIqgJ6",
         "modernfix": "7Jy58lnT",
-        "forestry": "kgQ8pCJ4",
+        "forestry": "RqiWPEU4",
         "guideme": "guideme@21.1.19",
-        "patchouli": "h6hKI2ob"
+        "patchouli": "BIogJv2D"
       },
       "present": {
         "ae2": true,

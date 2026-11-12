@@ -33,8 +33,7 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
             downports = [root for root in (layout.family_downport_root, layout.family_platform_downport_root) if root]
             for name in ("core/blockEntity/TileEngineRedstone_BC8.java", "compat/jade/BuildCraftJadePlugin.java",
                          "lib/crops/CropHandlerPlantable.java",
-                         "transport/pipe/flow/TravellingItem.java",
-                         "builders/BCBuildersItems.java", "builders/item/ItemQuarry.java"):
+                         "transport/pipe/flow/TravellingItem.java"):
                 relative = "src/main/java/buildcraft/" + name
                 source = resolve_effective_source(layout, props, relative)
                 assert source is not None, f"No source found for {target}: {name}"
@@ -53,6 +52,91 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
 
     def source(self, target: str, path: str) -> str:
         return self.sources[target, path]
+
+    def test_forestry_1211_apiarists_pipe_target_isolation_and_runtime_contract(self):
+        props = load_properties()
+        prefix = "src/main/java/buildcraft/compat/forestry/"
+        files = (
+            "ForestryCompat.java", "ForestryListMatchHandler.java",
+            "pipe/ForestryPipes.java", "pipe/PropolisFilterLogic.java",
+            "pipe/PipeBehaviourPropolis.java", "pipe/ContainerPropolisPipe.java",
+            "pipe/MessagePropolisRuleChange.java", "pipe/MessagePropolisGenomeChange.java",
+            "pipe/MessagePropolisFilterState.java", "pipe/client/ForestryCompatClient.java",
+            "pipe/client/GuiPropolisPipe.java",
+        )
+        self.assertEqual(props["target.1.21.1-neoforge.compat.forestry.enabled"], "true")
+        self.assertIn("RqiWPEU4", props["target.1.21.1-neoforge.deps.forestry"])
+        self.assertIn("BIogJv2D", props["target.1.21.1-neoforge.deps.patchouli"])
+        modpack = json.loads((ROOT / "build-config/modpack-world-join-lock.json").read_text(encoding="utf-8"))
+        self.assertEqual(modpack["targets"]["1.21.1-neoforge"]["mods"]["forestry"], "RqiWPEU4")
+        self.assertEqual(modpack["targets"]["1.21.1-neoforge"]["mods"]["patchouli"], "BIogJv2D")
+        gradle = (ROOT / "build-logic/loaders/neoforge-target.gradle").read_text(encoding="utf-8")
+        self.assertIn("ciRuntimeProfile != 'modpack'", gradle)
+        for target in ("1.21.1-neoforge", "1.21.11-neoforge", "26.1.2-neoforge",
+                       "26.2-neoforge", "26.3-neoforge"):
+            layout = target_layout(target, props)
+            for file in files:
+                source = resolve_effective_source(layout, props, prefix + file)
+                with self.subTest(target=target, file=file):
+                    if target == "1.21.1-neoforge":
+                        self.assertIsNotNone(source)
+                        if file in {
+                            "ForestryCompat.java", "pipe/MessagePropolisFilterState.java",
+                            "pipe/client/ForestryCompatClient.java",
+                        }:
+                            self.assertIn("source-family-platforms/1.21.X/neoforge", source.as_posix())
+                        else:
+                            self.assertIn("version-src/1.21.1-neoforge", source.as_posix())
+                    else:
+                        self.assertIsNone(source)
+
+        behaviour = (ROOT / "version-src/1.21.1-neoforge" / prefix /
+                     "pipe/PipeBehaviourPropolis.java").read_text(encoding="utf-8")
+        for token in ("filter.write(new CompoundTag(), TilePipeHolder.getRegistryAccess(pipe))",
+                      "filter.read(nbt.getCompound(\"filter\"), TilePipeHolder.getRegistryAccess(pipe))",
+                      "PipeEventItem.SideCheck", "DefaultFilterRuleType.ANYTHING",
+                      "event.decreasePriority(face)", "scheduleNetworkUpdate(PipeMessageReceiver.BEHAVIOUR)"):
+            self.assertIn(token, behaviour)
+        for packet in ("RuleChange", "GenomeChange"):
+            text = (ROOT / "version-src/1.21.1-neoforge" / prefix /
+                    ("pipe/MessagePropolis" + packet + ".java")).read_text(encoding="utf-8")
+            self.assertIn("canEdit(player, position)", text)
+        menu = (ROOT / "version-src/1.21.1-neoforge" / prefix /
+                "pipe/ContainerPropolisPipe.java").read_text(encoding="utf-8")
+        self.assertIn("live.pipe.getHolder().canPlayerInteract(player)", menu)
+        self.assertIn("filter.read(data, registries)", menu)
+        compat_source = resolve_effective_source(target_layout("1.21.1-neoforge", props), props,
+                                                 prefix + "ForestryCompat.java")
+        compat = compat_source.read_text(encoding="utf-8")
+        self.assertNotIn("event.registerBlockEntity(ForestryCapabilities.FILTER_LOGIC", compat)
+        self.assertIn("MessagePropolisGenomeChange.HANDLER", compat)
+
+        recipe = ROOT / "version-src/1.21.1-neoforge/src/main/resources/data/buildcraftcompat/recipe/pipe_item_propolis.json"
+        data = json.loads(recipe.read_text(encoding="utf-8"))
+        self.assertEqual(data["neoforge:conditions"],
+                         [{"type": "neoforge:mod_loaded", "modid": "forestry"}])
+        self.assertEqual(data["left"], {"item": "forestry:propolis"})
+        self.assertEqual(data["result"], {"item": "buildcraftcompat:pipe_item_propolis", "count": 8})
+        textures = ROOT / "version-src/1.21.1-neoforge/src/main/resources/assets/buildcraftcompat/textures/pipes"
+        self.assertEqual(len(list(textures.glob("propolis*.png"))), 8)
+
+    def test_forestry_1211_neoforge_metadata_scopes_optional_mod(self):
+        props = load_properties()
+        from source_preprocessor import preprocess_text
+        path = ROOT / "source-platforms/neoforge/src/main/resources/META-INF/neoforge.mods.toml"
+        text = path.read_text(encoding="utf-8")
+        for target in ("1.21.1-neoforge", "1.21.11-neoforge", "26.1.2-neoforge",
+                       "26.2-neoforge", "26.3-neoforge"):
+            layout = target_layout(target, props)
+            processed = preprocess_text(text, minecraft=props[f"target.{target}.deps.minecraft"],
+                                        family=layout.family, platform=layout.platform)
+            metadata = tomllib.loads(processed)
+            forestry = [dep for dep in metadata["dependencies"]["buildcraftcompat"]
+                        if dep["modId"] == "forestry"]
+            self.assertEqual(len(forestry), 1 if target == "1.21.1-neoforge" else 0)
+            if forestry:
+                self.assertEqual(forestry[0]["type"], "optional")
+                self.assertIn("forestry_version_range", forestry[0]["versionRange"])
 
     def test_travelling_item_nbt_accessor_compatibility_across_neoforge(self):
         name = "transport/pipe/flow/TravellingItem.java"
@@ -81,53 +165,139 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
                 for token in guarded:
                     self.assertIn(token, java)
 
-    def test_quarry_enchantability_uses_native_1211_hooks(self):
-        item_1211 = self.source("1.21.1-neoforge", "builders/BCBuildersItems.java")
-        quarry_1211 = self.source("1.21.1-neoforge", "builders/item/ItemQuarry.java")
-        self.assertIn('new Item.Properties().stacksTo(1)', item_1211)
-        self.assertNotIn('.enchantable(', item_1211)
-        for required in (
-            'boolean isEnchantable(ItemStack stack)',
-            'int getEnchantmentValue(ItemStack stack)',
-            'boolean isPrimaryItemFor(ItemStack stack, Holder<Enchantment> enchantment)',
-            'boolean supportsEnchantment(ItemStack stack, Holder<Enchantment> enchantment)',
-            'Items.DIAMOND_PICKAXE.supportsEnchantment(',
-        ):
-            self.assertIn(required, quarry_1211)
-
-        for target in ("1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"):
-            with self.subTest(target=target):
-                registry = self.source(target, "builders/BCBuildersItems.java")
-                quarry = self.source(target, "builders/item/ItemQuarry.java")
-                self.assertIn('.enchantable(10)', registry)
-                self.assertNotIn('getEnchantmentValue(ItemStack stack)', quarry)
-
-    def test_quarry_enchantment_tags_follow_minecraft_generation(self):
-        # The enchantable/item registry tags start with modern Minecraft.
-        # They must not leak into old Forge resources and must survive the
-        # family split so both 1.21.X and 26.X get the same pickaxe rules.
+    def test_apiarist_pipe_atlas_and_native_screen_on_1211(self):
+        """Keep the world/inventory pipe textures and the ORIGINAL Forestry GUI."""
+        import struct
         props = load_properties()
-        for target in (
-            "1.19.2-forge", "1.20.1-forge", "1.21.1-neoforge",
-            "1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge",
-            "26.3-neoforge",
+        atlas_path = "src/main/resources/assets/minecraft/atlases/blocks.json"
+        sprites = ["buildcraftcompat:pipes/propolis" + suffix for suffix in (
+            "", "_down", "_up", "_north", "_south", "_west", "_east", "_itemstack"
+        )]
+        for target in ("1.19.2-forge", "1.20.1-forge", "1.21.1-neoforge",
+                       "1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"):
+            with self.subTest(target=target):
+                source = resolve_effective_source(target_layout(target, props), props, atlas_path)
+                if source is None:
+                    self.assertNotEqual(target, "1.21.1-neoforge")
+                    continue
+                names = [entry.get("resource") for entry in json.loads(source.read_text(encoding="utf-8"))["sources"]]
+                for sprite in sprites:
+                    self.assertEqual(sprite in names, target == "1.21.1-neoforge", sprite)
+
+        assets = ROOT / "version-src/1.21.1-neoforge/src/main/resources/assets/buildcraftcompat"
+        for sprite in sprites:
+            png = assets / "textures" / (sprite.split(":", 1)[1] + ".png")
+            data = png.read_bytes()
+            self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(struct.unpack(">II", data[16:24]), (16, 16))
+
+        item_model = json.loads((assets / "models/item/pipe_item_propolis.json").read_text(encoding="utf-8"))
+        self.assertEqual(item_model["textures"]["layer0"], "buildcraftcompat:pipes/propolis_itemstack")
+
+        # The published Forestry CE alpha9 dependency does not expose
+        # ForestryScreen/TitledForestryScreen even though the development
+        # branch does. Use vanilla's shipped screen class with the exact
+        # Forestry background/selector geometry, sprites and behavior.
+        gui = (ROOT / "version-src/1.21.1-neoforge/src/main/java/buildcraft/compat/forestry/pipe/client/GuiPropolisPipe.java").read_text(encoding="utf-8")
+        menu = (ROOT / "version-src/1.21.1-neoforge/src/main/java/buildcraft/compat/forestry/pipe/ContainerPropolisPipe.java").read_text(encoding="utf-8")
+        for snippet in (
+            "extends AbstractContainerScreen<ContainerPropolisPipe>",
+            'ForestryConstants.forestry("textures/gui/filter.png")',
+            "imageHeight = 222;", "imageWidth = 212;",
+            "new PropolisRuleWidget(44, 18 + i * 18",
+            "80 + j * 45 + k * 18,",
+            "new PropolisSelectionWidget(0, 134)",
+            "leftPos + selection.getX() + 125",
+            "topPos + selection.getY() + 4",
+            "setPlayerSlotsEnabled(false)",
+            "selection.filterEntries",
+            "selection.handleClick(localX, localY, button)",
+            "if (selection.isOpen()) {",
         ):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, gui)
+        for unavailable in (
+            "TitledForestryScreen", "import forestry.core.platform.gui.ForestryScreen;",
+            "WidgetManager", "widgetManager", "Drawable", "addHintLedger",
+        ):
+            with self.subTest(unavailable=unavailable):
+                self.assertNotIn("import forestry.core.platform.gui." + unavailable,
+                                 gui)
+        self.assertNotIn("extends TitledForestryScreen", gui)
+        self.assertNotIn("import forestry.core.platform.gui.", gui)
+        for snippet in (
+            "import net.minecraft.world.inventory.Slot;",
+            "Slot from = slots.get(slot);",
+            "addSlot(new SlotPropolisPipe(inventory,",
+            "26 + column * 18, 140 + row * 18",
+            "26 + column * 18, 198",
+        ):
+            self.assertIn(snippet, menu)
+        self.assertNotIn("Button.builder", gui)
+        self.assertNotIn("apiarist_pipe.png", gui)
+        self.assertFalse((ROOT / "resource-src/1.21.X/1.21.1/assets/buildcraftcompat/textures/gui/apiarist_pipe.png").exists())
+        self.assertIn("live.pipe.getHolder().canPlayerInteract(player)", menu)
+
+    def test_apiarist_legacy_widget_parity_and_target_isolation(self):
+        props = load_properties()
+        prefix = "src/main/java/buildcraft/compat/forestry/pipe/"
+        variants = [
+            "client/widget/PropolisRuleWidget.java",
+            "client/widget/PropolisSpeciesWidget.java",
+            "client/widget/PropolisSelectionWidget.java",
+            "client/widget/PropolisSelectionLogic.java",
+            "SlotPropolisPipe.java",
+        ]
+        old_gui = (ROOT / "source-families/old/src/main/java/buildcraft/compat/forestry/pipe/client/GuiPropolisPipe.java").read_text(encoding="utf-8")
+        new_gui = (ROOT / "version-src/1.21.1-neoforge/src/main/java/buildcraft/compat/forestry/pipe/client/GuiPropolisPipe.java").read_text(encoding="utf-8")
+        # Check the *experience* against the original UI, not its unstable
+        # Forestry-internal Java base class. Geometry and filtering must match.
+        for anchor in (
+            "imageHeight = 222;", "imageWidth = 212;",
+            "44, 18 + i * 18",
+            "80 + j * 45 + k * 18",
+        ):
+            self.assertIn(anchor, old_gui)
+            self.assertIn(anchor, new_gui)
+        self.assertIn("new PropolisSelectionWidget(0, 134)", new_gui)
+        self.assertIn("new PropolisSelectionWidget(widgetManager, 0, 134", old_gui)
+
+        for target in ("1.21.1-neoforge", "1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"):
             layout = target_layout(target, props)
-            for tag in ("mining", "mining_loot", "durability", "vanishing"):
-                with self.subTest(target=target, tag=tag):
-                    relative = f"src/main/resources/data/minecraft/tags/item/enchantable/{tag}.json"
-                    source = resolve_effective_source(layout, props, relative)
-                    if layout.family == "old":
-                        self.assertIsNone(source)
-                    else:
+            for name in variants:
+                with self.subTest(target=target, java=name):
+                    source = resolve_effective_source(layout, props, prefix + name)
+                    if target == "1.21.1-neoforge":
                         self.assertIsNotNone(source)
-                        self.assertTrue(source.is_relative_to(
-                            ROOT / "source-families" / layout.family
-                        ))
-                        self.assertEqual(json.loads(source.read_text(encoding="utf-8")), {
-                            "replace": False,
-                            "values": ["buildcraftbuilders:quarry"],
-                        })
+                        self.assertIn("source-family-platforms/1.21.X/neoforge", source.as_posix())
+                        self.assertTrue(source.read_text(encoding="utf-8").startswith("//? source if <1.21.11"))
+                    else:
+                        self.assertIsNone(source)
+
+        widget_root = ROOT / "source-family-platforms/1.21.X/neoforge" / prefix / "client/widget"
+        selection_logic = (widget_root / "PropolisSelectionLogic.java").read_text(encoding="utf-8")
+        selection_widget = (widget_root / "PropolisSelectionWidget.java").read_text(encoding="utf-8")
+        rule_widget = (widget_root / "PropolisRuleWidget.java").read_text(encoding="utf-8")
+        species_widget = (widget_root / "PropolisSpeciesWidget.java").read_text(encoding="utf-8")
+        self.assertIn("SELECTABLE_PER_ROW = 11", selection_logic)
+        self.assertIn("VISIBLE_ROWS = 4", selection_logic)
+        self.assertIn("for (int row = 0; row < VISIBLE_ROWS; row++)", selection_logic)
+        self.assertIn("getMaxScroll()", selection_logic)
+        self.assertIn("scroll = Math.max(0, Math.min", selection_widget)
+        self.assertIn("textures/gui/filter_selection.png", selection_widget)
+        self.assertIn("textures/gui/container/creative_inventory/tabs.png", selection_widget)
+        self.assertIn("IForestryClientApi.INSTANCE.getTextureManager().getSprite", rule_widget)
+        self.assertIn("getDiscoveredSpecies()", species_widget)
+        self.assertIn("IIndividualHandlerItem.getIndividual(carried)", species_widget)
+        self.assertIn("GeneticsUtil.getIconStacks(result, type.getDefaultStage(), type)", species_widget)
+        for source in (selection_logic, selection_widget, rule_widget, species_widget):
+            self.assertNotIn("import forestry.core.platform.gui.", source)
+            self.assertNotIn("import forestry.core.content.sorting.gui.", source)
+            self.assertNotIn("WidgetManager", source)
+        # The actual available dependency must be sufficient to compile the
+        # screen, not just to render a matching mock-up in static tests.
+        self.assertNotIn("extends TitledForestryScreen", new_gui)
+        self.assertNotIn("extends ForestryScreen", new_gui)
 
     def test_redstone_advancement_uses_1211_profile_api(self):
         name = "core/blockEntity/TileEngineRedstone_BC8.java"

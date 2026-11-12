@@ -2,10 +2,6 @@
   "sources": [
     {
       "type": "minecraft:single",
-      "resource": "buildcraftlib:model/led_fallback"
-    },
-    {
-      "type": "minecraft:single",
       "resource": "buildcraftbuilders:addons/filler_planner"
     },
     {
@@ -679,6 +675,38 @@
     {
       "type": "minecraft:single",
       "resource": "buildcraftbuilders:robot"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftcompat:pipes/propolis"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftcompat:pipes/propolis_down"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftcompat:pipes/propolis_east"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftcompat:pipes/propolis_itemstack"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftcompat:pipes/propolis_north"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftcompat:pipes/propolis_south"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftcompat:pipes/propolis_up"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftcompat:pipes/propolis_west"
     },
     {
       "type": "minecraft:single",
@@ -1992,6 +2020,10 @@
     {
       "type": "minecraft:single",
       "resource": "buildcraftlib:items/guide_note"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftlib:model/led_fallback"
     },
     {
       "type": "minecraft:single",
@@ -3525,6 +3557,46 @@
     },
     {
       "type": "minecraft:single",
+      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m0"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m128"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m16"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m2"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m256"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m32"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m4"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m64"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m8"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcrafttransport:triggers/trigger_limiter_m0"
+    },
+    {
+      "type": "minecraft:single",
       "resource": "buildcrafttransport:triggers/trigger_limiter_m128"
     },
     {
@@ -3770,46 +3842,6 @@
     {
       "type": "minecraft:single",
       "resource": "buildcrafttransport:wires/yellow"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcrafttransport:triggers/trigger_limiter_m0"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m256"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m128"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m64"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m32"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m16"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m8"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m4"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m2"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m0"
     },
     {
       "type": "buildcraftlib:material_alpha"

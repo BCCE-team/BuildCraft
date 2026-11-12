@@ -408,11 +408,14 @@ def _neoforge_build_gradle(properties: dict[str, str], target: str) -> str:
     neoforge = _target_property(properties, target, "deps.neoforge")
     pack_format = _target_property(properties, target, "pack.format")
     deps: list[str] = []
-    for name in ("jei", "jade", "create"):
+    for name in ("jei", "jade", "forestry", "create"):
         dep = _target_property(properties, target, f"deps.{name}")
         if dep and _compat_enabled(properties, target, name):
             deps.append(f"    compileOnly {_groovy(dep)}")
             deps.append(f"    localRuntime {_groovy(dep)}")
+    patchouli = _target_property(properties, target, "deps.patchouli")
+    if patchouli and _compat_enabled(properties, target, "forestry"):
+        deps.append(f"    localRuntime {_groovy(patchouli)}")
     junit = _target_property(properties, target, "deps.junit")
     deps.extend(
         [

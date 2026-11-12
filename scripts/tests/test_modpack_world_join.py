@@ -555,7 +555,8 @@ class ModpackCoverageContractTest(unittest.TestCase):
 
     def test_required_optional_mod_dependencies_are_pinned(self):
         lock = json.loads((ROOT / "build-config/modpack-world-join-lock.json").read_text())
-        self.assertEqual(lock["targets"]["1.21.1-neoforge"]["mods"]["patchouli"], "h6hKI2ob")
+        self.assertEqual(lock["targets"]["1.21.1-neoforge"]["mods"]["forestry"], "RqiWPEU4")
+        self.assertEqual(lock["targets"]["1.21.1-neoforge"]["mods"]["patchouli"], "BIogJv2D")
         self.assertEqual(lock["targets"]["26.1.2-neoforge"]["mods"]["guideme"], "Vvte0XiA")
         properties = (ROOT / "build-config/targets.properties").read_text()
         self.assertIn('target.26.2-neoforge.deps.jei=maven.modrinth:u6dRKJwZ:2Uf4rjR5', properties)

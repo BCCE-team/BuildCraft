@@ -420,7 +420,19 @@ dependencies {
         throw new GradleException('IC2 compatibility is enabled, but no NeoForge 1.21.1 IC2 dependency is configured.')
     }
     if (forestryCompatEnabled) {
-        throw new GradleException('Forestry compatibility is enabled, but no NeoForge 1.21.1 Forestry dependency is configured.')
+        def forestryDependency = optionalProperty('deps.forestry')
+        if (!forestryDependency) {
+            throw new GradleException('Forestry compatibility requires a pinned Forestry CE dependency.')
+        }
+        compileOnly forestryDependency
+        // IT16 injects the exact Forestry and Patchouli JARs from its own pinned modpack lock.
+        if (runtimeEnabled('forestry', true) && ciRuntimeProfile != 'modpack') {
+            localRuntime forestryDependency
+            def patchouliDependency = optionalProperty('deps.patchouli')
+            if (patchouliDependency) {
+                localRuntime patchouliDependency
+            }
+        }
     }
 
     testImplementation "org.junit.jupiter:junit-jupiter-api:${requiredProperty('deps.junit')}"
@@ -453,7 +465,8 @@ def resourceProperties = [
         resource_pack_format: requiredProperty('pack.resource_format'),
         data_pack_format: requiredProperty('pack.data_format'),
         jei_version_range: requiredProperty('compat.jei.range'),
-        jade_version_range: requiredProperty('compat.jade.range')
+        jade_version_range: requiredProperty('compat.jade.range'),
+        forestry_version_range: requiredProperty('compat.forestry.range')
 ]
 
 tasks.named('processResources', ProcessResources) {
