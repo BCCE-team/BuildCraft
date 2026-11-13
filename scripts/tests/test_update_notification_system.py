@@ -184,6 +184,16 @@ class UpdateNotificationSystemTests(unittest.TestCase):
         self.assertGreater(workflow.index("Generate and attach BCCE release manifest"),
                            workflow.index("Publish 26.3 NeoForge"))
 
+    def test_manifest_generation_and_upload_do_not_require_git_checkout(self):
+        workflow = (ROOT / ".github/workflows/publish.yml").read_text(encoding="utf-8")
+        publish_job = workflow.split("\n  publish:\n", 1)[1]
+        self.assertIn('"--repo", os.environ["GITHUB_REPOSITORY"]', publish_job)
+        self.assertIn(
+            'gh release upload "$RELEASE_TAG" bcce-release-manifest.json '
+            '--repo "$GITHUB_REPOSITORY" --clobber',
+            publish_job,
+        )
+
     def test_checker_is_asynchronous_and_uses_etag_cache(self):
         checker = (ROOT / "source-shared/src/main/java/buildcraft/lib/update/UpdateChecker.java").read_text(encoding="utf-8")
         self.assertIn("CompletableFuture.supplyAsync", checker)

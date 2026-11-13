@@ -425,6 +425,7 @@ jobs:
           pattern = re.compile(r"^BuildCraft-Community-Edition-(.+)\+([0-9.]+)\+(forge|neoforge|fabric)\.jar$")
           published_assets = subprocess.check_output([
               "gh", "release", "view", os.environ["RELEASE_TAG"],
+              "--repo", os.environ["GITHUB_REPOSITORY"],
               "--json", "assets", "--jq", ".assets[].name"
           ], text=True).splitlines()
           for asset_name in sorted(published_assets):
@@ -437,4 +438,4 @@ jobs:
           pathlib.Path("bcce-release-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
           print(json.dumps(manifest, indent=2))
           PYCODE
-          gh release upload "$RELEASE_TAG" bcce-release-manifest.json --clobber
+          gh release upload "$RELEASE_TAG" bcce-release-manifest.json --repo "$GITHUB_REPOSITORY" --clobber
