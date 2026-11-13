@@ -63,6 +63,30 @@ def require_compact(target: str, relative: str, *needles: str) -> str:
     return value
 
 
+def unwrap_conditional_recipe(target: str, recipe_id: str, document: Any) -> dict[str, Any] | None:
+    """Compare the effective output of Forge's conditional recipe, not its wrapper.
+
+    Forge 1.19/1.20 put the actual recipe under ``recipes[0].recipe``;
+    NeoForge 1.21 puts ``neoforge:conditions`` directly on that recipe.
+    Fail closed on malformed/multi-variant wrappers rather than silently
+    accepting an absent output or selecting a random branch.
+    """
+    if not isinstance(document, dict):
+        fail(f"{target}: invalid recipe object {recipe_id}")
+        return None
+    if document.get("type") != "forge:conditional":
+        return document
+    branches = document.get("recipes")
+    if not isinstance(branches, list) or len(branches) != 1:
+        fail(f"{target}: expected one conditional recipe branch for {recipe_id}")
+        return None
+    branch = branches[0]
+    if not isinstance(branch, dict) or not isinstance(branch.get("recipe"), dict):
+        fail(f"{target}: invalid conditional recipe branch for {recipe_id}")
+        return None
+    return branch["recipe"]
+
+
 def recipe_inventory(target: str) -> dict[str, tuple[str | None, int]]:
     data = TARGETS[target] / "src/main/resources/data"
     directory = "recipe" if target.startswith("1.21.1") else "recipes"
@@ -78,7 +102,10 @@ def recipe_inventory(target: str) -> dict[str, tuple[str | None, int]]:
             except Exception as exc:
                 fail(f"{target}: invalid recipe JSON {path.relative_to(TARGETS[target])}: {exc}")
                 continue
-            raw = document.get("result") if isinstance(document, dict) else None
+            recipe = unwrap_conditional_recipe(target, recipe_id, document)
+            if recipe is None:
+                continue
+            raw = recipe.get("result")
             item: str | None = None
             count = 1
             if isinstance(raw, str):
@@ -624,8 +651,10 @@ def validate_resource_parity() -> None:
                          if recipes["1.19.2-forge"][k] != recipes["1.20.1-forge"][k])
         fail(f"1.20.1-forge: recipe output inventory differs; missing={missing[:4]}, extra={extra[:4]}, changed={changed[:4]}")
 
-    expected_121 = dict(recipes["1.19.2-forge"])
-    expected_121.pop("buildcraftcompat:pipe_item_propolis", None)
+    # Apiarist's Pipe is available on all three targets. Older Forge wraps its
+    # Forestry-gated recipe in forge:conditional; recipe_inventory normalizes
+    # that wrapper so the 1.21.1 NeoForge output must match the legacy output.
+    expected_121 = recipes["1.19.2-forge"]
     for target in ("1.21.1-neoforge",):
         if recipes[target] != expected_121:
             missing = sorted(set(expected_121) - set(recipes[target]))
@@ -1374,7 +1403,8 @@ def main() -> None:
 
     print(
         "Behavior parity OK: 2 newer targets locked to the 1.19.2 reference; "
-        "228/227 recipes, 31 loot tables and 192 advancements validated"
+        f"{len(recipe_inventory('1.19.2-forge'))} recipes compared per target, "
+        "31 loot tables and 192 advancements validated"
     )
 
 

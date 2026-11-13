@@ -41,8 +41,12 @@ public class ResourceJsonTester {
         Assertions.assertNotNull(stream, "Missing processed pack.mcmeta on the test runtime classpath");
         try (Reader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             JsonElement root = JsonParser.parseReader(reader);
-            Assertions.assertEquals(expected,
-                root.getAsJsonObject().getAsJsonObject("pack").get("pack_format").getAsDouble());
+            var pack = root.getAsJsonObject().getAsJsonObject("pack");
+            Assertions.assertNotNull(pack, "Missing pack metadata in processed pack.mcmeta");
+            Assertions.assertTrue(pack.has("pack_format"),
+                () -> "JUnit loaded the wrong pack.mcmeta (possibly Minecraft's instead of BuildCraft's): "
+                    + ResourceJsonTester.class.getResource("/pack.mcmeta"));
+            Assertions.assertEquals(expected, pack.get("pack_format").getAsDouble());
         }
     }
 

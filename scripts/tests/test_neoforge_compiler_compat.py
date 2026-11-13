@@ -397,6 +397,57 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
         self.assertIn("i == CHUNK_SIZE / 2 ? new byte[] {0} : frame", test)
         self.assertIn("received.size() == (part == 1 ? CHUNK_SIZE - 1 : CHUNK_SIZE)", test)
 
+    def test_263_junit_classpath_prefers_packaged_buildcraft_resources(self):
+        """JUnit must read the shipped BCCE resources, not a guessed Gradle output path."""
+        gradle = (ROOT / "build-logic/loaders/neoforge-target.gradle").read_text(encoding="utf-8")
+        self.assertIn("if (targetName == '26.3-neoforge')", gradle)
+        self.assertIn("def builtModJar = tasks.named('jar', Jar)", gradle)
+        self.assertIn("dependsOn builtModJar", gradle)
+        self.assertIn("classpath = files(builtModJar.flatMap { it.archiveFile }) + classpath", gradle)
+        self.assertIn("def zip = new java.util.zip.ZipFile(archive)", gradle)
+        self.assertIn("zip.getEntry(relative) == null", gradle)
+        self.assertIn("zip.getInputStream(zip.getEntry('pack.mcmeta'))", gradle)
+        self.assertNotIn("classpath = files(sourceSets.main.output.resourcesDir) + classpath", gradle)
+        for relative in (
+            "page_layouts.json", "original_manifest.json", "languages.json",
+            "text/en_us.json", "registry/buildcraftlib.txt", "gui/icons.png",
+        ):
+            with self.subTest(relative=relative):
+                path = ROOT / "source-shared/src/main/resources/assets/buildcraft/guide" / relative
+                self.assertTrue(path.is_file(), f"Missing actual BuildCraft guide resource {path}")
+
+    def test_263_packaging_recovers_materialized_resources_and_translations(self):
+        """26.3 must package actual target resources even if ModDev loses its resource root."""
+        gradle = (ROOT / "build-logic/loaders/neoforge-target.gradle").read_text(encoding="utf-8")
+        marker = "// ModDevGradle 2.0.148 / Gradle 9: on 26.3 the assembled JAR"
+        self.assertIn(marker, gradle)
+        packaging = gradle.split(marker, 1)[1].split("tasks.named('jar', Jar) {\n    archiveClassifier", 1)[0]
+        self.assertIn("if (targetName == '26.3-neoforge')", packaging)
+        self.assertIn("def effectiveMainResources = new File(effectiveSourceDir, 'src/main/resources')", packaging)
+        self.assertIn("tasks.named('processResources', ProcessResources)", packaging)
+        self.assertIn("from(effectiveMainResources)", packaging)
+        self.assertIn("from(tasks.named('processResources'))", packaging)
+        self.assertIn("exclude 'pack.mcmeta', 'META-INF/neoforge.mods.toml'", packaging)
+        self.assertIn("include 'pack.mcmeta', 'META-INF/neoforge.mods.toml'", packaging)
+        self.assertIn("expand(resourceProperties)", packaging)
+        # Variables declared with def in the separately applied common script
+        # are NOT properties of the Jar task or this adapter script. Reusing them
+        # here fails during Gradle configuration, before any compile/test task.
+        self.assertNotIn("from(externalLocalizationsOutput)", packaging)
+        self.assertNotIn("dependsOn stageBuildCraftLocalizations", packaging)
+        common_gradle = (ROOT / "build-logic/common-target.gradle").read_text(encoding="utf-8")
+        self.assertIn("def externalLocalizationsOutput =", common_gradle)
+        self.assertIn("def stageBuildCraftLocalizations =", common_gradle)
+        self.assertIn("tasks.named('processResources', ProcessResources)", common_gradle)
+        self.assertIn("dependsOn stageBuildCraftLocalizations", common_gradle)
+        self.assertIn("from(externalLocalizationsOutput)", common_gradle)
+        self.assertEqual(2, packaging.count("duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE"))
+        # The source resource templates are real and target-specific. A blank
+        # directory or unexpanded metadata must never be treated as a fix.
+        for relative in ("pack.mcmeta", "assets/buildcraft/guide/text/en_us.json",
+                         "assets/buildcraft/guide/original_manifest.json"):
+            self.assertTrue((ROOT / "source-shared/src/main/resources" / relative).is_file())
+
     def test_pack_metadata_respects_1_21_11_supported_formats_boundary(self):
         props = load_properties()
         source = ROOT / "source-shared/src/main/resources/pack.mcmeta"

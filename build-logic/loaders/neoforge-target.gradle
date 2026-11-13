@@ -449,6 +449,39 @@ tasks.named('test', Test) {
     dependsOn prepareEffectiveSource
     workingDir effectiveSourceRoot.get().asFile
     systemProperty 'buildcraft.expectedPackFormat', requiredProperty('pack.format')
+    if (targetName == '26.3-neoforge') {
+        // On ModDevGradle 2.0.148 the test runtime can resolve /pack.mcmeta from
+        // Minecraft instead of BuildCraft, while sourceSets.main.output.resourcesDir
+        // is not guaranteed to point to processResources' actual output. Use the
+        // current production JAR as the FIRST classpath element: this tests the
+        // exact assets we ship rather than guessing an intermediate directory.
+        def builtModJar = tasks.named('jar', Jar)
+        dependsOn builtModJar
+        classpath = files(builtModJar.flatMap { it.archiveFile }) + classpath
+        doFirst {
+            def archive = builtModJar.get().archiveFile.get().asFile
+            def zip = new java.util.zip.ZipFile(archive)
+            try {
+                for (String relative : ['pack.mcmeta',
+                                        'assets/buildcraft/guide/page_layouts.json',
+                                        'assets/buildcraft/guide/original_manifest.json',
+                                        'assets/buildcraft/guide/languages.json',
+                                        'assets/buildcraft/guide/text/en_us.json',
+                                        'assets/buildcraft/guide/registry/buildcraftlib.txt',
+                                        'assets/buildcraft/guide/gui/icons.png']) {
+                    if (zip.getEntry(relative) == null) {
+                        throw new GradleException("Missing packaged BCCE resource: ${relative} in ${archive}")
+                    }
+                }
+                def metadata = zip.getInputStream(zip.getEntry('pack.mcmeta')).getText('UTF-8')
+                if (metadata.contains('${') || !metadata.contains('"pack_format"')) {
+                    throw new GradleException("Unexpanded or invalid packaged BCCE pack.mcmeta in ${archive}")
+                }
+            } finally {
+                zip.close()
+            }
+        }
+    }
     testLogging {
         events 'failed', 'skipped'
         exceptionFormat 'full'
@@ -478,6 +511,40 @@ tasks.named('processResources', ProcessResources) {
     }
     filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
         expand(resourceProperties)
+    }
+}
+
+// ModDevGradle 2.0.148 / Gradle 9: on 26.3 the assembled JAR has been
+// observed without pack.mcmeta even though the materialized target resource
+// tree contains that file.  Recover both handoff boundaries explicitly:
+//   effective sources -> processed mod resources -> production JAR.
+// Keep this scoped to 26.3; the other six targets already package correctly.
+if (targetName == '26.3-neoforge') {
+    def effectiveMainResources = new File(effectiveSourceDir, 'src/main/resources')
+    tasks.named('processResources', ProcessResources) {
+        // Independent of ModDevGradle's source-set resource wiring, which can
+        // otherwise lose the materialized source directory on this target.
+        from(effectiveMainResources)
+        duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
+    }
+    tasks.named('jar', Jar) {
+        // Always include the expanded processed outputs, including staged
+        // external translations.  The second source is a safety net for a
+        // plugin/version combination that omits resources from the output
+        // source set.  Its metadata MUST be expanded, never shipped as ${...}.
+        from(tasks.named('processResources'))
+        // Never run Gradle template expansion over binary textures or JSON
+        // containing unrelated ${...} strings. Only metadata is templated.
+        from(effectiveMainResources) {
+            exclude 'pack.mcmeta', 'META-INF/neoforge.mods.toml'
+        }
+        from(effectiveMainResources) {
+            include 'pack.mcmeta', 'META-INF/neoforge.mods.toml'
+            expand(resourceProperties)
+        }
+        // common-target.gradle already stages translations into processResources.
+        // The task output above includes them and carries the producer dependency.
+        duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
     }
 }
 

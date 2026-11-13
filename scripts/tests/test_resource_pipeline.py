@@ -47,7 +47,21 @@ class ResourcePipeline(unittest.TestCase):
             # 1.20.1-only resources belong in resource-src/old/1.20.1, not
             # the target overlay. The materialized target is checked below.
             "1.20.1-forge": set(),
-            "1.21.1-neoforge": set(),
+            # These ten target-only resources are the optional Forestry CE
+            # Apiarist's Pipe port.  Do not allow other resources to escape
+            # the canonical/versioned-resource pipeline through this overlay.
+            "1.21.1-neoforge": {
+                "assets/buildcraftcompat/models/item/pipe_item_propolis.json",
+                "assets/buildcraftcompat/textures/pipes/propolis.png",
+                "assets/buildcraftcompat/textures/pipes/propolis_down.png",
+                "assets/buildcraftcompat/textures/pipes/propolis_east.png",
+                "assets/buildcraftcompat/textures/pipes/propolis_itemstack.png",
+                "assets/buildcraftcompat/textures/pipes/propolis_north.png",
+                "assets/buildcraftcompat/textures/pipes/propolis_south.png",
+                "assets/buildcraftcompat/textures/pipes/propolis_up.png",
+                "assets/buildcraftcompat/textures/pipes/propolis_west.png",
+                "data/buildcraftcompat/recipe/pipe_item_propolis.json",
+            },
             "1.21.11-neoforge": set(),
             "26.2-neoforge": set(),
             "26.3-neoforge": set(),
@@ -201,7 +215,7 @@ class ResourcePipeline(unittest.TestCase):
         self.assertEqual("buildcraftenergy:oil_heat_2", sample["fluid"])
         self.assertEqual("buildcraftenergy:items/ic2_cell_fluid", sample["textures"]["fluid"])
 
-    def test_canonical_atlas_is_modern_and_120_gets_only_legacy_compat_additions(self):
+    def test_canonical_atlas_keeps_forestry_pipe_sprites_on_supported_targets(self):
         canonical = ROOT / "source-families/1.21.X/src/main/resources/assets/minecraft/atlases/blocks.json"
         self.assertTrue(canonical.is_file())
         def resources(target: str) -> set[str]:
@@ -213,9 +227,16 @@ class ResourcePipeline(unittest.TestCase):
 
         legacy = resources("1.20.1-forge")
         modern = resources("1.21.1-neoforge")
-        self.assertIn("buildcraftcompat:pipes/propolis", legacy)
-        self.assertIn("buildcraftcompat:pipes/propolis_itemstack", legacy)
-        self.assertNotIn("buildcraftcompat:pipes/propolis", modern)
+        propolis = {
+            "buildcraftcompat:pipes/propolis" + suffix
+            for suffix in ("", "_down", "_up", "_north", "_south", "_east", "_west", "_itemstack")
+        }
+        self.assertTrue(propolis <= legacy, "Legacy Forge atlas lost Forestry sprites")
+        self.assertTrue(propolis <= modern, "1.21.1 NeoForge atlas lost Forestry sprites")
+        for other in ("1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"):
+            with self.subTest(other=other):
+                self.assertTrue(propolis.isdisjoint(resources(other)),
+                                f"Forestry's 1.21.1-only pipe sprites leaked into {other}")
         for value in (
             "buildcrafttransport:pipes/fe_flow",
             "buildcraftenergy:blocks/mj_dynamo/front",
