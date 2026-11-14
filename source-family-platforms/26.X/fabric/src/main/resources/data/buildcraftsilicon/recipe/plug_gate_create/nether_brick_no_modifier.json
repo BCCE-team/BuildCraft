@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "group": "buildcraftsilicon:basic_pluggate",
+  "key": {
+    "b": "buildcrafttransport:plug_blocker",
+    "m": "minecraft:nether_brick",
+    "r": "#c:dusts/redstone"
+  },
+  "pattern": [
+    " m ",
+    "mrm",
+    " b "
+  ],
+  "result": {
+    "id": "buildcraftsilicon:plug/gate",
+    "components": {
+      "minecraft:custom_data": {
+        "gate": {
+          "logic": 0,
+          "material": 2,
+          "modifier": 0
+        }
+      }
+    }
+  }
+}

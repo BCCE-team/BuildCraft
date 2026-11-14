@@ -1,0 +1,149 @@
+/*
+ * Copyright (c) 2017-2026 the BuildCraft team
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+ */
+package buildcraft.lib.recipe;
+
+import java.util.Objects;
+import java.util.stream.Stream;
+
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+
+import buildcraft.lib.misc.ItemStackUtil;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.fabricmc.fabric.api.recipe.v1.ingredient.CustomIngredient;
+import net.fabricmc.fabric.api.recipe.v1.ingredient.CustomIngredientSerializer;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Items;
+import io.netty.handler.codec.DecoderException;
+import buildcraft.lib.compat.NbtCompat;
+import net.minecraft.core.Holder;
+
+/**
+ * NeoForge equivalent of Forge's legacy {@code forge:nbt} ingredient.
+ *
+ * <p>The 1.19.2 reference recipes use {@code StrictNBTIngredient}: item, damage and
+ * the complete legacy share tag must match exactly, while stack count is ignored.
+ * Gate variants store byte-valued fields in that tag, so parsing the original SNBT
+ * string is intentional; converting it through JSON data components would erase
+ * those NBT numeric types and subtly change strict matching.</p>
+ */
+public final class LegacyStrictNbtIngredient implements CustomIngredient {
+    public static final MapCodec<LegacyStrictNbtIngredient> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
+        BuiltInRegistries.ITEM.byNameCodec().fieldOf("item").forGetter(LegacyStrictNbtIngredient::item),
+        Codec.INT.optionalFieldOf("count", 1).forGetter(LegacyStrictNbtIngredient::count),
+        Codec.STRING.optionalFieldOf("nbt", "").forGetter(LegacyStrictNbtIngredient::legacyNbt)
+    ).apply(instance, LegacyStrictNbtIngredient::new));
+
+    public static final StreamCodec<RegistryFriendlyByteBuf, LegacyStrictNbtIngredient> STREAM_CODEC =
+        StreamCodec.of((buffer, ingredient) -> {
+            buffer.writeIdentifier(BuiltInRegistries.ITEM.getKey(ingredient.item));
+            buffer.writeVarInt(ingredient.count);
+            buffer.writeUtf(ingredient.legacyNbt, 32767);
+        }, buffer -> {
+            Identifier id = buffer.readIdentifier();
+            Item item = BuiltInRegistries.ITEM.getOptional(id).orElse(null);
+            if (item == null || item == Items.AIR) {
+                throw new DecoderException("Invalid BuildCraft strict NBT ingredient item: " + id);
+            }
+            int count = buffer.readVarInt();
+            if (count <= 0 || count > 64) {
+                throw new DecoderException("Invalid BuildCraft strict NBT ingredient count: " + count);
+            }
+            return new LegacyStrictNbtIngredient(item, count, buffer.readUtf(32767));
+        });
+
+    private final Item item;
+    private final int count;
+    private final String legacyNbt;
+    private volatile ItemStack displayStack;
+
+    private LegacyStrictNbtIngredient(Item item, int count, String legacyNbt) {
+        if (count <= 0) {
+            throw new IllegalArgumentException("Legacy strict-NBT ingredient count must be positive");
+        }
+        this.item = Objects.requireNonNull(item, "item");
+        this.count = count;
+        this.legacyNbt = legacyNbt == null ? "" : legacyNbt;
+    }
+
+    private ItemStack displayStack() {
+        ItemStack stack = displayStack;
+        if (stack != null) {
+            return stack;
+        }
+        synchronized (this) {
+            stack = displayStack;
+            if (stack == null) {
+                CompoundTag parsed = parseTag(legacyNbt);
+                stack = new ItemStack(item, count);
+                if (NbtCompat.contains(parsed, "Damage", 99) && stack.isDamageableItem()) {
+                    stack.set(DataComponents.DAMAGE, Math.max(0, NbtCompat.getInt(parsed, "Damage")));
+                    parsed.remove("Damage");
+                }
+                ItemStackUtil.setCustomData(stack, parsed);
+                displayStack = stack;
+            }
+        }
+        return stack;
+    }
+
+    private static CompoundTag parseTag(String snbt) {
+        if (snbt == null || snbt.isBlank()) {
+            return new CompoundTag();
+        }
+        try {
+            return NbtCompat.parseTag(snbt);
+        } catch (CommandSyntaxException exception) {
+            throw new IllegalArgumentException("Invalid legacy strict-NBT ingredient tag: " + snbt, exception);
+        }
+    }
+
+    private Item item() {
+        return item;
+    }
+
+    private int count() {
+        return count;
+    }
+
+    private String legacyNbt() {
+        return legacyNbt;
+    }
+
+    public boolean test(ItemStack input) {
+        if (input == null || input.isEmpty() || input.getItem() != item) {
+            return false;
+        }
+        // ItemStack count is deliberately ignored, matching Forge 1.19.2 StrictNBTIngredient.
+        // Comparing the complete component set rejects extra names/enchants/custom data just as
+        // an extra legacy stack tag would violate strict NBT comparison.
+        return ItemStack.isSameItemSameComponents(input, displayStack());
+    }
+
+    public Stream<Holder<Item>> items() {
+        return Stream.of(item.builtInRegistryHolder());
+    }
+
+    public boolean isSimple() {
+        return false;
+    }
+
+    public boolean requiresTesting() {
+        // The exact item Data Components are part of the recipe identity.
+        return true;
+    }
+
+    public CustomIngredientSerializer<?> getSerializer() {
+        return BCLibIngredientTypes.STRICT_NBT;
+    }
+}

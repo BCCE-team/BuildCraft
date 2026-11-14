@@ -32,6 +32,7 @@ Make sure to download the version matching your Minecraft version and mod loader
 - [x] Port to 1.21.11 NeoForge
 - [x] Port to 26.x NeoForge
 - [x] Extend API v2 to version 2.1
+- [x] Port to 26.3 Fabric
 - [ ] Port to 1.20.1 Fabric
 - [ ] Port to 1.21.1 Fabric
 - [ ] Port to 1.21.11 Fabric

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "buildcraft-fabric-gametest",
+  "version": "1.0.0",
+  "name": "BuildCraft Fabric 26.3 GameTests",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-gametest": [
+      "buildcraft.gametest.FabricInfrastructureGameTests"
+    ]
+  },
+  "depends": {
+    "buildcraftlib": "*",
+    "fabric-api": "*"
+  }
+}

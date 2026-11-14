@@ -1,0 +1,15 @@
+{
+  "model": {
+    "type": "minecraft:composite",
+    "models": [
+      {
+        "type": "minecraft:model",
+        "model": "minecraft:item/bucket"
+      },
+      {
+        "type": "minecraft:model",
+        "model": "buildcraftenergy:item/fluid_overlays/fuel_mixed_heavy_searing_bucket"
+      }
+    ]
+  }
+}

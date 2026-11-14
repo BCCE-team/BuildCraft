@@ -110,6 +110,15 @@ if [[ "$runtime_profile" == "base" ]]; then
       loader_version="$(read_target_property deps.neoforge)"
       installer_url="https://maven.neoforged.net/releases/net/neoforged/neoforge/${loader_version}/neoforge-${loader_version}-installer.jar"
       ;;
+    fabric)
+      loader_version="$(read_target_property deps.fabric_loader)"
+      installer_version="$(read_target_property deps.fabric_installer)"
+      if [[ -z "$installer_version" ]]; then
+        echo "Fabric installer version is not pinned for ${target}" >&2
+        exit 2
+      fi
+      installer_url="https://maven.fabricmc.net/net/fabricmc/fabric-installer/${installer_version}/fabric-installer-${installer_version}.jar"
+      ;;
     *)
       echo "Installed-server smoke is not yet implemented for loader '${loader}' (${target})." >&2
       exit 2
@@ -149,7 +158,11 @@ if [[ "$runtime_profile" == "base" ]]; then
     export PATH="$JAVA_HOME/bin:$PATH"
     curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
       --output loader-installer.jar "$installer_url"
-    "$java_bin" -jar loader-installer.jar --installServer
+    if [[ "$loader" == fabric ]]; then
+      "$java_bin" -jar loader-installer.jar server -mcversion "$minecraft_version" -loader "$loader_version" -downloadMinecraft
+    else
+      "$java_bin" -jar loader-installer.jar --installServer
+    fi
     rm -f loader-installer.jar
   ) > "$install_log" 2>&1 || {
     echo "Dedicated server installation failed."
@@ -158,14 +171,29 @@ if [[ "$runtime_profile" == "base" ]]; then
     exit 1
   }
 
-  if [[ ! -f "${server_dir}/run.sh" ]]; then
-    echo "Loader installer completed without creating ${server_dir}/run.sh" >&2
+  expected_server_launcher="${server_dir}/run.sh"
+  if [[ "$loader" == fabric ]]; then expected_server_launcher="${server_dir}/fabric-server-launch.jar"; fi
+  if [[ ! -f "$expected_server_launcher" ]]; then
+    echo "Loader installer completed without creating ${expected_server_launcher}" >&2
     tail -n 200 "$install_log" 2>/dev/null || true
     exit 1
   fi
 
   mkdir -p "${server_dir}/mods"
   cp "$production_jar" "${server_dir}/mods/$(basename "$production_jar")"
+  if [[ "$loader" == fabric ]]; then
+    fabric_dependency_dir="${repo_root}/build/server-deps/${target}"
+    # Fail closed if the production server would be missing mandatory Fabric API
+    # or TeamReborn Energy, regardless of whether the userdev run succeeded.
+    shopt -s nullglob
+    fabric_dependency_jars=("${fabric_dependency_dir}"/*.jar)
+    shopt -u nullglob
+    if [[ ${#fabric_dependency_jars[@]} -lt 2 ]]; then
+      echo "Missing mandatory Fabric server mods in ${fabric_dependency_dir}; run collectFabricServerMods" >&2
+      exit 2
+    fi
+    cp "${fabric_dependency_jars[@]}" "${server_dir}/mods/"
+  fi
   printf 'eula=true\n' > "${server_dir}/eula.txt"
   cat > "${server_dir}/server.properties" <<'PROPERTIES'
 online-mode=false
@@ -188,7 +216,11 @@ JVMARGS
     cd "$server_dir"
     export JAVA_HOME="$java_home"
     export PATH="$JAVA_HOME/bin:$PATH"
-    exec setsid bash run.sh nogui
+    if [[ "$loader" == fabric ]]; then
+      exec setsid "$java_bin" -Xms256M -Xmx2G -Dfile.encoding=UTF-8 -jar fabric-server-launch.jar nogui
+    else
+      exec setsid bash run.sh nogui
+    fi
   ) > "$server_log" 2>&1 &
   server_pid=$!
 else

@@ -98,13 +98,18 @@ def resolveSourceFile = { String relative ->
             .collect { new File(it, relative) }.find { it.isFile() }
 }
 def targetAccessTransformer = resolveSourceFile('src/main/resources/META-INF/accesstransformer.cfg')
+def targetAccessWidener = resolveSourceFile('src/main/resources/buildcraft.accesswidener')
 
 for (def layer : sourceLayers) {
     if (!layer.isDirectory()) {
         throw new GradleException("Configured source layer '${layer}' for '${targetName}' does not exist")
     }
 }
-if (targetAccessTransformer == null) {
+if (loaderName == 'fabric') {
+    if (targetAccessWidener == null) {
+        throw new GradleException("No access widener found for '${targetName}'")
+    }
+} else if (targetAccessTransformer == null) {
     throw new GradleException("No access transformer found for '${targetName}'")
 }
 
@@ -274,6 +279,7 @@ project.ext.bcTarget = [
         sourceLayers: sourceLayers,
         resolveSourceFile: resolveSourceFile,
         targetAccessTransformer: targetAccessTransformer,
+        targetAccessWidener: targetAccessWidener,
         effectiveSourceRoot: effectiveSourceRoot,
         sourceLayoutScript: sourceLayoutScript,
         pythonExecutable: pythonExecutable,

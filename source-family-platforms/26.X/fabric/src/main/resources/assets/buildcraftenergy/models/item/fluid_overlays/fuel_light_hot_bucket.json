@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "buildcraftenergy:item/fluid_overlays/fuel_light_hot"
+  }
+}

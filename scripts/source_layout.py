@@ -73,8 +73,21 @@ def _materialize_text_file(
     platform: str,
     preprocess: bool,
     native_source: bool = False,
+    native_passthrough: bool = False,
 ) -> None:
     raw = source_path.read_bytes()
+
+    # Loader-native source from a maintained family/platform layer is already
+    # authored against that loader's target API. Do not re-apply the shared
+    # NeoForge/Minecraft upgrade rewrites to Fabric's compiled, reviewed port.
+    if native_passthrough:
+        if b"//? source" in raw[:512]:
+            content, _ = strip_source_condition(raw.decode("utf-8"))
+            raw = content.encode("utf-8")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(raw)
+        shutil.copymode(source_path, output)
+        return
 
     if is_conditional_text_path(source_path):
         try:
@@ -276,6 +289,8 @@ def materialize_target(
             platform=layout.platform,
             preprocess=preprocess,
             native_source=any(source_path.is_relative_to(root) for root in downport_roots),
+            native_passthrough=(layout.platform == "fabric" and
+                                source_path.is_relative_to(layout.family_platform_root)),
         )
     generate_target_files(
         dest, minecraft=minecraft, family=layout.family, platform=layout.platform

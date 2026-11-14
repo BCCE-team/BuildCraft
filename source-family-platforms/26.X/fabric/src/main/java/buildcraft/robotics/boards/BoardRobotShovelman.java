@@ -1,0 +1,45 @@
+package buildcraft.robotics.boards;
+
+import buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobotNBT;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.robotics.BCRoboticsBoards;
+import net.minecraft.core.BlockPos;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import buildcraft.lib.compat.ItemCompat;
+
+/** Shovelman board that fetches a shovel and digs shovel-mineable blocks in the work zone. */
+public class BoardRobotShovelman extends BoardRobotGenericBreakBlock {
+    public BoardRobotShovelman(EntityRobotBase robot) {
+        super(robot);
+    }
+
+    @Override
+    public RedstoneBoardRobotNBT getNBTHandler() {
+        return BCRoboticsBoards.getByKey("shovelman").nbt();
+    }
+
+    @Override
+    public boolean isExpectedTool(ItemStack stack) {
+        return !stack.isEmpty()
+                && ItemCompat.isShovel(stack);
+    }
+
+    @Override
+    public boolean isExpectedBlock(Level level, BlockPos pos) {
+        if (!level.isLoaded(pos)) {
+            return false;
+        }
+
+        BlockState state = level.getBlockState(pos);
+        if (state.isAir() || state.getDestroySpeed(level, pos) < 0.0F || !state.is(BlockTags.MINEABLE_WITH_SHOVEL)) {
+            return false;
+        }
+
+        ItemStack held = robot.getItemBySlot(EquipmentSlot.MAINHAND);
+        return isExpectedTool(held) && held.isCorrectToolForDrops(state);
+    }
+}

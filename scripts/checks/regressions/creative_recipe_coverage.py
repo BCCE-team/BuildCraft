@@ -209,7 +209,7 @@ def main() -> int:
     for target in target_ids(props):
         count, total = audit_target(target, items, pipes)
         print(f"  {target}: {count}/{len(items) - len(ALTERNATIVE_ACQUISITION)} craftable IDs; {total} recipes; 9/9 FE upgrades + reversals; gates/lenses OK")
-    print("Creative recipe coverage OK: all seven targets; 30 fillable buckets, 16 coloured wires, 16 coloured brushes, 25 gate variants, 34 lens variants")
+    print("Creative recipe coverage OK: all configured targets; 30 fillable buckets, 16 coloured wires, 16 coloured brushes, 25 gate variants, 34 lens variants")
     print("  Intentional exceptions: creative engine; quarry-built frame; water-gel drop; dynamic facades; fillable oil buckets; programmable robot variants")
     return 0
 

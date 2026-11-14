@@ -71,7 +71,7 @@ rm -f "$latest_log"
 # requests a GLX visual that Mesa's virtual display does not expose. Provide
 # Mesa Lavapipe's real Vulkan WSI/device instead of skipping the client smoke.
 # Earlier targets retain their existing OpenGL setup and environment.
-if [[ "$target" == "26.3-neoforge" ]]; then
+if [[ "$target" == "26.3-neoforge" || "$target" == "26.3-fabric" ]]; then
   lavapipe_icd=""
   for candidate in /usr/share/vulkan/icd.d/lvp_icd.x86_64.json /usr/share/vulkan/icd.d/lvp_icd.json; do
     if [[ -f "$candidate" ]]; then
@@ -141,7 +141,7 @@ while (( SECONDS < deadline )); do
   fi
   # In 26.3 both rendering backends failing means startup is impossible. Fail
   # immediately rather than waiting the entire client startup timeout.
-  if [[ "$target" == "26.3-neoforge" ]] \
+  if [[ "$target" == "26.3-neoforge" || "$target" == "26.3-fabric" ]] \
       && grep -Eiq 'Failed to create backend OpenGL' "${logs[@]}" 2>/dev/null \
       && grep -Eiq 'Failed to create backend Vulkan' "${logs[@]}" 2>/dev/null; then
     echo "Minecraft 26.3 has no usable OpenGL or Vulkan rendering backend."

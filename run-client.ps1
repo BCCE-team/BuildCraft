@@ -3,6 +3,9 @@ param(
     [ValidateSet("1.19.2", "1.20.1", "1.21.1", "1.21.11", "26.1.2", "26.2", "26.3")]
     [string] $Version,
 
+    [ValidateSet("auto", "neoforge", "fabric")]
+    [string] $Loader = "auto",
+
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]] $GradleArgs
 )
@@ -21,6 +24,10 @@ $Targets = @{
 }
 
 $Config = $Targets[$Version]
+if ($Loader -eq "fabric") {
+    if ($Version -ne "26.3") { throw "Fabric is currently supported only on Minecraft 26.3" }
+    $Config = @{ Generation = "26.X"; Target = "26.3-fabric" }
+}
 $BuildRoot = Join-Path $RepositoryRoot "builds/$($Config.Generation)"
 $Task = ":$($Config.Target):runClient"
 

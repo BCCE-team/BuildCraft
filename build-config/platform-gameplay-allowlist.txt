@@ -130,3 +130,11 @@ source-family-platforms/26.X/neoforge/src/main/java/buildcraft/factory/tile/Tile
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/factory/tile/TileHeatExchange.java
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/builders/compat/BuilderFluidContainers263.java
 source-family-platforms/26.X/neoforge/src/main/java/buildcraft/robotics/compat/RobotFluidResourceHandler263.java
+
+# Fabric-native gameplay adaptations reviewed during 26.3 target integration.
+source-family-platforms/26.X/fabric/src/main/java/buildcraft/lib/internal/tiles/TilesAPI.java
+source-family-platforms/26.X/fabric/src/main/java/buildcraft/lib/tile/TileBC_Neptune.java
+source-family-platforms/26.X/fabric/src/main/java/buildcraft/robotics/compat/RobotFluidResourceHandler263.java
+source-family-platforms/26.X/fabric/src/main/java/buildcraft/robotics/compat/RoboticsNativeFluidStorage.java
+source-family-platforms/26.X/fabric/src/main/java/buildcraft/transport/client/render/PipeFlowRendererFluids.java
+source-family-platforms/26.X/fabric/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java

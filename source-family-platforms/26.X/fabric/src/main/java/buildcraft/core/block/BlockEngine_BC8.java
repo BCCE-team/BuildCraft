@@ -1,0 +1,57 @@
+/* Copyright (c) 2016 SpaceToad and the BuildCraft team
+ * 
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+package buildcraft.core.block;
+
+import buildcraft.lib.internal.enums.EnumEngineType;
+import buildcraft.lib.internal.properties.BuildCraftProperties;
+import buildcraft.core.BCCoreItems;
+import buildcraft.lib.engine.BlockEngineBase_BC8;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.level.block.state.properties.Property;
+
+public class BlockEngine_BC8 extends BlockEngineBase_BC8<EnumEngineType> {
+	private static final EnumProperty<EnumEngineType> TYPE = BuildCraftProperties.ENGINE_TYPE;
+    public BlockEngine_BC8(Properties material) {
+        super(material);
+        this.registerDefaultState(
+                this.defaultBlockState()
+        		.setValue(TYPE, EnumEngineType.WOOD));
+    }
+    
+	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> bs) {
+		bs.add(TYPE);
+		super.createBlockStateDefinition(bs);
+	}
+	
+	
+	public ItemStack getCloneItemStack(LevelReader p_49823_, BlockPos p_49824_, BlockState state, boolean includeData) {
+		return new ItemStack(BCCoreItems.ENGINE_ITEM_MAP.get(state.getValue(getEngineProperty())));
+	}
+
+	public Property<EnumEngineType> getEngineProperty() {
+		return BuildCraftProperties.ENGINE_TYPE;
+	}
+	
+    public String getUnlocalizedName(EnumEngineType engine) {
+        return "block.engine.bc." + engine.unlocalizedTag;
+    }
+
+	public boolean canHarvestBlock(BlockState state, BlockGetter level, BlockPos pos, Player player) {
+		return player.hasCorrectToolForDrops(state.getValue(BuildCraftProperties.ENGINE_TYPE) == EnumEngineType.WOOD ?
+                Blocks.STONE.defaultBlockState() : state);
+	}
+    
+
+}

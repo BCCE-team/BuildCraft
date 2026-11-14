@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "group": "buildcraftsilicon:iron_pluggate",
+  "key": {
+    "g": {
+      "count": 1,
+      "item": "buildcraftsilicon:plug/gate",
+      "nbt": "{gate:{logic:0b,material:1b,modifier:0b}}",
+      "fabric:type": "buildcraftlib:strict_nbt"
+    },
+    "m": "#c:dyes/blue"
+  },
+  "pattern": [
+    " m ",
+    "mgm",
+    " m "
+  ],
+  "result": {
+    "id": "buildcraftsilicon:plug/gate",
+    "components": {
+      "minecraft:custom_data": {
+        "gate": {
+          "logic": 0,
+          "material": 1,
+          "modifier": 0
+        }
+      }
+    }
+  }
+}

@@ -238,10 +238,10 @@ def validate_stack_parity(props: dict[str, str]) -> None:
         core = effective_java(target, core_rel, props)
         lines = {line.strip() for line in builders.splitlines()}
         registrations = {
-            "blueprint": next((line for line in lines if 'register("blueprint"' in line), ""),
-            "template": next((line for line in lines if 'register("template"' in line), ""),
-            "schematic_single": next((line for line in lines if 'register("schematic_single"' in line), ""),
-            "map_location": next((line.strip() for line in core.splitlines() if 'register("map_location"' in line), ""),
+            "blueprint": next((line for line in lines if 'register("blueprint"' in line or 'registerItem(ITEMS, "blueprint"' in line), ""),
+            "template": next((line for line in lines if 'register("template"' in line or 'registerItem(ITEMS, "template"' in line), ""),
+            "schematic_single": next((line for line in lines if 'register("schematic_single"' in line or 'registerItem(ITEMS, "schematic_single"' in line), ""),
+            "map_location": next((line.strip() for line in core.splitlines() if 'register("map_location"' in line or 'registerItem(ITEMS, "map_location"' in line), ""),
         }
         for name, line in registrations.items():
             if not line:
@@ -682,6 +682,9 @@ def validate_build_metadata_and_source_hygiene(props: dict[str, str]) -> None:
             ):
                 if token not in bclib:
                     fail(f"{target}: BCLib DEV mode lost {token!r}")
+        elif target.endswith("-fabric"):
+            if 'FabricLoader.getInstance().isDevelopmentEnvironment()' not in bclib or 'Boolean.getBoolean("buildcraft.dev")' not in bclib:
+                fail(f"{target}: BCLib DEV mode lost Fabric Loader environment detection")
         elif "!FMLEnvironment.production || Boolean.getBoolean(\"buildcraft.dev\")" not in bclib:
             fail(f"{target}: BCLib DEV mode lost Forge production detection")
         if "!false" in bclib:

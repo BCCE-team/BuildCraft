@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "buildcraftcore:items/fragile_fluid_shard_base",
+    "layer1": "buildcraftcore:items/fragile_fluid_shard_fluid",
+    "particle": "buildcraftcore:items/fragile_fluid_shard_base"
+  }
+}

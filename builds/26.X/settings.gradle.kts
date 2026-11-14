@@ -7,6 +7,7 @@ pluginManagement {
         maven("https://maven.kikugie.dev/releases") { name = "KikuGie Releases" }
         maven("https://maven.kikugie.dev/snapshots") { name = "KikuGie Snapshots" }
         maven("https://maven.neoforged.net/releases") { name = "NeoForge" }
+        maven("https://maven.fabricmc.net/") { name = "FabricMC" }
     }
 }
 

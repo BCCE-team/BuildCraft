@@ -86,7 +86,7 @@ def main() -> int:
     )
     require(STONECUTTER, 'stonecutter active "26.1.2-neoforge"', '"mc_26_x" to (generation == "26.X")')
     require(ROOT / "builds/26.X/settings.gradle.kts", 'id("dev.kikugie.stonecutter") version "0.7.11"', 'rootProject.name = "BuildCraft-26.X"')
-    require(ROOT / "builds/26.X/gradle/wrapper/gradle-wrapper.properties", "gradle-9.1.0-bin.zip")
+    require(ROOT / "builds/26.X/gradle/wrapper/gradle-wrapper.properties", "gradle-9.8.1-bin.zip")
 
     layout = target_layout(TARGET, props)
     effective = layout.effective_files("src/main/java")

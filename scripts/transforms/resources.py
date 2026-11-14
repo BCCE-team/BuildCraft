@@ -388,7 +388,7 @@ def apply_resource_transforms(text: str, *, minecraft: str, relative: str) -> st
     return text
 
 
-def generate_modern_item_definitions(destination_root: Path, *, minecraft: str) -> int:
+def generate_modern_item_definitions(destination_root: Path, *, minecraft: str, platform: str = "neoforge") -> int:
     """Generate mechanical modern client-item definitions from item models.
 
     For models without legacy predicate overrides, each definition is fully
@@ -423,6 +423,10 @@ def generate_modern_item_definitions(destination_root: Path, *, minecraft: str) 
 
             item_rel = model_path.relative_to(model_root)
             item_path = item_rel.with_suffix("").as_posix()
+            # Fabric uses vanilla item definitions for non-overlay items; the
+            # NeoForge-only fluid overlay models are not supported on Fabric.
+            if platform == "fabric" and namespace == "buildcraftenergy" and item_rel.parts[0] == "fluid_overlays":
+                continue
             output = namespace_root / "items" / item_rel
             if output.exists():
                 continue
@@ -750,7 +754,7 @@ def generate_target_resources(
     generated += install_versioned_resource_sources(
         destination_root, minecraft=minecraft, family=family
     )
-    generated += generate_modern_item_definitions(destination_root, minecraft=minecraft)
+    generated += generate_modern_item_definitions(destination_root, minecraft=minecraft, platform=platform)
     generated += generate_legacy_forge_energy_tags(
         destination_root, minecraft=minecraft, family=family, platform=platform
     )

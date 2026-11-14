@@ -41,6 +41,9 @@ FORGE_REQUIRED = (
     "minecraft.version_range", "buildcraft.version_range", "compat.jei.range",
     "compat.jade.range", "compat.ic2.range", "compat.forestry.range",
 )
+FABRIC_REQUIRED = (
+    "deps.fabric_loader", "deps.fabric_api", "deps.energy", "deps.fabric_installer",
+)
 NEOFORGE_REQUIRED = (
     "deps.neoforge", "loader.version_range", "neoforge.version_range",
     "minecraft.version_range", "buildcraft.version_range", "compat.jei.range",
@@ -159,8 +162,8 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
         fail(f"old build must stay on Gradle 8 while ForgeGradle 6 is used, got {gradle}")
     if generation == "26.X":
         parts = tuple(int(part) for part in gradle.split(".")[:2])
-        if parts < (9, 1):
-            fail(f"26.X build must use Gradle 9.1+ for Java 25, got {gradle}")
+        if parts < (9, 8):
+            fail(f"26.X build must use Gradle 9.8+ for Fabric Loom 1.18 and Java 25, got {gradle}")
 
     common_adapter = ROOT / "build-logic/common-target.gradle"
     if not common_adapter.is_file():
@@ -206,8 +209,14 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
         elif loader == "neoforge":
             if "id 'net.neoforged.moddev'" not in wrapper_text:
                 fail("NeoForge build must resolve ModDevGradle in its build-root shim")
+        elif loader == "fabric":
+            if "id 'net.fabricmc.fabric-loom'" not in wrapper_text:
+                fail("Fabric build must resolve Loom from its build-root shim")
+            if "accessWidenerPath" not in adapter_text or "fabricApi" not in adapter_text:
+                fail("Fabric adapter must load native access widener and enable Fabric GameTests")
 
-        required = TARGET_REQUIRED + (FORGE_REQUIRED if loader == "forge" else NEOFORGE_REQUIRED if loader == "neoforge" else ())
+
+        required = TARGET_REQUIRED + (FORGE_REQUIRED if loader == "forge" else NEOFORGE_REQUIRED if loader == "neoforge" else FABRIC_REQUIRED if loader == "fabric" else ())
         for key in required:
             value(props, target, key)
         if value(props, target, "source.family") != generation:
@@ -228,6 +237,16 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
 
         if loader == "neoforge":
             validate_neoforge_metadata(target, props)
+        elif loader == "fabric":
+            import json
+            metadata = resolve_effective_source(layout, props, "src/main/resources/fabric.mod.json")
+            if metadata is None:
+                fail(f"{target}: missing Fabric loader metadata")
+            fabric = json.loads(metadata.read_text(encoding="utf-8").replace("${version}", "1.0.0"))
+            if fabric.get("id") != "buildcraftlib" or fabric.get("accessWidener") != "buildcraft.accesswidener":
+                fail(f"{target}: invalid Fabric loader entrypoint/access widener")
+            if "net.fabricmc.fabric-loom" not in (build_root / "build.fabric.gradle").read_text(encoding="utf-8"):
+                fail(f"{target}: missing Fabric plugin")
 
         placeholders = resource_placeholders(target, props)
         block = re.search(r"def\s+resourceProperties\s*=\s*\[(.*?)\n\]", adapter_text, flags=re.DOTALL)

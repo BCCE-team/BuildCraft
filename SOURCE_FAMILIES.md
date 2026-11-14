@@ -43,6 +43,7 @@ Current targets:
 - `26.1.2-neoforge`
 - `26.2-neoforge`
 - `26.3-neoforge`
+- `26.3-fabric`
 
 Build root: `builds/26.X`
 
@@ -513,3 +514,35 @@ The staging script validates each imported JSON, removes obsolete generated
 resources on restaging, ignores the optional external `en_us`, and never
 includes Iron Tanks. For reproducibility, release builds pin the external
 repository revision in `publish.yml` and inspect every finished JAR.
+
+## 26.3 Fabric production target
+
+`26.3-fabric` is an eighth canonical target of the `26.X` build generation. It
+uses Loom 1.18, Gradle 9.8.1 and Java 25 and the same repository-wide `buildAndCollect`,
+translation-staging and release-artifact naming convention as NeoForge:
+
+```powershell
+cd builds/26.X
+./gradlew.bat :26.3-fabric:buildAndCollect
+./gradlew.bat :26.3-fabric:runClient
+./gradlew.bat :26.3-fabric:runGameTestServer
+```
+
+Run the target through the convenience launcher with
+`./run-client.ps1 26.3 -Loader fabric`. CI installs a real Fabric server, places
+Fabric API and TeamReborn Energy 5.0.0 in `mods/`, and performs the same client/server
+join, stop, restart, and rejoin smoke as the existing targets. The CI runner and
+release pipeline now include the Fabric JAR, published separately to Modrinth,
+CurseForge, and the GitHub release.
+
+Source ownership is retained: shared gameplay stays in `source-shared` and
+`source-families/26.X`; platform-owned implementations live in
+`source-family-platforms/26.X/fabric`. The target exclusion manifest removes
+NeoForge-only files that have no Fabric equivalent.
+
+**Verification limitation:** The Fabric target currently has a world-backed
+startup GameTest, while the original four cross-target semantic scenario
+GameTests have not yet been ported. The semantic comparison remains strict for
+its seven existing implementations and must not be mistaken for a Fabric 1:1
+behavior certificate. A successful release also requires actual CI compilation,
+client/server world join and installed production server boot, not static validation alone.

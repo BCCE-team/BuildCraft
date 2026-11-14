@@ -20,7 +20,7 @@ EXPECTED_SCENARIOS = frozenset({
     "isolated_fluid_pipelines",
     "mixed_factory_recovery",
 })
-TARGET = re.compile(r"^[0-9][0-9.a-z-]*-(?:forge|neoforge)$")
+TARGET = re.compile(r"^[0-9][0-9.a-z-]*-(?:forge|neoforge|fabric)$")
 SCENARIO = re.compile(r"^[a-z][a-z0-9_]*$")
 DIMENSION = re.compile(r"^[a-z][a-zA-Z0-9_]*$")
 VALUE = re.compile(r"^[a-zA-Z0-9_.:-]+$")
@@ -84,6 +84,11 @@ def extract(target: str, log: Path, output: Path, configured: list[str]) -> None
 
 
 def compare(input_root: Path, configured: list[str]) -> None:
+    # Only targets with all four world-backed semantic scenario implementations
+    # enter this comparison. Fabric participates in the compile/GameTest/IT16
+    # matrix but its native four-scenario tests are still unported; never
+    # fabricate their success from a smoke test.
+    participating = [target for target in configured if target != "26.3-fabric"]
     files = sorted(input_root.rglob("*.trace.json"))
     datasets: dict[str, dict[str, dict[str, str]]] = {}
     for path in files:
@@ -102,13 +107,13 @@ def compare(input_root: Path, configured: list[str]) -> None:
             parse_observation(TRACE_PREFIX + scenario + "|" + "|".join(
                 f"{key}={value}" for key, value in sorted(dimensions.items())))
         datasets[target] = payload["scenarios"]
-    if set(datasets) != set(configured):
-        absent = sorted(set(configured) - set(datasets))
+    if set(datasets) != set(participating):
+        absent = sorted(set(participating) - set(datasets))
         raise ValueError(f"Missing per-target results: {absent}")
-    baseline = configured[0]
+    baseline = participating[0]
     reference = datasets[baseline]
     mismatches = []
-    for target in configured[1:]:
+    for target in participating[1:]:
         for scenario in sorted(EXPECTED_SCENARIOS):
             actual, expected = datasets[target][scenario], reference[scenario]
             for dimension in sorted(set(actual) | set(expected)):
@@ -118,7 +123,7 @@ def compare(input_root: Path, configured: list[str]) -> None:
                                       f"got {actual.get(dimension)!r}")
     if mismatches:
         raise ValueError("Cross-target gameplay parity regression:\n" + "\n".join(mismatches))
-    print(f"PASS: {len(configured)} targets have equal live gameplay traces for "
+    print(f"PASS: {len(participating)} scenario-enabled targets have equal live gameplay traces for "
           f"{len(EXPECTED_SCENARIOS)} end-to-end systems")
 
 

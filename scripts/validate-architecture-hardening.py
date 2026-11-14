@@ -214,6 +214,7 @@ def platform_metrics() -> dict[str, object]:
         by_root[label] = len(paths)
         token = own_token.get(platform)
         ownership_exemptions: tuple[str, ...] = ()
+        ownership_manifest: set[str] = set()
         parts = label.split("/")
         if len(parts) == 3 and parts[0] == "source-family-platforms":
             key = f"source.family_platform.{parts[1]}.{parts[2]}.allow_loader_neutral"
@@ -222,9 +223,22 @@ def platform_metrics() -> dict[str, object]:
                 for value in props.get(key, "").split(",")
                 if value.strip()
             )
+            manifest_key = f"source.family_platform.{parts[1]}.{parts[2]}.allow_loader_neutral_manifest"
+            manifest_name = props.get(manifest_key, "").strip()
+            if manifest_name:
+                manifest_path = ROOT / manifest_name
+                if not manifest_path.is_file():
+                    fail(f"missing explicit loader-neutral platform manifest {manifest_name}")
+                ownership_manifest = {
+                    entry.strip() for entry in manifest_path.read_text(encoding="utf-8").splitlines()
+                    if entry.strip() and not entry.strip().startswith("#")
+                }
+                stale = ownership_manifest - {p.relative_to(ROOT).as_posix() for p in paths}
+                if stale:
+                    fail(f"stale loader-neutral platform ownership entry: {sorted(stale)[0]}")
         for path in paths:
             relative_in_root = path.relative_to(root).as_posix()
-            explicitly_owned = any(
+            explicitly_owned = path.relative_to(ROOT).as_posix() in ownership_manifest or any(
                 relative_in_root == prefix or relative_in_root.startswith(prefix + "/")
                 for prefix in ownership_exemptions
             )

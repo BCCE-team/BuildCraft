@@ -1,0 +1,19 @@
+{
+  "type": "buildcraftsilicon:assembly",
+  "MJ": 80000000000,
+  "group": "buildcraftsilicon:gate_and",
+  "ingredient_counts": [
+    1
+  ],
+  "ingredients": [
+    {
+      "count": 1,
+      "item": "buildcraftsilicon:redstone_chipset/gold",
+      "fabric:type": "buildcraftlib:strict_nbt"
+    }
+  ],
+  "result": {
+    "item": "buildcraftsilicon:plug/gate",
+    "nbt": "{gate:{logic:0b,material:3b,modifier:0b}}"
+  }
+}

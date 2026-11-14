@@ -32,6 +32,7 @@ TARGETS = (
     ("26.1.2-neoforge", "26.X", 25),
     ("26.2-neoforge", "26.X", 25),
     ("26.3-neoforge", "26.X", 25),
+    ("26.3-fabric", "26.X", 25),
 )
 def _unittest_command(pattern: str) -> tuple[str, ...]:
     """One source of truth for Python unittest discovery in local CI."""
@@ -40,6 +41,7 @@ def _unittest_command(pattern: str) -> tuple[str, ...]:
 
 
 VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Validate Fabric production target", (sys.executable, "scripts/validate-fabric-target.py")),
     ("Validate independent Stonecutter builds", (sys.executable, "scripts/validate-stonecutter.py")),
     ("Validate hybrid source layout", (sys.executable, "scripts/validate-source-families.py")),
     ("Validate source architecture invariants", ("__ARCHITECTURE__",)),

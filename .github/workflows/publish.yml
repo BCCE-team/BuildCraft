@@ -85,7 +85,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected='1.19.2-forge,1.20.1-forge,1.21.1-neoforge,1.21.11-neoforge,26.1.2-neoforge,26.2-neoforge,26.3-neoforge'
+          expected='1.19.2-forge,1.20.1-forge,1.21.1-neoforge,1.21.11-neoforge,26.1.2-neoforge,26.2-neoforge,26.3-neoforge,26.3-fabric'
           actual="$(sed -n 's/^targets=//p' build-config/targets.properties)"
           if [ "$actual" != "$expected" ]; then
             echo "::error::Publication workflow target list is stale. Expected '$expected', repository has '$actual'."
@@ -124,7 +124,7 @@ jobs:
             targets: '1.21.1-neoforge,1.21.11-neoforge'
           - generation: 26.X
             java: '25'
-            targets: '26.1.2-neoforge,26.2-neoforge,26.3-neoforge'
+            targets: '26.1.2-neoforge,26.2-neoforge,26.3-neoforge,26.3-fabric'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -412,6 +412,32 @@ jobs:
           github-tag: ${{ github.event.release.tag_name }}
           github-changelog: ''
 
+      - name: Wait 1 minute before 26.3 Fabric
+        run: sleep "$PUBLISH_DELAY_SECONDS"
+
+      - name: Publish 26.3 Fabric
+        uses: Kira-NT/mc-publish@v3
+        with:
+          files: release/BuildCraft-Community-Edition-${{ github.event.release.tag_name }}+26.3+fabric.jar
+          name: ${{ github.event.release.tag_name }}+26.3+fabric
+          version: ${{ github.event.release.tag_name }}+26.3+fabric
+          version-type: release
+          loaders: fabric
+          game-versions: 26.3
+          game-version-filter: none
+          environment: client | server
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-changelog: ${{ github.event.release.body }}
+          modrinth-dependencies: 'fabric-api(required)'
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-changelog: ${{ github.event.release.body }}
+          curseforge-dependencies: '306612(required)'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ github.event.release.tag_name }}
+          github-changelog: ''
+
       - name: Generate and attach BCCE release manifest
         shell: bash
         env:
@@ -439,3 +465,4 @@ jobs:
           print(json.dumps(manifest, indent=2))
           PYCODE
           gh release upload "$RELEASE_TAG" bcce-release-manifest.json --repo "$GITHUB_REPOSITORY" --clobber
+

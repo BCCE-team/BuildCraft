@@ -187,6 +187,7 @@ class TargetLayout:
     family_platform_excludes: tuple[Path, ...]
     family_platform_downport_root: Path | None
     overlay_root: Path
+    target_excludes: frozenset[Path]
 
     @property
     def layers(self) -> tuple[Path, ...]:
@@ -226,7 +227,8 @@ class TargetLayout:
             return any(relative == prefix or prefix in relative.parents for prefix in prefixes)
 
         return (
-            (root == self.family_base_root and matches(self.family_base_excludes))
+            relative in self.target_excludes
+            or (root == self.family_base_root and matches(self.family_base_excludes))
             or (root == self.family_root and matches(self.family_excludes))
             or (root == self.platform_root and matches(self.platform_excludes))
             or (root == self.family_platform_base_root and matches(self.family_platform_base_excludes))
@@ -338,6 +340,19 @@ def target_layout(target: str, properties: dict[str, str] | None = None) -> Targ
     )
     family_platform_downport_root = props.get(prefix + "source.family_platform_downport_root", "").strip()
     overlay_root = props.get(prefix + "source.overlay_root", "").strip()
+    exclusion_manifest = props.get(prefix + "source.exclusion_manifest", "").strip()
+    target_excludes: frozenset[Path] = frozenset()
+    if exclusion_manifest:
+        manifest = (ROOT / exclusion_manifest).resolve()
+        if not manifest.is_relative_to(ROOT) or not manifest.is_file():
+            raise ValueError(f"{target}: missing/unsafe source exclusion manifest {exclusion_manifest}")
+        paths = [Path(line.strip()) for line in manifest.read_text(encoding="utf-8").splitlines()
+                 if line.strip() and not line.lstrip().startswith("#")]
+        if any(path.is_absolute() or ".." in path.parts or path.parts[0] != "src" for path in paths):
+            raise ValueError(f"{target}: invalid source exclusion path in {exclusion_manifest}")
+        if len(paths) != len(set(paths)):
+            raise ValueError(f"{target}: duplicate source exclusions in {exclusion_manifest}")
+        target_excludes = frozenset(paths)
     if not all((generation, family, platform, shared_root, family_root, platform_root, family_platform_root, overlay_root)):
         raise ValueError(
             f"{target}: incomplete source layout; require generation/family/platform and "
@@ -362,6 +377,7 @@ def target_layout(target: str, properties: dict[str, str] | None = None) -> Targ
         family_platform_excludes=family_platform_excludes,
         family_platform_downport_root=(ROOT / family_platform_downport_root).resolve() if family_platform_downport_root else None,
         overlay_root=(ROOT / overlay_root).resolve(),
+        target_excludes=target_excludes,
     )
 
 

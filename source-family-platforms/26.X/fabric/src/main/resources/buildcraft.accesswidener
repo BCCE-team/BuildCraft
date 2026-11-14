@@ -1,0 +1,9 @@
+classTweaker v1 official
+
+# Dynamic BuildCraft menu JSON needs movable vanilla Slot positions.
+mutable field net/minecraft/world/inventory/Slot x I
+mutable field net/minecraft/world/inventory/Slot y I
+# Vanilla item geometry adapter consumes the model wrapper's non-public constructor.
+accessible method net/minecraft/client/renderer/item/CuboidItemModelWrapper <init> (Ljava/util/List;Lnet/minecraft/client/resources/model/geometry/QuadCollection;Lnet/minecraft/client/renderer/item/ModelRenderProperties;Lorg/joml/Matrix4fc;)V
+# Retain custom item drop lifetime semantics (vanilla ItemEntity default 6000 ticks).
+accessible field net/minecraft/world/entity/item/ItemEntity age I

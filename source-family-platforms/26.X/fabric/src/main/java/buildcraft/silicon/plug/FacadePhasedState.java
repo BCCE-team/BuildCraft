@@ -1,0 +1,93 @@
+package buildcraft.silicon.plug;
+
+import javax.annotation.Nullable;
+
+import buildcraft.lib.misc.MessageUtil;
+import buildcraft.lib.misc.NBTUtilBC;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import buildcraft.lib.compat.SavedBlockStateNbt;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.level.block.state.BlockState;
+import buildcraft.lib.compat.NbtCompat;
+
+public class FacadePhasedState {
+    public final FacadeBlockStateInfo stateInfo;
+
+    @Nullable
+    public final DyeColor activeColour;
+
+    public FacadePhasedState(FacadeBlockStateInfo stateInfo, DyeColor activeColour) {
+        this.stateInfo = stateInfo;
+        this.activeColour = activeColour;
+    }
+
+    public static FacadePhasedState readFromNbt(CompoundTag nbt) {
+        // The index may still be initializing; preserve the stored material
+        // rather than converting a failed allowlist lookup into AIR.
+        FacadeBlockStateInfo stateInfo = FacadeStateManager.defaultState;
+        if (nbt.contains("state")) {
+            try {
+                BlockState blockState = SavedBlockStateNbt.read(NbtCompat.getCompound(nbt, "state"));
+                stateInfo = FacadeStateManager.resolvePersistedState(blockState);
+            } catch (Throwable t) {
+                throw new RuntimeException("Failed badly when reading a facade state!", t);
+            }
+        }
+        DyeColor colour = NBTUtilBC.readEnum(nbt.get("activeColour"), DyeColor.class);
+        return new FacadePhasedState(stateInfo, colour);
+    }
+
+    public CompoundTag writeToNbt() {
+        CompoundTag nbt = new CompoundTag();
+        try {
+            nbt.put("state", SavedBlockStateNbt.write(stateInfo.state));
+        } catch (Throwable t) {
+            throw new IllegalStateException("Writing facade block state"//
+                + "\n\tState = " + stateInfo//
+                + "\n\tBlock = " + stateInfo.state.getBlock() + "\n\tBlock Class = "
+                + stateInfo.state.getBlock().getClass(), t);
+        }
+        if (activeColour != null) {
+            nbt.put("activeColour", NBTUtilBC.writeEnum(activeColour));
+        }
+        return nbt;
+    }
+
+    public static FacadePhasedState readFromBuffer(FriendlyByteBuf buf) {
+        BlockState state = MessageUtil.readBlockState(buf);
+        DyeColor colour = MessageUtil.readEnumOrNull(buf, DyeColor.class);
+        return new FacadePhasedState(FacadeStateManager.resolvePersistedState(state), colour);
+    }
+
+    public void writeToBuffer(FriendlyByteBuf buf) {
+        try {
+            MessageUtil.writeBlockState(buf, stateInfo.state);
+        } catch (Throwable t) {
+            throw new IllegalStateException("Writing facade block state\n\tState = " + stateInfo.state, t);
+        }
+        MessageUtil.writeEnumOrNull(buf, activeColour);
+    }
+
+    public FacadePhasedState withColour(DyeColor colour) {
+        return new FacadePhasedState(stateInfo, colour);
+    }
+
+    public boolean isSideSolid(Direction side) {
+        return stateInfo.isSideSolid[side.ordinal()];
+    }
+
+    public String toString() {
+        return (activeColour == null ? "" : activeColour + " ") + getState();
+    }
+
+    public FacadeBlockStateInfo getState() {
+        return stateInfo;
+    }
+
+    public DyeColor getActiveColor() {
+        return activeColour;
+    }
+}
