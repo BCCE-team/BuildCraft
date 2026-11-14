@@ -50,16 +50,34 @@ class CIInstalledServerBannerContractTest(unittest.TestCase):
             'if ! buildcraft_startup_banner_matches "$mod_version" "$expected_buildcraft_version" "${log_files[@]}"; then',
         )
 
-    def test_rejects_helper_without_base_version_match(self):
+    def test_rejects_helper_without_bare_base_version_match(self):
         self.assert_rejects_removed_guard(
             "scripts/ci-smoke-common.sh",
-            'grep -Fq "Starting BuildCraft ${base_version} on "',
+            '"$base_version") return 0',
         )
 
-    def test_rejects_helper_without_qualified_version_match(self):
+    def test_rejects_helper_without_bare_target_version_match(self):
         self.assert_rejects_removed_guard(
             "scripts/ci-smoke-common.sh",
-            'grep -Fq "Starting BuildCraft ${target_version} on "',
+            '"$target_version") return 0',
+        )
+
+    def test_rejects_helper_without_base_on_loader_match(self):
+        self.assert_rejects_removed_guard(
+            "scripts/ci-smoke-common.sh",
+            '"$base_version on "*) return 0',
+        )
+
+    def test_rejects_helper_without_target_on_loader_match(self):
+        self.assert_rejects_removed_guard(
+            "scripts/ci-smoke-common.sh",
+            '"$target_version on "*) return 0',
+        )
+
+    def test_rejects_helper_without_exact_banner_extraction(self):
+        self.assert_rejects_removed_guard(
+            "scripts/ci-smoke-common.sh",
+            'banner="${line#*"Starting BuildCraft "}"',
         )
 
 

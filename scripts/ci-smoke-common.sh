@@ -51,19 +51,26 @@ terminate_smoke_process_group() {
   fi
 }
 
-# Startup banners may report either the base mod version (older loaders) or
-# the exact target-qualified artifact version (Fabric and newer loaders).
-# Require the full version token followed by "on"; never accept a prefix,
-# another loader's suffix, or unresolved template text as a passing banner.
+# Forge/NeoForge log the base version at end of line. Fabric's production
+# startup banner includes the target-qualified version followed by "on <loader>".
+# Check the complete version token: reject prefixes, foreign loader suffixes,
+# placeholder build metadata and arbitrary trailing text.
 buildcraft_startup_banner_matches() {
-  local base_version="$1" target_version="$2" log_file
+  local base_version="$1" target_version="$2" log_file line banner
   shift 2
   for log_file in "$@"; do
     [[ -f "$log_file" ]] || continue
-    if grep -Fq "Starting BuildCraft ${base_version} on " "$log_file" ||
-       grep -Fq "Starting BuildCraft ${target_version} on " "$log_file"; then
-      return 0
-    fi
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      line="${line%$'\r'}"
+      [[ "$line" == *"Starting BuildCraft "* ]] || continue
+      banner="${line#*"Starting BuildCraft "}"
+      case "$banner" in
+        "$base_version") return 0 ;;
+        "$target_version") return 0 ;;
+        "$base_version on "*) return 0 ;;
+        "$target_version on "*) return 0 ;;
+      esac
+    done < "$log_file"
   done
   return 1
 }

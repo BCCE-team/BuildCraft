@@ -937,12 +937,16 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
         "read_target_property() {",
         "select_java_home() {",
         "terminate_smoke_process_group() {",
-        # Enforce the exact base and target-qualified version tokens,
-        # including the trailing " on " delimiter (not prefix matches).
+        # The version gate must recognize both bare Forge/NeoForge startup
+        # banners and target-qualified Fabric banners without prefix matches.
         "buildcraft_startup_banner_matches() {",
-        'local base_version="$1" target_version="$2" log_file',
-        'grep -Fq "Starting BuildCraft ${base_version} on "',
-        'grep -Fq "Starting BuildCraft ${target_version} on "',
+        'local base_version="$1" target_version="$2" log_file line banner',
+        '[[ "$line" == *"Starting BuildCraft "* ]] || continue',
+        'banner="${line#*"Starting BuildCraft "}"',
+        '"$base_version") return 0',
+        '"$target_version") return 0',
+        '"$base_version on "*) return 0',
+        '"$target_version on "*) return 0',
         'local major="$1"',
         'local var="JAVA_HOME_${major}_X64"',
         'local home="${!var:-}"',
