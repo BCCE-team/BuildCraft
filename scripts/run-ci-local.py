@@ -397,8 +397,9 @@ def _java_candidates() -> tuple[list[Path], list[Path]]:
     executables: list[Path] = []
 
     for key in (
-        "JAVA_HOME_17_X64", "JAVA_HOME_21_X64", "JAVA_HOME_17", "JAVA_HOME_21",
-        "JDK17_HOME", "JDK21_HOME", "JDK_HOME", "JAVA_HOME",
+        "JAVA_HOME_17_X64", "JAVA_HOME_21_X64", "JAVA_HOME_25_X64",
+        "JAVA_HOME_17", "JAVA_HOME_21", "JAVA_HOME_25",
+        "JDK17_HOME", "JDK21_HOME", "JDK25_HOME", "JDK_HOME", "JAVA_HOME",
     ):
         value = os.environ.get(key)
         if value:

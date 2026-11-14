@@ -9,6 +9,7 @@ import tomllib
 from pathlib import Path
 
 from source_preprocessor import preprocess_text
+from idea_client_configs import validate_client_configs
 
 from source_layout import (
     resolve_effective_source,
@@ -320,7 +321,15 @@ def main() -> None:
     if "1.21.1-forge" in targets:
         fail("1.21.1 Forge must not return to the production matrix")
 
-    print("Independent Stonecutter builds OK: " + "; ".join(reports))
+    # A Minecraft version can have multiple loaders. Shared IntelliJ IDEA
+    # client launch configs must be unambiguous and match the target registry.
+    try:
+        idea_configs = validate_client_configs(ROOT / ".run", props)
+    except (ValueError, OSError) as exc:
+        fail(f"IntelliJ IDEA client run configurations: {exc}")
+
+    print("Independent Stonecutter builds OK: " + "; ".join(reports) +
+          f"; IDEA clients={len(idea_configs)}")
 
 
 if __name__ == "__main__":

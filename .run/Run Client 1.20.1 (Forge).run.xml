@@ -1,8 +1,8 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Run Client 1.21.1" type="GradleRunConfiguration" factoryName="Gradle">
+  <configuration default="false" name="Run Client 1.20.1 (Forge)" type="GradleRunConfiguration" factoryName="Gradle">
     <ExternalSystemSettings>
       <option name="executionName" />
-      <option name="externalProjectPath" value="$PROJECT_DIR$/builds/1.21.X" />
+      <option name="externalProjectPath" value="$PROJECT_DIR$/builds/old" />
       <option name="externalSystemIdString" value="GRADLE" />
       <option name="scriptParameters" value="" />
       <option name="taskDescriptions">
@@ -10,7 +10,7 @@
       </option>
       <option name="taskNames">
         <list>
-          <option value=":1.21.1-neoforge:runClient" />
+          <option value=":1.20.1-forge:runClient" />
         </list>
       </option>
       <option name="vmOptions" value="" />

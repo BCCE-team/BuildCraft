@@ -1,8 +1,8 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Run Client 1.20.1" type="GradleRunConfiguration" factoryName="Gradle">
+  <configuration default="false" name="Run Client 26.3 (Fabric)" type="GradleRunConfiguration" factoryName="Gradle">
     <ExternalSystemSettings>
       <option name="executionName" />
-      <option name="externalProjectPath" value="$PROJECT_DIR$/builds/old" />
+      <option name="externalProjectPath" value="$PROJECT_DIR$/builds/26.X" />
       <option name="externalSystemIdString" value="GRADLE" />
       <option name="scriptParameters" value="" />
       <option name="taskDescriptions">
@@ -10,7 +10,7 @@
       </option>
       <option name="taskNames">
         <list>
-          <option value=":1.20.1-forge:runClient" />
+          <option value=":26.3-fabric:runClient" />
         </list>
       </option>
       <option name="vmOptions" value="" />
