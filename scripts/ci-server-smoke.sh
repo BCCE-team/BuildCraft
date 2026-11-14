@@ -266,12 +266,10 @@ while (( SECONDS < deadline )); do
       show_log_tail
       exit 1
     fi
-    # The production JAR uses the full target-qualified version, but the
-    # BuildCraft startup banner intentionally logs only the base mod version.
-    # Match the banner's complete version token (not a prefix of another version).
-    banner_version_regex="${mod_version//./\\.}"
-    if ! grep -Eq "Starting BuildCraft[[:space:]]+${banner_version_regex}([[:space:]]|$)" "${log_files[@]}" 2>/dev/null; then
-      echo "Dedicated server did not report BuildCraft startup version ${mod_version} (production JAR: ${expected_buildcraft_version})."
+    # Older loaders log the base version; Fabric logs the target-qualified
+    # version. Require one of those two exact tokens, never a partial match.
+    if ! buildcraft_startup_banner_matches "$mod_version" "$expected_buildcraft_version" "${log_files[@]}"; then
+      echo "Dedicated server did not report BuildCraft startup version ${mod_version} or ${expected_buildcraft_version}."
       show_log_tail
       exit 1
     fi
