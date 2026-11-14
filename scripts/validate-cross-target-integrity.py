@@ -906,8 +906,10 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
         "expected_buildcraft_version",
         'jar_dir="${repo_root}/build/${minecraft_version}"',
         'production_jar="${jar_dir}/${archive_name}-${expected_buildcraft_version}.jar"',
-        'banner_version_regex="${mod_version//./\\\\.}"',
-        "Starting BuildCraft[[:space:]]+${banner_version_regex}",
+        # Version verification lives in the shared Bash helper, supporting
+        # both legacy base-version and target-qualified Fabric banners.
+        # Check the call site here and the helper implementation below.
+        'if ! buildcraft_startup_banner_matches "$mod_version" "$expected_buildcraft_version" "${log_files[@]}"; then',
         "unresolved BuildCraft Java build metadata",
     ):
         if token not in server:
@@ -935,6 +937,12 @@ def validate_ci_wiring(props: dict[str, str]) -> None:
         "read_target_property() {",
         "select_java_home() {",
         "terminate_smoke_process_group() {",
+        # Enforce the exact base and target-qualified version tokens,
+        # including the trailing " on " delimiter (not prefix matches).
+        "buildcraft_startup_banner_matches() {",
+        'local base_version="$1" target_version="$2" log_file',
+        'grep -Fq "Starting BuildCraft ${base_version} on "',
+        'grep -Fq "Starting BuildCraft ${target_version} on "',
         'local major="$1"',
         'local var="JAVA_HOME_${major}_X64"',
         'local home="${!var:-}"',
