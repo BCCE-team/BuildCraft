@@ -39,6 +39,21 @@ def validate() -> None:
     require(props.get(f"target.{TARGET}.network.protocol") == props.get("target.26.3-neoforge.network.protocol"),
             "Network protocol diverges between 26.3 loaders")
 
+    # An unanchored 'config/' rule ignores Java packages named config at any
+    # depth. This once left Fabric's native config adapters untracked while
+    # local ZIP builds still contained them.
+    ignore_rules = {
+        line.strip() for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    require("/config/" in ignore_rules and not any(
+        rule in ignore_rules for rule in ("config/", "**/config/", "*/config/")
+    ), "Do not ignore Java config source packages: use a root-anchored /config/ gitignore rule")
+    fabric_config = ROOT / "source-family-platforms/26.X/fabric/src/main/java/buildcraft/lib/platform/config"
+    for filename in ("ConfigBinding.java", "ConfigScreenRegistration.java"):
+        require((fabric_config / filename).is_file(),
+                f"Missing tracked Fabric config adapter: {fabric_config.relative_to(ROOT) / filename}")
+
     manifest = ROOT / props[f"target.{TARGET}.source.exclusion_manifest"]
     require(manifest.is_file(), "Missing Fabric-only exclusion manifest")
     excludes = [line for line in manifest.read_text(encoding="utf-8").splitlines()

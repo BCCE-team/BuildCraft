@@ -29,7 +29,8 @@ logs/
 mcmodsrepo/
 src/generated/
 src/main/resources/.cache/
-config/
+# Ignore only the instance config directory, not Java source packages.
+/config/
 
 # Forge MDK files
 forge*changelog.txt
