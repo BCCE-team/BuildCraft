@@ -227,8 +227,8 @@ public class SchematicEntityDefault implements ISchematicEntity {
                 }
                 if (level instanceof ServerLevel serverLevel) {
                     if (!serverLevel.addFreshEntity(entity)) return null;
-                } else if (level instanceof FakeWorld fakeWorld) {
-                    fakeWorld.addEntity(entity);
+                } else if (level instanceof BlueprintPreviewEntitySink preview) {
+                    preview.addEntity(entity);
                 }
             }
         }
@@ -312,3 +312,12 @@ public class SchematicEntityDefault implements ISchematicEntity {
     }
 }
 
+
+/**
+ * Server-loadable contract implemented by a client-side blueprint preview world.
+ * Keep the interface independent of FakeWorld/ClientLevel so the entity
+ * schematic factory can be linked on a dedicated server.
+ */
+interface BlueprintPreviewEntitySink {
+    void addEntity(Entity entity);
+}

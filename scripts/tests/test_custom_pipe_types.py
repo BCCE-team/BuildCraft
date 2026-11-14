@@ -462,8 +462,12 @@ public class Pipe implements PipeMutationContext {
     def test_all_targets_admission_and_bridge(self):
         pipes=sorted(ROOT.glob('source-*/**/buildcraft/transport/pipe/Pipe.java'))
         flows=sorted(ROOT.glob('source-*/**/buildcraft/transport/pipe/flow/PipeFlowItems.java'))
-        self.assertEqual(len(pipes),5)
-        self.assertEqual(len(flows),6)
+        # Every native implementation must exercise the addon admission hook.
+        # Fabric 26.3 adds a separate Pipe and PipeFlowItems implementation.
+        self.assertGreaterEqual(len(pipes), 6)
+        self.assertGreaterEqual(len(flows), 7)
+        self.assertTrue(any('26.X/fabric' in src.as_posix() for src in pipes))
+        self.assertTrue(any('26.X/fabric' in src.as_posix() for src in flows))
         for src in pipes:
             s=src.read_text()
             self.assertIn('acceptItemInjection(',s,str(src))

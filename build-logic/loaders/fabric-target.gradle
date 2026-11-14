@@ -156,7 +156,11 @@ dependencies {
     compileOnly 'javax.annotation:javax.annotation-api:1.3.2'
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     testImplementation "org.junit.jupiter:junit-jupiter-api:${requiredProperty('deps.junit')}"
+    // The shared tests use @ParameterizedTest, @MethodSource and Arguments.
+    testImplementation "org.junit.jupiter:junit-jupiter-params:${requiredProperty('deps.junit')}"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${requiredProperty('deps.junit')}"
+    // Align the unversioned launcher with the pinned Jupiter modules on Gradle 9.
+    testRuntimeOnly platform("org.junit:junit-bom:${requiredProperty('deps.junit')}")
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -196,7 +200,48 @@ def verifyFabricIsolation = tasks.register('verifyFabric263Isolation') {
 }
 tasks.named('jar') { dependsOn verifyFabricIsolation }
 tasks.named('check') { dependsOn verifyFabricIsolation }
-tasks.named('test', Test) { useJUnitPlatform() }
+// Fabric's unit tests read source-relative recipes, guide JSON and Java source
+// from the materialized target, exactly as the NeoForge/Forge adapters do.
+// Do not run these tests from builds/26.X/versions/26.3-fabric, where the
+// checked-in resources and source files do not exist.
+def packagedModJar = tasks.named('jar', Jar)
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    dependsOn prepareEffectiveSource, packagedModJar
+    workingDir effectiveSourceDir
+    systemProperty 'buildcraft.expectedPackFormat', requiredProperty('pack.format')
+
+    // Classpath dependencies (including Minecraft) may also contain pack.mcmeta.
+    // Verify the packaged resources and put BCCE's own JAR first so the metadata
+    // assertion tests the released artifact, not an unrelated dependency.
+    classpath = files(packagedModJar.flatMap { it.archiveFile }) + classpath
+    doFirst {
+        def archive = packagedModJar.get().archiveFile.get().asFile
+        def zip = new java.util.zip.ZipFile(archive)
+        try {
+            for (String relative : ['pack.mcmeta',
+                                    'assets/buildcraft/guide/original_manifest.json',
+                                    'assets/buildcraft/guide/text/en_us.json',
+                                    'assets/buildcraft/lang/en_us.json']) {
+                if (zip.getEntry(relative) == null) {
+                    throw new GradleException("Missing packaged BCCE resource: ${relative} in ${archive}")
+                }
+            }
+            def metadata = zip.getInputStream(zip.getEntry('pack.mcmeta')).getText('UTF-8')
+            def actualFormat = new groovy.json.JsonSlurper().parseText(metadata).pack.pack_format
+            def expectedFormat = requiredProperty('pack.format').toBigDecimal()
+            if (new BigDecimal(actualFormat.toString()).compareTo(expectedFormat) != 0) {
+                throw new GradleException("Incorrect BCCE pack_format in ${archive}: ${actualFormat} != ${expectedFormat}")
+            }
+        } finally {
+            zip.close()
+        }
+    }
+    testLogging {
+        events 'failed', 'skipped'
+        exceptionFormat 'full'
+    }
+}
 
 def resourceProperties = [
         version: project.version.toString()

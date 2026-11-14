@@ -12,15 +12,7 @@ import buildcraft.builders.item.ItemFillerPlanner;
 import buildcraft.builders.item.ItemSchematicSingle;
 import buildcraft.builders.item.ItemSnapshot;
 import buildcraft.builders.item.ItemQuarry;
-import buildcraft.builders.item.ItemSnapshot.EnumItemSnapshotType;
 import buildcraft.lib.CreativeTabManager;
-import com.mojang.serialization.MapCodec;
-import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.item.properties.numeric.RangeSelectItemModelProperty;
-import buildcraft.lib.platform.client.ClientModelProperties;
-import net.minecraft.world.entity.ItemOwner;
-import javax.annotation.Nullable;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -72,37 +64,5 @@ public class BCBuildersItems {
 
     private static void add(List<ItemStack> items, BCRegistryEntry<? extends Item> item) {
         CreativeTabManager.addItemVariants(item.get(), items::add);
-    }
-
-    public static void registerItemModelProperties(ClientModelProperties.Ranges event) {
-        event.register(Identifier.fromNamespaceAndPath(BCBuilders.MODID, "used"), SnapshotUsedModelProperty.MAP_CODEC);
-        event.register(Identifier.fromNamespaceAndPath(BCBuilders.MODID, "recording"), ConstructionRecordingModelProperty.MAP_CODEC);
-    }
-
-    public record SnapshotUsedModelProperty() implements RangeSelectItemModelProperty {
-        public static final MapCodec<SnapshotUsedModelProperty> MAP_CODEC = MapCodec.unit(new SnapshotUsedModelProperty());
-
-        public float get(ItemStack stack, @Nullable ClientLevel level, @Nullable ItemOwner owner, int seed) {
-            if (stack.getItem() == SCHEMATIC_SINGLE.get()) {
-                return ItemSchematicSingle.isUsed(stack) ? 1.0F : 0.0F;
-            }
-            return EnumItemSnapshotType.getFromStack(stack).used ? 1.0F : 0.0F;
-        }
-
-        public MapCodec<SnapshotUsedModelProperty> type() {
-            return MAP_CODEC;
-        }
-    }
-
-    public record ConstructionRecordingModelProperty() implements RangeSelectItemModelProperty {
-        public static final MapCodec<ConstructionRecordingModelProperty> MAP_CODEC = MapCodec.unit(new ConstructionRecordingModelProperty());
-
-        public float get(ItemStack stack, @Nullable ClientLevel level, @Nullable ItemOwner owner, int seed) {
-            return ItemConstructionMarker.isRecording(stack) ? 1.0F : 0.0F;
-        }
-
-        public MapCodec<ConstructionRecordingModelProperty> type() {
-            return MAP_CODEC;
-        }
     }
 }

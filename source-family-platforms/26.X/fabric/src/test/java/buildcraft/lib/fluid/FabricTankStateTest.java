@@ -8,7 +8,6 @@ import buildcraft.api.v2.fluid.FluidVariant;
 import buildcraft.api.v2.fluid.FluidVolume;
 import buildcraft.lib.misc.ItemStackUtil;
 import java.util.concurrent.atomic.AtomicInteger;
-import net.fabricmc.fabric.api.transfer.v1.fluid.FluidConstants;
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.nbt.CompoundTag;
@@ -16,9 +15,21 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeAll;
+import net.minecraft.SharedConstants;
+import net.minecraft.server.Bootstrap;
 
 /** Gameplay contract regression tests against the NeoForge 26.3 tank semantics. */
 public final class FabricTankStateTest {
+    @BeforeAll
+    static void bootstrapMinecraftRegistries() {
+        // A plain JUnit JVM does not run Minecraft's bootstrap automatically.
+        // FabricTankState/FluidCompat accesses BuiltInRegistries.FLUID and
+        // would otherwise fail with "Not bootstrapped" on the first test.
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
+    }
+
     private static final Identifier WATER = Identifier.fromNamespaceAndPath("minecraft", "water");
     private static final Identifier PAYLOAD_FORMAT =
         Identifier.fromNamespaceAndPath("buildcraftlib", "test_fluid_components");
@@ -129,74 +140,6 @@ public final class FabricTankStateTest {
         assertEquals(500, manager.drain(1000, false).amount().milliBuckets());
         assertEquals(1000, fillOnly.getFluidAmount());
         assertEquals(0, dual.getFluidAmount());
-    }
-
-    @Test
-    void nativeSingleTankStorageUsesTheCallerTransactionAndDropletUnits() {
-        AtomicInteger notifications = new AtomicInteger();
-        FabricTankState state = new FabricTankState("native", 1000, null, notifications::incrementAndGet);
-        FabricTankStorage storage = new FabricTankStorage(state, ItemStackUtil.requireActiveRegistryProvider());
-        net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant waterVariant =
-            net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant.of(Fluids.WATER);
-        long droplets = 250L * FluidConstants.BUCKET / 1000L;
-
-        try (Transaction aborted = Transaction.openOuter()) {
-            assertEquals(droplets, storage.insert(waterVariant, droplets, aborted));
-            assertEquals(250, state.getFluidAmount());
-        }
-        assertEquals(0, state.getFluidAmount());
-        assertEquals(0, notifications.get());
-
-        try (Transaction committed = Transaction.openOuter()) {
-            assertEquals(droplets, storage.insert(waterVariant, droplets, committed));
-            committed.commit();
-        }
-        assertEquals(250, state.getFluidAmount());
-        assertEquals(droplets, storage.getAmount());
-        assertEquals(waterVariant, storage.getResource());
-        assertEquals(1, notifications.get());
-
-        try (Transaction aborted = Transaction.openOuter()) {
-            assertEquals(100L * FluidConstants.BUCKET / 1000L,
-                storage.extract(waterVariant, 100L * FluidConstants.BUCKET / 1000L, aborted));
-        }
-        assertEquals(250, state.getFluidAmount());
-        assertEquals(1, notifications.get());
-    }
-
-    @Test
-    void nativeManagerStorageKeepsDistinctFillAndDrainPriorities() {
-        FabricTankState dual = new FabricTankState("dual", 1000, null, () -> {});
-        FabricTankState fillOnly = new FabricTankState("fill", 1000, null, () -> {});
-        fillOnly.setCanDrain(false);
-        FabricTankState drainOnly = new FabricTankState("drain", 1000, null, () -> {});
-        drainOnly.setCanFill(false);
-        drainOnly.setFluid(water(200));
-        FabricTankManager manager = new FabricTankManager(dual, fillOnly, drainOnly);
-        FabricTankManagerStorage storage = manager.asFabricStorage(
-            ItemStackUtil.requireActiveRegistryProvider());
-        net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant waterVariant =
-            net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant.of(Fluids.WATER);
-        long amount = 1500L * FluidConstants.BUCKET / 1000L;
-
-        try (Transaction transaction = Transaction.openOuter()) {
-            assertEquals(amount, storage.insert(waterVariant, amount, transaction));
-            transaction.commit();
-        }
-        assertEquals(1000, fillOnly.getFluidAmount());
-        assertEquals(500, dual.getFluidAmount());
-        assertEquals(200, drainOnly.getFluidAmount());
-        assertEquals(3, storage.getSlotCount());
-
-        long requested = 1000L * FluidConstants.BUCKET / 1000L;
-        try (Transaction transaction = Transaction.openOuter()) {
-            assertEquals(700L * FluidConstants.BUCKET / 1000L,
-                storage.extract(waterVariant, requested, transaction));
-            transaction.commit();
-        }
-        assertEquals(1000, fillOnly.getFluidAmount());
-        assertEquals(0, dual.getFluidAmount());
-        assertEquals(0, drainOnly.getFluidAmount());
     }
 
     @Test

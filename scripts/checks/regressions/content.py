@@ -304,6 +304,7 @@ def expected_assembly_cost_mj(path: Path):
 
 
 assembly_json_count = 0
+assembly_counts_by_layer: dict[str, int] = {}
 for base in (
     ROOT / "source-families",
     ROOT / "source-family-platforms",
@@ -316,6 +317,12 @@ for base in (
         if not isinstance(data, dict) or data.get("type") != "buildcraftsilicon:assembly" or "MJ" not in data:
             continue
         assembly_json_count += 1
+        # Loader overlays intentionally repeat some logical recipes. Count them
+        # by owning layer so the Fabric recipes remain price-checked rather
+        # than silently altering the canonical physical-file budget.
+        parts = path.relative_to(ROOT).parts
+        owner = "/".join(parts[:(3 if parts[0] == "source-family-platforms" else 2)])
+        assembly_counts_by_layer[owner] = assembly_counts_by_layer.get(owner, 0) + 1
         expected_mj = expected_assembly_cost_mj(path)
         if expected_mj is None:
             errors.append(f"{path.relative_to(ROOT)}: unclassified Assembly recipe price")
@@ -327,8 +334,18 @@ for base in (
                 f"expected {expected_micro_mj} micro-MJ ({expected_mj} MJ)"
             )
 
-if assembly_json_count != 170:
-    errors.append(f"expected 170 committed Assembly recipe JSON files, found {assembly_json_count}")
+expected_assembly_layers = {
+    "source-families/old": 84,
+    "source-families/1.21.X": 84,
+    "source-family-platforms/1.21.X/neoforge": 2,
+    "source-family-platforms/26.X/fabric": 26,
+}
+if assembly_counts_by_layer != expected_assembly_layers:
+    errors.append(
+        f"committed Assembly recipe JSON file inventory changed "
+        f"(expected {expected_assembly_layers}, got {assembly_counts_by_layer}; "
+        f"total {assembly_json_count})"
+    )
 
 for family in ("old", "1.21.X"):
     require(

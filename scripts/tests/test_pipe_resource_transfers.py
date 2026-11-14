@@ -12,7 +12,10 @@ ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / 'source-shared/src/main/java'
 FLOW_BASE = ROOT / 'source-platforms/neoforge/src/main/java/buildcraft/transport/pipe/flow'
 FLOW_VARIANTS = tuple(sorted(ROOT.glob('source-*/**/buildcraft/transport/pipe/flow/PipeFlowFluids.java')))
-assert len(FLOW_VARIANTS) == 6
+# Exercise all discovered native implementations, and explicitly require
+# the Fabric 26.X flow introduced by the eighth target.
+assert len(FLOW_VARIANTS) >= 7
+assert any('26.X/fabric' in path.as_posix() for path in FLOW_VARIANTS)
 SOURCES = [BASE / p for p in (
     'buildcraft/api/v2/OperationMode.java',
     'buildcraft/api/v2/fluid/FluidAmount.java',

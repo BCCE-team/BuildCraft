@@ -133,7 +133,14 @@ def audit_fluid_buckets(target: str) -> int:
     heat_names = re.findall(r'"([^"\n]+)"', heat_match.group(1))
     if len(names) != 10 or len(heat_names) != 3 or len(set(names)) != len(names):
         raise ValueError(f"{target}: fluid bucket enumeration changed: {len(names)} x {len(heat_names)}")
-    for token in ("BCEnergy.ITEMS.register(", "HEAT_NAMES[heat]", "_bucket", "OIL_BUCKET.add(", ".bucket(", ".craftRemainder(Items.BUCKET)"):
+    tokens = ("HEAT_NAMES[heat]", "_bucket", "OIL_BUCKET.add(", ".craftRemainder(Items.BUCKET)")
+    if layout.platform == "fabric":
+        # Fabric registers native BucketItem directly, not through NeoForge's
+        # FluidType.Builder.bucket() and DeferredRegister.register() chain.
+        tokens += ("RegistryCompat.registerItem(BCEnergy.ITEMS,", "new BucketItem(")
+    else:
+        tokens += ("BCEnergy.ITEMS.register(", ".bucket(")
+    for token in tokens:
         if token not in code:
             raise ValueError(f"{target}: bucket filling contract missing {token}")
     return len(names) * len(heat_names)

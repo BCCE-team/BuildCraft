@@ -1,4 +1,4 @@
-"""Real-game trace collector: input isolation, strict schema and 7-target comparison."""
+"""Real-game trace collector: input isolation, strict schema and 8-target comparison."""
 import importlib.util
 import json
 import tempfile
@@ -101,8 +101,9 @@ class SystemTraceParityTests(unittest.TestCase):
     def test_configured_targets_match_real_manifest(self):
         targets = trace.configured_targets(ROOT / "build-config/targets.properties")
         self.assertIn("26.3-neoforge", targets)
+        self.assertIn("26.3-fabric", targets)
         self.assertIn("1.19.2-forge", targets)
-        self.assertEqual(len(targets), 7)
+        self.assertEqual(len(targets), 8)
 
 
 if __name__ == "__main__":

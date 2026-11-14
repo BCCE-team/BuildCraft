@@ -404,7 +404,8 @@ def pipe_resources_write(root, name, data):
 class PipeResourceEventTest(unittest.TestCase):
     def test_real_native_wiring(self):
         files = [p for p in ROOT.glob('source-*/**/buildcraft/transport/pipe/flow/PipeFlowFluids.java')]
-        self.assertEqual(6, len(files))
+        self.assertEqual(7, len(files))
+        self.assertIn(ROOT / "source-family-platforms/26.X/fabric/src/main/java/buildcraft/transport/pipe/flow/PipeFlowFluids.java", files)
         for f in files:
             with self.subTest(f=str(f)):
                 s = f.read_text(encoding='utf-8')
@@ -414,7 +415,8 @@ class PipeResourceEventTest(unittest.TestCase):
                 self.assertLess(s.index('FluidMovementPhase.BEFORE_CENTRE'), s.index('FluidMovementPhase.TO_CENTRE'))
         for name in ('PipeFlowPower', 'PipeFlowForgeEnergy'):
             files = [p for p in ROOT.glob('source-*/**/buildcraft/transport/pipe/flow/' + name + '.java')]
-            self.assertEqual(6, len(files))
+            self.assertEqual(7, len(files))
+            self.assertIn(ROOT / ("source-family-platforms/26.X/fabric/src/main/java/buildcraft/transport/pipe/flow/" + name + ".java"), files)
             for f in files:
                 with self.subTest(f=str(f)):
                     s = f.read_text(encoding='utf-8')

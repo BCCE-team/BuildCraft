@@ -6,6 +6,9 @@
 
 package buildcraft.builders.item;
 
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.world.inventory.tooltip.TooltipComponent;
@@ -121,6 +124,8 @@ public class ItemSnapshot extends Item implements ICreativeTabItemProvider {
         }
         return "item.buildcraftbuilders.template";
 	}
+    // Fabric strips this client-only override on dedicated servers before class verification.
+    @Environment(EnvType.CLIENT)
 	public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display, Consumer<Component> tooltip, TooltipFlag flag) {
         Level world = net.minecraft.client.Minecraft.getInstance().level;
         EnumItemSnapshotType type = EnumItemSnapshotType.getFromStack(stack);

@@ -49,12 +49,52 @@ def validate() -> None:
             "Fabric exclusion manifest contains a path escape")
 
     contains("builds/26.X/build.fabric.gradle", "net.fabricmc.fabric-loom", "loaders/fabric-target.gradle")
-    contains("builds/26.X/settings.gradle.kts", "https://maven.fabricmc.net/")
+    fabric_build_script = (ROOT / "builds/26.X/build.fabric.gradle").read_text(encoding="utf-8")
+    loom_plugin = re.search(r"id\s+['\"]net\.fabricmc\.fabric-loom['\"]\s+version\s+['\"]([^'\"]+)['\"]",
+                            fabric_build_script)
+    require(loom_plugin is not None and re.fullmatch(r"\d+\.\d+\.\d+", loom_plugin.group(1)) is not None,
+            "Fabric Loom must use a published stable x.y.z version (not a SNAPSHOT) in build.fabric.gradle")
+    # The published plugin has both a Gradle marker and a direct implementation
+    # module. Resolve the latter explicitly to avoid marker lookup failures.
+    settings = (ROOT / "builds/26.X/settings.gradle.kts").read_text(encoding="utf-8")
+    for contract in ("https://maven.fabricmc.net/", "https://fabricmc.forgecdn.net/",
+                     "https://maven.modmuss50.me/",
+                     'requested.id.id == "net.fabricmc.fabric-loom"',
+                     'useModule("net.fabricmc:fabric-loom:$version")'):
+        require(contract in settings, f"Missing Fabric Loom plugin resolution contract: {contract}")
+    require('val version = requested.version' in settings,
+            "Fabric Loom implementation version must follow the plugin DSL request")
+    # Plugin resolution must see the official publishing repository before
+    # unrelated Gradle/NeoForge repositories. A later CDN/mirror is fallback.
+    require(settings.index('maven("https://maven.fabricmc.net/")') < settings.index('mavenCentral()'),
+            "Fabric Maven must precede generic plugin repositories")
+    require(settings.index('maven("https://maven.fabricmc.net/")') < settings.index('maven("https://fabricmc.forgecdn.net/")')
+            < settings.index('maven("https://maven.modmuss50.me/")'),
+            "Fabric plugin repositories must prefer official Maven before CDN/mirror")
     contains("build-logic/common-target.gradle", "targetAccessWidener", "prepareEffectiveSource")
     contains("build-logic/loaders/fabric-target.gradle",
              "accessWidenerPath", "configureTests", "runGameTest", "fabricDistributionMods",
              "runtimeOnly requiredProperty('deps.jei')", "runtimeOnly requiredProperty('deps.jade')",
              "collectFabricServerMods", "prepareEffectiveSource", "buildAndCollect")
+    # Shared JUnit tests contain Jupiter parameterized sources; Fabric must
+    # carry the same test compile/runtime modules as Forge and NeoForge.
+    contains("build-logic/loaders/fabric-target.gradle",
+             "testImplementation \"org.junit.jupiter:junit-jupiter-api:${requiredProperty('deps.junit')}\"",
+             "testImplementation \"org.junit.jupiter:junit-jupiter-params:${requiredProperty('deps.junit')}\"",
+             "testRuntimeOnly \"org.junit.jupiter:junit-jupiter-engine:${requiredProperty('deps.junit')}\"",
+             "testRuntimeOnly platform(\"org.junit:junit-bom:${requiredProperty('deps.junit')}\")",
+             "testRuntimeOnly 'org.junit.platform:junit-platform-launcher'",
+             "useJUnitPlatform()")
+    # Plain JVM tests must run against the effective (materialized) source tree,
+    # with resource metadata resolved from BCCE's shipped JAR and initialized
+    # Minecraft registries for native Fabric fluid tests.
+    contains("build-logic/loaders/fabric-target.gradle",
+             "workingDir effectiveSourceDir",
+             "systemProperty 'buildcraft.expectedPackFormat'",
+             "classpath = files(packagedModJar.flatMap { it.archiveFile }) + classpath",
+             "def zip = new java.util.zip.ZipFile(archive)")
+    contains("source-family-platforms/26.X/fabric/src/test/java/buildcraft/lib/fluid/FabricTankStateTest.java",
+             "@BeforeAll", "SharedConstants.tryDetectVersion();", "Bootstrap.bootStrap();")
     contains("scripts/ci-server-smoke.sh", "fabric-installer", "fabric-server-launch.jar", "collectFabricServerMods")
     contains("scripts/ci-modpack-world-join.py", '"26.3-fabric": "26.X"', "ci_world_join")
     contains("scripts/run-ci-local.py", '("26.3-fabric", "26.X", 25)')
@@ -76,6 +116,30 @@ def validate() -> None:
             content = path.read_text(encoding="utf-8")
             require("net.neoforged." not in content and "net.minecraftforge." not in content,
                     f"Fabric source has a forbidden loader dependency: {path.relative_to(dest)}")
+        # Dedicated-server class loading must not resolve client-only types from
+        # the Builders item registry or entity schematic factory. This is a
+        # verified runGameTest startup regression on Fabric 26.3.
+        items = (java / "buildcraft/builders/BCBuildersItems.java").read_text(encoding="utf-8")
+        model_properties = (java / "buildcraft/builders/client/FabricItemModelProperties.java").read_text(encoding="utf-8")
+        builders_client = (java / "buildcraft/builders/client/FabricBuildersClient.java").read_text(encoding="utf-8")
+        require("net.minecraft.client." not in items and "ClientModelProperties" not in items,
+                "Builders item registry must not link Minecraft client rendering types")
+        require('"used"' in model_properties and '"recording"' in model_properties,
+                "Client-only Builders item model properties were lost")
+        require("FabricItemModelProperties.register(" in builders_client,
+                "Fabric client initializer must register Builders item model properties")
+        for item_class in ("ItemSnapshot", "ItemSchematicSingle"):
+            item_src = (java / f"buildcraft/builders/item/{item_class}.java").read_text(encoding="utf-8")
+            require(re.search(r"@Environment\(EnvType\.CLIENT\)\s+public void appendHoverText\(", item_src),
+                    f"{item_class}: client tooltip override must be stripped on dedicated servers")
+        entity_schematic = (java / "buildcraft/builders/snapshot/SchematicEntityDefault.java").read_text(encoding="utf-8")
+        preview_world = (java / "buildcraft/builders/snapshot/FakeWorld.java").read_text(encoding="utf-8")
+        require("instanceof FakeWorld" not in entity_schematic
+                and "instanceof BlueprintPreviewEntitySink" in entity_schematic,
+                "Server-registered entity schematic must not load client-only FakeWorld")
+        require("interface BlueprintPreviewEntitySink" in entity_schematic
+                and "implements BlueprintPreviewEntitySink" in preview_world,
+                "Blueprint preview world must implement the server-safe entity sink")
         # This class must be generated per target by Gradle rather than frozen in a port snapshot.
         require(not (java / "buildcraft/lib/net/BuildCraftTarget.java").exists(),
                 "Baked-in BuildCraftTarget.java would conflict with generated metadata")
@@ -97,6 +161,25 @@ def validate() -> None:
         test_source = gt / "java/buildcraft/gametest/FabricInfrastructureGameTests.java"
         require(test_source.is_file() and "@GameTest" in test_source.read_text(encoding="utf-8"),
                 "No executable world-backed Fabric GameTest")
+        # Fabric Transfer API's FluidVariantCache is added to Minecraft Fluid by a mixin.
+        # Two native storage contracts MUST run under real Fabric Loader, not the
+        # unmixed plain-JUnit JVM (which throws ClassCastException on FluidVariant.of).
+        native_tests = gt / "java/buildcraft/gametest/FabricTankStorageGameTests.java"
+        require("buildcraft.gametest.FabricTankStorageGameTests" in
+                tests["entrypoints"]["fabric-gametest"],
+                "Native Fabric tank GameTests must be registered with the loader")
+        require(native_tests.is_file(), "Native Fabric tank GameTest source missing")
+        native_source = native_tests.read_text(encoding="utf-8")
+        for name in ("nativeSingleTankStorageUsesTheCallerTransactionAndDropletUnits",
+                     "nativeManagerStorageKeepsDistinctFillAndDrainPriorities"):
+            require(re.search(r"@GameTest\s+public void " + name + r"\(GameTestHelper helper\)",
+                              native_source) is not None,
+                    f"Native Fabric storage contract not runnable as GameTest: {name}")
+            require(name not in (dest / "src/test/java/buildcraft/lib/fluid/FabricTankStateTest.java")
+                    .read_text(encoding="utf-8"),
+                    f"Native Fabric storage contract still runs without loader mixins: {name}")
+        require(native_source.count("helper.succeed();") == 2,
+                "Each native Fabric tank GameTest must explicitly report success")
         print(f"26.3-fabric source materialized: {len(classes)} Java classes, {len(excludes)} loader-only exclusions")
 
     print("PASS: 26.3-fabric is wired to Stonecutter, Loom, GameTests, installed server CI, IT16 and publication")

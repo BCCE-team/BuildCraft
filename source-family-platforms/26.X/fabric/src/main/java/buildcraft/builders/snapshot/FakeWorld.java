@@ -53,7 +53,7 @@ import net.minecraft.world.ticks.BlackholeTickAccess;
 import net.minecraft.world.ticks.LevelTickAccess;
 
 @SuppressWarnings("NullableProblems")
-public abstract class FakeWorld extends Level {
+public abstract class FakeWorld extends Level implements BlueprintPreviewEntitySink {
     @SuppressWarnings("WeakerAccess")
     public static final BlockPos BLUEPRINT_OFFSET = new BlockPos(0, 127, 0);
 

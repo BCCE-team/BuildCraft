@@ -4,7 +4,6 @@ package buildcraft.builders.client;
 import buildcraft.builders.BCBuildersClientGuis;
 import buildcraft.builders.BCBuildersClientRenderers;
 import buildcraft.builders.BCBuildersEventDist;
-import buildcraft.builders.BCBuildersItems;
 import buildcraft.builders.BCBuildersSprites;
 import buildcraft.builders.BCBuilders;
 import buildcraft.builders.client.render.pip.BlueprintPipRenderer;
@@ -25,7 +24,7 @@ public final class FabricBuildersClient {
         bootstrapped = true;
         BCBuilders.bootstrapClientNetwork();
         BCBuildersSprites.init();
-        BCBuildersItems.registerItemModelProperties(PlatformClientRegistration.rangeProperties());
+        FabricItemModelProperties.register(PlatformClientRegistration.rangeProperties());
         BCBuildersClientGuis.clientInit(PlatformClientRegistration.screens());
         BCBuildersClientRenderers.register(PlatformClientRegistration.renderers());
         BCBuildersEventDist.registerGameplayEvents();

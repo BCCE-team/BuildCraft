@@ -590,7 +590,8 @@ class WorldConformanceTest(unittest.TestCase):
     def test_target_source_hooks_and_no_loader_specific_api(self):
         pipes=list(ROOT.glob("source-*/**/buildcraft/transport/pipe/Pipe.java"))
         active=[p for p in pipes if "worldAccess()" in p.read_text(encoding="utf-8")]
-        self.assertEqual(5,len(active),[str(p) for p in active])
+        self.assertEqual(6,len(active),[str(p) for p in active])
+        self.assertIn(ROOT / "source-family-platforms/26.X/fabric/src/main/java/buildcraft/transport/pipe/Pipe.java", active)
         for p in active:
             s=p.read_text(encoding="utf-8")
             self.assertIn("apiRuntime.callbackEpoch()",s)
@@ -599,7 +600,8 @@ class WorldConformanceTest(unittest.TestCase):
         self.assertIn("inCallback",(WORLD_SRC/"buildcraft/transport/api2/PipeComponentRuntime.java").read_text())
         tiles=list(ROOT.glob("source-*/**/buildcraft/transport/tile/TilePipeHolder.java"))
         updated=[p for p in tiles if "WorldEventKind.PIPE_PLACED" in p.read_text()]
-        self.assertEqual(4,len(updated),[str(p) for p in updated])
+        self.assertEqual(5,len(updated),[str(p) for p in updated])
+        self.assertIn(ROOT / "source-family-platforms/26.X/fabric/src/main/java/buildcraft/transport/tile/TilePipeHolder.java", updated)
         interaction=(WORLD_SRC/"buildcraft/lib/internal/api/v2/BlockInteractionServiceImpl.java").read_text()
         self.assertIn("WorldEventKind.BLOCK_INTERACT",interaction)
         from source_lookup import resolve_target_source

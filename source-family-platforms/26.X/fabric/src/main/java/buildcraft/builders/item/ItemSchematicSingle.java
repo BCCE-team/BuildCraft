@@ -4,6 +4,9 @@
  * distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.builders.item;
 
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -269,6 +272,8 @@ public class ItemSchematicSingle extends Item {
         stack.setCount(1);
     }
 
+    // Fabric strips this client-only override on dedicated servers before class verification.
+    @Environment(EnvType.CLIENT)
 	public void appendHoverText(ItemStack stack, Item.TooltipContext context, TooltipDisplay display, Consumer<Component> tooltip, TooltipFlag flag) {
         Level world = net.minecraft.client.Minecraft.getInstance().level;
         if (!isUsed(stack)) {

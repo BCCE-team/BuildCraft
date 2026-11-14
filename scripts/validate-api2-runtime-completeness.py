@@ -78,8 +78,47 @@ def validate_lifecycle(props: dict[str, str]) -> None:
 
     for target in target_ids(props):
         bclib = effective_java(target, "buildcraft/lib/BCLib.java", props)
-        if "evt.enqueueWork(BCLibRegistries::fmlPostInit)" not in bclib:
-            fail(f"{target}: load-complete event does not freeze/start API2 lifecycle")
+        if target_layout(target, props).platform != "fabric":
+            # FML loads all mod entrypoints before emitting FMLLoadCompleteEvent.
+            if "evt.enqueueWork(BCLibRegistries::fmlPostInit)" not in bclib:
+                fail(f"{target}: load-complete event does not freeze/start API2 lifecycle")
+            continue
+
+        # Fabric has no FMLLoadCompleteEvent. Its common initializer must finish
+        # gameplay registration, then defer freezing the public API until every
+        # addon ModInitializer has had a chance to register extensions. Both
+        # the client-only and dedicated-server startup paths must be covered.
+        # Only executable registrations count; a commented-out hook must fail.
+        without_comments = lambda text: re.sub(
+            r"(?m)^[ \t]*//[^\n]*$", "", re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+        )
+        bclib = without_comments(bclib)
+        entry = without_comments(effective_java(target, "buildcraft/fabric/BuildCraftFabric263.java", props))
+        client = without_comments(effective_java(target, "buildcraft/fabric/BuildCraftFabric263Client.java", props))
+        api_finish = re.search(
+            r"public static synchronized void finishApiRegistration\(\)\s*\{(.*?)\n    \}",
+            bclib, re.DOTALL,
+        )
+        if not api_finish or "BCLibRegistries.fmlPostInit()" not in api_finish.group(1):
+            fail(f"{target}: finishApiRegistration does not freeze/start API2 lifecycle")
+        elif "if (apiFinished) return;" not in api_finish.group(1):
+            fail(f"{target}: Fabric API2 completion is not idempotent across client/server startup")
+        fabric_registries = effective_java(target, "buildcraft/lib/BCLibRegistries.java", props)
+        for phase in ("ApiLifecycle.FROZEN", "ApiLifecycle.RUNNING"):
+            if f"BuildCraftApiRuntime.INSTANCE.advanceLifecycle({phase})" not in fabric_registries:
+                fail(f"{target}: effective registry finalizer never reaches {phase}")
+        if "BCLib.finishModuleRegistration();" not in entry:
+            fail(f"{target}: Fabric gameplay modules are not finalized before API2 freeze")
+        if not re.search(
+            r"ServerLifecycleEvents\.SERVER_STARTING\.register\(\s*server\s*->\s*"
+            r"BCLib\.finishApiRegistration\(\)\s*\)", entry,
+        ):
+            fail(f"{target}: dedicated server startup does not freeze/start API2 lifecycle")
+        if not re.search(
+            r"ClientLifecycleEvents\.CLIENT_STARTED\.register\(\s*client\s*->\s*\{\s*"
+            r"(?:buildcraft\.lib\.)?BCLib\.finishApiRegistration\(\)", client,
+        ):
+            fail(f"{target}: client startup does not freeze/start API2 lifecycle")
 
 
 def validate_runtime_services() -> None:

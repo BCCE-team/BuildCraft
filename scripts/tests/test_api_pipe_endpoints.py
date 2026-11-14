@@ -175,7 +175,8 @@ def pipe_endpoints_write(base, name, content):
 class PipeEndpointConformanceTest(unittest.TestCase):
     def test_sided_wiring(self):
         native = list(ROOT.glob('source-*/**/buildcraft/transport/pipe/Pipe.java'))
-        self.assertEqual(5, len(native))
+        self.assertEqual(6, len(native))
+        self.assertIn(ROOT / "source-family-platforms/26.X/fabric/src/main/java/buildcraft/transport/pipe/Pipe.java", native)
         for file in native:
             with self.subTest(path=str(file)):
                 code = file.read_text(encoding='utf-8')
@@ -197,7 +198,8 @@ class PipeEndpointConformanceTest(unittest.TestCase):
                 self.assertLess(guard.start(), endpoint_lookup,
                     f'endpoint queried before checking loaded chunk in {file}')
         native = list(ROOT.glob('source-*/**/buildcraft/transport/tile/TilePipeHolder.java'))
-        self.assertEqual(4, len(native))
+        self.assertEqual(5, len(native))
+        self.assertIn(ROOT / "source-family-platforms/26.X/fabric/src/main/java/buildcraft/transport/tile/TilePipeHolder.java", native)
         for file in native:
             with self.subTest(path=str(file)):
                 code = file.read_text(encoding='utf-8')
@@ -205,8 +207,12 @@ class PipeEndpointConformanceTest(unittest.TestCase):
                 self.assertIn('ApiPortCapabilities.attachment', code)
         for file in ROOT.glob('source-*/**/buildcraft/transport/wire/WorldSavedDataWireSystems.java'):
             self.assertIn('PipeEndpointRuntime.find', file.read_text(encoding='utf-8'))
-        for loader in ('forge', 'neoforge'):
-            file = ROOT / ('source-platforms/'+loader+'/src/main/java/buildcraft/transport/api2/ApiPortCapabilities.java')
+        adapter_paths = [
+            ROOT / ('source-platforms/'+loader+'/src/main/java/buildcraft/transport/api2/ApiPortCapabilities.java')
+            for loader in ('forge', 'neoforge')
+        ]
+        adapter_paths.append(ROOT / 'source-family-platforms/26.X/fabric/src/main/java/buildcraft/transport/api2/ApiPortCapabilities.java')
+        for file in adapter_paths:
             data=file.read_text(encoding='utf-8')
             for typename in ('ItemAdapter', 'FluidAdapter', 'EnergyAdapter', 'MjAdapter'):
                 self.assertIn(typename, data)
