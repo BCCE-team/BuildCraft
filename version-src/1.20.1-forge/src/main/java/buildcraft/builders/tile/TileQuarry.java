@@ -931,6 +931,8 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             return;
         }
 
+        if (!canWorkWithRedstoneControl()) return;
+
         // Refunds are part of the transaction ledger, not best-effort battery writes. If the battery was full when
         // a task was cancelled, keep retrying instead of silently losing the already-withdrawn MJ.
         flushPendingTaskPowerRefund();

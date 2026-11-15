@@ -467,6 +467,7 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
 
     @Override
     public void update() {
+        if (!level.isClientSide() && !canWorkWithRedstoneControl()) return;
         if (shouldInit) {
             updateBasePoses();
             shouldInit = false;
@@ -750,6 +751,7 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
         return level != null
             && !level.isClientSide()
             && !isRemoved()
+            && canWorkWithRedstoneControl()
             && snapshotType == EnumSnapshotType.BLUEPRINT
             && blueprintBuildingInfo != null
             && blueprintBuilder != null

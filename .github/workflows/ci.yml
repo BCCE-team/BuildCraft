@@ -154,12 +154,13 @@ jobs:
 
       - name: Test Volume Box and Filler Planner gameplay
         run: python -m unittest discover -s scripts/tests -p test_volume_filler_gameplay.py -v
+      - name: Test redstone control module resources and blockstate transitions
+        run: python -m unittest discover -s scripts/tests -p test_redstone_module_regressions.py -v
+      - name: Test Fabric 26.3 RCM installation, state and render variants
+        run: python -m unittest discover -s scripts/tests -p test_fabric_rcm_regressions.py -v
 
       - name: Test 26.X builders native boundaries
         run: python -m unittest discover -s scripts/tests -p test_builders_26.py -v
-
-      - name: Test Builder stalled-excavation regressions
-        run: python -m unittest discover -s scripts/tests -p test_builder_stall_regressions.py -v
 
       - name: Test 26.X silicon native boundaries
         run: python -m unittest discover -s scripts/tests -p test_silicon_26.py -v

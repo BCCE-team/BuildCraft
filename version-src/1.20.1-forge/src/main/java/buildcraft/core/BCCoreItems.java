@@ -31,6 +31,7 @@ import net.minecraft.world.item.ItemStack;
 public class BCCoreItems {
     public static final BCDeferredRegister<Item> ITEMS = BCDeferredRegister.create("minecraft:item", BCCore.MODID);
     public static final BCRegistryEntry<Item> WRENCH = ITEMS.register("wrench", ItemWrench::new);
+    public static final BCRegistryEntry<Item> REDSTONE_CONTROL_MODULE = ITEMS.register("redstone_control_module", () -> new Item(new Item.Properties()));
     public static final BCRegistryEntry<Item> GEAR_WOOD = ITEMS.register("gears/gear_wood", () -> new Item(new Item.Properties()));
     public static final BCRegistryEntry<Item> GEAR_STONE = ITEMS.register("gears/gear_stone", () -> new Item(new Item.Properties()));
     public static final BCRegistryEntry<Item> GEAR_IRON = ITEMS.register("gears/gear_iron", () -> new Item(new Item.Properties()));
@@ -73,6 +74,7 @@ public class BCCoreItems {
         add(items, ENGINE_RESTONE_ITEM_BC8);
         add(items, ENGINE_CREATIVE_ITEM_BC8);
         add(items, WRENCH);
+        add(items, REDSTONE_CONTROL_MODULE);
         add(items, GEAR_WOOD);
         add(items, GEAR_STONE);
         add(items, GEAR_IRON);

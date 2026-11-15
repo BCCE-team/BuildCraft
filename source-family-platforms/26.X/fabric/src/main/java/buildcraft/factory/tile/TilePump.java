@@ -476,6 +476,10 @@ public class TilePump extends TileMiner implements MachineRuntimeView {
     }
 
     public void update() {
+        // A Pump attached to a Quarry must pause with its host, even with an empty upgrade slot.
+        if (!level.isClientSide() && (!canWorkWithRedstoneControl()
+            || (getHost() instanceof buildcraft.lib.tile.TileBC_Neptune machineHost
+                && !machineHost.canWorkWithRedstoneControl()))) return;
         if (!level.isClientSide()) {
             boolean hosted = getHost() != null;
             if (hosted != wasHosted) {

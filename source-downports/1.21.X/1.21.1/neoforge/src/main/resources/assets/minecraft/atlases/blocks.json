@@ -62,6 +62,10 @@
     },
     {
       "type": "minecraft:single",
+      "resource": "buildcraftbuilders:blocks/builder/front_redstone"
+    },
+    {
+      "type": "minecraft:single",
       "resource": "buildcraftbuilders:blocks/builder/side"
     },
     {
@@ -103,6 +107,10 @@
     {
       "type": "minecraft:single",
       "resource": "buildcraftbuilders:blocks/filler/front"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftbuilders:blocks/filler/front_redstone"
     },
     {
       "type": "minecraft:single",
@@ -151,6 +159,10 @@
     {
       "type": "minecraft:single",
       "resource": "buildcraftbuilders:blocks/filler/side"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftbuilders:blocks/filler/side_redstone"
     },
     {
       "type": "minecraft:single",
@@ -295,6 +307,10 @@
     {
       "type": "minecraft:single",
       "resource": "buildcraftbuilders:blocks/quarry/normal/front"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftbuilders:blocks/quarry/front_redstone"
     },
     {
       "type": "minecraft:single",
@@ -1819,6 +1835,10 @@
     },
     {
       "type": "minecraft:single",
+      "resource": "buildcraftfactory:blocks/mining_well/front_redstone"
+    },
+    {
+      "type": "minecraft:single",
       "resource": "buildcraftfactory:blocks/mining_well/led_green"
     },
     {
@@ -1832,6 +1852,10 @@
     {
       "type": "minecraft:single",
       "resource": "buildcraftfactory:blocks/mining_well/top"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftfactory:blocks/mining_well/top_redstone"
     },
     {
       "type": "minecraft:single",
@@ -1864,6 +1888,10 @@
     {
       "type": "minecraft:single",
       "resource": "buildcraftfactory:blocks/pump/side"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftfactory:blocks/pump/side_redstone"
     },
     {
       "type": "minecraft:single",

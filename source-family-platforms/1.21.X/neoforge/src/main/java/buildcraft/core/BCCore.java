@@ -92,6 +92,7 @@ public class BCCore {
         ConfigScreenRegistration.register(modContainer);
         MessageManager.registerClientboundMessageClass(BCModules.CORE, MessageVolumeBoxes.class, MessageVolumeBoxes.HANDLER, MessageVolumeBoxes::toBytes, MessageVolumeBoxes::new);
         NeoForge.EVENT_BUS.addListener(this::onPaintbrushRightClickBlock);
+        NeoForge.EVENT_BUS.addListener(RedstoneModuleInteractions::onRightClickBlock);
         BCCoreVolumeBoxEvents.register();
         BCCoreStatements.preInit();
     }

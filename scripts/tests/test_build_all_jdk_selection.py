@@ -57,6 +57,20 @@ class BuildAllJavaTests(unittest.TestCase):
             self.selector.select_jdks([25], {17: [Path("/any/17")]},
                 type("Reporter", (), {"format_java_diagnostics": staticmethod(lambda available: "diagnostics")})())
 
+    def test_run_client_uses_generation_specific_jdk(self):
+        launcher = (ROOT / "run-client.ps1").read_text(encoding="utf-8")
+        for fragment in ('"old" { 17 }', '"1.21.X" { 21 }', '"26.X" { 25 }'):
+            self.assertIn(fragment, launcher)
+        self.assertIn('select-build-java.py', launcher)
+        self.assertIn('$Selector $JavaMajor', launcher)
+        self.assertIn('$env:JAVA_HOME = $JavaHome', launcher)
+        self.assertIn('$env:PATH = (Join-Path $JavaHome "bin")', launcher)
+        self.assertIn('Remove-Item Env:JAVA_HOME', launcher)
+        self.assertIn('$env:JAVA_HOME = $OriginalJavaHome', launcher)
+        self.assertIn('$env:PATH = $OriginalPath', launcher)
+        self.assertIn('& .\\gradlew.bat $Task @GradleArgs', launcher)
+        self.assertIn('exit $Result', launcher)
+
     def test_cmd_wrapper_invokes_same_logic(self):
         script = (ROOT / "build-all.bat").read_text(encoding="utf-8")
         self.assertIn('build-all.ps1', script)

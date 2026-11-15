@@ -98,6 +98,8 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
             sendNetworkUpdate(NET_LED_STATUS);
         }
 
+        if (!canWorkWithRedstoneControl()) return;
+
         long previousProgress = progress;
         mine();
         // The drill saves its accumulated power; a completed operation is immediately durable.

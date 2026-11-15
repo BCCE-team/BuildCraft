@@ -1,10 +1,16 @@
 {
   "variants": {
-    "waterlogged=false": {
+    "waterlogged=false,redstone_module=false": {
       "model": "buildcraftfactory:block/pump"
     },
-    "waterlogged=true": {
+    "waterlogged=false,redstone_module=true": {
+      "model": "buildcraftfactory:block/pump_redstone"
+    },
+    "waterlogged=true,redstone_module=false": {
       "model": "buildcraftfactory:block/pump"
+    },
+    "waterlogged=true,redstone_module=true": {
+      "model": "buildcraftfactory:block/pump_redstone"
     }
   }
 }

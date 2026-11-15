@@ -8,6 +8,7 @@ import buildcraft.lib.internal.enums.EnumOptionalSnapshotType;
 import buildcraft.lib.internal.properties.BuildCraftProperties;
 import buildcraft.builders.tile.TileBuilder;
 import buildcraft.lib.block.BlockBCTile_Neptune;
+import buildcraft.lib.block.RedstoneModuleState;
 import buildcraft.lib.block.IBlockWithFacing;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -33,14 +34,15 @@ public class BlockBuilder extends BlockBCTile_Neptune implements IBlockWithFacin
 
     public BlockBuilder() {
         super();
-        registerDefaultState(defaultBlockState().setValue(SNAPSHOT_TYPE, EnumOptionalSnapshotType.NONE));
+        registerDefaultState(defaultBlockState().setValue(SNAPSHOT_TYPE, EnumOptionalSnapshotType.NONE)
+            .setValue(RedstoneModuleState.INSTALLED, false));
     }
 
     // BlockState
 
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> bs) {
-		bs.add(SNAPSHOT_TYPE);
+		bs.add(SNAPSHOT_TYPE, RedstoneModuleState.INSTALLED);
 		super.createBlockStateDefinition(bs);
 	}
 	

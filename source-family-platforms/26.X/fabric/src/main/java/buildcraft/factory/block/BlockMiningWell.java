@@ -10,12 +10,15 @@ import buildcraft.factory.BCFactoryBlocks;
 import buildcraft.factory.tile.TileMiningWell;
 import buildcraft.lib.block.BlockBCTile_Neptune;
 import buildcraft.lib.block.IBlockWithFacing;
+import buildcraft.lib.block.RedstoneModuleState;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -27,6 +30,17 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 
 public class BlockMiningWell extends BlockBCTile_Neptune implements IBlockWithFacing, EntityBlock {
+
+    public BlockMiningWell() {
+        super();
+        registerDefaultState(defaultBlockState().setValue(RedstoneModuleState.INSTALLED, false));
+    }
+
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(RedstoneModuleState.INSTALLED);
+        super.createBlockStateDefinition(builder);
+    }
 
 	public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
     	return new TileMiningWell(pos, state);

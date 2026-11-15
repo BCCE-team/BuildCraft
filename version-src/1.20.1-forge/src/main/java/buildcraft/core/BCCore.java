@@ -104,6 +104,7 @@ public class BCCore {
         MessageManager.registerMessageClass(BCModules.CORE, MessageVolumeBoxes.class, MessageVolumeBoxes.HANDLER, MessageVolumeBoxes::toBytes, MessageVolumeBoxes::new, Dist.CLIENT);
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.addListener(ItemPaintbrush_BC8::onRightClickBlock);
+        MinecraftForge.EVENT_BUS.addListener(RedstoneModuleInteractions::onRightClickBlock);
         IEventBus eventBus = MinecraftForge.EVENT_BUS;
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             eventBus.addListener(RenderTickListener::renderOverlay);

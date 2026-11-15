@@ -736,6 +736,7 @@
   "advMode.type": "Mode",
   "block.buildcraftbuilders.marker_construction": "Construction Marker",
   "pipe.buildcraftcompat.forestry_propolis": "Apiarist's Pipe",
+  "item.buildcraftcore.redstone_control_module": "Redstone Controlling Module",
   "item.buildcraftcore.wrench": "Wrench",
   "item.buildcraftcore.gears.gear_wood": "Wooden Gear",
   "item.buildcraftcore.gears.gear_stone": "Stone Gear",

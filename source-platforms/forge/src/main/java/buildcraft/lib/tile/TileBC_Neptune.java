@@ -76,6 +76,7 @@ import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import buildcraft.lib.block.RedstoneModuleState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.common.capabilities.Capability;
@@ -287,6 +288,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
         super.onLoad();
         chunkCache.invalidate();
         tileCache.invalidate();
+        syncRedstoneControlModuleBlockState();
     }
 
     @Override
@@ -299,10 +301,70 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     public void update() {
     }
 
+    /** Optional, physical upgrade. A missing key always means vanilla (unrestricted) behavior. */
+    private boolean redstoneControlModuleInstalled;
+
+    /** Only the five BC8 machines supported by the redstone-control module accept it. */
+    public final boolean supportsRedstoneControlModule() {
+        // ForgeRegistries.BLOCKS is available on both Forge 1.19.2 and 1.20.1.
+        // BuiltInRegistries only exists in newer Minecraft versions.
+        String id = net.minecraftforge.registries.ForgeRegistries.BLOCKS
+            .getKey(getBlockState().getBlock()).toString();
+        return id.equals("buildcraftbuilders:builder")
+            || id.equals("buildcraftbuilders:filler")
+            || id.equals("buildcraftbuilders:quarry")
+            || id.equals("buildcraftfactory:mining_well")
+            || id.equals("buildcraftfactory:pump");
+    }
+
+    public final boolean hasRedstoneControlModule() {
+        return redstoneControlModuleInstalled;
+    }
+
+    /** Deliberately cheap for the common no-upgrade case. Signals are checked every server tick. */
+    public final boolean canWorkWithRedstoneControl() {
+        return !redstoneControlModuleInstalled || level == null || level.hasNeighborSignal(worldPosition);
+    }
+
+    public final boolean installRedstoneControlModule() {
+        if (!supportsRedstoneControlModule() || redstoneControlModuleInstalled) return false;
+        redstoneControlModuleInstalled = true;
+        onRedstoneControlModuleChanged();
+        return true;
+    }
+
+    public final boolean removeRedstoneControlModule() {
+        if (!supportsRedstoneControlModule() || !redstoneControlModuleInstalled) return false;
+        redstoneControlModuleInstalled = false;
+        onRedstoneControlModuleChanged();
+        return true;
+    }
+
+    private void onRedstoneControlModuleChanged() {
+        setChanged();
+        syncRedstoneControlModuleBlockState();
+    }
+
+    /** Blockstate is the client-visible model selector; BE/NBT remains the source of truth.
+     * Also repairs pre-upgrade saved machines whose blockstate has not been migrated yet.
+     */
+    private void syncRedstoneControlModuleBlockState() {
+        if (level == null || level.isClientSide()) return;
+        BlockState state = getBlockState();
+        if (!state.hasProperty(RedstoneModuleState.INSTALLED)) return;
+        if (state.getValue(RedstoneModuleState.INSTALLED) != redstoneControlModuleInstalled) {
+            level.setBlock(worldPosition,
+                state.setValue(RedstoneModuleState.INSTALLED, redstoneControlModuleInstalled), 3);
+        }
+    }
+
     /** Called whenever {@link #onRemove()} is called (by default). */
     public void addDrops(NonNullList<ItemStack> toDrop, int fortune) {
         itemManager.addDrops(toDrop);
         tankManager.addDrops(toDrop);
+        if (redstoneControlModuleInstalled && supportsRedstoneControlModule()) {
+            toDrop.add(new ItemStack(buildcraft.core.BCCoreItems.REDSTONE_CONTROL_MODULE.get()));
+        }
     }
 
     public void onPlacedBy(@Nullable LivingEntity placer, ItemStack stack) {
@@ -743,6 +805,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
     public void load(CompoundTag nbt) {
         super.load(nbt);
 //        migrateOldNBT(nbt.getInt("data-version"), nbt);
+        redstoneControlModuleInstalled = nbt.getBoolean("redstoneControlModuleInstalled");
         deltaManager.readFromNBT(nbt.getCompound("deltas"));
         if (nbt.contains("owner")) {
             owner = NbtUtils.readGameProfile(nbt.getCompound("owner"));
@@ -768,6 +831,7 @@ public abstract class TileBC_Neptune extends BlockEntity implements IPayloadRece
 
     @Override
     public void saveAdditional(CompoundTag nbt) {
+        nbt.putBoolean("redstoneControlModuleInstalled", redstoneControlModuleInstalled);
         nbt.putInt("data-version", BCVersion.CURRENT.dataVersion);
         nbt.put("deltas", deltaManager.writeToNBT());
         if (owner != null && owner.isComplete() && owner != FakePlayerProvider.NULL_PROFILE) {

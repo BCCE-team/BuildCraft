@@ -29,6 +29,10 @@ public final class CoreFabricInteractions {
                 return InteractionResult.PASS;
             }
             ItemStack stack = player.getItemInHand(hand);
+            InteractionResult moduleInteraction = RedstoneModuleInteractions.onUse(player, level, hand, hit, stack);
+            if (moduleInteraction != InteractionResult.PASS) {
+                return moduleInteraction;
+            }
             if (!ItemPaintbrush_BC8.shouldOverrideBlockUse(stack, level, hit.getBlockPos())) {
                 return InteractionResult.PASS;
             }

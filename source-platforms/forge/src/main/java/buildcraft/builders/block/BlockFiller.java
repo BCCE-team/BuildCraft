@@ -8,6 +8,9 @@ package buildcraft.builders.block;
 
 import buildcraft.builders.tile.TileFiller;
 import buildcraft.lib.block.BlockBCTile_Neptune;
+import buildcraft.lib.block.RedstoneModuleState;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.StateDefinition;
 import buildcraft.lib.block.IBlockWithFacing;
 import buildcraft.lib.tile.TileBC_Neptune;
 import net.minecraft.core.BlockPos;
@@ -23,6 +26,17 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.network.NetworkHooks;
 
 public class BlockFiller extends BlockBCTile_Neptune implements IBlockWithFacing {
+
+    public BlockFiller() {
+        super();
+        registerDefaultState(defaultBlockState().setValue(RedstoneModuleState.INSTALLED, false));
+    }
+
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(RedstoneModuleState.INSTALLED);
+        super.createBlockStateDefinition(builder);
+    }
 
     // Others
 

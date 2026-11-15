@@ -34,18 +34,56 @@ class IdeaClientConfigTests(unittest.TestCase):
         self.assertIn("Run Client 26.3 (Fabric)", {c.name for c in configs})
         self.assertIn("Run Client 26.3 (NeoForge)", {c.name for c in configs})
 
-    def test_all_committed_configs_point_to_exact_target_and_generation(self):
+    def test_all_committed_configs_launch_the_versioned_power_shell_script(self):
         configs = self.generator.validate_client_configs()
         self.assertEqual(len(configs), 8)
         for c in configs:
             with self.subTest(target=c.target):
-                path = ROOT / ".run" / c.filename
-                xml = ET.parse(path).getroot()
-                opts = {o.get("name"): o for o in xml.findall("configuration/ExternalSystemSettings/option")}
-                self.assertEqual(opts["externalProjectPath"].get("value"),
-                                 f"$PROJECT_DIR$/builds/{c.generation}")
-                self.assertEqual(opts["taskNames"].find("list/option").get("value"),
-                                 f":{c.target}:runClient")
+                node = ET.parse(ROOT / ".run" / c.filename).getroot().find("configuration")
+                self.assertEqual(node.get("type"), "ShConfigurationType")
+                opts = {o.get("name"): o.get("value") for o in node.findall("option")}
+                self.assertEqual(opts["SCRIPT_PATH"], "$PROJECT_DIR$/run-client.ps1")
+                self.assertEqual(opts["SCRIPT_OPTIONS"], c.launcher_args)
+                self.assertEqual(opts["SCRIPT_WORKING_DIRECTORY"], "$PROJECT_DIR$")
+                self.assertEqual(opts["INTERPRETER_PATH"], "powershell.exe")
+                self.assertEqual(opts["INTERPRETER_OPTIONS"], "-NoProfile -ExecutionPolicy Bypass -File")
+                self.assertEqual(opts["EXECUTE_SCRIPT_FILE"], "true")
+                self.assertIsNone(node.find("ExternalSystemSettings"))
+                self.assertTrue((ROOT / "run-client.ps1").is_file())
+
+    def test_gradle_daemon_jvm_criteria_match_each_generation(self):
+        # Both Gradle 8.8 (preview) and 9.8.1 use the same filename.
+        configurations = (
+            ("old", "8.8", 17),
+            ("1.21.X", "8.8", 21),
+            ("26.X", "9.8.1", 25),
+        )
+        for generation, gradle_version, java_major in configurations:
+            with self.subTest(generation=generation):
+                build_root = ROOT / "builds" / generation
+                wrapper = (build_root / "gradle/wrapper/gradle-wrapper.properties").read_text()
+                self.assertIn(f"gradle-{gradle_version}-bin.zip", wrapper)
+                criteria = (build_root / "gradle/gradle-daemon-jvm.properties").read_text(encoding="utf-8")
+                self.assertEqual(criteria, f"toolchainVersion={java_major}\n")
+
+    def test_shell_client_uses_correct_loader_for_duplicate_versions(self):
+        configs = self.generator.client_configs(self.props)
+        fabric = next(c for c in configs if c.target == '26.3-fabric')
+        neoforge = next(c for c in configs if c.target == '26.3-neoforge')
+        self.assertEqual(fabric.launcher_args, '26.3 -Loader fabric')
+        self.assertEqual(neoforge.launcher_args, '26.3')
+        for target, args in ((fabric, '26.3 -Loader fabric'), (neoforge, '26.3')):
+            self.assertIn(f'SCRIPT_OPTIONS" value="{args}"', self.generator.config_xml(target))
+
+    def test_generator_rejects_bypassing_the_jdk_selector(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            self.generator.write_client_configs(directory, self.props)
+            wrong = directory / 'Run Client 26.2 (NeoForge).run.xml'
+            wrong.write_text(wrong.read_text(encoding='utf-8').replace(
+                'ShConfigurationType', 'GradleRunConfiguration'), encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'wrong IDEA|Wrong IDEA'):
+                self.generator.validate_client_configs(directory, self.props)
 
     def test_generation_works_for_another_double_loader_version(self):
         props = self.props.copy()
@@ -88,8 +126,8 @@ class IdeaClientConfigTests(unittest.TestCase):
             self.generator.write_client_configs(directory, self.props)
             wrong = directory / "Run Client 26.3 (Fabric).run.xml"
             wrong.write_text(wrong.read_text(encoding="utf-8").replace(
-                ":26.3-fabric:runClient", ":26.3-neoforge:runClient"), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, ":26.3-fabric:runClient"):
+                'SCRIPT_OPTIONS" value="26.3 -Loader fabric"', 'SCRIPT_OPTIONS" value="26.3"'), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "SCRIPT_OPTIONS"):
                 self.generator.validate_client_configs(directory, self.props)
 
     def test_duplicate_loader_version_is_error(self):

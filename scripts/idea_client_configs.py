@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate loader-qualified IntelliJ IDEA Gradle client run configurations.
+"""Generate loader-qualified IntelliJ IDEA client run configurations.
 
 The canonical target registry is the only source of versions, loaders, build
 roots and Gradle task names. This avoids collisions when two loaders target the
@@ -48,6 +48,11 @@ class ClientConfig:
     def gradle_task(self) -> str:
         return f":{self.target}:runClient"
 
+    @property
+    def launcher_args(self) -> str:
+        loader_arg = " -Loader fabric" if self.loader == "fabric" else ""
+        return self.minecraft + loader_arg
+
 
 def client_configs(props: dict[str, str]) -> list[ClientConfig]:
     """Return one unique launch configuration per canonical (version, loader)."""
@@ -75,39 +80,38 @@ def client_configs(props: dict[str, str]) -> list[ClientConfig]:
 
 
 def config_xml(config: ClientConfig) -> str:
-    """Preserve IntelliJ's shareable GradleRunConfiguration XML schema."""
+    """Launch the Windows PowerShell JDK-selector, not the IDEA-selected Gradle JVM.
+
+    On a multi-generation BuildCraft checkout IDEA cannot choose Java 17/21/25
+    from one global Project SDK. GradleRunConfiguration bypassed build-all.ps1
+    and started the 26.X build on Java 19, before the game's run task existed.
+    Shell Script is bundled with IDEA; the same project launcher remains usable
+    from PowerShell and its JDK selection is independent of the IDEA daemon.
+    """
     name = escape(config.name, {'"': '&quot;'})
-    project = escape(config.project_path, {'"': '&quot;'})
-    task = escape(config.gradle_task, {'"': '&quot;'})
+    args = escape(config.launcher_args, {'"': '&quot;'})
     return f'''<component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="{name}" type="GradleRunConfiguration" factoryName="Gradle">
-    <ExternalSystemSettings>
-      <option name="executionName" />
-      <option name="externalProjectPath" value="{project}" />
-      <option name="externalSystemIdString" value="GRADLE" />
-      <option name="scriptParameters" value="" />
-      <option name="taskDescriptions">
-        <list />
-      </option>
-      <option name="taskNames">
-        <list>
-          <option value="{task}" />
-        </list>
-      </option>
-      <option name="vmOptions" value="" />
-    </ExternalSystemSettings>
-    <ExternalSystemDebugServerProcess>false</ExternalSystemDebugServerProcess>
-    <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-    <DebugAllEnabled>false</DebugAllEnabled>
-    <RunAsTest>false</RunAsTest>
+  <configuration default="false" name="{name}" type="ShConfigurationType">
+    <option name="SCRIPT_TEXT" value="" />
+    <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
+    <option name="SCRIPT_PATH" value="$PROJECT_DIR$/run-client.ps1" />
+    <option name="SCRIPT_OPTIONS" value="{args}" />
+    <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
+    <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
+    <option name="INTERPRETER_PATH" value="powershell.exe" />
+    <option name="INTERPRETER_OPTIONS" value="-NoProfile -ExecutionPolicy Bypass -File" />
+    <option name="EXECUTE_IN_TERMINAL" value="false" />
+    <option name="EXECUTE_SCRIPT_FILE" value="true" />
+    <envs />
     <method v="2" />
   </configuration>
 </component>
-'''
+''' 
 
 
 def verify_config(path: Path, config: ClientConfig) -> None:
-    """Compare semantic XML fields, not IDEA's formatting or option order."""
+    """Compare launch settings, including the JDK-selecting entrypoint."""
     try:
         root = ET.parse(path).getroot()
     except ET.ParseError as exc:
@@ -118,18 +122,26 @@ def verify_config(path: Path, config: ClientConfig) -> None:
     if node is None or any((
         node.get("name") != config.name,
         node.get("default") != "false",
-        node.get("type") != "GradleRunConfiguration",
-        node.get("factoryName") != "Gradle",
+        node.get("type") != "ShConfigurationType",
     )):
-        raise ValueError(f"Wrong IDEA Gradle client name/type in {path}")
-    opts = {option.get("name"): option for option in node.findall("ExternalSystemSettings/option")}
-    for key, expected in (("externalProjectPath", config.project_path),
-                          ("externalSystemIdString", "GRADLE")):
-        if key not in opts or opts[key].get("value") != expected:
-            raise ValueError(f"{path}: incorrect {key}: expected {expected}")
-    tasks = [x.get("value") for x in opts.get("taskNames", ET.Element("missing")).findall("list/option")]
-    if tasks != [config.gradle_task]:
-        raise ValueError(f"{path}: expected only {config.gradle_task}, found {tasks}")
+        raise ValueError(f"Wrong IDEA Shell Script client name/type in {path}")
+    opts = {option.get("name"): option.get("value") for option in node.findall("option")}
+    expected = {
+        "INDEPENDENT_SCRIPT_PATH": "true",
+        "SCRIPT_PATH": "$PROJECT_DIR$/run-client.ps1",
+        "SCRIPT_OPTIONS": config.launcher_args,
+        "INDEPENDENT_SCRIPT_WORKING_DIRECTORY": "true",
+        "SCRIPT_WORKING_DIRECTORY": "$PROJECT_DIR$",
+        "INDEPENDENT_INTERPRETER_PATH": "true",
+        "INTERPRETER_PATH": "powershell.exe",
+        "INTERPRETER_OPTIONS": "-NoProfile -ExecutionPolicy Bypass -File",
+        "EXECUTE_SCRIPT_FILE": "true",
+    }
+    for key, value in expected.items():
+        if opts.get(key) != value:
+            raise ValueError(f"{path}: expected {key}={value!r}, found {opts.get(key)!r}")
+    if node.find("ExternalSystemSettings") is not None:
+        raise ValueError(f"{path}: Gradle runtime would bypass the JDK-selecting launcher")
 
 
 def validate_client_configs(directory: Path = RUN_DIRECTORY,
@@ -157,15 +169,18 @@ def write_client_configs(directory: Path = RUN_DIRECTORY,
     for path in directory.glob(CLIENT_PATTERN):
         if path in expected:
             continue
-        # Remove only our Gradle runClient configurations; preserve custom IDEA
-        # configurations even if their filenames happen to match this glob.
+        # Remove only our former Gradle runClient configurations or our Shell
+        # Script launcher; preserve unrelated configurations.
         try:
             node = ET.parse(path).getroot().find("configuration")
             text = path.read_text(encoding="utf-8")
         except (ET.ParseError, OSError):
             raise ValueError(f"Refusing to delete unknown IDEA configuration: {path}")
-        if node is None or node.get("type") != "GradleRunConfiguration" or not re.search(
-                r":\S+:(?:runClient)\b", text):
+        is_old_gradle = (node is not None and node.get("type") == "GradleRunConfiguration"
+                         and re.search(r":\S+:(?:runClient)\b", text))
+        is_our_script = (node is not None and node.get("type") == "ShConfigurationType"
+                         and "run-client.ps1" in text)
+        if not (is_old_gradle or is_our_script):
             raise ValueError(f"Refusing to delete non-BCCE IDEA configuration: {path}")
         path.unlink()
     for config in configs:

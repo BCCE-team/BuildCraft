@@ -331,7 +331,7 @@ public class TileFiller extends TileBC_Neptune
         if (--renderUpdateCooldown <= 0) {
             renderUpdateCooldown = RENDER_UPDATE_INTERVAL;
             // Flying blocks need per-tick interpolation only while work can actually advance.
-            if (mode != Mode.OFF && !(mode == Mode.ON && finished)
+            if (canWorkWithRedstoneControl() && mode != Mode.OFF && !(mode == Mode.ON && finished)
                 && battery.getStored() >= MjAmount.MICRO_MJ_PER_MJ && getBuilder() != null) {
                 sendNetworkUpdate(NET_RENDER_DATA);
             }
@@ -340,7 +340,7 @@ public class TileFiller extends TileBC_Neptune
         if (lockedTicks < 0) {
             lockedTicks = 0;
         }
-        if (mode == Mode.OFF || (mode == Mode.ON && finished)) {
+        if (!canWorkWithRedstoneControl() || mode == Mode.OFF || (mode == Mode.ON && finished)) {
             return;
         }
         if (battery.getStored() < MjAmount.MICRO_MJ_PER_MJ) {

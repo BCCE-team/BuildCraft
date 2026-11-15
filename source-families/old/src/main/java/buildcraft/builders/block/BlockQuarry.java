@@ -21,6 +21,7 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import buildcraft.builders.BCBuildersBlocks;
 import buildcraft.builders.tile.TileQuarry;
 import buildcraft.lib.block.BlockBCTile_Neptune;
+import buildcraft.lib.block.RedstoneModuleState;
 import buildcraft.lib.block.IBlockWithFacing;
 import buildcraft.lib.misc.AdvancementUtil;
 import net.minecraft.core.BlockPos;
@@ -79,6 +80,7 @@ public class BlockQuarry extends BlockBCTile_Neptune implements IBlockWithFacing
         super(Properties.of().mapColor(MapColor.METAL).sound(SoundType.ANVIL).strength(5.0f, 10.0f).requiresCorrectToolForDrops().dynamicShape());
         ?*/
         //?}
+        registerDefaultState(defaultBlockState().setValue(RedstoneModuleState.INSTALLED, false));
 /*        this.registerDefaultState(this.stateDefinition.any()
         		.setValue(BuildCraftProperties.CONNECTED_DOWN, false)
             	.setValue(BuildCraftProperties.CONNECTED_EAST, false)
@@ -91,6 +93,7 @@ public class BlockQuarry extends BlockBCTile_Neptune implements IBlockWithFacing
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> bs) {
 //		BuildCraftProperties.CONNECTED_MAP.values().forEach(bs::add);
+        bs.add(RedstoneModuleState.INSTALLED);
 		super.createBlockStateDefinition(bs);
 	}
 
