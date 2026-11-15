@@ -41,7 +41,7 @@ def _unittest_command(pattern: str) -> tuple[str, ...]:
 
 
 VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("Validate Fabric production target", (sys.executable, "scripts/validate-fabric-target.py")),
+    ("Validate Fabric production target integration", (sys.executable, "scripts/validate-fabric-target.py")),
     ("Validate independent Stonecutter builds", (sys.executable, "scripts/validate-stonecutter.py")),
     ("Validate hybrid source layout", (sys.executable, "scripts/validate-source-families.py")),
     ("Validate source architecture invariants", ("__ARCHITECTURE__",)),
@@ -81,8 +81,8 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test 26.X transport native boundaries", _unittest_command("test_transport_26.py")),
     ("Test 26.X factory native boundaries", _unittest_command("test_factory_26.py")),
     ("Test Volume Box and Filler Planner gameplay", _unittest_command("test_volume_filler_gameplay.py")),
-    ("Test redstone control module resources and state", _unittest_command("test_redstone_module_regressions.py")),
-    ("Test Fabric 26.3 redstone module parity", _unittest_command("test_fabric_rcm_regressions.py")),
+    ("Test redstone control module resources and blockstate transitions", _unittest_command("test_redstone_module_regressions.py")),
+    ("Test Fabric 26.3 RCM installation, state and render variants", _unittest_command("test_fabric_rcm_regressions.py")),
     ("Test 26.X builders native boundaries", _unittest_command("test_builders_26.py")),
     ("Test 26.X silicon native boundaries", _unittest_command("test_silicon_26.py")),
     ("Test 26.X compat and bucket presentation", _unittest_command("test_compat_buckets_26.py")),
@@ -138,6 +138,12 @@ def step_key(name: str) -> str:
 # stage is named "Validate API v2 boundary" in GitHub Actions.
 STEP_ALIASES = {
     "validate-api-boundary": "validate-api-v2-boundary",
+    # Preserve --from selectors accepted before the workflow renamed these steps.
+    "validate-fabric-production-target": "validate-fabric-production-target-integration",
+    "test-redstone-control-module-resources-and-state":
+        "test-redstone-control-module-resources-and-blockstate-transitions",
+    "test-fabric-26.3-redstone-module-parity":
+        "test-fabric-26.3-rcm-installation-state-and-render-variants",
 }
 
 
@@ -226,7 +232,10 @@ def workflow_alignment_check() -> None:
     validate_text = text[validate_start:build_start]
     position = 0
     for name, _ in VALIDATE_STEPS:
-        token = f"- name: {name}"
+        # Match the entire YAML name, not just a prefix (the old
+        # "Validate Fabric production target" accidentally matched
+        # "Validate Fabric production target integration").
+        token = f"- name: {name}\n"
         found = validate_text.find(token, position)
         if found < 0:
             raise LocalCIError(f"Local test runner is stale: workflow step missing/out of order: {name}")

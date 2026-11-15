@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 import json
 import tomllib
+from string import Template
 import tempfile
 import unittest
 from pathlib import Path
@@ -349,15 +350,19 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
                 self.assertEqual(bool(parsed.get("mixins")), not target.startswith("1.21.1-"))
 
     def test_moddev_gametest_metadata_is_staged_and_cleaned(self):
-        # FML 10+ discovers the dev mod from classes/java/main first. Only
-        # GameTests mirror the processed mod metadata into that directory;
-        # normal production JAR builds must not receive another metadata copy.
+        # The 26.1.2 ModDev resources/main root can be empty. The GameTest
+        # staging task must expand the canonical materialized metadata, not
+        # silently become NO-SOURCE; normal production JARs stay clean.
         gradle = (ROOT / 'build-logic/loaders/neoforge-target.gradle').read_text(encoding='utf-8')
         for snippet in (
             "if (gameTestRunRequested && minecraftVersion != '1.21.1')",
-            "layout.buildDirectory.file('resources/main/META-INF/neoforge.mods.toml')",
+            "new File(effectiveSourceDir, 'src/main/resources/META-INF/neoforge.mods.toml')",
             "layout.buildDirectory.file('classes/java/main/META-INF/neoforge.mods.toml')",
-            "dependsOn tasks.named('compileJava'), tasks.named('processResources')",
+            "dependsOn prepareEffectiveSource, tasks.named('compileJava'), tasks.named('processResources')",
+            "from(effectiveGameTestMetadata) {",
+            "expand(resourceProperties)",
+            "contents.contains('modId=\"buildcraftlib\"')",
+            "contents.contains('${')",
             "tasks.register('prepareGameTestModMetadata', Copy)",
             "tasks.register('cleanGameTestModMetadata', Delete)",
             "tasks.named('runGameTestServer')",
@@ -366,6 +371,39 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
         ):
             with self.subTest(guard=snippet):
                 self.assertIn(snippet, gradle)
+        self.assertNotIn('from(processedGameTestMetadata)', gradle)
+
+    def test_26x_materialized_gametest_metadata_is_a_valid_independent_input(self):
+        """Regression: a missing ModDev resources/main copy must not block GameTests."""
+        props = load_properties()
+        for target in ("26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"):
+            with self.subTest(target=target):
+                layout = target_layout(target, props)
+                relative = "src/main/resources/META-INF/neoforge.mods.toml"
+                canonical = resolve_effective_source(layout, props, relative)
+                self.assertIsNotNone(canonical)
+                effective = Path(self.tmp.name) / target / relative
+                _materialize_text_file(
+                    canonical, effective, logical_relative=relative,
+                    minecraft=props[f"target.{target}.deps.minecraft"],
+                    family=layout.family, platform=layout.platform, preprocess=True,
+                )
+                # These match the explicit resourceProperties used by the Gradle
+                # Copy task, without depending on a resources/main output tree.
+                prefix = f"target.{target}."
+                values = {
+                    "mod_version": props["common.mod.version"] + "+" + target,
+                    "mod_license": props["common.mod.license"],
+                    "loader_version_range": props[prefix + "loader.version_range"],
+                    "neo_version_range": props[prefix + "neoforge.version_range"],
+                    "minecraft_version_range": props[prefix + "minecraft.version_range"],
+                    "jei_version_range": props[prefix + "compat.jei.range"],
+                    "jade_version_range": props[prefix + "compat.jade.range"],
+                }
+                staged = Template(effective.read_text(encoding="utf-8")).substitute(values)
+                self.assertNotIn("${", staged)
+                parsed = tomllib.loads(staged)
+                self.assertIn("buildcraftlib", [entry["modId"] for entry in parsed["mods"]])
 
     def test_26x_jade_retains_its_native_formatting(self):
         name = "compat/jade/BuildCraftJadePlugin.java"
@@ -416,13 +454,13 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
                 path = ROOT / "source-shared/src/main/resources/assets/buildcraft/guide" / relative
                 self.assertTrue(path.is_file(), f"Missing actual BuildCraft guide resource {path}")
 
-    def test_263_packaging_recovers_materialized_resources_and_translations(self):
-        """26.3 must package actual target resources even if ModDev loses its resource root."""
+    def test_26x_packaging_recovers_materialized_resources_and_translations(self):
+        """All 26.X NeoForge targets must package metadata even if ModDev loses its resource root."""
         gradle = (ROOT / "build-logic/loaders/neoforge-target.gradle").read_text(encoding="utf-8")
-        marker = "// ModDevGradle 2.0.148 / Gradle 9: on 26.3 the assembled JAR"
+        marker = "// ModDevGradle / Gradle 9: the 26.X resource source set can omit metadata"
         self.assertIn(marker, gradle)
         packaging = gradle.split(marker, 1)[1].split("tasks.named('jar', Jar) {\n    archiveClassifier", 1)[0]
-        self.assertIn("if (targetName == '26.3-neoforge')", packaging)
+        self.assertIn("if (buildGeneration == '26.X')", packaging)
         self.assertIn("def effectiveMainResources = new File(effectiveSourceDir, 'src/main/resources')", packaging)
         self.assertIn("tasks.named('processResources', ProcessResources)", packaging)
         self.assertIn("from(effectiveMainResources)", packaging)

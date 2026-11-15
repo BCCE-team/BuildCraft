@@ -99,11 +99,19 @@ class FabricRedstoneControlRegressionTests(unittest.TestCase):
             'InteractionResult.SUCCESS_SERVER',
         ):
             self.assertIn(snippet, handler)
+        # The module owns an actual Fabric callback, not just loader-neutral
+        # Minecraft interaction logic stranded in a Fabric source layer.
+        self.assertIn('import net.fabricmc.fabric.api.event.player.UseBlockCallback;', handler)
+        self.assertIn('UseBlockCallback.EVENT.register(', handler)
+        self.assertIn('RedstoneModuleInteractions.register();', bootstrap)
         self.assertLess(
-            bootstrap.index('RedstoneModuleInteractions.onUse('),
-            bootstrap.index('ItemPaintbrush_BC8.shouldOverrideBlockUse(')
+            bootstrap.index('RedstoneModuleInteractions.register();'),
+            bootstrap.index('UseBlockCallback.EVENT.register(')
         )
+        self.assertNotIn('RedstoneModuleInteractions.onUse(', bootstrap)
         self.assertIn('UseBlockCallback.EVENT.register(', bootstrap)
+        self.assertIn('player.isSpectator()', handler)
+        self.assertIn('!level.mayInteract(player, hit.getBlockPos())', handler)
         self.assertIn('CoreFabricInteractions.register()', core)
 
     def test_fabric_tile_persistence_and_loot(self):

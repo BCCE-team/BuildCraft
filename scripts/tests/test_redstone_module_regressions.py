@@ -80,8 +80,32 @@ class RedstoneModuleTests(unittest.TestCase):
     def test_item_model_and_texture_path(self):
         import struct
         model = json.loads(self.text('source-shared/src/main/resources/assets/buildcraftcore/models/item/redstone_control_module.json'))
-        item = json.loads(self.text('source-shared/src/main/resources/assets/buildcraftcore/items/redstone_control_module.json'))
-        self.assertEqual(item['model']['model'], 'buildcraftcore:item/redstone_control_module')
+        # 1.21.1 still uses legacy item models; a shared items/ JSON would leak
+        # into that target. 1.21.11+ must generate the same vanilla definition.
+        from tempfile import TemporaryDirectory
+        import sys
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        from transforms.resources import generate_modern_item_definitions
+        self.assertFalse((ROOT / 'source-shared/src/main/resources/assets/buildcraftcore/items/redstone_control_module.json').exists())
+        for minecraft in ('1.21.1', '1.21.11', '26.3'):
+            with self.subTest(minecraft=minecraft), TemporaryDirectory(prefix='bcce-rcm-item-') as temp:
+                generated_root = Path(temp)
+                model_path = generated_root / 'src/main/resources/assets/buildcraftcore/models/item/redstone_control_module.json'
+                model_path.parent.mkdir(parents=True, exist_ok=True)
+                model_path.write_text(json.dumps(model), encoding='utf-8')
+                output = generated_root / 'src/main/resources/assets/buildcraftcore/items/redstone_control_module.json'
+                count = generate_modern_item_definitions(generated_root, minecraft=minecraft)
+                if minecraft == '1.21.1':
+                    self.assertEqual(0, count)
+                    self.assertFalse(output.exists(), 'Legacy item-model target must not contain modern items/ definitions')
+                else:
+                    self.assertEqual(1, count)
+                    item = json.loads(output.read_text(encoding='utf-8'))
+                    self.assertEqual(item['model'], {
+                        'type': 'minecraft:model',
+                        'model': 'buildcraftcore:item/redstone_control_module',
+                    })
+                    self.assertEqual(0, generate_modern_item_definitions(generated_root, minecraft=minecraft))
         # Preserve the module artwork from the previous visual-fix patch; do not
         # silently switch the model to a differently named contributor sprite.
         self.assertEqual(model['textures']['layer0'], 'buildcraftcore:item/redstone_control_module')

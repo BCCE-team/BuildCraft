@@ -57,6 +57,7 @@ public final class ItemNameKeys121111 {
             case "buildcraftcore:paintbrush/red" -> "item.buildcraftcore.paintbrush.red";
             case "buildcraftcore:paintbrush/white" -> "item.buildcraftcore.paintbrush.white";
             case "buildcraftcore:paintbrush/yellow" -> "item.buildcraftcore.paintbrush.yellow";
+            case "buildcraftcore:redstone_control_module" -> "item.buildcraftcore.redstone_control_module";
             case "buildcraftcore:spring_oil" -> "block.buildcraftcore.spring_oil";
             case "buildcraftcore:spring_water" -> "block.buildcraftcore.spring_water";
             case "buildcraftcore:volume_box" -> "item.buildcraftcore.volume_box";

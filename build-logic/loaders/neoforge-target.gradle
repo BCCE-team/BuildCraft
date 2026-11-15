@@ -327,6 +327,20 @@ neoForge {
     }
 }
 
+def resourceProperties = [
+        mod_version: project.version.toString(),
+        mod_license: requiredProperty('mod.license'),
+        loader_version_range: requiredProperty('loader.version_range'),
+        neo_version_range: requiredProperty('neoforge.version_range'),
+        minecraft_version_range: requiredProperty('minecraft.version_range'),
+        pack_format: requiredProperty('pack.format'),
+        resource_pack_format: requiredProperty('pack.resource_format'),
+        data_pack_format: requiredProperty('pack.data_format'),
+        jei_version_range: requiredProperty('compat.jei.range'),
+        jade_version_range: requiredProperty('compat.jade.range'),
+        forestry_version_range: requiredProperty('compat.forestry.range')
+]
+
 // In NeoForge 1.21.11+ the FML dev locator reports classes/java/main as the
 // primary path of the exploded BuildCraft mod, with resources/main as another
 // root. GameTest needs the processed mod metadata at that primary path too.
@@ -334,19 +348,28 @@ neoForge {
 // persistent duplicate in the compiled output would otherwise contaminate
 // later production JARs (which already contain the resources/main copy).
 if (gameTestRunRequested && minecraftVersion != '1.21.1') {
-    def processedGameTestMetadata = layout.buildDirectory.file('resources/main/META-INF/neoforge.mods.toml')
+    // 26.1.2 may have an empty resources/main during GameTest runs, even after
+    // processResources succeeds. Copying from that output made the task NO-SOURCE
+    // and FML rejected classes/java/main as an invalid mod. The effective source
+    // is the authoritative input; expand the same placeholders as processResources.
+    def effectiveGameTestMetadata = new File(effectiveSourceDir, 'src/main/resources/META-INF/neoforge.mods.toml')
     def classGameTestMetadata = layout.buildDirectory.file('classes/java/main/META-INF/neoforge.mods.toml')
     def prepareGameTestModMetadata = tasks.register('prepareGameTestModMetadata', Copy) {
-        dependsOn tasks.named('compileJava'), tasks.named('processResources')
-        from(processedGameTestMetadata)
+        dependsOn prepareEffectiveSource, tasks.named('compileJava'), tasks.named('processResources')
+        from(effectiveGameTestMetadata) {
+            expand(resourceProperties)
+        }
         into(layout.buildDirectory.dir('classes/java/main/META-INF'))
         doFirst {
-            def metadata = processedGameTestMetadata.get().asFile
-            if (!metadata.isFile()) {
-                throw new GradleException("Missing processed NeoForge mod metadata for GameTests: ${metadata}")
+            if (!effectiveGameTestMetadata.isFile()) {
+                throw new GradleException("Missing materialized NeoForge mod metadata for GameTests: ${effectiveGameTestMetadata}")
             }
-            if (metadata.getText('UTF-8').contains('${')) {
-                throw new GradleException("Unexpanded NeoForge mod metadata for GameTests: ${metadata}")
+        }
+        doLast {
+            def staged = classGameTestMetadata.get().asFile
+            def contents = staged.isFile() ? staged.getText('UTF-8') : ''
+            if (!contents.contains('modId="buildcraftlib"') || contents.contains('${')) {
+                throw new GradleException("Invalid or unexpanded staged NeoForge mod metadata for GameTests: ${staged}")
             }
         }
     }
@@ -488,20 +511,6 @@ tasks.named('test', Test) {
     }
 }
 
-def resourceProperties = [
-        mod_version: project.version.toString(),
-        mod_license: requiredProperty('mod.license'),
-        loader_version_range: requiredProperty('loader.version_range'),
-        neo_version_range: requiredProperty('neoforge.version_range'),
-        minecraft_version_range: requiredProperty('minecraft.version_range'),
-        pack_format: requiredProperty('pack.format'),
-        resource_pack_format: requiredProperty('pack.resource_format'),
-        data_pack_format: requiredProperty('pack.data_format'),
-        jei_version_range: requiredProperty('compat.jei.range'),
-        jade_version_range: requiredProperty('compat.jade.range'),
-        forestry_version_range: requiredProperty('compat.forestry.range')
-]
-
 tasks.named('processResources', ProcessResources) {
     inputs.properties(resourceProperties)
     if (gameTestRunRequested) {
@@ -514,12 +523,12 @@ tasks.named('processResources', ProcessResources) {
     }
 }
 
-// ModDevGradle 2.0.148 / Gradle 9: on 26.3 the assembled JAR has been
-// observed without pack.mcmeta even though the materialized target resource
-// tree contains that file.  Recover both handoff boundaries explicitly:
+// ModDevGradle / Gradle 9: the 26.X resource source set can omit metadata
+// during a GameTest run (26.1.2) or from the packaged JAR (26.3), even though
+// the materialized resources exist. Recover both handoff boundaries explicitly:
 //   effective sources -> processed mod resources -> production JAR.
-// Keep this scoped to 26.3; the other six targets already package correctly.
-if (targetName == '26.3-neoforge') {
+// Keep this limited to 26.X, not the older Gradle 8.8 NeoForge targets.
+if (buildGeneration == '26.X') {
     def effectiveMainResources = new File(effectiveSourceDir, 'src/main/resources')
     tasks.named('processResources', ProcessResources) {
         // Independent of ModDevGradle's source-set resource wiring, which can

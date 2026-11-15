@@ -166,6 +166,7 @@
         ],
         "core/BCCoreItems.java": [
           "ITEMS:\"wrench\"",
+          "ITEMS:\"redstone_control_module\"",
           "ITEMS:\"gears/gear_wood\"",
           "ITEMS:\"gears/gear_stone\"",
           "ITEMS:\"gears/gear_iron\"",
@@ -417,6 +418,7 @@
         ],
         "core/BCCoreItems.java": [
           "ITEMS:\"wrench\"",
+          "ITEMS:\"redstone_control_module\"",
           "ITEMS:\"gears/gear_wood\"",
           "ITEMS:\"gears/gear_stone\"",
           "ITEMS:\"gears/gear_iron\"",
@@ -668,6 +670,7 @@
         ],
         "core/BCCoreItems.java": [
           "ITEMS:\"wrench\"",
+          "ITEMS:\"redstone_control_module\"",
           "ITEMS:\"gears/gear_wood\"",
           "ITEMS:\"gears/gear_stone\"",
           "ITEMS:\"gears/gear_iron\"",
@@ -922,6 +925,7 @@
         ],
         "core/BCCoreItems.java": [
           "ITEMS:\"wrench\"",
+          "ITEMS:\"redstone_control_module\"",
           "ITEMS:\"gears/gear_wood\"",
           "ITEMS:\"gears/gear_stone\"",
           "ITEMS:\"gears/gear_iron\"",

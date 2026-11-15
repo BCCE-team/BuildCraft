@@ -112,15 +112,31 @@ class WaterloggingParity(unittest.TestCase):
             variants = data.get('variants')
             if variants is None:
                 continue  # Multipart definitions ignore extra state properties.
+            # Blockstate property order is not semantically significant. For example,
+            # "waterlogged=false,redstone_module=true" and
+            # "redstone_module=true,waterlogged=false" describe the same state.
+            # Keep checking that every state has exactly one opposite waterlogging
+            # variant, backed by the same model, without depending on key order.
+            canonical_variants = {}
             for variant, model in variants.items():
-                properties = [part for part in variant.split(',') if part]
-                self.assertTrue(any(part == 'waterlogged=false' for part in properties)
-                                or any(part == 'waterlogged=true' for part in properties), path)
-                other = [part for part in properties if not part.startswith('waterlogged=')]
-                water = 'waterlogged=true' if 'waterlogged=false' in properties else 'waterlogged=false'
-                other_variant = ','.join(other + [water])
-                self.assertIn(other_variant, variants, (path, variant))
-                self.assertEqual(model, variants[other_variant], (path, variant))
+                parts = [part.strip() for part in variant.split(',') if part.strip()]
+                self.assertTrue(all(part.count('=') == 1 for part in parts), (path, variant))
+                names = [part.split('=', 1)[0] for part in parts]
+                self.assertTrue(all(names), (path, variant))
+                self.assertEqual(len(names), len(set(names)), (path, variant))
+                key = frozenset(parts)
+                self.assertNotIn(key, canonical_variants, (path, variant, 'duplicate state'))
+                canonical_variants[key] = model
+
+            for variant, model in variants.items():
+                properties = frozenset(part.strip() for part in variant.split(',') if part.strip())
+                water_states = properties & {'waterlogged=false', 'waterlogged=true'}
+                self.assertEqual(len(water_states), 1, (path, variant))
+                other_water = ('waterlogged=true' if 'waterlogged=false' in properties
+                               else 'waterlogged=false')
+                other_state = (properties - water_states) | {other_water}
+                self.assertIn(other_state, canonical_variants, (path, variant))
+                self.assertEqual(model, canonical_variants[other_state], (path, variant))
                 checked += 1
         self.assertGreaterEqual(checked, 40)
 

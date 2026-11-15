@@ -1,5 +1,6 @@
 """Checks IT16's deployment lock, process probes and fail-closed behavior offline."""
 import importlib.util
+import runpy
 import json
 import hashlib
 import tempfile
@@ -552,6 +553,49 @@ class ModpackCoverageContractTest(unittest.TestCase):
         powershell_runner = (ROOT / "run-ci-local.ps1").read_text()
         self.assertIn('Client and dedicated-server smoke tests are GitHub CI-only.', powershell_runner)
         self.assertFalse((ROOT / ".github/workflows/modpack-world-join.yml").exists())
+
+    def test_local_ci_steps_match_workflow_and_legacy_selectors_remain_valid(self):
+        # The PowerShell entrypoint delegates to this runner; matching command
+        # patterns alone is not enough because workflow_alignment_check also
+        # rejects renamed steps before any local test is launched.
+        runner = runpy.run_path(str(ROOT / "scripts/run-ci-local.py"))
+        runner["workflow_alignment_check"]()
+        legacy = (
+            ("validate-fabric-production-target", "validate-fabric-production-target-integration"),
+            ("test-redstone-control-module-resources-and-state",
+             "test-redstone-control-module-resources-and-blockstate-transitions"),
+            ("test-fabric-26.3-redstone-module-parity",
+             "test-fabric-26.3-rcm-installation-state-and-render-variants"),
+        )
+        for previous, current in legacy:
+            with self.subTest(previous=previous):
+                self.assertEqual(runner["resolve_start"](previous), runner["resolve_start"](current))
+
+    def test_local_ci_rejects_outdated_workflow_step_labels(self):
+        runner = runpy.run_path(str(ROOT / "scripts/run-ci-local.py"))
+        original = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        renamed = original.replace(
+            "Test Fabric 26.3 RCM installation, state and render variants",
+            "Test Fabric 26.3 incompatible label", 1,
+        )
+        self.assertNotEqual(original, renamed)
+        with tempfile.TemporaryDirectory() as directory:
+            altered = Path(directory) / "ci.yml"
+            altered.write_text(renamed, encoding="utf-8")
+            with mock.patch.dict(runner["workflow_alignment_check"].__globals__, {"WORKFLOW": altered}):
+                with self.assertRaisesRegex(runner["LocalCIError"], "workflow step missing/out of order"):
+                    runner["workflow_alignment_check"]()
+
+        # A prefix is not a valid replacement for the real step title.
+        old_name = "Validate Fabric production target integration"
+        truncated = original.replace(old_name, "Validate Fabric production target", 1)
+        self.assertNotEqual(original, truncated)
+        with tempfile.TemporaryDirectory() as directory:
+            altered = Path(directory) / "ci.yml"
+            altered.write_text(truncated, encoding="utf-8")
+            with mock.patch.dict(runner["workflow_alignment_check"].__globals__, {"WORKFLOW": altered}):
+                with self.assertRaisesRegex(runner["LocalCIError"], "workflow step missing/out of order"):
+                    runner["workflow_alignment_check"]()
 
     def test_required_optional_mod_dependencies_are_pinned(self):
         lock = json.loads((ROOT / "build-config/modpack-world-join-lock.json").read_text())

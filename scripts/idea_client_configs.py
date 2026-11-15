@@ -23,6 +23,7 @@ from source_config import ROOT, load_properties, target_ids
 RUN_DIRECTORY = ROOT / ".run"
 LOADER_NAMES = {"forge": "Forge", "neoforge": "NeoForge", "fabric": "Fabric"}
 CLIENT_PATTERN = "Run Client *.run.xml"
+WINDOWS_POWERSHELL = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,8 @@ def config_xml(config: ClientConfig) -> str:
     and started the 26.X build on Java 19, before the game's run task existed.
     Shell Script is bundled with IDEA; the same project launcher remains usable
     from PowerShell and its JDK selection is independent of the IDEA daemon.
+    IDEA does not always resolve a bare powershell.exe name from PATH. Use the
+    system PowerShell executable as an explicit Windows absolute interpreter.
     """
     name = escape(config.name, {'"': '&quot;'})
     args = escape(config.launcher_args, {'"': '&quot;'})
@@ -99,7 +102,7 @@ def config_xml(config: ClientConfig) -> str:
     <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
     <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
-    <option name="INTERPRETER_PATH" value="powershell.exe" />
+    <option name="INTERPRETER_PATH" value="{WINDOWS_POWERSHELL}" />
     <option name="INTERPRETER_OPTIONS" value="-NoProfile -ExecutionPolicy Bypass -File" />
     <option name="EXECUTE_IN_TERMINAL" value="false" />
     <option name="EXECUTE_SCRIPT_FILE" value="true" />
@@ -133,7 +136,7 @@ def verify_config(path: Path, config: ClientConfig) -> None:
         "INDEPENDENT_SCRIPT_WORKING_DIRECTORY": "true",
         "SCRIPT_WORKING_DIRECTORY": "$PROJECT_DIR$",
         "INDEPENDENT_INTERPRETER_PATH": "true",
-        "INTERPRETER_PATH": "powershell.exe",
+        "INTERPRETER_PATH": WINDOWS_POWERSHELL,
         "INTERPRETER_OPTIONS": "-NoProfile -ExecutionPolicy Bypass -File",
         "EXECUTE_SCRIPT_FILE": "true",
     }

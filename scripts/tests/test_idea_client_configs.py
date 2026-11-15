@@ -45,7 +45,9 @@ class IdeaClientConfigTests(unittest.TestCase):
                 self.assertEqual(opts["SCRIPT_PATH"], "$PROJECT_DIR$/run-client.ps1")
                 self.assertEqual(opts["SCRIPT_OPTIONS"], c.launcher_args)
                 self.assertEqual(opts["SCRIPT_WORKING_DIRECTORY"], "$PROJECT_DIR$")
-                self.assertEqual(opts["INTERPRETER_PATH"], "powershell.exe")
+                self.assertEqual(opts["INDEPENDENT_INTERPRETER_PATH"], "true")
+                self.assertEqual(opts["INTERPRETER_PATH"], self.generator.WINDOWS_POWERSHELL)
+                self.assertNotIn("$PROJECT_DIR$", opts["INTERPRETER_PATH"])
                 self.assertEqual(opts["INTERPRETER_OPTIONS"], "-NoProfile -ExecutionPolicy Bypass -File")
                 self.assertEqual(opts["EXECUTE_SCRIPT_FILE"], "true")
                 self.assertIsNone(node.find("ExternalSystemSettings"))
@@ -83,6 +85,27 @@ class IdeaClientConfigTests(unittest.TestCase):
             wrong.write_text(wrong.read_text(encoding='utf-8').replace(
                 'ShConfigurationType', 'GradleRunConfiguration'), encoding='utf-8')
             with self.assertRaisesRegex(ValueError, 'wrong IDEA|Wrong IDEA'):
+                self.generator.validate_client_configs(directory, self.props)
+
+    def test_manual_idea_interpreter_override_fails_validation(self):
+        # IDEA previously rewrote C:\Windows as a PROJECT_DIR-relative path
+        # and flipped INDEPENDENT_INTERPRETER_PATH to false. That breaks CI and
+        # can break launches when the repository is moved to another directory.
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            self.generator.write_client_configs(directory, self.props)
+            run = directory / "Run Client 1.19.2 (Forge).run.xml"
+            original = run.read_text(encoding="utf-8")
+            run.write_text(original.replace(
+                'name="INDEPENDENT_INTERPRETER_PATH" value="true"',
+                'name="INDEPENDENT_INTERPRETER_PATH" value="false"'), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "INDEPENDENT_INTERPRETER_PATH"):
+                self.generator.validate_client_configs(directory, self.props)
+            run.write_text(original.replace(
+                self.generator.WINDOWS_POWERSHELL,
+                "$PROJECT_DIR$/../../../../Windows/System32/WindowsPowerShell/v1.0/powershell.exe"),
+                encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "INTERPRETER_PATH"):
                 self.generator.validate_client_configs(directory, self.props)
 
     def test_generation_works_for_another_double_loader_version(self):

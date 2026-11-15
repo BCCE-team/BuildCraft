@@ -22,6 +22,8 @@ public final class CoreFabricInteractions {
         if (registered) return;
         registered = true;
         UseEntityCallback.EVENT.register(CushionPaintEvents::onInteract);
+        // The module listener runs first and consumes installation/removal clicks.
+        RedstoneModuleInteractions.register();
         UseBlockCallback.EVENT.register((player, level, hand, hit) -> {
             // Vanilla block use would consume a click on signs, beds and
             // shulkers before the paintbrush can perform its custom action.
@@ -29,10 +31,6 @@ public final class CoreFabricInteractions {
                 return InteractionResult.PASS;
             }
             ItemStack stack = player.getItemInHand(hand);
-            InteractionResult moduleInteraction = RedstoneModuleInteractions.onUse(player, level, hand, hit, stack);
-            if (moduleInteraction != InteractionResult.PASS) {
-                return moduleInteraction;
-            }
             if (!ItemPaintbrush_BC8.shouldOverrideBlockUse(stack, level, hit.getBlockPos())) {
                 return InteractionResult.PASS;
             }

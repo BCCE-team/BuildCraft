@@ -382,6 +382,15 @@ class ResourcePipeline(unittest.TestCase):
         example = self.read_json("1.21.11-neoforge", "assets/buildcraftcore/items/wrench.json")
         self.assertEqual("minecraft:model", example["model"]["type"])
         self.assertEqual("buildcraftcore:item/wrench", example["model"]["model"])
+        # The RCM is an ordinary item. Its 1.21.11+ client definition must
+        # come from the mechanical generator, not a shared items/ JSON that
+        # would produce unsupported resources on 1.21.1.
+        self.assertFalse((self.roots["1.21.1-neoforge"] /
+                          "assets/buildcraftcore/items/redstone_control_module.json").exists())
+        for target in ("1.21.11-neoforge", "26.3-neoforge"):
+            rcm = self.read_json(target, "assets/buildcraftcore/items/redstone_control_module.json")
+            self.assertEqual({"type": "minecraft:model", "model": "buildcraftcore:item/redstone_control_module"},
+                             rcm["model"], target)
 
     def test_forge_metadata_has_one_maintained_owner(self):
         canonical = ROOT / "source-family-platforms/old/forge/src/main/resources/META-INF/mods.toml"

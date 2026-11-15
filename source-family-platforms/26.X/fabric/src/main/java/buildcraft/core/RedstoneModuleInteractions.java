@@ -4,6 +4,7 @@ package buildcraft.core;
 import buildcraft.lib.block.RedstoneModuleState;
 import buildcraft.lib.misc.WrenchUtil;
 import buildcraft.lib.tile.TileBC_Neptune;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
@@ -18,6 +19,20 @@ import net.minecraft.world.phys.BlockHitResult;
 /** Fabric equivalent of the Forge/NeoForge pre-block-activation module interaction. */
 public final class RedstoneModuleInteractions {
     private RedstoneModuleInteractions() { }
+
+    /**
+     * Register the Fabric-specific interaction before the normal block-use/paintbrush handler.
+     * The upgrade must consume a successful click before machine menus or wrench rotation.
+     */
+    public static void register() {
+        UseBlockCallback.EVENT.register((player, level, hand, hit) -> {
+            if (player.isSpectator() || !player.mayBuild()
+                || !level.mayInteract(player, hit.getBlockPos())) {
+                return InteractionResult.PASS;
+            }
+            return onUse(player, level, hand, hit, player.getItemInHand(hand));
+        });
+    }
 
     public static InteractionResult onUse(Player player, Level level, InteractionHand hand,
                                           BlockHitResult hit, ItemStack held) {

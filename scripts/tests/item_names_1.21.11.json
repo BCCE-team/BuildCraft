@@ -294,6 +294,13 @@
     "kind": "ItemPaintbrush_BC8"
   },
   {
+    "id": "buildcraftcore:redstone_control_module",
+    "key": "item.buildcraftcore.redstone_control_module",
+    "name_en_us": "Redstone Controlling Module",
+    "source": "buildcraft/core/BCCoreItems.java",
+    "kind": "Item"
+  },
+  {
     "id": "buildcraftcore:spring_oil",
     "key": "block.buildcraftcore.spring_oil",
     "name_en_us": "Oil Spring",
