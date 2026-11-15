@@ -545,6 +545,13 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
         tile.getWorldBC().getProfiler().pop();
         tile.getWorldBC().getProfiler().pop();
 
+        // A restored break task must not execute after excavation was disabled.
+        if (!tile.canExcavate() && !breakTasks.isEmpty()) {
+            for (BreakTask breakTask : breakTasks) {
+                cancelBreakTask(breakTask);
+            }
+            breakTasks.clear();
+        }
         tile.getWorldBC().getProfiler().push("add tasks");
         tile.getWorldBC().getProfiler().push("break");
         if (tile.canExcavate()) {
@@ -561,6 +568,8 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
             Arrays.stream(blocks)
                 .mapToObj(this::indexToPos)
                 .filter(blockPos -> BlockUtil.getFluidWithFlowing(tile.getWorldBC(), blockPos) == Fluids.EMPTY)
+                .filter(blockPos -> !BlockUtil.isUnbreakableBlock(
+                    tile.getWorldBC(), blockPos, tile.getOwner()))
                 .filter(blockPos -> AutomationPermissionUtil.mayBlock(
                     tile.getWorldBC(), tile.getBuilderPos(), blockPos, tile.getOwner(),
                     AutomationPermissionUtil.SOURCE_BUILDER, WorldOperationKind.BLOCK_BREAK, OperationMode.SIMULATE
@@ -586,7 +595,9 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
                 placeTasksIndexes);
             placeScanCursor = advanceScanCursor(placeOrder, placeScanCursor);
             leftToPlace = Math.max(0, pendingPlaceResults - placeTasksIndexes.size());
-            if (!tile.canExcavate() || (leftToBreak == 0 && breakTasks.isEmpty())) {
+            // Only executable excavation tasks should delay placements.
+            // Inaccessible cells remain pending, never silently completed.
+            if (!tile.canExcavate() || breakTasks.isEmpty()) {
                 if (pendingPlaceResults != 0) {
                     isDone = false;
                 }
@@ -826,7 +837,9 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
             } else if (!tile.getWorldBC().isEmptyBlock(blockPos)) {
                 checkResults[i] = CHECK_RESULT_TO_BREAK;
             } else {
-                checkResults[i] = CHECK_RESULT_TO_BREAK;
+                // A missing support is not an excavation target.
+                // Keep retrying placement when the prerequisite appears.
+                checkResults[i] = CHECK_RESULT_TO_PLACE;
             }
         }
         byte current = checkResults[i];

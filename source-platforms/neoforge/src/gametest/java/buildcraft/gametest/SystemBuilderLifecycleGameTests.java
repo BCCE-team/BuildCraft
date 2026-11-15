@@ -191,6 +191,70 @@ public final class SystemBuilderLifecycleGameTests {
         }
     }
 
+    /** One bedrock cell must not hold the rest of the structure hostage. */
+    @GameTest(templateNamespace = BCLib.MODID, template = TEMPLATE, timeoutTicks = 760)
+    public static void unbreakableTemplateCellDoesNotStarveIndependentPlacement(GameTestHelper helper) {
+        TileBuilder builder = builder(helper);
+        Template plan = template(2);
+        plan.data.clear(0); // First cell must be empty in the finished structure.
+        plan.computeKey();
+        install(helper, builder, plan);
+        BlockPos[] cells = targets(helper, builder, 2);
+        helper.setBlock(cells[0], Blocks.BEDROCK.defaultBlockState());
+        builder.invResources.setStackInSlot(0, new ItemStack(Items.COBBLESTONE, 1));
+        power(builder);
+        helper.runAfterDelay(620, () -> {
+            require(helper, helper.getLevel().getBlockState(helper.absolutePos(cells[0])).is(Blocks.BEDROCK),
+                "Builder destroyed a non-excavatable block");
+            require(helper, blocks(helper, cells, Blocks.COBBLESTONE) == 1,
+                "bedrock task starved otherwise independent placement");
+            require(helper, remainingCobblestone(builder) == 0,
+                "independent placement did not consume exactly one item");
+            require(helper, !builder.invSnapshot.getStackInSlot(0).isEmpty(),
+                "Builder falsely completed a blueprint with unresolved excavation");
+            helper.setBlock(cells[0], Blocks.AIR.defaultBlockState());
+        });
+        helper.runAfterDelay(720, () -> {
+            require(helper, builder.invSnapshot.getStackInSlot(0).isEmpty(),
+                "Builder did not finish after the obstruction was cleared");
+            helper.succeed();
+        });
+    }
+
+    /** A source block cannot be mined as a normal block; build unaffected cells. */
+    @GameTest(templateNamespace = BCLib.MODID, template = TEMPLATE, timeoutTicks = 700)
+    public static void liquidObstructionDoesNotStarveIndependentPlacement(GameTestHelper helper) {
+        TileBuilder builder = builder(helper);
+        Template plan = template(3);
+        plan.data.clear(0);
+        plan.computeKey();
+        install(helper, builder, plan);
+        BlockPos[] cells = targets(helper, builder, 3);
+        // Cell 1 is already correct and separates the source from the target
+        // cell 2. Seal the other faces so water cannot flow into the work area.
+        helper.setBlock(cells[1], Blocks.STONE.defaultBlockState());
+        for (Direction direction : Direction.values()) {
+            BlockPos wall = cells[0].relative(direction);
+            if (!wall.equals(cells[1]) && !wall.equals(new BlockPos(1, 1, 3))) {
+                helper.setBlock(wall, Blocks.GLASS.defaultBlockState());
+            }
+        }
+        helper.setBlock(cells[0], Blocks.WATER.defaultBlockState());
+        builder.invResources.setStackInSlot(0, new ItemStack(Items.COBBLESTONE, 1));
+        power(builder);
+        helper.runAfterDelay(620, () -> {
+            require(helper, helper.getLevel().getFluidState(helper.absolutePos(cells[0])).isSource(),
+                "Builder unexpectedly removed the water source");
+            require(helper, blocks(helper, cells, Blocks.COBBLESTONE) == 1,
+                "fluid obstruction starved independent placement");
+            require(helper, remainingCobblestone(builder) == 0,
+                "fluid-obstruction test lost or duplicated resources");
+            require(helper, !builder.invSnapshot.getStackInSlot(0).isEmpty(),
+                "Builder falsely completed a plan with a fluid obstruction");
+            helper.succeed();
+        });
+    }
+
     private static Template template(int length) {
         Template template = new Template();
         template.size = new BlockPos(length, 1, 1);

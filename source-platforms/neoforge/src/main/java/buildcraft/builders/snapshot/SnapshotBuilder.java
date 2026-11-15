@@ -573,6 +573,8 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
             Arrays.stream(blocks)
                 .mapToObj(this::indexToPos)
                 .filter(blockPos -> BlockUtil.getFluidWithFlowing(tile.getWorldBC(), blockPos) == Fluids.EMPTY)
+                .filter(blockPos -> !BlockUtil.isUnbreakableBlock(
+                    tile.getWorldBC(), blockPos, tile.getOwner()))
                 .filter(blockPos -> AutomationPermissionUtil.mayBlock(
                     tile.getWorldBC(), tile.getBuilderPos(), blockPos, tile.getOwner(),
                     AutomationPermissionUtil.SOURCE_BUILDER, WorldOperationKind.BLOCK_BREAK, OperationMode.SIMULATE
@@ -598,7 +600,9 @@ public abstract class SnapshotBuilder<T extends ITileForSnapshotBuilder> impleme
                 placeTasksIndexes);
             placeScanCursor = advanceScanCursor(placeOrder, placeScanCursor);
             leftToPlace = Math.max(0, pendingPlaceResults - placeTasksIndexes.size());
-            if (!tile.canExcavate() || (leftToBreak == 0 && breakTasks.isEmpty())) {
+            // Only executable excavation tasks should delay placements.
+            // Inaccessible cells remain pending, never silently completed.
+            if (!tile.canExcavate() || breakTasks.isEmpty()) {
                 if (pendingPlaceResults != 0) {
                     isDone = false;
                 }

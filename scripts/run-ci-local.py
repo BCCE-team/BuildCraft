@@ -82,6 +82,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test 26.X factory native boundaries", _unittest_command("test_factory_26.py")),
     ("Test Volume Box and Filler Planner gameplay", _unittest_command("test_volume_filler_gameplay.py")),
     ("Test 26.X builders native boundaries", _unittest_command("test_builders_26.py")),
+    ("Test Builder stalled-excavation regressions", _unittest_command("test_builder_stall_regressions.py")),
     ("Test 26.X silicon native boundaries", _unittest_command("test_silicon_26.py")),
     ("Test 26.X compat and bucket presentation", _unittest_command("test_compat_buckets_26.py")),
     ("Test 26.X robotics native boundaries", _unittest_command("test_robotics_26.py")),
