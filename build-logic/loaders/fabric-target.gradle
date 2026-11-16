@@ -162,6 +162,8 @@ dependencies {
     // Align the unversioned launcher with the pinned Jupiter modules on Gradle 9.
     testRuntimeOnly platform("org.junit:junit-bom:${requiredProperty('deps.junit')}")
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    include "teamreborn:energy:5.0.0"
+
 }
 
 // The installed production server needs these external mods in mods/, not in the BCCE jar.

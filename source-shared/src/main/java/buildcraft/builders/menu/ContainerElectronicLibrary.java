@@ -37,13 +37,13 @@ public class ContainerElectronicLibrary extends ContainerBCTile<TileElectronicLi
     public ContainerElectronicLibrary(int containerId, Inventory playerInventory, ItemHandlerSimple invDownOut,
     		ItemHandlerSimple invDownIn, ItemHandlerSimple invUpIn, ItemHandlerSimple invUpOut, ContainerLevelAccess access) {
         super(BCBuildersGuis.MENU_ELIBRARY.get(), playerInventory, containerId, access);
-        addFullPlayerInventory(138);
+        addFullPlayerInventory(148);
 
-        addSlot(new SlotOutput(invDownOut, 0, 175, 57));
-        addSlot(new SlotDownloadInput(invDownIn, 0, 219, 57));
+        addSlot(new SlotOutput(invDownOut, 0, 175, 67));
+        addSlot(new SlotDownloadInput(invDownIn, 0, 219, 67));
 
-        addSlot(new SlotUploadInput(invUpIn, 0, 175, 79));
-        addSlot(new SlotOutput(invUpOut, 0, 219, 79));
+        addSlot(new SlotUploadInput(invUpIn, 0, 175, 89));
+        addSlot(new SlotOutput(invUpOut, 0, 219, 89));
     }
 
     private static class SlotDownloadInput extends SlotBase {
