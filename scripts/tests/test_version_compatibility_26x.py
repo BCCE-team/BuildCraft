@@ -117,9 +117,11 @@ class PlatformCompilerConformance262(unittest.TestCase):
     self.assertNotIn('imageHeight = SIZE_Y;',gui)
     self.assertIn('super(container, inv, title, SIZE_X, SIZE_Y)',gui)
   gui=self.source('26.2','robotics/gui/GuiZonePlanner.java')
-  self.assertIn('extractRenderState(GuiGraphicsExtractor',gui)
+  # Zone Planner no longer has a fullscreen-only rendering or foreground hook.
+  # The standard GuiBC8 extractor must render its windowed background directly.
+  self.assertNotIn('extractRenderState(GuiGraphicsExtractor',gui)
   self.assertIn('drawBackgroundLayer(PoseStack pose',gui)
-  self.assertIn('drawForegroundLayer(PoseStack pose',gui)
+  self.assertNotIn('drawForegroundLayer(PoseStack pose',gui)
   self.assertNotIn('import net.minecraft.client.gui.GuiGraphics;',gui)
   self.assertIn('new net.minecraft.client.input.CharacterEvent(codePoint)',gui)
   self.assertNotIn('new net.minecraft.client.input.CharacterEvent(codePoint, modifiers)',gui)

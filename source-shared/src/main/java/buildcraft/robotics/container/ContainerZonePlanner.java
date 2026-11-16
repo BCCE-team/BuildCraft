@@ -53,9 +53,9 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
         fallbackInv = new ItemHandlerSimple(3);
         ItemHandlerSimple inv = actualTile != null ? actualTile.inv : fallbackInv;
 
-        addSlot(new SlotBase(inv, 0, 233, 9));
-        addSlot(new SlotOutput(inv, 1, 233, 57));
-        addSlot(new SlotBase(inv, 2, 8, 125));
+        addSlot(new SlotBase(inv, 0, 233, 8));
+        addSlot(new SlotOutput(inv, 1, 233, 56));
+        addSlot(new SlotBase(inv, 2, 88, 128));
 
         addFullPlayerInventory(88, 146);
 
