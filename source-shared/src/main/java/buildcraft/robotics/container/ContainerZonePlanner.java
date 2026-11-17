@@ -19,6 +19,7 @@ import buildcraft.robotics.zone.ZoneTransferCodec;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerLevelAccess;
+import net.minecraft.world.inventory.Slot;
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
 
@@ -64,6 +65,25 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
             currentAreaSelection = new ZonePlan(actualTile.selectArea(currentLayer));
             mapName = actualTile.mapName;
         }
+    }
+
+    /** Restore the exact 8.0.30 machine-slot positions when the client uses Legacy. */
+    public void applyClientGuiLayout(boolean legacy) {
+        if (slots.size() < 3) return;
+
+        SlotBase mapInput = (SlotBase) slots.get(0);
+        SlotBase mapOutput = (SlotBase) slots.get(1);
+        SlotBase areaInput = (SlotBase) slots.get(2);
+        replaceClientSlot(0, new SlotBase(mapInput.itemHandler, mapInput.handlerIndex, 233, legacy ? 9 : 8));
+        replaceClientSlot(1, new SlotOutput(mapOutput.itemHandler, mapOutput.handlerIndex, 233, legacy ? 57 : 56));
+        replaceClientSlot(2, new SlotBase(areaInput.itemHandler, areaInput.handlerIndex,
+            legacy ? 8 : 88, legacy ? 125 : 128));
+        // Player inventory is unchanged between the two Zone Planner layouts.
+    }
+
+    private void replaceClientSlot(int menuIndex, Slot replacement) {
+        replacement.index = menuIndex;
+        slots.set(menuIndex, replacement);
     }
 
     @Override

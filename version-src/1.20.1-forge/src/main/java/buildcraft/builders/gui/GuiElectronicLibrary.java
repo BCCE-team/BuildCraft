@@ -30,6 +30,9 @@ import buildcraft.lib.gui.pos.GuiRectangle;
 import buildcraft.lib.gui.pos.IGuiPosition;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
+import net.minecraft.client.gui.components.Button;
+import buildcraft.lib.client.gui.ClientGuiModePreferences;
+import buildcraft.lib.client.gui.ClientGuiModeNavigation;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -71,8 +74,16 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
 
     private record EntryAppearance(ItemStack icon, Component typeLabel) { }
 
+    private final Inventory guiPlayerInventory;
+    private final Component guiScreenTitle;
+    private Button legacyModeButton;
+    private Button modernModeButton;
+
     public GuiElectronicLibrary(ContainerElectronicLibrary container, Inventory inv, Component title) {
         super(container, inv, title);
+        container.applyClientGuiLayout(false);
+        guiPlayerInventory = inv;
+        guiScreenTitle = title;
         imageWidth = SIZE_X;
         imageHeight = SIZE_Y;
         IGuiPosition buttonPos = mainGui.rootElement.offset(174, 119);
@@ -132,6 +143,7 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
         } else {
             setFocused(null);
         }
+        initModeButtons();
     }
 
     /** Filtering is local only; entries retain their real snapshot keys for all menu actions. */
@@ -498,5 +510,26 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
     @FunctionalInterface
     private interface ISnapshotIterator {
         void call(int snapshotIndex, GuiRectangle rect, Snapshot.Key key);
+    }
+
+    private void initModeButtons() {
+        int x = leftPos + imageWidth - 38;
+        int y = topPos - 16;
+        legacyModeButton = addRenderableWidget(Button.builder(Component.literal("L"),
+            button -> switchMode(ClientGuiModePreferences.Mode.LEGACY))
+            .bounds(x, y, 17, 17).build());
+        modernModeButton = addRenderableWidget(Button.builder(Component.literal("M"),
+            button -> switchMode(ClientGuiModePreferences.Mode.MODERN))
+            .bounds(x + 19, y, 17, 17).build());
+        legacyModeButton.active = true;
+        modernModeButton.active = false;
+    }
+
+    private void switchMode(ClientGuiModePreferences.Mode mode) {
+        if (mode == ClientGuiModePreferences.get(ClientGuiModePreferences.ELECTRONIC_LIBRARY)) return;
+        ClientGuiModePreferences.set(ClientGuiModePreferences.ELECTRONIC_LIBRARY, mode);
+        ClientGuiModeNavigation.show(mode == ClientGuiModePreferences.Mode.LEGACY
+            ? new GuiElectronicLibraryLegacy(container, guiPlayerInventory, guiScreenTitle)
+            : new GuiElectronicLibrary(container, guiPlayerInventory, guiScreenTitle));
     }
 }

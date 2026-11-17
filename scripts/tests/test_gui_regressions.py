@@ -1029,4 +1029,22 @@ public final class FrameProbe {
             self.assertIn('PASS', result.stdout)
 
 
+
+
+class Forge1201LibraryPoseRegression(unittest.TestCase):
+    """Keep the legacy/modern merge from reintroducing nonexistent 1.20.1 BCGraphics."""
+
+    def test_forge_1201_library_uses_gui_graphics_pose_in_both_scaled_text_paths(self):
+        path = ROOT / 'version-src/1.20.1-forge/src/main/java/buildcraft/builders/gui/GuiElectronicLibrary.java'
+        source = path.read_text(encoding='utf-8')
+        self.assertNotIn('BCGraphics.', source, '1.20.1 has no BCGraphics helper')
+        for signature in ('private void drawScaledEntryText(', 'private void drawHighlightedEntryName('):
+            with self.subTest(method=signature):
+                method = java_method(source, signature)
+                for call in ('guiGraphics.pose().pushPose()',
+                             'guiGraphics.pose().translate(',
+                             'guiGraphics.pose().scale(',
+                             'guiGraphics.pose().popPose()'):
+                    self.assertIn(call, method)
+
 if __name__ == '__main__': unittest.main(verbosity=2)

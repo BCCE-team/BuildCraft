@@ -22,6 +22,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.Slot;
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
 
@@ -44,6 +45,47 @@ public class ContainerElectronicLibrary extends ContainerBCTile<TileElectronicLi
 
         addSlot(new SlotUploadInput(invUpIn, 0, 175, 89));
         addSlot(new SlotOutput(invUpOut, 0, 219, 89));
+    }
+
+    /**
+     * The 8.0.30 and current Library atlases position the inventory slots differently.
+     * This is client-only: a GUI switch must relocate the actual Slot objects so that
+     * rendering, hover detection and click targets all use the selected atlas layout.
+     * Slot order and menu IDs are preserved for server synchronization.
+     */
+    public void applyClientGuiLayout(boolean legacy) {
+        if (slots.size() < 40) return;
+
+        int inventoryY = legacy ? 138 : 148;
+        for (int i = 0; i < 36; i++) {
+            int inventoryIndex = i < 27 ? i + 9 : i - 27;
+            int column = i % 9;
+            int rowY = i < 27 ? inventoryY + (i / 9) * 18 : inventoryY + 58;
+            replaceClientSlot(i, new Slot(playerInventory, inventoryIndex, 8 + column * 18, rowY));
+        }
+
+        int downloadY = legacy ? 57 : 67;
+        int uploadY = legacy ? 79 : 89;
+        SlotBase downloadOutput = (SlotBase) slots.get(36);
+        SlotBase downloadInput = (SlotBase) slots.get(37);
+        SlotBase uploadInput = (SlotBase) slots.get(38);
+        SlotBase uploadOutput = (SlotBase) slots.get(39);
+        replaceClientSlot(36, new SlotOutput(downloadOutput.itemHandler, downloadOutput.handlerIndex, 175, downloadY));
+        // SlotBase exposes IItemHandlerAdv, but these two specialized slot
+        // constructors require ItemHandlerSimple (as supplied by this menu's constructor).
+        // Keep their item validation rules when relocating the client slots.
+        replaceClientSlot(37, new SlotDownloadInput((ItemHandlerSimple) downloadInput.itemHandler,
+            downloadInput.handlerIndex, 219, downloadY));
+        replaceClientSlot(38, new SlotUploadInput((ItemHandlerSimple) uploadInput.itemHandler,
+            uploadInput.handlerIndex, 175, uploadY));
+        replaceClientSlot(39, new SlotOutput(uploadOutput.itemHandler, uploadOutput.handlerIndex, 219, uploadY));
+    }
+
+    private void replaceClientSlot(int menuIndex, Slot replacement) {
+        // AbstractContainerMenu.addSlot normally assigns this index. Since the
+        // menu is already open, keep the same slot IDs when changing positions.
+        replacement.index = menuIndex;
+        slots.set(menuIndex, replacement);
     }
 
     private static class SlotDownloadInput extends SlotBase {

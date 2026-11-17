@@ -78,9 +78,11 @@ def upgrade_minecraft_263_apis(text: str, *, minecraft: str, relative: str) -> s
         text = re.sub(r"GLFW\.GLFW_KEY_([A-Z0-9_]+)",
                       lambda m: "InputConstants.KEY_" + keys.get(m.group(1), m.group(1)), text)
 
-    if relative.endswith("/robotics/gui/GuiZonePlanner.java"):
-        # 26.3 uses SDL scancodes rather than GLFW key values. There is no
-        # InputConstants.KEY_SUBTRACT: SDL names the numpad key KP_MINUS.
+    if relative.endswith(("/robotics/gui/GuiZonePlanner.java",
+                          "/robotics/gui/GuiZonePlannerLegacy.java")):
+        # Both Zone Planner layouts handle numpad '-'. 26.3 uses SDL scancodes
+        # instead of GLFW key values, and InputConstants has no KEY_SUBTRACT.
+        # Apply the same migration to the 8.0.30 legacy screen as to modern.
         text = text.replace("InputConstants.KEY_SUBTRACT",
                             "org.lwjgl.sdl.SDLScancode.SDL_SCANCODE_KP_MINUS")
 

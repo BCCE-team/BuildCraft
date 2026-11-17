@@ -24,6 +24,33 @@ class ZonePlannerModifierCompatibilityTests(unittest.TestCase):
             with self.subTest(modifier=modifier):
                 self.assertEqual(modifier & mask, 0)
 
+    def test_legacy_numpad_minus_uses_sdl_on_263_only(self):
+        """The pre-redesign 8.0.30 screen must receive the same 26.3 key migration."""
+        props = load_properties()
+        relative = 'src/main/java/buildcraft/robotics/gui/GuiZonePlannerLegacy.java'
+        with tempfile.TemporaryDirectory(prefix='bc-zp-legacy-numpad-') as temp:
+            for target in ('26.2-neoforge', '26.3-neoforge', '26.3-fabric'):
+                with self.subTest(target=target):
+                    layout = target_layout(target, props)
+                    source = resolve_effective_source(layout, props, relative)
+                    self.assertIsNotNone(source)
+                    output = Path(temp) / target / relative
+                    _materialize_text_file(
+                        source, output, logical_relative=relative,
+                        minecraft=props[f'target.{target}.deps.minecraft'],
+                        family=layout.family, platform=layout.platform, preprocess=True,
+                    )
+                    code = output.read_text(encoding='utf-8')
+                    if target.startswith('26.3'):
+                        self.assertIn('InputConstants.KEY_MINUS', code)
+                        self.assertIn('org.lwjgl.sdl.SDLScancode.SDL_SCANCODE_KP_MINUS', code)
+                        self.assertNotIn('InputConstants.KEY_SUBTRACT', code)
+                        self.assertNotIn('GLFW.GLFW_KEY_KP_SUBTRACT', code)
+                    else:
+                        self.assertIn('GLFW.GLFW_KEY_MINUS', code)
+                        self.assertIn('GLFW.GLFW_KEY_KP_SUBTRACT', code)
+                        self.assertNotIn('SDL_SCANCODE_KP_MINUS', code)
+
     def test_materialized_263_fabric_and_neoforge_do_not_reference_glfw(self):
         props = load_properties()
         relative = 'src/main/java/buildcraft/robotics/gui/GuiZonePlanner.java'

@@ -32,6 +32,9 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.client.gui.components.Button;
+import buildcraft.lib.client.gui.ClientGuiModePreferences;
+import buildcraft.lib.client.gui.ClientGuiModeNavigation;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
@@ -125,8 +128,16 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     private long lastMapTextureBuildTime;
     private ZonePlan renderedZonePlan;
 
+    private final Inventory guiPlayerInventory;
+    private final Component guiScreenTitle;
+    private Button legacyModeButton;
+    private Button modernModeButton;
+
     public GuiZonePlanner(ContainerZonePlanner container, Inventory inv, Component title) {
         super(container, inv, title);
+        container.applyClientGuiLayout(false);
+        guiPlayerInventory = inv;
+        guiScreenTitle = title;
         imageWidth = SIZE_X;
         imageHeight = SIZE_Y;
         if (container.tile != null) {
@@ -233,6 +244,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         clearNameFocus();
         invalidateMapTexture(true);
         container.loadArea(selectedLayer);
+        initModeButtons();
     }
 
     private int mapWidth() {
@@ -965,5 +977,26 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     public void removed() {
         closeMapTexture();
         super.removed();
+    }
+
+    private void initModeButtons() {
+        int x = leftPos + imageWidth - 38;
+        int y = topPos - 16;
+        legacyModeButton = addRenderableWidget(Button.builder(Component.literal("L"),
+            button -> switchMode(ClientGuiModePreferences.Mode.LEGACY))
+            .bounds(x, y, 17, 17).build());
+        modernModeButton = addRenderableWidget(Button.builder(Component.literal("M"),
+            button -> switchMode(ClientGuiModePreferences.Mode.MODERN))
+            .bounds(x + 19, y, 17, 17).build());
+        legacyModeButton.active = true;
+        modernModeButton.active = false;
+    }
+
+    private void switchMode(ClientGuiModePreferences.Mode mode) {
+        if (mode == ClientGuiModePreferences.get(ClientGuiModePreferences.ZONE_PLANNER)) return;
+        ClientGuiModePreferences.set(ClientGuiModePreferences.ZONE_PLANNER, mode);
+        ClientGuiModeNavigation.show(mode == ClientGuiModePreferences.Mode.LEGACY
+            ? new GuiZonePlannerLegacy(container, guiPlayerInventory, guiScreenTitle)
+            : new GuiZonePlanner(container, guiPlayerInventory, guiScreenTitle));
     }
 }
