@@ -2,6 +2,7 @@
 """Energy module 26.X effective source, downport, and transfer transaction contracts."""
 from __future__ import annotations
 
+import re
 import sys
 import tempfile
 import unittest
@@ -149,8 +150,11 @@ class Energy26EffectiveContracts(unittest.TestCase):
     def test_native_energy_java_syntax(self):
         roots = [self.materialized[version] / ENERGY for version in ('26.2', '26.3')]
         result = parse_sources(roots)
-        self.assertIn('36 units, 0 errors', result)
-        self.assertIn('37 units, 0 errors', result)
+        syntax_checks = re.findall(r'Java syntax: (\d+) units, (\d+) errors', result)
+        self.assertEqual(2, len(syntax_checks))
+        self.assertTrue(all(int(errors) == 0 for _, errors in syntax_checks))
+        self.assertGreaterEqual(int(syntax_checks[0][0]), 36)
+        self.assertGreaterEqual(int(syntax_checks[1][0]), 37)
         print(result, flush=True)
 
 

@@ -14,6 +14,8 @@ import buildcraft.energy.client.gui.GuiEngineFE;
 import buildcraft.energy.client.gui.GuiEngineIron_BC8;
 import buildcraft.energy.client.gui.GuiEngineStone_BC8;
 import buildcraft.energy.client.render.RenderDynamoMJ;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
@@ -28,11 +30,28 @@ public abstract class BCEnergyClientProxy {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
+            registerLiquidRenderLayers();
             PlatformClientRegistration.directScreens().register(BCEnergyGuis.MENU_STONE.get(), GuiEngineStone_BC8::new);
             PlatformClientRegistration.directScreens().register(BCEnergyGuis.MENU_IRON.get(), GuiEngineIron_BC8::new);
             PlatformClientRegistration.directScreens().register(BCEnergyGuis.MENU_FE.get(), GuiEngineFE::new);
             PlatformClientRegistration.directScreens().register(BCEnergyGuis.MENU_DYNAMO_MJ.get(), GuiDynamoMJ::new);
         });
+    }
+
+    /** Use the vanilla water transparency pass so boat water masks also hide BC liquids. */
+    private static void registerLiquidRenderLayers() {
+        int count = Math.min(BCEnergyFluids.OIL_SOURCE.size(), BCEnergyFluids.OIL_TYPE.size());
+        for (int i = 0; i < count; i++) {
+            if (BCEnergyFluids.OIL_TYPE.get(i).get().getDensity() <= 0) continue;
+            var source = BCEnergyFluids.OIL_SOURCE.get(i).get();
+            ItemBlockRenderTypes.setRenderLayer(source, RenderType.translucent());
+            ItemBlockRenderTypes.setRenderLayer(source.getFlowing(), RenderType.translucent());
+        }
+        // The world-generation spout is a separate fluid registration using cool crude oil.
+        if (BCEnergyFluids.SPOUT_OIL_SOURCE != null && BCEnergyFluids.SPOUT_OIL_FLOWING != null) {
+            ItemBlockRenderTypes.setRenderLayer(BCEnergyFluids.SPOUT_OIL_SOURCE.get(), RenderType.translucent());
+            ItemBlockRenderTypes.setRenderLayer(BCEnergyFluids.SPOUT_OIL_FLOWING.get(), RenderType.translucent());
+        }
     }
 
     @SubscribeEvent

@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import buildcraft.energy.fluid.BoatFluidPhysics;
 import buildcraft.energy.fluid.BCFluidFog;
 import buildcraft.energy.fluid.BCFluidType;
 import buildcraft.energy.fluid.BCLiquidBlock;
@@ -96,6 +97,7 @@ public final class BCEnergyFluids {
 
     public static void registry(IEventBus bus) {
         registryFluid();
+        BoatFluidPhysics.register();
         RegistryBinding.register(FLUID_TYPES, bus);
         RegistryBinding.register(FLUIDS, bus);
     }
@@ -181,6 +183,7 @@ public final class BCEnergyFluids {
         BCRegistryEntry<BCFluidType> type = FLUID_TYPES.register(fullName, () -> new BCFluidType(
             FluidType.Properties.create()
                 .canSwim(false)
+                .supportsBoating(boilAdjustedDensity > 0)
                 .sound(SoundActions.BUCKET_FILL, SoundEvents.BUCKET_FILL)
                 .sound(SoundActions.BUCKET_EMPTY, SoundEvents.BUCKET_EMPTY)
                 .density(boilAdjustedDensity)
