@@ -380,7 +380,7 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
             }
             BCLog.logger.warn("[lib.tile] Player placer did not have a usable owner profile for " + getClass() + " at " + getBlockPos() + ": " + profile);
         } else {
-            BCLog.logger.warn("[lib.tile] Non-player placer for " + getClass() + " at " + getBlockPos() + ": " + placer);
+            BCLog.diagnosticSampled("non-player-tile-placement", "Non-player placed {} at {}: {}", getClass().getName(), getBlockPos(), placer);
         }
         owner = FakePlayerProvider.NULL_PROFILE;
         setChanged();

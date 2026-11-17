@@ -1529,5 +1529,21 @@
   "gui.buildcraftlib.update.settings.automatic": "Automatically check for updates: %s",
   "gui.buildcraftlib.update.settings.check_now": "Check for updates now",
   "gui.buildcraftlib.update.settings.reset_ignored": "Reset ignored versions",
-  "gui.buildcraftlib.update.settings.reset_done": "Ignored versions have been reset."
+  "gui.buildcraftlib.update.settings.reset_done": "Ignored versions have been reset.",
+  "gui.buildcraft.logging.title": "BuildCraft Core - Debug",
+  "gui.buildcraft.logging.description": "Choose a logging profile and optional detailed robot tracking.",
+  "gui.buildcraft.logging.default": "Default",
+  "gui.buildcraft.logging.debug": "Debug",
+  "gui.buildcraft.logging.hard_debugging": "Hard debugging",
+  "gui.buildcraft.logging.verbose": "Verbose",
+  "gui.buildcraft.logging.detail.default": "Errors and important warnings only",
+  "gui.buildcraft.logging.detail.debug": "Warnings, recoveries, fallbacks and diagnostics",
+  "gui.buildcraft.logging.detail.hard_debugging": "Main machine, robot, task and routing events",
+  "gui.buildcraft.logging.detail.verbose": "Full general diagnostics; per-tick robot tracking is separate",
+  "gui.buildcraft.logging.robot_verbose": "Verbose robot tracking",
+  "gui.buildcraft.logging.save": "Save and return",
+  "gui.buildcraft.logging.module_config": "Other module settings...",
+  "gui.buildcraft.logging.restart": "Saved in Core > Debug. Restart Minecraft or the server to apply.",
+  "gui.buildcraft.logging.override": "A JVM or environment override is active; it takes precedence.",
+  "gui.buildcraft.logging.save_error": "Could not save logging settings. Check the config folder."
 }

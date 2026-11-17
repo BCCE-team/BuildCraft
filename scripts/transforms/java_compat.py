@@ -986,17 +986,19 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
         "AdvancementUtil.unlockAdvancement(GameProfileCompat.id(pipe.getHolder().getOwner()), ADVANCEMENT_NEED_LIST);"
     )
 
-    # 1.21.11 CharacterEvent input calls. Child widgets need the native record, while GuiBC8 subclasses
-    # must keep super.charTyped(char,int) so the native->legacy adapter does not recurse back into the subclass.
+    # The CharacterEvent ABI changes between 1.21.11 and 26.x:
+    # 1.21.11 takes (codePoint, modifiers), but 26.x takes only (codePoint).
+    # Keep child widget calls native; preserve the legacy char/int GuiBC8 super bridge.
+    event_args = "codePoint, modifiers" if _version_tuple(minecraft) < _version_tuple("26.1.2") else "codePoint"
     text = re.sub(
         r"\b(?!(?:super|recipeBook)\b)(\w+)\.charTyped\(codePoint, modifiers\)",
-        r"\1.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint))",
+        lambda match: f"{match.group(1)}.charTyped(new net.minecraft.client.input.CharacterEvent({event_args}))",
         text,
     )
     if not legacy_gui_input_bridge:
         text = text.replace(
             "super.charTyped(codePoint, modifiers)",
-            "super.charTyped(new net.minecraft.client.input.CharacterEvent(codePoint))",
+            f"super.charTyped(new net.minecraft.client.input.CharacterEvent({event_args}))",
         )
 
 

@@ -122,6 +122,7 @@ public final class ApiTaskAI extends AIRobot {
     public void start() {
         if (task == null || ended) return;
         phase = RobotTaskLifecycle.Phase.ASSIGNED;
+        BCLog.event("[robot-task] assigned task={} robot={}", task.typeId(), robot.getRobotId());
         notifyTask(RobotTaskLifecycle.Phase.ASSIGNED);
     }
 
@@ -139,11 +140,13 @@ public final class ApiTaskAI extends AIRobot {
             }
             restored = false;
             phase = RobotTaskLifecycle.Phase.ASSIGNED;
+            BCLog.event("[robot-task] restored task={} robot={}", task.typeId(), robot.getRobotId());
             notifyTask(RobotTaskLifecycle.Phase.SUSPENDED); // resume after durable state restoration
         }
         if (phase == RobotTaskLifecycle.Phase.SUSPENDED) {
             if (!reacquireLeases()) return;
             phase = RobotTaskLifecycle.Phase.ASSIGNED;
+            BCLog.event("[robot-task] resumed task={} robot={}", task.typeId(), robot.getRobotId());
             notifyTask(RobotTaskLifecycle.Phase.SUSPENDED);
         }
         if (ended) return;
@@ -176,6 +179,7 @@ public final class ApiTaskAI extends AIRobot {
     private void suspend() {
         if (phase == RobotTaskLifecycle.Phase.SUSPENDED) return;
         phase = RobotTaskLifecycle.Phase.SUSPENDED;
+        BCLog.event("[robot-task] suspended task={} robot={}", task == null ? "unknown" : task.typeId(), robot.getRobotId());
         if (task instanceof RobotTaskLifecycle lifecycle) {
             ApiTaskAI previous = EXECUTING.get();
             try {
@@ -220,6 +224,8 @@ public final class ApiTaskAI extends AIRobot {
             phase = RobotTaskLifecycle.Phase.CANCELLED;
         }
         notifyTask(phase);
+        BCLog.event("[robot-task] finished task={} robot={} phase={}",
+            task == null ? "unknown" : task.typeId(), robot.getRobotId(), phase);
         for (TrackedLease entry : leases) {
             try { entry.lease.close(); }
             catch (RuntimeException ex) { BCLog.logger.warn("Robot task lease release failed", ex); }

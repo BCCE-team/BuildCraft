@@ -122,7 +122,7 @@ public class BuildCraftServices {
  public static final Object MACHINE_RECIPES=new Object(), ENERGY_FLUIDS=new Object();
 }''',
  'buildcraft/lib/internal/debug/BCLog.java': '''package buildcraft.lib.internal.debug;
-public class BCLog { public static final Logger logger = new Logger();
+public class BCLog { public static void event(String message,Object... arguments){} public static final Logger logger = new Logger();
 public static class Logger { public void warn(String msg,Object...args){} } }''',
  'buildcraft/api/v2/BuildCraftApi.java': '''package buildcraft.api.v2;
 import buildcraft.api.v2.registry.*;

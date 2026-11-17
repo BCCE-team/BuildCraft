@@ -95,7 +95,7 @@ public class MessageUpdateTile {
             BlockEntity tile = level.getBlockEntity(message.pos);
             if (!(tile instanceof IPayloadReceiver receiver)) {
                 if (clientSide) {
-                    BCLog.logger.warn("Dropped BuildCraft tile update for missing/incompatible tile at {}", message.pos);
+                    BCLog.diagnosticSampled("tile-update-missing", "Skipped update for an unavailable or incompatible tile at {}", message.pos);
                 }
                 return;
             }
@@ -123,7 +123,7 @@ public class MessageUpdateTile {
             NetworkSecurity.requireFullyRead(payloadBuffer, tile.getClass().getName());
         } catch (IOException | RuntimeException exception) {
             if (clientSide) {
-                BCLog.logger.warn("Dropped invalid BuildCraft tile update packet", exception);
+                BCLog.warningSampled("invalid-tile-update", "Dropped malformed server-to-client tile update", exception);
             } else {
                 BCLog.logger.debug("Dropped invalid client BuildCraft tile update packet", exception);
             }

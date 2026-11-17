@@ -105,6 +105,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test pipe items, recipe book and optional client integrations", _unittest_command("test_client_integrations.py")),
     ("Test BCCE update notification and release manifest", _unittest_command("test_update_notification_system.py")),
     ("Test GUI regressions", _unittest_command("test_gui_regressions.py")),
+    ("Test BuildCraft logging profiles", _unittest_command("test_logging_profiles.py")),
     ("Test blueprint inventory-copy edge cases", _unittest_command("test_inventory_copy_edge_cases.py")),
     ("Test Silicon recipe discovery and selection", _unittest_command("test_silicon_recipe_book.py")),
     ("Test Guide Book filtering pagination and live previews", _unittest_command("test_guide_book_features.py")),

@@ -69,7 +69,7 @@ public class BCLib {
         }
     }
 
-    public BCLib(IEventBus modEventBus) {
+    public BCLib(IEventBus modEventBus, net.neoforged.fml.ModContainer modContainer) {
         MjApi2PlatformBridge.install();
         PlatformApi2Bootstrap.install();
 

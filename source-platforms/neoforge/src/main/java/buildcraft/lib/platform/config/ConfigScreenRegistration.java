@@ -4,7 +4,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.loading.FMLEnvironment;
 
-/** Client-gated registration for NeoForge's generated config editor. */
+/** Registers the native NeoForge configuration editor without hiding other config categories. */
 public final class ConfigScreenRegistration {
     private ConfigScreenRegistration() {}
 

@@ -286,10 +286,10 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
     /** Colour matched letters instead of filling their background; measure at unscaled font width. */
     private void drawHighlightedEntryName(GuiGraphics guiGraphics, String visibleName, int x, int y, int baseColour) {
         String query = searchField == null ? "" : searchField.getValue();
-        BCGraphics.push(guiGraphics);
+        guiGraphics.pose().pushPose();
         try {
-            BCGraphics.translate(guiGraphics, x, y);
-            BCGraphics.scale(guiGraphics, TITLE_SCALE, TITLE_SCALE);
+            guiGraphics.pose().translate(x, y, 0);
+            guiGraphics.pose().scale(TITLE_SCALE, TITLE_SCALE, 1);
             int offset = 0;
             for (ElectronicLibraryNameHighlight.Segment segment : ElectronicLibraryNameHighlight.segments(visibleName, query)) {
                 drawString(guiGraphics, font, segment.text(), offset, 0,
@@ -297,7 +297,7 @@ public class GuiElectronicLibrary extends GuiBC8<ContainerElectronicLibrary> {
                 offset += font.width(segment.text());
             }
         } finally {
-            BCGraphics.pop(guiGraphics);
+            guiGraphics.pose().popPose();
         }
     }
 

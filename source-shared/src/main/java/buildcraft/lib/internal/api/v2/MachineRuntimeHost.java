@@ -249,6 +249,10 @@ class MachineRuntimeHost implements MachineHost {
         Objects.requireNonNull(next, "status");
         if (!isActive() || removed || undecodableState != null) throw new IllegalStateException("Inactive machine");
         if (!status.equals(next)) {
+            if (status.state() != next.state()) {
+                BCLog.event("[machine] {} at {} changed status {} -> {} ({})",
+                    type.id(), position(), status.state(), next.state(), next.detail());
+            }
             status = next;
             statusDirty = true;
             owner.machineChanged();

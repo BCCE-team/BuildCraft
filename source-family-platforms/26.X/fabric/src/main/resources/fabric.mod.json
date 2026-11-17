@@ -50,6 +50,7 @@
   },
   "suggests": {
     "jei": "*",
-    "jade": "*"
+    "jade": "*",
+    "modmenu": "*"
   }
 }

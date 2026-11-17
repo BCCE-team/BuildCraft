@@ -6,12 +6,80 @@ package buildcraft.lib.internal.debug;
 
 import buildcraft.lib.internal.core.BuildCraftAPI;
 
-import org.apache.logging.log4j.LogManager;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.Logger;
 
 public final class BCLog {
-    public static final Logger logger = LogManager.getLogger("BuildCraft");
-    									//LogUtils.getLogger();
+    public static final Marker DIAGNOSTIC_MARKER = MarkerManager.getMarker("BCCE_DIAGNOSTIC");
+    public static final Marker EXPLICIT_MARKER = MarkerManager.getMarker("BCCE_EXPLICIT_DEBUG");
+    public static final Logger logger = BCProfileLogger.create();
+    private static final ConcurrentHashMap<String, AtomicLong> SAMPLED = new ConcurrentHashMap<>();
+    private static final int MAX_SAMPLE_KEYS = 128;
+
+    static {
+        if (BCLogProfile.configurationWarning() != null) {
+            logger.warn(BCLogProfile.configurationWarning());
+        }
+    }
+
+    /** Fallback, repair, invalid-but-recoverable input. Hidden in the default profile. */
+    public static void diagnostic(String message, Object... arguments) {
+        if (BCLogProfile.atLeast(BCLogProfile.Profile.DEBUG)) {
+            logger.info(DIAGNOSTIC_MARKER, message, arguments);
+        }
+    }
+
+    /** Major state transition, assignment, completion, or routing decision. */
+    public static void event(String message, Object... arguments) {
+        if (BCLogProfile.atLeast(BCLogProfile.Profile.HARD_DEBUGGING)) {
+            logger.info(message, arguments);
+        }
+    }
+
+    /** Supports the existing explicit verboseRobotLogging setting in every profile. */
+    public static void explicitEvent(String message, Object... arguments) {
+        logger.info(EXPLICIT_MARKER, message, arguments);
+    }
+
+    /**
+     * Sampling is per stable category, NEVER per position or user-controlled payload.
+     * The first three occurrences and each 128th are emitted. VERBOSE emits all.
+     */
+    private static long sample(String category) {
+        if (BCLogProfile.current() == BCLogProfile.Profile.VERBOSE) return 1;
+        AtomicLong counter = SAMPLED.get(category);
+        if (counter == null) {
+            if (SAMPLED.size() >= MAX_SAMPLE_KEYS) return 0;
+            counter = SAMPLED.computeIfAbsent(category, ignored -> new AtomicLong());
+        }
+        long count = counter.incrementAndGet();
+        return count <= 3 || count % 128 == 0 ? count : 0;
+    }
+
+    public static void diagnosticSampled(String category, String message, Object... arguments) {
+        if (!BCLogProfile.atLeast(BCLogProfile.Profile.DEBUG)) return;
+        long occurrence = sample("diagnostic:" + category);
+        if (occurrence > 0) diagnostic("[{} #{}] " + message, prepend(category, occurrence, arguments));
+    }
+
+    public static void warningSampled(String category, String message, Throwable error) {
+        long occurrence = sample("warning:" + category);
+        if (occurrence > 0) {
+            logger.warn("[" + category + " #" + occurrence + "] " + message, error);
+        }
+    }
+
+    private static Object[] prepend(String category, long occurrence, Object[] arguments) {
+        Object[] result = new Object[arguments.length + 2];
+        result[0] = category;
+        result[1] = occurrence;
+        System.arraycopy(arguments, 0, result, 2, arguments.length);
+        return result;
+    }
     
     /** Deactivate constructor */
     private BCLog() {}

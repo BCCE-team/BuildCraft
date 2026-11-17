@@ -115,7 +115,7 @@ public class MessageUpdateTile {
                     // Missing client-side tiles can indicate a legitimate synchronization race. Do not let a
                     // malicious client turn invalid server-bound positions into an unbounded warning stream.
                     if (side == BCNetworkSide.CLIENT) {
-                        BCLog.logger.warn("Dropped BuildCraft tile update for missing/incompatible tile at " + message.pos);
+                        BCLog.diagnosticSampled("tile-update-missing", "Skipped update for an unavailable or incompatible tile at {}", message.pos);
                     }
                     return;
                 }
@@ -144,7 +144,7 @@ public class MessageUpdateTile {
                 // Invalid server-bound payloads are untrusted input. Keep them out of the normal warning log so a
                 // modified client cannot flood the server with stack traces; client-side sync failures remain visible.
                 if (context.side() == BCNetworkSide.CLIENT) {
-                    BCLog.logger.warn("Dropped invalid BuildCraft tile update packet", io);
+                    BCLog.warningSampled("invalid-tile-update", "Dropped malformed server-to-client tile update", io);
                 } else {
                     BCLog.logger.debug("Dropped invalid client BuildCraft tile update packet", io);
                 }

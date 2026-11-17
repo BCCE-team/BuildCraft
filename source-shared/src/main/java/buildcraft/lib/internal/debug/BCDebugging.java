@@ -1,125 +1,52 @@
-/** Copyright (c) 2011-2015, SpaceToad and the BuildCraft Team http://www.mod-buildcraft.com
- *
- * The BuildCraft API is distributed under the terms of the MIT License. Please check the contents of the license, which
- * should be located as "LICENSE.API" in the BuildCraft source code distribution. */
+/** Copyright (c) 2011-2015 SpaceToad and the BuildCraft team
+ * SPDX-License-Identifier: MPL-2.0 */
 package buildcraft.lib.internal.debug;
 
-import java.lang.reflect.Method;
 import java.util.Locale;
 
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.Level;
+/** Per-subsystem debug switches, gated by the global log profile. */
+public final class BCDebugging {
+    public enum DebugStatus { NONE, ENABLE, LOGGING_ONLY, ALL }
+    private enum DebugLevel { LOG, COMPLEX }
 
-/** Provides a way to quickly enable or disable certain debug conditions via VM arguments or whether the client/server
- * is in a dev environment */
-public class BCDebugging {
-    public enum DebugStatus {
-        NONE,
-        ENABLE,
-        LOGGING_ONLY,
-        ALL
-    }
+    private BCDebugging() { }
 
-    enum DebugLevel {
-        LOG,
-        COMPLEX;
-
-        final String name = name().toLowerCase(Locale.ROOT);
-        boolean isAllOn;
-    }
-
-    private static final DebugStatus DEBUG_STATUS;
-
-    static {
-        // Basically we enable debugging for the dev-environment, and disable everything for normal players.
-        // However if you provide VM arguments then the behaviour changes somewhat:
-        // (VM argument is "-Dbuildcraft.debug=...")
-        // - "enable" Enables debugging even if you are not in a dev environment
-        // - "disable" Disables ALL debugging (and doesn't output any messages even in the dev environment)
-        // - "log" Major debug options are turned on. Registry setup + API usage etc
-        // - "all" All possible debug options are turned on. Lots of spam. Not recommended.
-        // In addition logging is force-enabled for prereleases as that makes testing much easier
-
-        boolean isDev;
-        try {
-            Method getBlockEntity = Level.class.getDeclaredMethod("getBlockEntity", BlockPos.class);
-            BCLog.logger.info("[debugger] Method found: World.getBlockEntity = " + getBlockEntity);
-            isDev = true;
-        } catch (Throwable ignored) {
-            // If it didn't find it then we aren't in a dev environment
-            isDev = false;
-            BCLog.logger.info("[debugger] Not a dev environment!");
+    private static DebugStatus resolveStatus() {
+        // Legacy JVM switches remain supported; new installations should use buildcraft.log.profile.
+        String legacy = System.getProperty("buildcraft.debug", "").toLowerCase(Locale.ROOT);
+        switch (legacy) {
+            case "disable": return DebugStatus.NONE;
+            case "all": return DebugStatus.ALL;
+            case "log": return DebugStatus.LOGGING_ONLY;
+            case "enable": return DebugStatus.ENABLE;
+            default: break;
         }
-
-        String value = System.getProperty("buildcraft.debug");
-        if ("enable".equals(value)) DEBUG_STATUS = DebugStatus.ENABLE;
-        else if ("all".equals(value)) DEBUG_STATUS = DebugStatus.ALL;
-        else if ("disable".equals(value)) {
-            // let people disable the messages if they are in a dev environment but don't want messages.
-            DEBUG_STATUS = DebugStatus.NONE;
-        } else if ("log".equals(value)) {
-            // Some debugging options are more than just logging, so we will differentiate between them
-            DEBUG_STATUS = DebugStatus.LOGGING_ONLY;
-        } else if (isDev) {
-            DEBUG_STATUS = DebugStatus.ENABLE;
-        } else {
-            // Most likely a built jar - don't spam people with info they probably don't need
-            DEBUG_STATUS = DebugStatus.NONE;
-        }
-
-        if (DEBUG_STATUS == DebugStatus.ALL) {
-            BCLog.logger.info("[debugger] Debugging automatically enabled for ALL of buildcraft. Prepare for log spam.");
-        } else if (DEBUG_STATUS == DebugStatus.LOGGING_ONLY) {
-            BCLog.logger.info("[debugger] Debugging automatically enabled for some non-spammy parts of buildcraft.");
-        } else if (DEBUG_STATUS == DebugStatus.ENABLE) {
-            BCLog.logger.info("[debugger] Debugging not automatically enabled for all of buildcraft. Logging all possible debug options.");
-            BCLog.logger.info("              To enable it for only logging messages add \"-Dbuildcraft.debug=log\" to your launch VM arguments");
-            BCLog.logger.info("              To enable it for ALL debugging \"-Dbuildcraft.debug=all\" to your launch VM arguments");
-            BCLog.logger.info("              To remove this message and all future ones add \"-Dbuildcraft.debug=disable\" to your launch VM arguments");
-        }
-
-        DebugLevel.COMPLEX.isAllOn = DEBUG_STATUS == DebugStatus.ALL;
-        DebugLevel.LOG.isAllOn = DEBUG_STATUS == DebugStatus.ALL || DEBUG_STATUS == DebugStatus.LOGGING_ONLY;
+        return switch (BCLogProfile.current()) {
+            case DEFAULT -> DebugStatus.NONE;
+            case DEBUG -> DebugStatus.ENABLE;
+            case HARD_DEBUGGING -> DebugStatus.LOGGING_ONLY;
+            case VERBOSE -> DebugStatus.ALL;
+        };
     }
 
-    public static boolean shouldDebugComplex(String string) {
-        return shouldDebug(string, DebugLevel.COMPLEX);
+    public static boolean shouldDebugComplex(String option) {
+        return shouldDebug(option, DebugLevel.COMPLEX);
     }
 
-    public static boolean shouldDebugLog(String string) {
-        return shouldDebug(string, DebugLevel.LOG);
+    public static boolean shouldDebugLog(String option) {
+        return shouldDebug(option, DebugLevel.LOG);
     }
 
     private static boolean shouldDebug(String option, DebugLevel type) {
-        String prop = getProp(option);
-        String actual = System.getProperty(prop);
-        if ("false".equals(actual)) {
-            BCLog.logger.info("[debugger] Debugging manually disabled for \"" + option + "\" (" + type + ").");
-            return false;
-        } else if ("true".equals(actual)) {
-            BCLog.logger.info("[debugger] Debugging enabled for \"" + option + "\" (" + type + ").");
-            return true;
-        }
-        if (type.isAllOn) {
-            BCLog.logger.info("[debugger] Debugging automatically enabled for \"" + option + "\" (" + type + ").");
-            return true;
-        }
-        if ("complex".equals(actual) || type.name.equals(actual)) {
-            BCLog.logger.info("[debugger] Debugging enabled for \"" + option + "\" (" + type + ").");
-            return true;
-        } else if (DEBUG_STATUS != DebugStatus.NONE) {
-            StringBuilder log = new StringBuilder();
-            log.append("[debugger] To enable debugging for ");
-            log.append(option);
-            log.append(" add the option \"-D");
-            log.append(prop);
-            log.append("=true\" to your launch config as a VM argument (").append(type).append(").");
-            BCLog.logger.info(log.toString());
-        }
-        return false;
-    }
-
-    private static String getProp(String string) {
-        return "buildcraft." + string + ".debug";
+        String actual = System.getProperty("buildcraft." + option + ".debug", "")
+            .trim().toLowerCase(Locale.ROOT);
+        if ("false".equals(actual)) return false;
+        if ("true".equals(actual) || "complex".equals(actual)
+            || type.name().toLowerCase(Locale.ROOT).equals(actual)) return true;
+        // Core config is loaded after lib bootstrap; resolve dynamically so changing
+        // Core > Debug actually enables existing subsystem diagnostics as well.
+        DebugStatus status = resolveStatus();
+        if (type == DebugLevel.COMPLEX) return status == DebugStatus.ALL;
+        return status == DebugStatus.LOGGING_ONLY || status == DebugStatus.ALL;
     }
 }

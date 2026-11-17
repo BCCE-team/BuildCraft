@@ -129,7 +129,7 @@ public class SoundUtil {
                 sound = provided;
             }
         } catch (RuntimeException exception) {
-            BCLog.logger.warn("Fluid {} sound provider failed; using vanilla fallback", action, exception);
+            BCLog.diagnosticSampled("fluid-sound-fallback", "Fluid {} sound provider failed; using vanilla fallback: {}", action, exception);
         }
 
         try {

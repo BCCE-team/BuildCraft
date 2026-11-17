@@ -67,7 +67,7 @@ public class CompoundTag {
  public void putByteArray(String name,byte[] value){values.put(name,new ByteArrayTag(value));}
 }''',
     "buildcraft/lib/internal/debug/BCLog.java": '''package buildcraft.lib.internal.debug;
-public class BCLog {public static final Logger logger=new Logger();
+public class BCLog {public static void event(String message,Object... arguments){} public static final Logger logger=new Logger();
 public static class Logger {public void warn(String message,Object... args){}public void error(String msg,Object... args){}
  public void info(String message,Object... args){}}
 }''',

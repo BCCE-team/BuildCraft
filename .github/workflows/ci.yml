@@ -228,6 +228,9 @@ jobs:
       - name: Test GUI regressions
         run: python -m unittest discover -s scripts/tests -p test_gui_regressions.py -v
 
+      - name: Test BuildCraft logging profiles
+        run: python -m unittest discover -s scripts/tests -p test_logging_profiles.py -v
+
       - name: Test blueprint inventory-copy edge cases
         run: python -m unittest discover -s scripts/tests -p test_inventory_copy_edge_cases.py -v
 

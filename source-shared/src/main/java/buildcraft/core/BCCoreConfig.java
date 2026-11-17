@@ -7,6 +7,7 @@
 package buildcraft.core;
 
 import buildcraft.lib.internal.mj.MjCapabilities;
+import buildcraft.lib.internal.debug.BCLogProfile;
 import buildcraft.lib.balance.BalanceConfig;
 import buildcraft.lib.internal.mj.MjFeConversion;
 import buildcraft.lib.BCLibConfig;
@@ -51,6 +52,7 @@ public class BCCoreConfig {
     private static BooleanValue propEnableAnimatedSprites;
     private static BooleanValue propUseWrenchTag;
     private static BooleanValue propVerboseRobotLogging;
+    private static EnumValue<BCLogProfile.Profile> propLoggingProfile;
 
     private static IntValue propGuideItemSearchLimit;
     private static BCConfigSpec.DoubleValue propMjPerFe;
@@ -152,6 +154,11 @@ public class BCCoreConfig {
         builder.pop();
 
         builder.push("debug");
+        propLoggingProfile = builder.comment(
+            "BuildCraft logging level: DEFAULT (errors and important warnings), DEBUG (fallbacks),",
+            "HARD_DEBUGGING (machine, task and robot lifecycle events), or VERBOSE (all general diagnostics).",
+            "Per-tick robot tracing is controlled separately by verboseRobotLogging."
+        ).defineEnum("loggingProfile", BCLogProfile.Profile.DEFAULT, BCLogProfile.Profile.values());
         propVerboseRobotLogging = builder.comment(
             "Write detailed server-side robot state, AI decisions, docking and pathfinding to latest.log every tick.",
             "Very noisy and potentially expensive. Enable only temporarily when diagnosing robotics issues."
@@ -178,6 +185,11 @@ public class BCCoreConfig {
         // The optional diagnostic flag can be null while Forge 1.19.2 is normalizing a fresh
         // COMMON config during the loader config-loading callback. Treat that transient value as its
         // declared default (false) instead of aborting dedicated-server startup.
+        // Forge 1.19.2 can call the reload hook while normalizing a freshly created
+        // COMMON config. Keep a safe default until the enum handle is populated.
+        BCLogProfile.Profile chosenLoggingProfile = propLoggingProfile.get();
+        BCLogProfile.applyCoreProfile(chosenLoggingProfile == null
+            ? BCLogProfile.Profile.DEFAULT : chosenLoggingProfile);
         verboseRobotLogging = Boolean.TRUE.equals(propVerboseRobotLogging.get());
         BCLibConfig.useColouredLabels = propUseColouredLabels.get();
         BCLibConfig.useHighContrastLabelColours = propUseHighContrastColouredLabels.get();
