@@ -74,6 +74,32 @@ class VolumeFillerGameplayTests(unittest.TestCase):
     def java(self,target,relative):
         return (self.outputs[target]/P/relative).read_text(encoding='utf-8')
 
+    def test_1211_powered_landmark_beams_have_extended_render_bounds(self):
+        # NeoForge 1.21.1 uses the renderer's bounding box for frustum culling.
+        # 1.21.11 has a different rendering API and must not receive this override.
+        props = load_properties()
+        rel = P + 'core/client/render/RenderMarkerVolume.java'
+        for target in ('1.21.1-neoforge', '1.21.11-neoforge'):
+            layout = target_layout(target, props)
+            source = resolve_effective_source(layout, props, rel)
+            self.assertIsNotNone(source)
+            with tempfile.TemporaryDirectory(prefix='landmark-render-bounds-') as tmp:
+                destination = Path(tmp) / rel
+                _materialize_text_file(source, destination, logical_relative=rel,
+                    minecraft=props[f'target.{target}.deps.minecraft'],
+                    family=layout.family, platform=layout.platform, preprocess=True)
+                java = destination.read_text(encoding='utf-8')
+                self.assertIn('shouldRenderOffScreen(TileMarkerVolume', java)
+                self.assertIn('return true;', java)
+                if target == '1.21.1-neoforge':
+                    self.assertIn('getRenderBoundingBox(TileMarkerVolume marker)', java)
+                    self.assertIn('new AABB(marker.getBlockPos())', java)
+                    self.assertIn('if (!marker.isShowingSignals())', java)
+                    self.assertIn('Math.max(0, BCCoreConfig.markerMaxDistance) + 1.0D', java)
+                else:
+                    self.assertNotIn('getRenderBoundingBox(TileMarkerVolume marker)', java)
+                    self.assertNotIn('import net.minecraft.world.phys.AABB;', java)
+
     def test_java_syntax_all_target_boundaries(self):
         for target,out in self.outputs.items():
             with self.subTest(target=target):

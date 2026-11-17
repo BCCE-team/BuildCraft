@@ -32,6 +32,9 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.Direction.Axis;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.phys.Vec3;
+//? if <=1.21.1 {
+import net.minecraft.world.phys.AABB;
+//?}
 
 public class RenderMarkerVolume implements BlockEntityRenderer<TileMarkerVolume>, LegacyLaserBlockEntityRenderer<TileMarkerVolume> {
     private static final double SCALE = 1 / 16.2; // smaller than normal lasers
@@ -48,6 +51,23 @@ public class RenderMarkerVolume implements BlockEntityRenderer<TileMarkerVolume>
 	public boolean shouldRenderOffScreen(TileMarkerVolume p_112306_) {
 		return true;
 	}
+
+    //? if <=1.21.1 {
+    /**
+     * NeoForge 1.21.1 otherwise frustum-culls the renderer using the marker's
+     * one-block default bounds, even though its powered guide beams extend
+     * up to {@link BCCoreConfig#markerMaxDistance} blocks from that position.
+     * The expanded box belongs to the renderer, not the tile's legacy bounds.
+     */
+    @Override
+    public AABB getRenderBoundingBox(TileMarkerVolume marker) {
+        AABB bounds = new AABB(marker.getBlockPos());
+        if (!marker.isShowingSignals()) {
+            return bounds;
+        }
+        return bounds.inflate(Math.max(0, BCCoreConfig.markerMaxDistance) + 1.0D);
+    }
+    //?}
 
 	@Override
 	public int getViewDistance() {
