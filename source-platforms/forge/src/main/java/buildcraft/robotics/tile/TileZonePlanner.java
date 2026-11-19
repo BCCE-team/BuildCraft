@@ -96,7 +96,11 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
     private int currentSelectedArea = 0;
 
     public TileZonePlanner(BlockPos pos, BlockState state) {
-        super(BCRoboticsBlocks.ZONE_PLANNER_TILE.get(), pos, state);
+        this(BCRoboticsBlocks.ZONE_PLANNER_TILE.get(), pos, state);
+    }
+
+    protected TileZonePlanner(net.minecraft.world.level.block.entity.BlockEntityType<?> type, BlockPos pos, BlockState state) {
+        super(type, pos, state);
         for (int i = 0; i < layers.length; i++) {
             layers[i] = new ZonePlan();
         }

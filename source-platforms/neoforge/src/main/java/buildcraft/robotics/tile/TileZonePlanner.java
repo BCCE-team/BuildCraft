@@ -101,7 +101,11 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
     private int currentSelectedArea = 0;
 
     public TileZonePlanner(BlockPos pos, BlockState state) {
-        super(BCRoboticsBlocks.ZONE_PLANNER_TILE.get(), pos, state);
+        this(BCRoboticsBlocks.ZONE_PLANNER_TILE.get(), pos, state);
+    }
+
+    protected TileZonePlanner(net.minecraft.world.level.block.entity.BlockEntityType<?> type, BlockPos pos, BlockState state) {
+        super(type, pos, state);
 //? if mc_26_x && (>=26.3) {
         inv.setCallback((handler, slot, before, after) -> {
             if (level != null && !level.isClientSide() && slot == SLOT_IMPORT_MAP) {

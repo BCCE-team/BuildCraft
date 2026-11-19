@@ -18,6 +18,8 @@ import buildcraft.lib.gui.help.ElementHelpInfo;
 import buildcraft.lib.gui.pos.GuiRectangle;
 import buildcraft.core.BCCoreItems;
 import buildcraft.robotics.container.ContainerZonePlanner;
+import buildcraft.robotics.container.ContainerRobotProcessor;
+import buildcraft.robotics.tile.TileRobotProcessor;
 import buildcraft.robotics.tile.TileZonePlanner;
 import buildcraft.robotics.zone.ZoneChunk;
 import buildcraft.robotics.zone.ZonePlan;
@@ -44,11 +46,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 
-public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
+public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     public static final int WINDOWED_MAP_WIDTH = 213;
     public static final int WINDOWED_MAP_HEIGHT = 100;
 
     private static final ResourceLocation TEXTURE_BASE = ResourceLocation.parse("buildcraftrobotics:textures/gui/zone_planner.png");
+    private static final ResourceLocation TEXTURE_PROCESSOR = ResourceLocation.parse("buildcraftrobotics:textures/gui/robot_processor.png");
     private static final ResourceLocation TEXTURE_MAP = ResourceLocation.fromNamespaceAndPath("buildcraftrobotics", "dynamic/zone_planner_map");
     private static final ResourceLocation TEXTURE_ERASER = ResourceLocation.parse("buildcraftrobotics:textures/gui/eraser.png");
     private static final ResourceLocation TEXTURE_PEN = ResourceLocation.parse("buildcraftrobotics:textures/gui/pen.png");
@@ -62,6 +65,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     private static final int SIZE_Y = 228;
 
     private static final GuiIcon ICON_GUI = new GuiIcon(TEXTURE_BASE, 0, 0, SIZE_X, SIZE_Y);
+    private static final GuiIcon ICON_PROCESSOR = new GuiIcon(TEXTURE_PROCESSOR, 0, 0, 323, 272, 512);
     private static final GuiIcon ICON_PROGRESS = new GuiIcon(TEXTURE_BASE, 16, 228, 8, 28);
     private static final GuiRectangle RECT_PROGRESS = new GuiRectangle(236, 26, 8, 28);
 
@@ -95,6 +99,21 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     private static final int CLEAR_X = 62;
     private static final int HISTORY_Y = 110;
     private static final int HISTORY_SIZE = 16;
+
+    protected final boolean processorMode;
+    private static final int[] PROCESSOR_SHAPE_X = {264, 282, 300};
+    private int mapX() { return processorMode ? 104 : MAP_X; }
+    private int mapY() { return processorMode ? 22 : MAP_Y; }
+    private int colourX() { return processorMode ? 246 : COLOUR_X; }
+    private int colourY() { return processorMode ? 195 : COLOUR_Y; }
+    private int colourStep() { return processorMode ? 18 : COLOUR_STEP; }
+    private int eraserX() { return processorMode ? 246 : ERASER_X; }
+    private int shapeY() { return processorMode ? 177 : SHAPE_Y; }
+    private int[] shapePositions() { return processorMode ? PROCESSOR_SHAPE_X : SHAPE_X; }
+    private int undoX() { return processorMode ? 246 : UNDO_X; }
+    private int redoX() { return processorMode ? 264 : REDO_X; }
+    private int clearX() { return processorMode ? 300 : CLEAR_X; }
+    private int historyY() { return processorMode ? 158 : HISTORY_Y; }
 
     private final ZonePlannerEditor.History editHistory = new ZonePlannerEditor.History();
     private final Map<ChunkPos, Boolean> paintAvailableChunks = new HashMap<>();
@@ -133,13 +152,18 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     private Button legacyModeButton;
     private Button modernModeButton;
 
-    public GuiZonePlanner(ContainerZonePlanner container, Inventory inv, Component title) {
+    public GuiZonePlanner(M container, Inventory inv, Component title) {
+        this(container, inv, title, false);
+    }
+
+    protected GuiZonePlanner(M container, Inventory inv, Component title, boolean processorMode) {
         super(container, inv, title);
-        container.applyClientGuiLayout(false);
+        this.processorMode = processorMode;
+        if (!processorMode) container.applyClientGuiLayout(false);
         guiPlayerInventory = inv;
         guiScreenTitle = title;
-        imageWidth = SIZE_X;
-        imageHeight = SIZE_Y;
+        imageWidth = processorMode ? 323 : SIZE_X;
+        imageHeight = processorMode ? 272 : SIZE_Y;
         if (container.tile != null) {
             BlockPos tilePos = container.tile.getBlockPos();
             centerX = tilePos.getX();
@@ -149,12 +173,19 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
             container.currentAreaSelection = new ZonePlan(container.tile.selectArea(selectedLayer));
             container.mapName = container.tile.mapName;
         }
+        if (processorMode && container.tile == null && container instanceof ContainerRobotProcessor processor) {
+            BlockPos remotePos = processor.getPanelPos();
+            if (remotePos != null) {
+                centerX = remotePos.getX();
+                centerZ = remotePos.getZ();
+            }
+        }
         addHelpElements();
     }
 
     private void addHelpElements() {
         mainGui.shownElements.add(new DummyHelpElement(
-                new GuiRectangle(MAP_X, MAP_Y, WINDOWED_MAP_WIDTH, WINDOWED_MAP_HEIGHT).offset(mainGui.rootElement).expand(2),
+                new GuiRectangle(mapX(), mapY(), mapWidth(), mapHeight()).offset(mainGui.rootElement).expand(2),
                 new ElementHelpInfo(
                         "buildcraftrobotics.help.zone_planner.map.title",
                         0xFF_70_A8_70,
@@ -162,7 +193,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
                 )
         ));
         mainGui.shownElements.add(new DummyHelpElement(
-                new GuiRectangle(COLOUR_X, COLOUR_Y, COLOUR_STEP * 4 - 2, COLOUR_STEP * 4 - 2).offset(mainGui.rootElement).expand(2),
+                new GuiRectangle(colourX(), colourY(), colourStep() * 4 - 2, colourStep() * 4 - 2).offset(mainGui.rootElement).expand(2),
                 new ElementHelpInfo(
                         "buildcraftrobotics.help.zone_planner.layers.title",
                         0xFF_D0_70_70,
@@ -171,16 +202,16 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         ));
         // The eraser is independent of the chosen coloured brush and drawing shape.
         mainGui.shownElements.add(new DummyHelpElement(
-                new GuiRectangle(ERASER_X, SHAPE_Y, EDITOR_SLOT_SIZE, EDITOR_SLOT_SIZE).offset(mainGui.rootElement),
+                new GuiRectangle(eraserX(), shapeY(), EDITOR_SLOT_SIZE, EDITOR_SLOT_SIZE).offset(mainGui.rootElement),
                 new ElementHelpInfo(
                         "buildcraftrobotics.help.zone_planner.eraser.title",
                         0xFF_D0_70_70,
                         "buildcraftrobotics.help.zone_planner.eraser.desc"
                 )
         ));
-        for (int i = 0; i < SHAPE_X.length; i++) {
+        for (int i = 0; i < shapePositions().length; i++) {
             mainGui.shownElements.add(new DummyHelpElement(
-                    new GuiRectangle(SHAPE_X[i], SHAPE_Y, EDITOR_SLOT_SIZE, EDITOR_SLOT_SIZE).offset(mainGui.rootElement),
+                    new GuiRectangle(shapePositions()[i], shapeY(), EDITOR_SLOT_SIZE, EDITOR_SLOT_SIZE).offset(mainGui.rootElement),
                     new ElementHelpInfo(
                             "buildcraftrobotics.help.zone_planner." + SHAPE_HELP[i] + ".title",
                             0xFF_88_BB_CC,
@@ -190,7 +221,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         }
         for (int i = 0; i < 2; i++) {
             mainGui.shownElements.add(new DummyHelpElement(
-                    new GuiRectangle(i == 0 ? UNDO_X : REDO_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE)
+                    new GuiRectangle(i == 0 ? undoX() : redoX(), historyY(), HISTORY_SIZE, HISTORY_SIZE)
                             .offset(mainGui.rootElement),
                     new ElementHelpInfo(
                             "buildcraftrobotics.help.zone_planner." + (i == 0 ? "undo" : "redo") + ".title",
@@ -200,13 +231,17 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
             ));
         }
         mainGui.shownElements.add(new DummyHelpElement(
-                new GuiRectangle(CLEAR_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE).offset(mainGui.rootElement),
+                (processorMode ? new GuiRectangle(clearX(), historyY(), HISTORY_SIZE, HISTORY_SIZE)
+                        : new GuiRectangle(CLEAR_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE)).offset(mainGui.rootElement),
                 new ElementHelpInfo(
                         "buildcraftrobotics.help.zone_planner.clear.title",
                         0xFF_88_BB_CC,
                         "buildcraftrobotics.help.zone_planner.clear.desc"
                 )
         ));
+        // The processor has no Zone Planner name or crafting slots here. Avoid
+        // their old tooltip hitboxes intercepting the Home and Unlink buttons.
+        if (!processorMode) {
         mainGui.shownElements.add(new DummyHelpElement(
                 new GuiRectangle(NAME_X, NAME_Y, NAME_W, NAME_H).offset(mainGui.rootElement).expand(2),
                 new ElementHelpInfo(
@@ -231,36 +266,41 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
                         "buildcraftrobotics.help.zone_planner.import.desc"
                 )
         ));
+        }
     }
 
     @Override
     public void init() {
         super.init();
+        if (!processorMode) {
         nameField = new EditBox(font, leftPos + NAME_X, topPos + NAME_Y, NAME_W, NAME_H, Component.empty());
         nameField.setMaxLength(32);
         nameField.setValue(container.tile == null ? container.mapName : container.tile.mapName);
         nameField.setResponder(container::sendNameToServer);
         addRenderableWidget(nameField);
         clearNameFocus();
+        }
         invalidateMapTexture(true);
         container.loadArea(selectedLayer);
-        initModeButtons();
+        if (!processorMode) initModeButtons();
     }
 
     private int mapWidth() {
+        if (processorMode) return 106;
         return WINDOWED_MAP_WIDTH;
     }
 
     private int mapHeight() {
+        if (processorMode) return 106;
         return WINDOWED_MAP_HEIGHT;
     }
 
     private int mapXScreen() {
-        return leftPos + MAP_X;
+        return leftPos + mapX();
     }
 
     private int mapYScreen() {
-        return topPos + MAP_Y;
+        return topPos + mapY();
     }
 
     private int mapXDraw() {
@@ -278,6 +318,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     }
 
     private boolean isInsideNameField(double mouseX, double mouseY) {
+        if (processorMode) return false;
         int x = leftPos + NAME_X;
         int y = topPos + NAME_Y;
         return nameField != null && nameField.visible
@@ -299,7 +340,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         int worldX = Mth.floor(centerX + (relX - mapWidth() / 2.0F) * blocksPerPixel);
         int worldZ = Mth.floor(centerZ + (relY - mapHeight() / 2.0F) * blocksPerPixel);
         int worldY = 0;
-        if (minecraft != null && minecraft.level != null) {
+        if (minecraft != null && minecraft.level != null && inProcessorWorkArea(worldX >> 4, worldZ >> 4)) {
             ZonePlannerMapChunk chunk = ZonePlannerMapDataClient.INSTANCE.getChunk(
                     minecraft.level,
                     new ZonePlannerMapChunkKey(new ChunkPos(worldX >> 4, worldZ >> 4), getDimensionId(), getMapLevel())
@@ -340,17 +381,17 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     }
 
     private int getColourSlotAt(double mouseX, double mouseY) {
-        int relX = Mth.floor(mouseX) - (leftPos + COLOUR_X);
-        int relY = Mth.floor(mouseY) - (topPos + COLOUR_Y);
+        int relX = Mth.floor(mouseX) - (leftPos + colourX());
+        int relY = Mth.floor(mouseY) - (topPos + colourY());
         if (relX < 0 || relY < 0) {
             return -1;
         }
-        int column = relX / COLOUR_STEP;
-        int row = relY / COLOUR_STEP;
+        int column = relX / colourStep();
+        int row = relY / colourStep();
         if (column < 0 || column >= 4 || row < 0 || row >= 4) {
             return -1;
         }
-        if (relX - column * COLOUR_STEP >= COLOUR_SIZE || relY - row * COLOUR_STEP >= COLOUR_SIZE) {
+        if (relX - column * colourStep() >= COLOUR_SIZE || relY - row * colourStep() >= COLOUR_SIZE) {
             return -1;
         }
         return column * 4 + row;
@@ -371,7 +412,37 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         invalidateMapTexture(true);
     }
 
+    /** A remote controller can open the GUI before the client has loaded the panel chunk. */
+    private BlockPos processorOrigin() {
+        if (!processorMode) return null;
+        if (container.tile != null) return container.tile.getBlockPos();
+        return container instanceof ContainerRobotProcessor processor ? processor.getPanelPos() : null;
+    }
+
+    /** Fixed working square. Ordinary Zone Planners retain their original unrestricted editor. */
+    private ZonePlannerEditor.Bounds processorWorkBounds() {
+        BlockPos origin = processorOrigin();
+        if (origin == null) return null;
+        int radius = TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS;
+        int cx = origin.getX() >> 4, cz = origin.getZ() >> 4;
+        return new ZonePlannerEditor.Bounds((cx - radius) << 4, (cz - radius) << 4,
+                ((cx + radius + 1) << 4) - 1, ((cz + radius + 1) << 4) - 1);
+    }
+
+    private boolean inProcessorWorkArea(int chunkX, int chunkZ) {
+        if (!processorMode) return true;
+        BlockPos origin = processorOrigin();
+        return origin != null && TileRobotProcessor.isWithinWorkArea(origin, chunkX, chunkZ);
+    }
+
+    private ZonePlan restrictProcessorSelection(ZonePlan area) {
+        if (!processorMode) return area;
+        BlockPos origin = processorOrigin();
+        return origin == null ? new ZonePlan() : TileRobotProcessor.limitToWorkArea(area, origin);
+    }
+
     private boolean availableForPaint(ChunkPos chunk) {
+        if (!inProcessorWorkArea(chunk.x, chunk.z)) return false;
         if (!addMode) return true;
         return paintAvailableChunks.computeIfAbsent(chunk,
                 key -> ZonePlannerMapDataClient.INSTANCE.isChunkAvailable(
@@ -382,14 +453,23 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         BlockPos upperLeft = screenToWorld(mapXScreen(), mapYScreen());
         BlockPos lowerRight = screenToWorld(mapXScreen() + mapWidth() - 1,
                 mapYScreen() + mapHeight() - 1);
-        return new ZonePlannerEditor.Bounds(
-                Math.min(upperLeft.getX(), lowerRight.getX()),
-                Math.min(upperLeft.getZ(), lowerRight.getZ()),
-                Math.max(upperLeft.getX(), lowerRight.getX()),
-                Math.max(upperLeft.getZ(), lowerRight.getZ()));
+        int minX = Math.min(upperLeft.getX(), lowerRight.getX());
+        int minZ = Math.min(upperLeft.getZ(), lowerRight.getZ());
+        int maxX = Math.max(upperLeft.getX(), lowerRight.getX());
+        int maxZ = Math.max(upperLeft.getZ(), lowerRight.getZ());
+        ZonePlannerEditor.Bounds work = processorWorkBounds();
+        if (work != null) {
+            minX = Math.max(minX, work.minX());
+            minZ = Math.max(minZ, work.minZ());
+            maxX = Math.min(maxX, work.maxX());
+            maxZ = Math.min(maxZ, work.maxZ());
+            if (minX > maxX || minZ > maxZ) return null;
+        }
+        return new ZonePlannerEditor.Bounds(minX, minZ, maxX, maxZ);
     }
 
     private void commitEdit(ZonePlan modified) {
+        modified = restrictProcessorSelection(modified);
         // The client already updates its tile immediately in saveArea(), and the complete
         // edited layer is transmitted to the server with the existing split-packet codec.
         if (editHistory.record(selectedLayer, getBaseSelectedArea(), modified)) {
@@ -402,7 +482,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     private void undoEdit() {
         ZonePlan previous = editHistory.undo(selectedLayer, getBaseSelectedArea());
         if (previous != null) {
-            container.saveArea(selectedLayer, previous);
+            container.saveArea(selectedLayer, restrictProcessorSelection(previous));
             invalidateMapTexture(true);
         }
     }
@@ -410,7 +490,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     private void redoEdit() {
         ZonePlan next = editHistory.redo(selectedLayer, getBaseSelectedArea());
         if (next != null) {
-            container.saveArea(selectedLayer, next);
+            container.saveArea(selectedLayer, restrictProcessorSelection(next));
             invalidateMapTexture(true);
         }
     }
@@ -428,6 +508,9 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         }
 
         if (isInsideMap(mouseX, mouseY)) {
+            // No editing or panning to chunks outside the machine's fixed work square.
+            BlockPos clicked = screenToWorld(mouseX, mouseY);
+            if (!inProcessorWorkArea(clicked.getX() >> 4, clicked.getZ() >> 4)) return true;
             if (mouseButton == 1) {
                 BlockPos newCenter = screenToWorld(mouseX, mouseY);
                 centerX = newCenter.getX();
@@ -461,7 +544,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
                 brushPreview = new ZonePlan(getBaseSelectedArea());
                 ZonePlannerEditor.paint(brushPreview, selectedTool, selectionStartXZ.getX(),
                         selectionStartXZ.getZ(), selectionStartXZ.getX(), selectionStartXZ.getZ(),
-                        addMode, this::availableForPaint, null);
+                        addMode, this::availableForPaint, processorWorkBounds());
                 invalidateMapTexture(true);
             }
             updateBufferedSelection(mouseX, mouseY);
@@ -469,28 +552,29 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         }
 
         if (mouseButton == 0) {
-            if (insideRelativeButton(mouseX, mouseY, UNDO_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE)) {
+            if (insideRelativeButton(mouseX, mouseY, undoX(), historyY(), HISTORY_SIZE, HISTORY_SIZE)) {
                 if (selecting) cancelSelection();
                 undoEdit();
                 return true;
             }
-            if (insideRelativeButton(mouseX, mouseY, REDO_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE)) {
+            if (insideRelativeButton(mouseX, mouseY, redoX(), historyY(), HISTORY_SIZE, HISTORY_SIZE)) {
                 if (selecting) cancelSelection();
                 redoEdit();
                 return true;
             }
-            if (insideRelativeButton(mouseX, mouseY, CLEAR_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE)) {
+            if ((processorMode ? insideRelativeButton(mouseX, mouseY, clearX(), historyY(), HISTORY_SIZE, HISTORY_SIZE)
+                    : insideRelativeButton(mouseX, mouseY, CLEAR_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE))) {
                 if (selecting) cancelSelection();
                 commitEdit(new ZonePlan());
                 return true;
             }
-            if (insideRelativeButton(mouseX, mouseY, ERASER_X, SHAPE_Y, EDITOR_SLOT_SIZE, EDITOR_SLOT_SIZE)) {
+            if (insideRelativeButton(mouseX, mouseY, eraserX(), shapeY(), EDITOR_SLOT_SIZE, EDITOR_SLOT_SIZE)) {
                 if (selecting) cancelSelection();
                 addMode = !addMode; // Unselected by default; toggles erasing without changing the selected brush.
                 return true;
             }
-            for (int i = 0; i < SHAPE_X.length; i++) {
-                if (insideRelativeButton(mouseX, mouseY, SHAPE_X[i], SHAPE_Y, EDITOR_SLOT_SIZE, EDITOR_SLOT_SIZE)) {
+            for (int i = 0; i < shapePositions().length; i++) {
+                if (insideRelativeButton(mouseX, mouseY, shapePositions()[i], shapeY(), EDITOR_SLOT_SIZE, EDITOR_SLOT_SIZE)) {
                     selectShape(i);
                     return true;
                 }
@@ -527,7 +611,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
                 ZonePlannerEditor.paint(updatedArea, selectedTool,
                         selectionStartXZ.getX(), selectionStartXZ.getZ(),
                         selectionEndXZ.getX(), selectionEndXZ.getZ(),
-                        addMode, this::availableForPaint, null);
+                        addMode, this::availableForPaint, processorWorkBounds());
             }
             commitEdit(updatedArea);
             selecting = false;
@@ -558,7 +642,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         if (brushPreview != null && selectionEndXZ != null) {
             if (ZonePlannerEditor.paint(brushPreview, ZonePlannerEditor.Tool.BRUSH,
                     selectionEndXZ.getX(), selectionEndXZ.getZ(), end.getX(), end.getZ(),
-                    addMode, this::availableForPaint, null)) {
+                    addMode, this::availableForPaint, processorWorkBounds())) {
                 invalidateMapTexture(true);
             }
         }
@@ -611,26 +695,27 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     }
 
     private void drawBackgroundLayer(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-        ICON_GUI.drawAt(guiGraphics, mainGui.rootElement);
+        if (processorMode) ICON_PROCESSOR.drawAt(guiGraphics, mainGui.rootElement);
+        else ICON_GUI.drawAt(guiGraphics, mainGui.rootElement);
         drawMap(guiGraphics, mouseX, mouseY);
         drawColourSlots(guiGraphics);
         drawEditorSlots(guiGraphics);
         drawHistoryButtons(guiGraphics, mouseX, mouseY);
-        if (container.tile != null) {
+        if (!processorMode && container.tile != null) {
             double progress = Mth.clamp(container.tile.deltaProgress.getDynamic(partialTicks), 0.0D, 1.0D);
             drawProgress(guiGraphics, RECT_PROGRESS, ICON_PROGRESS, 1.0D, progress);
         }
     }
 
     private void drawEditorSlots(GuiGraphics guiGraphics) {
-        int eraserX = leftPos + ERASER_X;
-        int slotsY = topPos + SHAPE_Y;
+        int eraserX = leftPos + eraserX();
+        int slotsY = topPos + shapeY();
         drawEditorIcon(guiGraphics, TEXTURE_ERASER, eraserX, slotsY, 0, 0, 16);
         if (!addMode) {
             drawEditorSelection(guiGraphics, eraserX, slotsY);
         }
-        for (int i = 0; i < SHAPE_X.length; i++) {
-            int x = leftPos + SHAPE_X[i];
+        for (int i = 0; i < shapePositions().length; i++) {
+            int x = leftPos + shapePositions()[i];
             ResourceLocation icon = switch (i) {
                 case 0 -> TEXTURE_RECTANGLE;
                 case 1 -> TEXTURE_OVAL;
@@ -644,12 +729,19 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
     }
 
     private void drawHistoryButtons(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        drawEditorIcon(guiGraphics, TEXTURE_HISTORY, leftPos + UNDO_X, topPos + HISTORY_Y,
-                0, insideRelativeButton(mouseX, mouseY, UNDO_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE) ? 16 : 0, 64);
-        drawEditorIcon(guiGraphics, TEXTURE_HISTORY, leftPos + REDO_X, topPos + HISTORY_Y,
-                16, insideRelativeButton(mouseX, mouseY, REDO_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE) ? 16 : 0, 64);
-        drawEditorIcon(guiGraphics, TEXTURE_HISTORY, leftPos + CLEAR_X, topPos + HISTORY_Y,
-                32, insideRelativeButton(mouseX, mouseY, CLEAR_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE) ? 16 : 0, 64);
+        drawEditorIcon(guiGraphics, TEXTURE_HISTORY, leftPos + undoX(), topPos + historyY(),
+                0, (processorMode ? insideRelativeButton(mouseX, mouseY, undoX(), historyY(), HISTORY_SIZE, HISTORY_SIZE)
+                    : insideRelativeButton(mouseX, mouseY, UNDO_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE)) ? 16 : 0, 64);
+        drawEditorIcon(guiGraphics, TEXTURE_HISTORY, leftPos + redoX(), topPos + historyY(),
+                16, (processorMode ? insideRelativeButton(mouseX, mouseY, redoX(), historyY(), HISTORY_SIZE, HISTORY_SIZE)
+                    : insideRelativeButton(mouseX, mouseY, REDO_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE)) ? 16 : 0, 64);
+        if (processorMode) {
+            drawEditorIcon(guiGraphics, TEXTURE_HISTORY, leftPos + clearX(), topPos + historyY(),
+                    32, insideRelativeButton(mouseX, mouseY, clearX(), historyY(), HISTORY_SIZE, HISTORY_SIZE) ? 16 : 0, 64);
+        } else {
+            drawEditorIcon(guiGraphics, TEXTURE_HISTORY, leftPos + CLEAR_X, topPos + HISTORY_Y,
+                    32, insideRelativeButton(mouseX, mouseY, CLEAR_X, HISTORY_Y, HISTORY_SIZE, HISTORY_SIZE) ? 16 : 0, 64);
+        }
     }
 
     private void drawEditorIcon(GuiGraphics guiGraphics, ResourceLocation texture, int x, int y, int u, int v, int texSize) {
@@ -664,8 +756,8 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
         for (int column = 0; column < 4; column++) {
             for (int row = 0; row < 4; row++) {
                 int index = column * 4 + row;
-                int x = leftPos + COLOUR_X + column * COLOUR_STEP;
-                int y = topPos + COLOUR_Y + row * COLOUR_STEP;
+                int x = leftPos + colourX() + column * colourStep();
+                int y = topPos + colourY() + row * colourStep();
                 Item brush = BCCoreItems.PAINT_BRUSHS.get(DyeColor.byId(index));
                 if (brush != null) {
                     ItemStack stack = new ItemStack(brush);
@@ -773,6 +865,7 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
             for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
                 int index = (chunkX - minChunkX) * chunkHeight + chunkZ - minChunkZ;
                 ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
+                if (!inProcessorWorkArea(chunkX, chunkZ)) continue;
                 mapChunks[index] = ZonePlannerMapDataClient.INSTANCE.getChunk(
                         level,
                         new ZonePlannerMapChunkKey(chunkPos, dimension, mapLevel)
@@ -794,6 +887,13 @@ public class GuiZonePlanner extends GuiBC8<ContainerZonePlanner> {
                 int worldZ = worldZs[cellZ];
                 int chunkZ = worldZ >> 4;
                 int chunkIndex = (chunkX - minChunkX) * chunkHeight + chunkZ - minChunkZ;
+                if (!inProcessorWorkArea(chunkX, chunkZ)) {
+                    // Visually mask non-operable chunks without requesting their map data.
+                    fillNativeImage(pixels, screenX, screenZ,
+                            Math.min(step, mapW - screenX), Math.min(step, mapH - screenZ),
+                            argbToAbgr(0xFF_4C_4C_4C));
+                    continue;
+                }
                 int colour = MAP_BACKGROUND_COLOUR;
                 ZonePlannerMapChunk mapChunk = mapChunks[chunkIndex];
                 if (mapChunk != null) {

@@ -187,6 +187,9 @@ public class BCRobotics {
         BCCapabilityRegistration.registerBlockEntity(
             event, Capabilities.ItemHandler.BLOCK, BCRoboticsBlocks.REQUESTER_TILE.get()
         );
+        BCCapabilityRegistration.registerBlockEntity(
+            event, Capabilities.ItemHandler.BLOCK, BCRoboticsBlocks.ROBOT_PROCESSOR_TILE.get()
+        );
     }
 
     private static void registerEntityAttributes(EntityAttributeCreationEvent event) {

@@ -474,6 +474,21 @@ public class FluidRenderer {
         drawFluidForGuiNative(fluidSprite, tint, startX, startY, endX, endY, guiGraphics);
     }
 
+    /** Flat flowing-sprite preview for the robot's tank. */
+    public static void drawFlowingFluidForGui(Fluid fluid, double sx, double sy,
+            double ex, double ey, Pose matrix) {
+        if (fluid == null) return;
+        sprite = getFluidSprite(FluidSpriteType.FLOWING, fluid, FluidStack.EMPTY);
+        color = fluidTint(fluid, null);
+        drawFluidForGuiInteral(sx, sy, ex, ey, matrix);
+    }
+    public static void drawFlowingFluidForGui(Fluid fluid, double sx, double sy,
+            double ex, double ey, GuiGraphicsExtractor graphics) {
+        if (fluid == null || graphics == null) return;
+        drawFluidForGuiNative(getFluidSprite(FluidSpriteType.FLOWING, fluid, FluidStack.EMPTY),
+                fluidTint(fluid, null), sx, sy, ex, ey, graphics);
+    }
+
     private static void drawFluidForGuiNative(TextureAtlasSprite fluidSprite, int tint, double startX, double startY,
         double endX, double endY, GuiGraphicsExtractor guiGraphics) {
         if (fluidSprite == null) {

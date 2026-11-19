@@ -10,6 +10,7 @@ import java.util.List;
 import buildcraft.robotics.item.ItemRedstoneBoard;
 import buildcraft.robotics.item.ItemRobot;
 import buildcraft.robotics.item.ItemRobotStation;
+import buildcraft.robotics.item.ItemRobotController;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -32,6 +33,12 @@ public final class BCRoboticsItems {
     public static final BCRegistryEntry<BlockItem> REQUESTER = ITEMS.register("requester",
             () -> new BlockItem(BCRoboticsBlocks.REQUESTER.get(), new Item.Properties()));
 
+    public static final BCRegistryEntry<ItemRobotController> CONTROLLER = ITEMS.register("controller",
+            () -> new ItemRobotController(new Item.Properties().stacksTo(1)));
+
+    public static final BCRegistryEntry<BlockItem> ROBOT_PROCESSOR = ITEMS.register("robot_processor",
+            () -> new BlockItem(BCRoboticsBlocks.ROBOT_PROCESSOR.get(), new Item.Properties()));
+
     private BCRoboticsItems() {
     }
 
@@ -45,6 +52,8 @@ public final class BCRoboticsItems {
         ROBOT.get().addCreativeTabItems(stacks::add);
         REDSTONE_BOARD.get().addCreativeTabItems(stacks::add);
         stacks.add(ROBOT_STATION.get().getDefaultInstance());
+        stacks.add(ROBOT_PROCESSOR.get().getDefaultInstance());
+        stacks.add(CONTROLLER.get().getDefaultInstance());
         return List.copyOf(stacks);
     }
 

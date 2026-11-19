@@ -69,6 +69,7 @@ public final class BCRobotics {
             BCRoboticsEntities.ROBOT.get());
         BCCapabilityRegistration.registerBlockEntity(CapUtil.CAP_ITEMS, BCRoboticsBlocks.ZONE_PLANNER_TILE.get());
         BCCapabilityRegistration.registerBlockEntity(CapUtil.CAP_ITEMS, BCRoboticsBlocks.REQUESTER_TILE.get());
+        BCCapabilityRegistration.registerBlockEntity(CapUtil.CAP_ITEMS, BCRoboticsBlocks.ROBOT_PROCESSOR_TILE.get());
 
         MessageManager.registerMessageClass(
             BCModules.ROBOTICS, MessageZoneMapRequest.class,

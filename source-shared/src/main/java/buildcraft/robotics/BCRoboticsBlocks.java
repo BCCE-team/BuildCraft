@@ -4,8 +4,10 @@ import buildcraft.lib.platform.registry.BCRegistryBinder;
 import buildcraft.lib.platform.registry.BCRegistryEntry;
 import buildcraft.lib.platform.registry.BCDeferredRegister;
 import buildcraft.robotics.block.BlockRequester;
+import buildcraft.robotics.block.BlockRobotProcessor;
 import buildcraft.robotics.block.BlockZonePlanner;
 import buildcraft.robotics.tile.TileRequester;
+import buildcraft.robotics.tile.TileRobotProcessor;
 import buildcraft.robotics.tile.TileZonePlanner;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -16,6 +18,7 @@ public final class BCRoboticsBlocks {
 
     public static final BCRegistryEntry<BlockZonePlanner> ZONE_PLANNER = BLOCKS.register("zone_planner", BlockZonePlanner::new);
     public static final BCRegistryEntry<BlockRequester> REQUESTER = BLOCKS.register("requester", BlockRequester::new);
+    public static final BCRegistryEntry<BlockRobotProcessor> ROBOT_PROCESSOR = BLOCKS.register("robot_processor", BlockRobotProcessor::new);
 
     public static final BCRegistryEntry<BlockEntityType<TileZonePlanner>> ZONE_PLANNER_TILE = BLOCK_ENTITYS.register(
             "entity_zone_planner",
@@ -25,6 +28,11 @@ public final class BCRoboticsBlocks {
     public static final BCRegistryEntry<BlockEntityType<TileRequester>> REQUESTER_TILE = BLOCK_ENTITYS.register(
             "entity_requester",
             () -> BlockEntityType.Builder.of(TileRequester::new, REQUESTER.get()).build(null)
+    );
+
+    public static final BCRegistryEntry<BlockEntityType<TileRobotProcessor>> ROBOT_PROCESSOR_TILE = BLOCK_ENTITYS.register(
+            "entity_robot_processor",
+            () -> BlockEntityType.Builder.of(TileRobotProcessor::new, ROBOT_PROCESSOR.get()).build(null)
     );
 
     private BCRoboticsBlocks() {

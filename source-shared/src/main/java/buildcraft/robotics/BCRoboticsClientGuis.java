@@ -1,6 +1,7 @@
 package buildcraft.robotics;
 
 import buildcraft.robotics.gui.GuiRequester;
+import buildcraft.robotics.gui.GuiRobotProcessor;
 import buildcraft.robotics.gui.GuiZonePlanner;
 import buildcraft.robotics.gui.GuiZonePlannerLegacy;
 import buildcraft.robotics.container.ContainerZonePlanner;
@@ -18,7 +19,8 @@ public final class BCRoboticsClientGuis {
             ClientGuiModePreferences.get(ClientGuiModePreferences.ZONE_PLANNER)
                 == ClientGuiModePreferences.Mode.LEGACY
                 ? new GuiZonePlannerLegacy(menu, inventory, title)
-                : new GuiZonePlanner(menu, inventory, title));
+                : new GuiZonePlanner<>(menu, inventory, title));
         event.register(BCRoboticsGuis.MENU_REQUESTER.get(), GuiRequester::new);
+        event.register(BCRoboticsGuis.MENU_ROBOT_PROCESSOR.get(), GuiRobotProcessor::new);
     }
 }

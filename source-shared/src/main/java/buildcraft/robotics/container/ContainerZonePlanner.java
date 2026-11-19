@@ -20,11 +20,12 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.MenuType;
 import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.net.BCPacketContext;
 
 public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
-    private static final IdAllocator IDS = MenuBC_Neptune.IDS.makeChild("zone_planner");
+    protected static final IdAllocator IDS = MenuBC_Neptune.IDS.makeChild("zone_planner");
     private static final int ID_LOAD_AREA = IDS.allocId("LOAD_AREA");
     private static final int ID_SAVE_AREA = IDS.allocId("SAVE_AREA");
     private static final int ID_AREA_LOADED = IDS.allocId("AREA_LOADED");
@@ -48,7 +49,12 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
 
     public ContainerZonePlanner(int containerId, Inventory playerInventory, TileZonePlanner tile,
             ContainerLevelAccess access) {
-        super(BCRoboticsGuis.MENU_ZONE_PLANNER.get(), playerInventory, containerId, access);
+        this(BCRoboticsGuis.MENU_ZONE_PLANNER.get(), containerId, playerInventory, tile, access);
+    }
+
+    protected ContainerZonePlanner(MenuType<?> type, int containerId, Inventory playerInventory, TileZonePlanner tile,
+            ContainerLevelAccess access) {
+        super(type, playerInventory, containerId, access);
 
         TileZonePlanner actualTile = this.tile != null ? this.tile : tile;
         fallbackInv = new ItemHandlerSimple(3);

@@ -5,6 +5,7 @@ import buildcraft.lib.platform.registry.BCRegistryEntry;
 import buildcraft.lib.platform.registry.BCDeferredRegister;
 import buildcraft.lib.gui.BCContainerFactory;
 import buildcraft.robotics.container.ContainerRequester;
+import buildcraft.robotics.container.ContainerRobotProcessor;
 import buildcraft.robotics.container.ContainerZonePlanner;
 import net.minecraft.world.inventory.MenuType;
 
@@ -19,6 +20,11 @@ public final class BCRoboticsGuis {
     public static final BCRegistryEntry<MenuType<ContainerRequester>> MENU_REQUESTER = MENUS.register(
             "menu.requester",
             () -> BCContainerFactory.create(ContainerRequester::new)
+    );
+
+    public static final BCRegistryEntry<MenuType<ContainerRobotProcessor>> MENU_ROBOT_PROCESSOR = MENUS.register(
+            "menu.robot_processor",
+            () -> BCContainerFactory.create(ContainerRobotProcessor::new)
     );
 
     private BCRoboticsGuis() {

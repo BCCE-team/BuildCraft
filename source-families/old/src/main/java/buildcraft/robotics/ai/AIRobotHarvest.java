@@ -96,6 +96,12 @@ public class AIRobotHarvest extends AIRobot {
     }
 
     @Override
+    public int getExecutionProgress() {
+        if (blockFound == null) return -1;
+        return Math.max(0, Math.min(100, delay * 100 / (HARVEST_DELAY_TICKS + 1)));
+    }
+
+    @Override
     public void end() {
         robot.setItemActive(false);
     }

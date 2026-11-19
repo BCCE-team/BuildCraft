@@ -370,6 +370,14 @@ public class FluidRenderer {
             colour(fluid, null), startX, startY, endX, endY, graphics);
     }
 
+    /** Flat flowing-sprite preview for the robot's tank. */
+    public static void drawFlowingFluidForGui(Fluid fluid, double sx, double sy,
+        double ex, double ey, GuiGraphicsExtractor graphics) {
+        if (fluid == null || fluid == net.minecraft.world.level.material.Fluids.EMPTY || graphics == null) return;
+        drawFluidForGuiNative(getFluidSprite(FluidSpriteType.FLOWING, fluid, null),
+            colour(fluid, null), sx, sy, ex, ey, graphics);
+    }
+
     private static void drawFluidForGuiNative(TextureAtlasSprite fluidSprite, int tint, double startX, double startY,
         double endX, double endY, GuiGraphicsExtractor guiGraphics) {
         if (fluidSprite == null) {

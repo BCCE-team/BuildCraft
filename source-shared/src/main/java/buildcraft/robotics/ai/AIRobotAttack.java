@@ -8,6 +8,7 @@ import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.robotics.entity.EntityRobot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 
 /** Moves into melee range and attacks with the equipped robot tool. */
 public class AIRobotAttack extends AIRobot {
@@ -66,6 +67,14 @@ public class AIRobotAttack extends AIRobot {
             }
             robot.aimItemAt(target.blockPosition());
         }
+    }
+
+    @Override
+    public int getExecutionProgress() {
+        if (!(target instanceof LivingEntity living) || !living.isAlive()) return -1;
+        float max = living.getMaxHealth();
+        if (max <= 0.0F) return -1;
+        return Math.max(0, Math.min(100, Math.round((1.0F - living.getHealth() / max) * 100.0F)));
     }
 
     @Override

@@ -1,0 +1,12 @@
+{
+  "parent": "block/cube",
+  "textures": {
+    "particle": "buildcraftrobotics:blocks/robot_processor/down",
+    "down": "buildcraftrobotics:blocks/robot_processor/down",
+    "up": "buildcraftrobotics:blocks/robot_processor/top",
+    "north": "buildcraftrobotics:blocks/robot_processor/front",
+    "east": "buildcraftrobotics:blocks/robot_processor/down",
+    "south": "buildcraftrobotics:blocks/robot_processor/down",
+    "west": "buildcraftrobotics:blocks/robot_processor/down"
+  }
+}

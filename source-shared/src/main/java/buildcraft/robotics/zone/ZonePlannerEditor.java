@@ -56,7 +56,7 @@ public final class ZonePlannerEditor {
                 int minZ = Math.min(z1, z2), maxZ = Math.max(z1, z2);
                 for (int x = minX; x <= maxX; x++) {
                     for (int z = minZ; z <= maxZ; z++) {
-                        changed |= set(area, x, z, add, available);
+                        changed |= set(area, x, z, add, available, bounds);
                     }
                 }
             }
@@ -72,7 +72,7 @@ public final class ZonePlannerEditor {
                     for (int z = minZ; z <= maxZ; z++) {
                         double normZ = (z - centerZ) / radiusZ;
                         if (normX * normX + normZ * normZ <= 1.000001D) {
-                            changed |= set(area, x, z, add, available);
+                            changed |= set(area, x, z, add, available, bounds);
                         }
                     }
                 }
@@ -88,11 +88,11 @@ public final class ZonePlannerEditor {
                         // 3x3 square tip; adjoining drag events form one continuous stroke.
                         for (int bx = -1; bx <= 1; bx++) {
                             for (int bz = -1; bz <= 1; bz++) {
-                                changed |= set(area, x + bx, z + bz, add, available);
+                                changed |= set(area, x + bx, z + bz, add, available, bounds);
                             }
                         }
                     } else {
-                        changed |= set(area, x, z, add, available);
+                        changed |= set(area, x, z, add, available, bounds);
                     }
                     if (x == x2 && z == z2) break;
                     long doubled = 2L * error;
@@ -105,7 +105,9 @@ public final class ZonePlannerEditor {
         return changed;
     }
 
-    private static boolean set(ZonePlan area, int x, int z, boolean value, Predicate<ChunkPos> available) {
+    private static boolean set(ZonePlan area, int x, int z, boolean value,
+            Predicate<ChunkPos> available, Bounds bounds) {
+        if (bounds != null && !bounds.contains(x, z)) return false;
         if (area.get(x, z) == value) return false;
         if (value && available != null && !available.test(new ChunkPos(x >> 4, z >> 4))) return false;
         area.set(x, z, value);
@@ -135,7 +137,7 @@ public final class ZonePlannerEditor {
             if (z < bounds.maxZ) queue.add(pack(x, z + 1));
         }
         boolean changed = false;
-        for (long packed : fill) changed |= set(area, (int) (packed >> 32), (int) packed, value, available);
+        for (long packed : fill) changed |= set(area, (int) (packed >> 32), (int) packed, value, available, bounds);
         return changed;
     }
 

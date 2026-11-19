@@ -158,6 +158,12 @@ public class AIRobotBreak extends AIRobot {
     }
 
     @Override
+    public int getExecutionProgress() {
+        if (blockToBreak == null || state == null || hardness < 0.0F) return -1;
+        return Math.max(0, Math.min(100, Math.round(blockDamage * 100.0F)));
+    }
+
+    @Override
     public void end() {
         robot.setItemActive(false);
         //? if <1.20 {

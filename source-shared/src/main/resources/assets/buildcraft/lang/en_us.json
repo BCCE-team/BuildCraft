@@ -1179,6 +1179,7 @@
   "gate.action.station.requestItems": "Station: request items",
   "gate.action.station.machineRequest": "Station: machine request",
   "block.buildcraftrobotics.zone_planner": "Zone Planner",
+  "block.buildcraftrobotics.robot_processor": "Robot Control Panel",
   "buildcraftrobotics.help.zone_planner.map.title": "Zone map",
   "buildcraftrobotics.help.zone_planner.map.desc": "This map shows the area around the Zone Planner. Select a brush colour and a drawing tool (Rectangle, Oval or Pen). Drag to paint. Enable Eraser to remove from the selected colour layer instead. Right-click to recenter and scroll to zoom.",
   "buildcraftrobotics.help.zone_planner.eraser.title": "Eraser",

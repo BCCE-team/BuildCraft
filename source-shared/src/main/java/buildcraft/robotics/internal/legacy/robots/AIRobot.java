@@ -65,6 +65,15 @@ public class AIRobot {
         this.success = success;
     }
 
+    /**
+     * 0..100 only for the execution phase of an operation; -1 means there is no
+     * meaningful measurable progress (e.g. pathfinding, searching or waiting).
+     * This does not report the progress of the future central task queue.
+     */
+    public int getExecutionProgress() {
+        return -1;
+    }
+
     public int getEnergyCost() {
         return 1;
     }
