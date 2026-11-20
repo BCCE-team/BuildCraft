@@ -21,7 +21,20 @@ public class AIRobotRecharge extends AIRobot {
             public boolean matches(DockingStation station) {
                 return station.providesPower();
             }
+            @Override
+            public boolean prefersProcessorLinkedStations() { return true; }
         }, null));
+    }
+
+    @Override
+    public void end() {
+        AIRobotSearchStation.cancelChargingWait(robot);
+    }
+
+    @Override
+    public void onUnload() {
+        AIRobotSearchStation.cancelChargingWait(robot);
+        super.onUnload();
     }
 
     @Override

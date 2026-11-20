@@ -164,6 +164,15 @@ public class AIRobot {
         }
     }
 
+    /** Whether this leaf AI actually belongs to the given board's delegated work chain. */
+    public final boolean isWithinWorkChain(AIRobot board) {
+        if (board == null) return false;
+        for (AIRobot current = this; current != null; current = current.parentAI) {
+            if (current == board) return true;
+        }
+        return false;
+    }
+
     public final AIRobot getActiveAI() {
         if (delegateAI != null) {
             return delegateAI.getActiveAI();

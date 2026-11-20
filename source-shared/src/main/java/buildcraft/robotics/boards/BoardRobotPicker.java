@@ -11,6 +11,7 @@ import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.BCRoboticsBoards;
 import buildcraft.robotics.ai.AIRobotFetchItem;
+import buildcraft.robotics.scheduler.RobotPickupScheduler;
 import buildcraft.robotics.ai.AIRobotGotoSleep;
 import buildcraft.robotics.ai.AIRobotGotoStationAndUnload;
 import buildcraft.robotics.statements.ActionRobotFilter;
@@ -59,6 +60,10 @@ public class BoardRobotPicker extends RedstoneBoardRobot {
                 fetchNewItem();
             } else if (robot.containsItems()) {
                 startDelegateAI(new AIRobotGotoStationAndUnload(robot));
+            } else if (RobotPickupScheduler.hasController(robot)) {
+                // Stay in the connected panel's discovery loop; an empty
+                // candidate index is not a reason to sleep permanently.
+                fetchNewItem();
             } else {
                 startDelegateAI(new AIRobotGotoSleep(robot));
             }

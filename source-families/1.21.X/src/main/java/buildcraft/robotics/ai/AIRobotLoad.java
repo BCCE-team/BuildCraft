@@ -81,6 +81,48 @@ public class AIRobotLoad extends AIRobot {
         return ItemStack.EMPTY;
     }
 
+    /** Representative eligible cargo, without extracting anything from the station. */
+    public static ItemStack previewCandidate(DockingStation station, IStackFilter filter, int maxCount) {
+        if (station == null || filter == null || maxCount <= 0) return ItemStack.EMPTY;
+        Container container = station.getItemInput();
+        if (container == null) return ItemStack.EMPTY;
+        Direction side = station.getItemInputSide();
+        for (int slot : getSlots(container, side)) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.isEmpty() || !canTake(container, slot, stack, side) || !filter.matches(stack)
+                    || !canStationProvide(station, stack, filter)) continue;
+            ItemStack result = stack.copy();
+            result.setCount(Math.min(stack.getCount(), maxCount));
+            return result;
+        }
+        return ItemStack.EMPTY;
+    }
+
+    /** Up to maxKinds different matching stack types, preserving source slot order. */
+    public static java.util.List<ItemStack> previewCandidates(DockingStation station, IStackFilter filter,
+                                                               int maxCount, int maxKinds) {
+        java.util.List<ItemStack> result = new java.util.ArrayList<>();
+        if (station == null || filter == null || maxCount <= 0 || maxKinds <= 0) return result;
+        Container container = station.getItemInput();
+        if (container == null) return result;
+        Direction side = station.getItemInputSide();
+        for (int slot : getSlots(container, side)) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.isEmpty() || !canTake(container, slot, stack, side) || !filter.matches(stack)
+                    || !canStationProvide(station, stack, filter)) continue;
+            boolean duplicate = false;
+            for (ItemStack previous : result) {
+                if (ItemStack.isSameItemSameComponents(previous, stack)) { duplicate = true; break; }
+            }
+            if (duplicate) continue;
+            ItemStack candidate = stack.copy();
+            candidate.setCount(Math.min(stack.getCount(), maxCount));
+            result.add(candidate);
+            if (result.size() >= maxKinds) break;
+        }
+        return result;
+    }
+
     public static boolean load(EntityRobotBase robot, DockingStation station, IStackFilter filter, int quantity, boolean doLoad) {
         if (robot == null || station == null || filter == null) {
             return false;

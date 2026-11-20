@@ -59,6 +59,56 @@ public final class RobotOreVeinMemory {
         if (remaining.isEmpty()) clear();
     }
 
+    /**
+     * Inspect a connected deposit for the *planning* queue. Mirrors the 26-way
+     * neighbourhood and bounds of the miner's memory, but never changes that
+     * memory or loads absent chunks. The result is one logical job containing
+     * individual break steps. Limit the scan to the same maximum as the board.
+     */
+    public static java.util.List<BlockPos> discoverConnected(Level level, BlockPos start,
+            OreFamilyLookup lookup, int maximum) {
+        if (start == null || !level.isLoaded(start) || maximum <= 0) return java.util.List.of();
+        String family = lookup.familyAt(level, start);
+        if (family == null) return java.util.List.of();
+        int limit = Math.min(MAX_VEIN_BLOCKS, maximum);
+        ArrayDeque<BlockPos> open = new ArrayDeque<>();
+        Set<BlockPos> seen = new HashSet<>();
+        java.util.List<BlockPos> result = new java.util.ArrayList<>();
+        open.add(start);
+        while (!open.isEmpty() && result.size() < limit) {
+            BlockPos pos = open.removeFirst();
+            if (!seen.add(pos)
+                    || Math.abs(pos.getX() - start.getX()) > MAX_HORIZONTAL_DISTANCE
+                    || Math.abs(pos.getY() - start.getY()) > MAX_VERTICAL_DISTANCE
+                    || Math.abs(pos.getZ() - start.getZ()) > MAX_HORIZONTAL_DISTANCE
+                    || !level.isLoaded(pos) || !family.equals(lookup.familyAt(level, pos))) continue;
+            result.add(pos.immutable());
+            for (int dx = -1; dx <= 1; dx++) for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dy == 0 && dz == 0) continue;
+                    BlockPos neighbour = pos.offset(dx, dy, dz);
+                    if (!seen.contains(neighbour)
+                            && Math.abs(neighbour.getX() - start.getX()) <= MAX_HORIZONTAL_DISTANCE
+                            && Math.abs(neighbour.getY() - start.getY()) <= MAX_VERTICAL_DISTANCE
+                            && Math.abs(neighbour.getZ() - start.getZ()) <= MAX_HORIZONTAL_DISTANCE)
+                        open.addLast(neighbour);
+                }
+            }
+        }
+        return result;
+    }
+
+    /** Bounded snapshot lets the scheduler fill a batch from the vein already discovered by a miner. */
+    public java.util.List<BlockPos> candidateSnapshot(int limit) {
+        if (limit <= 0) return java.util.List.of();
+        java.util.List<BlockPos> result = new java.util.ArrayList<>();
+        for (BlockPos candidate : remaining) {
+            if (result.size() >= Math.min(64, limit)) break;
+            result.add(candidate);
+        }
+        return result;
+    }
+
     /** Drop mined/changed ore; do not discard ore merely because its chunk unloaded. */
     public void prune(Level level, OreFamilyLookup lookup) {
         if (!isActive()) return;

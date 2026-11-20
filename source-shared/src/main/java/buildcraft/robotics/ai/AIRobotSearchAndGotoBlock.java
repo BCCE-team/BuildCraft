@@ -1,10 +1,20 @@
 package buildcraft.robotics.ai;
 
 import buildcraft.lib.internal.core.BlockIndex;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.robotics.internal.legacy.robots.ResourceIdBlock;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import java.util.ArrayDeque;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 
 public class AIRobotSearchAndGotoBlock extends AIRobot {
     private BlockIndex blockFound;
@@ -14,6 +24,9 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
     private boolean nearestByRoute;
     /** True only after the owning board has been notified of successful arrival. */
     private boolean keepReservationForBoard;
+    private RobotProcessorWorkScheduler.SuggestedWork processorHint;
+    private java.util.List<net.minecraft.core.BlockPos> queuedMiningTargets = java.util.List.of();
+    private boolean searchingQueuedOre;
 
     public AIRobotSearchAndGotoBlock(EntityRobotBase robot) {
         super(robot);
@@ -40,10 +53,83 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
     @Override
     public void start() {
         if (nearestByRoute && !random) {
-            startDelegateAI(new AIRobotSearchNearestBlock(robot, filter, maxDistanceToEnd));
+            // A nearby handoff is instantaneous; otherwise use a single
+            // multi-target search for the shortest navigable route to the
+            // processor's queued ore. An unreachable queue is reported to the
+            // processor rather than followed by an expensive world-wide BFS.
+            queuedMiningTargets = RobotProcessorWorkScheduler.queuedMiningTargets(robot);
+            searchingQueuedOre = !queuedMiningTargets.isEmpty();
+            // When a miner is already beside the next ore, do not spin up a
+            // fresh large BFS. Keep the same authoritative registry claim.
+            if (tryNearbyQueuedOre()) return;
+            startDelegateAI(new AIRobotSearchNearestBlock(robot, filter, maxDistanceToEnd,
+                    queuedMiningTargets));
         } else {
-            startDelegateAI(new AIRobotSearchBlock(robot, random, filter, maxDistanceToEnd));
+            // Stage 2: one shared, provisional hint. The normal scanner remains the
+            // fallback if the block, permission, route or tool has changed.
+            // Workers with a prepared queue try its actual jobs first, using
+            // the same pathfinder and final registry claim as autonomous work.
+            // If the queue is still warming up, the native scanner keeps going.
+            java.util.List<BlockPos> queued = !random && filter != null
+                    ? RobotProcessorWorkScheduler.queuedWorkTargets(robot) : java.util.List.of();
+            processorHint = queued.isEmpty() && !random && filter != null
+                    ? RobotProcessorWorkScheduler.suggest(robot) : null;
+            startDelegateAI(new AIRobotSearchBlock(robot, random, filter, maxDistanceToEnd,
+                    !queued.isEmpty() ? queued
+                            : processorHint == null ? java.util.List.of() : java.util.List.of(processorHint.position())));
         }
+    }
+
+    /** A bounded, exact BFS around the current robot for immediate queue hand-off.
+     * If the target needs a longer path, use the original full-range BFS below. */
+    private boolean tryNearbyQueuedOre() {
+        if (queuedMiningTargets.isEmpty() || robot.getRegistry() == null || filter == null) return false;
+        //? if <1.20 {
+        Level level = robot.level;
+        //?} else {
+        /*?
+        Level level = robot.level();
+        ?*/
+        //?}
+        BlockPos start = robot.blockPosition();
+        var workZone = robot.getZoneToWork();
+        ArrayDeque<BlockPos> pending = new ArrayDeque<>();
+        Map<BlockPos, BlockPos> previous = new HashMap<>();
+        Set<BlockPos> targets = new HashSet<>(queuedMiningTargets);
+        pending.add(start);
+        previous.put(start, null);
+        int expanded = 0;
+        while (!pending.isEmpty() && expanded++ < 64) {
+            BlockPos here = pending.removeFirst();
+            int depth = 0;
+            for (BlockPos at = here; previous.get(at) != null; at = previous.get(at)) depth++;
+            for (Direction direction : Direction.values()) {
+                BlockPos next = here.relative(direction);
+                if (next.getY() < level.getMinBuildHeight() || next.getY() >= level.getMaxBuildHeight()
+                        || !level.isLoaded(next)) continue;
+                BlockState state = level.getBlockState(next);
+                if (!state.isAir() && targets.contains(next)
+                        && RobotProcessorWorkScheduler.allowsRobotTarget(robot, next)
+                        && (workZone == null || workZone.contains(new net.minecraft.world.phys.Vec3(
+                                next.getX() + .5D, next.getY() + .5D, next.getZ() + .5D)))
+                        && filter.matches(level, next)
+                        && !robot.getRegistry().isTaken(new ResourceIdBlock(next))
+                        && robot.getRegistry().take(new ResourceIdBlock(next), robot)) {
+                    java.util.LinkedList<BlockIndex> route = new java.util.LinkedList<>();
+                    for (BlockPos at = here; !at.equals(start); at = previous.get(at)) {
+                        route.addFirst(new BlockIndex(at));
+                    }
+                    acceptTarget(new BlockIndex(next), route);
+                    return true;
+                }
+                if (depth < 3 && !previous.containsKey(next)
+                        && (state.isAir() || state.getCollisionShape(level, next).isEmpty())) {
+                    previous.put(next, here);
+                    pending.add(next);
+                }
+            }
+        }
+        return false;
     }
 
     @Override
@@ -58,6 +144,23 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
         } else if (ai instanceof AIRobotSearchNearestBlock search) {
             if (search.success() && search.takeResource()) {
                 acceptTarget(search.blockFound, search.path);
+            } else if (searchingQueuedOre || search.usedProcessorQueue()) {
+                searchingQueuedOre = false;
+                // The nearest-search AI may have adopted the queue *after* its
+                // parent was started; its snapshot is then authoritative.
+                RobotProcessorWorkScheduler.queuedMiningSearchFailed(robot,
+                        search.usedProcessorQueue() ? search.processorQueueTargets() : queuedMiningTargets);
+                queuedMiningTargets = java.util.List.of();
+                if (RobotProcessorWorkScheduler.isManagedMiner(robot)) {
+                    // A failed queued search already gave the panel the list
+                    // of unreachable deposits. Do not immediately run another
+                    // 262k-node unrestricted BFS over the same air volume.
+                    setSuccess(false);
+                    terminate();
+                } else {
+                    startDelegateAI(new AIRobotSearchNearestBlock(robot, filter, maxDistanceToEnd,
+                            java.util.List.of()));
+                }
             } else {
                 setSuccess(false);
                 terminate();
@@ -75,6 +178,9 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
 
     private void acceptTarget(BlockIndex target, java.util.LinkedList<BlockIndex> route) {
         blockFound = target;
+        if (route != null && target != null) {
+            RobotProcessorWorkScheduler.targetAcquired(robot, target.toBlockPos());
+        }
         if (route == null) {
             setSuccess(false);
             terminate();
@@ -90,9 +196,12 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
 
     @Override
     public void end() {
+        RobotProcessorWorkScheduler.releaseHint(robot, processorHint);
+        processorHint = null;
         // terminate() and abort() both run end(); navigation may be cancelled by
         // gates, loss of station, unload, or a newly selected board.
         if (!keepReservationForBoard) {
+            if (blockFound != null) RobotProcessorWorkScheduler.targetAbandoned(robot, blockFound.toBlockPos());
             releaseBlockFound();
         }
     }

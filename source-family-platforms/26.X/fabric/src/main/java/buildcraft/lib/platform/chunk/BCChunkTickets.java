@@ -91,6 +91,18 @@ public final class BCChunkTickets {
         releaseChunksFor(level, ownerPos, chunks);
     }
 
+    /** Release specific obsolete owner tickets from older panel saves, including
+     * those not present in the post-restart in-memory mirror. */
+    public static <T extends BlockEntity & IChunkLoadingTile> void releaseAdditionalChunksFor(T tile, Set<ChunkPos> obsolete) {
+        if (!(tile.getLevel() instanceof ServerLevel level) || obsolete == null) return;
+        BlockPos owner = tile.getBlockPos().immutable();
+        for (ChunkPos chunk : obsolete) unforceChunk(level, owner, chunk);
+        Map<BlockPos, Set<ChunkPos>> perLevel = LOADED_CHUNKS.get(level);
+        if (perLevel != null && perLevel.containsKey(owner)) {
+            perLevel.get(owner).removeAll(obsolete);
+        }
+    }
+
     /** World unload is not machine removal: keep persisted tickets, discard only in-memory references. */
     public static void unloadWorld(ServerLevel level) { LOADED_CHUNKS.remove(level); }
 

@@ -65,6 +65,48 @@ public class BoardRobotLumberjack extends BoardRobotGenericBreakBlock {
     }
 
     @Override
+    public boolean processorScanCandidate(Level level, BlockPos pos) {
+        return isValidTreeLog(level, pos);
+    }
+
+    @Override
+    public boolean processorPlanningEligible(Level level, BlockPos pos) {
+        return isValidTreeLog(level, pos);
+    }
+
+    /** A whole connected tree is one queued job, as a vein is for miners.
+     * Scan only loaded blocks and preserve the same geometric bounds as the
+     * lumberjack's native remembered-tree search. */
+    @Override
+    public java.util.List<BlockPos> processorJobMembers(Level level, BlockPos origin, int maximum) {
+        if (!isValidTreeLog(level, origin)) return java.util.List.of();
+        int limit = Math.min(MAX_TREE_LOGS, Math.max(1, maximum));
+        java.util.List<BlockPos> logs = new java.util.ArrayList<>();
+        ArrayDeque<BlockPos> open = new ArrayDeque<>();
+        Set<BlockPos> visited = new HashSet<>();
+        open.add(origin.immutable());
+        while (!open.isEmpty() && logs.size() < limit) {
+            BlockPos current = open.removeFirst();
+            if (!visited.add(current)
+                    || Math.abs(current.getX() - origin.getX()) > MAX_TREE_HORIZONTAL_RADIUS
+                    || Math.abs(current.getZ() - origin.getZ()) > MAX_TREE_HORIZONTAL_RADIUS
+                    || Math.abs(current.getY() - origin.getY()) > MAX_TREE_VERTICAL_RADIUS
+                    || !isValidTreeLog(level, current)) continue;
+            logs.add(current.immutable());
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                        BlockPos next = current.offset(dx, dy, dz);
+                        if (!visited.contains(next)) open.addLast(next);
+                    }
+                }
+            }
+        }
+        return logs;
+    }
+
+    @Override
     public boolean isExpectedBlock(Level level, BlockPos pos) {
         if (!isValidTreeLog(level, pos)) {
             return false;

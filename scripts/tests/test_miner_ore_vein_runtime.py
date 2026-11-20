@@ -178,6 +178,13 @@ public abstract class BoardRobotGenericBreakBlock extends AIRobot {
  public abstract RedstoneBoardRobotNBT getNBTHandler();
  public abstract boolean isExpectedTool(ItemStack stack);
  public abstract boolean isExpectedBlock(Level level,BlockPos pos);
+ public java.util.List<BlockPos> processorKnownCandidates(){return java.util.List.of();}
+ public boolean processorScanCandidate(Level level,BlockPos pos){return isExpectedBlock(level,pos);}
+ public boolean processorDiscoveryCandidate(Level level,BlockPos pos){return isExpectedBlock(level,pos);}
+ public boolean processorDiscoveryCandidate(Level level,BlockPos pos,net.minecraft.world.level.block.state.BlockState state){return processorDiscoveryCandidate(level,pos);}
+ public boolean processorPaletteMightContain(net.minecraft.world.level.block.state.BlockState state){return true;}
+ public boolean processorPlanningEligible(Level level,BlockPos pos){return isExpectedBlock(level,pos);}
+ public java.util.List<BlockPos> processorJobMembers(Level level,BlockPos pos,int max){return java.util.List.of(pos);}
  protected boolean matchesGateFilter(Level level,BlockPos pos){return true;}
  protected BlockIndex blockFound(){return found;}
  @Override public void delegateAIEnded(AIRobot ai){
@@ -218,6 +225,9 @@ public class MinerVeinFixture {
   ok(!miner.isExpectedBlock(level,coal),"A different deposit should not interrupt active copper vein");
   ok(miner.isExpectedBlock(level,b),"Loaded connected deepslate copper missing");
   level.loadXChunk(1);
+  var planned=miner.processorJobMembers(level,a,2048);
+  ok(planned.size()==5,"The connected five-block copper deposit must be one planned job");
+  ok(!planned.contains(coal),"Another ore family must not enter the same job");
   breakOre(miner,r,level,a);
   ok(miner.isExpectedBlock(level,c),"Cross-chunk copper was not discovered after loading chunk");
   ok(miner.isExpectedBlock(level,d),"Diagonal ore in same vein was not discovered");
@@ -251,6 +261,8 @@ public class MinerVeinFixture {
   zoneLevel.put(b,ore("copper",BlockTags.COPPER_ORES));
   zr.zone = p -> p.x()<15.5;
   var zoned=new BoardRobotMiner(zr);search(zoned,zr,a);
+  ok(zoned.processorJobMembers(zoneLevel,a,2048).size()==1,
+      "Planning must not group ore outside the allowed work zone");
   CompoundTag onlyInside=new CompoundTag();zoned.writeSelfToNBT(onlyInside);
   ok(((net.minecraft.nbt.LongArrayTag)onlyInside.getCompound("minerOreVein").get("remaining")).getAsLongArray().length==1,
       "Vein traversal crossed the configured work-zone boundary");

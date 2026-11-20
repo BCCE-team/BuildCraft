@@ -48,6 +48,45 @@ public class BoardRobotMiner extends BoardRobotGenericBreakBlock {
         super.update();
     }
 
+    @Override
+    public java.util.List<BlockPos> processorKnownCandidates() {
+        return vein.candidateSnapshot(32);
+    }
+
+    /** Planning deliberately sees future deposits even while the board is
+     * finishing its remembered vein. Execution still honours isExpectedBlock. */
+    @Override
+    public boolean processorDiscoveryCandidate(Level level, BlockPos pos) {
+        // Discovery must not depend on the miner already holding its pickaxe.
+        // The queue still verifies tool, Gate, zone and leases before dispatch.
+        return level.isLoaded(pos) && isOre(level.getBlockState(pos));
+    }
+
+    @Override
+    public boolean processorDiscoveryCandidate(Level level, BlockPos pos, BlockState state) {
+        return isOre(state);
+    }
+
+    @Override
+    public boolean processorPaletteMightContain(BlockState state) {
+        return isOre(state);
+    }
+
+    @Override
+    public boolean processorScanCandidate(Level level, BlockPos pos) {
+        return processorPlanningEligible(level, pos);
+    }
+
+    @Override
+    public boolean processorPlanningEligible(Level level, BlockPos pos) {
+        return isMineableOre(level, pos) && eligibleOreFamily(level, pos) != null;
+    }
+
+    @Override
+    public java.util.List<BlockPos> processorJobMembers(Level level, BlockPos start, int maximum) {
+        return RobotOreVeinMemory.discoverConnected(level, start, this::eligibleOreFamily, maximum);
+    }
+
     /** A new deposit is chosen by shortest reachable travel, not chunk scan order. */
     protected boolean prioritizeShortestPath() {
         return true;

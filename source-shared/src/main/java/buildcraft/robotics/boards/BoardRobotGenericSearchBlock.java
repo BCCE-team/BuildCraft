@@ -9,6 +9,8 @@ import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.robotics.internal.legacy.robots.ResourceIdBlock;
 import buildcraft.robotics.ai.AIRobotGotoSleep;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
+import buildcraft.robotics.scheduler.ProcessorCandidateBoard;
 import buildcraft.robotics.ai.AIRobotSearchAndGotoBlock;
 import buildcraft.robotics.statements.ActionRobotFilter;
 import net.minecraft.core.BlockPos;
@@ -18,13 +20,32 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.Level;
 
-public abstract class BoardRobotGenericSearchBlock extends RedstoneBoardRobot {
+public abstract class BoardRobotGenericSearchBlock extends RedstoneBoardRobot implements ProcessorCandidateBoard {
     private BlockIndex blockFound;
     private final List<Block> blockFilter = new ArrayList<>();
 
     public BoardRobotGenericSearchBlock(EntityRobotBase robot) {
         super(robot);
     }
+
+    @Override
+    public final String processorWorkCategory() { return getNBTHandler().getID(); }
+
+    @Override
+    public final boolean processorSupportsQueue() { return true; }
+
+    @Override
+    public boolean processorScanCandidate(Level level, BlockPos pos) {
+        return isExpectedBlock(level, pos);
+    }
+
+    @Override
+    public final boolean processorTargetEligible(Level level, BlockPos pos) {
+        return isEligibleForProcessorTarget(level, pos);
+    }
+
+    @Override
+    public final boolean processorAcceptsHints() { return acceptsProcessorCandidateHints(); }
 
     /** Must be safe to call from search code and avoid causing chunk loads. */
     public abstract boolean isExpectedBlock(Level level, BlockPos pos);
@@ -37,11 +58,28 @@ public abstract class BoardRobotGenericSearchBlock extends RedstoneBoardRobot {
         return false;
     }
 
+    /**
+     * Check the final candidate against this robot's board, tool and gate filter.
+     * The shared scanner only finds opportunities; this method retains ownership
+     * of the profession-specific validation. The existing AI rechecks on use.
+     */
+    public final boolean isEligibleForProcessorTarget(Level level, BlockPos pos) {
+        if (!level.isLoaded(pos) || !isExpectedBlock(level, pos)) return false;
+        updateFilter();
+        return matchesGateFilter(level, pos);
+    }
+
+    /** Preserve the exact shortest-reachable-route semantics of specialized miners. */
+    public final boolean acceptsProcessorCandidateHints() {
+        return !prioritizeShortestPath();
+    }
+
     @Override
     public void update() {
         updateFilter();
         startDelegateAI(new AIRobotSearchAndGotoBlock(robot, false, (level, pos) -> {
-            if (!isExpectedBlock(level, pos)) {
+            if (!isExpectedBlock(level, pos)
+                    || !RobotProcessorWorkScheduler.allowsRobotTarget(robot, pos)) {
                 return false;
             }
             if (robot.getRegistry() != null && robot.getRegistry().isTaken(new ResourceIdBlock(pos))) {

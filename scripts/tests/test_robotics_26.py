@@ -203,8 +203,15 @@ class RobotRechargeBehaviorTests(unittest.TestCase):
                             platform=layout.platform,preprocess=True,
                             native_source=any(source.is_relative_to(down) for down in downs))
                         result.append(dst)
-                    output=execute_robot_recharge(*result)
-                    self.assertEqual('30 assertions PASS',output)
+                    queue_relative='src/main/java/buildcraft/robotics/scheduler/ChargingDockQueue.java'
+                    queue_source=effective[queue_relative]
+                    queue_dst=Path(temp)/target/'ChargingDockQueue.java'
+                    _materialize_text_file(queue_source,queue_dst,logical_relative=queue_relative,
+                        minecraft=props['target.'+target+'.deps.minecraft'],family=layout.family,
+                        platform=layout.platform,preprocess=True,
+                        native_source=any(queue_source.is_relative_to(down) for down in downs))
+                    output=execute_robot_recharge(*result,queue=queue_dst)
+                    self.assertEqual('37 assertions PASS',output)
                     print(target+': '+output,flush=True)
 
 

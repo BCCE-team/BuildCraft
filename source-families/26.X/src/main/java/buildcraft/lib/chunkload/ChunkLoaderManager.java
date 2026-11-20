@@ -10,5 +10,8 @@ public final class ChunkLoaderManager {
     public static void init() { BCChunkTickets.init(); }
     public static <T extends BlockEntity & IChunkLoadingTile> void loadChunksForTile(T tile) { BCChunkTickets.loadChunksForTile(tile); }
     public static <T extends BlockEntity & IChunkLoadingTile> void releaseChunksFor(T tile) { BCChunkTickets.releaseChunksFor(tile); }
+    public static <T extends BlockEntity & IChunkLoadingTile> void releaseAdditionalChunksFor(T tile, Set<ChunkPos> obsolete) {
+        BCChunkTickets.releaseAdditionalChunksFor(tile, obsolete);
+    }
     public static <T extends BlockEntity & IChunkLoadingTile> Set<ChunkPos> getChunksToLoad(T tile) { return BCChunkTickets.getChunksToLoad(tile); }
 }

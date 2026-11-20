@@ -92,6 +92,20 @@ public class AIRobotUnload extends AIRobot {
         return false;
     }
 
+    /**
+     * Simulate acceptance of prospective cargo while the carrier is still
+     * empty. Do not mutate the robot or destination, and preserve station
+     * gate and automation permissions from the real unload path.
+     */
+    public static int previewAcceptance(EntityRobotBase robot, DockingStation station,
+                                        ItemStack stack, boolean requireAcceptAction) {
+        if (robot == null || station == null || stack == null || stack.isEmpty()) return 0;
+        if (!RobotAutomationSupport.permitsInventory(robot, station, false, OperationMode.SIMULATE)
+                || !canUnloadStack(station, stack, requireAcceptAction)) return 0;
+        ItemStack remaining = offer(station, stack, false);
+        return Math.max(0, stack.getCount() - remaining.getCount());
+    }
+
     private static boolean isTemporarilyBlocked(DockingStation station) {
         return station instanceof DockingStationPipe pipeStation && pipeStation.isItemOutputBusy();
     }

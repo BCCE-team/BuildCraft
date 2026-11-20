@@ -16,6 +16,7 @@ STUBS = {
           public BlockIndex(int x,int y,int z){}
           public BlockIndex(CompoundTag tag){}
           public void writeTo(CompoundTag tag){}
+          public net.minecraft.core.BlockPos toBlockPos(){return new net.minecraft.core.BlockPos();}
         }
     ''',
     'buildcraft/robotics/internal/legacy/robots/EntityRobotBase.java': '''
@@ -72,6 +73,22 @@ STUBS = {
         package net.minecraft.world.item;
         public class ItemStack {}
     ''',
+    'net/minecraft/core/BlockPos.java': '''package net.minecraft.core;
+        public class BlockPos {}
+    ''',
+    'buildcraft/robotics/scheduler/RobotProcessorWorkScheduler.java': '''package buildcraft.robotics.scheduler;
+        import net.minecraft.core.BlockPos;
+        import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+        public class RobotProcessorWorkScheduler {
+            public record SuggestedWork(BlockPos position,long leaseToken) { }
+            public static SuggestedWork suggest(EntityRobotBase robot) { return null; }
+            public static void releaseHint(EntityRobotBase robot, SuggestedWork hint) { }
+            public static java.util.List<BlockPos> queuedMiningTargets(EntityRobotBase robot) { return java.util.List.of(); }
+            public static void queuedMiningSearchFailed(EntityRobotBase robot, java.util.List<BlockPos> attempted) { }
+            public static void targetAcquired(EntityRobotBase robot,BlockPos pos) { }
+            public static void targetAbandoned(EntityRobotBase robot,BlockPos pos) { }
+        }
+    ''',
     'buildcraft/robotics/ai/IBlockFilter.java': '''
         package buildcraft.robotics.ai;
         public interface IBlockFilter {}
@@ -85,6 +102,8 @@ STUBS = {
           public BlockIndex blockFound;
           public LinkedList<BlockIndex> path = new LinkedList<>();
           public AIRobotSearchBlock(EntityRobotBase robot,boolean random,IBlockFilter filter,double distance){super(robot);}
+          public AIRobotSearchBlock(EntityRobotBase robot,boolean random,IBlockFilter filter,double distance,
+               java.util.List<net.minecraft.core.BlockPos> preferred){this(robot,random,filter,distance);}
           public boolean takeResource(){return robot.registry.take(new ResourceIdBlock(blockFound),robot);}
         }
     ''',
@@ -100,6 +119,8 @@ STUBS = {
           public BlockIndex blockFound;
           public LinkedList<BlockIndex> path = new LinkedList<>();
           public AIRobotSearchNearestBlock(EntityRobotBase robot,IBlockFilter filter,double distance){super(robot);}
+          public AIRobotSearchNearestBlock(EntityRobotBase robot,IBlockFilter filter,double distance,
+              java.util.List<net.minecraft.core.BlockPos> preferred){this(robot,filter,distance);}
           public boolean takeResource(){return robot.registry.take(new ResourceIdBlock(blockFound),robot);}
         }
     ''',

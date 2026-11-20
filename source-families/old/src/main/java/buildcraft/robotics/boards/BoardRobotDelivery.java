@@ -13,6 +13,9 @@ import buildcraft.robotics.BCRoboticsBoards;
 import buildcraft.robotics.StackRequest;
 import buildcraft.robotics.ai.AIRobotDeliverRequested;
 import buildcraft.robotics.ai.AIRobotGotoSleep;
+import buildcraft.robotics.ai.AIRobotWaitForLogistics;
+import buildcraft.robotics.scheduler.RobotLogisticsQueue;
+import buildcraft.robotics.scheduler.RobotLogisticsScheduler;
 import buildcraft.robotics.ai.AIRobotGotoStationAndLoad;
 import buildcraft.robotics.ai.AIRobotGotoStationAndUnload;
 import buildcraft.robotics.ai.AIRobotSearchStackRequest;
@@ -25,6 +28,12 @@ import net.minecraft.world.item.ItemStack;
 public class BoardRobotDelivery extends RedstoneBoardRobot {
     private final List<ItemStack> deliveryBlacklist = new ArrayList<>();
     private StackRequest currentRequest;
+    private RobotLogisticsQueue.Key dispatchedRequest;
+
+    /** Active physical requests remain a single transport task in the GUI. */
+    public boolean hasCurrentRequest() {
+        return currentRequest != null;
+    }
 
     public BoardRobotDelivery(EntityRobotBase robot) {
         super(robot);
@@ -48,7 +57,20 @@ public class BoardRobotDelivery extends RedstoneBoardRobot {
         }
 
         if (currentRequest == null) {
-            startDelegateAI(new AIRobotSearchStackRequest(robot, ActionRobotFilter.getGateFilter(robot.getLinkedStation()), deliveryBlacklist));
+            if (RobotLogisticsScheduler.hasController(robot)) {
+                RobotLogisticsScheduler.Dispatch assigned = RobotLogisticsScheduler.acquire(robot);
+                if (assigned != null && assigned.request() != null) {
+                    currentRequest = assigned.request();
+                    dispatchedRequest = assigned.key();
+                    startDelegateAI(new AIRobotGotoStationAndLoad(robot,
+                            new ArrayStackOrListFilter(currentRequest.getStack()), currentRequest.getStack().getCount()));
+                } else {
+                    startDelegateAI(new AIRobotWaitForLogistics(robot));
+                }
+            } else {
+                startDelegateAI(new AIRobotSearchStackRequest(robot,
+                        ActionRobotFilter.getGateFilter(robot.getLinkedStation()), deliveryBlacklist));
+            }
         } else {
             startDelegateAI(new AIRobotGotoStationAndLoad(robot,
                     new ArrayStackOrListFilter(currentRequest.getStack()), currentRequest.getStack().getCount()));
@@ -60,7 +82,8 @@ public class BoardRobotDelivery extends RedstoneBoardRobot {
         if (ai instanceof AIRobotSearchStackRequest search) {
             if (!ai.success()) {
                 deliveryBlacklist.clear();
-                startDelegateAI(new AIRobotGotoSleep(robot));
+                startDelegateAI(RobotLogisticsScheduler.hasController(robot)
+                        ? new AIRobotWaitForLogistics(robot) : new AIRobotGotoSleep(robot));
                 return;
             }
 
@@ -80,7 +103,13 @@ public class BoardRobotDelivery extends RedstoneBoardRobot {
                 if (currentRequest != null) {
                     deliveryBlacklist.add(currentRequest.getStack().copy());
                 }
+                if (dispatchedRequest != null) {
+                    RobotLogisticsScheduler.failedDelivery(robot, dispatchedRequest);
+                }
                 releaseCurrentRequest();
+                if (RobotLogisticsScheduler.hasController(robot)) {
+                    startDelegateAI(new AIRobotWaitForLogistics(robot));
+                }
             } else {
                 startDelegateAI(new AIRobotDeliverRequested(robot, currentRequest));
             }
@@ -88,6 +117,13 @@ public class BoardRobotDelivery extends RedstoneBoardRobot {
             releaseCurrentRequest();
         } else if (ai instanceof AIRobotGotoStationAndUnload) {
             startDelegateAI(new AIRobotGotoSleep(robot));
+        } else if (ai instanceof AIRobotWaitForLogistics) {
+            if (!ai.success() && RobotLogisticsScheduler.hasController(robot)) {
+                startDelegateAI(new AIRobotSearchStackRequest(robot,
+                        ActionRobotFilter.getGateFilter(robot.getLinkedStation()), deliveryBlacklist));
+            } else {
+                update();
+            }
         } else if (ai instanceof AIRobotGotoSleep) {
             terminate();
         }
@@ -125,6 +161,7 @@ public class BoardRobotDelivery extends RedstoneBoardRobot {
             station.release(robot);
         }
         currentRequest = null;
+        dispatchedRequest = null;
     }
 
     @Override

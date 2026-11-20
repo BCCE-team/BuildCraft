@@ -4,6 +4,7 @@ import buildcraft.lib.internal.core.IStackFilter;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.robotics.ai.AIRobotBreak;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
 import buildcraft.robotics.ai.AIRobotFetchAndEquipItemStack;
 import buildcraft.robotics.ai.AIRobotGotoSleep;
 import buildcraft.robotics.ai.AIRobotGotoStationAndUnload;
@@ -43,6 +44,11 @@ public abstract class BoardRobotGenericBreakBlock extends BoardRobotGenericSearc
                 startDelegateAI(new AIRobotGotoSleep(robot));
             }
         } else if (ai instanceof AIRobotBreak) {
+            if (blockFound() != null) {
+                // The queue counts the break operation, not the path or search.
+                // Report only the actual executor's result, never a prediction.
+                RobotProcessorWorkScheduler.executionFinished(robot, blockFound().toBlockPos(), ai.success());
+            }
             releaseBlockFound(ai.success());
         }
         super.delegateAIEnded(ai);

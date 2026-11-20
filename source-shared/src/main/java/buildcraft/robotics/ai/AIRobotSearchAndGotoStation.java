@@ -19,6 +19,10 @@ public class AIRobotSearchAndGotoStation extends AIRobot {
     private int retryTicks;
     private boolean waitingForStation;
     private int unavailableSearches;
+    /** If a station is taken after selection, periodically retry the whole
+     * matching set; a different free dock may have appeared meanwhile. */
+    private static final int OCCUPIED_RESELECT_TICKS = 60;
+    private int occupiedTargetTicks;
 
     public AIRobotSearchAndGotoStation(EntityRobotBase robot) {
         super(robot);
@@ -42,10 +46,41 @@ public class AIRobotSearchAndGotoStation extends AIRobot {
     }
 
     @Override
+    public void preempt(AIRobot ai) {
+        if (ai instanceof AIRobotGotoStation travel && travel.isWaitingForOccupiedStation()) {
+            if (++occupiedTargetTicks >= OCCUPIED_RESELECT_TICKS) {
+                occupiedTargetTicks = 0;
+                if (RobotTrace.enabled()) RobotTrace.event(robot, "STATION_CONTENTION_RESELECT",
+                        "old=%s excludedRoutes=%d", currentTarget, failedStations.size());
+                // Do not blacklist a merely occupied station: it can become
+                // available again. An actual failed route remains excluded.
+                searchNextStation();
+            }
+        } else {
+            occupiedTargetTicks = 0;
+        }
+    }
+
+    @Override
     public void update() {
         if (waitingForStation && --retryTicks <= 0) {
             searchNextStation();
         }
+    }
+
+    @Override
+    public void end() {
+        if (filter != null && filter.prefersProcessorLinkedStations()) {
+            AIRobotSearchStation.cancelChargingWait(robot);
+        }
+    }
+
+    @Override
+    public void onUnload() {
+        if (filter != null && filter.prefersProcessorLinkedStations()) {
+            AIRobotSearchStation.cancelChargingWait(robot);
+        }
+        super.onUnload();
     }
 
     @Override

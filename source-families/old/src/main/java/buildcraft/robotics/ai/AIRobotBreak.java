@@ -5,6 +5,7 @@ import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.permission.WorldOperationKind;
 import buildcraft.api.v2.automation.BreakBlockRequest;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.lib.misc.BlockUtil;
 import buildcraft.lib.misc.FakePlayerProvider;
@@ -64,6 +65,11 @@ public class AIRobotBreak extends AIRobot {
             return;
         }
         BlockPos pos = blockToBreak.toBlockPos();
+        if (!RobotProcessorWorkScheduler.allowsRobotTarget(robot, pos)) {
+            setSuccess(false);
+            terminate();
+            return;
+        }
         if (state == null || serverLevel.getBlockState(pos).isAir() || serverLevel.getBlockState(pos) != state) {
             refreshBlockData();
         }

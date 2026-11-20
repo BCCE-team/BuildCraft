@@ -8,6 +8,7 @@ import buildcraft.lib.internal.core.BlockIndex;
 import buildcraft.robotics.internal.api2.RobotAutomationSupport;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
 import buildcraft.lib.misc.FakePlayerProvider;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
@@ -64,6 +65,11 @@ public class AIRobotPlant extends AIRobot {
         }
 
         BlockPos pos = blockFound.toBlockPos();
+        if (!serverLevel.hasChunkAt(pos) || !RobotProcessorWorkScheduler.allowsRobotTarget(robot, pos)) {
+            setSuccess(false);
+            terminate();
+            return;
+        }
         if (!RobotAutomationSupport.permitsBlock(
             robot, serverLevel, pos, WorldOperationKind.ITEM_USE, OperationMode.EXECUTE
         )) {

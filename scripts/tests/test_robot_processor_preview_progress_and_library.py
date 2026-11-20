@@ -46,7 +46,7 @@ class RobotProcessorPreviewProgressTests(unittest.TestCase):
                 self.assertNotIn('Temporary item preview', code)
                 self.assertNotIn('panelText(pose, selected.progress()', code)
                 self.assertNotIn('Progress: ', code)
-                self.assertIn('"Queue: 0/" + processorMenu.getMaxExecutionQueue()', code)
+                self.assertIn('"Queue: " + selected.queued() + "/" + processorMenu.getMaxExecutionQueue()', code)
                 self.assertIn('boardName(robot.board()) + " - " + robot.status()', code)
                 self.assertIn('draggingScrollbar', code)
                 self.assertIn('scrollTo(mouseY);', code)

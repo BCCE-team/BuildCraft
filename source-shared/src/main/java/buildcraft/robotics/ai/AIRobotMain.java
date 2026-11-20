@@ -5,6 +5,7 @@ import buildcraft.lib.balance.BalanceConfig;
 import buildcraft.robotics.internal.api2.ApiTaskAI;
 import buildcraft.robotics.internal.legacy.robots.RobotManager;
 import buildcraft.robotics.RobotTrace;
+import buildcraft.robotics.statements.ActionStationForbidRobot;
 import net.minecraft.nbt.CompoundTag;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
@@ -19,6 +20,10 @@ public class AIRobotMain extends AIRobot {
 
     private AIRobot overridingAI;
     private int rechargeCooldown;
+    /** Cache a short-lived estimate. Registry station iteration is not free when
+     * dozens of robots tick on the same server; never search all docks per tick. */
+    private int chargeRouteRefreshTicks;
+    private int chargedReturnThreshold = EntityRobotBase.SAFETY_ENERGY;
 
     public AIRobotMain(EntityRobotBase robot) {
         super(robot);
@@ -46,7 +51,7 @@ public class AIRobotMain extends AIRobot {
         // and could never reach SAFETY_ENERGY or respond to Wake Up. Retain the early-return energy reserve, but let
         // AIRobotRecharge locate the nearest *powered* station, just as original BuildCraft did.
         boolean needsRecharge = energy < EntityRobotBase.SAFETY_ENERGY
-                || (home != null && home.providesPower() && energy <= getReturnEnergyThreshold(home));
+                || energy <= getNearestChargerReturnThreshold();
 
         if (ai instanceof AIRobotGotoSleep || ai instanceof AIRobotSleep) {
             // Older saves may already contain the non-charging sleep/return path. A robot sleeping at a powered dock
@@ -102,6 +107,51 @@ public class AIRobotMain extends AIRobot {
         long withMargin = estimatedMovement + estimatedMovement / 2L + RETURN_FIXED_RESERVE;
         long threshold = Math.max(EntityRobotBase.SAFETY_ENERGY, withMargin);
         return (int) Math.min(EntityRobotBase.MAX_ENERGY - 1L, threshold);
+    }
+
+    /**
+     * Estimate the energy required to return to an AVAILABLE powered dock,
+     * rather than only the robot's home. In particular, a home station that
+     * cannot charge must not suppress an early return to a remote charger.
+     *
+     * This calculation is advisory: AIRobotRecharge still performs the real
+     * station/permission/occupancy checks and pathfinding on its own. No chunk
+     * is loaded to evaluate a potential charger.
+     */
+    private int getNearestChargerReturnThreshold() {
+        if (--chargeRouteRefreshTicks > 0) return chargedReturnThreshold;
+        chargeRouteRefreshTicks = 20;
+        int freeThreshold = Integer.MAX_VALUE;
+        int occupiedThreshold = Integer.MAX_VALUE;
+        DockingStation home = robot.getLinkedStation();
+        if (home != null && home.providesPower() && home.isInitialized()
+                && !ActionStationForbidRobot.isForbidden(home, robot)) {
+            int threshold = getReturnEnergyThreshold(home);
+            if (!home.isTaken() || home.robotIdTaking() == robot.getRobotId()) {
+                freeThreshold = threshold;
+            } else {
+                occupiedThreshold = threshold;
+            }
+        }
+        if (robot.getRegistry() != null) {
+            for (DockingStation station : robot.getRegistry().getStations()) {
+                if (station == null || !station.isInitialized() || !station.providesPower()
+                        || ActionStationForbidRobot.isForbidden(station, robot)) continue;
+                int threshold = getReturnEnergyThreshold(station);
+                if (!station.isTaken() || station.robotIdTaking() == robot.getRobotId()) {
+                    freeThreshold = Math.min(freeThreshold, threshold);
+                } else {
+                    occupiedThreshold = Math.min(occupiedThreshold, threshold);
+                }
+            }
+        }
+        // The robot must have enough energy for a currently free charger. If
+        // all chargers are occupied, estimate the closest waiting destination;
+        // the station AI will wait without spending its emergency energy.
+        int estimate = freeThreshold != Integer.MAX_VALUE ? freeThreshold : occupiedThreshold;
+        chargedReturnThreshold = estimate == Integer.MAX_VALUE
+                ? EntityRobotBase.SAFETY_ENERGY : estimate;
+        return chargedReturnThreshold;
     }
 
     @Override

@@ -441,8 +441,8 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
                 45, 154, 162, 0xFF_25_25_25);
         panelText(pose, "Charge: " + selected.charge() + "% | " + selected.status(),
                 45, 164, 162, 0xFF_25_25_25);
-        // The scheduler has not been implemented yet, so no execution actions are queued.
-        panelText(pose, "Queue: 0/" + processorMenu.getMaxExecutionQueue(),
+        // Only execution operations count: route calculation and searching are not jobs.
+        panelText(pose, "Queue: " + selected.queued() + "/" + processorMenu.getMaxExecutionQueue(),
                 45, 176, 162, 0xFF_25_25_25);
     }
 

@@ -12,6 +12,7 @@ import java.util.PriorityQueue;
 import java.util.Set;
 
 import buildcraft.lib.internal.core.BlockIndex;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
 import buildcraft.lib.internal.area.IBox;
 import buildcraft.lib.internal.area.IZone;
 import buildcraft.robotics.zone.ZonePlan;
@@ -62,6 +63,11 @@ public class AIRobotSearchBlock extends AIRobot {
     private int searchRange;
     private CandidateScanner scanner;
     private CandidateEvaluation pendingEvaluation;
+    private final java.util.ArrayDeque<BlockPos> preferredTargets = new java.util.ArrayDeque<>();
+    /** Never pathfind the same failed hint repeatedly within one search AI. */
+    private final Set<BlockPos> seenPreferred = new HashSet<>();
+    private final Set<BlockPos> unreachablePreferred = new HashSet<>();
+    private int queuePollTicks;
 
     public AIRobotSearchBlock(EntityRobotBase robot) {
         super(robot);
@@ -75,6 +81,16 @@ public class AIRobotSearchBlock extends AIRobot {
         this.zone = robot.getZoneToWork();
     }
 
+    public AIRobotSearchBlock(EntityRobotBase robot, boolean random, IBlockFilter filter,
+            double maxDistanceToEnd, java.util.List<BlockPos> preferred) {
+        this(robot, random, filter, maxDistanceToEnd);
+        if (preferred != null) {
+            for (BlockPos pos : preferred) {
+                if (seenPreferred.add(pos)) preferredTargets.addLast(pos);
+            }
+        }
+    }
+
     public void update() {
         if (filter == null) {
             setSuccess(false);
@@ -84,6 +100,14 @@ public class AIRobotSearchBlock extends AIRobot {
 
         if (!searched) {
             beginSearch();
+        }
+        // A board may begin searching before the central index has completed
+        // its first scan. Adopt subsequent queue entries without recreating
+        // the AI or repeating failed paths on every tick.
+        if (!random && (++queuePollTicks == 1 || queuePollTicks % 20 == 0)) {
+            for (BlockPos pos : RobotProcessorWorkScheduler.queuedWorkTargets(robot)) {
+                if (seenPreferred.add(pos)) preferredTargets.addLast(pos);
+            }
         }
 
         SearchResult result = continueSearch();
@@ -96,7 +120,8 @@ public class AIRobotSearchBlock extends AIRobot {
             }
             // Another robot reserved this target during our path search. The scanner has already advanced past it,
             // so resume from the next candidate on the following tick instead of failing the whole search.
-        } else if (isSearchComplete()) {
+        } else if (isSearchComplete()
+                && !RobotProcessorWorkScheduler.isWorkDiscoveryInProgress(robot)) {
             setSuccess(false);
             terminate();
         }
@@ -114,7 +139,8 @@ public class AIRobotSearchBlock extends AIRobot {
     }
 
     private boolean isSearchComplete() {
-        return pendingEvaluation == null && (scanner == null || scanner.isDone());
+        return pendingEvaluation == null && preferredTargets.isEmpty()
+                && (scanner == null || scanner.isDone());
     }
 
     private SearchResult continueSearch() {
@@ -125,6 +151,15 @@ public class AIRobotSearchBlock extends AIRobot {
             if (result != null || pendingEvaluation != null) {
                 return result;
             }
+        }
+
+        // A stale or unreachable central hint falls through to the original scanner.
+        while (!preferredTargets.isEmpty() && budget.canScanBlock()) {
+            BlockPos hinted = preferredTargets.removeFirst();
+            budget.consumeBlockScan();
+            SearchResult proposed = evaluateCandidate(hinted, budget);
+            if (proposed != null) return proposed;
+            if (pendingEvaluation != null) return null;
         }
 
         while (scanner != null && !scanner.isDone() && budget.canScanBlock()) {
@@ -147,7 +182,7 @@ public class AIRobotSearchBlock extends AIRobot {
 
     private SearchResult evaluateCandidate(BlockPos target, SearchBudget budget) {
         Level level = robot.level();
-        if (!level.isLoaded(target)) {
+        if (!level.isLoaded(target) || !RobotProcessorWorkScheduler.allowsRobotTarget(robot, target)) {
             return null;
         }
         if (zone != null && !zone.contains(center(target))) {
@@ -159,6 +194,7 @@ public class AIRobotSearchBlock extends AIRobot {
 
         List<BlockPos> adjacentPositions = adjacentSoftTargets(level, target);
         if (adjacentPositions.isEmpty()) {
+            if (seenPreferred.contains(target)) unreachablePreferred.add(target);
             return null;
         }
         if (random) {
@@ -194,6 +230,9 @@ public class AIRobotSearchBlock extends AIRobot {
         }
 
         SearchResult result = pendingEvaluation.toResult();
+        if (result == null && seenPreferred.contains(pendingEvaluation.target)) {
+            unreachablePreferred.add(pendingEvaluation.target);
+        }
         pendingEvaluation = null;
         return result;
     }
@@ -360,6 +399,16 @@ public class AIRobotSearchBlock extends AIRobot {
     public void loadSelfFromNBT(CompoundTag nbt) {
         if (nbt.contains("blockFound")) {
             blockFound = new BlockIndex(NbtCompat.getCompound(nbt, "blockFound"));
+        }
+    }
+
+    /** Report only confirmed route failures; stale tools, changed crops and
+     * unavailable permissions are NOT path failures. */
+    @Override
+    public void end() {
+        if (!unreachablePreferred.isEmpty()) {
+            RobotProcessorWorkScheduler.queuedWorkSearchFailed(robot,
+                    java.util.List.copyOf(unreachablePreferred));
         }
     }
 

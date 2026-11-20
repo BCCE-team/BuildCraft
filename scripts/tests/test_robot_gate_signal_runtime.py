@@ -77,6 +77,18 @@ public class EntityRobotBase {
 STUBS['buildcraft/robotics/internal/legacy/robots/DockingStation.java'] = STUBS['buildcraft/robotics/internal/legacy/robots/DockingStation.java'].replace(
     ' public boolean isInitialized()', ' public boolean providesPower(){return false;}\n public boolean isInitialized()'
 )
+STUBS['buildcraft/robotics/internal/legacy/robots/DockingStation.java'] = STUBS['buildcraft/robotics/internal/legacy/robots/DockingStation.java'].replace(
+    ' public boolean isInitialized()', ' public boolean isTaken(){return taker!=null;}\n public boolean isInitialized()'
+)
+STUBS['buildcraft/robotics/internal/legacy/robots/IRobotRegistry.java'] = STUBS['buildcraft/robotics/internal/legacy/robots/IRobotRegistry.java'].replace(
+    ' public DockingStation station;',
+    ' public DockingStation station;\n public java.util.List<DockingStation> getStations(){return station==null?java.util.List.of():java.util.List.of(station);}'
+)
+STUBS['buildcraft/robotics/statements/ActionStationForbidRobot.java'] = '''package buildcraft.robotics.statements;
+import buildcraft.robotics.internal.legacy.robots.*;
+public class ActionStationForbidRobot {
+ public static boolean isForbidden(DockingStation station, EntityRobotBase robot){return false;}
+}'''
 STUBS['buildcraft/robotics/RobotTrace.java'] = STUBS['buildcraft/robotics/RobotTrace.java'].replace(
     ' public static boolean enabled()',
     ' public static String name(buildcraft.robotics.internal.legacy.robots.AIRobot ai){return ai==null?"none":ai.getClass().getSimpleName();}\n public static boolean enabled()'
@@ -183,7 +195,17 @@ class RobotGateSignalRuntime(unittest.TestCase):
             ):
                 dst = SRC / rel
                 self.assertTrue(dst.is_file(), str(dst))
-                sources.append(str(dst))
+                if rel.endswith('AIRobotGoAndLinkToDock.java'):
+                    # Stonecutter's version branches must be reduced before
+                    # compiling the original shared class with Java stubs.
+                    from scripts.source_preprocessor import preprocess_text
+                    concrete = root / rel
+                    concrete.parent.mkdir(parents=True, exist_ok=True)
+                    concrete.write_text(preprocess_text(dst.read_text(), minecraft='1.19.2',
+                        family='old', platform='forge', source=rel), encoding='utf-8')
+                    sources.append(str(concrete))
+                else:
+                    sources.append(str(dst))
             target = root / 'fixture/GateSignalFixture.java'
             target.parent.mkdir(parents=True,exist_ok=True)
             target.write_text(FIXTURE,encoding='utf-8')

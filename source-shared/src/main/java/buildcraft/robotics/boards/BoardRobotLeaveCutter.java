@@ -16,6 +16,9 @@ public class BoardRobotLeaveCutter extends BoardRobotGenericBreakBlock {
     }
 
     @Override
+    public boolean processorSharedScanPredicate() { return true; }
+
+    @Override
     public RedstoneBoardRobotNBT getNBTHandler() {
         return BCRoboticsBoards.getByKey("leave_cutter").nbt();
     }

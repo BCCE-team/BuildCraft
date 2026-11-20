@@ -8,6 +8,8 @@ import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.robotics.internal.legacy.robots.ResourceIdBlock;
 import buildcraft.robotics.BCRoboticsBoards;
+import buildcraft.robotics.scheduler.ProcessorCandidateBoard;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
 import buildcraft.robotics.ai.AIRobotFetchAndEquipItemStack;
 import buildcraft.robotics.ai.AIRobotGotoSleep;
 import buildcraft.robotics.ai.AIRobotGotoStationAndUnload;
@@ -23,7 +25,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 /** Farmer board that fetches a hoe, finds tillable dirt-like blocks, and hoes them. */
-public class BoardRobotFarmer extends RedstoneBoardRobot {
+public class BoardRobotFarmer extends RedstoneBoardRobot implements ProcessorCandidateBoard {
     private BlockIndex blockFound;
 
     public BoardRobotFarmer(EntityRobotBase robot) {
@@ -31,8 +33,34 @@ public class BoardRobotFarmer extends RedstoneBoardRobot {
     }
 
     @Override
+    public boolean processorSharedScanPredicate() { return true; }
+
+    @Override
     public RedstoneBoardRobotNBT getNBTHandler() {
         return BCRoboticsBoards.getByKey("farmer").nbt();
+    }
+
+    @Override
+    public String processorWorkCategory() { return getNBTHandler().getID(); }
+
+    @Override
+    public boolean processorSupportsQueue() { return true; }
+
+    @Override
+    public boolean processorScanCandidate(Level level, BlockPos pos) {
+        return level.isLoaded(pos) && isTillable(level.getBlockState(pos)) && isAirAbove(level, pos);
+    }
+
+    @Override
+    public boolean processorTargetEligible(Level level, BlockPos pos) {
+        ItemStack held = robot.getItemBySlot(EquipmentSlot.MAINHAND);
+        return isHoe(held) && isExpectedBlock(level, pos);
+    }
+
+    @Override
+    public boolean processorPlanningEligible(Level level, BlockPos pos) {
+        return isHoe(robot.getItemBySlot(EquipmentSlot.MAINHAND))
+                && processorScanCandidate(level, pos);
     }
 
     @Override
@@ -65,6 +93,9 @@ public class BoardRobotFarmer extends RedstoneBoardRobot {
                 startDelegateAI(new AIRobotGotoSleep(robot));
             }
         } else if (ai instanceof AIRobotUseToolOnBlock) {
+            if (blockFound != null) {
+                RobotProcessorWorkScheduler.executionFinished(robot, blockFound.toBlockPos(), ai.success());
+            }
             releaseBlockFound();
         }
     }
@@ -72,6 +103,16 @@ public class BoardRobotFarmer extends RedstoneBoardRobot {
     @Override
     public void end() {
         releaseBlockFound();
+    }
+
+    private Level robotLevel() {
+        //? if <1.20 {
+        return robot.level;
+        //?} else {
+        /*?
+        return robot.level();
+        ?*/
+        //?}
     }
 
     private boolean isExpectedBlock(Level level, BlockPos pos) {

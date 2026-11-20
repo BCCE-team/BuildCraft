@@ -17,6 +17,8 @@ public enum Direction {
 }''',
 'net/minecraft/world/phys/Vec3': '''package net.minecraft.world.phys;
 public record Vec3(double x,double y,double z) {public static final Vec3 ZERO=new Vec3(0,0,0);}''',
+'net/minecraft/world/level/Level': '''package net.minecraft.world.level;
+public class Level {public long time;public long getGameTime(){return time;}}''',
 'net/minecraft/nbt/CompoundTag': '''package net.minecraft.nbt;
 import java.util.HashMap;
 public class CompoundTag extends HashMap<String,Object>{
@@ -56,9 +58,14 @@ public class AIRobotGoAndLinkToDock extends AIRobot {
  public void refreshGateSignal(){}
  public boolean isHoldingAtStation(){return false;}
 }''',
+'buildcraft/robotics/scheduler/RobotProcessorWorkScheduler': '''package buildcraft.robotics.scheduler;
+import buildcraft.robotics.internal.legacy.robots.*;
+public final class RobotProcessorWorkScheduler {
+ public static boolean isLinkedChargingStation(EntityRobotBase robot,DockingStation station){return false;}
+}''',
 'buildcraft/robotics/IStationFilter': '''package buildcraft.robotics;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
-public interface IStationFilter {boolean matches(DockingStation station);}''',
+public interface IStationFilter {boolean matches(DockingStation station);default boolean prefersProcessorLinkedStations(){return false;}}''',
 'buildcraft/lib/internal/area/IZone': '''package buildcraft.lib.internal.area;
 import net.minecraft.world.phys.Vec3;
 public interface IZone {boolean contains(Vec3 pos);}''',
@@ -87,6 +94,11 @@ import java.util.ArrayList;import java.util.List;
 import buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot;
 import net.minecraft.world.phys.Vec3;
 public class EntityRobotBase {
+ private static long nextRobotId=10;
+ private final long robotId=nextRobotId++;
+ private final net.minecraft.world.level.Level level = new net.minecraft.world.level.Level();
+ public net.minecraft.world.level.Level level(){return level;}
+ public static final long NULL_ROBOT_ID=-1L;
  public static final int MAX_ENERGY=100000,SAFETY_ENERGY=20000,SHUTDOWN_ENERGY=0;
  public int energy;public double x,y,z;public Vec3 movement=Vec3.ZERO;
  public DockingStation home,dock;public RedstoneBoardRobot board;
@@ -94,7 +106,7 @@ public class EntityRobotBase {
  public EntityRobotBase(int energy){this.energy=energy;}
  public int getEnergy(){return energy;}public double getX(){return x;}public double getY(){return y;}public double getZ(){return z;}
  public DockingStation getLinkedStation(){return home;}public DockingStation getDockingStation(){return dock;}
- public long getRobotId(){return 10;}
+ public long getRobotId(){return robotId;}
  public RedstoneBoardRobot getBoard(){return board;}public Registry getRegistry(){return registry;}
  public void setDeltaMovement(Vec3 value){movement=value;}
  public static class Registry {
@@ -109,6 +121,7 @@ public class AIRobot {
  private AIRobot delegate,parent; private boolean success=true;
  public AIRobot(EntityRobotBase robot){this.robot=robot;}
  public void start(){}public void preempt(AIRobot ai){}public void update(){}public void delegateAIEnded(AIRobot ai){}
+ public void end(){}public void onUnload(){}
  public int getEnergyCost(){return 1;}public boolean canLoadFromNBT(){return false;}
  public void writeSelfToNBT(net.minecraft.nbt.CompoundTag nbt){}public void loadSelfFromNBT(net.minecraft.nbt.CompoundTag nbt){}
  public void setSuccess(boolean value){success=value;}public boolean success(){return success;}
@@ -152,6 +165,8 @@ public class AIRobotGotoStation extends AIRobot {
  public final DockingStation target;
  public AIRobotGotoStation(EntityRobotBase r,DockingStation station){super(r);target=station;lastTarget=station;}
  public void start(){visits++;}
+ public boolean blockedByAnother;
+ public boolean isWaitingForOccupiedStation(){return blockedByAnother;}
 }''',
 'buildcraft/robotics/ai/AIEvents': '''package buildcraft.robotics.ai;
 public final class AIEvents {public static int searched;}''',
@@ -266,13 +281,59 @@ public class RobotRechargeHarness {
   work.update();type(work,buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot.class);
   work.preempt(work.getDelegateAI());type(work,buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot.class);
 
+  // Proactive return must consider the nearest powered station even when
+  // the robot's configured home is unpowered. 28k is above SAFETY (20k),
+  // but a charger 1200 blocks away needs a larger return reserve.
+  var distantPower = new DockingStation(1200,0,0,true);
+  var distantWorker = new EntityRobotBase(28000);distantWorker.home=home;
+  distantWorker.registry.stations.add(home);distantWorker.registry.stations.add(distantPower);
+  var distantMain = new AIRobotMain(distantWorker);
+  distantMain.preempt(null);type(distantMain,AIRobotRecharge.class);
+  ok(travelling(distantMain).target==distantPower);
+
+  // An available nearby charger lowers the threshold. The worker should not
+  // prematurely abandon work for a distant alternative.
+  var nearbyWorker=new EntityRobotBase(28000);nearbyWorker.home=home;
+  nearbyWorker.registry.stations.add(distantPower);nearbyWorker.registry.stations.add(nearPower);
+  var nearbyMain=new AIRobotMain(nearbyWorker);nearbyMain.preempt(null);
+  ok(nearbyMain.getDelegateAI()==null);
+
+  // Charging thresholds must not route to a forbidden station, and with no
+  // powered dock must preserve the normal SAFETY-energy behaviour.
+  buildcraft.robotics.statements.ActionStationForbidRobot.forbidden.add(distantPower);
+  var deniedWorker=new EntityRobotBase(28000);deniedWorker.home=home;
+  deniedWorker.registry.stations.add(distantPower);
+  var deniedMain=new AIRobotMain(deniedWorker);deniedMain.preempt(null);
+  ok(deniedMain.getDelegateAI()==null);
+  buildcraft.robotics.statements.ActionStationForbidRobot.forbidden.clear();
+  var noPoweredWorker=new EntityRobotBase(28000);noPoweredWorker.home=home;
+  noPoweredWorker.registry.stations.add(home);
+  var noPoweredMain=new AIRobotMain(noPoweredWorker);noPoweredMain.preempt(null);
+  ok(noPoweredMain.getDelegateAI()==null);
+
+  // A dock selected just before another robot occupies it must not hold the
+  // worker forever when a second charger has become available. The retry is
+  // bounded (60 ticks), and an occupied dock is not blacklisted as a route.
+  var reselectRobot=new EntityRobotBase(1400);
+  reselectRobot.registry.stations.add(nearPower);
+  reselectRobot.registry.stations.add(farPower);
+  var selecting=new AIRobotSearchAndGotoStation(reselectRobot,station->station.providesPower(),null);
+  selecting.start();
+  var firstGoto=(AIRobotGotoStation) selecting.getDelegateAI();
+  ok(firstGoto.target==nearPower);
+  nearPower.taken=true;firstGoto.blockedByAnother=true;
+  for(int i=0;i<60;i++) selecting.preempt(selecting.getDelegateAI());
+  var secondGoto=(AIRobotGotoStation)selecting.getDelegateAI();
+  ok(secondGoto!=firstGoto && secondGoto.target==farPower);
+  nearPower.taken=false;
+
   System.out.println(checks+" assertions PASS");
  }
 }'''
 }
 
 
-def execute(main: Path, recharge: Path, sleep: Path, search: Path, search_and_go: Path) -> str:
+def execute(main: Path, recharge: Path, sleep: Path, search: Path, search_and_go: Path, *, queue: Path | None = None) -> str:
     with tempfile.TemporaryDirectory(prefix='bc-robot-recharge-java-') as td:
         src=Path(td)/'src'
         files=[]
@@ -285,6 +346,11 @@ def execute(main: Path, recharge: Path, sleep: Path, search: Path, search_and_go
             dest=src/'buildcraft/robotics/ai'/real.name
             dest.write_bytes(real.read_bytes())
             files.append(str(dest))
+        charging_queue = queue if queue is not None else main.parent.parent/'scheduler/ChargingDockQueue.java'
+        dest=src/'buildcraft/robotics/scheduler/ChargingDockQueue.java'
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        dest.write_bytes(charging_queue.read_bytes())
+        files.append(str(dest))
         compilation=subprocess.run(['javac','--release','21','-encoding','UTF-8','-d',str(Path(td)/'classes'),*files],capture_output=True,text=True,timeout=50)
         if compilation.returncode:
             raise AssertionError('Robot AI Java compilation failed:\n'+compilation.stdout+compilation.stderr)

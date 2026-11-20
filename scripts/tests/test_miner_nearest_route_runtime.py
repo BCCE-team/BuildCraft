@@ -17,6 +17,9 @@ spec.loader.exec_module(vein_test)
 STUBS = dict(vein_test.STUBS)
 STUBS.pop("buildcraft/robotics/ai/AIRobotSearchAndGotoBlock.java")
 STUBS.pop("fixture/MinerVeinFixture.java")
+STUBS['buildcraft/robotics/internal/legacy/boards/RedstoneBoardRobotNBT.java'] = (
+    'package buildcraft.robotics.internal.legacy.boards;'
+    'public class RedstoneBoardRobotNBT { public String getID(){return "miner";} }')
 STUBS['net/minecraft/core/Direction.java'] = '''package net.minecraft.core;
 public enum Direction {
  DOWN(0,-1,0), UP(0,1,0), NORTH(0,0,-1), SOUTH(0,0,1), WEST(-1,0,0), EAST(1,0,0);
@@ -119,6 +122,27 @@ public final class RobotTrace {
  public static boolean enabled(){return false;}
  public static void event(EntityRobotBase r,String what,String format,Object... args){}
 }'''
+STUBS['buildcraft/robotics/scheduler/RobotProcessorWorkScheduler.java'] = '''package buildcraft.robotics.scheduler;
+import java.util.List;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import net.minecraft.core.BlockPos;
+/** No linked panel in the autonomous miner fixture; scheduler must not alter BFS. */
+public final class RobotProcessorWorkScheduler {
+ public record SuggestedWork(BlockPos position) {}
+ public static List<BlockPos> queue=List.of();
+ public static boolean managed=false;
+ public static boolean isManagedMiner(EntityRobotBase robot){return managed;}
+ public static List<BlockPos> queuedMiningTargets(EntityRobotBase robot){return queue;}
+ public static List<BlockPos> queuedWorkTargets(EntityRobotBase robot){return List.of();}
+ public static boolean isWorkDiscoveryInProgress(EntityRobotBase robot){return false;}
+ public static boolean isMiningDiscoveryInProgress(EntityRobotBase robot){return false;}
+ public static void queuedMiningSearchFailed(EntityRobotBase robot,List<BlockPos> targets){}
+ public static SuggestedWork suggest(EntityRobotBase robot){return null;}
+ public static void targetAcquired(EntityRobotBase robot,BlockPos pos){}
+ public static void targetAbandoned(EntityRobotBase robot,BlockPos pos){}
+ public static void releaseHint(EntityRobotBase robot,SuggestedWork hint){}
+ public static boolean allowsRobotTarget(EntityRobotBase robot,BlockPos pos){return true;}
+}'''
 STUBS['buildcraft/robotics/ai/AIRobotSearchBlock.java'] = '''package buildcraft.robotics.ai;
 import java.util.LinkedList;
 import buildcraft.lib.internal.core.BlockIndex;
@@ -127,6 +151,7 @@ public class AIRobotSearchBlock extends AIRobot {
  public BlockIndex blockFound;
  public LinkedList<BlockIndex> path;
  public AIRobotSearchBlock(EntityRobotBase r,boolean random,IBlockFilter filter,double maxDistance){super(r);}
+ public AIRobotSearchBlock(EntityRobotBase r,boolean random,IBlockFilter filter,double maxDistance,java.util.List<net.minecraft.core.BlockPos> hints){this(r,random,filter,maxDistance);}
  public boolean takeResource(){return false;}
 }'''
 STUBS['buildcraft/robotics/ai/AIRobotGotoBlock.java'] = '''package buildcraft.robotics.ai;
@@ -154,6 +179,7 @@ STUBS['buildcraft/robotics/internal/legacy/boards/RedstoneBoardRobot.java'] = ''
 import buildcraft.robotics.internal.legacy.robots.*;
 public class RedstoneBoardRobot extends AIRobot{
  public RedstoneBoardRobot(EntityRobotBase r){super(r);}
+ public RedstoneBoardRobotNBT getNBTHandler(){return new RedstoneBoardRobotNBT();}
 }'''
 STUBS['buildcraft/robotics/statements/ActionRobotFilter.java'] = '''package buildcraft.robotics.statements;
 import java.util.List;import net.minecraft.world.item.ItemStack;
@@ -210,6 +236,29 @@ public final class NearestOreFixture {
   var reserved=data.getCompound("indexStored");
   return reserved.contains("x") ? new BlockPos((int)reserved.getLong("x"),
       (int)reserved.getLong("y"),(int)reserved.getLong("z")) : null;
+ }
+ static void queuedOreHandoffWithoutFullSearch(){
+  var world=new Level();var robot=new EntityRobotBase(world,p(0,0));
+  BlockPos immediate=p(1,0);
+  world.put(immediate,ore("copper"));
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of(immediate);
+  var miner=new BoardRobotMiner(robot);
+  miner.update();
+  check(immediate.equals(target(miner)),"Adjacent queued block must be reserved immediately");
+  check(miner.getDelegateAI()==null,"Adjacent queued ore should not start another Search AI");
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of();
+  var w2=new Level();var r2=new EntityRobotBase(w2,p(0,0));
+  BlockPos shortPath=p(3,0);
+  w2.put(shortPath,ore("copper"));
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of(shortPath);
+  var b2=new BoardRobotMiner(r2);
+  b2.update();
+  check(b2.getDelegateAI() instanceof AIRobotSearchAndGotoBlock,"Search wrapper not started");
+  check(b2.getDelegateAI().getDelegateAI() instanceof AIRobotGotoBlock,
+      "Short queued route must start Goto directly, not SearchNearestBlock");
+  for(int n=0;n<32 && b2.getDelegateAI()!=null;n++)b2.getDelegateAI().cycle();
+  check(shortPath.equals(target(b2)),"Queued short route did not reach ore");
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of();
  }
  static void firstOreAcrossLoadedChunk(){
   var world=new Level();var robot=new EntityRobotBase(world,p(14,0));
@@ -279,6 +328,21 @@ public final class NearestOreFixture {
   check(longGoal.equals(search.blockFound.toBlockPos()),"Long corridor beyond first tick not found");
   check(search.path.size()==1049,"Wrong long-corridor path length "+search.path.size());
  }
+ static void queueArrivesDuringActiveSearch(){
+  var world=new Level();var robot=new EntityRobotBase(world,p(0,0));
+  BlockPos target=p(70,0);
+  world.put(target,ore("gold"));
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of();
+  var search=new AIRobotSearchNearestBlock(robot,(lvl,pos)->pos.equals(target),0,java.util.List.of());
+  search.update();
+  check(!search.usedProcessorQueue(),"No queue existed during the first BFS tick");
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of(target);
+  search.update();
+  check(search.usedProcessorQueue(),"Running BFS never noticed the late queue");
+  check(search.processorQueueTargets().equals(java.util.List.of(target)),
+      "Late queue adoption lost a target");
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of();
+ }
  static void noTunneling(){
   var world=new Level();var robot=new EntityRobotBase(world,p(0,0));
   for(net.minecraft.core.Direction d:net.minecraft.core.Direction.values())
@@ -287,6 +351,59 @@ public final class NearestOreFixture {
   var search=new AIRobotSearchNearestBlock(robot,(lvl,pos)->pos.equals(ore),0);
   search.update();
   check(!search.success() && search.blockFound==null,"Robot tunneled through stone to select ore");
+ }
+ static void queuedDirectedSearchAvoidsSealedOre() {
+  var world=new Level();
+  BlockPos sealed=p(9,0), reachable=p(24,0);
+  world.put(sealed,ore("copper")); world.put(reachable,ore("coal"));
+  // A fully sealed target must not starve a farther but navigable target.
+  for(int dx=-1;dx<=1;dx++)for(int dy=-1;dy<=1;dy++)for(int dz=-1;dz<=1;dz++) {
+   if(dx==0 && dy==0 && dz==0)continue;
+   world.put(new BlockPos(sealed.x+dx,sealed.y+dy,sealed.z+dz),new BlockState(new Block("stone")));
+  }
+  var robot=new EntityRobotBase(world,p(0,0));
+  var search=new AIRobotSearchNearestBlock(robot,(lvl,pos)->pos.equals(sealed)||pos.equals(reachable),0,
+      java.util.List.of(sealed,reachable));
+  for(int i=0;i<100 && search.blockFound==null;i++)search.update();
+  check(search.blockFound!=null && reachable.equals(search.blockFound.toBlockPos()),
+      "Directed search failed to find the reachable ore past a sealed goal");
+ }
+ static void queuedSearchHasSmallerBound() {
+  var world=new Level();
+  BlockPos sealed=p(9,0);world.put(sealed,ore("copper"));
+  for(int dx=-1;dx<=1;dx++)for(int dy=-1;dy<=1;dy++)for(int dz=-1;dz<=1;dz++){
+   if(dx==0 && dy==0 && dz==0)continue;
+   world.put(new BlockPos(sealed.x+dx,sealed.y+dy,sealed.z+dz),new BlockState(new Block("stone")));
+  }
+  var robot=new EntityRobotBase(world,p(0,0));
+  var search=new AIRobotSearchNearestBlock(robot,(lvl,pos)->pos.equals(sealed),0,
+      java.util.List.of(sealed));
+  for(int i=0;i<40;i++)search.update();
+  check(search.blockFound==null,"Search tunneled into sealed ore");
+  try {
+   var field=AIRobotSearchNearestBlock.class.getDeclaredField("expanded");field.setAccessible(true);
+   int nodes=(Integer)field.get(search);
+   check(nodes<=32768,"Queued search expanded too many nodes: "+nodes);
+  } catch(ReflectiveOperationException err){throw new AssertionError(err);}
+ }
+ static void managedMinerWaitsWithoutFlooding() {
+  var world=new Level();var robot=new EntityRobotBase(world,p(0,0));
+  var scheduler=buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.class;
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.managed=true;
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of();
+  var search=new AIRobotSearchNearestBlock(robot,(lvl,pos)->true,0,java.util.List.of());
+  for(int i=0;i<5;i++)search.update();
+  check(search.getEnergyCost()==0,"Waiting for processor queue consumes search energy");
+  try {
+   var field=AIRobotSearchNearestBlock.class.getDeclaredField("expanded");field.setAccessible(true);
+   check(((Integer)field.get(search))==0,"Managed miner scanned world instead of waiting");
+  }catch(ReflectiveOperationException err){throw new AssertionError(err);}
+  BlockPos goal=p(4,0);world.put(goal,ore("coal"));
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of(goal);
+  for(int i=0;i<10 && search.blockFound==null;i++)search.update();
+  check(goal.equals(search.blockFound.toBlockPos()),"Waiting miner missed new work");
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of();
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.managed=false;
  }
  static void defaultBoardsUnchanged(){
   var world=new Level();var robot=new EntityRobotBase(world,p(0,0));
@@ -299,8 +416,11 @@ public final class NearestOreFixture {
       "Non-miner worker should still use classic target-first search");
  }
  public static void main(String[] args){
+  queuedOreHandoffWithoutFullSearch();
   firstOreAcrossLoadedChunk();shortestPathNotEuclidean();continuationAndPersistence();
-  unloadedChunkNeverRead();boundedAcrossTicks();noTunneling();defaultBoardsUnchanged();
+  unloadedChunkNeverRead();boundedAcrossTicks();queueArrivesDuringActiveSearch();noTunneling();
+  queuedDirectedSearchAvoidsSealedOre();queuedSearchHasSmallerBound();managedMinerWaitsWithoutFlooding();
+  defaultBoardsUnchanged();
   System.out.println("PASS: cross-chunk nearest, shortest navigable route, vein priority, save, loading, budget, no tunneling, other boards");
  }
 }'''
@@ -309,6 +429,7 @@ REAL = [
     'source-shared/src/main/java/buildcraft/robotics/ai/AIRobotSearchAndGotoBlock.java',
     'source-shared/src/main/java/buildcraft/robotics/ai/AIRobotSearchNearestBlock.java',
     'source-shared/src/main/java/buildcraft/robotics/boards/BoardRobotGenericSearchBlock.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/ProcessorCandidateBoard.java',
     'source-shared/src/main/java/buildcraft/robotics/boards/RobotOreVeinMemory.java',
 ]
 

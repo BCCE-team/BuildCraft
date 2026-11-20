@@ -30,6 +30,17 @@ public class BoardRobotShovelman extends BoardRobotGenericBreakBlock {
     }
 
     @Override
+    public boolean processorSharedScanPredicate() { return true; }
+
+    @Override
+    public boolean processorScanCandidate(Level level, BlockPos pos) {
+        if (!level.isLoaded(pos)) return false;
+        BlockState state = level.getBlockState(pos);
+        return !state.isAir() && state.getDestroySpeed(level, pos) >= 0.0F
+                && state.is(BlockTags.MINEABLE_WITH_SHOVEL);
+    }
+
+    @Override
     public boolean isExpectedBlock(Level level, BlockPos pos) {
         if (!level.isLoaded(pos)) {
             return false;

@@ -74,7 +74,7 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
 
     /** A position/status snapshot, not a client-side reference to a server entity. */
     public record RobotSnapshot(long id, String board, String task, String status,
-                                int x, int y, int z, int charge, int progress, String name) {}
+                                int x, int y, int z, int charge, int progress, String name, int queued) {}
     /** Read-only contents used for GUI rendering. No inventory slots are exposed for interaction. */
     public record CargoEntry(ItemStack stack, String fluidId, int amountMb, int capacityMb) {
         public boolean isFluid() { return !fluidId.isEmpty(); }
@@ -245,10 +245,18 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
             lastSentExecutionQueue = processor.getMaxExecutionQueue();
             sendMessage(ID_QUEUE_STATE, out -> out.writeByte(lastSentExecutionQueue));
         }
-        if (playerInventory.player instanceof ServerPlayer && snapshotTick++ % 20 == 0) {
-            refreshSnapshots();
-            refreshStationSnapshots();
-            if (requestedCargoRobotId > 0) refreshCargoSnapshot();
+        if (playerInventory.player instanceof ServerPlayer) {
+            boolean normalRefresh = snapshotTick++ % 20 == 0;
+            // Queue orders are issued/completed between 20-tick telemetry polls.
+            // Push their count immediately; otherwise opening the GUI during
+            // warm-up can leave the old 0/N on screen after a full queue appears.
+            if (normalRefresh || queueCountsChanged(processor)) {
+                refreshSnapshots();
+            }
+            if (normalRefresh) {
+                refreshStationSnapshots();
+                if (requestedCargoRobotId > 0) refreshCargoSnapshot();
+            }
         }
     }
 
@@ -256,6 +264,14 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
      * Only robots explicitly registered with this processor can appear in its GUI.
      * A nearby robot must never be silently linked just because it is loaded.
      */
+    private boolean queueCountsChanged(TileRobotProcessor processor) {
+        if (processor == null) return false;
+        for (RobotSnapshot snapshot : snapshots) {
+            if (snapshot.queued() != processor.getExecutionQueueSize(snapshot.id())) return true;
+        }
+        return false;
+    }
+
     private void refreshSnapshots() {
         TileRobotProcessor processor = getProcessor();
         if (processor == null || processor.getLinkedRobotIds().isEmpty()) {
@@ -275,7 +291,7 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
             if (robot == null || robot.isRemoved()) {
                 BlockPos last = processor.getLastKnownRobotPosition(robotId);
                 if (last != null) next.add(new RobotSnapshot(robotId, "Unknown", "Offline", "Offline",
-                        last.getX(), last.getY(), last.getZ(), 0, -1, processor.getRobotName(robotId)));
+                        last.getX(), last.getY(), last.getZ(), 0, -1, processor.getRobotName(robotId), 0));
                 continue;
             }
             processor.recordRobotPosition(robotId, robot.blockPosition());
@@ -295,8 +311,11 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
             progress = progress < 0 ? -1 : Math.max(0, Math.min(100, progress));
             next.add(new RobotSnapshot(robot.getRobotId(), truncate(board, 48), truncate(task, 64), status,
                     robot.blockPosition().getX(), robot.blockPosition().getY(), robot.blockPosition().getZ(),
-                    percent, progress, processor.getRobotName(robotId)));
+                    percent, progress, processor.getRobotName(robotId), processor.getExecutionQueueSize(robotId)));
         }
+        // Do not emit a full robot snapshot when nothing changed. The queue
+        // trigger above is sufficient to deliver counts at execution speed.
+        if (next.equals(snapshots)) return;
         snapshots.clear();
         snapshots.addAll(next);
         sendMessage(ID_ROBOTS, buf -> {
@@ -309,6 +328,7 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                 buf.writeInt(robot.x()); buf.writeInt(robot.y()); buf.writeInt(robot.z());
                 buf.writeByte(robot.charge()); buf.writeByte(robot.progress());
                 buf.writeUtf(robot.name(), TileRobotProcessor.MAX_LINK_NAME_LENGTH);
+                buf.writeByte(robot.queued());
             }
         });
     }
@@ -468,7 +488,9 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                 snapshots.add(new RobotSnapshot(buffer.readLong(), buffer.readUtf(48), buffer.readUtf(64),
                         buffer.readUtf(24), buffer.readInt(), buffer.readInt(), buffer.readInt(),
                         buffer.readByte(), buffer.readByte(),
-                        buffer.readUtf(TileRobotProcessor.MAX_LINK_NAME_LENGTH)));
+                        buffer.readUtf(TileRobotProcessor.MAX_LINK_NAME_LENGTH),
+                        NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0,
+                                TileRobotProcessor.MAX_EXECUTION_QUEUE, "mining execution queue")));
             }
         } else if (id == ID_STATIONS && side == BCNetworkSide.CLIENT) {
             int count = NetworkSecurity.requireRange(buffer.readVarInt(), 0, ROBOT_LIMIT, "station snapshots");

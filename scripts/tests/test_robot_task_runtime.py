@@ -162,7 +162,16 @@ public final class AIRobotGoAndLinkToDock extends AIRobot {
 import net.minecraft.core.Direction;
 public class DockingStation {public boolean providesPower(){return false;}
  public Direction side(){return Direction.NORTH;}
+ public boolean isInitialized(){return true;}
+ public boolean isTaken(){return false;}
+ public long robotIdTaking(){return -1L;}
  public int x(){return 0;}public int y(){return 0;}public int z(){return 0;}}
+''',
+    "buildcraft/robotics/statements/ActionStationForbidRobot.java": '''package buildcraft.robotics.statements;
+import buildcraft.robotics.internal.legacy.robots.*;
+public class ActionStationForbidRobot {
+ public static boolean isForbidden(DockingStation station, EntityRobotBase robot){return false;}
+}
 ''',
     "buildcraft/robotics/internal/legacy/robots/EntityRobotBase.java": '''package buildcraft.robotics.internal.legacy.robots;
 import buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot;
@@ -179,6 +188,9 @@ public class EntityRobotBase {
  public Level level(){return level;}
  public Battery getBattery(){return battery;}
  public int getEnergy(){return 500000;}
+ public static class StationRegistry {public java.util.List<DockingStation> getStations(){return java.util.List.of();}}
+ private final StationRegistry registry=new StationRegistry();
+ public StationRegistry getRegistry(){return registry;}
  public DockingStation getDockingStation(){return null;}
  public DockingStation getLinkedStation(){return null;}
  public double getX(){return 0;}public double getY(){return 0;}public double getZ(){return 0;}

@@ -16,6 +16,7 @@ public class BlockIndex {public final int x,y,z;
  public BlockIndex(int x,int y,int z){this.x=x;this.y=y;this.z=z;}
  public BlockIndex(CompoundTag t){this(1,2,3);}
  public void writeTo(CompoundTag t){}
+ public net.minecraft.core.BlockPos toBlockPos(){return new net.minecraft.core.BlockPos();}
 }''',
     'buildcraft/robotics/internal/legacy/robots/EntityRobotBase.java': '''package buildcraft.robotics.internal.legacy.robots;
 public class EntityRobotBase {
@@ -53,6 +54,22 @@ public class CompoundTag {
  public void put(String k,CompoundTag t){}public boolean contains(String k){return false;}
  public CompoundTag getCompound(String k){return new CompoundTag();}
 }''',
+    'net/minecraft/core/BlockPos.java': '''package net.minecraft.core;
+        public class BlockPos {}
+    ''',
+    'buildcraft/robotics/scheduler/RobotProcessorWorkScheduler.java': '''package buildcraft.robotics.scheduler;
+        import net.minecraft.core.BlockPos;
+        import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+        public class RobotProcessorWorkScheduler {
+            public record SuggestedWork(BlockPos position,long leaseToken) { }
+            public static SuggestedWork suggest(EntityRobotBase robot) { return null; }
+            public static void releaseHint(EntityRobotBase robot, SuggestedWork hint) { }
+            public static java.util.List<BlockPos> queuedMiningTargets(EntityRobotBase robot) { return java.util.List.of(); }
+            public static void queuedMiningSearchFailed(EntityRobotBase robot, java.util.List<BlockPos> attempted) { }
+            public static void targetAcquired(EntityRobotBase robot,BlockPos pos) { }
+            public static void targetAbandoned(EntityRobotBase robot,BlockPos pos) { }
+        }
+    ''',
     'buildcraft/robotics/ai/IBlockFilter.java': 'package buildcraft.robotics.ai; public interface IBlockFilter {}',
     'buildcraft/robotics/ai/AIRobotSearchBlock.java': '''package buildcraft.robotics.ai;
 import buildcraft.robotics.internal.legacy.robots.*;
@@ -60,6 +77,8 @@ import buildcraft.lib.internal.core.BlockIndex;import java.util.LinkedList;
 public class AIRobotSearchBlock extends AIRobot {
  public BlockIndex blockFound;public LinkedList<BlockIndex> path=new LinkedList<>();
  public AIRobotSearchBlock(EntityRobotBase r,boolean random,IBlockFilter filter,double distance){super(r);}
+ public AIRobotSearchBlock(EntityRobotBase r,boolean random,IBlockFilter filter,double distance,
+          java.util.List<net.minecraft.core.BlockPos> preferred){this(r,random,filter,distance);}
  public boolean takeResource(){return robot.getRegistry()!=null && robot.getRegistry().take(new ResourceIdBlock(blockFound),robot);}
 }''',
     'buildcraft/robotics/ai/AIRobotSearchNearestBlock.java': '''package buildcraft.robotics.ai;
@@ -69,6 +88,8 @@ import buildcraft.robotics.internal.legacy.robots.*;
 public class AIRobotSearchNearestBlock extends AIRobot {
  public BlockIndex blockFound;public LinkedList<BlockIndex> path=new LinkedList<>();
  public AIRobotSearchNearestBlock(EntityRobotBase r,IBlockFilter filter,double distance){super(r);}
+ public AIRobotSearchNearestBlock(EntityRobotBase r,IBlockFilter filter,double distance,
+         java.util.List<net.minecraft.core.BlockPos> preferred){this(r,filter,distance);}
  public boolean takeResource(){return robot.getRegistry()!=null && robot.getRegistry().take(new ResourceIdBlock(blockFound),robot);}
 }''',
     'buildcraft/robotics/ai/AIRobotGotoBlock.java': '''package buildcraft.robotics.ai;

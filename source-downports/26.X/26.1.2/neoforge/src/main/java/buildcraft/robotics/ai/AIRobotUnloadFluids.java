@@ -109,6 +109,15 @@ public class AIRobotUnloadFluids extends AIRobot {
         return filled;
     }
 
+    /** Preview a future cargo transfer without touching either inventory. */
+    public static int previewAcceptance(EntityRobotBase robot, DockingStation station,
+                                        FluidStack fluid, boolean requireAcceptAction) {
+        if (robot == null || station == null || fluid == null || fluid.isEmpty()
+                || !canUnloadFluid(station, new SimpleFluidFilter(fluid), requireAcceptAction)) return 0;
+        FluidStorage<FluidStack> output = station.getFluidOutput();
+        return output == null ? 0 : Math.max(0, output.fill(fluid.copy(), true));
+    }
+
     private static boolean canUnloadFluid(DockingStation station, IFluidFilter filter, boolean requireAcceptAction) {
         boolean hasExplicitAcceptAction = false;
         for (StatementSlot slot : station.getActiveActions()) {

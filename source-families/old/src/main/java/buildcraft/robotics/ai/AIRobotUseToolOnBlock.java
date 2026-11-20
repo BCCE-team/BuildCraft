@@ -6,6 +6,7 @@ import buildcraft.api.v2.permission.WorldOperationKind;
 import buildcraft.api.v2.automation.UseItemRequest;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
 import buildcraft.lib.misc.BlockUtil;
 import buildcraft.lib.misc.FakePlayerProvider;
 import buildcraft.robotics.entity.EntityRobot;
@@ -73,6 +74,11 @@ public class AIRobotUseToolOnBlock extends AIRobot {
         }
 
         BlockPos pos = useToBlock.toBlockPos();
+        if (!serverLevel.hasChunkAt(pos) || !RobotProcessorWorkScheduler.allowsRobotTarget(robot, pos)) {
+            setSuccess(false);
+            terminate();
+            return;
+        }
         if (!RobotAutomationSupport.permits(new UseItemRequest(
                 serverLevel, robot.blockPosition(), pos, Direction.UP, held,
                 RobotAutomationSupport.actor(robot), OperationMode.SIMULATE))) {

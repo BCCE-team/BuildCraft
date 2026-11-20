@@ -80,6 +80,15 @@ public class AIRobotGotoStation extends AIRobot {
                 "station=%s occupied=%s retryIn=%d", station, occupied, ticksUntilRetry);
     }
 
+    /** Only a generic station search may abandon an occupied target for an
+     * alternative. Gate/Home AIs targeting a specific dock still wait there. */
+    public boolean isWaitingForOccupiedStation() {
+        if (!waitingForStation) return false;
+        DockingStation station = getStation();
+        return station != null && station.robotIdTaking() != EntityRobotBase.NULL_ROBOT_ID
+                && station.robotIdTaking() != robot.getRobotId();
+    }
+
     @Override
     public void update() {
         if (waitingForStation) {

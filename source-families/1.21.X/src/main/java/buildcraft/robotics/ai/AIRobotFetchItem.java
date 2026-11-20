@@ -8,6 +8,8 @@ import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.lib.misc.data.Box;
 import buildcraft.robotics.boards.BoardRobotPicker;
+import buildcraft.robotics.scheduler.RobotPickupScheduler;
+import java.util.UUID;
 import buildcraft.robotics.entity.EntityRobot;
 import buildcraft.robotics.statements.ActionRobotFilter;
 import buildcraft.robotics.zone.ZonePlan;
@@ -35,6 +37,9 @@ public class AIRobotFetchItem extends AIRobot {
     private IZone zone;
     private boolean zoneRestricted;
     private boolean refreshContextAfterLoad;
+    private UUID queuedItemUuid;
+    private long queuedLeaseToken;
+    private int controlledIdleTicks;
 
     public AIRobotFetchItem(EntityRobotBase robot) {
         super(robot);
@@ -54,7 +59,8 @@ public class AIRobotFetchItem extends AIRobot {
 
     @Override
     public void preempt(AIRobot ai) {
-        if (target != null && (!isValidTarget(target) || !isInsideZone(target.position()))) {
+        if (target != null && (!isValidTarget(target) || !isInsideZone(target.position())
+                || !RobotPickupScheduler.permitsTarget(robot, target))) {
             failAndTerminate(false);
         }
     }
@@ -85,7 +91,8 @@ public class AIRobotFetchItem extends AIRobot {
             return;
         }
 
-        if (!isValidTarget(target) || !isInsideZone(target.position())) {
+        if (!isValidTarget(target) || !isInsideZone(target.position())
+                || !RobotPickupScheduler.permitsTarget(robot, target)) {
             failAndTerminate(false);
             return;
         }
@@ -104,10 +111,12 @@ public class AIRobotFetchItem extends AIRobot {
         pickTime++;
         if (pickTime > 5) {
             ItemStack stack = target.getItem();
-            ItemStack remaining = insert(stack, true);
-            target.setItem(remaining);
-            if (remaining.isEmpty()) {
-                target.discard();
+            ItemStack remaining = insert(stack.copy(), true);
+            boolean moved = remaining.getCount() < stack.getCount();
+            setSuccess(moved);
+            if (moved) {
+                target.setItem(remaining);
+                if (remaining.isEmpty()) target.discard();
             }
             terminate();
         }
@@ -116,7 +125,8 @@ public class AIRobotFetchItem extends AIRobot {
     @Override
     public void delegateAIEnded(AIRobot ai) {
         if (ai instanceof AIRobotGotoBlock) {
-            if (target == null || !isValidTarget(target) || !isInsideZone(target.position())) {
+            if (target == null || !isValidTarget(target) || !isInsideZone(target.position())
+                    || !RobotPickupScheduler.permitsTarget(robot, target)) {
                 failAndTerminate(false);
             } else if (!ai.success()) {
                 robot.unreachableEntityDetected(target);
@@ -168,13 +178,34 @@ public class AIRobotFetchItem extends AIRobot {
     }
 
     private void scanForItem() {
+        // The panel has already scanned the loaded item entities once for all
+        // linked pickers. Use its UUID lease instead of repeating an expensive
+        // 250-block entity search on every robot and every tick.
+        RobotPickupScheduler.PickupTarget assigned = RobotPickupScheduler.acquire(robot);
+        if (assigned != null) {
+            queuedItemUuid = assigned.entity().getUUID();
+            queuedLeaseToken = assigned.leaseToken();
+            selectTarget(assigned.entity());
+            return;
+        }
+        if (RobotPickupScheduler.hasController(robot)) {
+            // Stay ready for new drops without burning energy on idle scans.
+            // A picker already carrying cargo still unloads after a short
+            // discovery grace period rather than waiting forever when full.
+            if (robot.containsItems() && ++controlledIdleTicks >= 40) {
+                setSuccess(false);
+                terminate();
+            }
+            return;
+        }
         double bestDistance = Double.MAX_VALUE;
         ItemEntity best = null;
         AABB box = robot.getBoundingBox().inflate(maxRange);
         for (ItemEntity item : robot.level().getEntitiesOfClass(ItemEntity.class, box)) {
             if (!isValidTarget(item)) continue;
             BoardRobotPicker.TargetKey reservation = BoardRobotPicker.TargetKey.of(item);
-            if (BoardRobotPicker.targettedItems.contains(reservation)) continue;
+            if (BoardRobotPicker.targettedItems.contains(reservation)
+                    || RobotPickupScheduler.reservedByOther(robot, item)) continue;
             if (robot.isKnownUnreachable(item)) continue;
             if (stackFilter != null && !stackFilter.matches(item.getItem())) continue;
             if (!isInsideZone(item.position())) continue;
@@ -187,22 +218,27 @@ public class AIRobotFetchItem extends AIRobot {
             }
         }
         if (best != null) {
-            target = best;
-            targetId = best.getId();
-            targetReservation = BoardRobotPicker.TargetKey.of(best);
-            BoardRobotPicker.targettedItems.add(targetReservation);
-            if (!canPickTargetNow()) {
-                BlockPos pickupPos = findPickupTargetPos(target);
-                if (pickupPos == null) {
-                    robot.unreachableEntityDetected(target);
-                    failAndTerminate(false);
-                    return;
-                }
-                startDelegateAI(new AIRobotGotoBlock(robot, pickupPos.getX(), pickupPos.getY(), pickupPos.getZ(), maxRange));
-            }
+            selectTarget(best);
         } else {
             setSuccess(false);
             terminate();
+        }
+    }
+
+    private void selectTarget(ItemEntity item) {
+        controlledIdleTicks = 0;
+        target = item;
+        targetId = item.getId();
+        targetReservation = BoardRobotPicker.TargetKey.of(item);
+        BoardRobotPicker.targettedItems.add(targetReservation);
+        if (!canPickTargetNow()) {
+            BlockPos pickupPos = findPickupTargetPos(target);
+            if (pickupPos == null) {
+                robot.unreachableEntityDetected(target);
+                failAndTerminate(false);
+                return;
+            }
+            startDelegateAI(new AIRobotGotoBlock(robot, pickupPos.getX(), pickupPos.getY(), pickupPos.getZ(), maxRange));
         }
     }
 
@@ -284,6 +320,11 @@ public class AIRobotFetchItem extends AIRobot {
     }
 
     private void releaseTargetReservation() {
+        if (queuedItemUuid != null) {
+            RobotPickupScheduler.finish(robot, queuedItemUuid, queuedLeaseToken);
+            queuedItemUuid = null;
+            queuedLeaseToken = 0L;
+        }
         if (targetReservation != null) {
             BoardRobotPicker.targettedItems.remove(targetReservation);
         }
@@ -292,9 +333,16 @@ public class AIRobotFetchItem extends AIRobot {
         target = null;
     }
 
+    /** True only while actually targeting an item; idle central discovery is not a job. */
+    public boolean hasPickupTarget() {
+        return isValidTarget(target);
+    }
+
     @Override
     public int getEnergyCost() {
-        return 15;
+        // A connected picker waiting for panel discovery is idle, not
+        // performing a 250-block scan; it must not drain its battery.
+        return target == null && RobotPickupScheduler.hasController(robot) ? 0 : 15;
     }
 
     @Override
@@ -325,6 +373,9 @@ public class AIRobotFetchItem extends AIRobot {
         target = null;
         targetId = -1;
         targetReservation = null;
+        queuedItemUuid = null;
+        queuedLeaseToken = 0L;
+        controlledIdleTicks = 0;
         pickTime = -1;
         stackFilter = null;
         refreshContextAfterLoad = true;

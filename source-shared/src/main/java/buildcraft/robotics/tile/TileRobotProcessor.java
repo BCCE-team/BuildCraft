@@ -19,6 +19,11 @@ import java.util.Set;
 import buildcraft.lib.tile.item.ItemHandlerManager.EnumAccess;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
 import buildcraft.robotics.BCRoboticsBlocks;
+import buildcraft.robotics.ai.AIRobotBreak;
+import buildcraft.robotics.ai.AIRobotFetchItem;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.robotics.internal.legacy.robots.RobotManager;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
 import buildcraft.robotics.item.ItemRobotController;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
@@ -47,6 +52,7 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public class TileRobotProcessor extends TileZonePlanner implements IChunkLoadingTile {
     private static final int MAX_FORCED_ROBOT_CHUNKS = 16;
+    private static final int FORCE_CHUNK_TTL_TICKS = 200;
     private static final long UNKNOWN_ROBOT_POS = Long.MIN_VALUE;
     public static final int MIN_EXECUTION_QUEUE = 1;
     public static final int MAX_EXECUTION_QUEUE = 8;
@@ -55,6 +61,9 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
 
     /** Number of *execution* operations per robot packet; movement and searching are not jobs. */
     private int maxExecutionQueue = DEFAULT_EXECUTION_QUEUE;
+    /** Last durable intentions, not claims; a new scheduler validates them on load. */
+    private long[] persistedMiningWork = new long[0];
+    private boolean schedulerSuspended;
     private final Map<Long, String> robotNames = new LinkedHashMap<>();
     private final Map<StationKey, String> stationNames = new LinkedHashMap<>();
 
@@ -62,10 +71,30 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         return maxExecutionQueue;
     }
 
+    /** Number of provisional or executing mine-block operations for this linked robot. */
+    public int getExecutionQueueSize(long robotId) {
+        if (!linkedRobotIds.contains(robotId)) return 0;
+        int prepared = workScheduler.queueCount(robotId);
+        if (prepared > 0 || !(level instanceof ServerLevel) || RobotManager.registryProvider == null) {
+            return prepared;
+        }
+        // The miner may have claimed a block via its original BFS while the
+        // shared index warms up. A real AIRobotBreak is still one useful
+        // operation, so GUI telemetry must not report 0 during that action.
+        var registry = RobotManager.registryProvider.getRegistry(level);
+        EntityRobotBase robot = registry == null ? null : registry.getLoadedRobot(robotId);
+        if (robot == null || robot.getBoard() == null) return 0;
+        var active = robot.getActiveAI();
+        if (active == null || !active.isWithinWorkChain(robot.getBoard())) return 0;
+        if (active instanceof AIRobotBreak) return 1;
+        return active instanceof AIRobotFetchItem fetch && fetch.hasPickupTarget() ? 1 : 0;
+    }
+
     public void setMaxExecutionQueue(int value) {
         int clamped = Math.max(MIN_EXECUTION_QUEUE, Math.min(MAX_EXECUTION_QUEUE, value));
         if (maxExecutionQueue != clamped) {
             maxExecutionQueue = clamped;
+            workScheduler.onQueueLimitChanged();
             setChanged();
         }
     }
@@ -161,6 +190,8 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     }
     private final Map<Long, BlockPos> lastKnownRobotPositions = new LinkedHashMap<>();
     private final Set<Long> forceLoadedRobotIds = new LinkedHashSet<>();
+    /** Transient stage-1/2 index: never serialize world observations as authoritative tasks. */
+    private final RobotProcessorWorkScheduler workScheduler = new RobotProcessorWorkScheduler(this);
     private boolean chunkTicketsDirty = true;
     private int chunkLoadingStartupDelay = 40;
     /** A 7x7 square of chunks centered on the chunk containing this machine. */
@@ -178,8 +209,25 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
                 : plan.copyChunksMatching(chunk -> isWithinWorkArea(origin, chunk.x, chunk.z));
     }
 
+    /**
+     * The map's active painted layers form a union. An unpainted panel retains
+     * the full 7x7 area, matching the initial configuration without a map.
+     */
+    public boolean allowsWorkPosition(BlockPos target) {
+        if (!isWithinWorkArea(worldPosition, target.getX() >> 4, target.getZ() >> 4)) return false;
+        boolean hasPaint = false;
+        for (ZonePlan layer : layers) {
+            if (!layer.getChunkMapping().isEmpty()) {
+                hasPaint = true;
+                if (layer.get(target.getX(), target.getZ())) return true;
+            }
+        }
+        return !hasPaint;
+    }
+
     @Override
     public void setArea(int index, ZonePlan area) {
+        workScheduler.onLinkChanged();
         // Enforce the limit on the server too: GUI packets and Map Location imports
         // must not silently install a larger selection than this machine allows.
         super.setArea(index, limitToWorkArea(area, worldPosition));
@@ -191,6 +239,8 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     // Intentionally empty for a newly placed machine. Robot discovery does not
     // create links; a future binding tool will explicitly add/remove robot IDs.
     private final Set<Long> linkedRobotIds = new LinkedHashSet<>();
+    private final Map<Long, Long> forceChunkExpiries = new LinkedHashMap<>();
+    private final Set<ChunkPos> legacyForcedTicketCleanup = new HashSet<>();
     /** A station is the pair (pipe block, mounted face), not just a position. */
     public record StationKey(BlockPos pos, Direction side) {}
     private final Set<StationKey> linkedStations = new LinkedHashSet<>();
@@ -215,12 +265,18 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         return removed;
     }
 
+    private long[] savedMiningWork() {
+        return !schedulerSuspended && level instanceof ServerLevel ? workScheduler.pendingWorkSnapshot() : persistedMiningWork;
+    }
+
     private void loadLinks(long[] robotIds, long[] stations, int[] stationSides,
                            long[] knownPositions, long[] forcedIds) {
         linkedRobotIds.clear();
         linkedStations.clear();
         lastKnownRobotPositions.clear();
         forceLoadedRobotIds.clear();
+        forceChunkExpiries.clear();
+        legacyForcedTicketCleanup.clear();
         robotNames.clear();
         stationNames.clear();
         for (int i = 0; i < robotIds.length && linkedRobotIds.size() < 64; i++) {
@@ -233,7 +289,8 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         for (long id : forcedIds) {
             if (forceLoadedRobotIds.size() >= MAX_FORCED_ROBOT_CHUNKS) break;
             if (linkedRobotIds.contains(id) && lastKnownRobotPositions.containsKey(id)) {
-                forceLoadedRobotIds.add(id);
+                BlockPos old = lastKnownRobotPositions.get(id);
+                legacyForcedTicketCleanup.add(new ChunkPos(old.getX() >> 4, old.getZ() >> 4));
             }
         }
         chunkTicketsDirty = true;
@@ -257,6 +314,8 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     }
 
     private long[] savedForceLoadedRobots() {
+        // Persist only identities required to clean up platform tickets after a restart.
+        // loadLinks never reactivates them.
         return forceLoadedRobotIds.stream().mapToLong(Long::longValue).toArray();
     }
 
@@ -278,6 +337,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         maxExecutionQueue = Math.max(MIN_EXECUTION_QUEUE, Math.min(MAX_EXECUTION_QUEUE,
                 data.has("maxExecutionQueue") ? data.readInt("maxExecutionQueue") : DEFAULT_EXECUTION_QUEUE));
         restoreNames(data.readString("robotNames"), data.readString("stationNames"));
+        persistedMiningWork = data.readLongArray("pendingMiningWork");
     }
 
     @Override
@@ -289,6 +349,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         data.writeLongArray("linkedStations", savedStationPositions());
         data.writeIntArray("linkedStationSides", savedStationSides());
         data.writeInt("maxExecutionQueue", maxExecutionQueue);
+        data.writeLongArray("pendingMiningWork", savedMiningWork());
         data.writeString("robotNames", serializeRobotNames());
         data.writeString("stationNames", serializeStationNames());
     }
@@ -302,6 +363,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         maxExecutionQueue = Math.max(MIN_EXECUTION_QUEUE, Math.min(MAX_EXECUTION_QUEUE,
                 tag.contains("maxExecutionQueue") ? tag.getInt("maxExecutionQueue") : DEFAULT_EXECUTION_QUEUE));
         restoreNames(tag.getString("robotNames"), tag.getString("stationNames"));
+        persistedMiningWork = tag.getLongArray("pendingMiningWork");
     }
 
     @Override
@@ -313,6 +375,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         tag.putLongArray("linkedStations", savedStationPositions());
         tag.putIntArray("linkedStationSides", savedStationSides());
         tag.putInt("maxExecutionQueue", maxExecutionQueue);
+        tag.putLongArray("pendingMiningWork", savedMiningWork());
         tag.putString("robotNames", serializeRobotNames());
         tag.putString("stationNames", serializeStationNames());
     }
@@ -337,6 +400,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         boolean added = linkedRobotIds.add(robotId);
         if (added) {
             if (location != null) lastKnownRobotPositions.put(robotId, location.immutable());
+            workScheduler.onLinkChanged();
             setChanged();
         }
         return added;
@@ -363,6 +427,8 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         if (removed) {
             robotNames.remove(robotId);
             lastKnownRobotPositions.remove(robotId);
+            workScheduler.onLinkChanged();
+            forceChunkExpiries.remove(robotId);
             if (forceLoadedRobotIds.remove(robotId)) chunkTicketsDirty = true;
             setChanged();
         }
@@ -380,6 +446,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         if (forceLoadedRobotIds.contains(robotId)) return true; // Shift-key and click may both fire.
         if (forceLoadedRobotIds.size() >= MAX_FORCED_ROBOT_CHUNKS) return false;
         forceLoadedRobotIds.add(robotId);
+        forceChunkExpiries.put(robotId, server.getGameTime() + FORCE_CHUNK_TTL_TICKS);
         chunkTicketsDirty = true;
         setChanged();
         return true;
@@ -404,6 +471,9 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     public void onLoad() {
         super.onLoad();
         chunkTicketsDirty = true;
+        schedulerSuspended = false;
+        workScheduler.onLinkChanged();
+        workScheduler.restorePendingWork(persistedMiningWork);
         // Avoid ticket operations inside the owner's chunk load future.
         chunkLoadingStartupDelay = 40;
     }
@@ -411,17 +481,52 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     @Override
     public void update() {
         super.update();
-        if (!(level instanceof ServerLevel)) return;
+        if (!(level instanceof ServerLevel server)) return;
+        workScheduler.tick(server);
+        long now = server.getGameTime();
+        if (forceLoadedRobotIds.removeIf(id -> now >= forceChunkExpiries.getOrDefault(id, now))) {
+            forceChunkExpiries.keySet().retainAll(forceLoadedRobotIds);
+            chunkTicketsDirty = true;
+            setChanged();
+        }
         if (chunkLoadingStartupDelay > 0) {
             chunkLoadingStartupDelay--;
-        } else if (chunkTicketsDirty) {
-            chunkTicketsDirty = false;
-            ChunkLoaderManager.loadChunksForTile(this);
+        } else {
+            // Release tickets from old saves where force requests never expired.
+            // Exclude a chunk still legitimately requested by a fresh operation.
+            if (!legacyForcedTicketCleanup.isEmpty()) {
+                legacyForcedTicketCleanup.removeAll(getChunksToLoad());
+                if (!legacyForcedTicketCleanup.isEmpty()) {
+                    ChunkLoaderManager.releaseAdditionalChunksFor(this, legacyForcedTicketCleanup);
+                }
+                legacyForcedTicketCleanup.clear();
+                chunkTicketsDirty = true;
+            }
+            if (chunkTicketsDirty) {
+                chunkTicketsDirty = false;
+                ChunkLoaderManager.loadChunksForTile(this);
+            }
         }
     }
 
     @Override
+    public void onChunkUnloaded() {
+        // A panel must not keep short-lived candidate claims after its chunk
+        // stops ticking. Existing real robot reservations remain authoritative.
+        // Tile serialization already obtains the current snapshot directly.
+        // Marking the chunk dirty *during* unload can requeue writes while the
+        // integrated server is flushing chunks (the "Saving world" screen).
+        // Ordinary queue mutations have already called setChanged().
+        persistedMiningWork = workScheduler.pendingWorkSnapshot();
+        schedulerSuspended = true;
+        workScheduler.onRemoved();
+        super.onChunkUnloaded();
+    }
+
+    @Override
     public void onRemove(boolean dropSelf) {
+        persistedMiningWork = new long[0];
+        workScheduler.onRemoved();
         if (level instanceof ServerLevel) ChunkLoaderManager.releaseChunksFor(this);
         super.onRemove(dropSelf);
     }

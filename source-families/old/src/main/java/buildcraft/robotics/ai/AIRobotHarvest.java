@@ -8,6 +8,7 @@ import buildcraft.lib.internal.core.BlockIndex;
 import buildcraft.robotics.internal.api2.RobotAutomationSupport;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
 import buildcraft.lib.misc.BlockUtil;
 import buildcraft.lib.misc.FakePlayerProvider;
 import com.mojang.authlib.GameProfile;
@@ -59,6 +60,11 @@ public class AIRobotHarvest extends AIRobot {
         }
 
         BlockPos pos = blockFound.toBlockPos();
+        if (!serverLevel.hasChunkAt(pos) || !RobotProcessorWorkScheduler.allowsRobotTarget(robot, pos)) {
+            setSuccess(false);
+            terminate();
+            return;
+        }
         if (!BuildCraftApi.service(BuildCraftServices.CROPS).isMature(serverLevel, serverLevel.getBlockState(pos), pos)) {
             setSuccess(false);
             terminate();
@@ -93,12 +99,6 @@ public class AIRobotHarvest extends AIRobot {
             }
         }
         terminate();
-    }
-
-    @Override
-    public int getExecutionProgress() {
-        if (blockFound == null) return -1;
-        return Math.max(0, Math.min(100, delay * 100 / (HARVEST_DELAY_TICKS + 1)));
     }
 
     @Override
