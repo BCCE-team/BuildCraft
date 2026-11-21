@@ -170,7 +170,7 @@ class StageThreeQueueTests(unittest.TestCase):
         self.assertIn('buffer.readUnsignedByte()',menu)
         # Station snapshot wire layout must stay unchanged. An accidental extra
         # readByte here corrupts the next station and fails Java compilation.
-        station_segment = menu.split('} else if (id == ID_STATIONS && side == BCNetworkSide.CLIENT) {', 1)[1].split('} else if (id == ID_QUEUE_STATE', 1)[0]
+        station_segment = menu.split('} else if (id == ID_STATIONS && side == BCNetworkSide.CLIENT) {', 1)[1].split('} else if (', 1)[0]
         self.assertEqual(station_segment.count('buffer.readUnsignedByte()'), 1)
         self.assertNotIn('"mining execution queue"', station_segment)
         self.assertIn('selected.queued()',gui)

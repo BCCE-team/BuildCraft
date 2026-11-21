@@ -15,6 +15,12 @@ import java.util.WeakHashMap;
 import buildcraft.lib.internal.area.IZone;
 import buildcraft.robotics.boards.BoardRobotGenericSearchBlock;
 import buildcraft.robotics.boards.BoardRobotPicker;
+import buildcraft.robotics.boards.BoardRobotBuilder;
+import buildcraft.robotics.boards.BoardRobotButcher;
+import buildcraft.robotics.boards.BoardRobotKnight;
+import buildcraft.builders.tile.IRobotBuilderTarget;
+import buildcraft.builders.snapshot.BlueprintBuilder.RobotBuildTask;
+import buildcraft.robotics.ai.AIRobotPumpBlock;
 import buildcraft.robotics.RobotTrace;
 import buildcraft.robotics.scheduler.ProcessorCandidateBoard;
 import buildcraft.lib.misc.ChunkUtil;
@@ -52,9 +58,22 @@ import net.minecraft.world.phys.Vec3;
  * pathfinder, break AI, permission checks or authoritative resource registry.
  */
 public final class RobotProcessorWorkScheduler {
+    /** Wire-safe scan phases for the control panel GUI. */
+    public static final int SCAN_WAITING = 0;
+    public static final int SCAN_RUNNING = 1;
+    public static final int SCAN_COMPLETE = 2;
+    public static final int SCAN_REFRESHING = 3;
+    public static final int SCAN_NO_CHUNKS = 4;
+
+    /** Initial coverage is sticky at 100% while periodic passes refresh it.
+     * The second percentage always refers to the currently active pass. */
+    public record ScanProgress(int percent, int currentPassPercent, int phase, int sections) { }
+
     private static final int PER_PANEL_BLOCK_BUDGET = 384;
     private static final int PER_LEVEL_BLOCK_BUDGET = 2048;
-    private static final int MAX_SCAN_IDLE_TICKS = 600;
+    /** Rescan loaded sections periodically; external block placement does not
+     * necessarily notify the panel. Keep the full pass TPS-bounded. */
+    private static final int MAX_SCAN_IDLE_TICKS = 200;
     private static final int LEASE_TICKS = 100;
     private static final int QUEUED_LEASE_TICKS = 100;
     private static final int FAILED_TARGET_RETRY_TICKS = 200;
@@ -62,6 +81,9 @@ public final class RobotProcessorWorkScheduler {
      * busy source; avoid immediately reassigning the same unreachable deposit. */
     private static final int UNREACHABLE_DEPOSIT_RETRY_TICKS = 1200;
     private static final int MAX_ENQUEUE_PER_TICK = 2;
+    /** Re-evaluate speculative travel plans once per second, never every tick. */
+    private static final int QUEUE_LOCALITY_CHECK_TICKS = 20;
+    private static final int LOCALITY_COOLDOWN_TICKS = 100;
     private static final int MAX_VEIN_MEMBERS = 2048;
     private static final int MAX_SEARCH_TARGETS = 64;
     private static final int MAX_DIRTY_POSITIONS = 256;
@@ -76,6 +98,9 @@ public final class RobotProcessorWorkScheduler {
     private static final class WorldState {
         final Map<BlockPos, WeakReference<RobotProcessorWorkScheduler>> panels = new HashMap<>();
         final RobotWorkLeases leases = new RobotWorkLeases();
+        final RobotSharedSearchBudget routeSearchBudget = new RobotSharedSearchBudget();
+        long routeWorkerCountTick = Long.MIN_VALUE;
+        int routeWorkerCount = 1;
         /** Avoid waking a miner with a known unreachable target on every tick. */
         final Map<Long, Long> wakeRetryAfter = new HashMap<>();
         long budgetTick = Long.MIN_VALUE;
@@ -106,9 +131,27 @@ public final class RobotProcessorWorkScheduler {
 
     private final TileRobotProcessor panel;
     private final RobotWorkIndex index = new RobotWorkIndex();
+    /** Dirty the owning chunk at most once per 200 ticks while catalog grows. */
+    private static final long CATALOG_DIRTY_INTERVAL_TICKS = 200L;
+    private long lastMarkedCatalogGeneration;
+    private long nextCatalogDirtyTick;
     private final RobotExecutionQueue executionQueues = new RobotExecutionQueue();
+    /** Transient failed A* regions shared only by linked miners of this panel. */
+    private final RobotSharedRouteFailures sharedRouteFailures = new RobotSharedRouteFailures();
+    /** A robot shares one cheap charger snapshot across all candidate checks in 20t. */
+    private record CachedEnergy(RobotWorkEnergyPlanner.Context context, long refreshed) { }
+    private record EnergyPressure(long minimumNeeded, long untilTick) { }
+    private final Map<Long, CachedEnergy> chargerSnapshots = new HashMap<>();
+    private final Map<Long, EnergyPressure> energyPressure = new HashMap<>();
+    private static final long ENERGY_CONTEXT_REFRESH_TICKS = 20L;
+    private static final long ENERGY_RECHECK_TICKS = 60L;
     private final RobotPickupScheduler pickupScheduler;
     private final RobotLogisticsScheduler logisticsScheduler;
+    /** Blueprint sources have their own task reservation API; never scan them as world blocks. */
+    private final RobotBuilderSourceScheduler builderSources = new RobotBuilderSourceScheduler();
+    /** One UUID-based target dispatcher for all linked Butcher and Knight robots. */
+    private final RobotCombatTargetScheduler combatTargets;
+    private final RobotAreaActionScheduler areaActions;
     /** Pending intentions survive unloads; real registry claims and lease tokens never do. */
     private final Map<Long, LinkedHashSet<Long>> deferredMiningTargets = new HashMap<>();
     /** Unreachable target backoff is per robot: other miners may have a route. */
@@ -127,8 +170,12 @@ public final class RobotProcessorWorkScheduler {
      * waiting behind a complete sweep of every surface chunk. */
     private record ScanSection(ChunkPos chunk, int sectionY, long priority) { }
     private final List<ScanSection> scanSections = new ArrayList<>();
-    private int scanCursor, blockCursor;
+    private final RobotVerticalSectionScanCursor verticalCursor = new RobotVerticalSectionScanCursor();
     private boolean passComplete;
+    private boolean firstPassComplete;
+    private boolean scanPassStarted;
+    private int loadedChunkCount;
+    private long scanScopeFingerprint = Long.MIN_VALUE;
     private long nextPass;
     private String demandFingerprint = "";
     private boolean registered;
@@ -137,6 +184,25 @@ public final class RobotProcessorWorkScheduler {
         this.panel = panel;
         this.pickupScheduler = new RobotPickupScheduler(panel);
         this.logisticsScheduler = new RobotLogisticsScheduler(panel);
+        this.combatTargets = new RobotCombatTargetScheduler(panel);
+        this.areaActions = new RobotAreaActionScheduler(panel);
+    }
+
+    /** A read-only snapshot. No chunk scan, NBT write or world lookup occurs
+     * when the GUI polls this once every few ticks. */
+    public ScanProgress scanProgress() {
+        if (activeCategories.isEmpty() || !scanPassStarted) {
+            return new ScanProgress(0, 0, SCAN_WAITING, 0);
+        }
+        if (loadedChunkCount == 0) {
+            return new ScanProgress(0, 0, SCAN_NO_CHUNKS, 0);
+        }
+        int current = verticalCursor.progressPercent();
+        if (firstPassComplete) {
+            return new ScanProgress(100, current,
+                    passComplete ? SCAN_COMPLETE : SCAN_REFRESHING, scanSections.size());
+        }
+        return new ScanProgress(current, current, SCAN_RUNNING, scanSections.size());
     }
 
     private static WorldState world(Level level) {
@@ -146,9 +212,16 @@ public final class RobotProcessorWorkScheduler {
     public void onRemoved() {
         pickupScheduler.onRemoved();
         logisticsScheduler.onRemoved();
+        RobotBuilderMaterialScheduler.releasePanel(panel.getLevel(), panel.getBlockPos().asLong());
+        builderSources.clear();
+        combatTargets.onRemoved();
+        areaActions.onRemoved();
         executionQueues.clearAll();
         deferredMiningTargets.clear();
         minerTargetCooldowns.clear();
+        sharedRouteFailures.worldChanged();
+        chargerSnapshots.clear();
+        energyPressure.clear();
         activeCategories.clear();
         remainingDemand.clear();
         dirtyPositions.clear();
@@ -156,6 +229,11 @@ public final class RobotProcessorWorkScheduler {
         probeCooldowns.clear();
         minerProbeAnchors.clear();
         scanSections.clear();
+        verticalCursor.reset(0);
+        scanPassStarted = false;
+        firstPassComplete = false;
+        loadedChunkCount = 0;
+        scanScopeFingerprint = Long.MIN_VALUE;
         registered = false;
         Level level = panel.getLevel();
         if (level == null) return;
@@ -169,6 +247,10 @@ public final class RobotProcessorWorkScheduler {
     public void onLinkChanged() {
         pickupScheduler.onLinkChanged();
         logisticsScheduler.onLinkChanged();
+        RobotBuilderMaterialScheduler.releasePanel(panel.getLevel(), panel.getBlockPos().asLong());
+        builderSources.clear();
+        combatTargets.onLinkChanged();
+        areaActions.onLinkChanged();
         // A changed policy/connection invalidates all uncommitted work hints.
         // Authoritative robot claims are still owned by IRobotRegistry.
         Level level = panel.getLevel();
@@ -180,14 +262,53 @@ public final class RobotProcessorWorkScheduler {
         executionQueues.clearAll();
         deferredMiningTargets.clear();
         minerTargetCooldowns.clear();
+        sharedRouteFailures.worldChanged();
+        chargerSnapshots.clear();
+        energyPressure.clear();
         remainingDemand.clear();
         dirtyPositions.clear();
         focusedProbes.clear();
         probeCooldowns.clear();
         minerProbeAnchors.clear();
         nextPass = 0;
+        scanPassStarted = false;
+        firstPassComplete = false;
+        loadedChunkCount = 0;
+        scanScopeFingerprint = Long.MIN_VALUE;
         demandFingerprint = "";
         index.forgetUnused(List.of());
+    }
+
+    /** Live server snapshot. The catalog is soft information, never leases. */
+    public RobotWorkIndex.CatalogSnapshot catalogSnapshot() {
+        return index.snapshot();
+    }
+
+    /**
+     * Called once after TileZonePlanner has loaded its work-area layers and
+     * the scheduler has reset transient claims. Do NOT inspect world blocks or
+     * load chunks here: the loaded catalog is tentative until dispatch.
+     */
+    public int restoreCatalog(RobotWorkIndex.CatalogSnapshot snapshot) {
+        Level level = panel.getLevel();
+        if (level == null) return 0;
+        int count = index.restore(snapshot, packed -> {
+            BlockPos pos = BlockPos.of(packed);
+            return pos.getY() >= level.getMinBuildHeight()
+                    && pos.getY() < level.getMaxBuildHeight()
+                    && panel.allowsWorkPosition(pos);
+        });
+        lastMarkedCatalogGeneration = index.generation();
+        nextCatalogDirtyTick = 0L;
+        return count;
+    }
+
+    /** Only the server tick schedules a chunk save; GUI polling never does. */
+    public void flushCatalogDirty(long now) {
+        if (now < nextCatalogDirtyTick || index.generation() == lastMarkedCatalogGeneration) return;
+        lastMarkedCatalogGeneration = index.generation();
+        nextCatalogDirtyTick = now + CATALOG_DIRTY_INTERVAL_TICKS;
+        panel.setChanged();
     }
 
     /** Must run on the server main thread and only while the panel is loaded. */
@@ -211,8 +332,25 @@ public final class RobotProcessorWorkScheduler {
         Map<String, List<BlockPos>> byCategory = new HashMap<>();
         List<Long> linkedIds = panel.getLinkedRobotIds();
         Set<String> queuedCategories = new HashSet<>();
+        List<EntityRobotBase> builderWorkers = new ArrayList<>();
+        List<EntityRobotBase> combatWorkers = new ArrayList<>();
+        List<EntityRobotBase> areaWorkers = new ArrayList<>();
         for (long id : linkedIds) {
             EntityRobotBase robot = registry.getLoadedRobot(id);
+            if (robot != null && (robot.getBoard() instanceof BoardRobotButcher
+                    || robot.getBoard() instanceof BoardRobotKnight)
+                    && robotLevelIs(level, robot) && isPrimaryController(state, id)) {
+                combatWorkers.add(robot);
+            }
+            if (robot != null && (robot.getBoard() instanceof buildcraft.robotics.boards.BoardRobotBomber
+                    || robot.getBoard() instanceof buildcraft.robotics.boards.BoardRobotStripes)
+                    && robotLevelIs(level, robot) && isPrimaryController(state, id)) {
+                areaWorkers.add(robot);
+            }
+            if (robot != null && robot.getBoard() instanceof BoardRobotBuilder
+                    && robotLevelIs(level, robot) && isPrimaryController(state, id)) {
+                builderWorkers.add(robot);
+            }
             if (RobotPickupScheduler.ready(robot) && robot.getBoard() instanceof BoardRobotPicker
                     && robotLevelIs(level, robot) && isPrimaryController(state, robot.getRobotId())) {
                 readyPickers.add(robot);
@@ -236,6 +374,9 @@ public final class RobotProcessorWorkScheduler {
                 if (queued) queuedCategories.add(category);
             }
         }
+        builderSources.tick(level, builderWorkers);
+        combatTargets.tick(level, combatWorkers);
+        areaActions.tick(level, areaWorkers);
         pickupScheduler.tick(level, readyPickers);
         logisticsScheduler.tick(level);
         // There is no duplicated discovery work to eliminate when only one
@@ -251,6 +392,7 @@ public final class RobotProcessorWorkScheduler {
         // A panel may start with an empty index. Prime the area around each
         // ready miner without waiting for the huge background chunk pass.
         long now = level.getGameTime();
+        sharedRouteFailures.expire(now);
         for (EntityRobotBase worker : readyWorkers) {
             long id = worker.getRobotId();
             if (executionQueues.size(id) >= panel.getMaxExecutionQueue()) continue;
@@ -265,6 +407,8 @@ public final class RobotProcessorWorkScheduler {
             }
         }
         minerProbeAnchors.keySet().retainAll(linkedIds);
+        chargerSnapshots.keySet().retainAll(linkedIds);
+        energyPressure.keySet().retainAll(linkedIds);
         for (String category : activeCategories.keySet()) {
             sharedCategoryPredicates.put(category,
                     boardsByCategory.get(category).stream()
@@ -289,20 +433,40 @@ public final class RobotProcessorWorkScheduler {
         // clear the catalog in onLinkChanged().
         // A periodic bounded trace distinguishes an empty candidate cache from
         // an AI that ignores already prepared orders. No per-tick log spam.
+        // This trace also works while all miners are parked at a dock; it
+        // distinguishes ore unseen at low Y from a target rejected by A*.
+        if (RobotTrace.enabled() && now % 200L == 0L && queuedCategories.contains("buildcraft:miner")) {
+            for (long minerId : linkedIds) {
+                EntityRobotBase miner = registry.getLoadedRobot(minerId);
+                if (!isQueueMiner(miner) || !isPrimaryController(state, minerId)) continue;
+                RobotWorkIndex.HeightExtent height = index.heightExtent("buildcraft:miner", panel.getBlockPos().getY());
+                RobotTrace.event(miner, "PROCESSOR_VERTICAL_HEALTH",
+                        "panel=%s known=%d lowerThanPanel=%d indexedY=%d..%d slice=%d/%d section=%d/%d scanComplete=%s",
+                        panel.getBlockPos(), height.total(), height.below(), height.minY(), height.maxY(),
+                        verticalCursor.sliceIndex(), RobotVerticalSectionScanCursor.SLICE_COUNT,
+                        verticalCursor.sectionIndex(), scanSections.size(), passComplete);
+                break;
+            }
+        }
         if (RobotTrace.enabled() && now % 100L == 0L) {
             for (EntityRobotBase miner : readyMiners) {
                 int count = executionQueues.size(miner.getRobotId());
                 if (count >= panel.getMaxExecutionQueue()) continue;
                 RobotTrace.event(miner, "PROCESSOR_QUEUE_HEALTH",
-                        "panel=%s assigned=%d/%d indexed=%d probes=%d scan=%d/%d section=%d/%d complete=%s",
+                        "panel=%s assigned=%d/%d indexed=%d probes=%d scan=%d/%d slice=%d/%d complete=%s",
                         panel.getBlockPos(), count, panel.getMaxExecutionQueue(),
                         index.count("buildcraft:miner", now), focusedProbes.size(),
-                        scanCursor, scanSections.size(), scanCursor, scanSections.size(), passComplete);
+                        verticalCursor.sectionIndex(), scanSections.size(),
+                        verticalCursor.sliceIndex(), RobotVerticalSectionScanCursor.SLICE_COUNT, passComplete);
             }
         }
         if (activeCategories.isEmpty()) {
             scanSections.clear();
+            verticalCursor.reset(0);
             passComplete = false;
+            scanPassStarted = false;
+            firstPassComplete = false;
+            loadedChunkCount = 0;
             demandFingerprint = "";
             return;
         }
@@ -376,19 +540,19 @@ public final class RobotProcessorWorkScheduler {
         }
         if (full || scanSections.isEmpty() || now < nextPass || passComplete) return;
         for (int i = 0; i < budget && !passComplete; i++) {
-            ScanSection section = scanSections.get(scanCursor);
+            ScanSection section = scanSections.get(verticalCursor.sectionIndex());
             ChunkPos chunk = section.chunk();
             int sy = section.sectionY();
             // Skip air-only sections in O(1) instead of checking 4096 voxels.
             // A chunk is retrieved WITHOUT loading it, and every later read is
             // again guarded against unload in this tick.
-            if (blockCursor == 0 && isEmptySection(level, chunk, sy)) {
+            if (verticalCursor.sliceOffset() == 0 && isEmptySection(level, chunk, sy)) {
                 advanceSection(now);
                 continue;
             }
-            int x = (chunk.x << 4) + (blockCursor & 15);
-            int z = (chunk.z << 4) + ((blockCursor >> 4) & 15);
-            int y = sy * 16 + ((blockCursor >> 8) & 15);
+            int x = (chunk.x << 4) + verticalCursor.localX();
+            int z = (chunk.z << 4) + verticalCursor.localZ();
+            int y = (sy << 4) + verticalCursor.localY();
             BlockPos pos = new BlockPos(x, y, z);
             advance(now);
             observePosition(level, pos, now);
@@ -450,10 +614,14 @@ public final class RobotProcessorWorkScheduler {
     }
 
     private void advanceSection(long now) {
-        blockCursor = 0;
-        if (++scanCursor < scanSections.size()) return;
-        scanCursor = 0;
+        verticalCursor.skipSection();
+        finishPassIfComplete(now);
+    }
+
+    private void finishPassIfComplete(long now) {
+        if (!verticalCursor.complete()) return;
         passComplete = true;
+        if (loadedChunkCount > 0) firstPassComplete = true;
         nextPass = now + MAX_SCAN_IDLE_TICKS;
     }
 
@@ -485,6 +653,9 @@ public final class RobotProcessorWorkScheduler {
             RobotProcessorWorkScheduler scheduler = ref.get();
             if (scheduler == null || scheduler.panel.isRemoved()) continue;
             scheduler.index.invalidatePosition(pos.asLong());
+            // Even a change far from the ore can open a traversable corridor.
+            // Discard negative route hints without discarding the ore catalog.
+            scheduler.sharedRouteFailures.worldChanged();
             scheduler.markDirty(pos);
             scheduler.markDirty(pos.above());
             scheduler.markDirty(pos.below());
@@ -505,6 +676,8 @@ public final class RobotProcessorWorkScheduler {
 
     private void preparePass(ServerLevel level, List<BlockPos> consumers) {
         scanSections.clear();
+        int chunks = 0;
+        long scope = 1469598103934665603L ^ demandFingerprint.hashCode();
         int cx = panel.getBlockPos().getX() >> 4, cz = panel.getBlockPos().getZ() >> 4;
         List<BlockPos> anchors = new ArrayList<>(consumers);
         anchors.add(panel.getBlockPos());
@@ -516,16 +689,23 @@ public final class RobotProcessorWorkScheduler {
                     dz <= TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS; dz++) {
                 int x = cx + dx, z = cz + dz;
                 if (ChunkUtil.getChunk(level, x, z, false) == null) continue;
+                chunks++;
+                scope = (scope ^ (((long) x << 32) ^ (z & 0xffffffffL))) * 1099511628211L;
                 ChunkPos chunk = new ChunkPos(x, z);
                 for (int sy = min; sy <= max; sy++) {
+                    // Do the palette test while BUILDING the pass: stone-only,
+                    // air-only and unloaded vertical sections need no 4096-block
+                    // scan and should not consume a round-robin slot.
+                    if (isEmptySection(level, chunk, sy)) continue;
                     long score = Long.MAX_VALUE;
                     for (BlockPos anchor : anchors) {
                         long sx = x - (anchor.getX() >> 4);
                         long sz = z - (anchor.getZ() >> 4);
-                        long vertical = sy - (anchor.getY() >> 4);
-                        // The lower wall of a nearby quarry must not wait for
-                        // every surface chunk to be scanned first.
-                        score = Math.min(score, 4L * (sx * sx + sz * sz) + vertical * vertical);
+                        long vertical = Math.abs((long) sy - (anchor.getY() >> 4));
+                        // Prioritize deep sections in the same shaft over far
+                        // surface chunks. The round-robin still visits EVERY
+                        // eligible section, so lower layers never starve.
+                        score = Math.min(score, 4L * (sx * sx + sz * sz) + vertical);
                     }
                     scanSections.add(new ScanSection(chunk, sy, score));
                 }
@@ -535,15 +715,21 @@ public final class RobotProcessorWorkScheduler {
                 .thenComparingInt(section -> section.chunk().x)
                 .thenComparingInt(section -> section.chunk().z)
                 .thenComparingInt(ScanSection::sectionY));
-        scanCursor = blockCursor = 0;
-        passComplete = scanSections.isEmpty();
+        verticalCursor.reset(scanSections.size());
+        // A changed set of loaded chunks or a profession/policy change requires
+        // a fresh first pass: the old 100% cannot describe newly loaded blocks.
+        if (scanPassStarted && scanScopeFingerprint != scope) firstPassComplete = false;
+        scanScopeFingerprint = scope;
+        loadedChunkCount = chunks;
+        scanPassStarted = true;
+        passComplete = verticalCursor.complete();
+        if (passComplete && loadedChunkCount > 0) firstPassComplete = true;
         nextPass = passComplete ? level.getGameTime() + MAX_SCAN_IDLE_TICKS : 0;
     }
 
     private void advance(long now) {
-        if (++blockCursor < 4096) return;
-        blockCursor = 0;
-        advanceSection(now);
+        verticalCursor.advanceBlock();
+        finishPassIfComplete(now);
     }
 
     public static boolean ready(EntityRobotBase robot) {
@@ -610,6 +796,12 @@ public final class RobotProcessorWorkScheduler {
                 if (isQueueMiner(robot) && scheduler.minerTargetCooldowns
                         .getOrDefault(id, Map.of()).getOrDefault(packed, 0L) > now) continue;
                 if (board.processorPlanningEligible(level, pos)) {
+                    RobotWorkEnergyBudget.Estimate power = scheduler.energyEstimate(robot, pos, 1, now);
+                    if (!power.affordable()) {
+                        scheduler.energyRejected(robot, pos, power, now);
+                        continue;
+                    }
+                    scheduler.energyPressure.remove(id);
                     state.wakeRetryAfter.put(id, now + 200L);
                     if (RobotTrace.enabled()) RobotTrace.event(robot, "PROCESSOR_WORK_WAKE",
                             "panel=%s target=%s", scheduler.panel.getBlockPos(), pos);
@@ -619,6 +811,187 @@ public final class RobotProcessorWorkScheduler {
             }
         }
         return false;
+    }
+
+    /**
+     * Builder sources are NOT voxels. A panel shares a snapshot of loaded
+     * Builder / Construction Marker blocks; the board alone reserves actual
+     * blueprint tasks. null preserves the autonomous behavior for unlinked
+     * robots, including when a panel is loading or has just been removed.
+     */
+    public static List<IRobotBuilderTarget> builderSourcesFor(EntityRobotBase robot, int maxDistanceSq) {
+        if (robot == null || !(robot.getBoard() instanceof BoardRobotBuilder)) return null;
+        WorldState state = WORLDS.get(robotLevel(robot));
+        if (state == null) return null;
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            return scheduler.builderSources.preferred(robot, maxDistanceSq);
+        }
+        return null;
+    }
+
+    public static void builderSourceAttempted(EntityRobotBase robot, IRobotBuilderTarget target,
+            boolean success) {
+        if (robot == null || target == null) return;
+        WorldState state = WORLDS.get(robotLevel(robot));
+        if (state == null) return;
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            scheduler.builderSources.attempted(robot, target, success);
+            return;
+        }
+    }
+
+    /**
+     * Only linked builders have bounded operation queues. Unlinked builders
+     * retain classic 128-item batches and independent search behavior.
+     */
+    public static int builderQueueLimit(EntityRobotBase robot) {
+        if (robot == null || !(robot.getBoard() instanceof BoardRobotBuilder)) return 0;
+        WorldState state = WORLDS.get(robotLevel(robot));
+        if (state == null) return 0;
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            return Math.max(1, Math.min(8, scheduler.panel.getMaxExecutionQueue()));
+        }
+        return 0;
+    }
+
+    /** Primary controller only; null denotes an autonomous/unlinked Builder. */
+    public static Long builderControllerPanelId(EntityRobotBase robot) {
+        if (robot == null || !(robot.getBoard() instanceof BoardRobotBuilder)) return null;
+        WorldState state = WORLDS.get(robotLevel(robot));
+        if (state == null) return null;
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            return scheduler.panel.getBlockPos().asLong();
+        }
+        return null;
+    }
+
+    /** Observes authoritative native reservations; this ledger owns NO locks. */
+    public static void builderBatchClaimed(EntityRobotBase robot, IRobotBuilderTarget source,
+            List<RobotBuildTask> tasks) {
+        if (robot == null || source == null || tasks == null || tasks.isEmpty()) return;
+        WorldState state = WORLDS.get(robotLevel(robot));
+        if (state == null) return;
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            List<RobotBuilderSourceScheduler.Operation> operations = new ArrayList<>(tasks.size());
+            int items = 0;
+            for (RobotBuildTask task : tasks) {
+                int count = 0;
+                for (var requirement : task.requirements()) {
+                    if (requirement != null && !requirement.isEmpty()) {
+                        count = (int) Math.min(Integer.MAX_VALUE, (long) count + requirement.getCount());
+                    }
+                }
+                operations.add(new RobotBuilderSourceScheduler.Operation(task.pos(), count));
+                items = (int) Math.min(Integer.MAX_VALUE, (long) items + count);
+            }
+            scheduler.builderSources.claimed(robot, source.getBlockPos(), operations);
+            if (RobotTrace.enabled()) RobotTrace.event(robot, "PROCESSOR_BUILDER_BATCH",
+                    "panel=%s builder=%s ops=%d materials=%d first=%s",
+                    scheduler.panel.getBlockPos(), source.getBlockPos(), tasks.size(), items, tasks.get(0).pos());
+            return;
+        }
+    }
+
+    /** Called only AFTER the native Builder released a completed operation. */
+    public static void builderTaskFinished(EntityRobotBase robot, BlockPos source, BlockPos position,
+            boolean successful) {
+        if (robot == null || source == null || position == null) return;
+        WorldState state = WORLDS.get(robotLevel(robot));
+        if (state == null) return;
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            scheduler.builderSources.completed(robot, source, position);
+            if (RobotTrace.enabled()) RobotTrace.event(robot, "PROCESSOR_BUILDER_OPERATION",
+                    "builder=%s position=%s successful=%s", source, position, successful);
+            return;
+        }
+    }
+
+    public static void builderBatchAborted(EntityRobotBase robot, BlockPos source) {
+        if (robot == null || source == null) return;
+        WorldState state = WORLDS.get(robotLevel(robot));
+        if (state == null) return;
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            scheduler.builderSources.released(robot, source);
+            return;
+        }
+    }
+
+    /** A failed inventory fetch is not proof that the blueprint is empty. */
+    public static void builderMaterialStalled(EntityRobotBase robot, BlockPos source) {
+        builderMaterialStalled(robot, source, net.minecraft.world.item.ItemStack.EMPTY);
+    }
+
+    public static void builderMaterialStalled(EntityRobotBase robot, BlockPos source,
+                                              net.minecraft.world.item.ItemStack missing) {
+        if (robot == null || source == null) return;
+        WorldState state = WORLDS.get(robotLevel(robot));
+        if (state == null) return;
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            scheduler.builderSources.materialStalled(robot, source, missing);
+            if (RobotTrace.enabled()) RobotTrace.event(robot, "PROCESSOR_BUILDER_MATERIAL_WAIT",
+                    "panel=%s builder=%s missing=%s count=%d retry=400t",
+                    scheduler.panel.getBlockPos(), source,
+                    missing == null || missing.isEmpty() ? "unknown" : missing.getItem(),
+                    missing == null || missing.isEmpty() ? 0 : missing.getCount());
+            return;
+        }
+    }
+
+    /** A concise status for the panel's existing robot snapshot packet. */
+    public static String builderMaterialWait(EntityRobotBase robot) {
+        if (robot == null || !(robot.getBoard() instanceof BoardRobotBuilder)) return null;
+        WorldState state = WORLDS.get(robotLevel(robot));
+        if (state == null) return null;
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            return scheduler.builderSources.materialWaitDescription(robot.getRobotId());
+        }
+        return null;
+    }
+
+    /** Do not probe (reserve!) construction tasks just to wake a sleeping robot. */
+    public static boolean hasAvailableBuilderSource(EntityRobotBase robot) {
+        if (robot == null || robot.getEnergy() < EntityRobotBase.SAFETY_ENERGY
+                || !(robot.getBoard() instanceof BoardRobotBuilder)) return false;
+        AIRobot ai = robot.getActiveAI();
+        if (ai == null || !ai.isWithinWorkChain(robot.getBoard())) return false;
+        List<IRobotBuilderTarget> targets = builderSourcesFor(robot, 3 * 64 * 64);
+        return targets != null && !targets.isEmpty();
     }
 
     /** Work hint is temporary and must be rechecked using the robot's own predicates. */
@@ -657,6 +1030,11 @@ public final class RobotProcessorWorkScheduler {
             if (!state.leases.available(packed, robot.getRobotId(), panel.getBlockPos().asLong(), now)) continue;
             if (zone != null && !zone.contains(new Vec3(pos.getX() + .5D, pos.getY() + .5D, pos.getZ() + .5D))) continue;
             if (!board.processorTargetEligible(level, pos)) continue;
+            RobotWorkEnergyBudget.Estimate power = energyEstimate(robot, pos, 1, now);
+            if (!power.affordable()) {
+                energyRejected(robot, pos, power, now);
+                continue;
+            }
             IRobotRegistry registry = robot.getRegistry();
             if (registry != null && registry.isTaken(new ResourceIdBlock(pos))) continue;
             long token = state.leases.claim(packed, robot.getRobotId(), panel.getBlockPos().asLong(),
@@ -664,6 +1042,68 @@ public final class RobotProcessorWorkScheduler {
             if (token != 0L) return new SuggestedWork(pos, token);
         }
         return null;
+    }
+
+    /**
+     * Never scan charging docks once per candidate or per A* expansion.
+     * This snapshot records only loaded, permitted powered docks. Battery
+     * level is read live when calculating every decision.
+     */
+    private RobotWorkEnergyPlanner.Context energyContext(EntityRobotBase robot, long now) {
+        long id = robot.getRobotId();
+        CachedEnergy current = chargerSnapshots.get(id);
+        if (current == null || now < current.refreshed()
+                || now - current.refreshed() >= ENERGY_CONTEXT_REFRESH_TICKS) {
+            current = new CachedEnergy(RobotWorkEnergyPlanner.capture(robot), now);
+            chargerSnapshots.put(id, current);
+        }
+        return current.context();
+    }
+
+    private RobotWorkEnergyBudget.Estimate energyEstimate(EntityRobotBase robot, BlockPos target,
+                                                          int plannedWork, long now) {
+        return energyContext(robot, now).evaluate(robot, target, plannedWork);
+    }
+
+    private void energyRejected(EntityRobotBase robot, BlockPos target,
+                                RobotWorkEnergyBudget.Estimate estimate, long now) {
+        if (!estimate.chargerKnown() || estimate.required() > RobotWorkEnergyBudget.MAX_BATTERY_ENERGY) return;
+        long id = robot.getRobotId();
+        EnergyPressure old = energyPressure.get(id);
+        long required = old != null && old.untilTick() > now
+                ? Math.min(old.minimumNeeded(), estimate.required()) : estimate.required();
+        energyPressure.put(id, new EnergyPressure(required, now + ENERGY_RECHECK_TICKS));
+        if (RobotTrace.enabled() && (old == null || now >= old.untilTick()
+                || old.minimumNeeded() != required)) {
+            RobotTrace.event(robot, "PROCESSOR_ENERGY_WAIT",
+                    "target=%s energy=%d required=%d travel=%d work=%d",
+                    target, robot.getEnergy(), required, estimate.travel(), estimate.work());
+        }
+    }
+
+    /** True only when a known reachable power source exists and every examined
+     * next job exceeds the robot's remaining reserve. AIRobotMain decides the
+     * actual charging route; this never takes/forces a dock itself. */
+    public static boolean shouldRechargeBeforeWork(EntityRobotBase robot) {
+        if (robot == null || !isQueuedWorker(robot)) return false;
+        Level level = robotLevel(robot);
+        WorldState state = WORLDS.get(level);
+        if (state == null) return false;
+        long now = level.getGameTime();
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            EnergyPressure pressure = scheduler.energyPressure.get(robot.getRobotId());
+            if (pressure == null || pressure.untilTick() <= now
+                    || robot.getEnergy() >= pressure.minimumNeeded()) return false;
+            // A physical work AI is already underway. Never interrupt its
+            // current block due to a different speculative queue entry.
+            AIRobot ai = robot.getActiveAI();
+            return !(ai instanceof AIRobotBreak || ai instanceof AIRobotGotoBlock);
+        }
+        return false;
     }
 
     private static Level robotLevel(EntityRobotBase robot) {
@@ -828,7 +1268,8 @@ public final class RobotProcessorWorkScheduler {
                         && (stillWorking.getActiveAI() instanceof AIRobotBreak
                                 || stillWorking.getActiveAI() instanceof AIRobotHarvest
                                 || stillWorking.getActiveAI() instanceof AIRobotPlant
-                                || stillWorking.getActiveAI() instanceof AIRobotUseToolOnBlock)
+                                || stillWorking.getActiveAI() instanceof AIRobotUseToolOnBlock
+                                || stillWorking.getActiveAI() instanceof AIRobotPumpBlock)
                         && stillWorking.getActiveAI().isWithinWorkChain(stillWorking.getBoard());
                 if (executing) {
                     // Temporary AI transitions must not destroy the rest of
@@ -884,6 +1325,39 @@ public final class RobotProcessorWorkScheduler {
             }
             releaseJobs(state, id, executionQueues.trim(id, max));
         }
+        // A previously assigned job can become too expensive after the robot
+        // travels/works. Check once per 20 ticks, without evicting/abandoning
+        // the prepared job and without touching the active break.
+        for (EntityRobotBase worker : readyWorkers) {
+            long id = worker.getRobotId();
+            if (Math.floorMod(now + id, ENERGY_CONTEXT_REFRESH_TICKS) != 0) continue;
+            boolean affordable = false;
+            long smallestRequirement = Long.MAX_VALUE;
+            for (RobotExecutionQueue.Job job : executionQueues.jobs(id)) {
+                if (job.active()) { affordable = true; break; }
+                BlockPos destination = BlockPos.of(job.position());
+                var forecast = energyEstimate(worker, destination,
+                        Math.min(RobotWorkEnergyBudget.MAX_PLANNED_BLOCKS, job.remainingBlocks()), now);
+                if (forecast.affordable()) { affordable = true; break; }
+                if (forecast.chargerKnown()) smallestRequirement = Math.min(smallestRequirement, forecast.required());
+            }
+            if (affordable) {
+                energyPressure.remove(id);
+            } else if (smallestRequirement != Long.MAX_VALUE) {
+                energyRejected(worker, worker.blockPosition(),
+                        new RobotWorkEnergyBudget.Estimate(true, false, smallestRequirement, 0, 0, 0), now);
+            }
+        }
+        // The ore catalog may discover a nearby vein AFTER this robot's queue
+        // was filled (or after its saved distant jobs were restored). Replace
+        // only one unstarted distant job with a markedly closer deposit, using
+        // atomic lease replacement. Running breaks are never interrupted.
+        for (EntityRobotBase robot : readyWorkers) {
+            if (isQueueMiner(robot)
+                    && Math.floorMod(now + robot.getRobotId(), QUEUE_LOCALITY_CHECK_TICKS) == 0) {
+                preferNearbyMiningDeposit(level, state, registry, robot, now);
+            }
+        }
         // One new target per worker in each round prevents early-listed miners
         // from monopolising the shared candidate index.
         readyWorkers.sort(Comparator.comparingInt((EntityRobotBase robot) -> executionQueues.size(robot.getRobotId()))
@@ -908,18 +1382,22 @@ public final class RobotProcessorWorkScheduler {
         long id = robot.getRobotId();
         ProcessorCandidateBoard board = (ProcessorCandidateBoard) robot.getBoard();
         List<RobotExecutionQueue.Job> current = executionQueues.jobs(id);
-        BlockPos anchor = current.isEmpty() ? robot.blockPosition()
-                : BlockPos.of(current.get(current.size() - 1).position());
+        // Planning from the last PREFETCHED job causes queues to drift across
+        // the map (and down quarry levels) even while the robot remains at its
+        // dock. Always rank new jobs from the robot's actual current location.
+        BlockPos anchor = robot.blockPosition();
         Map<Long, Long> cooldown = minerTargetCooldowns.computeIfAbsent(id, ignored -> new HashMap<>());
         cooldown.entrySet().removeIf(entry -> now >= entry.getValue());
+        Set<Long> alreadyQueued = new HashSet<>();
+        for (RobotExecutionQueue.Job job : current) alreadyQueued.addAll(job.positions());
         for (long target : index.nearest(board.processorWorkCategory(), anchor.getX(), anchor.getY(),
                 anchor.getZ(), now, 64, packed ->
                         state.leases.available(packed, id, panel.getBlockPos().asLong(), now)
-                                // The nearest 64 positions may all belong to
-                                // the SAME huge vein. Exclude queued and cooled
-                                // members before ranking to expose new jobs.
-                                && !executionQueues.contains(id, packed)
-                                && !cooldown.containsKey(packed))) {
+                                // Exclude existing deposit members BEFORE
+                                // applying the 64-target nearest limit.
+                                && !alreadyQueued.contains(packed)
+                                && !cooldown.containsKey(packed)
+                                && !sharedRouteFailures.shouldDefer(anchor, packed, now))) {
             BlockPos pos = BlockPos.of(target);
             if (!level.hasChunkAt(pos) || !panel.allowsWorkPosition(pos)) continue;
             if (!board.processorPlanningEligible(level, pos)) {
@@ -928,10 +1406,80 @@ public final class RobotProcessorWorkScheduler {
                 }
                 continue;
             }
+            RobotWorkEnergyBudget.Estimate forecast = energyEstimate(robot, pos, 1, now);
+            if (!forecast.affordable()) {
+                energyRejected(robot, pos, forecast, now);
+                continue;
+            }
             if (queueMiningDeposit(level, state, registry, robot, pos, now)) return true;
             cooldown.put(target, now + FAILED_TARGET_RETRY_TICKS);
         }
         return false;
+    }
+
+    /**
+     * Replace a distant pending vein if a substantially nearer UNCLAIMED vein
+     * was discovered after the execution queue was filled. The catalog remains
+     * independent of that queue; a failed tentative replacement does not
+     * discard either the original deposit or its leases.
+     *
+     * Never replace an active job. Replan at most one job per worker per
+     * second to avoid churn when several ores are equally close.
+     */
+    private void preferNearbyMiningDeposit(ServerLevel level, WorldState state, IRobotRegistry registry,
+            EntityRobotBase robot, long now) {
+        long id = robot.getRobotId();
+        if (executionQueues.size(id) < panel.getMaxExecutionQueue()) return;
+        ProcessorCandidateBoard board = (ProcessorCandidateBoard) robot.getBoard();
+        BlockPos anchor = robot.blockPosition();
+        RobotExecutionQueue.Job worstPending = null;
+        long worstDistance = -1L;
+        for (RobotExecutionQueue.Job job : executionQueues.jobs(id)) {
+            if (job.active()) continue;
+            long distance = RobotMiningPriority.nearestMemberSquared(anchor, job.positions());
+            if (distance > worstDistance) {
+                worstDistance = distance;
+                worstPending = job;
+            }
+        }
+        if (worstPending == null) return;
+        Map<Long, Long> cooldown = minerTargetCooldowns.computeIfAbsent(id, unused -> new HashMap<>());
+        cooldown.entrySet().removeIf(entry -> now >= entry.getValue());
+        // A large deposit may have 2,048 members. Avoid testing membership by
+        // walking every job for each of the catalog's thousands of entries.
+        Set<Long> alreadyQueued = new HashSet<>();
+        for (RobotExecutionQueue.Job job : executionQueues.jobs(id)) {
+            alreadyQueued.addAll(job.positions());
+        }
+        for (long packed : index.nearest(board.processorWorkCategory(), anchor.getX(), anchor.getY(),
+                anchor.getZ(), now, 32, candidate ->
+                        !alreadyQueued.contains(candidate)
+                                && !cooldown.containsKey(candidate)
+                                && !sharedRouteFailures.shouldDefer(anchor, candidate, now)
+                                && state.leases.available(candidate, id, panel.getBlockPos().asLong(), now))) {
+            BlockPos pos = BlockPos.of(packed);
+            long distance = RobotMiningPriority.squaredDistance(anchor, pos);
+            // Sorted nearest-first; if even this candidate is not substantially
+            // better, no later candidate can improve the current queue.
+            if (!RobotMiningPriority.materiallyCloser(distance, worstDistance)) break;
+            if (!level.hasChunkAt(pos) || !panel.allowsWorkPosition(pos)) continue;
+            if (!board.processorPlanningEligible(level, pos)) {
+                if (!board.processorDiscoveryCandidate(level, pos)) {
+                    index.invalidate(board.processorWorkCategory(), packed);
+                }
+                continue;
+            }
+            RobotWorkEnergyBudget.Estimate forecast = energyEstimate(robot, pos, 1, now);
+            if (!forecast.affordable()) {
+                energyRejected(robot, pos, forecast, now);
+                continue;
+            }
+            if (queueMiningDeposit(level, state, registry, robot, pos, now, worstPending)) {
+                energyPressure.remove(id);
+                return;
+            }
+            cooldown.put(packed, now + FAILED_TARGET_RETRY_TICKS);
+        }
     }
 
     /**
@@ -942,9 +1490,20 @@ public final class RobotProcessorWorkScheduler {
      */
     private boolean queueMiningDeposit(ServerLevel level, WorldState state, IRobotRegistry registry,
             EntityRobotBase robot, BlockPos seed, long now) {
+        return queueMiningDeposit(level, state, registry, robot, seed, now, null);
+    }
+
+    private boolean queueMiningDeposit(ServerLevel level, WorldState state, IRobotRegistry registry,
+            EntityRobotBase robot, BlockPos seed, long now, RobotExecutionQueue.Job replacePending) {
         ProcessorCandidateBoard board = (ProcessorCandidateBoard) robot.getBoard();
         List<BlockPos> discovered = board.processorJobMembers(level, seed, MAX_VEIN_MEMBERS);
         if (discovered.isEmpty()) return false;
+        RobotWorkEnergyBudget.Estimate forecast = energyEstimate(robot, seed,
+                Math.min(RobotWorkEnergyBudget.MAX_PLANNED_BLOCKS, discovered.size()), now);
+        if (!forecast.affordable()) {
+            energyRejected(robot, seed, forecast, now);
+            return false;
+        }
         long id = robot.getRobotId();
         IZone zone = robot.getZoneToWork();
         Map<Long, Long> members = new LinkedHashMap<>();
@@ -961,11 +1520,21 @@ public final class RobotProcessorWorkScheduler {
                 return false;
             }
             if (executionQueues.contains(id, packed)) {
+                if (replacePending != null) {
+                    // This is already part of an active or prepared deposit.
+                    // Never make a new job alias an existing lease.
+                    releaseNewLeases(state, id, newLeases);
+                    return false;
+                }
                 members.put(packed, executionQueues.token(id, packed));
                 continue;
             }
             // The robot has already reserved this actual block itself.
             if (registry.isTaken(resource) && registry.robotIdTaking(resource) == id) {
+                if (replacePending != null) {
+                    releaseNewLeases(state, id, newLeases);
+                    return false;
+                }
                 members.put(packed, 0L);
                 continue;
             }
@@ -978,9 +1547,35 @@ public final class RobotProcessorWorkScheduler {
             members.put(packed, token);
             newLeases.put(packed, token);
         }
-        if (members.isEmpty() || !executionQueues.addDeposit(id, members, panel.getMaxExecutionQueue())) {
+        RobotExecutionQueue.Job displaced = null;
+        if (members.isEmpty()) {
             releaseNewLeases(state, id, newLeases);
             return false;
+        }
+        if (replacePending == null) {
+            if (!executionQueues.addDeposit(id, members, panel.getMaxExecutionQueue())) {
+                releaseNewLeases(state, id, newLeases);
+                return false;
+            }
+        } else {
+            displaced = executionQueues.replacePendingDeposit(id, replacePending.position(), members);
+            if (displaced == null) {
+                releaseNewLeases(state, id, newLeases);
+                return false;
+            }
+            // The swap succeeded atomically. Only now release the old claims;
+            // any failed attempt above left the previous queue untouched.
+            releaseJobs(state, id, List.of(displaced));
+            Map<Long, Long> cooldown = minerTargetCooldowns.computeIfAbsent(id, unused -> new HashMap<>());
+            for (long previous : displaced.positions()) {
+                cooldown.put(previous, now + LOCALITY_COOLDOWN_TICKS);
+            }
+            if (RobotTrace.enabled()) RobotTrace.event(robot, "PROCESSOR_QUEUE_REPRIORITIZE",
+                    "old=%s oldDistance=%.1f new=%s newDistance=%.1f jobs=%d",
+                    BlockPos.of(displaced.position()),
+                    Math.sqrt(RobotMiningPriority.nearestMemberSquared(robot.blockPosition(), displaced.positions())),
+                    seed, Math.sqrt(RobotMiningPriority.squaredDistance(robot.blockPosition(), seed)),
+                    executionQueues.size(id));
         }
         scheduleFocusedProbe(seed, now);
         if (RobotTrace.enabled()) {
@@ -989,6 +1584,11 @@ public final class RobotProcessorWorkScheduler {
                     panel.getBlockPos(), seed, members.size(),
                     executionQueues.size(id), panel.getMaxExecutionQueue());
         }
+        energyPressure.remove(id);
+        if (RobotTrace.enabled()) RobotTrace.event(robot, "PROCESSOR_ENERGY_PLAN",
+                "target=%s energy=%d required=%d estimatedBlocks=%d chargers=%s",
+                seed, robot.getEnergy(), forecast.required(), forecast.estimatedBlocks(),
+                forecast.chargerKnown());
         panel.setChanged();
         return true;
     }
@@ -1059,6 +1659,10 @@ public final class RobotProcessorWorkScheduler {
      * positions are not leases and are revalidated before work resumes.
      */
     public int queueCount(long robotId) {
+        int combat = combatTargets.queueCount(robotId);
+        if (combat > 0) return combat;
+        int actions = areaActions.queueCount(robotId);
+        if (actions > 0) return actions;
         int pickups = pickupScheduler.queueCount(robotId);
         if (pickups > 0) return pickups;
         int cargo = logisticsScheduler.queueCount(robotId);
@@ -1080,6 +1684,8 @@ public final class RobotProcessorWorkScheduler {
     public void onQueueLimitChanged() {
         pickupScheduler.onQueueLimitChanged();
         logisticsScheduler.onQueueLimitChanged();
+        areaActions.onQueueLimitChanged();
+        combatTargets.onQueueLimitChanged();
         Level level = panel.getLevel();
         WorldState state = level == null ? null : WORLDS.get(level);
         if (state != null) {
@@ -1130,6 +1736,65 @@ public final class RobotProcessorWorkScheduler {
         return false;
     }
 
+    /**
+     * Central TPS budget for A* traversals of loaded, panel-managed miners.
+     * The autonomous search path retains its independent 1,024 nodes per tick.
+     * Counting active workers once per world tick prevents a fleet of miners
+     * from multiplying path cost while preserving fair progress for each one.
+     */
+    public static int requestRouteSearchBudget(EntityRobotBase robot, int requested) {
+        if (robot == null || requested <= 0 || !isQueueMiner(robot)) return requested;
+        Level level = robotLevel(robot);
+        WorldState state = WORLDS.get(level);
+        if (state == null) return requested;
+        boolean controlled = false;
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler panelScheduler = ref.get();
+            if (panelScheduler != null && !panelScheduler.panel.isRemoved()
+                    && panelScheduler.panel.isRobotLinked(robot.getRobotId())
+                    && panelScheduler.isPrimaryController(state, robot.getRobotId())) {
+                controlled = true;
+                break;
+            }
+        }
+        if (!controlled) return requested;
+        long now = level.getGameTime();
+        if (state.routeWorkerCountTick != now) {
+            state.routeWorkerCountTick = now;
+            Set<Long> unique = new HashSet<>();
+            IRobotRegistry registry = robot.getRegistry();
+            if (registry != null) {
+                for (var ref : state.panels.values()) {
+                    RobotProcessorWorkScheduler panelScheduler = ref.get();
+                    if (panelScheduler == null || panelScheduler.panel.isRemoved()) continue;
+                    for (long id : panelScheduler.panel.getLinkedRobotIds()) {
+                        if (!panelScheduler.isPrimaryController(state, id) || !unique.add(id)) continue;
+                        EntityRobotBase other = registry.getLoadedRobot(id);
+                        if (other == null || other.isRemoved() || !isQueueMiner(other)
+                                || !robotLevelIs(level, other) || other.getBoard() == null) continue;
+                        AIRobot active = other.getActiveAI();
+                        boolean potentiallySearching = active != null
+                                && active.isWithinWorkChain(other.getBoard())
+                                && (active == other.getBoard()
+                                        || active instanceof AIRobotSearchAndGotoBlock
+                                        || active instanceof AIRobotSearchNearestBlock);
+                        if (!potentiallySearching) {
+                            // A miner travelling, breaking ore or charging is
+                            // not consuming A* CPU. Do not slow down the
+                            // actually searching robots because of it.
+                            unique.remove(id);
+                        }
+                    }
+                }
+            }
+            // The current miner always participates even if board transitions
+            // temporarily hide its active search from the registry snapshot.
+            state.routeWorkerCount = Math.max(1, unique.size());
+        }
+        return state.routeSearchBudget.acquire(now, robot.getRobotId(),
+                state.routeWorkerCount, requested);
+    }
+
     /** True only for a miner actively controlled by a loaded panel. Other
      * miners retain their original autonomous nearest-route search. */
     public static boolean isManagedMiner(EntityRobotBase robot) {
@@ -1153,7 +1818,11 @@ public final class RobotProcessorWorkScheduler {
         List<BlockPos> planned = queuedWorkTargets(robot);
         var board = (ProcessorCandidateBoard) robot.getBoard();
         List<BlockPos> remembered = board.processorKnownCandidates();
-        if (remembered.isEmpty()) return planned;
+        if (remembered.isEmpty() || !planned.isEmpty()) {
+            // A* sees every prepared vein sampled by distance. Previously an
+            // old remembered vein returned alone, hiding nearer queued work.
+            return planned;
+        }
         Level level = robotLevel(robot);
         WorldState state = WORLDS.get(level);
         if (state == null) return planned;
@@ -1163,29 +1832,25 @@ public final class RobotProcessorWorkScheduler {
                     || !scheduler.panel.isRobotLinked(robot.getRobotId())
                     || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
             List<RobotExecutionQueue.Job> jobs = scheduler.executionQueues.jobs(robot.getRobotId());
-            List<BlockPos> preferred = new ArrayList<>();
-            for (BlockPos pos : remembered) {
-                if (!level.hasChunkAt(pos) || !board.processorTargetEligible(level, pos)) continue;
-                for (RobotExecutionQueue.Job job : jobs) {
-                    if (!job.contains(pos.asLong())) continue;
-                    preferred.add(pos);
-                    break;
-                }
-                if (preferred.size() >= MAX_SEARCH_TARGETS) break;
-            }
-            if (!preferred.isEmpty()) return preferred;
             // After a hand-off, the remembered vein may temporarily have no
             // queued lease. Avoid a premature switch to a different ore only
             // when the execution queue itself is still completely empty.
             if (jobs.isEmpty()) {
                 List<BlockPos> valid = new ArrayList<>();
                 for (BlockPos pos : remembered) {
-                    if (level.hasChunkAt(pos) && board.processorTargetEligible(level, pos)) {
-                        valid.add(pos);
-                        if (valid.size() >= MAX_SEARCH_TARGETS) break;
+                    if (!level.hasChunkAt(pos) || !board.processorTargetEligible(level, pos)) continue;
+                    var forecast = scheduler.energyEstimate(robot, pos, 1, level.getGameTime());
+                    if (!forecast.affordable()) {
+                        scheduler.energyRejected(robot, pos, forecast, level.getGameTime());
+                        continue;
                     }
+                    valid.add(pos);
+                    if (valid.size() >= MAX_SEARCH_TARGETS) break;
                 }
-                if (!valid.isEmpty()) return valid;
+                if (!valid.isEmpty()) {
+                    scheduler.energyPressure.remove(robot.getRobotId());
+                    return valid;
+                }
             }
             return planned;
         }
@@ -1210,18 +1875,42 @@ public final class RobotProcessorWorkScheduler {
             // An active job is considered first, but no one deposit may use
             // the entire target budget if other jobs are still waiting.
             List<List<Long>> samples = new ArrayList<>(jobs.size());
+            boolean anyAffordable = false;
             int perJob = Math.max(1, (MAX_SEARCH_TARGETS + jobs.size() - 1) / jobs.size());
+            BlockPos currentPosition = robot.blockPosition();
             for (RobotExecutionQueue.Job job : jobs) {
                 List<Long> members = job.positions();
                 List<Long> chosen = new ArrayList<>();
+                if (!job.active()) {
+                    BlockPos representative = BlockPos.of(job.position());
+                    var forecast = scheduler.energyEstimate(robot, representative,
+                            Math.min(RobotWorkEnergyBudget.MAX_PLANNED_BLOCKS, job.remainingBlocks()),
+                            level.getGameTime());
+                    if (!forecast.affordable()) {
+                        scheduler.energyRejected(robot, representative, forecast, level.getGameTime());
+                        samples.add(chosen);
+                        continue;
+                    }
+                }
+                anyAffordable = true;
                 if (job.active()) chosen.add(job.position());
+                // Near-only sampling can lose a reachable far-side approach
+                // to a large deposit. Reserve half the slots for its nearest
+                // ore and spread the others across the whole connected vein.
                 int count = Math.min(perJob, members.size());
-                for (int i = 0; i < count; i++) {
-                    long packed = members.get((int) ((long) i * members.size() / count));
-                    if (!chosen.contains(packed)) chosen.add(packed);
+                int nearSlots = Math.max(1, (count + 1) / 2);
+                for (long packed : RobotMiningPriority.nearestMembers(currentPosition, members, nearSlots)) {
+                    if (!chosen.contains(packed) && chosen.size() < count) chosen.add(packed);
+                }
+                if (chosen.size() < count) {
+                    for (int i = 0; i < members.size() && chosen.size() < count; i++) {
+                        long packed = members.get((int) ((long) i * members.size() / count));
+                        if (!chosen.contains(packed)) chosen.add(packed);
+                    }
                 }
                 samples.add(chosen);
             }
+            if (anyAffordable) scheduler.energyPressure.remove(robot.getRobotId());
             List<BlockPos> result = new ArrayList<>(MAX_SEARCH_TARGETS);
             for (int i = 0; result.size() < MAX_SEARCH_TARGETS; i++) {
                 boolean added = false;
@@ -1332,6 +2021,61 @@ public final class RobotProcessorWorkScheduler {
                     scheduler.discardJob(state, robot.getRobotId(), pos.asLong(), true, now);
                 }
             }
+        }
+    }
+
+    /**
+     * Delay only a duplicate A* from a previously explored, connected start
+     * cell. All assigned targets must have fresh witnesses, otherwise normal
+     * route search proceeds. This is a temporary CPU hint, NOT a permanent
+     * blocked-ore classification or a command to discard queued work.
+     */
+    public static long sharedRouteDeferUntil(EntityRobotBase robot, BlockPos origin,
+            List<BlockPos> targets) {
+        if (!isManagedMiner(robot) || origin == null || targets == null || targets.isEmpty()) return 0L;
+        Level level = robotLevel(robot);
+        WorldState state = WORLDS.get(level);
+        if (state == null) return 0L;
+        long now = level.getGameTime();
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            return scheduler.sharedRouteFailures.deferUntil(origin, targets, now);
+        }
+        return 0L;
+    }
+
+    /**
+     * Record only the destinations whose block/tool/Gate predicate passed at
+     * the end of the failed search. The reached-start witnesses come from the
+     * A* traversal itself, so two nearby but DISCONNECTED caves do not share
+     * one another's negative route hints.
+     */
+    public static void rememberFailedRoute(EntityRobotBase robot, BlockPos origin,
+            List<BlockPos> eligibleTargets, java.util.Collection<BlockPos> reachedAir,
+            boolean exhausted, int expanded) {
+        if (!isManagedMiner(robot) || origin == null || eligibleTargets == null
+                || eligibleTargets.isEmpty() || reachedAir == null) return;
+        Level level = robotLevel(robot);
+        WorldState state = WORLDS.get(level);
+        if (state == null) return;
+        long now = level.getGameTime();
+        for (var ref : state.panels.values()) {
+            RobotProcessorWorkScheduler scheduler = ref.get();
+            if (scheduler == null || scheduler.panel.isRemoved()
+                    || !scheduler.panel.isRobotLinked(robot.getRobotId())
+                    || !scheduler.isPrimaryController(state, robot.getRobotId())) continue;
+            int stored = scheduler.sharedRouteFailures.remember(origin, eligibleTargets,
+                    reachedAir, now, exhausted);
+            if (stored > 0 && RobotTrace.enabled()) {
+                RobotTrace.event(robot, "PROCESSOR_ROUTE_CACHE_STORE",
+                        "origin=%s goals=%d expanded=%d complete=%s entries=%d",
+                        origin, stored, expanded, exhausted,
+                        scheduler.sharedRouteFailures.cachedSearches());
+            }
+            return;
         }
     }
 

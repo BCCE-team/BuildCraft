@@ -211,7 +211,8 @@ class RobotRechargeBehaviorTests(unittest.TestCase):
                         platform=layout.platform,preprocess=True,
                         native_source=any(queue_source.is_relative_to(down) for down in downs))
                     output=execute_robot_recharge(*result,queue=queue_dst)
-                    self.assertEqual('37 assertions PASS',output)
+                    self.assertRegex(output, r'^\d+ assertions PASS$')
+                    self.assertGreaterEqual(int(output.split()[0]), 40)
                     print(target+': '+output,flush=True)
 
 

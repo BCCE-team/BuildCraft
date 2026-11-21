@@ -459,7 +459,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     private static int statusColor(String status) {
         return switch (status) {
             case "Working", "Moving" -> 0xFF_41_B4_4F;
-            case "Charging" -> 0xFF_E9_B5_42;
+            case "Charging", "Materials" -> 0xFF_E9_B5_42;
             case "Sleeping", "Docked" -> 0xFF_46_8D_D3;
             case "Available" -> 0xFF_41_B4_4F;
             case "Occupied" -> 0xFF_E9_B5_42;

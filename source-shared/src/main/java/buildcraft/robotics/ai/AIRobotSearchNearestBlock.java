@@ -1,6 +1,7 @@
 package buildcraft.robotics.ai;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -64,9 +65,15 @@ public class AIRobotSearchNearestBlock extends AIRobot {
     private int radiusSquared;
     private int expanded;
     private int waitingTicks;
+    /** Ticks delayed by the shared server budget (diagnostic, not a failure). */
+    private int throttledTicks;
+    /** Waiting on a different miner's confirmed explored A* region. */
+    private boolean sharedRoutePaused;
+    private int sharedRouteWaitTicks;
     private boolean initialized;
     /** Optional stage-3 planned targets. Normal miner BFS is unchanged when empty. */
     private Set<BlockPos> queuedTargets;
+    private RobotTargetDistanceIndex targetDistances;
     /** A miner may start searching before its panel has finished discovering work. */
     private boolean watchProcessorQueue;
     private List<BlockPos> adoptedQueueTargets = List.of();
@@ -97,6 +104,9 @@ public class AIRobotSearchNearestBlock extends AIRobot {
 
     @Override
     public void update() {
+        // Do not burn A* nodes on a prepared trip which cannot leave enough
+        // power for one useful action and the return to a known charger.
+        if (watchProcessorQueue && RobotProcessorWorkScheduler.shouldRechargeBeforeWork(robot)) return;
         if (filter == null) {
             fail();
             return;
@@ -136,7 +146,48 @@ public class AIRobotSearchNearestBlock extends AIRobot {
         }
 
         Level level = world();
-        int budget = NODES_PER_TICK;
+        // Another worker can finish a vein or the panel can promote newly
+        // discovered close ore while this search is paused. Refresh the
+        // snapshot occasionally, rather than waiting for the old failures
+        // to expire before noticing a new, untested goal.
+        if (sharedRoutePaused && sharedRouteWaitTicks > 0
+                && sharedRouteWaitTicks % 20 == 0 && watchProcessorQueue) {
+            List<BlockPos> latest = RobotProcessorWorkScheduler.queuedMiningTargets(robot);
+            Set<BlockPos> newer = new HashSet<>(latest);
+            if (!newer.equals(queuedTargets)) {
+                queuedTargets = newer.isEmpty() ? null : newer;
+                adoptedQueueTargets = List.copyOf(latest);
+                resetSearch();
+            }
+        }
+        // A just-failed A* may have inspected the same corridor and queued
+        // ore for a second miner. Avoid repeating the exact expensive search
+        // while the hint is fresh. This does not discard the second robot's
+        // assignment, and the normal A* resumes on expiry / a world update.
+        // Never stop a search already in progress or an autonomous robot.
+        if (expanded == 0 && queuedTargets != null && watchProcessorQueue) {
+            long retryAt = RobotProcessorWorkScheduler.sharedRouteDeferUntil(robot,
+                    start, List.copyOf(queuedTargets));
+            if (retryAt > level.getGameTime()) {
+                if (!sharedRoutePaused && RobotTrace.enabled()) {
+                    RobotTrace.event(robot, "PROCESSOR_ROUTE_CACHE_HIT",
+                            "start=%s targets=%d retryIn=%d", start,
+                            queuedTargets.size(), retryAt - level.getGameTime());
+                }
+                sharedRoutePaused = true;
+                sharedRouteWaitTicks++;
+                return;
+            }
+        }
+        sharedRoutePaused = false;
+        // Autonomous miners keep their original per-robot budget. A loaded
+        // controller shares one bounded server-tick envelope across its miners.
+        int budget = queuedTargets == null ? NODES_PER_TICK
+                : RobotProcessorWorkScheduler.requestRouteSearchBudget(robot, NODES_PER_TICK);
+        if (budget <= 0) {
+            throttledTicks++;
+            return;
+        }
         int limit = queuedTargets != null ? MAX_QUEUED_NODES : MAX_EXPANDED_NODES;
         while (budget-- > 0 && hasFrontier() && expanded < limit) {
             RouteNode node = queuedTargets == null ? null : directedOpen.remove();
@@ -187,14 +238,43 @@ public class AIRobotSearchNearestBlock extends AIRobot {
         if (!hasFrontier() || expanded >= limit) {
             if (watchProcessorQueue && queuedTargets == null
                     && RobotProcessorWorkScheduler.isMiningDiscoveryInProgress(robot)) return;
+            // Record ONLY goals whose current tool/Gate/zone predicate really
+            // allows mining. A failed filter or somebody else's registry claim
+            // must not become a shared "blocked route" hint.
+            if (watchProcessorQueue && queuedTargets != null && !queuedTargets.isEmpty()) {
+                List<BlockPos> actualTargets = new ArrayList<>();
+                for (BlockPos target : queuedTargets) {
+                    if (!level.isLoaded(target) || level.getBlockState(target).isAir()
+                            || zone != null && !zone.contains(center(target))
+                            || !filter.matches(level, target)
+                            || robot.getRegistry() != null && robot.getRegistry().isTaken(
+                                    new ResourceIdBlock(target))) continue;
+                    actualTargets.add(target);
+                }
+                RobotProcessorWorkScheduler.rememberFailedRoute(robot, start, actualTargets,
+                        pathDistances.keySet(), !hasFrontier(), expanded);
+            }
             if (RobotTrace.enabled()) {
                 RobotTrace.event(robot, "NEAREST_WORK_NO_TARGET",
-                        "expanded=%d exhausted=%s directed=%s targets=%d",
+                        "expanded=%d exhausted=%s directed=%s targets=%d targetY=%s radius=%d budgetWaitTicks=%d sharedWaitTicks=%d",
                         expanded, !hasFrontier(), queuedTargets != null,
-                        queuedTargets == null ? 0 : queuedTargets.size());
+                        queuedTargets == null ? 0 : queuedTargets.size(), queuedTargetYRange(),
+                        radiusSquared == 0 ? 0
+                                : (int) Math.sqrt(radiusSquared), throttledTicks, sharedRouteWaitTicks);
             }
             fail();
         }
+    }
+
+    /** For diagnosing lower ores that were queued but failed route discovery. */
+    private String queuedTargetYRange() {
+        if (queuedTargets == null || queuedTargets.isEmpty()) return "none";
+        int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
+        for (BlockPos pos : queuedTargets) {
+            minY = Math.min(minY, pos.getY());
+            maxY = Math.max(maxY, pos.getY());
+        }
+        return minY + ".." + maxY;
     }
 
     private boolean hasFrontier() {
@@ -205,16 +285,7 @@ public class AIRobotSearchNearestBlock extends AIRobot {
      * therefore still chooses the shortest navigable path, not the nearest
      * Euclidean ore, while it can avoid exploring unrelated air volumes. */
     private int targetHeuristic(BlockPos position) {
-        if (queuedTargets == null || queuedTargets.isEmpty()) return 0;
-        int best = Integer.MAX_VALUE;
-        for (BlockPos target : queuedTargets) {
-            int distance = Math.abs(position.getX() - target.getX())
-                    + Math.abs(position.getY() - target.getY())
-                    + Math.abs(position.getZ() - target.getZ());
-            best = Math.min(best, Math.max(0, distance - 1));
-            if (best == 0) break;
-        }
-        return best == Integer.MAX_VALUE ? 0 : best;
+        return targetDistances == null ? 0 : targetDistances.distanceToAdjacent(position);
     }
 
     /** True if this search is or was restricted to actual panel queue entries. */
@@ -229,6 +300,20 @@ public class AIRobotSearchNearestBlock extends AIRobot {
         if (maxDistanceToEnd > 0.0D) {
             radius = Math.max(radius, (int) Math.ceil(maxDistanceToEnd) + 8);
         }
+        // A controller can assign ore in an outer work-zone chunk more than
+        // 96 blocks from a miner standing at the opposite edge. Extend the
+        // directed search only as far as its actual targets (plus detours).
+        // Autonomous miners retain their original radius and search behavior.
+        if (queuedTargets != null) {
+            long furthestSquared = 0;
+            for (BlockPos target : queuedTargets) {
+                long dx = (long) target.getX() - start.getX();
+                long dy = (long) target.getY() - start.getY();
+                long dz = (long) target.getZ() - start.getZ();
+                furthestSquared = Math.max(furthestSquared, dx * dx + dy * dy + dz * dz);
+            }
+            radius = Math.max(radius, Math.min(256, (int) Math.ceil(Math.sqrt(furthestSquared)) + 24));
+        }
         // Prevent integer overflow on pathological custom distance arguments.
         radius = Math.min(radius, 30_000);
         radiusSquared = radius * radius;
@@ -237,8 +322,12 @@ public class AIRobotSearchNearestBlock extends AIRobot {
         pathDistances.clear();
         previous.clear();
         checkedNonAir.clear();
+        targetDistances = queuedTargets == null ? null : new RobotTargetDistanceIndex(queuedTargets);
         expanded = 0;
         waitingTicks = 0;
+        throttledTicks = 0;
+        sharedRoutePaused = false;
+        sharedRouteWaitTicks = 0;
         previous.put(start, null);
         if (queuedTargets == null) {
             open.addLast(start);
@@ -305,8 +394,9 @@ public class AIRobotSearchNearestBlock extends AIRobot {
 
     @Override
     public int getEnergyCost() {
-        return watchProcessorQueue && queuedTargets == null
-                && RobotProcessorWorkScheduler.isManagedMiner(robot) ? 0 : 2;
+        return sharedRoutePaused || watchProcessorQueue
+                && (queuedTargets == null && RobotProcessorWorkScheduler.isManagedMiner(robot)
+                        || RobotProcessorWorkScheduler.shouldRechargeBeforeWork(robot)) ? 0 : 2;
     }
 
     @Override

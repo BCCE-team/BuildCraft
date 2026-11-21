@@ -17,8 +17,12 @@ import buildcraft.builders.tile.IRobotBuilderTarget;
 import buildcraft.builders.tile.TileBuilder;
 import buildcraft.builders.tile.TileConstructionMarker;
 import buildcraft.lib.inventory.filter.ArrayStackOrListFilter;
+import buildcraft.lib.inventory.filter.ArrayStackFilter;
 import buildcraft.lib.misc.NBTUtilBC;
 import buildcraft.robotics.BCRoboticsBoards;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
+import buildcraft.robotics.scheduler.RobotBuilderBatchAdapter;
+import buildcraft.robotics.scheduler.RobotBuilderMaterialScheduler;
 import buildcraft.robotics.ai.AIRobotGotoBlock;
 import buildcraft.robotics.ai.AIRobotStraightMoveTo;
 import buildcraft.robotics.ai.AIRobotGotoSleep;
@@ -90,7 +94,22 @@ public class BoardRobotBuilder extends RedstoneBoardRobot {
         requirementsToLookFor = new LinkedList<>(getMissingRequirements(currentTasks));
         if (!requirementsToLookFor.isEmpty()) {
             ItemStack stack = requirementsToLookFor.getFirst();
-            startDelegateAI(new AIRobotGotoStationAndLoad(robot, new ArrayStackOrListFilter(stack), stack.getCount()));
+            if (RobotProcessorWorkScheduler.builderQueueLimit(robot) > 0) {
+                RobotBuilderMaterialScheduler.Allocation supply = RobotBuilderMaterialScheduler.allocate(robot, stack);
+                if (supply == null) {
+                    // No free, permitted stock: give back blueprint cell claims
+                    // rather than monopolizing them while waiting for materials.
+                    RobotProcessorWorkScheduler.builderMaterialStalled(robot, builderPos, stack);
+                    releaseCurrentTasks();
+                    launchingDelay = RETRY_DELAY;
+                    startDelegateAI(new AIRobotGotoSleep(robot));
+                    return;
+                }
+                startDelegateAI(new AIRobotGotoStationAndLoad(robot, new ArrayStackFilter(stack),
+                        supply.quantity(), supply.station(), supply.token(), true));
+            } else {
+                startDelegateAI(new AIRobotGotoStationAndLoad(robot, new ArrayStackOrListFilter(stack), stack.getCount()));
+            }
             return;
         }
 
@@ -112,6 +131,11 @@ public class BoardRobotBuilder extends RedstoneBoardRobot {
                 // multiple inventory stacks and every split must be satisfied.
                 requirementsToLookFor = null;
             } else {
+                // Other builders may use this source while our robot waits
+                // for missing items. Preserve native claims only until abort.
+                RobotProcessorWorkScheduler.builderMaterialStalled(robot, builderPos,
+                        requirementsToLookFor == null || requirementsToLookFor.isEmpty()
+                                ? ItemStack.EMPTY : requirementsToLookFor.getFirst());
                 releaseCurrentTasks();
                 startDelegateAI(new AIRobotGotoSleep(robot));
             }
@@ -130,6 +154,8 @@ public class BoardRobotBuilder extends RedstoneBoardRobot {
 
             RobotBuildResult result = builder.buildRobotTaskResult(robot, task);
             currentTasks.remove(0);
+            RobotProcessorWorkScheduler.builderTaskFinished(robot, builderPos, task.pos(),
+                    result != RobotBuildResult.FAILED);
             if (result != RobotBuildResult.FAILED) {
                 if (result == RobotBuildResult.COMMITTED) {
                     robot.getBattery().extractPower(task.energyCost(), task.energyCost());
@@ -160,9 +186,15 @@ public class BoardRobotBuilder extends RedstoneBoardRobot {
     }
 
     private IRobotBuilderTarget reserveClosestTasks() {
+        List<IRobotBuilderTarget> prepared = RobotProcessorWorkScheduler.builderSourcesFor(robot, MAX_RANGE_SQ);
         List<IRobotBuilderTarget> builders = new ArrayList<>();
-        builders.addAll(TileBuilder.getLoadedBuilders());
-        builders.addAll(TileConstructionMarker.getLoadedMarkers());
+        if (prepared != null) {
+            builders.addAll(prepared);
+        } else {
+            // No active controller: retain exactly the original autonomous discovery.
+            builders.addAll(TileBuilder.getLoadedBuilders());
+            builders.addAll(TileConstructionMarker.getLoadedMarkers());
+        }
         builders.removeIf(builder -> builder == null || builder.getLevel() != robot.level() || !builder.canRobotsBuild()
             || robot.blockPosition().distSqr(builder.getBlockPos()) > MAX_RANGE_SQ);
         builders.sort(Comparator.comparingDouble(builder -> robot.blockPosition().distSqr(builder.getBlockPos())));
@@ -170,7 +202,15 @@ public class BoardRobotBuilder extends RedstoneBoardRobot {
         for (IRobotBuilderTarget builder : builders) {
             // The work zone constrains task positions inside BlueprintBuilder, not the Builder/station itself.
             List<RobotBuildTask> tasks = builder.reserveRobotBuildTasks(robot, MAX_CARRIED_ITEMS);
+            RobotProcessorWorkScheduler.builderSourceAttempted(robot, builder, !tasks.isEmpty());
             if (!tasks.isEmpty()) {
+                // Keep a strict prefix of native blueprint order. All suffix
+                // claims are returned immediately, enabling parallel builders.
+                int queueLimit = RobotProcessorWorkScheduler.builderQueueLimit(robot);
+                if (queueLimit > 0) {
+                    tasks = RobotBuilderBatchAdapter.retainNativePrefix(robot, builder, tasks, queueLimit);
+                }
+                RobotProcessorWorkScheduler.builderBatchClaimed(robot, builder, tasks);
                 builderPos = builder.getBlockPos();
                 currentTasks.clear();
                 currentTasks.addAll(tasks);
@@ -188,6 +228,7 @@ public class BoardRobotBuilder extends RedstoneBoardRobot {
     }
 
     private void releaseCurrentTasks() {
+        RobotBuilderMaterialScheduler.releaseRobot(robot);
         if (!currentTasks.isEmpty()) {
             IRobotBuilderTarget builder = getTargetBuilder();
             for (RobotBuildTask task : currentTasks) {
@@ -198,6 +239,7 @@ public class BoardRobotBuilder extends RedstoneBoardRobot {
                 }
             }
         }
+        RobotProcessorWorkScheduler.builderBatchAborted(robot, builderPos);
         currentTasks.clear();
         requirementsToLookFor = null;
         builderPos = null;

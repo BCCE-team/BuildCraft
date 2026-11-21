@@ -58,14 +58,14 @@ public class BoardRobotButcher extends RedstoneBoardRobot {
             }
         } else if (ai instanceof AIRobotSearchEntity search) {
             if (search.success()) {
-                startDelegateAI(new AIRobotAttack(robot, search.target));
+                startDelegateAI(new AIRobotAttack(robot, search.target, search.claimToken()));
             } else {
                 startDelegateAI(new AIRobotGotoSleep(robot));
             }
         }
     }
 
-    private static boolean isValidTarget(net.minecraft.world.entity.Entity entity) {
+    public static boolean isValidTarget(net.minecraft.world.entity.Entity entity) {
         if (!(entity instanceof Animal animal) || animal.hasCustomName()) {
             return false;
         }

@@ -55,6 +55,8 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     private static final int ID_RENAME_STATION = ROBOT_IDS.allocId("rename_station");
     private static final int ID_REQUEST_CARGO = ROBOT_IDS.allocId("request_robot_cargo");
     private static final int ID_CARGO = ROBOT_IDS.allocId("robot_cargo");
+    // Append the new ID after all previous message IDs to keep their values stable.
+    private static final int ID_SCAN_PROGRESS = ROBOT_IDS.allocId("scan_progress");
     // A robot currently has four transfer slots and one tank; leave room for extensions.
     private static final int MAX_CARGO_ENTRIES = 32;
     private static final int MAX_CARGO_TANKS = 8;
@@ -71,6 +73,16 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     private int snapshotTick;
     private int maxExecutionQueue = TileRobotProcessor.DEFAULT_EXECUTION_QUEUE;
     private int lastSentExecutionQueue = -1;
+    public static final int SCAN_WAITING = 0;
+    public static final int SCAN_RUNNING = 1;
+    public static final int SCAN_COMPLETE = 2;
+    public static final int SCAN_REFRESHING = 3;
+    public static final int SCAN_NO_CHUNKS = 4;
+
+    /** Values received from the server, never computed from the client's world. */
+    public record ScanProgress(int percent, int passPercent, int phase, int sections) { }
+    private ScanProgress scanProgress = new ScanProgress(0, 0, SCAN_WAITING, 0);
+    private ScanProgress lastSentScanProgress;
 
     /** A position/status snapshot, not a client-side reference to a server entity. */
     public record RobotSnapshot(long id, String board, String task, String status,
@@ -153,6 +165,8 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     }
 
     public int getMaxExecutionQueue() { return maxExecutionQueue; }
+    public ScanProgress getScanProgress() { return scanProgress; }
+
 
     /** Configure the limit for queued execution actions, not pathfinding/search steps. */
     public void setMaxExecutionQueue(int requested) {
@@ -245,6 +259,25 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
             lastSentExecutionQueue = processor.getMaxExecutionQueue();
             sendMessage(ID_QUEUE_STATE, out -> out.writeByte(lastSentExecutionQueue));
         }
+        if (playerInventory.player instanceof ServerPlayer && processor != null) {
+            var serverProgress = processor.getScanProgress();
+            ScanProgress next = new ScanProgress(serverProgress.percent(),
+                    serverProgress.currentPassPercent(), serverProgress.phase(), serverProgress.sections());
+            // 10-tick throttle avoids 20 packets per second during a large scan.
+            // State changes and first opening still arrive without that delay.
+            if (lastSentScanProgress == null
+                    || (snapshotTick % 10 == 0 || next.phase() != lastSentScanProgress.phase())
+                    && !next.equals(lastSentScanProgress)) {
+                lastSentScanProgress = next;
+                scanProgress = next;
+                sendMessage(ID_SCAN_PROGRESS, out -> {
+                    out.writeByte(next.percent());
+                    out.writeByte(next.passPercent());
+                    out.writeByte(next.phase());
+                    out.writeVarInt(next.sections());
+                });
+            }
+        }
         if (playerInventory.player instanceof ServerPlayer) {
             boolean normalRefresh = snapshotTick++ % 20 == 0;
             // Queue orders are issued/completed between 20-tick telemetry polls.
@@ -303,6 +336,14 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                     : rawTask.toLowerCase(java.util.Locale.ROOT).contains("sleep") ? "Sleeping"
                     : rawTask.toLowerCase(java.util.Locale.ROOT).contains("recharge") ? "Charging"
                     : robot.isMoving() ? "Moving" : "Working";
+            if (robot.getBoard() instanceof buildcraft.robotics.boards.BoardRobotBuilder
+                    && ("Docked".equals(status) || "Sleeping".equals(status))) {
+                String missing = buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.builderMaterialWait(robot);
+                if (missing != null) {
+                    status = "Materials";
+                    task = missing;
+                }
+            }
             int percent = Math.max(0, Math.min(100,
                     (int) ((long) robot.getEnergy() * 100 / EntityRobotBase.MAX_ENERGY)));
             // Only execution AIs with measurable work expose a percentage.
@@ -501,6 +542,14 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                         buffer.readUtf(24), buffer.readLong(),
                         buffer.readUtf(TileRobotProcessor.MAX_LINK_NAME_LENGTH)));
             }
+        } else if (id == ID_SCAN_PROGRESS && side == BCNetworkSide.CLIENT) {
+            scanProgress = new ScanProgress(
+                    NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0, 100, "scan percent"),
+                    NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0, 100, "scan refresh percent"),
+                    NetworkSecurity.requireRange(buffer.readUnsignedByte(), SCAN_WAITING, SCAN_NO_CHUNKS,
+                            "scan phase"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 1_000_000,
+                            "scan section count"));
         } else if (id == ID_QUEUE_STATE && side == BCNetworkSide.CLIENT) {
             maxExecutionQueue = NetworkSecurity.requireRange(buffer.readUnsignedByte(),
                     TileRobotProcessor.MIN_EXECUTION_QUEUE, TileRobotProcessor.MAX_EXECUTION_QUEUE,

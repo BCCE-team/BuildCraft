@@ -20,6 +20,8 @@ public class AIRobotLoad extends AIRobot {
     private IStackFilter filter;
     private int quantity;
     private int waitedCycles;
+    private DockingStation builderMaterialSource;
+    private long builderMaterialToken;
 
     public AIRobotLoad(EntityRobotBase robot) {
         super(robot);
@@ -29,6 +31,14 @@ public class AIRobotLoad extends AIRobot {
         this(robot);
         this.filter = filter;
         this.quantity = quantity;
+    }
+
+    /** Restrict a Builder load to a currently owned, unexpired material promise. */
+    public AIRobotLoad(EntityRobotBase robot, IStackFilter filter, int quantity,
+                       DockingStation source, long token) {
+        this(robot, filter, quantity);
+        builderMaterialSource = source;
+        builderMaterialToken = token;
     }
 
     @Override
@@ -41,6 +51,13 @@ public class AIRobotLoad extends AIRobot {
 
         waitedCycles++;
         if (waitedCycles > LOAD_DELAY_TICKS) {
+            if (builderMaterialToken > 0 && (robot.getDockingStation() != builderMaterialSource
+                    || !buildcraft.robotics.scheduler.RobotBuilderMaterialScheduler.owns(
+                            robot, builderMaterialSource, builderMaterialToken))) {
+                setSuccess(false);
+                terminate();
+                return;
+            }
             setSuccess(load(robot, robot.getDockingStation(), filter, quantity, true));
             terminate();
         }
@@ -121,6 +138,28 @@ public class AIRobotLoad extends AIRobot {
             if (result.size() >= maxKinds) break;
         }
         return result;
+    }
+
+    /**
+     * Exact extractable stock across ALL eligible slots. This is a read-only
+     * preview for the shared Builder material ledger, not a physical lock.
+     * Use the same sided extraction and Gate rules as the real load method.
+     */
+    public static int previewExtractableCount(EntityRobotBase robot, DockingStation station, IStackFilter filter) {
+        if (robot == null || station == null || filter == null
+                || !RobotAutomationSupport.permitsInventory(robot, station, true, OperationMode.SIMULATE)) return 0;
+        Container container = station.getItemInput();
+        if (container == null) return 0;
+        Direction side = station.getItemInputSide();
+        long count = 0L;
+        for (int slot : getSlots(container, side)) {
+            ItemStack stack = container.getItem(slot);
+            if (!stack.isEmpty() && canTake(container, slot, stack, side) && filter.matches(stack)
+                    && canStationProvide(station, stack, filter)) {
+                count += Math.max(0, stack.getCount());
+            }
+        }
+        return (int) Math.min(Integer.MAX_VALUE, count);
     }
 
     public static boolean load(EntityRobotBase robot, DockingStation station, IStackFilter filter, int quantity, boolean doLoad) {

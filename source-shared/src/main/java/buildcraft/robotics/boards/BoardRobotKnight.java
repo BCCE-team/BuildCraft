@@ -56,14 +56,14 @@ public class BoardRobotKnight extends RedstoneBoardRobot {
             }
         } else if (ai instanceof AIRobotSearchEntity search) {
             if (search.success()) {
-                startDelegateAI(new AIRobotAttack(robot, search.target));
+                startDelegateAI(new AIRobotAttack(robot, search.target, search.claimToken()));
             } else {
                 startDelegateAI(new AIRobotGotoSleep(robot));
             }
         }
     }
 
-    private static boolean isHostileTarget(Entity entity) {
+    public static boolean isHostileTarget(Entity entity) {
         return entity instanceof Enemy
                 || entity.getType().getCategory() == MobCategory.MONSTER
                 || entity instanceof Wolf wolf && wolf.isAngry();

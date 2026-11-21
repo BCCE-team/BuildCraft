@@ -13,6 +13,7 @@ import buildcraft.robotics.ai.AIRobotGotoStationAndLoad;
 import buildcraft.robotics.ai.AIRobotLoad;
 import buildcraft.robotics.ai.AIRobotSearchRandomGroundBlock;
 import buildcraft.robotics.internal.api2.RobotAutomationSupport;
+import buildcraft.robotics.scheduler.RobotAreaActionScheduler;
 import buildcraft.lib.internal.area.IZone;
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.permission.WorldOperationKind;
@@ -33,6 +34,7 @@ public class BoardRobotBomber extends RedstoneBoardRobot {
     private static final int BLAST_SAFETY_RADIUS = 6;
 
     private BlockPos bombTarget;
+    private long processorToken;
 
     public BoardRobotBomber(EntityRobotBase robot) {
         super(robot);
@@ -50,7 +52,20 @@ public class BoardRobotBomber extends RedstoneBoardRobot {
             return;
         }
 
-        startDelegateAI(new AIRobotSearchRandomGroundBlock(robot, SEARCH_RANGE, this::isValidBombTarget, robot.getZoneToWork()));
+        if (RobotAreaActionScheduler.hasController(robot)) {
+            RobotAreaActionScheduler.Assignment assigned = RobotAreaActionScheduler.acquire(robot);
+            if (assigned == null) {
+                startDelegateAI(new AIRobotGotoSleep(robot));
+            } else {
+                bombTarget = assigned.target();
+                processorToken = assigned.token();
+                startDelegateAI(new AIRobotGotoBlock(robot, bombTarget.getX(),
+                        bombTarget.getY() + FLYING_HEIGHT, bombTarget.getZ()));
+            }
+        } else {
+            startDelegateAI(new AIRobotSearchRandomGroundBlock(robot, SEARCH_RANGE,
+                    this::isValidBombTarget, robot.getZoneToWork()));
+        }
     }
 
     @Override
@@ -73,14 +88,51 @@ public class BoardRobotBomber extends RedstoneBoardRobot {
                 startDelegateAI(new AIRobotGotoSleep(robot));
             }
         } else if (ai instanceof AIRobotGotoBlock) {
-            if (ai.success() && bombTarget != null && canBombTarget(bombTarget, OperationMode.EXECUTE)) {
-                dropTnt(bombTarget);
-            }
+            boolean completed = ai.success() && bombTarget != null
+                    && (processorToken <= 0 || RobotAreaActionScheduler.owns(robot, bombTarget, processorToken))
+                    && canBombTarget(bombTarget, OperationMode.EXECUTE) && dropTnt(bombTarget);
+            finishProcessorTarget(completed);
             bombTarget = null;
             startDelegateAI(new AIRobotGotoSleep(robot));
         } else if (ai instanceof AIRobotGotoSleep) {
             terminate();
         }
+    }
+
+    /** Preflight used only for a bounded set of ground candidates per panel. */
+    public boolean processorHasTnt() { return hasTnt(); }
+
+    public boolean processorCanBombAt(BlockPos target) {
+        return hasTnt() && isValidBombTarget(robot.getCommandSenderWorld(), target)
+                && canBombTarget(target, OperationMode.SIMULATE);
+    }
+
+    @Override
+    public void delegateAIAborted(AIRobot ai) {
+        finishProcessorTarget(false);
+        bombTarget = null;
+    }
+
+    private void finishProcessorTarget(boolean success) {
+        if (processorToken > 0 && bombTarget != null) {
+            RobotAreaActionScheduler.finished(robot, bombTarget, processorToken, success);
+        }
+        processorToken = 0;
+    }
+
+    @Override
+    public void end() {
+        finishProcessorTarget(false);
+        bombTarget = null;
+    }
+
+    @Override
+    public void onUnload() {
+        finishProcessorTarget(false);
+        // A persisted movement AI must never drop TNT after its transient
+        // processor reservation has been released during chunk unload.
+        bombTarget = null;
+        super.onUnload();
     }
 
     private boolean isValidBombTarget(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
@@ -145,9 +197,9 @@ public class BoardRobotBomber extends RedstoneBoardRobot {
         return true;
     }
 
-    private void dropTnt(BlockPos target) {
+    private boolean dropTnt(BlockPos target) {
         if (robot.level().isClientSide || !removeOneTnt()) {
-            return;
+            return false;
         }
 
         PrimedTnt tnt = new PrimedTnt(robot.level(), target.getX() + 0.5D, robot.getY() - 1.0D,
@@ -156,5 +208,6 @@ public class BoardRobotBomber extends RedstoneBoardRobot {
         robot.level().addFreshEntity(tnt);
         robot.level().playSound(null, tnt.getX(), tnt.getY(), tnt.getZ(), SoundEvents.TNT_PRIMED,
                 SoundSource.BLOCKS, 1.0F, 1.0F);
+        return true;
     }
 }

@@ -65,6 +65,7 @@ public class AIRobotSearchBlock extends AIRobot {
     private final Set<BlockPos> seenPreferred = new HashSet<>();
     private final Set<BlockPos> unreachablePreferred = new HashSet<>();
     private int queuePollTicks;
+    private boolean exclusiveTargetsOnly;
 
     public AIRobotSearchBlock(EntityRobotBase robot) {
         super(robot);
@@ -78,7 +79,6 @@ public class AIRobotSearchBlock extends AIRobot {
         this.zone = robot.getZoneToWork();
     }
 
-    @Override
     public AIRobotSearchBlock(EntityRobotBase robot, boolean random, IBlockFilter filter,
             double maxDistanceToEnd, java.util.List<BlockPos> preferred) {
         this(robot, random, filter, maxDistanceToEnd);
@@ -87,6 +87,12 @@ public class AIRobotSearchBlock extends AIRobot {
                 if (seenPreferred.add(pos)) preferredTargets.addLast(pos);
             }
         }
+    }
+
+    public AIRobotSearchBlock(EntityRobotBase robot, boolean random, IBlockFilter filter,
+            double maxDistanceToEnd, java.util.List<BlockPos> exclusiveTargets, boolean exclusiveOnly) {
+        this(robot, random, filter, maxDistanceToEnd, exclusiveTargets);
+        this.exclusiveTargetsOnly = exclusiveOnly;
     }
 
     public void update() {
@@ -119,7 +125,7 @@ public class AIRobotSearchBlock extends AIRobot {
             // Another robot reserved this target during our path search. The scanner has already advanced past it,
             // so resume from the next candidate on the following tick instead of failing the whole search.
         } else if (isSearchComplete()
-                && !RobotProcessorWorkScheduler.isWorkDiscoveryInProgress(robot)) {
+                && (exclusiveTargetsOnly || !RobotProcessorWorkScheduler.isWorkDiscoveryInProgress(robot))) {
             setSuccess(false);
             terminate();
         }
@@ -133,6 +139,7 @@ public class AIRobotSearchBlock extends AIRobot {
             searchRange = Math.max(searchRange, (int) Math.ceil(maxDistanceToEnd) + 8);
         }
         scanner = new CandidateScanner(robot.level(), start, searchRange, random, zone);
+        if (exclusiveTargetsOnly) scanner = null;
         pendingEvaluation = null;
     }
 

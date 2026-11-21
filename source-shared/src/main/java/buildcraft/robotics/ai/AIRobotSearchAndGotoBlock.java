@@ -27,6 +27,7 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
     private RobotProcessorWorkScheduler.SuggestedWork processorHint;
     private java.util.List<net.minecraft.core.BlockPos> queuedMiningTargets = java.util.List.of();
     private boolean searchingQueuedOre;
+    private java.util.List<BlockPos> exclusiveTargets;
 
     public AIRobotSearchAndGotoBlock(EntityRobotBase robot) {
         super(robot);
@@ -50,9 +51,20 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
         this.nearestByRoute = nearestByRoute;
     }
 
+    /** For externally claimed positions, retry only those targets. Never launch
+     * an independent broad world scan when they are unreachable. */
+    public AIRobotSearchAndGotoBlock(EntityRobotBase robot, boolean random,
+            IBlockFilter filter, java.util.List<BlockPos> exclusiveTargets) {
+        this(robot, random, filter);
+        this.exclusiveTargets = java.util.List.copyOf(exclusiveTargets);
+    }
+
     @Override
     public void start() {
-        if (nearestByRoute && !random) {
+        if (exclusiveTargets != null) {
+            startDelegateAI(new AIRobotSearchBlock(robot, random, filter, maxDistanceToEnd,
+                    exclusiveTargets, true));
+        } else if (nearestByRoute && !random) {
             // A nearby handoff is instantaneous; otherwise use a single
             // multi-target search for the shortest navigable route to the
             // processor's queued ore. An unreachable queue is reported to the
@@ -236,7 +248,10 @@ public class AIRobotSearchAndGotoBlock extends AIRobot {
     public boolean shouldSaveToNBT() {
         // Before a target is reserved the search predicate only exists as a runtime closure, so the owning board must
         // recreate this AI after reload. Once blockFound is set, the reservation and GotoBlock can safely be persisted.
-        return blockFound != null;
+        // Stage 23 externally claimed air positions are ephemeral and have no
+        // durable fencing token. Never reload a guided Stripes movement as an
+        // autonomous, unreserved item-use task after a world restart.
+        return blockFound != null && exclusiveTargets == null;
     }
 
     @Override

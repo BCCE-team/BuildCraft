@@ -45,6 +45,7 @@ STUBS['net/minecraft/world/level/Level.java'] = STUBS['net/minecraft/world/level
     ''' private final Map<BlockPos,BlockState> blocks=new HashMap<>();
  private boolean solidByDefault;
  public void setSolidByDefault(boolean v){solidByDefault=v;}
+ public long getGameTime(){return 100L;}
  public int getMinBuildHeight(){return -64;}
  public int getMaxBuildHeight(){return 320;}''').replace(
     'return blocks.getOrDefault(p,BlockState.AIR);',
@@ -131,7 +132,18 @@ public final class RobotProcessorWorkScheduler {
  public record SuggestedWork(BlockPos position) {}
  public static List<BlockPos> queue=List.of();
  public static boolean managed=false;
+ public static RobotSharedRouteFailures failures=new RobotSharedRouteFailures();
+ public static int routeBudgetRequests;
+ public static int requestRouteSearchBudget(EntityRobotBase robot,int amount){routeBudgetRequests++;return amount;}
  public static boolean isManagedMiner(EntityRobotBase robot){return managed;}
+ public static boolean shouldRechargeBeforeWork(EntityRobotBase robot){return false;}
+ public static long sharedRouteDeferUntil(EntityRobotBase robot,BlockPos start,List<BlockPos> goals){
+  return managed ? failures.deferUntil(start,goals,robot.level.getGameTime()) : 0L;
+ }
+ public static void rememberFailedRoute(EntityRobotBase robot,BlockPos start,List<BlockPos> goals,
+      java.util.Collection<BlockPos> explored,boolean exhausted,int expanded){
+  if(managed)failures.remember(start,goals,explored,robot.level.getGameTime(),exhausted);
+ }
  public static List<BlockPos> queuedMiningTargets(EntityRobotBase robot){return queue;}
  public static List<BlockPos> queuedWorkTargets(EntityRobotBase robot){return List.of();}
  public static boolean isWorkDiscoveryInProgress(EntityRobotBase robot){return false;}
@@ -152,6 +164,8 @@ public class AIRobotSearchBlock extends AIRobot {
  public LinkedList<BlockIndex> path;
  public AIRobotSearchBlock(EntityRobotBase r,boolean random,IBlockFilter filter,double maxDistance){super(r);}
  public AIRobotSearchBlock(EntityRobotBase r,boolean random,IBlockFilter filter,double maxDistance,java.util.List<net.minecraft.core.BlockPos> hints){this(r,random,filter,maxDistance);}
+ public AIRobotSearchBlock(EntityRobotBase r,boolean random,IBlockFilter filter,double maxDistance,
+    java.util.List<net.minecraft.core.BlockPos> preferred,boolean exclusive){this(r,random,filter,maxDistance,preferred);}
  public boolean takeResource(){return false;}
 }'''
 STUBS['buildcraft/robotics/ai/AIRobotGotoBlock.java'] = '''package buildcraft.robotics.ai;
@@ -368,6 +382,16 @@ public final class NearestOreFixture {
   check(search.blockFound!=null && reachable.equals(search.blockFound.toBlockPos()),
       "Directed search failed to find the reachable ore past a sealed goal");
  }
+ static void queuedOreInFarWorkChunk() {
+  var world=new Level();var robot=new EntityRobotBase(world,p(0,0));
+  BlockPos remote=p(132,0);world.put(remote,ore("copper"));
+  var search=new AIRobotSearchNearestBlock(robot,(lvl,pos)->pos.equals(remote),0,
+      java.util.List.of(remote));
+  for(int i=0;i<25 && search.blockFound==null;i++)search.update();
+  check(search.blockFound!=null && remote.equals(search.blockFound.toBlockPos()),
+      "A valid ore outside the old 96-block radius was silently ignored");
+  check(search.path.size()==131,"Incorrect path to distant work-zone chunk");
+ }
  static void queuedSearchHasSmallerBound() {
   var world=new Level();
   BlockPos sealed=p(9,0);world.put(sealed,ore("copper"));
@@ -405,6 +429,52 @@ public final class NearestOreFixture {
   buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of();
   buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.managed=false;
  }
+ static void sharedFailureWaitsWithoutDeletingQueuedJob(){
+  var world=new Level();world.setSolidByDefault(true);
+  BlockPos origin=p(0,0), neighbor=p(1,0), goal=p(5,0);
+  world.put(origin,BlockState.AIR);world.put(neighbor,BlockState.AIR);
+  world.put(goal,ore("copper"));
+  var scheduler=buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.class;
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.failures.worldChanged();
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.managed=true;
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of(goal);
+  var first=new AIRobotSearchNearestBlock(new EntityRobotBase(world,origin),
+      (lvl,pos)->pos.equals(goal),0,java.util.List.of(goal));
+  first.update();
+  check(!first.success(),"First isolated search incorrectly found a sealed goal");
+  check(buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.failures.cachedSearches()==1,
+      "Failed directed A* did not record its actually explored cells");
+  var second=new AIRobotSearchNearestBlock(new EntityRobotBase(world,neighbor),
+      (lvl,pos)->pos.equals(goal)||pos.equals(p(2,0)),0,java.util.List.of(goal));
+  int before=buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.routeBudgetRequests;
+  second.update();second.update();
+  check(before==buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.routeBudgetRequests,
+      "Second miner burned shared route CPU on an already explored failed pocket");
+  check(second.getEnergyCost()==0,"Waiting for shared cache burns search energy");
+  check(second.blockFound==null,"The cache invented a valid route");
+  // Without any cache reset, an entirely NEW queue goal must bypass the old
+  // failed route immediately instead of forcing a full TTL wait.
+  BlockPos newOre=p(2,0);world.put(newOre,ore("coal"));
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of(newOre);
+  for(int i=0;i<24 && second.blockFound==null;i++)second.update();
+  check(second.blockFound!=null && newOre.equals(second.blockFound.toBlockPos()),
+      "New queued ore did not bypass an old temporary route failure");
+  // A wall changed: release all transient evidence and let another search
+  // discover the now-connected path without reloading its world or its queue.
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of(goal);
+  var resumed=new AIRobotSearchNearestBlock(new EntityRobotBase(world,neighbor),
+      (lvl,pos)->pos.equals(goal),0,java.util.List.of(goal));
+  resumed.update();
+  check(resumed.getEnergyCost()==0,"Expected old route to be cached before wall change");
+  for(int x=2;x<5;x++)world.put(p(x,0),BlockState.AIR);
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.failures.worldChanged();
+  for(int i=0;i<6 && resumed.blockFound==null;i++)resumed.update();
+  check(resumed.blockFound!=null && goal.equals(resumed.blockFound.toBlockPos()),
+      "Opening the corridor did not resume the same in-flight search");
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of();
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.failures.worldChanged();
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.managed=false;
+ }
  static void defaultBoardsUnchanged(){
   var world=new Level();var robot=new EntityRobotBase(world,p(0,0));
   var other=new BoardRobotGenericSearchBlock(robot) {
@@ -419,7 +489,9 @@ public final class NearestOreFixture {
   queuedOreHandoffWithoutFullSearch();
   firstOreAcrossLoadedChunk();shortestPathNotEuclidean();continuationAndPersistence();
   unloadedChunkNeverRead();boundedAcrossTicks();queueArrivesDuringActiveSearch();noTunneling();
-  queuedDirectedSearchAvoidsSealedOre();queuedSearchHasSmallerBound();managedMinerWaitsWithoutFlooding();
+  queuedDirectedSearchAvoidsSealedOre();queuedSearchHasSmallerBound();queuedOreInFarWorkChunk();
+  managedMinerWaitsWithoutFlooding();
+  sharedFailureWaitsWithoutDeletingQueuedJob();
   defaultBoardsUnchanged();
   System.out.println("PASS: cross-chunk nearest, shortest navigable route, vein priority, save, loading, budget, no tunneling, other boards");
  }
@@ -428,6 +500,8 @@ public final class NearestOreFixture {
 REAL = [
     'source-shared/src/main/java/buildcraft/robotics/ai/AIRobotSearchAndGotoBlock.java',
     'source-shared/src/main/java/buildcraft/robotics/ai/AIRobotSearchNearestBlock.java',
+    'source-shared/src/main/java/buildcraft/robotics/ai/RobotTargetDistanceIndex.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotSharedRouteFailures.java',
     'source-shared/src/main/java/buildcraft/robotics/boards/BoardRobotGenericSearchBlock.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/ProcessorCandidateBoard.java',
     'source-shared/src/main/java/buildcraft/robotics/boards/RobotOreVeinMemory.java',

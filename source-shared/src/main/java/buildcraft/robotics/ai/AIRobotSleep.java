@@ -6,6 +6,8 @@ import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.lib.internal.statement.StatementSlot;
 import buildcraft.robotics.statements.ActionRobotWakeUp;
 import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
+import buildcraft.robotics.scheduler.RobotCombatTargetScheduler;
+import buildcraft.robotics.scheduler.RobotAreaActionScheduler;
 import net.minecraft.nbt.CompoundTag;
 
 public class AIRobotSleep extends AIRobot {
@@ -55,7 +57,10 @@ public class AIRobotSleep extends AIRobot {
         sleptTime++;
         // Idle work can be discovered after the robot last searched. Do not
         // require a gate pulse or a 30-second sleep timer to notice it.
-        if (sleptTime % 20 == 0 && RobotProcessorWorkScheduler.hasAvailableWorkForSleepingRobot(robot)) {
+        if (sleptTime % 20 == 0 && (RobotProcessorWorkScheduler.hasAvailableWorkForSleepingRobot(robot)
+                || RobotProcessorWorkScheduler.hasAvailableBuilderSource(robot)
+                || RobotCombatTargetScheduler.hasAvailableTarget(robot)
+                || RobotAreaActionScheduler.hasAvailableTarget(robot))) {
             terminate();
             return;
         }

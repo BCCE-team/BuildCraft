@@ -399,6 +399,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
         panelText(pose, "Max task queue: " + processorMenu.getMaxExecutionQueue(),
                 215, 56, 102, 0xFF_30_30_30);
         panelText(pose, "1 - 8 tasks", 215, 94, 102, 0xFF_4A_4A_4A);
+        renderScanProgress(pose);
         int count = listSize();
         listOffset = Math.max(0, Math.min(listOffset, Math.max(0, count - VISIBLE_ROWS)));
         if (stationMode) renderStations(pose);
@@ -418,6 +419,29 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
                 : (int) Math.round((double) listOffset / (count - VISIBLE_ROWS) * ROBOT_SCROLL_TRAVEL);
         (count > VISIBLE_ROWS ? SCROLL_THUMB : SCROLL_DISABLED)
                 .drawAt(getActiveGraphics(), leftPos + 94, topPos + 22 + position);
+    }
+
+    /** Scanner progress is panel-wide, not dependent on which robot is selected.
+     * The first 100% stays visible; further passes are labelled "Rescan". */
+    private void renderScanProgress(PoseStack pose) {
+        var scan = processorMenu.getScanProgress();
+        int phase = scan.phase();
+        String heading = phase == ContainerRobotProcessor.SCAN_WAITING ? "Scan: waiting"
+                : phase == ContainerRobotProcessor.SCAN_NO_CHUNKS ? "Scan: no chunks"
+                : "Scan: " + scan.percent() + "%";
+        String detail = phase == ContainerRobotProcessor.SCAN_REFRESHING
+                ? "Rescan: " + scan.passPercent() + "%"
+                : phase == ContainerRobotProcessor.SCAN_COMPLETE ? "Pass complete"
+                : phase == ContainerRobotProcessor.SCAN_RUNNING
+                        ? "Sections: " + scan.sections() : "Loaded chunks only";
+        panelText(pose, heading, 215, 108, 102, 0xFF_30_30_30);
+        panelText(pose, detail, 215, 119, 102, 0xFF_55_55_55);
+        // Two-pixel inner bar with a 1-pixel border, entirely above Home/Unlink.
+        panelFill(pose, 215, 130, 316, 134, 0xFF_53_53_53);
+        int current = phase == ContainerRobotProcessor.SCAN_REFRESHING
+                ? scan.passPercent() : scan.percent();
+        int barWidth = Math.max(0, Math.min(98, 98 * current / 100));
+        if (barWidth > 0) panelFill(pose, 216, 131, 216 + barWidth, 133, 0xFF_37_9C_AA);
     }
 
     private void renderRobots(PoseStack pose) {
@@ -471,7 +495,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     private static int statusColor(String status) {
         return switch (status) {
             case "Working", "Moving" -> 0xFF_41_B4_4F;
-            case "Charging" -> 0xFF_E9_B5_42;
+            case "Charging", "Materials" -> 0xFF_E9_B5_42;
             case "Sleeping", "Docked" -> 0xFF_46_8D_D3;
             case "Available" -> 0xFF_41_B4_4F;
             case "Occupied" -> 0xFF_E9_B5_42;

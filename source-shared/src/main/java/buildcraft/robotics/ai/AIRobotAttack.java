@@ -6,6 +6,9 @@ import buildcraft.robotics.internal.api2.RobotAutomationSupport;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.robotics.entity.EntityRobot;
+import buildcraft.robotics.scheduler.RobotCombatTargetScheduler;
+import buildcraft.robotics.boards.BoardRobotButcher;
+import buildcraft.robotics.boards.BoardRobotKnight;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -14,6 +17,7 @@ import net.minecraft.world.entity.LivingEntity;
 public class AIRobotAttack extends AIRobot {
     private static final int ATTACK_DELAY_TICKS = 12;
     private Entity target;
+    private long targetClaim;
     private int delay = 10;
 
     public AIRobotAttack(EntityRobotBase robot) {
@@ -23,6 +27,11 @@ public class AIRobotAttack extends AIRobot {
     public AIRobotAttack(EntityRobotBase robot, Entity target) {
         this(robot);
         this.target = target;
+    }
+
+    public AIRobotAttack(EntityRobotBase robot, Entity target, long targetClaim) {
+        this(robot, target);
+        this.targetClaim = targetClaim;
     }
 
     @Override
@@ -38,7 +47,11 @@ public class AIRobotAttack extends AIRobot {
         // The target may have escaped its originally valid work zone while
         // the robot was travelling. Never pursue or strike outside it.
         if (target == null || !target.isAlive() || target.isRemoved()
-                || robot.getZoneToWork() != null && !robot.getZoneToWork().contains(target.position())) {
+                || robot.getZoneToWork() != null && !robot.getZoneToWork().contains(target.position())
+                // A previously valid animal can be tamed or named during the
+                // chase. Recheck the board's rules before any further attacks.
+                || robot.getBoard() instanceof BoardRobotButcher && !BoardRobotButcher.isValidTarget(target)
+                || robot.getBoard() instanceof BoardRobotKnight && !BoardRobotKnight.isHostileTarget(target)) {
             terminate();
             return;
         }
@@ -80,6 +93,20 @@ public class AIRobotAttack extends AIRobot {
     @Override
     public void end() {
         robot.setItemActive(false);
+        releaseCombatClaim();
+    }
+
+    @Override
+    public void onUnload() {
+        super.onUnload();
+        releaseCombatClaim();
+    }
+
+    private void releaseCombatClaim() {
+        if (target != null && targetClaim != 0L) {
+            RobotCombatTargetScheduler.finished(robot, target.getUUID(), targetClaim);
+            targetClaim = 0L;
+        }
     }
 
     @Override

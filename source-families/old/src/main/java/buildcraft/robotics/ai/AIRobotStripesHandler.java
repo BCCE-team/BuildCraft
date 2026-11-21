@@ -81,6 +81,12 @@ public class AIRobotStripesHandler extends AIRobot implements StripesOutput {
         }
 
         BlockPos target = useToBlock.toBlockPos();
+        if (robot.getBoard() instanceof buildcraft.robotics.boards.BoardRobotStripes stripes
+                && !stripes.processorAllowsExecution(target)) {
+            setSuccess(false);
+            terminate();
+            return;
+        }
         Direction direction = chooseDirection(target);
         if (!RobotAutomationSupport.permitsBlock(
             robot, serverLevel, target, WorldOperationKind.ITEM_USE, OperationMode.EXECUTE

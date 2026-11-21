@@ -10,6 +10,8 @@ import buildcraft.robotics.internal.legacy.robots.ResourceIdBlock;
 import buildcraft.lib.inventory.filter.PassThroughFluidFilter;
 import buildcraft.lib.misc.BlockUtil;
 import buildcraft.robotics.BCRoboticsBoards;
+import buildcraft.robotics.scheduler.ProcessorCandidateBoard;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
 import buildcraft.robotics.ai.AIRobotGotoSleep;
 import buildcraft.robotics.ai.AIRobotGotoStationAndUnloadFluids;
 import buildcraft.robotics.ai.AIRobotPumpBlock;
@@ -18,6 +20,7 @@ import buildcraft.robotics.statements.ActionRobotFilter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.fluids.FluidStack;
 //? if mc_26_x && (>=26.3) {
 import buildcraft.transport.internal.pipe.FluidAction;
@@ -26,7 +29,7 @@ import buildcraft.lib.compat.NbtCompat;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 //?}
 
-public class BoardRobotPump extends RedstoneBoardRobot {
+public class BoardRobotPump extends RedstoneBoardRobot implements ProcessorCandidateBoard {
     private BlockIndex blockFound;
     private IFluidFilter fluidFilter;
 
@@ -71,6 +74,10 @@ public class BoardRobotPump extends RedstoneBoardRobot {
                 startDelegateAI(new AIRobotGotoSleep(robot));
             }
         } else if (ai instanceof AIRobotPumpBlock) {
+            // Finish the useful drain operation, not merely the route to it.
+            if (blockFound != null) {
+                RobotProcessorWorkScheduler.executionFinished(robot, blockFound.toBlockPos(), ai.success());
+            }
             releaseBlockFound();
 
             if (isTankFull()) {
@@ -91,6 +98,64 @@ public class BoardRobotPump extends RedstoneBoardRobot {
 //?}
     public void end() {
         releaseBlockFound();
+    }
+
+    @Override
+    public String processorWorkCategory() {
+        return getNBTHandler().getID();
+    }
+
+    @Override
+    public boolean processorSupportsQueue() {
+        return true;
+    }
+
+    /** A cheap, robot-independent candidate predicate for chunk palettes. */
+    @Override
+    public boolean processorPaletteMightContain(BlockState state) {
+        return !state.getFluidState().isEmpty();
+    }
+
+    @Override
+    public boolean processorSharedScanPredicate() {
+        return true;
+    }
+
+    @Override
+    public boolean processorDiscoveryCandidate(Level level, BlockPos pos, BlockState state) {
+        return level.isLoaded(pos) && processorPaletteMightContain(state);
+    }
+
+    @Override
+    public boolean processorDiscoveryCandidate(Level level, BlockPos pos) {
+        return level.isLoaded(pos) && processorPaletteMightContain(level.getBlockState(pos));
+    }
+
+    @Override
+    public boolean processorScanCandidate(Level level, BlockPos pos) {
+        return processorDiscoveryCandidate(level, pos);
+    }
+
+    /** Gate filter, tank capacity and actual drainability are rechecked per robot. */
+    @Override
+    public boolean processorTargetEligible(Level level, BlockPos pos) {
+        return processorPlanningEligible(level, pos);
+    }
+
+    @Override
+    public boolean processorPlanningEligible(Level level, BlockPos pos) {
+        if (isTankFull() || !level.isLoaded(pos)) return false;
+        updateFilter();
+        // Native search must not take an already claimed source, but the
+        // controller can renew the claim that THIS robot is executing.
+        if (robot.getRegistry() != null) {
+            ResourceIdBlock resource = new ResourceIdBlock(pos);
+            if (robot.getRegistry().isTaken(resource)
+                    && robot.getRegistry().robotIdTaking(resource) != robot.getRobotId()) return false;
+        }
+        FluidStack fluid = BlockUtil.drainBlock(level, pos, false);
+        return !fluid.isEmpty() && robot.fill(fluid, FluidAction.SIMULATE) >= fluid.getAmount()
+                && matchesGateFilter(fluid);
     }
 
     private boolean isTankFull() {

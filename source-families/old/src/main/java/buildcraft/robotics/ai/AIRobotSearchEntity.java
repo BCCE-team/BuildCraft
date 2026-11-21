@@ -5,6 +5,7 @@ import java.util.function.Predicate;
 import buildcraft.lib.internal.area.IZone;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.robotics.scheduler.RobotCombatTargetScheduler;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -12,6 +13,9 @@ import net.minecraft.world.phys.Vec3;
 /** Finds the closest matching reachable entity in the work zone using BuildCraft 7.1.x search semantics. */
 public class AIRobotSearchEntity extends AIRobot {
     public Entity target;
+    private long claimToken;
+
+    public long claimToken() { return claimToken; }
 
     private float maxRange;
     private IZone zone;
@@ -32,6 +36,20 @@ public class AIRobotSearchEntity extends AIRobot {
     public void start() {
         if (filter == null || maxRange <= 0.0F) {
             target = null;
+            terminate();
+            return;
+        }
+
+        // Connected combat robots consume the panel's already reserved UUIDs.
+        // No per-robot 250-block sweep even while the queue is temporarily empty.
+        // Robots with no active panel keep the original independent search.
+        if (RobotCombatTargetScheduler.hasController(robot)) {
+            RobotCombatTargetScheduler.Assignment assignment = RobotCombatTargetScheduler.acquire(
+                    robot, filter, maxRange, zone);
+            if (assignment != null) {
+                target = assignment.entity();
+                claimToken = assignment.token();
+            }
             terminate();
             return;
         }

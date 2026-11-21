@@ -15,10 +15,15 @@ from source_preprocessor import preprocess_text
 
 SOURCES = [
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotProcessorWorkScheduler.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotVerticalSectionScanCursor.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotWorkIndex.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotLocalDiscoveryProbe.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotWorkLeases.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotSharedSearchBudget.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotSharedRouteFailures.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotExecutionQueue.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotMiningPriority.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotWorkEnergyBudget.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/ProcessorCandidateBoard.java',
 ]
 
@@ -39,8 +44,17 @@ public record BlockPos(int x,int y,int z) {
  public long asLong(){return ((long)x&0x3ffffffL)<<38|((long)z&0x3ffffffL)<<12|((long)y&0xfffL);}
  public static BlockPos of(long v){return new BlockPos((int)(v>>38),(int)(v<<52>>52),(int)(v<<26>>38));}
 }''',
-'net/minecraft/core/Direction.java': '''package net.minecraft.core; public enum Direction {NORTH,SOUTH,EAST,WEST,UP,DOWN;}''',
-'buildcraft/robotics/internal/legacy/robots/DockingStation.java': '''package buildcraft.robotics.internal.legacy.robots; public class DockingStation {public int x(){return 0;}public int y(){return 0;}public int z(){return 0;} public net.minecraft.core.Direction side(){return net.minecraft.core.Direction.NORTH;}}''',
+'net/minecraft/core/Direction.java': '''package net.minecraft.core; public enum Direction {NORTH,SOUTH,EAST,WEST,UP,DOWN;
+ public int getStepX(){return this==EAST?1:this==WEST?-1:0;}
+ public int getStepY(){return this==UP?1:this==DOWN?-1:0;}
+ public int getStepZ(){return this==SOUTH?1:this==NORTH?-1:0;}
+}''',
+'buildcraft/robotics/internal/legacy/robots/DockingStation.java': '''package buildcraft.robotics.internal.legacy.robots;
+ public class DockingStation {public int x(){return 0;}public int y(){return 65;}public int z(){return 0;}
+ public net.minecraft.core.Direction side(){return net.minecraft.core.Direction.NORTH;}
+ public boolean providesPower(){return false;}public boolean isInitialized(){return true;}
+ public boolean isTaken(){return false;}public long robotIdTaking(){return 0L;}
+ }''',
 'net/minecraft/world/level/ChunkPos.java': '''package net.minecraft.world.level;
 public class ChunkPos {public final int x,z;public ChunkPos(int x,int z){this.x=x;this.z=z;}}''',
 'net/minecraft/world/level/block/state/BlockState.java': '''package net.minecraft.world.level.block.state;
@@ -123,13 +137,17 @@ import net.minecraft.core.BlockPos;import net.minecraft.world.level.Level;
 import buildcraft.robotics.boards.BoardRobotGenericSearchBlock;
 import buildcraft.lib.internal.area.IZone;
 public class EntityRobotBase {
- public static final int SAFETY_ENERGY=20000;
+ public static final int SAFETY_ENERGY=20000;public static final int MAX_ENERGY=100000;
  public final Level level; public Level level(){return level;}
  private final long id; private final BlockPos location;
+ public int energy=50000;
  private final BoardRobotGenericSearchBlock board=new BoardRobotGenericSearchBlock();
  public EntityRobotBase(Level world,long id,BlockPos location){level=world;this.id=id;this.location=location;}
  public boolean isRemoved(){return false;}
- public int getEnergy(){return 50000;}
+ public int getEnergy(){return energy;}
+ public double getX(){return location.getX();} public double getY(){return location.getY();} public double getZ(){return location.getZ();}
+ public DockingStation getLinkedStation(){return null;}
+ public DockingStation getDockingStation(){return null;}
  public buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot getBoard(){return board;}
  public AIRobot getActiveAI(){return board;}
  public long getRobotId(){return id;}
@@ -147,6 +165,7 @@ public interface IRobotRegistry {
  EntityRobotBase getLoadedRobot(long id);
  boolean isTaken(ResourceIdBlock resource);
  long robotIdTaking(ResourceIdBlock resource);
+ default java.util.Collection<DockingStation> getStations(){return java.util.List.of();}
 }''',
 'buildcraft/robotics/internal/legacy/robots/RobotManager.java': '''package buildcraft.robotics.internal.legacy.robots;
 import net.minecraft.world.level.Level;
@@ -154,6 +173,25 @@ public class RobotManager {
  public interface Provider {IRobotRegistry getRegistry(Level level);}
  public static Provider registryProvider;
 }''',
+'buildcraft/lib/balance/BalanceConfig.java': '''package buildcraft.lib.balance;
+public final class BalanceConfig {public static double robot(String id,String prop,double fallback){return fallback;}}''',
+'buildcraft/robotics/statements/ActionStationForbidRobot.java': '''package buildcraft.robotics.statements;
+public class ActionStationForbidRobot {
+ public static boolean isForbidden(buildcraft.robotics.internal.legacy.robots.DockingStation d,
+ buildcraft.robotics.internal.legacy.robots.EntityRobotBase r){return false;}
+}''',
+ 'buildcraft/robotics/scheduler/RobotWorkEnergyPlanner.java': '''package buildcraft.robotics.scheduler;
+import net.minecraft.core.BlockPos;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+public class RobotWorkEnergyPlanner {
+ public record Context() {
+  public RobotWorkEnergyBudget.Estimate evaluate(EntityRobotBase r,BlockPos p,int n){
+   return new RobotWorkEnergyBudget.Estimate(false,true,20000,1,0,0);
+  }
+ }
+ public static Context capture(EntityRobotBase robot){return new Context();}
+}
+''',
 'buildcraft/robotics/tile/TileRobotProcessor.java': '''package buildcraft.robotics.tile;
 import java.util.List;import net.minecraft.core.BlockPos;import net.minecraft.world.level.Level;
 public class TileRobotProcessor {
@@ -176,6 +214,49 @@ public class TileRobotProcessor {
 # The block-discovery fixtures exercise the real block scheduler. Item-entity
 # logistics has its own JVM fixture and is stubbed here to keep the fake world
 # focused on block navigation rather than needing a full entity subsystem.
+STUBS['buildcraft/robotics/boards/BoardRobotBuilder.java'] = '''package buildcraft.robotics.boards;
+public class BoardRobotBuilder extends buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot {}
+'''
+STUBS['buildcraft/builders/tile/IRobotBuilderTarget.java'] = '''package buildcraft.builders.tile;
+public interface IRobotBuilderTarget {net.minecraft.core.BlockPos getBlockPos();}
+'''
+# The dedicated JVM suite compiles the real material scheduler; block-scanner
+# fixtures only need its panel-lifecycle surface.
+STUBS['buildcraft/robotics/scheduler/RobotBuilderMaterialScheduler.java'] = '''package buildcraft.robotics.scheduler;
+import net.minecraft.world.level.Level;
+public final class RobotBuilderMaterialScheduler {
+ public static void releasePanel(Level world,long panelId){}
+}
+'''
+STUBS['buildcraft/robotics/scheduler/RobotBuilderSourceScheduler.java'] = '''package buildcraft.robotics.scheduler;
+import net.minecraft.server.level.ServerLevel;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.builders.tile.IRobotBuilderTarget;
+public class RobotBuilderSourceScheduler {
+ public void tick(ServerLevel level,java.util.List<EntityRobotBase> workers){}
+ public void clear(){}
+ public java.util.List<IRobotBuilderTarget> preferred(EntityRobotBase robot,int maxDistance){return java.util.List.of();}
+ public void attempted(EntityRobotBase robot,IRobotBuilderTarget target,boolean success){}
+ public record Operation(net.minecraft.core.BlockPos position,int items){}
+ public void claimed(EntityRobotBase robot,net.minecraft.core.BlockPos source,java.util.List<Operation> tasks){}
+ public void completed(EntityRobotBase robot,net.minecraft.core.BlockPos source,net.minecraft.core.BlockPos task){}
+ public void released(EntityRobotBase robot,net.minecraft.core.BlockPos source){}
+ public void materialStalled(EntityRobotBase robot,net.minecraft.core.BlockPos source){}
+ public void materialStalled(EntityRobotBase robot,net.minecraft.core.BlockPos source,net.minecraft.world.item.ItemStack item){}
+ public String materialWaitDescription(long robotId){return null;}
+}
+'''
+STUBS['net/minecraft/world/item/ItemStack.java'] = """package net.minecraft.world.item;
+public class ItemStack {
+ public static final ItemStack EMPTY=new ItemStack();
+ public boolean isEmpty(){return this==EMPTY;} public int getCount(){return 1;}
+ public Object getItem(){return "item";}
+}"""
+STUBS['buildcraft/builders/snapshot/BlueprintBuilder.java'] = """package buildcraft.builders.snapshot;
+import java.util.List;import net.minecraft.core.BlockPos;import net.minecraft.world.item.ItemStack;
+public class BlueprintBuilder {
+ public record RobotBuildTask(BlockPos pos,List<ItemStack> requirements,int energyCost,boolean breakTask){}
+}"""
 STUBS['buildcraft/robotics/boards/BoardRobotPicker.java'] = '''package buildcraft.robotics.boards;
 public class BoardRobotPicker extends buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot {}
 '''
@@ -208,9 +289,47 @@ public class RobotLogisticsScheduler {
  public int queueCount(long id){return 0;}
 }
 '''
+# Combat is exercised against the real implementation in its own JVM fixture.
+# The block-world fixture deliberately has no living-entity simulation.
+STUBS['buildcraft/robotics/boards/BoardRobotButcher.java'] = '''package buildcraft.robotics.boards;
+public class BoardRobotButcher extends buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot {}
+'''
+STUBS['buildcraft/robotics/boards/BoardRobotKnight.java'] = '''package buildcraft.robotics.boards;
+public class BoardRobotKnight extends buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot {}
+'''
+STUBS['buildcraft/robotics/boards/BoardRobotBomber.java'] = '''package buildcraft.robotics.boards;
+public class BoardRobotBomber extends buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot {}
+'''
+STUBS['buildcraft/robotics/boards/BoardRobotStripes.java'] = '''package buildcraft.robotics.boards;
+public class BoardRobotStripes extends buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot {}
+'''
+STUBS['buildcraft/robotics/scheduler/RobotAreaActionScheduler.java'] = '''package buildcraft.robotics.scheduler;
+import buildcraft.robotics.tile.TileRobotProcessor;
+import net.minecraft.server.level.ServerLevel;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+public class RobotAreaActionScheduler {
+ public RobotAreaActionScheduler(TileRobotProcessor panel){}
+ public void tick(ServerLevel world,java.util.List<EntityRobotBase> workers){}
+ public void onRemoved(){} public void onLinkChanged(){} public void onQueueLimitChanged(){}
+ public int queueCount(long id){return 0;}
+}
+'''
+STUBS['buildcraft/robotics/scheduler/RobotCombatTargetScheduler.java'] = '''package buildcraft.robotics.scheduler;
+import buildcraft.robotics.tile.TileRobotProcessor;
+import net.minecraft.server.level.ServerLevel;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+public class RobotCombatTargetScheduler {
+ public RobotCombatTargetScheduler(TileRobotProcessor panel){}
+ public void tick(ServerLevel world,java.util.List<EntityRobotBase> workers){}
+ public void onRemoved(){}
+ public void onLinkChanged(){}
+ public void onQueueLimitChanged(){}
+ public int queueCount(long id){return 0;}
+}
+'''
 for name in ['AIRobotSleep','AIRobotShutdown','AIRobotRecharge','AIRobotGotoSleep',
              'AIRobotGoAndLinkToDock','AIRobotSearchBlock','AIRobotSearchAndGotoBlock',
-             'AIRobotGotoBlock','AIRobotBreak','AIRobotHarvest','AIRobotPlant','AIRobotUseToolOnBlock','AIRobotSearchNearestBlock']:
+             'AIRobotGotoBlock','AIRobotBreak','AIRobotHarvest','AIRobotPlant','AIRobotUseToolOnBlock','AIRobotSearchNearestBlock','AIRobotPumpBlock']:
     STUBS[f'buildcraft/robotics/ai/{name}.java'] = (
         f'package buildcraft.robotics.ai; public class {name} '
         'extends buildcraft.robotics.internal.legacy.robots.AIRobot {}')

@@ -5,6 +5,7 @@ import buildcraft.lib.balance.BalanceConfig;
 import buildcraft.robotics.internal.api2.ApiTaskAI;
 import buildcraft.robotics.internal.legacy.robots.RobotManager;
 import buildcraft.robotics.RobotTrace;
+import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
 import buildcraft.robotics.statements.ActionStationForbidRobot;
 import net.minecraft.nbt.CompoundTag;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
@@ -50,8 +51,16 @@ public class AIRobotMain extends AIRobot {
         // unconditionally, even when the nearby powered station was somewhere else. Such robots reached AIRobotSleep
         // and could never reach SAFETY_ENERGY or respond to Wake Up. Retain the early-return energy reserve, but let
         // AIRobotRecharge locate the nearest *powered* station, just as original BuildCraft did.
+        // A prepared ore job can require more energy than the ordinary
+        // return-only reserve. Recharge BEFORE starting it, not mid-break.
+        // Never overrule explicit Gate control or a currently executing break.
+        boolean workRecharge = overridingAI == null && !dockedAtCharger
+                && (ai == robot.getBoard() || ai instanceof AIRobotSleep
+                        || ai instanceof AIRobotGotoSleep || ai instanceof AIRobotSearchAndGotoBlock
+                        || ai instanceof AIRobotSearchNearestBlock)
+                && RobotProcessorWorkScheduler.shouldRechargeBeforeWork(robot);
         boolean needsRecharge = energy < EntityRobotBase.SAFETY_ENERGY
-                || energy <= getNearestChargerReturnThreshold();
+                || energy <= getNearestChargerReturnThreshold() || workRecharge;
 
         if (ai instanceof AIRobotGotoSleep || ai instanceof AIRobotSleep) {
             // Older saves may already contain the non-charging sleep/return path. A robot sleeping at a powered dock

@@ -24,6 +24,7 @@ import buildcraft.robotics.ai.AIRobotFetchItem;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.robotics.internal.legacy.robots.RobotManager;
 import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
+import buildcraft.robotics.scheduler.RobotWorkIndex;
 import buildcraft.robotics.item.ItemRobotController;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
@@ -63,12 +64,19 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     private int maxExecutionQueue = DEFAULT_EXECUTION_QUEUE;
     /** Last durable intentions, not claims; a new scheduler validates them on load. */
     private long[] persistedMiningWork = new long[0];
+    /** Catalog survives world reload, but never stores active leases or robot claims. */
+    private RobotWorkIndex.CatalogSnapshot persistedCatalog = RobotWorkIndex.CatalogSnapshot.empty();
     private boolean schedulerSuspended;
     private final Map<Long, String> robotNames = new LinkedHashMap<>();
     private final Map<StationKey, String> stationNames = new LinkedHashMap<>();
 
     public int getMaxExecutionQueue() {
         return maxExecutionQueue;
+    }
+
+    /** Progress of the full, loaded-section background scan (not robot jobs). */
+    public RobotProcessorWorkScheduler.ScanProgress getScanProgress() {
+        return workScheduler.scanProgress();
     }
 
     /** Number of provisional or executing mine-block operations for this linked robot. */
@@ -190,7 +198,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     }
     private final Map<Long, BlockPos> lastKnownRobotPositions = new LinkedHashMap<>();
     private final Set<Long> forceLoadedRobotIds = new LinkedHashSet<>();
-    /** Transient stage-1/2 index: never serialize world observations as authoritative tasks. */
+    /** Soft persistent discovery catalog; claims and real work remain transient. */
     private final RobotProcessorWorkScheduler workScheduler = new RobotProcessorWorkScheduler(this);
     private boolean chunkTicketsDirty = true;
     private int chunkLoadingStartupDelay = 40;
@@ -269,6 +277,16 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         return !schedulerSuspended && level instanceof ServerLevel ? workScheduler.pendingWorkSnapshot() : persistedMiningWork;
     }
 
+    private RobotWorkIndex.CatalogSnapshot savedCatalog() {
+        return !schedulerSuspended && level instanceof ServerLevel
+                ? workScheduler.catalogSnapshot() : persistedCatalog;
+    }
+
+    private static final String CATALOG_TYPES_KEY = "discoveryCatalogTypes";
+    private static final String CATALOG_COUNTS_KEY = "discoveryCatalogCounts";
+    private static final String CATALOG_POSITIONS_KEY = "discoveryCatalogPositions";
+    private static final String CATALOG_VERSION_KEY = "discoveryCatalogVersion";
+
     private void loadLinks(long[] robotIds, long[] stations, int[] stationSides,
                            long[] knownPositions, long[] forcedIds) {
         linkedRobotIds.clear();
@@ -338,6 +356,11 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
                 data.has("maxExecutionQueue") ? data.readInt("maxExecutionQueue") : DEFAULT_EXECUTION_QUEUE));
         restoreNames(data.readString("robotNames"), data.readString("stationNames"));
         persistedMiningWork = data.readLongArray("pendingMiningWork");
+        persistedCatalog = data.has(CATALOG_VERSION_KEY)
+                && data.readInt(CATALOG_VERSION_KEY) == RobotWorkIndex.CATALOG_FORMAT
+                ? new RobotWorkIndex.CatalogSnapshot(data.readString(CATALOG_TYPES_KEY),
+                        data.readIntArray(CATALOG_COUNTS_KEY), data.readLongArray(CATALOG_POSITIONS_KEY))
+                : RobotWorkIndex.CatalogSnapshot.empty();
     }
 
     @Override
@@ -350,6 +373,11 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         data.writeIntArray("linkedStationSides", savedStationSides());
         data.writeInt("maxExecutionQueue", maxExecutionQueue);
         data.writeLongArray("pendingMiningWork", savedMiningWork());
+        RobotWorkIndex.CatalogSnapshot catalog = savedCatalog();
+        data.writeInt(CATALOG_VERSION_KEY, RobotWorkIndex.CATALOG_FORMAT);
+        data.writeString(CATALOG_TYPES_KEY, catalog.categories());
+        data.writeIntArray(CATALOG_COUNTS_KEY, catalog.counts());
+        data.writeLongArray(CATALOG_POSITIONS_KEY, catalog.positions());
         data.writeString("robotNames", serializeRobotNames());
         data.writeString("stationNames", serializeStationNames());
     }
@@ -364,6 +392,11 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
                 tag.contains("maxExecutionQueue") ? tag.getInt("maxExecutionQueue") : DEFAULT_EXECUTION_QUEUE));
         restoreNames(tag.getString("robotNames"), tag.getString("stationNames"));
         persistedMiningWork = tag.getLongArray("pendingMiningWork");
+        persistedCatalog = tag.contains(CATALOG_VERSION_KEY)
+                && tag.getInt(CATALOG_VERSION_KEY) == RobotWorkIndex.CATALOG_FORMAT
+                ? new RobotWorkIndex.CatalogSnapshot(tag.getString(CATALOG_TYPES_KEY),
+                        tag.getIntArray(CATALOG_COUNTS_KEY), tag.getLongArray(CATALOG_POSITIONS_KEY))
+                : RobotWorkIndex.CatalogSnapshot.empty();
     }
 
     @Override
@@ -376,6 +409,11 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         tag.putIntArray("linkedStationSides", savedStationSides());
         tag.putInt("maxExecutionQueue", maxExecutionQueue);
         tag.putLongArray("pendingMiningWork", savedMiningWork());
+        RobotWorkIndex.CatalogSnapshot catalog = savedCatalog();
+        tag.putInt(CATALOG_VERSION_KEY, RobotWorkIndex.CATALOG_FORMAT);
+        tag.putString(CATALOG_TYPES_KEY, catalog.categories());
+        tag.putIntArray(CATALOG_COUNTS_KEY, catalog.counts());
+        tag.putLongArray(CATALOG_POSITIONS_KEY, catalog.positions());
         tag.putString("robotNames", serializeRobotNames());
         tag.putString("stationNames", serializeStationNames());
     }
@@ -474,6 +512,12 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         schedulerSuspended = false;
         workScheduler.onLinkChanged();
         workScheduler.restorePendingWork(persistedMiningWork);
+        if (level instanceof ServerLevel) {
+            workScheduler.restoreCatalog(persistedCatalog);
+            // The scheduler owns the restored positions now. Do not hold a
+            // second large NBT array in the tile throughout its lifetime.
+            persistedCatalog = RobotWorkIndex.CatalogSnapshot.empty();
+        }
         // Avoid ticket operations inside the owner's chunk load future.
         chunkLoadingStartupDelay = 40;
     }
@@ -484,6 +528,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         if (!(level instanceof ServerLevel server)) return;
         workScheduler.tick(server);
         long now = server.getGameTime();
+        workScheduler.flushCatalogDirty(now);
         if (forceLoadedRobotIds.removeIf(id -> now >= forceChunkExpiries.getOrDefault(id, now))) {
             forceChunkExpiries.keySet().retainAll(forceLoadedRobotIds);
             chunkTicketsDirty = true;
@@ -518,6 +563,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         // integrated server is flushing chunks (the "Saving world" screen).
         // Ordinary queue mutations have already called setChanged().
         persistedMiningWork = workScheduler.pendingWorkSnapshot();
+        persistedCatalog = workScheduler.catalogSnapshot();
         schedulerSuspended = true;
         workScheduler.onRemoved();
         super.onChunkUnloaded();
@@ -526,6 +572,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     @Override
     public void onRemove(boolean dropSelf) {
         persistedMiningWork = new long[0];
+        persistedCatalog = RobotWorkIndex.CatalogSnapshot.empty();
         workScheduler.onRemoved();
         if (level instanceof ServerLevel) ChunkLoaderManager.releaseChunksFor(this);
         super.onRemove(dropSelf);

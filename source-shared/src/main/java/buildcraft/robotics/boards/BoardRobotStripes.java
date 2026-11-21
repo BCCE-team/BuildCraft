@@ -13,6 +13,12 @@ import buildcraft.robotics.ai.AIRobotGotoSleep;
 import buildcraft.robotics.ai.AIRobotGotoStationAndUnload;
 import buildcraft.robotics.ai.AIRobotSearchAndGotoBlock;
 import buildcraft.robotics.ai.AIRobotStripesHandler;
+import buildcraft.robotics.scheduler.RobotAreaActionScheduler;
+import buildcraft.robotics.internal.api2.RobotAutomationSupport;
+import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.permission.WorldOperationKind;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -22,6 +28,10 @@ import net.minecraft.world.level.Level;
 /** Classic BuildCraft Stripes robot: fetches an item and applies the Stripes pipe item-use handlers to a free block. */
 public class BoardRobotStripes extends RedstoneBoardRobot {
     private BlockIndex blockFound;
+    private BlockPos processorTarget;
+    private long processorToken;
+    /** A cancelled managed request must never become an unclaimed item use. */
+    private boolean managedItemUse;
 
     public BoardRobotStripes(EntityRobotBase robot) {
         super(robot);
@@ -34,6 +44,15 @@ public class BoardRobotStripes extends RedstoneBoardRobot {
 
     @Override
     public void update() {
+        // When unlinked, a formerly managed worker must immediately regain
+        // ordinary autonomous item-use semantics; its old transient claim is
+        // not permission to use the abandoned panel target.
+        boolean managed = RobotAreaActionScheduler.hasController(robot);
+        if (!managed && managedItemUse) {
+            finishProcessorTarget(false);
+            releaseBlockFound();
+            managedItemUse = false;
+        }
         ItemStack held = robot.getItemBySlot(EquipmentSlot.MAINHAND);
         if (held.isEmpty()) {
             startDelegateAI(new AIRobotFetchAndEquipItemStack(robot, new AnyUsableStackFilter()));
@@ -45,7 +64,22 @@ public class BoardRobotStripes extends RedstoneBoardRobot {
             return;
         }
 
-        startDelegateAI(new AIRobotSearchAndGotoBlock(robot, true, this::isFreeTargetBlock));
+        if (managed) {
+            RobotAreaActionScheduler.Assignment assigned = RobotAreaActionScheduler.acquire(robot);
+            if (assigned == null) {
+                startDelegateAI(new AIRobotGotoSleep(robot));
+            } else {
+                processorTarget = assigned.target();
+                processorToken = assigned.token();
+                managedItemUse = true;
+                // Search/pick an actual navigable face; never use the old
+                // independent full-air scanner for a managed Stripes robot.
+                startDelegateAI(new AIRobotSearchAndGotoBlock(robot, true,
+                        this::isFreeTargetBlock, java.util.List.of(processorTarget)));
+            }
+        } else {
+            startDelegateAI(new AIRobotSearchAndGotoBlock(robot, true, this::isFreeTargetBlock));
+        }
     }
 
     @Override
@@ -55,6 +89,7 @@ public class BoardRobotStripes extends RedstoneBoardRobot {
                 blockFound = search.getBlockFound();
                 startDelegateAI(new AIRobotStripesHandler(robot, blockFound));
             } else {
+                finishProcessorTarget(false);
                 startDelegateAI(new AIRobotGotoSleep(robot));
             }
         } else if (ai instanceof AIRobotFetchAndEquipItemStack) {
@@ -62,6 +97,7 @@ public class BoardRobotStripes extends RedstoneBoardRobot {
                 startDelegateAI(new AIRobotGotoSleep(robot));
             }
         } else if (ai instanceof AIRobotStripesHandler) {
+            finishProcessorTarget(ai.success());
             releaseBlockFound();
             if (!ai.success() && !robot.getItemBySlot(EquipmentSlot.MAINHAND).isEmpty()) {
                 startDelegateAI(new AIRobotGotoStationAndUnload(robot));
@@ -73,6 +109,47 @@ public class BoardRobotStripes extends RedstoneBoardRobot {
         } else if (ai instanceof AIRobotGotoSleep) {
             terminate();
         }
+    }
+
+    /** A candidate is just empty space; do not scan/store the entire air volume. */
+    public boolean processorHasItem() {
+        return !robot.getItemBySlot(EquipmentSlot.MAINHAND).isEmpty();
+    }
+
+    public boolean processorCanUseAt(BlockPos pos) {
+        ItemStack held = robot.getItemBySlot(EquipmentSlot.MAINHAND);
+        if (held.isEmpty() || !isFreeTargetBlock(robot.getCommandSenderWorld(), pos)) return false;
+        var zone = robot.getZoneToWork();
+        if (zone != null && !zone.contains(new Vec3(pos.getX() + .5D, pos.getY() + .5D, pos.getZ() + .5D)))
+            return false;
+        return RobotAutomationSupport.permitsBlock(robot, robot.getCommandSenderWorld(), pos,
+                WorldOperationKind.ITEM_USE, OperationMode.SIMULATE)
+                && (!(held.getItem() instanceof BlockItem) || RobotAutomationSupport.permitsBlock(
+                        robot, robot.getCommandSenderWorld(), pos,
+                        WorldOperationKind.BLOCK_PLACE, OperationMode.SIMULATE));
+    }
+
+    public boolean processorAllowsExecution(BlockPos pos) {
+        return !managedItemUse || (processorToken > 0 && pos != null
+                && pos.equals(processorTarget)
+                && RobotAreaActionScheduler.owns(robot, pos, processorToken));
+    }
+
+    @Override
+    public void delegateAIAborted(AIRobot ai) {
+        finishProcessorTarget(false);
+        releaseBlockFound();
+    }
+
+    private void finishProcessorTarget(boolean completed) {
+        if (processorToken > 0 && processorTarget != null) {
+            RobotAreaActionScheduler.finished(robot, processorTarget, processorToken, completed);
+        }
+        processorTarget = null;
+        processorToken = 0;
+        // The handler might still be running when a Gate aborts/unloads its
+        // parent. Do not turn a released managed claim into a free action.
+        if (completed) managedItemUse = false;
     }
 
     private boolean isFreeTargetBlock(Level level, BlockPos pos) {
@@ -93,7 +170,17 @@ public class BoardRobotStripes extends RedstoneBoardRobot {
 
     @Override
     public void end() {
+        finishProcessorTarget(false);
         releaseBlockFound();
+    }
+
+    @Override
+    public void onUnload() {
+        if (managedItemUse) {
+            finishProcessorTarget(false);
+            releaseBlockFound();
+        }
+        super.onUnload();
     }
 
     @Override

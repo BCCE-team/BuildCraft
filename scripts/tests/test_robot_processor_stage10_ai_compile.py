@@ -115,9 +115,16 @@ public class CompoundTag {
 import buildcraft.robotics.internal.legacy.robots.*;import buildcraft.lib.internal.core.IStackFilter;
 public class AIRobotLoad extends AIRobot {public static final int ANY_QUANTITY=-1;
  public AIRobotLoad(EntityRobotBase r,IStackFilter f,int q){super(r);}
+ public AIRobotLoad(EntityRobotBase r,IStackFilter f,int q,DockingStation src,long token){super(r);}
  public static boolean load(EntityRobotBase r,DockingStation s,IStackFilter f,int q,boolean commit){return true;}
  public static net.minecraft.world.item.ItemStack previewCandidate(DockingStation s,IStackFilter f,int max){return new net.minecraft.world.item.ItemStack("ore",5);}
  public static java.util.List<net.minecraft.world.item.ItemStack> previewCandidates(DockingStation s,IStackFilter f,int max,int kinds){return java.util.List.of(new net.minecraft.world.item.ItemStack("ore",5));}
+}'''
+                sources['buildcraft/robotics/scheduler/RobotBuilderMaterialScheduler.java']='''package buildcraft.robotics.scheduler;
+import buildcraft.robotics.internal.legacy.robots.*;
+public class RobotBuilderMaterialScheduler {
+ public static boolean owns(EntityRobotBase r,DockingStation s,long token){return true;}
+ public static void release(EntityRobotBase r,long token){}
 }'''
                 sources['buildcraft/robotics/ai/AIRobotUnload.java']='''package buildcraft.robotics.ai;import buildcraft.robotics.internal.legacy.robots.*;import net.minecraft.world.item.ItemStack;
 public class AIRobotUnload {public static int previewAcceptance(EntityRobotBase r,DockingStation s,ItemStack stack,boolean action){return 1;}public static boolean unload(EntityRobotBase r,DockingStation s,boolean doIt,boolean action){return true;}}'''

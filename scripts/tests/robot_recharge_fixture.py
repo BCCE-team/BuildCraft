@@ -62,6 +62,20 @@ public class AIRobotGoAndLinkToDock extends AIRobot {
 import buildcraft.robotics.internal.legacy.robots.*;
 public final class RobotProcessorWorkScheduler {
  public static boolean isLinkedChargingStation(EntityRobotBase robot,DockingStation station){return false;}
+ public static boolean needsPlannedPower;
+ public static boolean shouldRechargeBeforeWork(EntityRobotBase robot){return needsPlannedPower;}
+ public static boolean hasAvailableWorkForSleepingRobot(EntityRobotBase robot){return false;}
+ public static boolean hasAvailableBuilderSource(EntityRobotBase robot){return false;}
+}''',
+'buildcraft/robotics/scheduler/RobotAreaActionScheduler': '''package buildcraft.robotics.scheduler;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+public final class RobotAreaActionScheduler {
+ public static boolean hasAvailableTarget(EntityRobotBase robot){return false;}
+}''',
+'buildcraft/robotics/scheduler/RobotCombatTargetScheduler': '''package buildcraft.robotics.scheduler;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+public final class RobotCombatTargetScheduler {
+ public static boolean hasAvailableTarget(EntityRobotBase robot){return false;}
 }''',
 'buildcraft/robotics/IStationFilter': '''package buildcraft.robotics;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
@@ -96,7 +110,7 @@ import net.minecraft.world.phys.Vec3;
 public class EntityRobotBase {
  private static long nextRobotId=10;
  private final long robotId=nextRobotId++;
- private final net.minecraft.world.level.Level level = new net.minecraft.world.level.Level();
+ public final net.minecraft.world.level.Level level = new net.minecraft.world.level.Level();
  public net.minecraft.world.level.Level level(){return level;}
  public static final long NULL_ROBOT_ID=-1L;
  public static final int MAX_ENERGY=100000,SAFETY_ENERGY=20000,SHUTDOWN_ENERGY=0;
@@ -149,6 +163,18 @@ public class RobotManager {}''',
 'buildcraft/robotics/internal/api2/ApiTaskAI': '''package buildcraft.robotics.internal.api2;
 import buildcraft.robotics.internal.legacy.robots.*;
 public class ApiTaskAI extends AIRobot {public ApiTaskAI(EntityRobotBase robot){super(robot);}}''',
+ 'buildcraft/robotics/ai/AIRobotSearchAndGotoBlock': '''package buildcraft.robotics.ai;
+import buildcraft.robotics.internal.legacy.robots.*;
+public class AIRobotSearchAndGotoBlock extends AIRobot {
+ public AIRobotSearchAndGotoBlock(EntityRobotBase robot){super(robot);}
+}
+''',
+ 'buildcraft/robotics/ai/AIRobotSearchNearestBlock': '''package buildcraft.robotics.ai;
+import buildcraft.robotics.internal.legacy.robots.*;
+public class AIRobotSearchNearestBlock extends AIRobot {
+ public AIRobotSearchNearestBlock(EntityRobotBase robot){super(robot);}
+}
+''',
 'buildcraft/robotics/ai/AIRobotGotoSleep': '''package buildcraft.robotics.ai;
 import buildcraft.robotics.internal.legacy.robots.*;
 public class AIRobotGotoSleep extends AIRobot{public AIRobotGotoSleep(EntityRobotBase robot){super(robot);}}''',
@@ -326,6 +352,42 @@ public class RobotRechargeHarness {
   var secondGoto=(AIRobotGotoStation)selecting.getDelegateAI();
   ok(secondGoto!=firstGoto && secondGoto.target==farPower);
   nearPower.taken=false;
+
+  // Stage 19: the panel can request charging before a costly NEXT task,
+  // even when the battery exceeds the ordinary emergency-return threshold.
+  var energyWorker=new EntityRobotBase(50000);
+  energyWorker.board=new buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot(energyWorker);
+  energyWorker.home=home;
+  energyWorker.registry.stations.add(nearPower);
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.needsPlannedPower=true;
+  var energyMain=new AIRobotMain(energyWorker);
+  energyMain.startDelegateAI(energyWorker.board);
+  energyMain.preempt(energyWorker.board);
+  type(energyMain,AIRobotRecharge.class);
+  // Gate instructions still supersede preflight recharge advice.
+  var gateWorker=new EntityRobotBase(50000);
+  gateWorker.board=new buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot(gateWorker);
+  gateWorker.home=home;
+  gateWorker.registry.stations.add(nearPower);
+  var gateMain=new AIRobotMain(gateWorker);
+  gateMain.setOverridingAI(new AIRobotGoAndLinkToDock(gateWorker,nearPower));
+  gateMain.startDelegateAI(gateWorker.board);
+  gateMain.preempt(gateWorker.board);
+  ok(!(gateMain.getDelegateAI() instanceof AIRobotRecharge));
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.needsPlannedPower=false;
+  // An actively executing movement is not interrupted by the speculative
+  // next-task energy forecast.
+  var inTransit=new EntityRobotBase(50000);
+  inTransit.board=new buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot(inTransit);
+  inTransit.home=home;
+  inTransit.registry.stations.add(nearPower);
+  var transitMain=new AIRobotMain(inTransit);
+  var travellingAI=new AIRobotGotoStation(inTransit,nearPower);
+  transitMain.startDelegateAI(travellingAI);
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.needsPlannedPower=true;
+  transitMain.preempt(travellingAI);
+  ok(transitMain.getDelegateAI()==travellingAI);
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.needsPlannedPower=false;
 
   System.out.println(checks+" assertions PASS");
  }
