@@ -79,6 +79,21 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         return workScheduler.scanProgress();
     }
 
+    /** Server-maintained, 20-tick performance window; no world lookup on GUI read. */
+    public buildcraft.robotics.scheduler.RobotProcessorDiagnostics.Snapshot getDiagnostics() {
+        return workScheduler.diagnostics();
+    }
+
+    /** Server-only 20-tick navigation profile, without new world reads. */
+    public buildcraft.robotics.scheduler.RobotProcessorNavigationProfiler.Snapshot getNavigationProfile() {
+        return workScheduler.navigationProfile();
+    }
+
+    /** Snapshot-only status; it never claims or probes work. */
+    public String getRobotWaitReason(EntityRobotBase robot) {
+        return workScheduler.robotWaitReason(robot);
+    }
+
     /** Number of provisional or executing mine-block operations for this linked robot. */
     public int getExecutionQueueSize(long robotId) {
         if (!linkedRobotIds.contains(robotId)) return 0;

@@ -176,6 +176,7 @@ public class EntityRobotBase {
  public int getBlockZ(){return location.getZ();}
  public IZone getZoneToWork(){return null;}
  public IRobotRegistry getRegistry(){return RobotManager.registryProvider.getRegistry(level);}
+ public DockingStation getDockingStation(){return null;}
 }'''
     return stubs
 

@@ -308,6 +308,11 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     @Override
     public void render(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         super.render(graphics, mouseX, mouseY, partialTicks);
+        List<Component> detail = diagnosticLines(mouseX, mouseY);
+        if (!detail.isEmpty()) {
+            graphics.renderTooltip(font, detail, java.util.Optional.empty(), mouseX, mouseY);
+            return;
+        }
         renderCargoTooltip(graphics, mouseX, mouseY);
     }
     private void renderCargoTooltip(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY) {
@@ -319,6 +324,61 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
                     java.util.Optional.empty(), mouseX, mouseY);
         } else graphics.renderTooltip(font, hovered.stack(), mouseX, mouseY);
     }
+    /** Hover the existing scan bar for real CPU/workload counters. Hover the
+     * selected robot's status lines for a conservative server-side wait reason.
+     * No new GUI space or textures are required. */
+    private List<Component> diagnosticLines(int mouseX, int mouseY) {
+        int x = mouseX - leftPos, y = mouseY - topPos;
+        if (x >= 215 && x < 317 && y >= 108 && y < 135) {
+            if (hasShiftDown()) {
+                var nav = processorMenu.getNavigationProfile();
+                int miss = Math.max(0, nav.cacheProbes() - nav.cacheCandidates());
+                int emptyPct = nav.readyMinerRobotTicks() <= 0 ? 0
+                        : (int) Math.min(100L, 100L * nav.emptyQueueRobotTicks()
+                                / nav.readyMinerRobotTicks());
+                return java.util.List.of(
+                        Component.literal("Navigation (last 20 ticks)"),
+                        Component.literal("Positive cache: " + nav.cachedRoutes() + " stored | "
+                                + nav.storedRoutes() + " new"),
+                        Component.literal("Lookups: " + nav.cacheProbes() + " | miss: " + miss),
+                        Component.literal("Direct: " + nav.directHits() + " | warm: "
+                                + nav.warmStarts() + " | rejected: " + nav.rejectedRoutes()),
+                        Component.literal("A*: " + nav.aStarPolled() + " polled / "
+                                + nav.aStarExpanded() + " expanded"),
+                        Component.literal("Node credits: " + nav.grantedNodes() + " granted / "
+                                + nav.refundedNodes() + " returned"),
+                        Component.literal("Route checks: " + nav.validatedWaypoints() + " waypoints"),
+                        Component.literal("Shared waits: " + nav.sharedWaitRobotTicks()
+                                + " | budget waits: " + nav.budgetWaitRobotTicks()),
+                        Component.literal("Queue-empty: " + nav.emptyQueueRobotTicks()
+                                + " / " + nav.readyMinerRobotTicks() + " robot-ticks (" + emptyPct + "%)"),
+                        Component.literal("Estimated ref. A* nodes bypassed: ~"
+                                + nav.estimatedReferenceNodesBypassed()));
+            }
+            var d = processorMenu.getDiagnostics();
+            return java.util.List.of(
+                    Component.literal("Processor load (last 20 ticks)"),
+                    Component.literal("CPU: " + d.averageMicros() + " us/t | peak: " + d.peakMicros() + " us"),
+                    Component.literal("Scanner reads: " + d.inspected() + " | dirty: " + d.dirty()),
+                    Component.literal("Focused: " + d.focused() + " | background: " + d.background()),
+                    Component.literal("Skipped sections: " + d.skippedSections()
+                            + " | budget waits: " + d.budgetLimitedTicks()),
+                    Component.literal("Cached targets: " + d.cachedCandidates()
+                            + " | categories: " + d.categories()),
+                    Component.literal("Linked: " + d.linkedRobots()
+                            + " | loaded chunks: " + d.loadedChunks()),
+                    Component.literal("Hold Shift: A* navigation profile"));
+        }
+        if (!stationMode && !renaming && x >= 45 && x < 210 && y >= 142 && y < 187) {
+            RobotSnapshot selected = selectedRobot();
+            if (selected != null && !selected.reason().isBlank()) {
+                return java.util.List.of(Component.literal("Robot diagnostics"),
+                        Component.literal(selected.reason()));
+            }
+        }
+        return java.util.List.of();
+    }
+
     private Component cargoFluidName(CargoEntry entry) {
         String id = entry.fluidId();
         int colon = id.indexOf(':');

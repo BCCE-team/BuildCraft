@@ -15,6 +15,7 @@ import buildcraft.lib.internal.area.IZone;
 import buildcraft.lib.internal.core.BlockIndex;
 import buildcraft.robotics.RobotTrace;
 import buildcraft.robotics.scheduler.RobotProcessorWorkScheduler;
+import buildcraft.robotics.scheduler.RobotPositiveRouteCache;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.robotics.internal.legacy.robots.ResourceIdBlock;
@@ -44,6 +45,12 @@ public class AIRobotSearchNearestBlock extends AIRobot {
      * every queued vein has become inaccessible. Retry these targets later. */
     private static final int MAX_QUEUED_NODES = 32_768;
     private static final int EMPTY_QUEUE_WAIT_TICKS = 160;
+    /** Previously tested goals do not monopolize the heuristic when ONE
+     * newly discovered target appears. This probe is bounded by the same
+     * 32,768-node total cap; fallback never discards the old goals. */
+    private static final int MAX_FRESH_PROBE_NODES = 4_096;
+    private static final int MAX_FRESH_PROBE_GOALS = 8;
+    private static final int MIN_DEFERRED_FOR_PROBE = 8;
     private static final int NODES_PER_TICK = 1_024;
 
     public BlockIndex blockFound;
@@ -70,9 +77,21 @@ public class AIRobotSearchNearestBlock extends AIRobot {
     /** Waiting on a different miner's confirmed explored A* region. */
     private boolean sharedRoutePaused;
     private int sharedRouteWaitTicks;
+    /** Fenced, transient coordinator token for exactly this start/goal set. */
+    private long inFlightRouteToken;
+    /** A stored corridor is validated incrementally before any reuse. */
+    private static final int CACHED_WAYPOINT_CHECKS_PER_TICK = 32;
+    private RobotPositiveRouteCache.Candidate cachedRoute;
+    private long[] cachedWaypoints;
+    private int checkedCachedSteps;
+    private boolean cacheAttempted;
+    private long nextPositiveProbeTick;
     private boolean initialized;
     /** Optional stage-3 planned targets. Normal miner BFS is unchanged when empty. */
     private Set<BlockPos> queuedTargets;
+    /** May temporarily omit recently failed goals, but only with safe fallback. */
+    private Set<BlockPos> activeSearchTargets;
+    private boolean freshProbeActive;
     private RobotTargetDistanceIndex targetDistances;
     /** A miner may start searching before its panel has finished discovering work. */
     private boolean watchProcessorQueue;
@@ -160,6 +179,13 @@ public class AIRobotSearchNearestBlock extends AIRobot {
                 resetSearch();
             }
         }
+        // Positive witnesses can be used BEFORE consuming a route-search slot
+        // or allocating A* nodes. The route is never trusted blindly: every
+        // waypoint is rechecked in small batches, followed by the current
+        // robot's tool, Gate, work zone and registry predicates.
+        if (queuedTargets != null && watchProcessorQueue && expanded == 0
+                && tryPositiveRoute(level)) return;
+
         // A just-failed A* may have inspected the same corridor and queued
         // ore for a second miner. Avoid repeating the exact expensive search
         // while the hint is fresh. This does not discard the second robot's
@@ -176,7 +202,35 @@ public class AIRobotSearchNearestBlock extends AIRobot {
                 }
                 sharedRoutePaused = true;
                 sharedRouteWaitTicks++;
+                RobotProcessorWorkScheduler.profileSharedRouteWait(robot);
                 return;
+            }
+        }
+        // Keep a single in-progress A* per identical start and goal set.
+        // A different start, even one block away behind a wall, is NOT held.
+        // An unavailable coordinator simply returns UNMANAGED and preserves
+        // the original route search, never a fabricated path or failed task.
+        if (queuedTargets != null && watchProcessorQueue) {
+            if (inFlightRouteToken > 0) {
+                if (!RobotProcessorWorkScheduler.renewRouteSearch(robot, inFlightRouteToken)) {
+                    // Panel was removed/relinked, or a stalled lease expired.
+                    // Discard old traversal state and revalidate next tick.
+                    resetSearch();
+                    return;
+                }
+            } else if (expanded == 0) {
+                long token = RobotProcessorWorkScheduler.beginRouteSearch(robot, start, queuedTargets);
+                if (token == 0L) {
+                    if (!sharedRoutePaused && RobotTrace.enabled()) {
+                        RobotTrace.event(robot, "PROCESSOR_ROUTE_IN_FLIGHT_WAIT",
+                                "start=%s goals=%d", start, queuedTargets.size());
+                    }
+                    sharedRoutePaused = true;
+                    sharedRouteWaitTicks++;
+                    RobotProcessorWorkScheduler.profileSharedRouteWait(robot);
+                    return;
+                }
+                if (token > 0L) inFlightRouteToken = token;
             }
         }
         sharedRoutePaused = false;
@@ -189,7 +243,18 @@ public class AIRobotSearchNearestBlock extends AIRobot {
             return;
         }
         int limit = queuedTargets != null ? MAX_QUEUED_NODES : MAX_EXPANDED_NODES;
-        while (budget-- > 0 && hasFrontier() && expanded < limit) {
+        int allocated = budget;
+        int polled = 0;
+        int expandedBefore = expanded;
+        try {
+        searchLoop:
+        while (budget-- > 0 && expanded < limit) {
+            if (freshProbeActive && (expanded >= MAX_FRESH_PROBE_NODES || !hasFrontier())) {
+                resumeAllQueuedGoals();
+            }
+            if (!hasFrontier()) break;
+            // Account even stale/replaced priority-queue entries as CPU work.
+            polled++;
             RouteNode node = queuedTargets == null ? null : directedOpen.remove();
             BlockPos here = node == null ? open.removeFirst() : node.position();
             if (node != null && node.distance() != pathDistances.getOrDefault(here, Integer.MAX_VALUE)) {
@@ -203,12 +268,27 @@ public class AIRobotSearchNearestBlock extends AIRobot {
                 BlockState state = level.getBlockState(next);
                 if (!state.isAir() && checkedNonAir.add(next)
                         && (zone == null || zone.contains(center(next)))
-                        && (queuedTargets == null || queuedTargets.contains(next))
+                        && (activeSearchTargets == null || activeSearchTargets.contains(next))
                         && filter.matches(level, next)
                         && (robot.getRegistry() == null
                                 || !robot.getRegistry().isTaken(new ResourceIdBlock(next)))) {
+                    LinkedList<BlockIndex> foundPath = reconstruct(here);
+                    if (freshProbeActive && !probeProvesNearest(next, foundPath.size())) {
+                        // A previously failed ore may actually be reachable:
+                        // node-cap failures are merely temporary hints.
+                        // Re-run the complete admissible multi-goal A*, never
+                        // return a nearer-by-filter but farther-by-path ore.
+                        resumeAllQueuedGoals();
+                        continue searchLoop;
+                    }
                     blockFound = new BlockIndex(next);
-                    path = reconstruct(here);
+                    path = foundPath;
+                    if (watchProcessorQueue && queuedTargets != null && !queuedTargets.isEmpty()) {
+                        List<BlockPos> savedRoute = new ArrayList<>(path.size());
+                        for (BlockIndex waypoint : path) savedRoute.add(waypoint.toBlockPos());
+                        RobotProcessorWorkScheduler.rememberPositiveRoute(robot, start,
+                                queuedTargets, next, savedRoute, expanded);
+                    }
                     if (RobotTrace.enabled()) {
                         RobotTrace.event(robot, "NEAREST_WORK_TARGET",
                                 "target=%s pathLength=%d expanded=%d", next, path.size(), expanded);
@@ -232,6 +312,15 @@ public class AIRobotSearchNearestBlock extends AIRobot {
                                 distance + targetHeuristic(next)));
                     }
                 }
+            }
+        }
+
+        } finally {
+            // Early success or exhausted frontiers must not hold hundreds of
+            // unspent search-node credits until the next server tick.
+            if (queuedTargets != null) {
+                RobotProcessorWorkScheduler.profileAStarProgress(robot, polled, expanded - expandedBefore);
+                RobotProcessorWorkScheduler.returnUnusedRouteSearchBudget(robot, allocated, polled);
             }
         }
 
@@ -266,6 +355,200 @@ public class AIRobotSearchNearestBlock extends AIRobot {
         }
     }
 
+    /**
+     * @return true while validation is in progress or a cached route has
+     * completed this search; false to proceed with the native directed A*.
+     */
+    private boolean tryPositiveRoute(Level level) {
+        if (cacheAttempted) return false;
+        long tick = level.getGameTime();
+        if (cachedRoute == null) {
+            if (tick < nextPositiveProbeTick) return false;
+            nextPositiveProbeTick = tick + 5L;
+            cachedRoute = RobotProcessorWorkScheduler.positiveRouteCandidate(robot, start, queuedTargets);
+            if (cachedRoute == null) return false;
+            long[] original = cachedRoute.route().waypoints();
+            int offset = cachedRoute.startOffset();
+            // A same-start hit has offset 0; an interior-start hit validates
+            // only the remaining suffix, not already travelled cells.
+            if (offset < 0 || offset >= original.length) {
+                RobotProcessorWorkScheduler.profileRejectedPositiveRoute(robot);
+                clearCachedCandidate();
+                cacheAttempted = true;
+                return false;
+            }
+            cachedWaypoints = java.util.Arrays.copyOfRange(original, offset, original.length);
+            checkedCachedSteps = 0;
+            if (cachedWaypoints.length == 0) {
+                RobotProcessorWorkScheduler.profileRejectedPositiveRoute(robot);
+                clearCachedCandidate();
+                cacheAttempted = true;
+                return false;
+            }
+        }
+        RobotPositiveRouteCache.Route candidate = cachedRoute.route();
+        if (!RobotProcessorWorkScheduler.positiveRouteCurrent(robot, candidate, false)) {
+            RobotProcessorWorkScheduler.profileRejectedPositiveRoute(robot);
+            clearCachedCandidate();
+            cacheAttempted = true;
+            return false;
+        }
+        // Validating a cached path also costs block reads. Charge these to
+        // the SAME 3,072-node world navigation envelope, so hundreds of idle
+        // miners cannot create an unbounded validation spike.
+        int requested = Math.min(CACHED_WAYPOINT_CHECKS_PER_TICK,
+                cachedWaypoints.length - checkedCachedSteps);
+        int granted = RobotProcessorWorkScheduler.requestRouteSearchBudget(robot, requested);
+        if (granted <= 0) return true;
+        int checked = 0;
+        try {
+            while (checkedCachedSteps < cachedWaypoints.length && checked < granted) {
+                checked++;
+                int index = checkedCachedSteps;
+                BlockPos previousStep = index == 0 ? start : BlockPos.of(cachedWaypoints[index - 1]);
+                BlockPos step = BlockPos.of(cachedWaypoints[index]);
+                if (manhattan(previousStep, step) != 1 || !insideSearchBounds(level, step)
+                        || !level.isLoaded(step)) {
+                    // Unloaded chunks do not make the route permanently invalid.
+                    RobotProcessorWorkScheduler.profileRejectedPositiveRoute(robot);
+                    clearCachedCandidate();
+                    cacheAttempted = true;
+                    return false;
+                }
+                if (!isPassable(level, step, level.getBlockState(step))) {
+                    RobotProcessorWorkScheduler.discardPositiveRoute(robot, candidate);
+                    RobotProcessorWorkScheduler.profileRejectedPositiveRoute(robot);
+                    clearCachedCandidate();
+                    cacheAttempted = true;
+                    return false;
+                }
+                checkedCachedSteps++;
+            }
+        } finally {
+            RobotProcessorWorkScheduler.profileVerifiedRouteWaypoints(robot, checked);
+            RobotProcessorWorkScheduler.returnUnusedRouteSearchBudget(robot, granted, checked);
+        }
+        if (checkedCachedSteps < cachedWaypoints.length) return true;
+        BlockPos destination = BlockPos.of(candidate.target());
+        BlockPos last = BlockPos.of(cachedWaypoints[cachedWaypoints.length - 1]);
+        boolean canDirect = cachedRoute.exact()
+                && RobotProcessorWorkScheduler.positiveRouteCurrent(robot, candidate, true)
+                && manhattan(last, destination) == 1
+                // A different tool or Gate filter might make another ore
+                // eligible now. Only skip A* when no OTHER goal can possibly
+                // have a strictly shorter route (Manhattan lower bound).
+                && noOtherGoalCanBeCloser(candidate, destination, cachedWaypoints.length)
+                && queuedTargets.contains(destination)
+                && level.isLoaded(destination)
+                && insideSearchBounds(level, destination)
+                && !level.getBlockState(destination).isAir()
+                && (zone == null || zone.contains(center(destination)))
+                && RobotProcessorWorkScheduler.allowsRobotTarget(robot, destination)
+                && filter.matches(level, destination)
+                && (robot.getRegistry() == null || !robot.getRegistry().isTaken(
+                        new ResourceIdBlock(destination)));
+        if (canDirect) {
+            LinkedList<BlockIndex> validated = new LinkedList<>();
+            for (long waypoint : cachedWaypoints) validated.add(new BlockIndex(BlockPos.of(waypoint)));
+            path = validated;
+            blockFound = new BlockIndex(destination);
+            RobotProcessorWorkScheduler.profilePositiveRouteOutcome(robot, true,
+                    candidate.referenceExpandedNodes());
+            if (RobotTrace.enabled()) RobotTrace.event(robot, "PROCESSOR_POSITIVE_ROUTE_HIT",
+                    "start=%s target=%s waypoints=%d savedAStar=true", start, destination, path.size());
+            clearCachedCandidate();
+            cacheAttempted = true;
+            terminate();
+            return true;
+        }
+        // A route to a depleted/claimed ore may still describe a useful
+        // traversable corridor. Give EVERY cached cell its actual path cost
+        // and put it in the normal A* frontier: otherwise an unvisited cell
+        // could be reached backwards from a seeded endpoint, form a cycle
+        // in `previous`, and hide branches to closer/newly eligible ore.
+        // The original start is still queued; shorter paths may lower these
+        // costs normally, preserving the algorithm's shortest-route choice.
+        BlockPos parent = start;
+        int distance = 0;
+        java.util.Set<BlockPos> encountered = new HashSet<>();
+        encountered.add(start);
+        for (long waypoint : cachedWaypoints) {
+            BlockPos step = BlockPos.of(waypoint);
+            if (!encountered.add(step)) {
+                RobotProcessorWorkScheduler.discardPositiveRoute(robot, candidate);
+                RobotProcessorWorkScheduler.profileRejectedPositiveRoute(robot);
+                clearCachedCandidate();
+                cacheAttempted = true;
+                return false;
+            }
+            distance++;
+            pathDistances.put(step, distance);
+            previous.put(step, parent);
+            directedOpen.add(new RouteNode(step, distance, distance + targetHeuristic(step)));
+            parent = step;
+        }
+        RobotProcessorWorkScheduler.profilePositiveRouteOutcome(robot, false, 0);
+        if (RobotTrace.enabled()) RobotTrace.event(robot, "PROCESSOR_POSITIVE_ROUTE_WARM",
+                "start=%s via=%s validated=%d", start, last, distance);
+        clearCachedCandidate();
+        cacheAttempted = true;
+        return false;
+    }
+
+    private boolean noOtherGoalCanBeCloser(RobotPositiveRouteCache.Route route,
+            BlockPos chosenTarget, int routeLength) {
+        for (BlockPos goal : queuedTargets) {
+            if (goal.equals(chosenTarget)) continue;
+            // Walking a route to an adjacent ore needs at least Manhattan-1.
+            if (manhattan(start, goal) - 1L < routeLength) return false;
+        }
+        return true;
+    }
+
+    private static long manhattan(BlockPos a, BlockPos b) {
+        return Math.abs((long) a.getX() - b.getX())
+                + Math.abs((long) a.getY() - b.getY())
+                + Math.abs((long) a.getZ() - b.getZ());
+    }
+
+    private void clearCachedCandidate() {
+        cachedRoute = null;
+        cachedWaypoints = null;
+        checkedCachedSteps = 0;
+    }
+
+    /** A fast probe can finish early ONLY if the omitted goals cannot have
+     * a shorter grid path, even assuming unobstructed Manhattan movement. */
+    private boolean probeProvesNearest(BlockPos chosen, int pathLength) {
+        if (!freshProbeActive) return true;
+        for (BlockPos goal : queuedTargets) {
+            if (activeSearchTargets.contains(goal) || goal.equals(chosen)) continue;
+            if (Math.max(0L, manhattan(start, goal) - 1L) < pathLength) return false;
+        }
+        return true;
+    }
+
+    /** Transition from a small fresh-goal probe to all queued positions.
+     * Keep the ALREADY spent node counter and the in-flight route token: a
+     * world overloaded with impossible goals must never get a second free
+     * 32k-node allowance or let another miner start the same query. */
+    private void resumeAllQueuedGoals() {
+        if (!freshProbeActive) return;
+        freshProbeActive = false;
+        activeSearchTargets = queuedTargets;
+        targetDistances = new RobotTargetDistanceIndex(queuedTargets);
+        open.clear();
+        directedOpen.clear();
+        pathDistances.clear();
+        previous.clear();
+        checkedNonAir.clear();
+        previous.put(start, null);
+        pathDistances.put(start, 0);
+        directedOpen.add(new RouteNode(start, 0, targetHeuristic(start)));
+        if (RobotTrace.enabled()) RobotTrace.event(robot, "PROCESSOR_ROUTE_FRESH_FALLBACK",
+                "start=%s goals=%d expanded=%d", start, queuedTargets.size(), expanded);
+    }
+
     /** For diagnosing lower ores that were queued but failed route discovery. */
     private String queuedTargetYRange() {
         if (queuedTargets == null || queuedTargets.isEmpty()) return "none";
@@ -294,6 +577,10 @@ public class AIRobotSearchNearestBlock extends AIRobot {
     public List<BlockPos> processorQueueTargets() { return adoptedQueueTargets; }
 
     private void resetSearch() {
+        releaseInFlightRoute();
+        clearCachedCandidate();
+        cacheAttempted = false;
+        nextPositiveProbeTick = Long.MIN_VALUE;
         initialized = true;
         start = robot.blockPosition().immutable();
         int radius = DEFAULT_SEARCH_RADIUS;
@@ -322,7 +609,22 @@ public class AIRobotSearchNearestBlock extends AIRobot {
         pathDistances.clear();
         previous.clear();
         checkedNonAir.clear();
-        targetDistances = queuedTargets == null ? null : new RobotTargetDistanceIndex(queuedTargets);
+        activeSearchTargets = queuedTargets;
+        freshProbeActive = false;
+        if (watchProcessorQueue && queuedTargets != null
+                && queuedTargets.size() >= MIN_DEFERRED_FOR_PROBE + 1) {
+            List<BlockPos> fresh = RobotProcessorWorkScheduler.freshRouteGoals(robot, start, queuedTargets);
+            int deferred = queuedTargets.size() - fresh.size();
+            if (!fresh.isEmpty() && fresh.size() <= MAX_FRESH_PROBE_GOALS
+                    && deferred >= MIN_DEFERRED_FOR_PROBE) {
+                activeSearchTargets = new HashSet<>(fresh);
+                freshProbeActive = true;
+                if (RobotTrace.enabled()) RobotTrace.event(robot, "PROCESSOR_ROUTE_FRESH_PROBE",
+                        "start=%s goals=%d fresh=%d deferred=%d cap=%d",
+                        start, queuedTargets.size(), fresh.size(), deferred, MAX_FRESH_PROBE_NODES);
+            }
+        }
+        targetDistances = activeSearchTargets == null ? null : new RobotTargetDistanceIndex(activeSearchTargets);
         expanded = 0;
         waitingTicks = 0;
         throttledTicks = 0;
@@ -384,6 +686,27 @@ public class AIRobotSearchNearestBlock extends AIRobot {
     private void fail() {
         setSuccess(false);
         terminate();
+    }
+
+    /** Waiting on a route witness/lease doesn't consume A* node quota. */
+    public boolean isWaitingForSharedRoute() { return sharedRoutePaused; }
+
+    private void releaseInFlightRoute() {
+        if (inFlightRouteToken > 0L) {
+            RobotProcessorWorkScheduler.finishRouteSearch(robot, inFlightRouteToken);
+            inFlightRouteToken = 0L;
+        }
+    }
+
+    @Override
+    public void end() {
+        releaseInFlightRoute();
+    }
+
+    @Override
+    public void onUnload() {
+        releaseInFlightRoute();
+        super.onUnload();
     }
 
     /** The owning AIRobotSearchAndGotoBlock performs the final atomic reservation. */

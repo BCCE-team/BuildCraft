@@ -82,7 +82,7 @@ public class VerifyWorkIndex {
                          'level.hasChunkAt(pos)', 'level.getBlockState(pos)',
                          'TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS',
                          'anchor.getX() >> 4', 'index.forgetUnused(List.of())',
-                         'index.countMatching(entry.getKey(), now', 'MAX_CANDIDATES_PER_CATEGORY'):
+                         'index.countMatchingUpTo(entry.getKey(), now', 'MAX_CANDIDATES_PER_CATEGORY'):
             with self.subTest(feature=fragment): self.assertIn(fragment, code)
         self.assertNotIn('level.getChunk(', code)
         self.assertNotIn('setChunkForced(', code)

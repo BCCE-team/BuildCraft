@@ -154,6 +154,31 @@ public final class RobotWorkIndex {
         return entries == null ? 0 : entries.size();
     }
 
+    /**
+     * Count only until the caller's threshold has been satisfied. This is
+     * intentionally an exact threshold predicate, NOT a full catalog count:
+     * the scanner merely asks whether enough usable work exists to stop.
+     * Each candidate is still checked via the caller's live permission/lease
+     * predicate; no world state is cached by this method.
+     */
+    public int countMatchingUpTo(String category, long tick, LongPredicate available, int limit) {
+        if (limit <= 0) return 0;
+        var entries = candidates.get(category);
+        if (entries == null) return 0;
+        int matched = 0;
+        for (long position : entries) {
+            if (available.test(position) && ++matched >= limit) break;
+        }
+        return matched;
+    }
+
+    /** Cheap metadata lookup for a panel diagnostic snapshot, not a world scan. */
+    public int totalCandidates() {
+        int sum = 0;
+        for (var entries : candidates.values()) sum += entries.size();
+        return sum;
+    }
+
     /** A cached position is not a claim. World/board/lease validity is checked on dispatch. */
     public int countMatching(String category, long tick, LongPredicate available) {
         var entries = candidates.get(category);

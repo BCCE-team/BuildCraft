@@ -20,9 +20,15 @@ SOURCES = [
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotLocalDiscoveryProbe.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotWorkLeases.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotSharedSearchBudget.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotInFlightRoutes.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotPositiveRouteCache.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotSharedRouteFailures.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotExecutionQueue.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotMiningPriority.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotProcessorDiagnostics.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotProcessorNavigationProfiler.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotAdaptiveScanBudget.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotScanCostEstimator.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotWorkEnergyBudget.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/ProcessorCandidateBoard.java',
 ]
@@ -333,6 +339,11 @@ for name in ['AIRobotSleep','AIRobotShutdown','AIRobotRecharge','AIRobotGotoSlee
     STUBS[f'buildcraft/robotics/ai/{name}.java'] = (
         f'package buildcraft.robotics.ai; public class {name} '
         'extends buildcraft.robotics.internal.legacy.robots.AIRobot {}')
+
+STUBS['buildcraft/robotics/ai/AIRobotSearchNearestBlock.java'] = '''package buildcraft.robotics.ai;
+public class AIRobotSearchNearestBlock extends buildcraft.robotics.internal.legacy.robots.AIRobot {
+ public boolean isWaitingForSharedRoute(){return false;}
+}'''
 
 SIMULATION = '''package fixture;
 import net.minecraft.core.BlockPos;

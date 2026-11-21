@@ -105,6 +105,7 @@ public class AIRobot {
  public void start(){}
  public void update(){}
  public void end(){}
+ public void onUnload(){}
  public void delegateAIEnded(AIRobot child){}
  public boolean canLoadFromNBT(){return false;}
  public boolean shouldSaveToNBT(){return canLoadFromNBT();}
@@ -135,8 +136,60 @@ public final class RobotProcessorWorkScheduler {
  public static RobotSharedRouteFailures failures=new RobotSharedRouteFailures();
  public static int routeBudgetRequests;
  public static int requestRouteSearchBudget(EntityRobotBase robot,int amount){routeBudgetRequests++;return amount;}
+ public static RobotInFlightRoutes sessions=new RobotInFlightRoutes();
+ public static java.util.Map<net.minecraft.world.level.Level,RobotPositiveRouteCache> positive=
+    new java.util.WeakHashMap<>();
+ private static RobotPositiveRouteCache cache(EntityRobotBase robot){
+  return positive.computeIfAbsent(robot.level,unused->new RobotPositiveRouteCache());
+ }
+ public static RobotPositiveRouteCache.Candidate positiveRouteCandidate(EntityRobotBase robot,
+     BlockPos start,java.util.Collection<BlockPos> goals){
+  if(!managed)return null;
+  return cache(robot).find(robot.level.getGameTime(),start.asLong(),
+      goals.stream().map(BlockPos::asLong).toList());
+ }
+ public static boolean positiveRouteCurrent(EntityRobotBase robot,RobotPositiveRouteCache.Route route,boolean exact){
+  return managed && (exact?cache(robot).mayShortCircuit(robot.level.getGameTime(),route):
+                      cache(robot).isCurrent(robot.level.getGameTime(),route));
+ }
+ public static void discardPositiveRoute(EntityRobotBase robot,RobotPositiveRouteCache.Route route){
+  cache(robot).discard(route);
+ }
+ public static void rememberPositiveRoute(EntityRobotBase robot,BlockPos start,
+     java.util.Collection<BlockPos> goals,BlockPos target,java.util.Collection<BlockPos> path,int expanded){
+  if(managed)cache(robot).remember(robot.level.getGameTime(),start.asLong(),
+      goals.stream().map(BlockPos::asLong).toList(),target.asLong(),
+      path.stream().map(BlockPos::asLong).toList(),expanded);
+ }
+ public static void profileAStarProgress(EntityRobotBase robot,int polled,int expanded){}
+ public static void profileVerifiedRouteWaypoints(EntityRobotBase robot,int checked){}
+ public static void profileSharedRouteWait(EntityRobotBase robot){}
+ public static void profilePositiveRouteOutcome(EntityRobotBase robot,boolean direct,int reference){}
+ public static void profileRejectedPositiveRoute(EntityRobotBase robot){}
+ public static void rememberPositiveRoute(EntityRobotBase robot,BlockPos start,
+     java.util.Collection<BlockPos> goals,BlockPos target,java.util.Collection<BlockPos> path){
+  if(managed)cache(robot).remember(robot.level.getGameTime(),start.asLong(),
+      goals.stream().map(BlockPos::asLong).toList(),target.asLong(),
+      path.stream().map(BlockPos::asLong).toList());
+ }
+
+ public static long beginRouteSearch(EntityRobotBase robot,BlockPos start,java.util.Collection<BlockPos> goals){
+  if(!managed)return -1L;
+  return sessions.begin(robot.level.getGameTime(),System.identityHashCode(robot),start.asLong(),
+   goals.stream().map(BlockPos::asLong).toList());
+ }
+ public static boolean renewRouteSearch(EntityRobotBase robot,long token){
+  return sessions.renew(robot.level.getGameTime(),System.identityHashCode(robot),token);
+ }
+ public static void finishRouteSearch(EntityRobotBase robot,long token){sessions.finished(System.identityHashCode(robot),token);}
+ public static void returnUnusedRouteSearchBudget(EntityRobotBase robot,int granted,int polled){}
+
  public static boolean isManagedMiner(EntityRobotBase robot){return managed;}
  public static boolean shouldRechargeBeforeWork(EntityRobotBase robot){return false;}
+ public static List<BlockPos> freshRouteGoals(EntityRobotBase robot,BlockPos start,
+      java.util.Collection<BlockPos> goals){
+  return managed ? failures.untestedGoals(start,goals,robot.level.getGameTime()) : List.copyOf(goals);
+ }
  public static long sharedRouteDeferUntil(EntityRobotBase robot,BlockPos start,List<BlockPos> goals){
   return managed ? failures.deferUntil(start,goals,robot.level.getGameTime()) : 0L;
  }
@@ -475,6 +528,46 @@ public final class NearestOreFixture {
   buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.failures.worldChanged();
   buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.managed=false;
  }
+ static void duplicateInFlightRouteWaitsWithoutBurningNodes(){
+  var world=new Level();world.setSolidByDefault(true);
+  BlockPos origin=p(0,0),goal=p(28,28);
+  for(int x=-25;x<=25;x++)for(int z=-25;z<=25;z++)world.put(p(x,z),BlockState.AIR);
+  world.put(goal,ore("copper"));
+  var scheduler=buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.class;
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.sessions.clear();
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.failures.worldChanged();
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of(goal);
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.managed=true;
+  var leader=new AIRobotSearchNearestBlock(new EntityRobotBase(world,origin),
+     (lvl,pos)->pos.equals(goal),0,java.util.List.of(goal));
+  leader.update();
+  check(buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.sessions.activeSearches()==1,
+     "First A* finished or failed to register in-flight route");
+  var follower=new AIRobotSearchNearestBlock(new EntityRobotBase(world,origin),
+     (lvl,pos)->pos.equals(goal),0,java.util.List.of(goal));
+  int before=buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.routeBudgetRequests;
+  follower.update();
+  check(follower.isWaitingForSharedRoute(),"Duplicate route did not wait for leader");
+  check(buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.routeBudgetRequests==before,
+        "Waiting miner independently searched the same route");
+  check(follower.getEnergyCost()==0,"Waiting miner charged for a skipped route search");
+  var otherStart=new AIRobotSearchNearestBlock(new EntityRobotBase(world,p(1,0)),
+     (lvl,pos)->pos.equals(goal),0,java.util.List.of(goal));
+  otherStart.update();
+  check(!otherStart.isWaitingForSharedRoute(),"Neighboring cave start was incorrectly blocked");
+  otherStart.onUnload();
+  leader.onUnload();
+  check(buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.sessions.activeSearches()==0,
+        "Unloaded AI left a stale leader in the route queue");
+  follower.update();
+  check(!follower.isWaitingForSharedRoute(),"Follower never resumed after leader unload");
+  follower.end();
+  check(buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.sessions.activeSearches()==0,
+        "Finished follower left a stale route lease");
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.sessions.clear();
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.queue=java.util.List.of();
+  buildcraft.robotics.scheduler.RobotProcessorWorkScheduler.managed=false;
+ }
  static void defaultBoardsUnchanged(){
   var world=new Level();var robot=new EntityRobotBase(world,p(0,0));
   var other=new BoardRobotGenericSearchBlock(robot) {
@@ -492,6 +585,7 @@ public final class NearestOreFixture {
   queuedDirectedSearchAvoidsSealedOre();queuedSearchHasSmallerBound();queuedOreInFarWorkChunk();
   managedMinerWaitsWithoutFlooding();
   sharedFailureWaitsWithoutDeletingQueuedJob();
+  duplicateInFlightRouteWaitsWithoutBurningNodes();
   defaultBoardsUnchanged();
   System.out.println("PASS: cross-chunk nearest, shortest navigable route, vein priority, save, loading, budget, no tunneling, other boards");
  }
@@ -500,6 +594,8 @@ public final class NearestOreFixture {
 REAL = [
     'source-shared/src/main/java/buildcraft/robotics/ai/AIRobotSearchAndGotoBlock.java',
     'source-shared/src/main/java/buildcraft/robotics/ai/AIRobotSearchNearestBlock.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotInFlightRoutes.java',
+    'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotPositiveRouteCache.java',
     'source-shared/src/main/java/buildcraft/robotics/ai/RobotTargetDistanceIndex.java',
     'source-shared/src/main/java/buildcraft/robotics/scheduler/RobotSharedRouteFailures.java',
     'source-shared/src/main/java/buildcraft/robotics/boards/BoardRobotGenericSearchBlock.java',

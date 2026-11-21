@@ -102,6 +102,42 @@ public final class RobotExecutionQueue {
         return true;
     }
 
+    /**
+     * Atomically swap a PENDING deposit for a completely reserved closer one.
+     * Caller obtains every replacement lease before entering, and releases
+     * displaced leases only after this method succeeds. The active deposit and
+     * all unrelated jobs remain untouched on rejection.
+     */
+    public Job replacePendingDeposit(long robotId, long pendingMember, Map<Long, Long> replacement) {
+        ArrayList<Job> items = byRobot.get(robotId);
+        if (items == null || replacement == null || replacement.isEmpty()) return null;
+        int oldIndex = -1;
+        for (int i = 0; i < items.size(); i++) {
+            Job job = items.get(i);
+            if (job.contains(pendingMember)) {
+                if (job.active) return null;
+                oldIndex = i;
+                break;
+            }
+        }
+        if (oldIndex < 0) return null;
+        // Displaced cells are about to have their old lease tokens released.
+        // A replacement cannot reuse any of those positions either.
+        for (long position : replacement.keySet()) {
+            if (items.get(oldIndex).contains(position)) return null;
+        }
+        // Duplicated positions would allow two jobs to release the same token.
+        for (int i = 0; i < items.size(); i++) {
+            if (i == oldIndex) continue;
+            for (long position : replacement.keySet()) {
+                if (items.get(i).contains(position)) return null;
+            }
+        }
+        Job displaced = items.get(oldIndex);
+        items.set(oldIndex, new Job(replacement));
+        return displaced;
+    }
+
     /** Move the real, successfully reserved block's entire deposit to the head. */
     public boolean activate(long robotId, long position) {
         ArrayList<Job> items = byRobot.get(robotId);

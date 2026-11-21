@@ -89,7 +89,6 @@ public class AIRobotSearchBlock extends AIRobot {
         }
     }
 
-    @Override
     public AIRobotSearchBlock(EntityRobotBase robot, boolean random, IBlockFilter filter,
             double maxDistanceToEnd, java.util.List<BlockPos> exclusiveTargets, boolean exclusiveOnly) {
         this(robot, random, filter, maxDistanceToEnd, exclusiveTargets);

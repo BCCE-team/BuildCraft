@@ -108,6 +108,23 @@ public final class RobotSharedRouteFailures {
         return firstExpiry == Long.MAX_VALUE ? 0L : firstExpiry;
     }
 
+    /**
+     * Recently untested ore positions in an otherwise familiar failed search.
+     * A node-capped A* is NOT proof of permanent unreachability. Callers may
+     * prioritize these goals in a small probe, but MUST subsequently retain
+     * a normal search over all originally queued goals if the probe cannot
+     * prove that its result is globally shortest.
+     */
+    public List<BlockPos> untestedGoals(BlockPos start, Collection<BlockPos> goals, long now) {
+        if (goals == null || goals.isEmpty()) return List.of();
+        expire(now);
+        List<BlockPos> untested = new java.util.ArrayList<>(goals.size());
+        for (BlockPos goal : goals) {
+            if (goal != null && !shouldDefer(start, goal.asLong(), now)) untested.add(goal);
+        }
+        return untested;
+    }
+
     public void expire(long now) {
         for (Iterator<FailedSearch> iterator = failures.iterator(); iterator.hasNext();) {
             FailedSearch failure = iterator.next();

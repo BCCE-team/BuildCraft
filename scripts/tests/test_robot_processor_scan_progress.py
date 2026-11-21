@@ -85,6 +85,15 @@ public class LiveScanProgressFixture {
   check(observedProgress,"did not expose partial scan percent");
   check(completed&&snapshot.percent()==100&&snapshot.currentPassPercent()==100,
        "first pass never finished at 100 percent");
+  // A 20-tick window is published at the next tick boundary. A small
+  // one-section scan can complete long before that first window ends.
+  while(world.time<22)tick(world,scheduler);
+  int oldReads=world.blockReads;
+  var health=scheduler.diagnostics();
+  check(world.blockReads==oldReads,"GUI diagnostics performed new world reads");
+  check(health.linkedRobots()==2&&health.loadedChunks()>=1,"server telemetry metadata incorrect");
+  check(health.inspected()>0,"real scan did not report inspected world blocks");
+  check(health.averageMicros()>0,"real scheduler CPU window did not advance");
   boolean refreshing=false;
   for(int i=0;i<260;i++){
    tick(world,scheduler);

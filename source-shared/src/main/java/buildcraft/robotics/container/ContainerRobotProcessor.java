@@ -1,6 +1,8 @@
 package buildcraft.robotics.container;
 
 import buildcraft.robotics.RobotTaskNames;
+import buildcraft.robotics.scheduler.RobotProcessorDiagnostics;
+import buildcraft.robotics.scheduler.RobotProcessorNavigationProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,6 +59,9 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     private static final int ID_CARGO = ROBOT_IDS.allocId("robot_cargo");
     // Append the new ID after all previous message IDs to keep their values stable.
     private static final int ID_SCAN_PROGRESS = ROBOT_IDS.allocId("scan_progress");
+    // Append only: existing protocol message IDs must not be renumbered.
+    private static final int ID_DIAGNOSTICS = ROBOT_IDS.allocId("processor_diagnostics");
+    private static final int ID_NAVIGATION_PROFILE = ROBOT_IDS.allocId("processor_navigation_profile");
     // A robot currently has four transfer slots and one tank; leave room for extensions.
     private static final int MAX_CARGO_ENTRIES = 32;
     private static final int MAX_CARGO_TANKS = 8;
@@ -83,10 +88,15 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     public record ScanProgress(int percent, int passPercent, int phase, int sections) { }
     private ScanProgress scanProgress = new ScanProgress(0, 0, SCAN_WAITING, 0);
     private ScanProgress lastSentScanProgress;
+    private RobotProcessorDiagnostics.Snapshot diagnostics = RobotProcessorDiagnostics.Snapshot.EMPTY;
+    private RobotProcessorDiagnostics.Snapshot lastSentDiagnostics;
+    private RobotProcessorNavigationProfiler.Snapshot navigationProfile =
+            RobotProcessorNavigationProfiler.Snapshot.EMPTY;
+    private RobotProcessorNavigationProfiler.Snapshot lastSentNavigationProfile;
 
     /** A position/status snapshot, not a client-side reference to a server entity. */
     public record RobotSnapshot(long id, String board, String task, String status,
-                                int x, int y, int z, int charge, int progress, String name, int queued) {}
+                                int x, int y, int z, int charge, int progress, String name, int queued, String reason) {}
     /** Read-only contents used for GUI rendering. No inventory slots are exposed for interaction. */
     public record CargoEntry(ItemStack stack, String fluidId, int amountMb, int capacityMb) {
         public boolean isFluid() { return !fluidId.isEmpty(); }
@@ -166,6 +176,8 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
 
     public int getMaxExecutionQueue() { return maxExecutionQueue; }
     public ScanProgress getScanProgress() { return scanProgress; }
+    public RobotProcessorDiagnostics.Snapshot getDiagnostics() { return diagnostics; }
+    public RobotProcessorNavigationProfiler.Snapshot getNavigationProfile() { return navigationProfile; }
 
 
     /** Configure the limit for queued execution actions, not pathfinding/search steps. */
@@ -278,6 +290,51 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                 });
             }
         }
+        if (playerInventory.player instanceof ServerPlayer && processor != null && snapshotTick % 20 == 0) {
+            RobotProcessorDiagnostics.Snapshot next = processor.getDiagnostics();
+            if (!next.equals(lastSentDiagnostics)) {
+                lastSentDiagnostics = next;
+                sendMessage(ID_DIAGNOSTICS, out -> {
+                    out.writeVarInt(next.inspected());
+                    out.writeVarInt(next.dirty());
+                    out.writeVarInt(next.focused());
+                    out.writeVarInt(next.background());
+                    out.writeVarInt(next.skippedSections());
+                    out.writeVarInt(next.budgetLimitedTicks());
+                    out.writeVarInt(next.cachedCandidates());
+                    out.writeVarInt(next.categories());
+                    out.writeVarInt(next.linkedRobots());
+                    out.writeVarInt(next.loadedChunks());
+                    out.writeVarInt(next.averageMicros());
+                    out.writeVarInt(next.peakMicros());
+                });
+            }
+        }
+        if (playerInventory.player instanceof ServerPlayer && processor != null && snapshotTick % 20 == 0) {
+            RobotProcessorNavigationProfiler.Snapshot next = processor.getNavigationProfile();
+            if (!next.equals(lastSentNavigationProfile)) {
+                lastSentNavigationProfile = next;
+                sendMessage(ID_NAVIGATION_PROFILE, out -> {
+                    out.writeVarInt(next.cacheProbes());
+                    out.writeVarInt(next.cacheCandidates());
+                    out.writeVarInt(next.directHits());
+                    out.writeVarInt(next.warmStarts());
+                    out.writeVarInt(next.rejectedRoutes());
+                    out.writeVarInt(next.storedRoutes());
+                    out.writeVarInt(next.validatedWaypoints());
+                    out.writeVarInt(next.aStarPolled());
+                    out.writeVarInt(next.aStarExpanded());
+                    out.writeVarInt(next.grantedNodes());
+                    out.writeVarInt(next.refundedNodes());
+                    out.writeVarInt(next.sharedWaitRobotTicks());
+                    out.writeVarInt(next.budgetWaitRobotTicks());
+                    out.writeVarInt(next.emptyQueueRobotTicks());
+                    out.writeVarInt(next.readyMinerRobotTicks());
+                    out.writeVarInt(next.estimatedReferenceNodesBypassed());
+                    out.writeVarInt(next.cachedRoutes());
+                });
+            }
+        }
         if (playerInventory.player instanceof ServerPlayer) {
             boolean normalRefresh = snapshotTick++ % 20 == 0;
             // Queue orders are issued/completed between 20-tick telemetry polls.
@@ -324,7 +381,8 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
             if (robot == null || robot.isRemoved()) {
                 BlockPos last = processor.getLastKnownRobotPosition(robotId);
                 if (last != null) next.add(new RobotSnapshot(robotId, "Unknown", "Offline", "Offline",
-                        last.getX(), last.getY(), last.getZ(), 0, -1, processor.getRobotName(robotId), 0));
+                        last.getX(), last.getY(), last.getZ(), 0, -1, processor.getRobotName(robotId), 0,
+                        "Robot chunk unloaded"));
                 continue;
             }
             processor.recordRobotPosition(robotId, robot.blockPosition());
@@ -352,7 +410,8 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
             progress = progress < 0 ? -1 : Math.max(0, Math.min(100, progress));
             next.add(new RobotSnapshot(robot.getRobotId(), truncate(board, 48), truncate(task, 64), status,
                     robot.blockPosition().getX(), robot.blockPosition().getY(), robot.blockPosition().getZ(),
-                    percent, progress, processor.getRobotName(robotId), processor.getExecutionQueueSize(robotId)));
+                    percent, progress, processor.getRobotName(robotId), processor.getExecutionQueueSize(robotId),
+                    truncate(processor.getRobotWaitReason(robot), 96)));
         }
         // Do not emit a full robot snapshot when nothing changed. The queue
         // trigger above is sufficient to deliver counts at execution speed.
@@ -370,6 +429,7 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                 buf.writeByte(robot.charge()); buf.writeByte(robot.progress());
                 buf.writeUtf(robot.name(), TileRobotProcessor.MAX_LINK_NAME_LENGTH);
                 buf.writeByte(robot.queued());
+                buf.writeUtf(robot.reason(), 96);
             }
         });
     }
@@ -531,7 +591,8 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                         buffer.readByte(), buffer.readByte(),
                         buffer.readUtf(TileRobotProcessor.MAX_LINK_NAME_LENGTH),
                         NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0,
-                                TileRobotProcessor.MAX_EXECUTION_QUEUE, "mining execution queue")));
+                                TileRobotProcessor.MAX_EXECUTION_QUEUE, "mining execution queue"),
+                        buffer.readUtf(96)));
             }
         } else if (id == ID_STATIONS && side == BCNetworkSide.CLIENT) {
             int count = NetworkSecurity.requireRange(buffer.readVarInt(), 0, ROBOT_LIMIT, "station snapshots");
@@ -550,6 +611,40 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                             "scan phase"),
                     NetworkSecurity.requireRange(buffer.readVarInt(), 0, 1_000_000,
                             "scan section count"));
+        } else if (id == ID_DIAGNOSTICS && side == BCNetworkSide.CLIENT) {
+            diagnostics = new RobotProcessorDiagnostics.Snapshot(
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000, "processor inspected blocks"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000, "processor dirty positions"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000, "processor focused positions"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000, "processor background positions"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000, "processor skipped sections"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 20, "processor budget-limited ticks"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 5_000_000, "processor cached candidates"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 128, "processor active categories"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 1_000, "processor linked robots"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100, "processor loaded chunks"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 10_000_000, "processor average us"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 10_000_000, "processor peak us"));
+        } else if (id == ID_NAVIGATION_PROFILE && side == BCNetworkSide.CLIENT) {
+            navigationProfile = new RobotProcessorNavigationProfiler.Snapshot(
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation cacheProbes"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation cacheCandidates"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation directHits"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation warmStarts"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation rejectedRoutes"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation storedRoutes"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation validatedWaypoints"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation aStarPolled"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation aStarExpanded"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation grantedNodes"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation refundedNodes"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation sharedWaitRobotTicks"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation budgetWaitRobotTicks"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation emptyQueueRobotTicks"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation readyMinerRobotTicks"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 100_000_000, "navigation estimatedReferenceNodesBypassed"),
+                    NetworkSecurity.requireRange(buffer.readVarInt(), 0, 64, "navigation cachedRoutes")
+            );
         } else if (id == ID_QUEUE_STATE && side == BCNetworkSide.CLIENT) {
             maxExecutionQueue = NetworkSecurity.requireRange(buffer.readUnsignedByte(),
                     TileRobotProcessor.MIN_EXECUTION_QUEUE, TileRobotProcessor.MAX_EXECUTION_QUEUE,
