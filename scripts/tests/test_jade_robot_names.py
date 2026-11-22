@@ -59,7 +59,7 @@ class JadeRobotNames(unittest.TestCase):
         lang = json.loads((ROOT / 'source-shared/src/main/resources/assets/buildcraft/lang/en_us.json').read_text(encoding='utf-8'))
         boards = (ROOT / 'source-families/1.21.X/src/main/java/buildcraft/robotics/BCRoboticsBoards.java').read_text(encoding='utf-8')
         keys = re.findall(r'board\("[^"]+", "([a-z_]+)",', boards)
-        self.assertEqual(18, len(keys), keys)  # 17 specialized robot boards + the empty board
+        self.assertEqual(19, len(keys), keys)  # 18 specialized robot boards + the empty board
         for board in keys:
             with self.subTest(board=board):
                 name = lang.get('item.buildcraftrobotics.robot.' + board)

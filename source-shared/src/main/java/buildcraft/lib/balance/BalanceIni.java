@@ -54,7 +54,7 @@ public final class BalanceIni {
     };
     private static final String[] ROBOTS = {
         "picker", "carrier", "fluid_carrier", "lumberjack", "harvester", "miner",
-        "planter", "farmer", "leave_cutter", "butcher", "shovelman", "pump",
+        "planter", "farmer", "leave_cutter", "butcher", "shepherd", "shovelman", "pump",
         "delivery", "knight", "bomber", "stripes", "builder"
     };
     private static final List<Parameter> PARAMETERS = buildSchema();

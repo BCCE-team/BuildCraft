@@ -1779,6 +1779,13 @@
       "<bold>Hint:</bold> Put extraction pipes only on actual FE providers and size the next segment for the same load. A fast source cannot push through a slower downstream bottleneck.",
       "FE Pipe Mechanics",
       "Its default transfer limit is <bold>2560 FE/t</bold>. FE pipe rates are derived from <code>pipes.baseFeRate</code>, which defaults to 40 FE/t, so a pack can scale the whole family without changing its tier relationships. Like the normal Wooden FE Pipe, it extracts from adjacent FE sources and does not connect directly to another wooden FE extraction pipe.\n\nFE Pipes connect to compatible FE energy capabilities, request only energy the network can use and preserve unaccepted energy instead of duplicating it. They are dedicated FE transport and remain available in <code>MJ_ONLY</code> mode. Pipe holders can also be waterlogged in current Minecraft versions."
+    ],
+    "buildcraftrobotics/robot/shepherd": [
+      "A healthy flock grows its fleece back. The Shepherd Robot shears the flock so Picker Robots can collect the wool.",
+      "The Shepherd Robot uses real shears on adult sheep without harming them. The wool drops naturally on the ground.",
+      "<bold>Hint:</bold> Supply shears at an accessible Docking Station, mark the flock as the work area, and use a Picker Robot to collect the wool.",
+      "Career",
+      "This career is programmed into a Redstone Board for 3,200 MJ and installed into an empty Robot with an Integration Table.\n\nWhile active, the robot finds adult sheep that have regrown their wool, fetches shears from its station, shears the animals through a normal player interaction and leaves the wool on the ground for Picker Robots. Shears lose durability as usual. The Shepherd does not pick up items, breed or attack sheep."
     ]
   }
 }

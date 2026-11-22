@@ -102,6 +102,12 @@
         "buildcraftrobotics:robot": 0.17
       },
       "model": "buildcraftrobotics:item/robot/builder"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.18
+      },
+      "model": "buildcraftrobotics:item/robot/shepherd"
     }
   ]
 }

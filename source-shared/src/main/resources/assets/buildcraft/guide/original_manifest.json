@@ -1602,6 +1602,18 @@
       "page": "buildcraftrobotics/robot/butcher"
     },
     {
+      "id": "buildcraftrobotics:robot/shepherd",
+      "module": "buildcraftrobotics",
+      "type": "item",
+      "subtype": "robot",
+      "name": "shepherd",
+      "book": "buildcraftcore:main",
+      "listed": true,
+      "stack": "buildcraftrobotics:robot",
+      "stack_nbt": "{board:{id:\"buildcraft:boardRobotShepherd\"},energy:0,robot_key:\"shepherd\"}",
+      "page": "buildcraftrobotics/robot/shepherd"
+    },
+    {
       "id": "buildcraftrobotics:robot/shovelman",
       "module": "buildcraftrobotics",
       "type": "item",

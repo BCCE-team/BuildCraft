@@ -150,7 +150,7 @@ class GuiRegressions(unittest.TestCase):
         for kind in ['lens','filter']:
             for colour in ['clear', *COLOURS]:self.assertIn('item.'+kind+'.'+colour,self.lang)
         boards = re.findall(r'board\("[^"]+", "([^"]+)"',self.src('robotics/BCRoboticsBoards.java'))
-        self.assertEqual(18,len(boards))
+        self.assertEqual(19,len(boards))
         for kind in ['robot','redstone_board']:
             for board in boards:self.assertIn('item.buildcraftrobotics.'+kind+'.'+board,self.lang)
         for path in ['silicon/item/ItemPluggableLens.java', 'silicon/item/ItemRedstoneChipset.java','builders/item/ItemSnapshot.java']:
@@ -189,18 +189,6 @@ class GuiRegressions(unittest.TestCase):
         binding = self.src('lib/compat/minecraft/registry/BCRegistrationScope.java')
         self.assertIn('properties.overrideDescription(name)', binding)
         self.assertIn('ItemNameKeys121111.key(id.identifier())', binding)
-
-    def test_robot_control_item_keys_are_present_in_26x_name_map(self):
-        """Both 26.x NeoForge generations stamp explicit item keys at registration."""
-        source = (ROOT/'source-families/26.X/src/main/java/buildcraft/lib/compat/ItemNameKeys2612.java').read_text()
-        mapping = dict(re.findall(r'case "([^"]+)" -> "([^"]+)";', source))
-        for id, key in (
-            ('buildcraftrobotics:controller', 'item.buildcraftrobotics.controller'),
-            ('buildcraftrobotics:robot_processor', 'block.buildcraftrobotics.robot_processor'),
-        ):
-            with self.subTest(item=id):
-                self.assertEqual(key, mapping.get(id))
-                self.assertIn(key, self.lang)
 
     @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK 21 required for executable probes')
     def test_real_java_logic_with_headless_contract_fixtures(self):

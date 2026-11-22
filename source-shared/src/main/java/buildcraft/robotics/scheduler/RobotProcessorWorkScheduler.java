@@ -18,6 +18,7 @@ import buildcraft.robotics.boards.BoardRobotPicker;
 import buildcraft.robotics.boards.BoardRobotBuilder;
 import buildcraft.robotics.boards.BoardRobotButcher;
 import buildcraft.robotics.boards.BoardRobotKnight;
+import buildcraft.robotics.boards.BoardRobotShepherd;
 import buildcraft.builders.tile.IRobotBuilderTarget;
 import buildcraft.builders.snapshot.BlueprintBuilder.RobotBuildTask;
 import buildcraft.robotics.ai.AIRobotPumpBlock;
@@ -434,7 +435,8 @@ public final class RobotProcessorWorkScheduler {
         for (long id : linkedIds) {
             EntityRobotBase robot = registry.getLoadedRobot(id);
             if (robot != null && (robot.getBoard() instanceof BoardRobotButcher
-                    || robot.getBoard() instanceof BoardRobotKnight)
+                    || robot.getBoard() instanceof BoardRobotKnight
+                    || robot.getBoard() instanceof BoardRobotShepherd)
                     && robotLevelIs(level, robot) && isPrimaryController(state, id)) {
                 combatWorkers.add(robot);
             }

@@ -15,6 +15,7 @@ import buildcraft.lib.internal.area.IZone;
 import buildcraft.robotics.RobotTrace;
 import buildcraft.robotics.boards.BoardRobotButcher;
 import buildcraft.robotics.boards.BoardRobotKnight;
+import buildcraft.robotics.boards.BoardRobotShepherd;
 import buildcraft.robotics.internal.api2.RobotAutomationSupport;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
@@ -29,13 +30,12 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 
 /**
- * Shared discovery/assignment of living targets for Butcher and Knight boards.
+ * Shared discovery/assignment of living targets for Butcher, Knight and Shepherd boards.
  *
  * The processor observes entities once per scan instead of N robot-wide
  * searches. Transient UUID jobs are globally reserved per level, including
- * across overlapping processor work areas. The native AIRobotAttack remains
- * responsible for navigation, hit permission and damage; this scheduler never
- * attacks, teleports, or loads chunks. All calls are server-thread-only.
+ * across overlapping processor work areas. The profession AI remains responsible for navigation and the final action;
+ * this scheduler never attacks, shears, teleports or loads chunks. All calls are server-thread-only.
  */
 public final class RobotCombatTargetScheduler {
     private static final int SCAN_TICKS = 20;
@@ -72,7 +72,8 @@ public final class RobotCombatTargetScheduler {
 
     private static boolean combatBoard(EntityRobotBase robot) {
         return robot != null && (robot.getBoard() instanceof BoardRobotButcher
-                || robot.getBoard() instanceof BoardRobotKnight);
+                || robot.getBoard() instanceof BoardRobotKnight
+                || robot.getBoard() instanceof BoardRobotShepherd);
     }
 
     /** Sleeping workers may have candidates prepared, but Gate overrides are not work. */
@@ -83,8 +84,11 @@ public final class RobotCombatTargetScheduler {
         return ai != null && ai.isWithinWorkChain(robot.getBoard());
     }
 
-    private static boolean hasSword(EntityRobotBase robot) {
+    private static boolean hasWorkingTool(EntityRobotBase robot) {
         ItemStack held = robot.getItemBySlot(EquipmentSlot.MAINHAND);
+        if (robot.getBoard() instanceof BoardRobotShepherd) {
+            return BoardRobotShepherd.isUsableShears(held);
+        }
         return !held.isEmpty() && held.getItem() instanceof SwordItem
                 && (!held.isDamageableItem() || held.getDamageValue() < held.getMaxDamage());
     }
@@ -98,8 +102,11 @@ public final class RobotCombatTargetScheduler {
         if (zone != null && !zone.contains(entity.position())) return false;
         if (robot.getBoard() instanceof BoardRobotButcher && !BoardRobotButcher.isValidTarget(entity)) return false;
         if (robot.getBoard() instanceof BoardRobotKnight && !BoardRobotKnight.isHostileTarget(entity)) return false;
+        if (robot.getBoard() instanceof BoardRobotShepherd && !BoardRobotShepherd.isValidTarget(entity)) return false;
+        WorldOperationKind operation = robot.getBoard() instanceof BoardRobotShepherd
+                ? WorldOperationKind.ENTITY_INTERACT : WorldOperationKind.ENTITY_ATTACK;
         return !checkPermission || RobotAutomationSupport.permitsEntity(robot,
-                robot.getCommandSenderWorld(), entity, WorldOperationKind.ENTITY_ATTACK, OperationMode.SIMULATE);
+                robot.getCommandSenderWorld(), entity, operation, OperationMode.SIMULATE);
     }
 
     public void tick(ServerLevel level, List<EntityRobotBase> linkedCombatants) {
@@ -117,7 +124,7 @@ public final class RobotCombatTargetScheduler {
         // their target while in their work chain, even if temporarily distant.
         for (long id : panel.getLinkedRobotIds()) {
             EntityRobotBase robot = eligible.get(id);
-            if (robot == null || !hasSword(robot)) {
+            if (robot == null || !hasWorkingTool(robot)) {
                 state.queue.clearRobot(panelId(), id);
                 continue;
             }
@@ -138,7 +145,7 @@ public final class RobotCombatTargetScheduler {
         for (EntityRobotBase robot : eligible.values()) {
             int size = state.queue.count(panelId(), robot.getRobotId());
             sizes.put(robot.getRobotId(), size);
-            if (hasSword(robot) && size < panel.getMaxExecutionQueue()) needsWork = true;
+            if (hasWorkingTool(robot) && size < panel.getMaxExecutionQueue()) needsWork = true;
         }
         if (!needsWork) return;
 
@@ -150,11 +157,13 @@ public final class RobotCombatTargetScheduler {
                 (cx + radius + 1) << 4, level.getMaxBuildHeight(), (cz + radius + 1) << 4);
         boolean haveButchers = eligible.values().stream().anyMatch(robot -> robot.getBoard() instanceof BoardRobotButcher);
         boolean haveKnights = eligible.values().stream().anyMatch(robot -> robot.getBoard() instanceof BoardRobotKnight);
+        boolean haveShepherds = eligible.values().stream().anyMatch(robot -> robot.getBoard() instanceof BoardRobotShepherd);
         List<LivingEntity> entities = level.getEntitiesOfClass(LivingEntity.class, bounds,
                 entity -> entity.isAlive() && !entity.isRemoved()
                         && panel.allowsWorkPosition(entity.blockPosition())
                         && (haveButchers && BoardRobotButcher.isValidTarget(entity)
-                            || haveKnights && BoardRobotKnight.isHostileTarget(entity)));
+                            || haveKnights && BoardRobotKnight.isHostileTarget(entity)
+                            || haveShepherds && BoardRobotShepherd.isValidTarget(entity)));
         entities.sort(Comparator.comparingDouble((LivingEntity entity) -> {
             double distance = Double.POSITIVE_INFINITY;
             for (EntityRobotBase robot : eligible.values()) {
@@ -171,7 +180,7 @@ public final class RobotCombatTargetScheduler {
             double bestDistance = Double.POSITIVE_INFINITY;
             for (EntityRobotBase robot : eligible.values()) {
                 int count = sizes.getOrDefault(robot.getRobotId(), 0);
-                if (count >= panel.getMaxExecutionQueue() || !hasSword(robot)
+                if (count >= panel.getMaxExecutionQueue() || !hasWorkingTool(robot)
                         || !validFor(robot, entity, panel, true)) continue;
                 double distance = robot.distanceToSqr(entity);
                 // A closer hunter should not lose a target merely because
@@ -223,7 +232,7 @@ public final class RobotCombatTargetScheduler {
     /** null means no queued target; caller must not fall back to N independent scans. */
     public static Assignment acquire(EntityRobotBase robot, Predicate<net.minecraft.world.entity.Entity> filter,
             float range, IZone zone) {
-        if (!interested(robot) || !hasSword(robot) || !(robotLevel(robot) instanceof ServerLevel level)) return null;
+        if (!interested(robot) || !hasWorkingTool(robot) || !(robotLevel(robot) instanceof ServerLevel level)) return null;
         WorldState state = WORLDS.get(level);
         if (state == null) return null;
         state.expire(level.getGameTime());
@@ -252,7 +261,7 @@ public final class RobotCombatTargetScheduler {
 
     /** Existence check for the sleeping work board; does not reserve or activate. */
     public static boolean hasAvailableTarget(EntityRobotBase robot) {
-        if (!interested(robot) || !hasSword(robot) || !(robotLevel(robot) instanceof ServerLevel level)) return false;
+        if (!interested(robot) || !hasWorkingTool(robot) || !(robotLevel(robot) instanceof ServerLevel level)) return false;
         WorldState state = WORLDS.get(level);
         RobotCombatTargetScheduler scheduler = state == null ? null : controller(robot, state);
         if (scheduler == null) return false;
