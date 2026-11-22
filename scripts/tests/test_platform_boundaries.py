@@ -20,6 +20,23 @@ from platform_source_contract import config_tokens, catalog_entries
 
 TARGETS = ('1.19.2-forge','1.20.1-forge','1.21.1-neoforge','1.21.11-neoforge')
 
+# Fixed-10.1 baseline entries must retain their relative order. These are the
+# explicitly approved new robotics registrations, including their exact positions
+# among block and block-entity registrations. Other unexpected entries still fail.
+ROBOT_PROCESSOR_CATALOG_ADDITIONS = {
+    'robotics/BCRoboticsItems.java': (
+        (5, 'ITEMS:"controller"'),
+        (6, 'ITEMS:"robot_processor"'),
+    ),
+    'robotics/BCRoboticsBlocks.java': (
+        (2, 'BLOCKS:"robot_processor"'),
+        (5, 'BLOCK_ENTITYS:"entity_robot_processor"'),
+    ),
+    'robotics/BCRoboticsGuis.java': (
+        (2, 'MENUS:"menu.robot_processor"'),
+    ),
+}
+
 
 def config_schema(source: str) -> tuple[tuple[str, str, str], ...]:
     """Extract public config keys, definition kinds, and default/range expressions.
@@ -121,7 +138,10 @@ class PlatformBoundaries(unittest.TestCase):
             for name, entries in expected['catalog'].items():
                 with self.subTest(target=target, catalog=name):
                     source = (self.java[target]/'buildcraft'/name).read_text(encoding='utf-8')
-                    self.assertEqual(entries, catalog_entries(source))
+                    accepted = list(entries)
+                    for position, registration in ROBOT_PROCESSOR_CATALOG_ADDITIONS.get(name, ()):
+                        accepted.insert(position, registration)
+                    self.assertEqual(accepted, catalog_entries(source))
 
     def test_neutral_contracts_have_no_loader_or_api_dependency(self):
         base = ROOT/'source-shared/src/main/java/buildcraft/lib/platform'

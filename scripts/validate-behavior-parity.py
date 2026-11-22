@@ -665,8 +665,13 @@ def validate_resource_parity() -> None:
 
     loot = {target: loot_inventory(target) for target in TARGETS}
     baseline_ids = set(loot["1.19.2-forge"])
-    if len(baseline_ids) != 31:
-        fail(f"1.19.2-forge: expected 31 loot tables, found {len(baseline_ids)}")
+    # Robot Processor adds one normal block-drop table to the original 31.
+    # Guard its identity as well as the total, so accidental deletion cannot
+    # be hidden by adding an unrelated loot table.
+    if len(baseline_ids) != 32:
+        fail(f"1.19.2-forge: expected 32 loot tables, found {len(baseline_ids)}")
+    if "buildcraftrobotics:blocks/robot_processor" not in baseline_ids:
+        fail("1.19.2-forge: Robot Processor loot table is missing")
     for target in NEWER:
         if set(loot[target]) != baseline_ids:
             fail(f"{target}: loot-table ID inventory differs from 1.19.2")
@@ -1404,7 +1409,7 @@ def main() -> None:
     print(
         "Behavior parity OK: 2 newer targets locked to the 1.19.2 reference; "
         f"{len(recipe_inventory('1.19.2-forge'))} recipes compared per target, "
-        "31 loot tables and 192 advancements validated"
+        "32 loot tables and 192 advancements validated"
     )
 
 

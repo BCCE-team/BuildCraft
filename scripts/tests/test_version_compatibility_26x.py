@@ -115,7 +115,15 @@ class PlatformCompilerConformance262(unittest.TestCase):
    with self.subTest(gui=name):
     self.assertNotIn('imageWidth = SIZE_X;',gui)
     self.assertNotIn('imageHeight = SIZE_Y;',gui)
-    self.assertIn('super(container, inv, title, SIZE_X, SIZE_Y)',gui)
+    if name.endswith('GuiZonePlanner.java'):
+     # The ordinary Zone Planner keeps its original 256x228 window, while
+     # Robot Processor mode must use the expanded 323x272 layout.
+     self.assertIn('private static final int SIZE_X = 256;',gui)
+     self.assertIn('private static final int SIZE_Y = 228;',gui)
+     self.assertIn('this(container, inv, title, false);',gui)
+     self.assertIn('super(container, inv, title, processorMode ? 323 : SIZE_X, processorMode ? 272 : SIZE_Y)',gui)
+    else:
+     self.assertIn('super(container, inv, title, SIZE_X, SIZE_Y)',gui)
   gui=self.source('26.2','robotics/gui/GuiZonePlanner.java')
   # Zone Planner no longer has a fullscreen-only rendering or foreground hook.
   # The standard GuiBC8 extractor must render its windowed background directly.

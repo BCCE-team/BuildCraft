@@ -92,6 +92,7 @@ public final class BCEnergyFluids {
     public static synchronized void registry(BCRegistryBinder binder) {
         if (defined) return;
         defined = true;
+        BoatFluidPhysics.enableCustomBuoyancy();
         BoatFluidPhysics.register();
         for (int i=0; i<NAME.length; i++) {
             for (int heat=0; heat<HEAT_NAMES.length; heat++) defineFluid(DATA[i], heat, NAME[i]);

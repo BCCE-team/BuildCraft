@@ -47,8 +47,15 @@ public final class BoatFluidPhysics {
     private static final Map<Fluid, BoatFluidMaterial> MATERIALS =
         Collections.synchronizedMap(new IdentityHashMap<>());
     private static boolean registered;
+    // Set by a platform fluid registry when native boating support is unavailable.
+    private static volatile boolean customBuoyancyEnabled;
 
     private BoatFluidPhysics() {}
+
+    /** Enable hydrostatic lift for platforms without native custom-fluid boat buoyancy. */
+    public static void enableCustomBuoyancy() {
+        customBuoyancyEnabled = true;
+    }
 
     public static synchronized void register() {
         if (registered) return;
@@ -84,6 +91,15 @@ public final class BoatFluidPhysics {
         return entity instanceof AbstractBoat;
 //?} else {
         return entity instanceof Boat;
+//?}
+    }
+
+    /** Ground contact was renamed between Minecraft 1.19.2 and 1.20.1. */
+    private static boolean boatOnGround(Entity boat) {
+//? if <1.20 {
+        return boat.isOnGround();
+//?} else {
+        return boat.onGround();
 //?}
     }
 
@@ -178,18 +194,15 @@ public final class BoatFluidPhysics {
         double drag = 1.0 - coverage * (1.0 - totalDrag / liquidSamples);
         Vec3 velocity = boat.getDeltaMovement();
         double newY = velocity.y;
-//? if fabric {
-        // Fabric's custom-fluid entity interaction does not classify boats as
-        // floating vehicles. Approximate hydrostatic lift near the fluid surface,
-        // with a strong recovery force when the boat is already submerged.
-        if (Double.isFinite(surface) && !boat.onGround()) {
+        // Platforms without native custom-fluid boating support enable extra lift.
+        // Approximate hydrostatic lift near the surface and recover submerged boats.
+        if (customBuoyancyEnabled && Double.isFinite(surface) && !boatOnGround(boat)) {
             double error = Mth.clamp(surface - 0.18 - bounds.minY, -0.35, 2.0);
             double strength = totalFloatStrength / liquidSamples;
             double acceleration = coverage * strength * (0.046 + error * 0.12)
                 - 0.26 * velocity.y;
             newY = Mth.clamp(velocity.y + acceleration, -0.36, 0.13);
         }
-//?}
         boat.setDeltaMovement(velocity.x * drag, newY, velocity.z * drag);
     }
 }

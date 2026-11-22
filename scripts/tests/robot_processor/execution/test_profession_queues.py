@@ -12,6 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from source_preprocessor import preprocess_text
+from source_config import load_properties, target_layout
+from source_layout import resolve_effective_source
 from scripts.tests.robot_processor.discovery.test_scheduler_runtime import STUBS, SOURCES
 
 SIMULATION = r'''package fixture;
@@ -181,9 +183,25 @@ class ProfessionExecutionQueueTests(unittest.TestCase):
             trees = (ROOT / f'source-platforms/{loader}/src/main/java/buildcraft/robotics/boards/BoardRobotLumberjack.java').read_text()
             self.assertIn('processorJobMembers(Level level, BlockPos origin', trees)
             self.assertIn('processorPlanningEligible(Level level, BlockPos pos)', trees)
-        for source in ROOT.glob('**/AIRobotPlant.java'):
-            self.assertIn('RobotProcessorWorkScheduler.allowsRobotTarget', source.read_text())
-        for source in ROOT.glob('**/AIRobotHarvest.java'):
-            self.assertIn('RobotProcessorWorkScheduler.allowsRobotTarget', source.read_text())
-        for source in ROOT.glob('**/AIRobotUseToolOnBlock.java'):
-            self.assertIn('RobotProcessorWorkScheduler.allowsRobotTarget', source.read_text())
+        # Only the effective maintained sources are part of the runtime contract.
+        # A recursive ROOT.glob also visits stale build/materialized and Gradle
+        # output copies, which may predate the scheduler's final zone guard.
+        properties = load_properties()
+        targets = [name.strip() for name in properties['targets'].split(',') if name.strip()]
+        self.assertTrue(targets, 'No registered Minecraft targets to validate')
+        for ai_name in ('AIRobotPlant', 'AIRobotHarvest', 'AIRobotUseToolOnBlock'):
+            relative = f'src/main/java/buildcraft/robotics/ai/{ai_name}.java'
+            for target in targets:
+                layout = target_layout(target, properties)
+                source = resolve_effective_source(layout, properties, relative)
+                with self.subTest(ai=ai_name, target=target):
+                    self.assertIsNotNone(source, f'{target}: {relative} has no source owner')
+                    effective = preprocess_text(
+                        source.read_text(encoding='utf-8'),
+                        minecraft=properties[f'target.{target}.deps.minecraft'],
+                        family=layout.family, platform=layout.platform, source=str(source),
+                    )
+                    self.assertIn('!serverLevel.hasChunkAt(pos)', effective,
+                                  f'{target}: {ai_name} must not operate in unloaded chunks')
+                    self.assertIn('RobotProcessorWorkScheduler.allowsRobotTarget(robot, pos)', effective,
+                                  f'{target}: {ai_name} must recheck the panel zone before execution')

@@ -107,9 +107,11 @@ public final class ItemNameKeys121111 {
             case "buildcraftfactory:tank" -> "block.buildcraftfactory.tank";
             case "buildcraftfactory:water_gel" -> "item.buildcraftfactory.water_gel";
             case "buildcraftlib:guide" -> "item.buildcraft.guide";
+            case "buildcraftrobotics:controller" -> "item.buildcraftrobotics.controller";
             case "buildcraftrobotics:redstone_board" -> "item.buildcraftrobotics.redstone_board";
             case "buildcraftrobotics:requester" -> "block.buildcraftrobotics.requester";
             case "buildcraftrobotics:robot" -> "item.buildcraftrobotics.robot";
+            case "buildcraftrobotics:robot_processor" -> "block.buildcraftrobotics.robot_processor";
             case "buildcraftrobotics:robot_station" -> "item.buildcraftrobotics.robot_station";
             case "buildcraftrobotics:zone_planner" -> "block.buildcraftrobotics.zone_planner";
             case "buildcraftsilicon:advanced_crafting_table" -> "block.buildcraftsilicon.advanced_crafting_table";

@@ -2167,15 +2167,7 @@
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:items/board/blue_map"
-    },
-    {
-      "type": "minecraft:single",
       "resource": "buildcraftrobotics:items/board/clean"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcraftrobotics:items/board/clean_map"
     },
     {
       "type": "minecraft:single",
@@ -2183,27 +2175,11 @@
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:items/board/green_map"
-    },
-    {
-      "type": "minecraft:single",
       "resource": "buildcraftrobotics:items/board/red"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:items/board/red_map"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcraftrobotics:items/board/unknown_map"
-    },
-    {
-      "type": "minecraft:single",
       "resource": "buildcraftrobotics:items/board/yellow"
-    },
-    {
-      "type": "minecraft:single",
-      "resource": "buildcraftrobotics:items/board/yellow_map"
     },
     {
       "type": "minecraft:single",

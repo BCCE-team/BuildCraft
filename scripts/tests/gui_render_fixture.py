@@ -131,6 +131,8 @@ public class GuiPortProbe {
   OwnerProbe client=new OwnerProbe();client.level.client=true;client.onPlacedBy(a,new ItemStack());client.onPlayerOpen(a);check(client.owner==null&&client.dirty==0,"client cannot author ownership");
   check(ItemNameKeys121111.key(Identifier.parse("buildcrafttransport:wire/light_gray")).equals("item.pipewire.light_gray"),"wire canonical key");
   check(ItemNameKeys121111.key(Identifier.parse("buildcraftsilicon:redstone_chipset/gold")).equals("item.buildcraftsilicon.redstone_gold_chipset"),"chipset key");
+  check(ItemNameKeys121111.key(Identifier.parse("buildcraftrobotics:controller")).equals("item.buildcraftrobotics.controller"),"controller canonical key");
+  check(ItemNameKeys121111.key(Identifier.parse("buildcraftrobotics:robot_processor")).equals("block.buildcraftrobotics.robot_processor"),"processor canonical key");
   check(ItemNameKeys121111.key(Identifier.parse("addon:unknown"))==null,"addon naming unchanged");
   System.out.println("Headless actual-code probes passed: "+checks+" assertions (no game launched)");
  }
@@ -148,7 +150,7 @@ public class GuiPortProbe {
  static class FakePlayerProvider {static final GameProfile NULL_PROFILE=new GameProfile(new UUID(0,0),"[BuildCraft]");}
  static class LivingEntity {} static class Player extends LivingEntity {GameProfile profile;Player(GameProfile p){profile=p;}GameProfile getGameProfile(){return profile;}}
  static class ItemStack {} static class Level {boolean client;boolean isClientSide(){return client;}}
- static class BCLog {static Logger logger=new Logger();} static class Logger {void warn(String s){}}
+ static class BCLog {static Logger logger=new Logger(); static void diagnosticSampled(String category, String message, Object... arguments) {}} static class Logger {void warn(String s){}}
  static class Tag {static final int TAG_STRING=8;}
  static class CompoundTag {Map<String,Object> values=new HashMap<>();void putString(String k,String v){values.put(k,v);}}
  static class NbtCompat {static boolean hasUUID(CompoundTag t,String k){return t.values.get(k) instanceof UUID;}

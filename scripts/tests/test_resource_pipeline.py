@@ -379,6 +379,20 @@ class ResourcePipeline(unittest.TestCase):
         items_1_21_11 = list((self.roots["1.21.11-neoforge"] / "assets").glob("buildcraft*/items/**/*.json"))
         self.assertEqual(0, len(items_121))
         self.assertGreater(len(items_1_21_11), 200)
+        # Robot Processor and its controller are regular model-backed items,
+        # not version-specific predicate variants. The mechanical generator
+        # must create their definitions only on 1.21.11+; source-family JSON
+        # would leak an unsupported item-definition format into 1.21.1.
+        for item in ("controller", "robot_processor"):
+            relative = f"assets/buildcraftrobotics/items/{item}.json"
+            self.assertFalse((ROOT / "source-families/1.21.X/src/main/resources" / relative).exists())
+            self.assertFalse((self.roots["1.21.1-neoforge"] / relative).exists())
+            for target in ("1.21.11-neoforge", "26.1.2-neoforge", "26.2-neoforge", "26.3-neoforge"):
+                self.assertEqual(
+                    {"type": "minecraft:model", "model": f"buildcraftrobotics:item/{item}"},
+                    self.read_json(target, relative)["model"],
+                    (target, item),
+                )
         example = self.read_json("1.21.11-neoforge", "assets/buildcraftcore/items/wrench.json")
         self.assertEqual("minecraft:model", example["model"]["type"])
         self.assertEqual("buildcraftcore:item/wrench", example["model"]["model"])

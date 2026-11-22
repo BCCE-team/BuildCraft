@@ -11,7 +11,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from source_preprocessor import preprocess_text
-from scripts.tests.robot_processor.ui.test_panel_layout import ROBOT_SCREENS, ZONE_SOURCES
+from scripts.tests.test_robot_processor_panel_layout import ROBOT_SCREENS, ZONE_SOURCES
 
 
 class RobotControllerIntegrationTests(unittest.TestCase):
@@ -50,10 +50,17 @@ class RobotControllerIntegrationTests(unittest.TestCase):
         model = ROOT / 'source-shared/src/main/resources/assets/buildcraftrobotics/models/item/controller.json'
         data = json.loads(model.read_text())
         self.assertEqual(data['textures']['layer0'], 'buildcraftrobotics:items/controller')
-        self.assertFalse((ROOT / 'source-shared/src/main/resources/assets/buildcraftrobotics/textures/items/controller.png').exists())
-        for family in ('1.21.X', '26.X'):
-            path = ROOT / f'source-families/{family}/src/main/resources/assets/buildcraftrobotics/items/controller.json'
-            self.assertEqual(json.loads(path.read_text())['model']['model'], 'buildcraftrobotics:item/controller')
+        texture = ROOT / 'source-shared/src/main/resources/assets/buildcraftrobotics/textures/items/controller.png'
+        self.assertTrue(texture.is_file(), 'The controller model must resolve to the shared 32x32 icon')
+        self.assertFalse((ROOT / 'source-families/1.21.X/src/main/resources/assets/buildcraftrobotics/textures/items/controller.png').exists())
+        # 1.21.1 still uses legacy models/item JSON; the modern items/ definition
+        # must not be copied from the shared 1.21.X family into that target.
+        premature = ROOT / 'source-families/1.21.X/src/main/resources/assets/buildcraftrobotics/items/controller.json'
+        self.assertFalse(premature.exists())
+        # The 26.X family may carry the explicit one-to-one wrapper. For
+        # 1.21.11 it is generated from models/item/controller.json instead.
+        modern = ROOT / 'source-families/26.X/src/main/resources/assets/buildcraftrobotics/items/controller.json'
+        self.assertEqual(json.loads(modern.read_text())['model']['model'], 'buildcraftrobotics:item/controller')
 
     def test_explicit_links_are_persisted_and_not_discovered_automatically(self):
         tile = (ROOT / 'source-shared/src/main/java/buildcraft/robotics/tile/TileRobotProcessor.java').read_text()
@@ -79,7 +86,7 @@ class RobotControllerIntegrationTests(unittest.TestCase):
                 ('1.19.2', 'old', 'forge', 'InteractionResultHolder<ItemStack>'),
                 ('1.20.1', 'old', 'forge', 'InteractionResultHolder<ItemStack>'),
                 ('1.21.1', '1.21.X', 'neoforge', 'InteractionResultHolder<ItemStack>'),
-                ('1.21.11', '1.21.X', 'neoforge', 'InteractionResultHolder<ItemStack>'),
+                ('1.21.11', '1.21.X', 'neoforge', 'InteractionResult'),
                 ('26.3', '26.X', 'neoforge', 'InteractionResult'),
                 ('26.3', '26.X', 'fabric', 'InteractionResult')):
             with self.subTest(mc=mc, platform=platform):

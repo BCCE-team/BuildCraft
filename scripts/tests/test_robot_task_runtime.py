@@ -137,6 +137,14 @@ public final class RobotTrace {
  public static void cycle(AIRobot ai){}
  public static void event(EntityRobotBase robot,String event,String format,Object... args){}
 } ''',
+    # The production main AI consults the processor for pre-work charging.
+    # This fixture exercises task lifecycle, not planner energy policy; keep
+    # that unrelated dependency inert while compiling AIRobotMain unchanged.
+    "buildcraft/robotics/scheduler/RobotProcessorWorkScheduler.java": '''package buildcraft.robotics.scheduler;
+import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+public final class RobotProcessorWorkScheduler {
+ public static boolean shouldRechargeBeforeWork(EntityRobotBase robot){return false;}
+}''',
     "buildcraft/robotics/ai/AIRobotGoAndLinkToDock.java": '''package buildcraft.robotics.ai;
 import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
@@ -216,7 +224,11 @@ public class RedstoneBoardRobot extends AIRobot {
 }
 ''',
 }
-for name in ("AIRobotReturnToLostStation", "AIRobotGotoSleep", "AIRobotSleep", "AIRobotShutdown", "AIRobotRecharge"):
+for name in (
+    "AIRobotReturnToLostStation", "AIRobotGotoSleep", "AIRobotSleep",
+    "AIRobotShutdown", "AIRobotRecharge",
+    "AIRobotSearchAndGotoBlock", "AIRobotSearchNearestBlock",
+):
     STUBS[f"buildcraft/robotics/ai/{name}.java"] = f'''package buildcraft.robotics.ai;
 import buildcraft.robotics.internal.legacy.robots.*;
 public class {name} extends AIRobot {{public {name}(EntityRobotBase robot){{super(robot);}}}}

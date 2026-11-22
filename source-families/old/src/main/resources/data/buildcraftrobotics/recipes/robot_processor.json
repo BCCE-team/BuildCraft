@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "IRI",
+    "GZG",
+    "IPI"
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "R": {
+      "item": "buildcraftsilicon:redstone_crystal"
+    },
+    "G": {
+      "item": "buildcraftcore:gears/gear_gold"
+    },
+    "Z": {
+      "item": "buildcraftrobotics:zone_planner"
+    },
+    "P": {
+      "item": "buildcraftsilicon:programming_table"
+    }
+  },
+  "result": {
+    "item": "buildcraftrobotics:robot_processor"
+  }
+}

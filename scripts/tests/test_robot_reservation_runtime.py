@@ -15,6 +15,7 @@ STUBS = {
         public class BlockIndex {
           public BlockIndex(int x,int y,int z){}
           public BlockIndex(CompoundTag tag){}
+          public BlockIndex(net.minecraft.core.BlockPos pos){}
           public void writeTo(CompoundTag tag){}
           public net.minecraft.core.BlockPos toBlockPos(){return new net.minecraft.core.BlockPos();}
         }
@@ -23,11 +24,18 @@ STUBS = {
         package buildcraft.robotics.internal.legacy.robots;
         public class EntityRobotBase {
           public final Registry registry = new Registry();
+          public final net.minecraft.world.level.Level level = new net.minecraft.world.level.Level();
+          public net.minecraft.core.BlockPos blockPosition(){return new net.minecraft.core.BlockPos();}
+          public WorkZone getZoneToWork(){return null;}
+          public static final class WorkZone {
+            public boolean contains(net.minecraft.world.phys.Vec3 position){return true;}
+          }
           public Registry getRegistry(){return registry;}
           public static class Registry {
             public int released, taken;
             public boolean take(ResourceIdBlock id,EntityRobotBase robot){taken++;return true;}
             public void release(ResourceIdBlock id){released++;}
+            public boolean isTaken(ResourceIdBlock id){return false;}
           }
         }
     ''',
@@ -36,6 +44,7 @@ STUBS = {
         import buildcraft.lib.internal.core.BlockIndex;
         public class ResourceIdBlock {
           public ResourceIdBlock(BlockIndex pos){}
+          public ResourceIdBlock(net.minecraft.core.BlockPos pos){}
         }
     ''',
     'buildcraft/robotics/internal/legacy/robots/AIRobot.java': '''
@@ -74,7 +83,34 @@ STUBS = {
         public class ItemStack {}
     ''',
     'net/minecraft/core/BlockPos.java': '''package net.minecraft.core;
-        public class BlockPos {}
+        public class BlockPos {
+          public int getX(){return 0;} public int getY(){return 0;} public int getZ(){return 0;}
+          public BlockPos relative(Direction direction){return new BlockPos();}
+        }
+    ''',
+    'net/minecraft/core/Direction.java': '''package net.minecraft.core;
+        public enum Direction {DOWN,UP,NORTH,SOUTH,WEST,EAST}
+    ''',
+    'net/minecraft/world/phys/Vec3.java': '''package net.minecraft.world.phys;
+        public record Vec3(double x,double y,double z) {}
+    ''',
+    'net/minecraft/world/level/Level.java': '''package net.minecraft.world.level;
+        import net.minecraft.core.BlockPos;
+        import net.minecraft.world.level.block.state.BlockState;
+        public class Level {
+          public int getMinBuildHeight(){return -64;} public int getMaxBuildHeight(){return 320;}
+          public boolean isLoaded(BlockPos pos){return false;}
+          public BlockState getBlockState(BlockPos pos){return new BlockState();}
+        }
+    ''',
+    'net/minecraft/world/level/block/state/BlockState.java': '''package net.minecraft.world.level.block.state;
+        import net.minecraft.world.level.Level;
+        import net.minecraft.core.BlockPos;
+        public class BlockState {
+          public boolean isAir(){return true;}
+          public VoxelShape getCollisionShape(Level world, BlockPos pos){return new VoxelShape();}
+          public static class VoxelShape {public boolean isEmpty(){return true;}}
+        }
     ''',
     'buildcraft/robotics/scheduler/RobotProcessorWorkScheduler.java': '''package buildcraft.robotics.scheduler;
         import net.minecraft.core.BlockPos;
@@ -84,6 +120,9 @@ STUBS = {
             public static SuggestedWork suggest(EntityRobotBase robot) { return null; }
             public static void releaseHint(EntityRobotBase robot, SuggestedWork hint) { }
             public static java.util.List<BlockPos> queuedMiningTargets(EntityRobotBase robot) { return java.util.List.of(); }
+            public static java.util.List<BlockPos> queuedWorkTargets(EntityRobotBase robot) { return java.util.List.of(); }
+            public static boolean allowsRobotTarget(EntityRobotBase robot,BlockPos pos) { return true; }
+            public static boolean isManagedMiner(EntityRobotBase robot) { return false; }
             public static void queuedMiningSearchFailed(EntityRobotBase robot, java.util.List<BlockPos> attempted) { }
             public static void targetAcquired(EntityRobotBase robot,BlockPos pos) { }
             public static void targetAbandoned(EntityRobotBase robot,BlockPos pos) { }
@@ -91,7 +130,9 @@ STUBS = {
     ''',
     'buildcraft/robotics/ai/IBlockFilter.java': '''
         package buildcraft.robotics.ai;
-        public interface IBlockFilter {}
+        public interface IBlockFilter {
+          boolean matches(net.minecraft.world.level.Level world, net.minecraft.core.BlockPos pos);
+        }
     ''',
     'buildcraft/robotics/ai/AIRobotSearchBlock.java': '''
         package buildcraft.robotics.ai;
@@ -104,6 +145,10 @@ STUBS = {
           public AIRobotSearchBlock(EntityRobotBase robot,boolean random,IBlockFilter filter,double distance){super(robot);}
           public AIRobotSearchBlock(EntityRobotBase robot,boolean random,IBlockFilter filter,double distance,
                java.util.List<net.minecraft.core.BlockPos> preferred){this(robot,random,filter,distance);}
+          public AIRobotSearchBlock(EntityRobotBase robot,boolean random,IBlockFilter filter,double distance,
+               java.util.List<net.minecraft.core.BlockPos> preferred,boolean exclusive){
+               this(robot,random,filter,distance,preferred);
+          }
           public boolean takeResource(){return robot.registry.take(new ResourceIdBlock(blockFound),robot);}
         }
     ''',
@@ -121,6 +166,8 @@ STUBS = {
           public AIRobotSearchNearestBlock(EntityRobotBase robot,IBlockFilter filter,double distance){super(robot);}
           public AIRobotSearchNearestBlock(EntityRobotBase robot,IBlockFilter filter,double distance,
               java.util.List<net.minecraft.core.BlockPos> preferred){this(robot,filter,distance);}
+          public boolean usedProcessorQueue(){return false;}
+          public java.util.List<net.minecraft.core.BlockPos> processorQueueTargets(){return java.util.List.of();}
           public boolean takeResource(){return robot.registry.take(new ResourceIdBlock(blockFound),robot);}
         }
     ''',

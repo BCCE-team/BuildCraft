@@ -190,6 +190,18 @@ class GuiRegressions(unittest.TestCase):
         self.assertIn('properties.overrideDescription(name)', binding)
         self.assertIn('ItemNameKeys121111.key(id.identifier())', binding)
 
+    def test_robot_control_item_keys_are_present_in_26x_name_map(self):
+        """Both 26.x NeoForge generations stamp explicit item keys at registration."""
+        source = (ROOT/'source-families/26.X/src/main/java/buildcraft/lib/compat/ItemNameKeys2612.java').read_text()
+        mapping = dict(re.findall(r'case "([^"]+)" -> "([^"]+)";', source))
+        for id, key in (
+            ('buildcraftrobotics:controller', 'item.buildcraftrobotics.controller'),
+            ('buildcraftrobotics:robot_processor', 'block.buildcraftrobotics.robot_processor'),
+        ):
+            with self.subTest(item=id):
+                self.assertEqual(key, mapping.get(id))
+                self.assertIn(key, self.lang)
+
     @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK 21 required for executable probes')
     def test_real_java_logic_with_headless_contract_fixtures(self):
         probe_root = self.work/'probe'

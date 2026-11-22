@@ -413,12 +413,17 @@ def main() -> int:
         require('compound.contains("pos")' in robotics_nbt and "IntArrayTag" in robotics_nbt,
                 "Robot legacy BlockPos decoder lost nested/int-array compatibility")
 
-        # Zone Planner modifier input is part of robot work-area behaviour; Shift+M must use live key state.
-        zone_gui = src(new, "robotics/gui/GuiZonePlanner.java")
-        require("RenderCompat.hasInputShiftDown()" in zone_gui,
-                "Zone Planner Shift modifier is not bridged on 1.21.11")
-        require("if (false)" not in zone_gui,
-                "Zone Planner still contains a constant-folded modifier check")
+        # Shift+M controls fullscreen in the legacy Zone Planner, not in the modern
+        # map editor. Validate the actual key handler and the scoped input bridge.
+        legacy_zone_gui = src(new, "robotics/gui/GuiZonePlannerLegacy.java")
+        zone_keys = method(legacy_zone_gui, "public boolean keyPressed(int keyCode, int scanCode, int modifiers)")
+        require("if (keyCode == GLFW.GLFW_KEY_M)" in zone_keys
+                and "RenderCompat.hasInputShiftDown()" in zone_keys
+                and "toFullscreen();" in zone_keys
+                and "toWindowed();" in zone_keys,
+                "Legacy Zone Planner lost Shift+M fullscreen/windowed handling on 1.21.11")
+        require("if (false)" not in zone_keys,
+                "Legacy Zone Planner still contains a constant-folded modifier check")
         gui_bc8 = src(new, "lib/gui/GuiBC8.java")
         require("extends BCContainerScreen<" in gui_bc8, "Robot GUI bypasses the native input boundary")
         bridge = src(new, "lib/compat/minecraft/gui/BCContainerScreen.java")

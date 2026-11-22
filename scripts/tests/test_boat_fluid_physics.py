@@ -35,13 +35,20 @@ class BoatFluidPhysicsTests(unittest.TestCase):
                 self.assertIn("BoatFluidPhysics.register();", content)
                 self.assertIn(".supportsBoating(boilAdjustedDensity > 0)", content)
                 self.assertLess(content.index("BoatFluidPhysics.register();"), content.index("private static void defineFluid"))
-        self.assertIn("BoatFluidPhysics.register();", FABRIC.read_text(encoding="utf-8"))
+        fabric = FABRIC.read_text(encoding="utf-8")
+        self.assertIn("BoatFluidPhysics.enableCustomBuoyancy();", fabric)
+        self.assertLess(fabric.index("BoatFluidPhysics.enableCustomBuoyancy();"),
+                        fabric.index("BoatFluidPhysics.register();"))
+        for path in [*OLD_FORGE, NEOFORGE]:
+            self.assertNotIn("BoatFluidPhysics.enableCustomBuoyancy();", path.read_text(encoding="utf-8"))
         runtime = RUNTIME.read_text(encoding="utf-8")
         self.assertIn("PlatformEvents.entityJoin", runtime)
         self.assertIn("PlatformEvents.levelTick(BCEvents.Phase.END", runtime)
         self.assertIn("PlatformEvents.levelUnload", runtime)
         self.assertIn("if (data == null || data.isGas()) continue;", runtime)
-        self.assertIn("//? if fabric {", runtime)
+        self.assertNotIn("//? if fabric {", runtime)
+        self.assertIn("if (customBuoyancyEnabled && Double.isFinite(surface)", runtime)
+        self.assertIn("public static void enableCustomBuoyancy()", runtime)
 
     def test_fluid_registry_lookup_uses_compatible_minecraft_api(self):
         """1.19.2 uses Registry.FLUID; later versions use BuiltInRegistries.FLUID."""
@@ -74,8 +81,61 @@ class BoatFluidPhysicsTests(unittest.TestCase):
                         self.assertIn("import net.minecraft.core.registries.BuiltInRegistries;", code)
                         self.assertIn("BuiltInRegistries.FLUID.getKey(fluid)", code)
                         self.assertNotIn("import net.minecraft.core.Registry;", code)
+                    # Mojang mappings renamed the Entity ground accessor after 1.19.2.
+                    # The helper must compile on every target, even though additional
+                    # buoyancy is enabled only by Fabric at runtime.
+                    self.assertIn("!boatOnGround(boat)", code)
+                    if target == "1.19.2-forge":
+                        self.assertIn("return boat.isOnGround();", code)
+                        self.assertNotIn("return boat.onGround();", code)
+                    else:
+                        self.assertIn("return boat.onGround();", code)
+                        self.assertNotIn("return boat.isOnGround();", code)
                     self.assertNotIn("//? if", code)
                     self.assertNotIn("/*?", code)
+
+    @unittest.skipUnless(shutil.which("javac") and shutil.which("java"), "Java toolchain required")
+    def test_ground_accessor_compiles_against_versioned_entity_api(self):
+        """Compile the actual preprocessed helper against the matching Entity method."""
+        properties = load_properties()
+        relative = "src/main/java/buildcraft/energy/fluid/BoatFluidPhysics.java"
+        for target, accessor in (("1.19.2-forge", "isOnGround"),
+                                 ("1.20.1-forge", "onGround"),
+                                 ("26.3-fabric", "onGround")):
+            layout = target_layout(target, properties)
+            source = resolve_effective_source(layout, properties, relative)
+            self.assertIsNotNone(source, target)
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                materialized = root / "BoatFluidPhysics.java"
+                _materialize_text_file(
+                    source, materialized, logical_relative=relative,
+                    minecraft=properties[f"target.{target}.deps.minecraft"],
+                    family=layout.family, platform=layout.platform,
+                    preprocess=True, native_source=False,
+                )
+                code = materialized.read_text(encoding="utf-8")
+                match = re.search(r"private static boolean boatOnGround\(Entity boat\)\s*\{[^{}]*\}", code)
+                self.assertIsNotNone(match, target)
+                fixture = root / "BoatGroundAccessorContract.java"
+                fixture.write_text(
+                    "public class BoatGroundAccessorContract {\n"
+                    f"  static class Entity {{ boolean {accessor}() {{ return true; }} }}\n"
+                    f"  {match.group()}\n"
+                    "  public static void main(String[] args) {\n"
+                    "    if (!boatOnGround(new Entity())) throw new AssertionError();\n"
+                    "  }\n}\n", encoding="utf-8",
+                )
+                compiled = subprocess.run(
+                    ["javac", "--release", "17", "-d", str(root), str(fixture)],
+                    capture_output=True, text=True, timeout=30,
+                )
+                self.assertEqual(0, compiled.returncode, compiled.stdout + compiled.stderr)
+                executed = subprocess.run(
+                    ["java", "-cp", str(root), "BoatGroundAccessorContract"],
+                    capture_output=True, text=True, timeout=15,
+                )
+                self.assertEqual(0, executed.returncode, executed.stdout + executed.stderr)
 
     def test_material_data_agrees_with_registered_fluid_tables(self):
         model = MODEL.read_text(encoding="utf-8")

@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "IRI",
+    "RBR",
+    " G "
+  ],
+  "key": {
+    "I": {
+      "item": "minecraft:iron_ingot"
+    },
+    "R": {
+      "item": "minecraft:redstone"
+    },
+    "B": {
+      "item": "buildcraftrobotics:redstone_board"
+    },
+    "G": {
+      "item": "buildcraftcore:gears/gear_gold"
+    }
+  },
+  "result": {
+    "id": "buildcraftrobotics:controller"
+  }
+}

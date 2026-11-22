@@ -644,6 +644,13 @@
     "kind": "ItemGuide"
   },
   {
+    "id": "buildcraftrobotics:controller",
+    "key": "item.buildcraftrobotics.controller",
+    "name_en_us": "Robot Controller",
+    "source": "buildcraft/robotics/BCRoboticsItems.java",
+    "kind": "ItemRobotController"
+  },
+  {
     "id": "buildcraftrobotics:redstone_board",
     "key": "item.buildcraftrobotics.redstone_board",
     "name_en_us": "Redstone Board",
@@ -663,6 +670,13 @@
     "name_en_us": "Robot",
     "source": "buildcraft/robotics/BCRoboticsItems.java",
     "kind": "ItemRobot"
+  },
+  {
+    "id": "buildcraftrobotics:robot_processor",
+    "key": "block.buildcraftrobotics.robot_processor",
+    "name_en_us": "Robot Control Panel",
+    "source": "buildcraft/robotics/BCRoboticsItems.java",
+    "kind": "ItemRobotProcessor"
   },
   {
     "id": "buildcraftrobotics:robot_station",

@@ -20,6 +20,33 @@ from client_registration_fixture import run_client
 
 TARGETS = ('1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge', '1.21.11-neoforge')
 
+# Preserve the fixed-10.1 menu catalogue as a regression baseline, but verify the
+# intentional modern/legacy screen dispatchers instead of treating their lambdas
+# as missing method-reference registrations.
+DYNAMIC_SCREENS = {
+    'builders/BCBuildersClientGuis.java': (
+        'BCBuildersGuis.MENU_ELIBRARY.get()',
+        'event.<ContainerElectronicLibrary,GuiBC8<ContainerElectronicLibrary>>register(',
+        'ClientGuiModePreferences.get(ClientGuiModePreferences.ELECTRONIC_LIBRARY)'
+        '==ClientGuiModePreferences.Mode.LEGACY'
+        '?newGuiElectronicLibraryLegacy(menu,inventory,title)'
+        ':newGuiElectronicLibrary(menu,inventory,title)',
+    ),
+    'robotics/BCRoboticsClientGuis.java': (
+        'BCRoboticsGuis.MENU_ZONE_PLANNER.get()',
+        'event.<ContainerZonePlanner,GuiBC8<ContainerZonePlanner>>register(',
+        'ClientGuiModePreferences.get(ClientGuiModePreferences.ZONE_PLANNER)'
+        '==ClientGuiModePreferences.Mode.LEGACY'
+        '?newGuiZonePlannerLegacy(menu,inventory,title)'
+        ':newGuiZonePlanner<>(menu,inventory,title)',
+    ),
+}
+ADDED_SCREENS = {
+    'robotics/BCRoboticsClientGuis.java': [
+        'BCRoboticsGuis.MENU_ROBOT_PROCESSOR.get(),GuiRobotProcessor::new',
+    ],
+}
+
 
 def code(source: str) -> str:
     return re.sub(r'/\*[\s\S]*?\*/|//[^\n]*', '', source)
@@ -68,8 +95,28 @@ class ActorClientBoundaries(unittest.TestCase):
             for relative, expected in baseline['screens'].items():
                 with self.subTest(target=target, catalog=relative):
                     catalog = (root/relative).read_text()
-                    current = [re.sub(r'\s+','',args) for args in re.findall(r'event\.register\(([^;]+)\);',catalog)]
-                    self.assertEqual(expected,current)
+                    # A typed event.<Menu, Screen>register(...) may wrap a
+                    # modern/legacy chooser instead of a plain method reference.
+                    # Capture the full registration, including its factory lambda.
+                    current = [re.sub(r'\s+', '', args) for args in re.findall(
+                        r'event\.(?:<[^;\n]+>)?register\(\s*(.*?)\s*\);',
+                        code(catalog), flags=re.DOTALL)]
+                    dynamic = DYNAMIC_SCREENS.get(relative)
+                    if dynamic:
+                        menu, typed_call, selector = dynamic
+                        self.assertIn(typed_call, re.sub(r'\s+', '', catalog))
+                        dynamic_matches = [i for i, entry in enumerate(current)
+                                           if entry.startswith(menu + ',')]
+                        self.assertEqual(1, len(dynamic_matches),
+                                         'expected exactly one typed dynamic screen registration')
+                        idx = dynamic_matches[0]
+                        self.assertEqual(menu + ',(menu,inventory,title)->' + selector,
+                                         current[idx], 'legacy and modern screen selection changed')
+                        # Compare its original menu ID against the historical
+                        # baseline after validating the entire dynamic factory.
+                        current[idx] = next(item for item in expected
+                                            if item.startswith(menu + ','))
+                    self.assertEqual(expected + ADDED_SCREENS.get(relative, []), current)
                     self.assertIn('ClientRegistration.Screens event',catalog)
                     self.assertNotRegex(catalog, r'net\.(?:minecraftforge|neoforged)\.')
 

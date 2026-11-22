@@ -117,7 +117,11 @@ for family in ("old", "1.21.X"):
         "canBombTarget(bombTarget, OperationMode.EXECUTE)",
         "zone != null && !zone.contains(affected)",
         "WorldOperationKind.BLOCK_BREAK, mode",
-        "private void dropTnt(BlockPos target)",
+        # TNT consumption is now transactional: a failed inventory removal must
+        # return false, and the dispatcher must not commit the processor job.
+        "private boolean dropTnt(BlockPos target)",
+        "|| !removeOneTnt()",
+        "&& canBombTarget(bombTarget, OperationMode.EXECUTE) && dropTnt(bombTarget)",
     )
 
 if errors:
