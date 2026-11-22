@@ -173,6 +173,8 @@ jobs:
 
       - name: Test 26.X robotics native boundaries
         run: python -m unittest discover -s scripts/tests -p test_robotics_26.py -v
+      - name: Test grouped Robot Processor regressions
+        run: python scripts/run-robot-processor-tests.py --quiet
 
       - name: Test MJ Dynamo wrench and Quarry lattice all targets
         run: python -m unittest discover -s scripts/tests -p test_cross_target_dynamo_quarry.py -v

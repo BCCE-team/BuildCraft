@@ -88,6 +88,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test 26.X silicon native boundaries", _unittest_command("test_silicon_26.py")),
     ("Test 26.X compat and bucket presentation", _unittest_command("test_compat_buckets_26.py")),
     ("Test 26.X robotics native boundaries", _unittest_command("test_robotics_26.py")),
+    ("Test grouped Robot Processor regressions", (sys.executable, "scripts/run-robot-processor-tests.py", "--quiet")),
     ("Test MJ Dynamo wrench and Quarry lattice all targets", _unittest_command("test_cross_target_dynamo_quarry.py")),
     ("Test Minecraft 26.x native API compatibility", _unittest_command("test_version_compatibility_26x.py")),
     ("Validate Zone Planner block preview parity", (sys.executable, "scripts/validate-zone-planner-preview.py")),

@@ -11,7 +11,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from source_preprocessor import preprocess_text
-from scripts.tests.test_robot_processor_panel_layout import ROBOT_SCREENS, ZONE_SOURCES
+from scripts.tests.robot_processor.ui.test_panel_layout import ROBOT_SCREENS, ZONE_SOURCES
 
 
 class RobotControllerIntegrationTests(unittest.TestCase):
