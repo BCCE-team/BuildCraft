@@ -2079,6 +2079,18 @@
     },
     {
       "type": "minecraft:single",
+      "resource": "buildcraftrobotics:blocks/robot_processor/down"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftrobotics:blocks/robot_processor/front"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftrobotics:blocks/robot_processor/top"
+    },
+    {
+      "type": "minecraft:single",
       "resource": "buildcraftrobotics:blocks/zone_planner/back"
     },
     {
@@ -2176,6 +2188,10 @@
     {
       "type": "minecraft:single",
       "resource": "buildcraftrobotics:entities/robot_stripes_active"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftrobotics:items/controller"
     },
     {
       "type": "minecraft:single",

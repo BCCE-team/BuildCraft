@@ -14,7 +14,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-//? if mc_26_x && (>=26.3) {
+//? if >=1.21.11 {
 //?} else {
 import net.minecraft.world.InteractionResultHolder;
 //?}
@@ -118,7 +118,11 @@ public final class ItemRobotController extends Item {
     }
 
     private static void notice(Player player, String text) {
+        //? if mc_26_x {
+        player.sendOverlayMessage(Component.literal(text));
+        //?} else {
         player.displayClientMessage(Component.literal(text), true);
+        //?}
     }
 
     public static InteractionResult bindProcessor(ItemStack stack, Player player, TileRobotProcessor panel) {
@@ -217,7 +221,7 @@ public final class ItemRobotController extends Item {
                 new BlockHitResult(Vec3.atCenterOf(pos), Direction.UP, pos, false));
     }
 
-    //? if mc_26_x && (>=26.3) {
+    //? if >=1.21.11 {
     @Override
     public InteractionResult use(Level world, Player player, InteractionHand hand) {
         return openBoundPanel(player.getItemInHand(hand), player, hand);

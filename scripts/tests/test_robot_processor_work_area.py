@@ -73,7 +73,7 @@ class RobotProcessorWorkAreaTests(unittest.TestCase):
         for path in ROBOT_SCREENS:
             with self.subTest(path=path):
                 s = (ROOT/path).read_text('utf-8')
-                self.assertIn('"No linked"', s)
+                self.assertIn('RobotProcessorUiText.text("no_linked")', s)
                 self.assertNotIn('"No linked robots"', s)
                 self.assertIn('202 - font.width(message)', s)
                 self.assertIn('panelText(pose, message, x, 155, 202', s)

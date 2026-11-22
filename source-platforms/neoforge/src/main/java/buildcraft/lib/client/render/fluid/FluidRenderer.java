@@ -639,6 +639,15 @@ public class FluidRenderer {
         int tint = fluidTint(fluid, null);
         drawFluidForGuiNative(fluidSprite, tint, startX, startY, endX, endY, guiGraphics);
 //? } else {
+    /** Flat flowing-sprite preview for the robot cargo UI on pre-26.2 GUI renderers. */
+    public static void drawFlowingFluidForGui(Fluid fluid, double sx, double sy,
+            double ex, double ey, Pose matrix) {
+        if (fluid == null) return;
+        sprite = getFluidSprite(FluidSpriteType.FLOWING, fluid, FluidStack.EMPTY);
+        color = IClientFluidTypeExtensions.of(fluid).getTintColor();
+        drawFluidForGuiInteral(sx, sy, ex, ey, matrix);
+    }
+
     private static void drawFluidForGuiInteral(double startX, double startY, double endX, double endY, Pose matrix) {
         if (sprite == null) {
             sprite = Minecraft.getInstance().getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(MissingTextureAtlasSprite.getLocation());

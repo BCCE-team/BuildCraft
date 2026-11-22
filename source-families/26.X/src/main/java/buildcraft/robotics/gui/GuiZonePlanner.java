@@ -128,6 +128,11 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     private float blocksPerPixel = 1.0F;
     private int centerX;
     private int centerZ;
+    // Right-button navigation is distinct from left-button painting. Preserve fractional
+    // motion at high zoom so one-pixel drags cannot get lost to integer rounding.
+    private boolean panningMap;
+    private double panLastX, panLastY;
+    private double panCenterX, panCenterZ;
 
     private boolean selecting = false;
     private int selX1;
@@ -190,17 +195,21 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
         mainGui.shownElements.add(new DummyHelpElement(
                 new GuiRectangle(mapX(), mapY(), mapWidth(), mapHeight()).offset(mainGui.rootElement).expand(2),
                 new ElementHelpInfo(
-                        "buildcraftrobotics.help.zone_planner.map.title",
+                        processorMode ? "buildcraftrobotics.help.robot_processor.map.title"
+                                : "buildcraftrobotics.help.zone_planner.map.title",
                         0xFF_70_A8_70,
-                        "buildcraftrobotics.help.zone_planner.map.desc"
+                        processorMode ? "buildcraftrobotics.help.robot_processor.map.desc"
+                                : "buildcraftrobotics.help.zone_planner.map.desc"
                 )
         ));
         mainGui.shownElements.add(new DummyHelpElement(
                 new GuiRectangle(colourX(), colourY(), colourStep() * 4 - 2, colourStep() * 4 - 2).offset(mainGui.rootElement).expand(2),
                 new ElementHelpInfo(
-                        "buildcraftrobotics.help.zone_planner.layers.title",
+                        processorMode ? "buildcraftrobotics.help.robot_processor.layers.title"
+                                : "buildcraftrobotics.help.zone_planner.layers.title",
                         0xFF_D0_70_70,
-                        "buildcraftrobotics.help.zone_planner.layers.desc"
+                        processorMode ? "buildcraftrobotics.help.robot_processor.layers.desc"
+                                : "buildcraftrobotics.help.zone_planner.layers.desc"
                 )
         ));
         // The eraser is independent of the chosen coloured brush and drawing shape.
@@ -442,8 +451,16 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
         return origin == null ? new ZonePlan() : TileRobotProcessor.limitToWorkArea(area, origin);
     }
 
+    private static int chunkX(ChunkPos chunk) {
+        return chunk.x();
+    }
+
+    private static int chunkZ(ChunkPos chunk) {
+        return chunk.z();
+    }
+
     private boolean availableForPaint(ChunkPos chunk) {
-        if (!inProcessorWorkArea(chunk.x, chunk.z)) return false;
+        if (!inProcessorWorkArea(chunkX(chunk), chunkZ(chunk))) return false;
         if (!addMode) return true;
         return paintAvailableChunks.computeIfAbsent(chunk,
                 key -> ZonePlannerMapDataClient.INSTANCE.isChunkAvailable(
@@ -503,22 +520,44 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
         // Do not modify addMode: selecting a shape must preserve the eraser state.
     }
 
+    /** Keep the viewport centre within the 7x7 processor work square, not within one chunk. */
+    private void updateMapCenter(double worldX, double worldZ) {
+        ZonePlannerEditor.Bounds bounds = processorWorkBounds();
+        if (bounds != null) {
+            worldX = Math.max(bounds.minX(), Math.min(bounds.maxX(), worldX));
+            worldZ = Math.max(bounds.minZ(), Math.min(bounds.maxZ(), worldZ));
+        }
+        panCenterX = worldX;
+        panCenterZ = worldZ;
+        int nextX = Mth.floor(worldX + 0.5D), nextZ = Mth.floor(worldZ + 0.5D);
+        if (centerX != nextX || centerZ != nextZ) {
+            centerX = nextX;
+            centerZ = nextZ;
+            paintAvailableChunks.clear();
+            invalidateMapTexture(true);
+        }
+    }
+
     public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
         if (!isInsideNameField(mouseX, mouseY)) {
             clearNameFocus();
         }
 
         if (isInsideMap(mouseX, mouseY)) {
-            // No editing or panning to chunks outside the machine's fixed work square.
-            BlockPos clicked = screenToWorld(mouseX, mouseY);
-            if (!inProcessorWorkArea(clicked.getX() >> 4, clicked.getZ() >> 4)) return true;
             if (mouseButton == 1) {
-                BlockPos newCenter = screenToWorld(mouseX, mouseY);
-                centerX = newCenter.getX();
-                centerZ = newCenter.getZ();
+                // Right-click recentres. Subsequent right-drag pans, even if the cursor
+                // briefly crosses a masked edge. Neither operation paints the world.
+                BlockPos clicked = screenToWorld(mouseX, mouseY);
                 cancelSelection();
+                updateMapCenter(clicked.getX(), clicked.getZ());
+                panningMap = true;
+                panLastX = mouseX;
+                panLastY = mouseY;
                 return true;
             }
+            if (mouseButton == 0) panningMap = false;
+            BlockPos clicked = screenToWorld(mouseX, mouseY);
+            if (!inProcessorWorkArea(clicked.getX() >> 4, clicked.getZ() >> 4)) return true;
             if (mouseButton != 0) return super.mouseClicked(mouseX, mouseY, mouseButton);
 
             paintAvailableChunks.clear();
@@ -592,6 +631,14 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     }
 
     public boolean mouseDragged(double mouseX, double mouseY, int mouseButton, double dragX, double dragY) {
+        if (panningMap && mouseButton == 1) {
+            double deltaX = mouseX - panLastX, deltaY = mouseY - panLastY;
+            panLastX = mouseX;
+            panLastY = mouseY;
+            updateMapCenter(panCenterX - deltaX * blocksPerPixel,
+                    panCenterZ - deltaY * blocksPerPixel);
+            return true;
+        }
         if (selecting && selectionStartXZ != null) {
             selX2 = Mth.clamp(Mth.floor(mouseX), mapXScreen(), mapXScreen() + mapWidth() - 1);
             selY2 = Mth.clamp(Mth.floor(mouseY), mapYScreen(), mapYScreen() + mapHeight() - 1);
@@ -602,6 +649,10 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     }
 
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (button == 1 && panningMap) {
+            panningMap = false;
+            return true;
+        }
         if (selecting && selectionStartXZ != null && button == 0) {
             updateBufferedSelection(mouseX, mouseY);
             ZonePlan updatedArea = brushPreview != null ? brushPreview : new ZonePlan(getBaseSelectedArea());

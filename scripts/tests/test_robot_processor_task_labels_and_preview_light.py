@@ -39,7 +39,7 @@ class RobotPreviewAndTaskNameTests(unittest.TestCase):
         for source in ROBOT_SCREENS:
             with self.subTest(path=source):
                 code = (ROOT / source).read_text(encoding='utf-8')
-                self.assertIn('"Task: " + RobotTaskNames.shortName(selected.task())', code)
+                self.assertIn('RobotProcessorUiText.text("task", RobotProcessorUiText.task(selected.task()))', code)
                 self.assertNotIn('compactTaskLabel(', code)
 
     def test_task_classification_is_meaningful_and_never_truncated(self):

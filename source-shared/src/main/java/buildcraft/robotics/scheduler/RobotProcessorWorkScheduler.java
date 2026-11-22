@@ -720,8 +720,8 @@ public final class RobotProcessorWorkScheduler {
                     advanceSection(now);
                     continue;
                 }
-                int x = (chunk.x << 4) + verticalCursor.localX();
-                int z = (chunk.z << 4) + verticalCursor.localZ();
+                int x = (chunkX(chunk) << 4) + verticalCursor.localX();
+                int z = (chunkZ(chunk) << 4) + verticalCursor.localZ();
                 int y = (sy << 4) + verticalCursor.localY();
                 BlockPos pos = new BlockPos(x, y, z);
                 advance(now);
@@ -774,10 +774,30 @@ public final class RobotProcessorWorkScheduler {
         }
     }
 
+    /** ChunkPos coordinates are accessors throughout 26.x, public fields on older versions. */
+    private static int chunkX(ChunkPos pos) {
+        //? if mc_26_x {
+        return pos.x();
+        //?} else {
+        return pos.x;
+        //?}
+    }
+
+    private static int chunkZ(ChunkPos pos) {
+        //? if mc_26_x {
+        return pos.z();
+        //?} else {
+        return pos.z;
+        //?}
+    }
+
     private boolean isEmptySection(ServerLevel level, ChunkPos pos, int sectionY) {
-        var loadedChunk = ChunkUtil.getChunk(level, pos.x, pos.z, false);
+        var loadedChunk = ChunkUtil.getChunk(level, chunkX(pos), chunkZ(pos), false);
         if (loadedChunk == null) return true;
-        int index = sectionY - (level.getMinBuildHeight() >> 4);
+        // Keep the shift outside the getter expression: the 26.x compatibility
+        // transform rewrites getMinBuildHeight() and must not absorb the >> 4.
+        int minSection = level.getMinBuildHeight() >> 4;
+        int index = sectionY - minSection;
         var sections = loadedChunk.getSections();
         if (index < 0 || index >= sections.length || sections[index].hasOnlyAir()) return true;
         // PalettedContainer.maybeHas consults the SECTION PALETTE rather than
@@ -897,8 +917,8 @@ public final class RobotProcessorWorkScheduler {
             }
         }
         scanSections.sort(Comparator.comparingLong(ScanSection::priority)
-                .thenComparingInt(section -> section.chunk().x)
-                .thenComparingInt(section -> section.chunk().z)
+                .thenComparingInt(section -> chunkX(section.chunk()))
+                .thenComparingInt(section -> chunkZ(section.chunk()))
                 .thenComparingInt(ScanSection::sectionY));
         verticalCursor.reset(scanSections.size());
         // A changed set of loaded chunks or a profession/policy change requires

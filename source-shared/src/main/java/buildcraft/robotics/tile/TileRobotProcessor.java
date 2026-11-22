@@ -227,9 +227,25 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
                 && Math.abs((long) chunkZ - centerChunkZ) <= WORK_AREA_RADIUS_CHUNKS;
     }
 
+    private static int chunkX(ChunkPos chunk) {
+        //? if mc_26_x {
+        return chunk.x();
+        //?} else {
+        return chunk.x;
+        //?}
+    }
+
+    private static int chunkZ(ChunkPos chunk) {
+        //? if mc_26_x {
+        return chunk.z();
+        //?} else {
+        return chunk.z;
+        //?}
+    }
+
     public static ZonePlan limitToWorkArea(ZonePlan plan, BlockPos origin) {
         return plan == null ? new ZonePlan()
-                : plan.copyChunksMatching(chunk -> isWithinWorkArea(origin, chunk.x, chunk.z));
+                : plan.copyChunksMatching(chunk -> isWithinWorkArea(origin, chunkX(chunk), chunkZ(chunk)));
     }
 
     /**

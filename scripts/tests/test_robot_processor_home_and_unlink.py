@@ -40,7 +40,11 @@ class RobotProcessorHomeAndUnlinkTests(unittest.TestCase):
                 self.assertIn('HOME_X = 214, HOME_Y = 136', s)
                 self.assertIn('UNLINK_X = 214, UNLINK_Y = 154', s)
                 self.assertIn('HOME_ICON_FORCE', s)
-                self.assertIn('hasShiftDown() ? HOME_ICON_FORCE : HOME_ICON_HOVER', s)
+                self.assertTrue(
+                    'hasShiftDown() ? HOME_ICON_FORCE : HOME_ICON_HOVER' in s
+                    or 'modifierShiftDown() ? HOME_ICON_FORCE : HOME_ICON_HOVER' in s,
+                    'Home force icon should reflect the active Shift state',
+                )
                 self.assertIn('processorMenu.forceRobotChunk(robot.id())', s)
                 self.assertIn('processorMenu.recall(robot.id())', s)
                 self.assertIn('processorMenu.unlinkRobot(robot.id())', s)

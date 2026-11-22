@@ -195,8 +195,8 @@ class ProcessorScanPercentTests(unittest.TestCase):
             with self.subTest(gui=rel):
                 content=(ROOT/rel).read_text()
                 self.assertIn('renderScanProgress(pose);',content)
-                self.assertIn('"Scan: " + scan.percent() + "%"',content)
-                self.assertIn('"Rescan: " + scan.passPercent() + "%"',content)
+                self.assertIn('RobotProcessorUiText.text("scan.percent", scan.percent())', content)
+                self.assertIn('RobotProcessorUiText.text("scan.rescan", scan.passPercent())', content)
                 self.assertIn('panelFill(pose, 215, 130, 316, 134',content)
 
 if __name__=='__main__': unittest.main()

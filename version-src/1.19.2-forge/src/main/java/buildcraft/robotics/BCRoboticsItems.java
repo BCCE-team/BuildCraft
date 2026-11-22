@@ -8,6 +8,7 @@ import buildcraft.robotics.item.ItemRedstoneBoard;
 import buildcraft.robotics.item.ItemRobot;
 import buildcraft.robotics.item.ItemRobotStation;
 import buildcraft.robotics.item.ItemRobotController;
+import buildcraft.robotics.item.ItemRobotProcessor;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 
@@ -33,7 +34,7 @@ public class BCRoboticsItems {
             () -> new ItemRobotController(new Item.Properties().tab(BCRobotics.TAB_ROBOTICS).stacksTo(1)));
 
     public static final BCRegistryEntry<BlockItem> ROBOT_PROCESSOR = ITEMS.register("robot_processor",
-            () -> new BlockItem(BCRoboticsBlocks.ROBOT_PROCESSOR.get(), new Item.Properties().tab(BCRobotics.TAB_ROBOTICS)));
+            () -> new ItemRobotProcessor(BCRoboticsBlocks.ROBOT_PROCESSOR.get(), new Item.Properties().tab(BCRobotics.TAB_ROBOTICS)));
 
     public static void registry(BCRegistryBinder bus) {
         ITEMS.register(bus);

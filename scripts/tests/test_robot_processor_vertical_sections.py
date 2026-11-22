@@ -172,6 +172,14 @@ class VerticalSectionPlanningTests(unittest.TestCase):
                                         ('26.3','26.X','fabric')]:
             with self.subTest(version=version,platform=platform),tempfile.TemporaryDirectory(prefix='bc-vertical-quarry-') as tmp:
                 sources=fixture_stubs()
+                if version == '26.3':
+                    # ChunkPos.x/z are no longer public fields in 26.3.
+                    # Mirror the accessor-only API so compiled scheduler code
+                    # cannot silently depend on old direct field access.
+                    sources['net/minecraft/world/level/ChunkPos.java'] = (
+                        'package net.minecraft.world.level; '
+                        'public record ChunkPos(int x, int z) {}'
+                    )
                 for rel in SOURCES:
                     path=ROOT/rel
                     sources[rel.removeprefix('source-shared/src/main/java/')]=preprocess_text(

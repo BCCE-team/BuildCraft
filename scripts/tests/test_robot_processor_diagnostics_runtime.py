@@ -119,7 +119,7 @@ class Stage26MetricsTests(unittest.TestCase):
             self.assertIn('diagnosticLines(mouseX, mouseY)',text,f.name)
             self.assertIn('selected.reason()',text,f.name)
             self.assertIn('getDiagnostics()',text,f.name)
-            self.assertIn('Scanner reads:',text,f.name)
+            self.assertIn('RobotProcessorUiText.component("diag.load.reads"',text,f.name)
 
     def test_target_source_resolution_all_supported_variants(self):
         import sys

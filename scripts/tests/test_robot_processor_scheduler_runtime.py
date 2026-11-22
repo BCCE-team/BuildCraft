@@ -62,7 +62,7 @@ public record BlockPos(int x,int y,int z) {
  public boolean isTaken(){return false;}public long robotIdTaking(){return 0L;}
  }''',
 'net/minecraft/world/level/ChunkPos.java': '''package net.minecraft.world.level;
-public class ChunkPos {public final int x,z;public ChunkPos(int x,int z){this.x=x;this.z=z;}}''',
+public class ChunkPos {public final int x,z;public ChunkPos(int x,int z){this.x=x;this.z=z;}public int x(){return x;}public int z(){return z;}}''',
 'net/minecraft/world/level/block/state/BlockState.java': '''package net.minecraft.world.level.block.state;
 public record BlockState(boolean air) {public boolean isAir(){return air;}}''',
 'net/minecraft/world/level/Level.java': '''package net.minecraft.world.level;
@@ -388,11 +388,15 @@ public class SchedulerFixture {
 
 class SchedulerMinecraftCompatibilityTests(unittest.TestCase):
     def test_legacy_and_modern_runtime_source_with_stub_world(self):
-        for version in ('1.19.2','26.3'):
+        for version in ('1.19.2', '26.1.2', '26.2', '26.3'):
             with self.subTest(version=version), tempfile.TemporaryDirectory(prefix='bc-sched-') as d:
                 output = Path(d)
                 sources = []
                 for relative, text in STUBS.items():
+                    if relative == 'net/minecraft/world/level/ChunkPos.java' and version.startswith('26.'):
+                        # All 26.x targets expose x()/z() accessors, not public fields.
+                        text = ('package net.minecraft.world.level; '
+                                'public record ChunkPos(int x, int z) {}')
                     dest = output / relative
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     dest.write_text(text)

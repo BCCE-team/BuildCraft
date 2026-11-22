@@ -46,8 +46,8 @@ class RobotProcessorPreviewProgressTests(unittest.TestCase):
                 self.assertNotIn('Temporary item preview', code)
                 self.assertNotIn('panelText(pose, selected.progress()', code)
                 self.assertNotIn('Progress: ', code)
-                self.assertIn('"Queue: " + selected.queued() + "/" + processorMenu.getMaxExecutionQueue()', code)
-                self.assertIn('boardName(robot.board()) + " - " + robot.status()', code)
+                self.assertIn('RobotProcessorUiText.text("queue", selected.queued(), processorMenu.getMaxExecutionQueue())', code)
+                self.assertIn('boardName(robot.board()) + " - " + RobotProcessorUiText.status(robot.status())', code)
                 self.assertIn('draggingScrollbar', code)
                 self.assertIn('scrollTo(mouseY);', code)
                 self.assertIn('mouseDragged(double mouseX, double mouseY', code)
@@ -67,7 +67,7 @@ class RobotProcessorPreviewProgressTests(unittest.TestCase):
             self.assertIn('(System.currentTimeMillis() % 12000L) * 0.03F', code)
         for path in ROBOT_SCREENS[3:]:
             code = (ROOT / path).read_text()
-            self.assertIn('graphics.item(stack, -8, -8);', code)
+            self.assertTrue('graphics.item(stack, -8, -8);' in code or 'graphics.renderItem(stack, -8, -8);' in code)
             self.assertIn('BCGraphics.scale(graphics, scale, scale);', code)
 
     def test_library_positions_fit_existing_background(self):

@@ -72,6 +72,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     private final Map<String, ItemStack> cachedRobotModels = new HashMap<>();
     private double lastMouseX, lastMouseY;
     private boolean stationMode;
+    private boolean shiftKeyHeld;
     private long selectedRobotId = -1L;
     private int selectedStationX, selectedStationY, selectedStationZ, selectedStationSide = -1;
     private EditBox renameField;
@@ -89,7 +90,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     public void init() {
         super.init();
         renameField = new EditBox(font, leftPos + 16, topPos + 153, 182, 16,
-                Component.literal("Rename linked entry"));
+                RobotProcessorUiText.component("rename_entry"));
         renameField.setMaxLength(32);
         renameField.visible = false;
         renameField.active = false;
@@ -134,6 +135,11 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
         renameField.active = false;
         renameField.setFocused(false);
         setFocused(null);
+    }
+
+    /** Modifier in native event callbacks, plus live key state for hover rendering. */
+    private boolean modifierShiftDown() {
+        return shiftKeyHeld || RenderCompat.hasInputShiftDown();
     }
 
     private boolean inRenameField(double x, double y) {
@@ -308,31 +314,17 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
         //?}
     }
 
-    //? if neoforge && (>=26.2) {
     @Override
     protected void extractTooltip(net.minecraft.client.gui.GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         super.extractTooltip(graphics, mouseX, mouseY);
         List<Component> detail = diagnosticLines(mouseX, mouseY);
+        if (detail.isEmpty()) detail = contextualHelp(mouseX, mouseY);
         if (!detail.isEmpty()) {
             RenderCompat.renderComponentTooltip(graphics, font, detail, mouseX, mouseY);
             return;
         }
         renderCargoTooltip(graphics, mouseX, mouseY);
     }
-    //?} else {
-    /*?
-    @Override
-    public void render(net.minecraft.client.gui.GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTicks) {
-        super.render(graphics, mouseX, mouseY, partialTicks);
-        List<Component> detail = diagnosticLines(mouseX, mouseY);
-        if (!detail.isEmpty()) {
-            RenderCompat.renderComponentTooltip(graphics, font, detail, mouseX, mouseY);
-            return;
-        }
-        renderCargoTooltip(graphics, mouseX, mouseY);
-    }
-    ?*/
-    //?}
     private void renderCargoTooltip(net.minecraft.client.gui.GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         CargoEntry hovered = hoveredCargo(mouseX, mouseY);
         if (hovered == null) return;
@@ -341,59 +333,98 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
                     .copy().append(" | " + hovered.amountMb() + " mB"), mouseX, mouseY);
         } else buildcraft.lib.compat.RenderCompat.renderTooltip(graphics, font, hovered.stack(), mouseX, mouseY);
     }
-    /** Hover the existing scan bar for real CPU/workload counters. Hover the
-     * selected robot's status lines for a conservative server-side wait reason.
-     * No new GUI space or textures are required. */
+    /** The server sends all counters; the tooltip never scans the world or computes paths. */
     private List<Component> diagnosticLines(int mouseX, int mouseY) {
         int x = mouseX - leftPos, y = mouseY - topPos;
         if (x >= 215 && x < 317 && y >= 108 && y < 135) {
-            if (hasShiftDown()) {
+            if (modifierShiftDown()) {
                 var nav = processorMenu.getNavigationProfile();
                 int miss = Math.max(0, nav.cacheProbes() - nav.cacheCandidates());
                 int emptyPct = nav.readyMinerRobotTicks() <= 0 ? 0
                         : (int) Math.min(100L, 100L * nav.emptyQueueRobotTicks()
                                 / nav.readyMinerRobotTicks());
-                return java.util.List.of(
-                        Component.literal("Navigation (last 20 ticks)"),
-                        Component.literal("Positive cache: " + nav.cachedRoutes() + " stored | "
-                                + nav.storedRoutes() + " new"),
-                        Component.literal("Lookups: " + nav.cacheProbes() + " | miss: " + miss),
-                        Component.literal("Direct: " + nav.directHits() + " | warm: "
-                                + nav.warmStarts() + " | rejected: " + nav.rejectedRoutes()),
-                        Component.literal("A*: " + nav.aStarPolled() + " polled / "
-                                + nav.aStarExpanded() + " expanded"),
-                        Component.literal("Node credits: " + nav.grantedNodes() + " granted / "
-                                + nav.refundedNodes() + " returned"),
-                        Component.literal("Route checks: " + nav.validatedWaypoints() + " waypoints"),
-                        Component.literal("Shared waits: " + nav.sharedWaitRobotTicks()
-                                + " | budget waits: " + nav.budgetWaitRobotTicks()),
-                        Component.literal("Queue-empty: " + nav.emptyQueueRobotTicks()
-                                + " / " + nav.readyMinerRobotTicks() + " robot-ticks (" + emptyPct + "%)"),
-                        Component.literal("Estimated ref. A* nodes bypassed: ~"
-                                + nav.estimatedReferenceNodesBypassed()));
+                return List.of(
+                        RobotProcessorUiText.component("diag.nav.title"),
+                        RobotProcessorUiText.component("diag.nav.cache", nav.cachedRoutes(), nav.storedRoutes()),
+                        RobotProcessorUiText.component("diag.nav.lookups", nav.cacheProbes(), miss),
+                        RobotProcessorUiText.component("diag.nav.routes", nav.directHits(), nav.warmStarts(), nav.rejectedRoutes()),
+                        RobotProcessorUiText.component("diag.nav.astar", nav.aStarPolled(), nav.aStarExpanded()),
+                        RobotProcessorUiText.component("diag.nav.credits", nav.grantedNodes(), nav.refundedNodes()),
+                        RobotProcessorUiText.component("diag.nav.checks", nav.validatedWaypoints()),
+                        RobotProcessorUiText.component("diag.nav.waits", nav.sharedWaitRobotTicks(), nav.budgetWaitRobotTicks()),
+                        RobotProcessorUiText.component("diag.nav.empty", nav.emptyQueueRobotTicks(), nav.readyMinerRobotTicks(), emptyPct),
+                        RobotProcessorUiText.component("diag.nav.saved", nav.estimatedReferenceNodesBypassed()));
             }
             var d = processorMenu.getDiagnostics();
-            return java.util.List.of(
-                    Component.literal("Processor load (last 20 ticks)"),
-                    Component.literal("CPU: " + d.averageMicros() + " us/t | peak: " + d.peakMicros() + " us"),
-                    Component.literal("Scanner reads: " + d.inspected() + " | dirty: " + d.dirty()),
-                    Component.literal("Focused: " + d.focused() + " | background: " + d.background()),
-                    Component.literal("Skipped sections: " + d.skippedSections()
-                            + " | budget waits: " + d.budgetLimitedTicks()),
-                    Component.literal("Cached targets: " + d.cachedCandidates()
-                            + " | categories: " + d.categories()),
-                    Component.literal("Linked: " + d.linkedRobots()
-                            + " | loaded chunks: " + d.loadedChunks()),
-                    Component.literal("Hold Shift: A* navigation profile"));
+            return List.of(
+                    RobotProcessorUiText.component("diag.load.title"),
+                    RobotProcessorUiText.component("diag.load.cpu", d.averageMicros(), d.peakMicros()),
+                    RobotProcessorUiText.component("diag.load.reads", d.inspected(), d.dirty()),
+                    RobotProcessorUiText.component("diag.load.focus", d.focused(), d.background()),
+                    RobotProcessorUiText.component("diag.load.skipped", d.skippedSections(), d.budgetLimitedTicks()),
+                    RobotProcessorUiText.component("diag.load.candidates", d.cachedCandidates(), d.categories()),
+                    RobotProcessorUiText.component("diag.load.linked", d.linkedRobots(), d.loadedChunks()),
+                    RobotProcessorUiText.component("diag.load.shift"));
         }
-        if (!stationMode && !renaming && x >= 45 && x < 210 && y >= 142 && y < 187) {
+        if (!stationMode && !renaming && x >= 45 && x < 210 && y >= 142 && y < 174) {
             RobotSnapshot selected = selectedRobot();
             if (selected != null && !selected.reason().isBlank()) {
-                return java.util.List.of(Component.literal("Robot diagnostics"),
+                return List.of(RobotProcessorUiText.component("diag.robot.title"),
                         Component.literal(selected.reason()));
             }
         }
-        return java.util.List.of();
+        return List.of();
+    }
+
+    /** Contextual hover help. The map itself only shows a tooltip with Shift, so painting stays unobstructed. */
+    private List<Component> contextualHelp(int mouseX, int mouseY) {
+        int x = mouseX - leftPos, y = mouseY - topPos;
+        if (renaming && inRenameField(mouseX, mouseY)) return RobotProcessorUiText.help("rename_editor");
+        if (inModeButton(mouseX, mouseY)) return RobotProcessorUiText.help(
+                stationMode ? "mode_robots" : "mode_stations");
+        if (inRenameButton(mouseX, mouseY)) return RobotProcessorUiText.help(
+                stationMode ? "rename_station" : "rename_robot");
+        if (inPlusButton(mouseX, mouseY)) return RobotProcessorUiText.help("queue_plus");
+        if (inMinusButton(mouseX, mouseY)) return RobotProcessorUiText.help("queue_minus");
+        if (!stationMode && selectedRobot() != null && inHomeButton(mouseX, mouseY)) return
+                RobotProcessorUiText.help(modifierShiftDown() ? "force" : "home");
+        if ((stationMode ? selectedStation() != null : selectedRobot() != null)
+                && inUnlinkButton(mouseX, mouseY)) return RobotProcessorUiText.help(
+                stationMode ? "unlink_station" : "unlink_robot");
+        if (inScrollTrack(mouseX, mouseY)) return RobotProcessorUiText.help("list_scroll");
+        if (inCargoScrollbar(mouseX, mouseY)) return RobotProcessorUiText.help("cargo_scroll");
+        if (inList(mouseX, mouseY)) {
+            if (x >= 87 && x <= 92) return RobotProcessorUiText.help("status_colors");
+            return RobotProcessorUiText.help(stationMode ? "station_list" : "robot_list");
+        }
+        if (inCargoWindow(mouseX, mouseY) && hoveredCargo(mouseX, mouseY) == null)
+            return RobotProcessorUiText.help("cargo");
+        if (x >= 215 && x < 317 && y >= 55 && y < 106)
+            return RobotProcessorUiText.help("queue_limit");
+        if (x >= 104 && x < 210 && y >= 22 && y < 128 && modifierShiftDown())
+            return RobotProcessorUiText.help("map");
+        if (x >= 246 && x < 318 && y >= 195 && y < 267)
+            return RobotProcessorUiText.zoneHelp("layers");
+        if (y >= 177 && y < 193 && x >= 246 && x < 318) {
+            int column = (x - 246) / 18;
+            return RobotProcessorUiText.zoneHelp(switch (column) {
+                case 0 -> "eraser";
+                case 1 -> "rectangle";
+                case 2 -> "oval";
+                default -> "pen";
+            });
+        }
+        if (y >= 158 && y < 174 && x >= 246 && x < 318) {
+            int column = (x - 246) / 18;
+            if (column == 0) return RobotProcessorUiText.zoneHelp("undo");
+            if (column == 1) return RobotProcessorUiText.zoneHelp("redo");
+            if (column == 3) return RobotProcessorUiText.zoneHelp("clear");
+        }
+        if (!stationMode && selectedRobot() != null && x >= 45 && x < 210 && y >= 174 && y < 187)
+            return RobotProcessorUiText.help("queue");
+        if (stationMode && selectedStation() != null && x >= 10 && x < 208 && y >= 140 && y < 187)
+            return RobotProcessorUiText.help("station_info");
+        return List.of();
     }
 
     private Component cargoFluidName(CargoEntry entry) {
@@ -461,9 +492,9 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
         String machineTitle = title.getString();
         panelText(pose, machineTitle, 107 + Math.max(0, (210 - font.width(machineTitle)) / 2),
                 6, 210, 0xFF_40_40_40);
-        panelText(pose, "Max task queue: " + processorMenu.getMaxExecutionQueue(),
+        panelText(pose, RobotProcessorUiText.text("max_queue", processorMenu.getMaxExecutionQueue()),
                 215, 56, 102, 0xFF_30_30_30);
-        panelText(pose, "1 - 8 tasks", 215, 94, 102, 0xFF_4A_4A_4A);
+        panelText(pose, RobotProcessorUiText.text("queue_range"), 215, 94, 102, 0xFF_4A_4A_4A);
         renderScanProgress(pose);
         int count = listSize();
         listOffset = Math.max(0, Math.min(listOffset, Math.max(0, count - VISIBLE_ROWS)));
@@ -471,7 +502,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
         else renderRobots(pose);
         if (!stationMode && selectedRobot() != null) {
             GuiIcon home = inHomeButton(lastMouseX, lastMouseY)
-                    ? (hasShiftDown() ? HOME_ICON_FORCE : HOME_ICON_HOVER) : HOME_ICON;
+                    ? (modifierShiftDown() ? HOME_ICON_FORCE : HOME_ICON_HOVER) : HOME_ICON;
             home.drawAt(getActiveGraphics(), leftPos + HOME_X, topPos + HOME_Y);
         }
         if ((stationMode ? selectedStation() != null : selectedRobot() != null)) {
@@ -491,14 +522,18 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     private void renderScanProgress(PoseStack pose) {
         var scan = processorMenu.getScanProgress();
         int phase = scan.phase();
-        String heading = phase == ContainerRobotProcessor.SCAN_WAITING ? "Scan: waiting"
-                : phase == ContainerRobotProcessor.SCAN_NO_CHUNKS ? "Scan: no chunks"
-                : "Scan: " + scan.percent() + "%";
+        String heading = phase == ContainerRobotProcessor.SCAN_WAITING
+                ? RobotProcessorUiText.text("scan.waiting")
+                : phase == ContainerRobotProcessor.SCAN_NO_CHUNKS
+                        ? RobotProcessorUiText.text("scan.no_chunks")
+                        : RobotProcessorUiText.text("scan.percent", scan.percent());
         String detail = phase == ContainerRobotProcessor.SCAN_REFRESHING
-                ? "Rescan: " + scan.passPercent() + "%"
-                : phase == ContainerRobotProcessor.SCAN_COMPLETE ? "Pass complete"
-                : phase == ContainerRobotProcessor.SCAN_RUNNING
-                        ? "Sections: " + scan.sections() : "Loaded chunks only";
+                ? RobotProcessorUiText.text("scan.rescan", scan.passPercent())
+                : phase == ContainerRobotProcessor.SCAN_COMPLETE
+                        ? RobotProcessorUiText.text("scan.complete")
+                        : phase == ContainerRobotProcessor.SCAN_RUNNING
+                                ? RobotProcessorUiText.text("scan.sections", scan.sections())
+                                : RobotProcessorUiText.text("scan.loaded_only");
         panelText(pose, heading, 215, 108, 102, 0xFF_30_30_30);
         panelText(pose, detail, 215, 119, 102, 0xFF_55_55_55);
         // Two-pixel inner bar with a 1-pixel border, entirely above Home/Unlink.
@@ -524,30 +559,30 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
             // Two lines share a 15px row, with a larger centered model in the left icon column.
             panelSmallText(pose, robot.name().isBlank() ? "#" + robot.id() : robot.name(),
                     29, y + 1, 57, robot.id() == selectedRobotId ? 0xFF_FF_E0_80 : 0xFF_20_20_20);
-            panelSmallText(pose, boardName(robot.board()) + " - " + robot.status(),
+            panelSmallText(pose, boardName(robot.board()) + " - " + RobotProcessorUiText.status(robot.status()),
                     29, y + 7, 57, 0xFF_54_54_54);
             drawListIndicator(pose, 89, y + 3, statusColor(robot.status()));
         }
         if (selected == null) {
-            panelText(pose, "No linked", 10, 23, 82, 0xFF_34_34_34);
-            drawCentered(pose, "No robot selected");
+            panelText(pose, RobotProcessorUiText.text("no_linked"), 10, 23, 82, 0xFF_34_34_34);
+            drawCentered(pose, RobotProcessorUiText.text("no_robot_selected"));
             return;
         }
         if (renaming && !renameStation) {
-            panelText(pose, "Rename robot (Enter to save)", 12, 136, 180, 0xFF_25_25_25);
+            panelText(pose, RobotProcessorUiText.text("rename_robot"), 12, 136, 180, 0xFF_25_25_25);
             return;
         }
         // Render the real, profession-specific 3D robot model, not the generic empty robot icon.
         renderRobotModel(pose, selected.board(), 25, 160, 32, true);
-        panelText(pose, "Robot: " + (selected.name().isBlank() ? boardName(selected.board()) : selected.name()),
+        panelText(pose, RobotProcessorUiText.text("robot", selected.name().isBlank() ? boardName(selected.board()) : selected.name()),
                 45, 134, 162, 0xFF_25_25_25);
-        panelText(pose, "Task: " + RobotTaskNames.shortName(selected.task()), 45, 144, 162, 0xFF_25_25_25);
-        panelText(pose, "XYZ: " + selected.x() + ", " + selected.y() + ", " + selected.z(),
+        panelText(pose, RobotProcessorUiText.text("task", RobotProcessorUiText.task(selected.task())), 45, 144, 162, 0xFF_25_25_25);
+        panelText(pose, RobotProcessorUiText.text("coordinates", selected.x(), selected.y(), selected.z()),
                 45, 154, 162, 0xFF_25_25_25);
-        panelText(pose, "Charge: " + selected.charge() + "% | " + selected.status(),
+        panelText(pose, RobotProcessorUiText.text("charge", selected.charge(), RobotProcessorUiText.status(selected.status())),
                 45, 164, 162, 0xFF_25_25_25);
         // Only execution operations count: route calculation and searching are not jobs.
-        panelText(pose, "Queue: " + selected.queued() + "/" + processorMenu.getMaxExecutionQueue(),
+        panelText(pose, RobotProcessorUiText.text("queue", selected.queued(), processorMenu.getMaxExecutionQueue()),
                 45, 176, 162, 0xFF_25_25_25);
     }
 
@@ -631,25 +666,25 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
             panelSmallText(pose, station.name().isBlank()
                     ? station.x() + "," + station.z() : station.name(),
                     29, y - 1, 57, active ? 0xFF_FF_E0_80 : 0xFF_24_24_24);
-            panelSmallText(pose, sideName(station.side()) + " - " + station.status(),
+            panelSmallText(pose, sideName(station.side()) + " - " + RobotProcessorUiText.status(station.status()),
                     29, y + 5, 57, 0xFF_54_54_54);
             drawListIndicator(pose, 89, y + 3, statusColor(station.status()));
         }
         if (selected == null) {
-            panelText(pose, "No linked", 10, 23, 82, 0xFF_34_34_34);
-            drawCentered(pose, "No station selected");
+            panelText(pose, RobotProcessorUiText.text("no_linked"), 10, 23, 82, 0xFF_34_34_34);
+            drawCentered(pose, RobotProcessorUiText.text("no_station_selected"));
             return;
         }
         if (renaming && renameStation) {
-            panelText(pose, "Rename station (Enter to save)", 12, 136, 180, 0xFF_25_25_25);
+            panelText(pose, RobotProcessorUiText.text("rename_station"), 12, 136, 180, 0xFF_25_25_25);
             return;
         }
-        panelText(pose, selected.name().isBlank() ? "Docking Station" : selected.name(),
+        panelText(pose, selected.name().isBlank() ? RobotProcessorUiText.text("dock") : selected.name(),
                 12, 138, 145, 0xFF_25_25_25);
-        panelText(pose, "XYZ: " + selected.x() + ", " + selected.y() + ", " + selected.z(),
+        panelText(pose, RobotProcessorUiText.text("coordinates", selected.x(), selected.y(), selected.z()),
                 12, 150, 146, 0xFF_25_25_25);
-        panelText(pose, "Face: " + sideName(selected.side()), 12, 162, 145, 0xFF_25_25_25);
-        panelText(pose, "Status: " + selected.status(), 12, 174, 145, 0xFF_25_25_25);
+        panelText(pose, RobotProcessorUiText.text("face", sideName(selected.side())), 12, 162, 145, 0xFF_25_25_25);
+        panelText(pose, RobotProcessorUiText.text("status", RobotProcessorUiText.status(selected.status())), 12, 174, 145, 0xFF_25_25_25);
     }
 
     private void drawCentered(PoseStack pose, String message) {
@@ -659,11 +694,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     }
 
     private static String sideName(int side) {
-        return switch (side) {
-            case 0 -> "Down"; case 1 -> "Up"; case 2 -> "North";
-            case 3 -> "South"; case 4 -> "West"; case 5 -> "East";
-            default -> "?";
-        };
+        return RobotProcessorUiText.direction(side);
     }
 
     private void panelSmallText(PoseStack pose, String text, int x, int y, int maxWidth, int color) {
@@ -673,7 +704,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
         BCGraphics.push(graphics);
         BCGraphics.translate(graphics, leftPos + x, topPos + y);
         BCGraphics.scale(graphics, factor, factor);
-        drawString(pose, font, fitted, 0, 0, color, false);
+        drawString(graphics, font, fitted, 0, 0, color, false);
         BCGraphics.pop(graphics);
     }
 
@@ -692,16 +723,12 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     }
 
     private static String boardName(String board) {
-        if (board == null || board.isBlank()) return "Unprogrammed";
-        int colon = board.lastIndexOf(':');
-        if (colon >= 0) board = board.substring(colon + 1);
-        if (board.startsWith("boardRobot")) board = board.substring("boardRobot".length());
-        if (board.startsWith("robot_")) board = board.substring("robot_".length());
-        return board.isEmpty() ? "Unprogrammed" : board;
+        return RobotProcessorUiText.board(board);
     }
 
     @Override
     public boolean mouseClicked(double x, double y, int button) {
+        shiftKeyHeld = RenderCompat.hasInputShiftDown();
         if (button == 0 && inCargoScrollbar(x, y) && cargoSize() > CARGO_ROWS) {
             draggingCargoScrollbar = true;
             scrollCargoTo(y);
@@ -722,12 +749,12 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
             return true;
         }
         if (button == 0 && inPlusButton(x, y)) {
-            processorMenu.setMaxExecutionQueue(hasShiftDown()
+            processorMenu.setMaxExecutionQueue(modifierShiftDown()
                     ? 8 : processorMenu.getMaxExecutionQueue() + 1);
             return true;
         }
         if (button == 0 && inMinusButton(x, y)) {
-            processorMenu.setMaxExecutionQueue(hasShiftDown()
+            processorMenu.setMaxExecutionQueue(modifierShiftDown()
                     ? 1 : processorMenu.getMaxExecutionQueue() - 1);
             return true;
         }
@@ -739,7 +766,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
         if (button == 0 && !stationMode && inHomeButton(x, y)) {
             RobotSnapshot robot = selectedRobot();
             if (robot != null) {
-                if (hasShiftDown()) processorMenu.forceRobotChunk(robot.id());
+                if (modifierShiftDown()) processorMenu.forceRobotChunk(robot.id());
                 else processorMenu.recall(robot.id());
             }
             return true;
@@ -794,6 +821,18 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        final boolean shiftPressed;
+        //? if >=26.3 {
+        // 26.3 uses SDL input. Resolve the logical key name instead of referring
+        // to GLFW or the removed InputConstants.KEY_LEFT/RIGHT_SHIFT fields.
+        String keyName = RenderCompat.inputKey(keyCode, scanCode).getName();
+        shiftPressed = "key.keyboard.left.shift".equals(keyName)
+                || "key.keyboard.right.shift".equals(keyName);
+        shiftKeyHeld = shiftPressed || RenderCompat.hasInputShiftDown();
+        //?} else {
+        shiftPressed = keyCode == GLFW.GLFW_KEY_LEFT_SHIFT || keyCode == GLFW.GLFW_KEY_RIGHT_SHIFT;
+        shiftKeyHeld = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0 || shiftPressed;
+        //?}
         if (renaming) {
             if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
                 finishRenaming(true);
@@ -806,13 +845,18 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
             return RenderCompat.keyPressed(renameField, keyCode, scanCode, modifiers);
         }
         // Shift pressed while hovering Home triggers the explicit force-load action.
-        if ((keyCode == GLFW.GLFW_KEY_LEFT_SHIFT || keyCode == GLFW.GLFW_KEY_RIGHT_SHIFT)
-                && !stationMode && inHomeButton(lastMouseX, lastMouseY)) {
+        if (shiftPressed && !stationMode && inHomeButton(lastMouseX, lastMouseY)) {
             RobotSnapshot robot = selectedRobot();
             if (robot != null) processorMenu.forceRobotChunk(robot.id());
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean keyReleased(net.minecraft.client.input.KeyEvent event) {
+        shiftKeyHeld = event.hasShiftDown();
+        return super.keyReleased(event);
     }
 
     @Override

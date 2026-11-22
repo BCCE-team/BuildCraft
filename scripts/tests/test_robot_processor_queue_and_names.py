@@ -74,17 +74,19 @@ class RobotProcessorQueueAndNames(unittest.TestCase):
                              'GuiIcon(BACKGROUND, 32, 432, 16, 16, 512)',
                              'GuiIcon(BACKGROUND, 32, 480, 16, 16, 512)',
                              'GuiIcon(BACKGROUND, 48, 480, 16, 16, 512)',
-                             'hasShiftDown()', 'getMaxExecutionQueue()',
-                             'setMaxExecutionQueue(hasShiftDown()',
+                             'getMaxExecutionQueue()',
+                             'setMaxExecutionQueue(',
                              'processorMenu.renameRobot(', 'processorMenu.renameStation(',
                              'renameField.setMaxLength(32)', 'title.getString()',
                              'if (renaming) return renameField.charTyped('):
                     self.assertIn(part,s)
 
-    def test_russian_title_in_own_namespace_not_conflicting_external_localizations(self):
-        p = ROOT/'source-shared/src/main/resources/assets/buildcraftrobotics/lang/ru_ru.json'
-        self.assertEqual(json.loads(p.read_text())['block.buildcraftrobotics.robot_processor'],
-                         'Панель управления')
+    def test_title_translation_uses_external_localizations_without_resource_collision(self):
+        root = ROOT/'source-shared/src/main/resources/assets/buildcraft/lang'
+        english = json.loads((root/'en_us.json').read_text(encoding='utf-8'))
+        self.assertEqual(english['block.buildcraftrobotics.robot_processor'], 'Robot Control Panel')
+        self.assertFalse((root/'ru_ru.json').exists(),
+                         'Russian translation is staged from BCCE-team/Localizations')
 
 if __name__ == '__main__':
     unittest.main()

@@ -699,8 +699,13 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                 }
             }
             if (!processor.forceRobotChunk(robotId) && ctx.getSender() != null) {
+                //? if mc_26_x {
+                ctx.getSender().sendOverlayMessage(net.minecraft.network.chat.Component.literal(
+                        "Cannot force-load robot chunk (unknown position, limit, or server configuration)"));
+                //?} else {
                 ctx.getSender().displayClientMessage(net.minecraft.network.chat.Component.literal(
                         "Cannot force-load robot chunk (unknown position, limit, or server configuration)"), true);
+                //?}
             }
         } else if (id == ID_RECALL && side == BCNetworkSide.SERVER) {
             long robotId = buffer.readLong();
