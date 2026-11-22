@@ -31,7 +31,7 @@
       }
     ],
     "surfaceDepositBiomes": [],
-    "oilWellGenerationRate": 1.0,
+    "oilWellGenerationRate": 0.3,
     "genOilInEveryVanillaBiomes": true,
     "genOilInEveryModBiomes": false,
     "oilStructureSetting": {

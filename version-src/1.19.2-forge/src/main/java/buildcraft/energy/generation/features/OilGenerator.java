@@ -135,7 +135,9 @@ public class OilGenerator {
         boolean oilBiome = configuration.surfaceDepositBiomes().contains(key);
 
         double bonus = oilBiome ? 3.0 : 1.0;
-        bonus *= configuration.oilWellGenerationRate();
+        // Keep the worldgen datapack as the base rate; the server config selects
+        // one of three presets without discarding datapack-specific tuning.
+        bonus *= configuration.oilWellGenerationRate() * BCEnergyConfig.oilGenerationProfile.multiplier();
         Optional<ExcessiveBiome> excessiveBiome = configuration.excessiveBiomes().stream().filter((a) -> a.biome().equals(key)).findAny();
 	    if(excessiveBiome.isPresent()){
 	    	ExcessiveBiome excessiveBiome0 = excessiveBiome.get();

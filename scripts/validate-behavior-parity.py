@@ -575,21 +575,24 @@ def validate_persistence_and_reload_invariants() -> None:
 
 
 def validate_worldgen_resources() -> None:
-    relatives = (
-        "src/main/resources/data/buildcraftenergy/worldgen/configured_feature/oil_configured_feature.json",
-        "src/main/resources/data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json",
-    )
-    for target in NEWER:
-        for relative in relatives:
-            path = source(target, relative)
-            try:
-                document = json.loads(path.read_text(encoding="utf-8"))
-            except Exception as exc:
-                fail(f"{target}: invalid oil worldgen JSON {relative}: {exc}")
-                continue
-            serialized = json.dumps(document, sort_keys=True)
-            if '"genOilInEveryModBiomes": false' not in serialized:
-                fail(f"{target}: genOilInEveryModBiomes must stay false in {relative}")
+    # All supported targets use an inline configured feature inside their
+    # placed feature. Do not reintroduce unreferenced configured_feature copies.
+    placed = "src/main/resources/data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json"
+    obsolete = "src/main/resources/data/buildcraftenergy/worldgen/configured_feature/oil_configured_feature.json"
+    for target in TARGETS:
+        if source(target, obsolete).exists():
+            fail(f"{target}: unused oil configured_feature duplicate is still packaged")
+        try:
+            document = json.loads(source(target, placed).read_text(encoding="utf-8"))
+            feature = document["feature"]
+            settings = feature.get("config", feature)
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+            fail(f"{target}: invalid inline oil placed feature {placed}: {exc}")
+            continue
+        if settings.get("genOilInEveryModBiomes") is not False:
+            fail(f"{target}: genOilInEveryModBiomes must stay false in {placed}")
+        if settings.get("oilWellGenerationRate") != 0.3:
+            fail(f"{target}: stock oilWellGenerationRate must be 0.3 in {placed}")
 
 
 def advancement_id(data_root: Path, path: Path) -> str:

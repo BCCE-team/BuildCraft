@@ -8,6 +8,7 @@ import java.util.Set;
 
 import buildcraft.lib.internal.debug.BCLog;
 import buildcraft.energy.generation.features.OilGenerator;
+import buildcraft.energy.generation.features.OilGenerationProfile;
 import net.minecraft.resources.Identifier;
 import buildcraft.lib.platform.config.BCConfigSpec;
 import buildcraft.lib.platform.config.BCConfigSpec.BooleanValue;
@@ -19,6 +20,8 @@ public class BCEnergyConfig {
     public static BCConfigSpec config;
 
     public static boolean enableOilGeneration = true;
+    /** Worldgen workers read the selected preset after the config is loaded. */
+    public static volatile OilGenerationProfile oilGenerationProfile = OilGenerationProfile.STANDARD;
     public static boolean enableOilSpouts = true;
     public static boolean enableOilBurn = true;
     public static boolean oilIsSticky;
@@ -43,6 +46,7 @@ public class BCEnergyConfig {
     public static SpecialEventType christmasEventStatus = SpecialEventType.DAY_ONLY;
 
     private static BooleanValue propEnableOilGeneration;
+    private static BCConfigSpec.EnumValue<OilGenerationProfile> propOilGenerationProfile;
     private static BooleanValue propEnableOilSpouts;
     private static BooleanValue propEnableOilBurn;
     private static BooleanValue propOilIsSticky;
@@ -74,6 +78,13 @@ public class BCEnergyConfig {
         propEnableOilGeneration = builder.comment("Should oil lakes, wells and spouts generate naturally?")
             .worldRestart()
             .define("enable", true);
+
+        propOilGenerationProfile = builder.comment(
+            "Oil deposit frequency preset: STANDARD (0.3), HIGH (0.6), VERY_HIGH (1.0).",
+            "Applies to newly generated chunks; deposit sizes are unchanged.",
+            "Custom datapack oilWellGenerationRate values are scaled relative to the STANDARD preset."
+        ).worldRestart().defineEnum("generationProfile", OilGenerationProfile.STANDARD,
+            OilGenerationProfile.values());
 
         propEnableOilBurn = builder.comment("Can oil blocks burn?")
             .define("can_burn", true);
@@ -138,6 +149,7 @@ public class BCEnergyConfig {
         }
 
         enableOilGeneration = propEnableOilGeneration.get();
+        oilGenerationProfile = propOilGenerationProfile.get();
         enableOilSpouts = propEnableOilSpouts.get();
         enableOilBurn = propEnableOilBurn.get();
         oilIsSticky = propOilIsSticky.get();

@@ -258,6 +258,61 @@ class ResourcePipeline(unittest.TestCase):
         self.assertEqual("minecraft:count", new["placement"][0]["type"])
         for key in ("smallOilGenProb", "mediumOilGenProb", "largeOilGenProb"):
             self.assertEqual(old_settings[key], new_settings[key])
+        # Adjust the per-well probability, not the placement count: skipping
+        # entire chunks could cut off structures reaching across chunk borders.
+        # One inline placed feature is authoritative for each API generation;
+        # configured_feature duplicates must never be shipped.
+        canonical_sources = (
+            "source-families/1.21.X/src/main/resources/data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json",
+            "resource-src/26.X/26.3/data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json",
+        )
+        for relative in canonical_sources:
+            with self.subTest(source=relative):
+                document = json.loads((ROOT / relative).read_text(encoding="utf-8"))
+                settings = document["feature"]
+                settings = settings.get("config", settings)
+                self.assertEqual(0.3, settings["oilWellGenerationRate"])
+        obsolete = "data/buildcraftenergy/worldgen/configured_feature/oil_configured_feature.json"
+        for family in ("old", "1.21.X"):
+            source = ROOT / f"source-families/{family}/src/main/resources/{obsolete}"
+            self.assertFalse(source.exists(), f"Stale duplicated oil configured feature: {source}")
+        for target in self.roots:
+            with self.subTest(target=target):
+                self.assertFalse((self.roots[target] / obsolete).exists(), target)
+                placed = self.read_json(target, "data/buildcraftenergy/worldgen/placed_feature/oil_placed_feature.json")
+                settings = placed["feature"]
+                settings = settings.get("config", settings)
+                self.assertEqual(0.3, settings["oilWellGenerationRate"])
+                self.assertEqual(0.04, settings["oilStructureSetting"]["largeOilGenProb"])
+                self.assertEqual(0.1, settings["oilStructureSetting"]["mediumOilGenProb"])
+                self.assertEqual(2.0, settings["oilStructureSetting"]["smallOilGenProb"])
+
+    def test_oil_generation_profiles_bind_on_all_loaders(self):
+        # Exercise the real Energy config and shared enum against tiny Java API
+        # doubles, rather than trusting a Python-only preset table.
+        from oil_generation_profile_fixture import verify
+        from source_layout import target_layout, resolve_effective_source
+
+        print(verify(), flush=True)
+        targets = (*self.roots.keys(), "26.3-fabric")
+        for target in targets:
+            with self.subTest(target=target):
+                layout = target_layout(target, self.props)
+                def selected(name: str) -> str:
+                    path = resolve_effective_source(
+                        layout, self.props, "src/main/java/buildcraft/" + name)
+                    self.assertIsNotNone(path, (target, name))
+                    return path.read_text(encoding="utf-8")
+
+                config = selected("energy/BCEnergyConfig.java")
+                generator = selected("energy/generation/features/OilGenerator.java")
+                profile = selected("energy/generation/features/OilGenerationProfile.java")
+                self.assertIn('defineEnum("generationProfile", OilGenerationProfile.STANDARD', config)
+                self.assertIn('oilGenerationProfile = propOilGenerationProfile.get();', config)
+                self.assertIn('OilGenerator.clearCache();', config)
+                self.assertIn('configuration.oilWellGenerationRate() * '
+                              'BCEnergyConfig.oilGenerationProfile.multiplier()', generator)
+                self.assertIn('VERY_HIGH(1.0D)', profile)
 
     def test_special_modern_item_definitions_are_versioned_resource_sources(self):
         special = (
