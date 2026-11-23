@@ -369,10 +369,13 @@ class ShepherdRobotTests(unittest.TestCase):
                      "source-families/26.X/src/main/resources/assets/buildcraftrobotics/items/robot.json"):
             item = json.loads((ROOT / path).read_text())
             entries = item.get("overrides", item.get("model", {}).get("entries", []))
-            self.assertEqual(18, len(entries))
-            last = entries[-1]
-            self.assertEqual("buildcraftrobotics:item/robot/shepherd", last.get("model") if "overrides" in item
-                             else last["model"]["model"])
+            # Preserve the persisted Shepherd index when later professions are appended.
+            self.assertEqual(19, len(entries))
+            shepherd, fisher = entries[-2:]
+            model = lambda entry: (entry.get("model") if "overrides" in item
+                                   else entry["model"]["model"])
+            self.assertEqual("buildcraftrobotics:item/robot/shepherd", model(shepherd))
+            self.assertEqual("buildcraftrobotics:item/robot/fisher", model(fisher))
         lang = json.loads((ROOT / "source-shared/src/main/resources/assets/buildcraft/lang/en_us.json").read_text())
         self.assertEqual("Shepherd Robot", lang["item.buildcraftrobotics.robot.shepherd"])
 

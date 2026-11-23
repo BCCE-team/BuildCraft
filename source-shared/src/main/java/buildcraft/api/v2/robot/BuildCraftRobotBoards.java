@@ -17,6 +17,7 @@ public final class BuildCraftRobotBoards {
     public static final ResourceLocation LEAVE_CUTTER = id("leave_cutter");
     public static final ResourceLocation BUTCHER = id("butcher");
     public static final ResourceLocation SHEPHERD = id("shepherd");
+    public static final ResourceLocation FISHER = id("fisher");
     public static final ResourceLocation SHOVELMAN = id("shovelman");
     public static final ResourceLocation PUMP = id("pump");
     public static final ResourceLocation DELIVERY = id("delivery");

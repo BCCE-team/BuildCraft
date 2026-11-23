@@ -2139,6 +2139,10 @@
     },
     {
       "type": "minecraft:single",
+      "resource": "buildcraftrobotics:entities/robot_fisher_active"
+    },
+    {
+      "type": "minecraft:single",
       "resource": "buildcraftrobotics:entities/robot_carrier_active"
     },
     {

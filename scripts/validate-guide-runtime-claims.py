@@ -136,6 +136,7 @@ robot_career_costs = {
     "leave_cutter": "3,200 MJ",
     "butcher": "3,200 MJ",
     "shepherd": "3,200 MJ",
+    "fisher": "3,200 MJ",
     "shovelman": "3,200 MJ",
     "pump": "3,200 MJ",
     "delivery": "12,800 MJ",

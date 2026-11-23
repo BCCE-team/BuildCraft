@@ -28,6 +28,7 @@ public final class RobotTaskNames {
         if (key.contains("load")) return "Load";
         if (key.contains("deliver")) return "Deliver";
         if (key.contains("shear")) return "Shear";
+        if (key.contains("fish")) return "Fishing";
         if (key.contains("harvest")) return "Harvest";
         if (key.contains("plant")) return "Plant";
         if (key.contains("pump")) return "Pump";

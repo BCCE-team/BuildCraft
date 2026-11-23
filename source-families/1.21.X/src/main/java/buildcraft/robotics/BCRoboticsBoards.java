@@ -39,6 +39,7 @@ import buildcraft.robotics.boards.BoardRobotBomber;
 import buildcraft.robotics.boards.BoardRobotBuilder;
 import buildcraft.robotics.boards.BoardRobotButcher;
 import buildcraft.robotics.boards.BoardRobotShepherd;
+import buildcraft.robotics.boards.BoardRobotFisher;
 import buildcraft.robotics.boards.BoardRobotFarmer;
 import buildcraft.robotics.boards.BoardRobotLeaveCutter;
 import buildcraft.robotics.boards.BoardRobotKnight;
@@ -91,6 +92,7 @@ public final class BCRoboticsBoards {
         board("buildcraft:boardRobotBuilder", "builder", "yellow", "robot_builder", legacyEnergyToMj(512_000));
         // Append only: existing model indices are persisted and must not change.
         board("buildcraft:boardRobotShepherd", "shepherd", "blue", "robot_sheepherd", legacyEnergyToMj(32_000));
+        board("buildcraft:boardRobotFisher", "fisher", "blue", "robot_fisher", legacyEnergyToMj(32_000));
     }
 
     private BCRoboticsBoards() {
@@ -349,6 +351,9 @@ public final class BCRoboticsBoards {
             }
             if ("shepherd".equals(key)) {
                 return new BoardRobotShepherd(robot);
+            }
+            if ("fisher".equals(key)) {
+                return new BoardRobotFisher(robot);
             }
             if ("shovelman".equals(key)) {
                 return new BoardRobotShovelman(robot);

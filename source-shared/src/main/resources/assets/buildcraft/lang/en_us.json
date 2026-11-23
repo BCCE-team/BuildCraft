@@ -1704,5 +1704,9 @@
   "gui.buildcraft.logging.module_config": "Other module settings...",
   "gui.buildcraft.logging.restart": "Saved in Core > Debug. Restart Minecraft or the server to apply.",
   "gui.buildcraft.logging.override": "A JVM or environment override is active; it takes precedence.",
-  "gui.buildcraft.logging.save_error": "Could not save logging settings. Check the config folder."
+  "gui.buildcraft.logging.save_error": "Could not save logging settings. Check the config folder.",
+  "item.buildcraftrobotics.robot.fisher": "Fisher Robot",
+  "item.buildcraftrobotics.redstone_board.fisher": "Fisher Redstone Board",
+  "gui.buildcraftrobotics.robot_processor.board.fisher": "Fisher",
+  "buildcraft.boardRobot.fisher": "Fisher"
 }

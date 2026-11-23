@@ -1786,6 +1786,13 @@
       "<bold>Hint:</bold> Supply shears at an accessible Docking Station, mark the flock as the work area, and use a Picker Robot to collect the wool.",
       "Career",
       "This career is programmed into a Redstone Board for 3,200 MJ and installed into an empty Robot with an Integration Table.\n\nWhile active, the robot finds adult sheep that have regrown their wool, fetches shears from its station, shears the animals through a normal player interaction and leaves the wool on the ground for Picker Robots. Shears lose durability as usual. The Shepherd does not pick up items, breed or attack sheep."
+    ],
+    "buildcraftrobotics/robot/fisher": [
+      "The Fisher Robot casts a real fishing rod into water, waits for a fish to bite and reels it in.",
+      "It uses the normal Minecraft fishing bobber, loot table, enchantments, splash effects and rod durability.",
+      "<bold>Hint:</bold> Place a Docking Station with a usable fishing rod near a lake or ocean, and send a Picker Robot for the drops.",
+      "Career",
+      "The Fisher profession is programmed into a Redstone Board for 3,200 MJ and installed into an empty Robot. The robot finds a loaded pool of water within reach, flies to the shore, casts the rod as a server-side player and waits for the bobber to dip. It reels using the same item interaction as a player. The catch remains in the world: only the Picker Robot collects it. No artificial fish or treasure is generated."
     ]
   }
 }
