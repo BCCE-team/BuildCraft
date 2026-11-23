@@ -107,6 +107,7 @@ public final class BCRobotics {
         RobotManager.registerAIRobot(BoardRobotButcher.class, "boardButcher", "buildcraft.robotics.boards.BoardRobotButcher");
         RobotManager.registerAIRobot(BoardRobotShepherd.class, "boardShepherd");
         RobotManager.registerAIRobot(BoardRobotFisher.class, "boardFisher");
+        RobotManager.registerAIRobot(BoardRobotBeekeeper.class, "boardBeekeeper");
         RobotManager.registerAIRobot(BoardRobotShovelman.class, "boardShovelman", "buildcraft.robotics.boards.BoardRobotShovelman");
         RobotManager.registerAIRobot(BoardRobotPump.class, "boardPump", "buildcraft.robotics.boards.BoardRobotPump");
         RobotManager.registerAIRobot(BoardRobotDelivery.class, "boardRobotDelivery", "buildcraft.robotics.boards.BoardRobotDelivery");
@@ -125,6 +126,7 @@ public final class BCRobotics {
         RobotManager.registerAIRobot(AIRobotAttack.class, "attack", "buildcraft.robotics.ai.AIRobotAttack");
         RobotManager.registerAIRobot(AIRobotShearSheep.class, "shearSheep");
         RobotManager.registerAIRobot(AIRobotFish.class, "fish");
+        RobotManager.registerAIRobot(AIRobotHarvestBeehive.class, "harvestBeehive");
         RobotManager.registerAIRobot(AIRobotHarvest.class, "harvest", "buildcraft.robotics.ai.AIRobotHarvest");
         RobotManager.registerAIRobot(AIRobotPlant.class, "plant", "buildcraft.robotics.ai.AIRobotPlant");
         RobotManager.registerAIRobot(AIRobotUseToolOnBlock.class, "useToolOnBlock", "buildcraft.robotics.ai.AIRobotUseToolOnBlock");

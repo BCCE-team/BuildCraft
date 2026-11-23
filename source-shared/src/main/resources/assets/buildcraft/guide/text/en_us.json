@@ -1794,5 +1794,12 @@
       "Career",
       "The Fisher profession is programmed into a Redstone Board for 3,200 MJ and installed into an empty Robot. The robot finds a loaded pool of water within reach, flies to the shore, casts the rod as a server-side player and waits for the bobber to dip. It reels using the same item interaction as a player. The catch remains in the world: only the Picker Robot collects it. No artificial fish or treasure is generated."
     ]
-  }
+  },
+  "buildcraftrobotics/robot/beekeeper": [
+    "The Beekeeper Robot looks after full bee nests and crafted beehives, harvesting honey without disturbing the colony.",
+    "Provide empty glass bottles for Honey Bottles or shears for three Honeycombs per full hive. The robot only harvests honey level 5.",
+    "<bold>Hint:</bold> Put a lit campfire beneath each hive so the smoke reaches it; supply tools or bottles via a Docking Station and let Picker Robots collect the drops.",
+    "Career",
+    "Program the Beekeeper board for 3,200 MJ. The robot searches its assigned work zone for full, smoked hives. It consumes one empty bottle for a Honey Bottle, or one point of shears durability for three Honeycombs. It will not harvest without smoke, even if the hive is ready, because that could anger the bees. If both supplies are available, it prefers bottles; otherwise it uses shears. The drops remain in the world for Picker Robots."
+  ]
 }

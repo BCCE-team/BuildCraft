@@ -114,6 +114,12 @@
         "buildcraftrobotics:robot": 0.19
       },
       "model": "buildcraftrobotics:item/robot/fisher"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.2
+      },
+      "model": "buildcraftrobotics:item/robot/beekeeper"
     }
   ]
 }

@@ -39,6 +39,7 @@ import buildcraft.robotics.ai.AIRobotBreak;
 import buildcraft.robotics.ai.AIRobotHarvest;
 import buildcraft.robotics.ai.AIRobotPlant;
 import buildcraft.robotics.ai.AIRobotUseToolOnBlock;
+import buildcraft.robotics.ai.AIRobotHarvestBeehive;
 import buildcraft.robotics.ai.AIRobotSearchNearestBlock;
 
 import net.minecraft.core.BlockPos;
@@ -950,7 +951,8 @@ public final class RobotProcessorWorkScheduler {
                 || ai instanceof AIRobotSearchNearestBlock
                 || ai instanceof AIRobotSearchAndGotoBlock || ai instanceof AIRobotGotoBlock
                 || ai instanceof AIRobotBreak || ai instanceof AIRobotHarvest
-                || ai instanceof AIRobotPlant || ai instanceof AIRobotUseToolOnBlock;
+                || ai instanceof AIRobotPlant || ai instanceof AIRobotUseToolOnBlock
+                || ai instanceof AIRobotHarvestBeehive;
     }
 
     private static boolean robotLevelIs(Level level, EntityRobotBase robot) {
@@ -1476,6 +1478,7 @@ public final class RobotProcessorWorkScheduler {
                                 || stillWorking.getActiveAI() instanceof AIRobotHarvest
                                 || stillWorking.getActiveAI() instanceof AIRobotPlant
                                 || stillWorking.getActiveAI() instanceof AIRobotUseToolOnBlock
+                                || stillWorking.getActiveAI() instanceof AIRobotHarvestBeehive
                                 || stillWorking.getActiveAI() instanceof AIRobotPumpBlock)
                         && stillWorking.getActiveAI().isWithinWorkChain(stillWorking.getBoard());
                 if (executing) {

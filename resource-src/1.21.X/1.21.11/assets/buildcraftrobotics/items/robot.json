@@ -139,6 +139,13 @@
           "type": "minecraft:model",
           "model": "buildcraftrobotics:item/robot/fisher"
         }
+      },
+      {
+        "threshold": 0.2,
+        "model": {
+          "type": "minecraft:model",
+          "model": "buildcraftrobotics:item/robot/beekeeper"
+        }
       }
     ]
   }

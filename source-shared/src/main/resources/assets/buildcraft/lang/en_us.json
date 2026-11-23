@@ -1709,5 +1709,10 @@
   "item.buildcraftrobotics.redstone_board.fisher": "Fisher Redstone Board",
   "gui.buildcraftrobotics.robot_processor.board.fisher": "Fisher",
   "buildcraft.boardRobot.fisher": "Fisher",
-  "buildcraft.boardRobotFisher.desc": "Catches fish using a fishing rod"
+  "buildcraft.boardRobotFisher.desc": "Catches fish using a fishing rod",
+  "buildcraft.boardRobotBeekeeper.desc": "Harvests full bee nests and hives using bottles or shears. Requires campfire smoke",
+  "buildcraft.boardRobot.beekeeper": "Beekeeper",
+  "item.buildcraftrobotics.robot.beekeeper": "Beekeeper Robot",
+  "item.buildcraftrobotics.redstone_board.beekeeper": "Beekeeper Redstone Board",
+  "gui.buildcraftrobotics.robot_processor.board.beekeeper": "Beekeeper"
 }

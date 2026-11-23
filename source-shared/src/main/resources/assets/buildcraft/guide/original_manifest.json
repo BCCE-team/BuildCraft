@@ -2457,6 +2457,18 @@
       "stack": "buildcraftcompat:pipe_item_propolis",
       "requires_mod": "forestry",
       "page": "buildcraftcompat/pipe/propolis_item"
+    },
+    {
+      "id": "buildcraftrobotics:robot/beekeeper",
+      "module": "buildcraftrobotics",
+      "type": "item",
+      "subtype": "robot",
+      "name": "beekeeper",
+      "book": "buildcraftcore:main",
+      "listed": true,
+      "stack": "buildcraftrobotics:robot",
+      "stack_nbt": "{board:{id:\"buildcraft:boardRobotBeekeeper\"},energy:0,robot_key:\"beekeeper\"}",
+      "page": "buildcraftrobotics/robot/beekeeper"
     }
   ]
 }

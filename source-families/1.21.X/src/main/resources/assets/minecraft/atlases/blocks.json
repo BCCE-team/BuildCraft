@@ -3862,6 +3862,10 @@
     {
       "type": "minecraft:single",
       "resource": "buildcrafttransport:triggers/trigger_fe_limiter_m0"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftrobotics:entities/robot_beekeeper_active"
     }
   ]
 }

@@ -19,7 +19,7 @@ ENERGY = {
     "picker": 800, "carrier": 800, "fluid_carrier": 800,
     "lumberjack": 3200, "harvester": 3200, "miner": 3200,
     "planter": 3200, "farmer": 3200, "leave_cutter": 3200,
-    "butcher": 3200, "shepherd": 3200, "fisher": 3200, "shovelman": 3200, "pump": 3200,
+    "butcher": 3200, "shepherd": 3200, "fisher": 3200, "beekeeper": 3200, "shovelman": 3200, "pump": 3200,
     "delivery": 12800, "knight": 12800, "bomber": 12800,
     "stripes": 12800, "builder": 51200,
 }

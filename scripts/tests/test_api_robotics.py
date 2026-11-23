@@ -110,7 +110,7 @@ ROBOTICS_STUBS = {
  public class BCLog{public static final Logger logger=new Logger();public static class Logger{public void warn(String s,Throwable t){}}}''',
 }
 ROBOTICS_BOARD_NAMES = ('Picker','Carrier','FluidCarrier','Lumberjack','Harvester','Miner','Planter','Farmer',
-               'LeaveCutter','Butcher','Shovelman','Pump','Delivery','Knight','Bomber','Stripes','Builder','Shepherd','Fisher')
+               'LeaveCutter','Butcher','Shovelman','Pump','Delivery','Knight','Bomber','Stripes','Builder','Shepherd','Fisher','Beekeeper')
 for name in ROBOTICS_BOARD_NAMES:
  ROBOTICS_STUBS[f'buildcraft/robotics/boards/BoardRobot{name}.java'] = f'''package buildcraft.robotics.boards;
  import buildcraft.robotics.internal.legacy.boards.*;import buildcraft.robotics.internal.legacy.robots.*;

@@ -338,7 +338,7 @@ public class RobotCombatTargetScheduler {
 '''
 for name in ['AIRobotSleep','AIRobotShutdown','AIRobotRecharge','AIRobotGotoSleep',
              'AIRobotGoAndLinkToDock','AIRobotSearchBlock','AIRobotSearchAndGotoBlock',
-             'AIRobotGotoBlock','AIRobotBreak','AIRobotHarvest','AIRobotPlant','AIRobotUseToolOnBlock','AIRobotSearchNearestBlock','AIRobotPumpBlock']:
+             'AIRobotGotoBlock','AIRobotBreak','AIRobotHarvest','AIRobotHarvestBeehive','AIRobotPlant','AIRobotUseToolOnBlock','AIRobotSearchNearestBlock','AIRobotPumpBlock']:
     STUBS[f'buildcraft/robotics/ai/{name}.java'] = (
         f'package buildcraft.robotics.ai; public class {name} '
         'extends buildcraft.robotics.internal.legacy.robots.AIRobot {}')
