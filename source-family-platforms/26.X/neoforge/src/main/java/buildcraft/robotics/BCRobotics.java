@@ -109,6 +109,10 @@ import net.neoforged.neoforge.client.event.ModelEvent.RegisterStandalone;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.neoforged.neoforge.capabilities.Capabilities;
+import net.minecraft.world.entity.projectile.FishingHook;
+import net.minecraft.world.phys.EntityHitResult;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
 import buildcraft.lib.internal.capabilities.BCCapabilityRegistration;
 import buildcraft.lib.misc.CapUtil;
 
@@ -138,6 +142,8 @@ public class BCRobotics {
         modEventBus.addListener(this::init);
         modEventBus.addListener(BCRobotics::registerEntityAttributes);
         modEventBus.addListener(BCRobotics::registerCapabilities);
+        // Prevent fishing rods from hooking any BCCE robot while keeping normal interactions intact.
+        NeoForge.EVENT_BUS.addListener(BCRobotics::preventRobotFishingHook);
 
         BCRoboticsBoards.init();
         RoboticsApi2Bootstrap.bootstrap();
@@ -165,6 +171,14 @@ public class BCRobotics {
         BoardRobotPicker.onServerStart();
 
         // No config is registered yet; this keeps the module bootstrap deliberately small.
+    }
+
+    private static void preventRobotFishingHook(ProjectileImpactEvent event) {
+        if (event.getProjectile() instanceof FishingHook
+                && event.getRayTraceResult() instanceof EntityHitResult hit
+                && hit.getEntity() instanceof buildcraft.robotics.entity.EntityRobot) {
+            event.setCanceled(true);
+        }
     }
 
     private void init(final FMLCommonSetupEvent event) {

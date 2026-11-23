@@ -123,6 +123,8 @@ public class Entity{public final UUID uuid=UUID.randomUUID();public boolean remo
  public net.minecraft.network.syncher.SynchedEntityData data=new net.minecraft.network.syncher.SynchedEntityData();
  public void setInvisible(boolean v){data.changed=v;}
  public net.minecraft.network.syncher.SynchedEntityData getEntityData(){return data;}
+ public Object getType(){return null;}
+ public Vec3 getDeltaMovement(){return new Vec3(0,0,0);}
  public int getId(){return entityId;}
  public double x,y,z;public UUID getUUID(){return uuid;}public boolean isRemoved(){return removed;}
  public double getX(){return x;}public double getY(){return y;}public double getZ(){return z;}
@@ -165,6 +167,7 @@ public class Player extends net.minecraft.world.entity.Entity{
  public void setYRot(float f){yaw=f;}public float getYRot(){return yaw;}
  public void setXRot(float f){pitch=f;}public float getXRot(){return pitch;}
  public void setYHeadRot(float f){headYaw=f;}
+ public float getYHeadRot(){return headYaw;}
  public void setYBodyRot(float f){bodyYaw=f;}public float bodyYaw;
 }''',
     'net/minecraft/server/level/ServerPlayer.java': '''package net.minecraft.server.level;
@@ -294,6 +297,8 @@ public class FisherProbe{
   net.minecraft.server.level.ServerPlayer viewer=new net.minecraft.server.level.ServerPlayer();
   visualWorld.clients.add(viewer);viewer.setPos(0,64,0);
   EntityRobotBase visualRobot=new EntityRobotBase(visualWorld);
+  // Non-integer coordinates expose the whole-block spawn bug on 1.21.1+ and 26.X.
+  visualRobot.setPos(0.6,64.3,0.4);
   AIRobotFish visual=cast(visualRobot,visualWorld);
   var packets=viewer.connection.packets;
   ok(packets.size()==4,"Viewer needs profile, player, invisibility AND held rod equipment");
@@ -302,6 +307,16 @@ public class FisherProbe{
   ok(packets.get(1) instanceof net.minecraft.network.protocol.game.ClientboundAddPlayerPacket
      || packets.get(1) instanceof net.minecraft.network.protocol.game.ClientboundAddEntityPacket,
      "Angler entity must precede the vanilla fishing hook");
+  // Every modern target must preserve precise angler coordinates, not just 1.21.11.
+  if(!"1.19.2".equals(System.getProperty("mc.version"))
+      && !"1.20.1".equals(System.getProperty("mc.version"))){
+   ok(packets.get(1) instanceof net.minecraft.network.protocol.game.ClientboundAddEntityPacket spawn
+      && spawn.isPrecise()
+      && Math.abs(spawn.getX()-visualRobot.getX())<1E-6
+      && Math.abs(spawn.getY()-(visualRobot.getY()+0.42-1.62))<1E-6
+      && Math.abs(spawn.getZ()-visualRobot.getZ())<1E-6,
+      "Fishing line spawned at rounded block coordinates instead of Fisher's hand");
+  }
   ok(packets.get(2) instanceof net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket,
      "Angler invisible flag not synced");
   ok(packets.get(3) instanceof net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket equip
@@ -471,7 +486,22 @@ public record Pair<A,B>(A first,B second){
  public static <A,B> Pair<A,B> of(A a,B b){return new Pair<>(a,b);}
  public B getSecond(){return second;}
 }
-''', 'net/minecraft/network/protocol/game/ClientboundAddPlayerPacket.java': 'package net.minecraft.network.protocol.game;\npublic record ClientboundAddPlayerPacket(Object owner){}', 'net/minecraft/network/protocol/game/ClientboundPlayerInfoPacket.java': 'package net.minecraft.network.protocol.game;\npublic record ClientboundPlayerInfoPacket(Action action,Object player){\n public enum Action{ADD_PLAYER,REMOVE_PLAYER}}\n', 'net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java': 'package net.minecraft.network.protocol.game;\nimport java.util.*;\npublic record ClientboundPlayerInfoUpdatePacket(List<?> players){\n public static ClientboundPlayerInfoUpdatePacket createPlayerInitializing(List<?> players){\n return new ClientboundPlayerInfoUpdatePacket(players);}}\n', 'net/minecraft/network/protocol/game/ClientboundPlayerInfoRemovePacket.java': 'package net.minecraft.network.protocol.game;\nimport java.util.*;\npublic record ClientboundPlayerInfoRemovePacket(List<?> players){}', 'net/minecraft/network/protocol/game/ClientboundAddEntityPacket.java': 'package net.minecraft.network.protocol.game;\nimport net.minecraft.world.entity.Entity;import net.minecraft.core.BlockPos;\npublic record ClientboundAddEntityPacket(Entity owner,int data,BlockPos pos){}', 'net/minecraft/network/protocol/game/ClientboundSetEntityDataPacket.java': 'package net.minecraft.network.protocol.game;\nimport java.util.*;import net.minecraft.network.syncher.SynchedEntityData;\npublic record ClientboundSetEntityDataPacket(int id,Object data){\n public ClientboundSetEntityDataPacket(int id,SynchedEntityData data,boolean all){this(id,(Object)data);}\n public ClientboundSetEntityDataPacket(int id,List<?> values){this(id,(Object)values);}}\n', 'net/minecraft/network/protocol/game/ClientboundRemoveEntitiesPacket.java': 'package net.minecraft.network.protocol.game;\npublic record ClientboundRemoveEntitiesPacket(int id){}', 'net/minecraft/network/protocol/game/ClientboundSetEquipmentPacket.java': '''package net.minecraft.network.protocol.game;
+''', 'net/minecraft/network/protocol/game/ClientboundAddPlayerPacket.java': 'package net.minecraft.network.protocol.game;\npublic record ClientboundAddPlayerPacket(Object owner){}', 'net/minecraft/network/protocol/game/ClientboundPlayerInfoPacket.java': 'package net.minecraft.network.protocol.game;\npublic record ClientboundPlayerInfoPacket(Action action,Object player){\n public enum Action{ADD_PLAYER,REMOVE_PLAYER}}\n', 'net/minecraft/network/protocol/game/ClientboundPlayerInfoUpdatePacket.java': 'package net.minecraft.network.protocol.game;\nimport java.util.*;\npublic record ClientboundPlayerInfoUpdatePacket(List<?> players){\n public static ClientboundPlayerInfoUpdatePacket createPlayerInitializing(List<?> players){\n return new ClientboundPlayerInfoUpdatePacket(players);}}\n', 'net/minecraft/network/protocol/game/ClientboundPlayerInfoRemovePacket.java': 'package net.minecraft.network.protocol.game;\nimport java.util.*;\npublic record ClientboundPlayerInfoRemovePacket(List<?> players){}',     'net/minecraft/network/protocol/game/ClientboundAddEntityPacket.java': """package net.minecraft.network.protocol.game;
+import net.minecraft.world.entity.Entity;import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;import java.util.UUID;
+public class ClientboundAddEntityPacket {
+ private final double x,y,z;private final boolean precise;
+ public ClientboundAddEntityPacket(Entity entity,int data,BlockPos pos){
+  x=pos.getX();y=pos.getY();z=pos.getZ();precise=false;
+ }
+ public ClientboundAddEntityPacket(int id,UUID uuid,double x,double y,double z,
+     float xRot,float yRot,Object type,int data,Vec3 movement,double headRot){
+  this.x=x;this.y=y;this.z=z;precise=true;
+ }
+ public double getX(){return x;}public double getY(){return y;}
+ public double getZ(){return z;}public boolean isPrecise(){return precise;}
+}""",
+'net/minecraft/network/protocol/game/ClientboundSetEntityDataPacket.java': 'package net.minecraft.network.protocol.game;\nimport java.util.*;import net.minecraft.network.syncher.SynchedEntityData;\npublic record ClientboundSetEntityDataPacket(int id,Object data){\n public ClientboundSetEntityDataPacket(int id,SynchedEntityData data,boolean all){this(id,(Object)data);}\n public ClientboundSetEntityDataPacket(int id,List<?> values){this(id,(Object)values);}}\n', 'net/minecraft/network/protocol/game/ClientboundRemoveEntitiesPacket.java': 'package net.minecraft.network.protocol.game;\npublic record ClientboundRemoveEntitiesPacket(int id){}', 'net/minecraft/network/protocol/game/ClientboundSetEquipmentPacket.java': '''package net.minecraft.network.protocol.game;
 import java.util.*;import com.mojang.datafixers.util.Pair;
 import net.minecraft.world.item.ItemStack;import net.minecraft.world.entity.EquipmentSlot;
 public record ClientboundSetEquipmentPacket(int id,List<Pair<EquipmentSlot,ItemStack>> slots){}
@@ -527,7 +557,7 @@ class FisherRobotTests(unittest.TestCase):
                 classes=root/'classes';classes.mkdir()
                 comp=subprocess.run(['javac','--release','17','-d',str(classes),*sources],capture_output=True,text=True,timeout=70)
                 self.assertEqual(0,comp.returncode,comp.stderr)
-                run=subprocess.run(['java','-cp',str(classes),'fixture.FisherProbe'],capture_output=True,text=True,timeout=20)
+                run=subprocess.run(['java','-Dmc.version='+version,'-cp',str(classes),'fixture.FisherProbe'],capture_output=True,text=True,timeout=20)
                 self.assertEqual(0,run.returncode,run.stdout+run.stderr)
                 self.assertIn('Fisher PASS',run.stdout)
 
@@ -565,5 +595,10 @@ class FisherRobotTests(unittest.TestCase):
         self.assertEqual(5,pages['pages']['buildcraftrobotics/robot/fisher']['slots'])
         lang=json.loads((ROOT/'source-shared/src/main/resources/assets/buildcraft/lang/en_us.json').read_text())
         self.assertEqual('Fisher Robot',lang['item.buildcraftrobotics.robot.fisher'])
+        self.assertEqual('Fisher Redstone Board', lang['item.buildcraftrobotics.redstone_board.fisher'])
+        # Both robot and board tooltips compute this exact legacy key on every target.
+        self.assertIn('buildcraft.boardRobotFisher.desc', lang)
+        self.assertIn('fishing rod', lang['buildcraft.boardRobotFisher.desc'])
+        self.assertNotEqual('buildcraft.boardRobotFisher.desc', lang['buildcraft.boardRobotFisher.desc'])
 
 if __name__=='__main__': unittest.main()

@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "buildcraft.robotics.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "FishingHookRobotGuardMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

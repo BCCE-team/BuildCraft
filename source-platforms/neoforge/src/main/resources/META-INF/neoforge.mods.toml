@@ -3,6 +3,11 @@ loaderVersion="${loader_version_range}"
 license="${mod_license}"
 showAsResourcePack=false
 
+# This must be unconditional: the fishing hook must reject robot targets even
+# when no optional integration (such as Jade) is installed.
+[[mixins]]
+    config="buildcraft.robot-fishing.mixins.json"
+
 //? if >=1.21.11 {
 [[mixins]]
     config="buildcraft.jade.mixins.json"

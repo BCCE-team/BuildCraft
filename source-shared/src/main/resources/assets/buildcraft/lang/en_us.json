@@ -123,7 +123,7 @@
   "buildcraft.boardRobotBreaker.desc": "Mines stone",
   "buildcraft.boardRobotBuilder.desc": "Builds structures",
   "buildcraft.boardRobotButcher.desc": "Hunts eligible animals",
-  "buildcraft.boardRobotShepherd.desc": "Shears adult sheep; Picker Robots collect the wool",
+  "buildcraft.boardRobotShepherd.desc": "Shears adult sheep",
   "buildcraft.boardRobotCarrier.desc": "Transfers items between stations",
   "buildcraft.boardRobotCrafter": "Crafter",
   "buildcraft.boardRobotCrafter.desc": "Crafts items",
@@ -1708,5 +1708,6 @@
   "item.buildcraftrobotics.robot.fisher": "Fisher Robot",
   "item.buildcraftrobotics.redstone_board.fisher": "Fisher Redstone Board",
   "gui.buildcraftrobotics.robot_processor.board.fisher": "Fisher",
-  "buildcraft.boardRobot.fisher": "Fisher"
+  "buildcraft.boardRobot.fisher": "Fisher",
+  "buildcraft.boardRobotFisher.desc": "Catches fish using a fishing rod"
 }

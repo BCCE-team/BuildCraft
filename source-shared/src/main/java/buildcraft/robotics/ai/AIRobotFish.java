@@ -365,7 +365,15 @@ public final class AIRobotFish extends AIRobot {
                 //? if <1.21.1 {
             viewer.connection.send(angler.getAddEntityPacket());
                 //?} else {
-            viewer.connection.send(new ClientboundAddEntityPacket(angler, 0, angler.blockPosition()));
+            // The Entity/int/BlockPos constructor snaps the fake angler to a
+            // whole block on 1.21.1, 1.21.11 AND the 26.X targets. The vanilla
+            // fishing line then renders far from the 0.5-block Fisher robot.
+            // Spawn the invisible owner at its exact double-precision position.
+            viewer.connection.send(new ClientboundAddEntityPacket(
+                    angler.getId(), angler.getUUID(),
+                    angler.getX(), angler.getY(), angler.getZ(),
+                    angler.getXRot(), angler.getYRot(), angler.getType(),
+                    0, angler.getDeltaMovement(), angler.getYHeadRot()));
                 //?}
             var metadata = angler.getEntityData().getNonDefaultValues();
             if (metadata != null && !metadata.isEmpty()) {

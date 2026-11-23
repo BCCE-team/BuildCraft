@@ -23,6 +23,7 @@ import buildcraft.robotics.internal.legacy.robots.AIRobot;
 import buildcraft.robotics.internal.api2.ApiTaskAI;
 import buildcraft.robotics.internal.legacy.robots.DockingStation;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
+import buildcraft.robotics.internal.legacy.robots.RobotMotionGuard;
 import buildcraft.api.v2.robot.RobotEventKind;
 import buildcraft.robotics.internal.api2.RobotEventSupport;
 import buildcraft.robotics.internal.legacy.robots.IRobotRegistry;
@@ -160,6 +161,8 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
 
     @Override
     public ResourceHandler<FluidResource> resourceHandler() { return fluidResourceHandler; }
+    /** Ignores fishing-hook pulls and other external velocity changes between AI ticks. */
+    private final RobotMotionGuard robotMotionGuard = new RobotMotionGuard();
     private boolean firstUpdateDone;
     private transient DockingStation suspectHomeStation;
     private transient DockingStation suspectDockStation;
@@ -382,6 +385,11 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
     }
 
     public void tick() {
+        // FishingHook.retrieve() may add velocity after our previous AI tick.
+        // Restore the last AI-controlled value before path planning or travelling.
+        if (!level().isClientSide()) {
+            robotMotionGuard.beforeRobotTick(this);
+        }
         if (!firstUpdateDone) {
             firstUpdate();
             firstUpdateDone = true;
@@ -450,6 +458,10 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
 
         if (!level().isClientSide() && getY() < LevelCompat.getMinBuildHeight(level()) - 128) {
             convertToItems();
+        }
+
+        if (!level().isClientSide()) {
+            robotMotionGuard.afterRobotTick(this);
         }
     }
 
