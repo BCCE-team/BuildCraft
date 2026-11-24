@@ -75,7 +75,7 @@ public final class BCSilicon {
 
         BCCore.BUILDCRAFT_TAB.addItemProvider(BCSiliconItems::getMainTabItems);
         tabPlugs.addItemProvider(BCSiliconItems::getPlugTabItems);
-        tabFacades.addItemProvider(BCSiliconItems::getFacadeTabItems);
+        tabFacades.addUniqueGeneratedItemProvider(BCSiliconItems::getFacadeTabItems);
 
         ConfigBinding.listen(MODID, BCSiliconConfig::onLoadConfig, BCSiliconConfig::onReloadConfig);
         ConfigBinding.bind(MODID, BCSiliconConfig.config);

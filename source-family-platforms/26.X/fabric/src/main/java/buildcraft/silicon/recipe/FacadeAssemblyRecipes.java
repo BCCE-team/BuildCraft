@@ -66,7 +66,7 @@ public class FacadeAssemblyRecipes extends AssemblyRecipeBasic implements IRecip
     }
 
     public static ItemStack createFacadeStack(FacadeBlockStateInfo info, boolean isHollow) {
-        ItemStack stack = BCSiliconItems.PLUG_FACADE_ITEM.get().createItemStack(FacadeInstance.createSingle(info, isHollow));
+        ItemStack stack = BCSiliconItems.PLUG_FACADE_ITEM.get().createCachedSingle(info, isHollow);
         stack.setCount(6);
         return stack;
     }

@@ -323,6 +323,14 @@ public final class CreativeTabManager {
             return recipeFolderName;
         }
 
+        private volatile Supplier<? extends Collection<ItemStack>> uniqueGeneratedProvider;
+
+        /** Only for a built-in generator that returns fresh, ordered, unique stacks. */
+        public void addUniqueGeneratedItemProvider(Supplier<? extends Collection<ItemStack>> provider) {
+            uniqueGeneratedProvider = provider;
+            addItemProvider(provider);
+        }
+
         public void addItemProvider(Supplier<? extends Collection<ItemStack>> provider) {
             if (provider != null && !itemProviders.contains(provider)) {
                 itemProviders.add(provider);
@@ -336,6 +344,19 @@ public final class CreativeTabManager {
          * order.
          */
         public void accept(Collection<ItemStack> baseItems, Consumer<ItemStack> output) {
+            // The facade generator has already deduplicated and sorted its variants. Avoid
+            // copying, hashing and sorting thousands of large component-bearing stacks twice.
+            if ((baseItems == null || baseItems.isEmpty()) && itemProviders.size() == 1
+                && itemProviders.get(0) == uniqueGeneratedProvider) {
+                Collection<ItemStack> provided;
+                try {
+                    provided = uniqueGeneratedProvider.get();
+                } catch (RuntimeException ignored) {
+                    return;
+                }
+                if (provided != null) provided.forEach(output);
+                return;
+            }
             List<ItemStack> items = new ArrayList<>();
             Set<ItemStackKey> seen = new HashSet<>();
             if (baseItems != null) {
@@ -366,8 +387,11 @@ public final class CreativeTabManager {
             if (stack == null || stack.isEmpty()) {
                 return;
             }
-            ItemStack normalized = stack.copy();
-            normalized.setCount(1);
+            ItemStack normalized = stack;
+            if (stack.getCount() != 1) {
+                normalized = stack.copy();
+                normalized.setCount(1);
+            }
             if (seen.add(new ItemStackKey(normalized))) {
                 items.add(stack.copy());
             }

@@ -868,7 +868,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
      */
     private static List<FacadeBlockStateInfo> collectJeiFacadeInfos() {
         LinkedHashMap<ItemStackKey, FacadeBlockStateInfo> unique = new LinkedHashMap<>();
-        for (FacadeBlockStateInfo info : FacadeStateManager.validFacadeStates.values()) {
+        for (FacadeBlockStateInfo info : FacadeStateManager.getIndexedStates()) {
             if (!info.isVisible || info.requiredStack.isEmpty()) {
                 continue;
             }

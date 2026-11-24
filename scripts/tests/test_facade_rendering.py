@@ -456,5 +456,166 @@ public class FacadeAOProbe {
         self.assertIn('if (layer != RenderCompat.translucent())', code)
         self.assertIn('} else if (layer == RenderCompat.translucent())', code)
 
+
+class FacadeValidation(unittest.TestCase):
+    """The registry must reject unsafe geometry before publishing recipes or facade items."""
+
+    @staticmethod
+    def effective(target, name):
+        props = load_properties()
+        layout = target_layout(target, props)
+        rel = f'src/main/java/buildcraft/silicon/plug/{name}.java'
+        src = resolve_effective_source(layout, props, rel)
+        with tempfile.TemporaryDirectory(prefix='bcce-facade-validation-') as td:
+            out = Path(td) / rel
+            _materialize_text_file(src, out, logical_relative=rel,
+                                   minecraft=props[f'target.{target}.deps.minecraft'],
+                                   family=layout.family, platform=layout.platform, preprocess=True)
+            return out.read_text(encoding='utf-8')
+
+    def test_all_targets_validate_before_registering(self):
+        from source_config import target_ids
+        for target in target_ids(load_properties()):
+            with self.subTest(target=target):
+                manager = self.effective(target, 'FacadeStateManager')
+                validator = self.effective(target, 'FacadeStateValidator')
+                self.assertIn('FacadeStateValidator.blockProblem(block)', manager)
+                self.assertIn('FacadeStateValidator.geometryProblem(state,', manager)
+                self.assertNotIn('wholeBlockAllowed', manager)
+                for guard in ('!state.getFluidState().isEmpty()', 'state.hasBlockEntity()',
+                              'state.getRenderShape() != RenderShape.MODEL'):
+                    self.assertIn(guard, manager)
+                scan = manager[manager.index('private static void scanBlock('):]
+                self.assertLess(scan.index('isValidFacadeBlock(block)'), scan.index('doesPropertyConform(property)'))
+                self.assertLess(scan.index('isValidFacadeState(state)'), scan.index('getRequiredStack(state)'))
+                self.assertLess(scan.index('isValidFacadeState(state)'), scan.index('validFacadeStates.put(state, info)'))
+                self.assertIn('stateResult.getObject()', scan)
+                self.assertNotIn('net.minecraft.client.', validator)
+                if target.startswith(('1.19.2-', '1.20.1-')):
+                    self.assertIn('import net.minecraft.world.level.block.GlassBlock;', validator)
+                    self.assertIn('block instanceof GlassBlock', validator)
+                else:
+                    self.assertNotIn('import net.minecraft.world.level.block.GlassBlock;', validator)
+                    self.assertNotIn('block instanceof GlassBlock', validator)
+                if target.startswith(('1.19.2-', '1.20.1-', '1.21.1-')):
+                    self.assertIn('state.isSolidRender(access, pos)', validator)
+                    self.assertIn('instanceof BushBlock', validator)
+                else:
+                    self.assertIn('state.isSolidRender()', validator)
+                    self.assertIn('instanceof VegetationBlock', validator)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'Java SDK required')
+    def test_geometry_policy_with_legacy_and_modern_signatures(self):
+        # Run the actual materialized Java policy with small Minecraft shape/property stand-ins.
+        # These are logic regressions, not substitutes for a game integration test of a real mod's model.
+        from source_config import target_ids
+        for target in target_ids(load_properties()):
+            with self.subTest(target=target):
+                code = self.effective(target, 'FacadeStateValidator')
+                policy = code[code.index('final class FacadeStateValidator {'):]
+                policy = policy.replace('final class FacadeStateValidator {', 'static final class FacadeStateValidator {', 1)
+                legacy = target.startswith(('1.19.2-', '1.20.1-'))
+                old_shape_api = legacy or target.startswith('1.21.1-')
+                plant = 'BushBlock' if old_shape_api else 'VegetationBlock'
+                solid = ('boolean isSolidRender(SingleBlockAccess a, BlockPos p) { return solid; }'
+                         if old_shape_api else 'boolean isSolidRender() { return solid; }')
+                program = r'''import java.util.*;
+public class FacadeValidationProbe {
+    enum Direction { DOWN, UP, NORTH, SOUTH, EAST, WEST }
+    enum Half { UPPER, LOWER }
+    record Property<T extends Comparable<T>>(String name, Class<T> type, Map<String,T> values) {
+        String getName() { return name; }
+        Class<T> getValueClass() { return type; }
+        Optional<T> getValue(String name) { return Optional.ofNullable(values.get(name)); }
+    }
+    record StateDefinition(List<Property<?>> properties) {
+        List<Property<?>> getProperties() { return properties; }
+    }
+    static class Block {
+        final StateDefinition definition;
+        Block(Property<?>... p) { definition = new StateDefinition(List.of(p)); }
+        StateDefinition getStateDefinition() { return definition; }
+        static boolean isShapeFullBlock(boolean full) { return full; }
+    }
+    static class __PLANT__ extends Block {}
+    __LEGACY_GLASS_CLASS__
+    static class StainedGlassBlock extends Block {}
+    static class LeavesBlock extends Block {}
+    static class Blocks {
+        static final Block GLASS = new Block(), TINTED_GLASS = new Block();
+    }
+    static class BlockTags { static final Object LEAVES = new Object(); }
+    static class BlockPos { static final BlockPos ZERO = new BlockPos(); }
+    record SingleBlockAccess(BlockState state) {}
+    record BlockState(Block block, boolean outline, boolean collision, boolean solid, Direction weak, boolean leaves) {
+        boolean getShape(SingleBlockAccess a, BlockPos p) { return outline; }
+        boolean getCollisionShape(SingleBlockAccess a, BlockPos p) { return collision; }
+        __SOLID__
+        boolean isFaceSturdy(SingleBlockAccess a, BlockPos p, Direction d) { return d != weak; }
+        boolean is(Object tag) { return leaves && tag == BlockTags.LEAVES; }
+        Block getBlock() { return block; }
+    }
+    __POLICY__
+    static int checks;
+    static void expect(boolean ok, String label) {
+        checks++;
+        if (!ok) throw new AssertionError(label);
+    }
+    static Property<Boolean> flag(String n) { return new Property<>(n, Boolean.class, Map.of()); }
+    static Property<Integer> connection(String n) { return new Property<>(n, Integer.class, Map.of()); }
+    static boolean valid(Block b, String path, boolean outline, boolean collision, boolean solid, Direction weak) {
+        return FacadeStateValidator.blockProblem(b) == null && FacadeStateValidator.geometryProblem(
+            new BlockState(b, outline, collision, solid, weak, false), path) == null;
+    }
+    public static void main(String[] args) {
+        Block stone = new Block();
+        expect(valid(stone, "stone", true, true, true, null), "stone");
+        expect(!valid(stone, "slab", false, true, true, null), "partial outline");
+        expect(!valid(stone, "tea_crop", true, false, false, null), "fake full selection shape");
+        expect(!valid(stone, "christmas_tree", true, true, false, null), "non-occluding decoration");
+        expect(!valid(new __PLANT__(), "day_lily", true, true, true, null), "plant even with fake solid shapes");
+        Block doublePlant = new Block(new Property<>("half", Half.class, Map.of("upper", Half.UPPER, "lower", Half.LOWER)));
+        expect(!valid(doublePlant, "dead_shrub", true, true, true, null), "custom double plant");
+        Block pipe = new Block(connection("north"), connection("south"), connection("up"), flag("straight"));
+        expect(!valid(pipe, "framed_energy_pipe", true, true, true, null), "connection-dependent pipe");
+        Block boolPipe = new Block(flag("north"), flag("east"), flag("straight"));
+        expect(!valid(boolPipe, "framed_pipe", true, true, true, null), "boolean pipe connections");
+        Block mushroom = new Block(flag("north"), flag("east"), flag("south"), flag("west"), flag("up"), flag("down"));
+        expect(valid(mushroom, "red_mushroom_block", true, true, true, null), "cube with face-texture switches");
+        expect(valid(new Block(flag("powered")), "redstone_lamp", true, true, true, null), "stateful cube");
+        for (Direction face : Direction.values()) {
+            expect(!valid(stone, "broken_cube", true, true, true, face), "weak " + face);
+        }
+        expect(valid(Blocks.GLASS, "glass", true, true, false, null), "glass");
+        expect(valid(Blocks.TINTED_GLASS, "tinted_glass", true, true, false, null), "tinted glass");
+        expect(valid(new Block(), "custom_stained_glass", true, true, false, null), "named modded glass");
+        __LEGACY_GLASS_CHECK__
+        expect(valid(new StainedGlassBlock(), "blue_stained_glass", true, true, false, null), "stained glass");
+        expect(valid(new LeavesBlock(), "oak_leaves", true, true, false, null), "full leaves");
+        expect(!valid(Blocks.GLASS, "glass", false, true, false, null), "glass cannot bypass outline");
+        expect(!valid(Blocks.GLASS, "glass", true, false, false, null), "glass cannot bypass collision");
+        expect(!valid(new LeavesBlock(), "oak_leaves", true, false, false, null), "foliage cannot bypass collision");
+        expect(!valid(stone, "glass_pane", false, false, false, null), "glass pane");
+        System.out.println(checks + " facade validation checks passed");
+    }
+}
+'''.replace('__POLICY__', policy).replace('__SOLID__', solid).replace('__PLANT__', plant)
+                program = program.replace('__LEGACY_GLASS_CLASS__',
+                                          'static class GlassBlock extends Block {}' if legacy else '')
+                program = program.replace('__LEGACY_GLASS_CHECK__',
+                                          'expect(valid(new GlassBlock(), "custom_glass", true, true, false, null), "legacy glass subclass");'
+                                          if legacy else '')
+                with tempfile.TemporaryDirectory(prefix='bcce-facade-policy-java-') as td:
+                    root = Path(td)
+                    (root / 'FacadeValidationProbe.java').write_text(program, encoding='utf-8')
+                    compiled = subprocess.run(['javac', 'FacadeValidationProbe.java'], cwd=root,
+                                              capture_output=True, text=True, timeout=30)
+                    self.assertEqual(0, compiled.returncode, compiled.stderr)
+                    result = subprocess.run(['java', 'FacadeValidationProbe'], cwd=root,
+                                            capture_output=True, text=True, timeout=30)
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertIn(f'{26 if legacy else 25} facade validation checks passed', result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

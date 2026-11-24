@@ -27,7 +27,7 @@ public class FacadePhasedState {
     public static FacadePhasedState readFromNbt(CompoundTag nbt) {
         // The index may still be initializing; preserve the stored material
         // rather than converting a failed allowlist lookup into AIR.
-        FacadeBlockStateInfo stateInfo = FacadeStateManager.defaultState;
+        FacadeBlockStateInfo stateInfo = FacadeStateManager.getDefaultState();
         if (nbt.contains("state")) {
             try {
                 BlockState blockState = SavedBlockStateNbt.read(NbtCompat.getCompound(nbt, "state"));

@@ -100,7 +100,7 @@ public class BCSilicon {
 
         BCCore.BUILDCRAFT_TAB.addItemProvider(BCSiliconItems::getMainTabItems);
         tabPlugs.addItemProvider(BCSiliconItems::getPlugTabItems);
-        tabFacades.addItemProvider(BCSiliconItems::getFacadeTabItems);
+        tabFacades.addUniqueGeneratedItemProvider(BCSiliconItems::getFacadeTabItems);
 
     }
 

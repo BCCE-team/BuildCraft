@@ -6,6 +6,8 @@
 
 package buildcraft.silicon.plug;
 
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLPaths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -50,7 +52,6 @@ import buildcraft.lib.misc.ItemStackUtil;
 import buildcraft.lib.misc.StackUtil;
 import buildcraft.lib.internal.api.v2.BuildCraftApiRuntime;
 import buildcraft.api.v2.reload.DefinitionProvenance;
-import buildcraft.lib.world.SingleBlockAccess;
 import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -77,7 +78,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.RenderShape;
-import net.minecraft.world.level.block.StainedGlassBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.level.block.state.properties.Property;
@@ -101,7 +101,10 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
     public static final boolean DEBUG = BCDebugging.shouldDebugLog("silicon.facade");
     public static final SortedMap<BlockState, FacadeBlockStateInfo> validFacadeStates;
     public static final Map<ItemStackKey, List<FacadeBlockStateInfo>> stackFacades;
-    public static FacadeBlockStateInfo defaultState, previewState;
+    public static volatile FacadeBlockStateInfo defaultState, previewState;
+    private static volatile long indexGeneration;
+
+    public static long indexGeneration() { return indexGeneration; }
 //? if mc_26_x {
     private static volatile boolean initialized;
 //? } else {
@@ -119,7 +122,7 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         stackFacades = new HashMap<>();
 //? if mc_26_x {
         defaultState = new FacadeBlockStateInfo(Blocks.AIR.defaultBlockState(), StackUtil.EMPTY, ImmutableSet.of());
-        previewState = defaultState;
+        previewState = getDefaultState();
 //? } else {
 //?}
     }
@@ -128,7 +131,7 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         return getInfoForState(block.defaultBlockState());
     }
 
-    private static FacadeBlockStateInfo getInfoForState(BlockState state) {
+    private static synchronized FacadeBlockStateInfo getInfoForState(BlockState state) {
         return validFacadeStates.get(state);
     }
 
@@ -253,15 +256,7 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         }
     }
 
-    /** @return One of:
-     *         <ul>
-     *         <li>{@link InteractionResult#SUCCESS} if every state of the block is valid for a facade.
-     *         <li>{@link InteractionResult#PASS} if every metadata needs to be checked by
-     *         {@link #isValidFacadeState(BlockState)}</li>
-     *         <li>{@link InteractionResult#FAIL} with string describing the problem with this block (if it is not valid
-     *         for a facade)</li>
-     *         </ul>
-     */
+    /** Block-wide exclusions. Every surviving state must still pass the geometry validator. */
     private static InteractionResultHolder<String> isValidFacadeBlock(Block block) {
         var disablingRule = BuildCraftApiRuntime.INSTANCE.facadeRules().disabledBy(block);
         if (disablingRule.isPresent()) {
@@ -273,11 +268,9 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         if (block instanceof LiquidBlock) {
             return new InteractionResultHolder<>(InteractionResult.FAIL, "it is a fluid block");
         }
-        // if (block instanceof BlockSlime) {
-        // return "it is a slime block";
-        // }
-        if (block == Blocks.GLASS || block instanceof StainedGlassBlock) {
-            return new InteractionResultHolder<>(InteractionResult.SUCCESS, "");
+        String problem = FacadeStateValidator.blockProblem(block);
+        if (problem != null) {
+            return new InteractionResultHolder<>(InteractionResult.FAIL, problem);
         }
         return new InteractionResultHolder<>(InteractionResult.PASS, "");
     }
@@ -290,6 +283,7 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
      *         </ul>
      */
     private static InteractionResultHolder<String> isValidFacadeState(BlockState state) {
+        if (state.isAir()) return new InteractionResultHolder<>(InteractionResult.FAIL, "it is air");
         if (!state.getFluidState().isEmpty()) {
             return new InteractionResultHolder<>(InteractionResult.FAIL, "it contains a fluid");
         }
@@ -299,8 +293,10 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         if (state.getRenderShape() != RenderShape.MODEL) {
             return new InteractionResultHolder<>(InteractionResult.FAIL, "it doesn't have a normal model");
         }
-        if (!Block.isShapeFullBlock(state.getShape(new SingleBlockAccess(state), BlockPos.ZERO))) {
-            return new InteractionResultHolder<>(InteractionResult.FAIL, "it isn't a full cube");
+        var id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        String problem = FacadeStateValidator.geometryProblem(state, id == null ? "" : id.getPath());
+        if (problem != null) {
+            return new InteractionResultHolder<>(InteractionResult.FAIL, problem);
         }
         return new InteractionResultHolder<>(InteractionResult.SUCCESS, "");
     }
@@ -346,7 +342,7 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
         return StackUtil.EMPTY;
     }
 
-    public static void init() {
+    public static synchronized void init() {
 //? if mc_26_x {
         if (initialized) {
             return;
@@ -357,37 +353,93 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
             }
             validFacadeStates.clear();
             stackFacades.clear();
-            previewState = defaultState;
+            previewState = getDefaultState();
 //? } else {
-        defaultState = new FacadeBlockStateInfo(Blocks.AIR.defaultBlockState(), StackUtil.EMPTY, ImmutableSet.of());
+        previewState = getDefaultState();
 //?}
 
 //? if mc_26_x {
-            for (Block block : BuiltInRegistries.BLOCK) {
-                scanBlock(block);
+            indexGeneration++;
+            Runnable commitCache = indexFacades();
+            previewState = validFacadeStates.getOrDefault(Blocks.BRICKS.defaultBlockState(),
+                validFacadeStates.getOrDefault(Blocks.STONE.defaultBlockState(), defaultState));
+            if (hasExpectedSentinel(Blocks.STONE) && hasExpectedSentinel(Blocks.GLASS)) {
+                initialized = true;
+                commitCache.run();
+            } else {
+                BCLog.logger.warn("[silicon.facade] Index incomplete; will retry at next level load ({} states)", validFacadeStates.size());
             }
-
-            previewState = validFacadeStates.getOrDefault(Blocks.BRICKS.defaultBlockState(), defaultState);
-            initialized = true;
-//? } else {
-        for (Block block : BuiltInRegistries.BLOCK) {
-            scanBlock(block);
-//?}
         }
-//? if mc_26_x {
     }
 //? } else {
+        validFacadeStates.clear();
+        stackFacades.clear();
+        indexGeneration++;
+        Runnable commitCache = indexFacades();
+        commitCacheIfComplete(commitCache);
 //?}
 
 //? if mc_26_x {
     public static boolean isInitialized() {
         return initialized;
 //? } else {
-        previewState = validFacadeStates.getOrDefault(Blocks.BRICKS.defaultBlockState(), defaultState);
+        previewState = validFacadeStates.getOrDefault(Blocks.BRICKS.defaultBlockState(),
+                validFacadeStates.getOrDefault(Blocks.STONE.defaultBlockState(), defaultState));
 //?}
     }
 
-    private static void scanBlock(Block block) {
+    public static synchronized FacadeBlockStateInfo getDefaultState() {
+        if (defaultState == null) {
+            defaultState = new FacadeBlockStateInfo(Blocks.AIR.defaultBlockState(), StackUtil.EMPTY, ImmutableSet.of());
+        }
+        return defaultState;
+    }
+
+    public static synchronized FacadeBlockStateInfo getPreviewState() {
+        return previewState == null ? getDefaultState() : previewState;
+    }
+
+    /** Snapshot only the canonical discovery entries; do not expose a partially rebuilt map. */
+    public static synchronized List<FacadeBlockStateInfo> getIndexedStates() {
+        return List.copyOf(validFacadeStates.values());
+    }
+
+    /** The discovery allowlist is not the persisted material format. Never replace a decoded block with AIR. */
+    public static synchronized FacadeBlockStateInfo resolvePersistedState(BlockState state) {
+        if (state == null || state.isAir()) return getDefaultState();
+        FacadeBlockStateInfo registered = validFacadeStates.get(state);
+        if (registered != null) return registered;
+        // An old representative, or a decode before the index is ready. Preserve the exact
+        // material, without publishing it as a new craftable/creative variant.
+        Item item = state.getBlock().asItem();
+        ItemStack stack = item == Items.AIR ? StackUtil.EMPTY : new ItemStack(item, 1);
+        return new FacadeBlockStateInfo(state, stack, ImmutableSet.copyOf(state.getProperties()));
+    }
+
+    /** Existing installed facades may load, but newly placed materials must satisfy current policy. */
+    public static synchronized boolean canPlaceState(BlockState state) {
+        if (state == null || state.isAir()) return false;
+        if (validFacadeStates.containsKey(state)) return true;
+        try {
+            if (isValidFacadeBlock(state.getBlock()).getResult() != InteractionResult.PASS
+                || isValidFacadeState(state).getResult() != InteractionResult.SUCCESS
+                || shouldSkipFacadeState(state.getBlock(), state)) return false;
+            ItemStack required = getRequiredStack(state);
+            if (required.isEmpty()) return false;
+            List<FacadeBlockStateInfo> representatives = stackFacades.get(new ItemStackKey(required));
+            if (representatives == null) return false;
+            for (FacadeBlockStateInfo info : representatives) {
+                if (info.state.getBlock() == state.getBlock()
+                    && BlockUtil.getPropertiesStringMap(state, info.varyingProperties)
+                        .equals(BlockUtil.getPropertiesStringMap(info.state, info.varyingProperties))) return true;
+            }
+            return false;
+        } catch (RuntimeException | LinkageError e) {
+            return false;
+        }
+    }
+
+    private static void scanBlock(Block block, FacadePersistentCache.Capture capture) {
         try {
             if (!DEBUG && KNOWN_INVALID_REPORTED_MODS.contains(BuiltInRegistries.BLOCK.getKey(block).getNamespace())) {
                 if (BCLib.VERSION.startsWith("7.99")) {
@@ -395,6 +447,15 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
                         "[silicon.facade] Skipping " + block + " as it has been added to the list of broken mods!");
                     return;
                 }
+            }
+
+            InteractionResultHolder<String> result = isValidFacadeBlock(block);
+            if (result.getResult() != InteractionResult.PASS) {
+                if (DEBUG) {
+                    BCLog.logger.info("[silicon.facade] Disallowed block " + BuiltInRegistries.BLOCK.getKey(block)
+                        + " because " + result.getObject());
+                }
+                return;
             }
 
             // Check to make sure that all the properties work properly
@@ -405,54 +466,37 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
                 allPropertiesOk &= doesPropertyConform(property);
             }
             if (!allPropertiesOk) {
+                capture.failed = true;
                 return;
             }
 
-            InteractionResultHolder<String> result = isValidFacadeBlock(block);
-            // These strings are hardcoded, so we can get away with not needing the .equals check
-            if (result.getResult() != InteractionResult.PASS && result.getResult() != InteractionResult.SUCCESS) {
-                if (DEBUG) {
-                    BCLog.logger.info("[silicon.facade] Disallowed block " + BuiltInRegistries.BLOCK.getKey(block) + " because "
-                        + result.getResult());
-                }
-                return;
-            } else if (DEBUG) {
-                if (result.getResult() == InteractionResult.SUCCESS) {
-                    BCLog.logger.info("[silicon.facade] Allowed block " + BuiltInRegistries.BLOCK.getKey(block));
-                }
-            }
-            // A PASS from the block-level filter requires an independent decision
-            // for every state; an earlier accepted state must not authorize the next.
-            final boolean wholeBlockAllowed = result.getResult() == InteractionResult.SUCCESS;
-            Map<BlockState, ItemStack> usedStates = new HashMap<>();
+            BlockState defaultBlockState = block.defaultBlockState();
+            java.util.Comparator<BlockState> stateOrder = BlockUtil.blockStateComparator();
+            Map<BlockState, ItemStack> usedStates = new TreeMap<>((a, b) -> {
+                if (a == b) return 0;
+                if (a == defaultBlockState) return -1;
+                if (b == defaultBlockState) return 1;
+                return stateOrder.compare(a, b);
+            });
             Map<ItemStackKey, Map<Property<?>, Comparable<?>>> varyingProperties = new HashMap<>();
             int skippedStateCount = 0;
             BlockState firstSkippedState = null;
             RuntimeException firstStateFailure = null;
             for (BlockState state : block.getStateDefinition().getPossibleStates()) {
-                // state = block.getStateFromMeta(block.getMetaFromState(state));
-                // if (!checkedStates.add(state)) {
-                // continue;
-                // }
-                if (!wholeBlockAllowed) {
+                final ItemStack requiredStack;
+                try {
+                    // Even explicitly supported glass must satisfy state-level safety and geometry.
                     InteractionResultHolder<String> stateResult = isValidFacadeState(state);
-                    if (stateResult.getResult() == InteractionResult.SUCCESS) {
+                    if (stateResult.getResult() != InteractionResult.SUCCESS) {
                         if (DEBUG) {
-                            BCLog.logger.info("[silicon.facade] Allowed state " + state);
-                        }
-                    } else {
-                        if (DEBUG) {
-                            BCLog.logger
-                                .info("[silicon.facade] Disallowed state " + state + " because " + stateResult.getResult());
+                            BCLog.logger.info("[silicon.facade] Disallowed state " + state
+                                + " because " + stateResult.getObject());
                         }
                         continue;
                     }
-                }
-                if (shouldSkipFacadeState(block, state)) {
-                    continue;
-                }
-                final ItemStack requiredStack;
-                try {
+                    if (shouldSkipFacadeState(block, state)) {
+                        continue;
+                    }
                     requiredStack = getRequiredStack(state);
                 } catch (RuntimeException e) {
                     skippedStateCount++;
@@ -489,86 +533,80 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
                         Property<?> prop = entry.getKey();
                         Comparable<?> value = entry.getValue();
 //?}
-                        if (vars.get(prop) != value) {
+                        if (!Objects.equals(vars.get(prop), value)) {
                             vars.put(prop, null);
                         }
                     }
                 }
             }
             FriendlyByteBuf testingBuffer = new FriendlyByteBuf(Unpooled.buffer());
-            varyingProperties.forEach((key, vars) -> {
-                if (DEBUG) {
-                    BCLog.logger.info("[silicon.facade]   pre-" + key + ":");
-                    vars.keySet().forEach(p -> BCLog.logger.info("[silicon.facade]       " + p));
-                }
-                vars.entrySet().removeIf(entry -> Objects.nonNull(entry.getValue())
-                    || shouldIgnoreFacadeProperty(block, entry.getKey()));
-                if (DEBUG && !vars.isEmpty()) {
-                    BCLog.logger.info("[silicon.facade]   " + key + ":");
-                    vars.keySet().forEach(p -> BCLog.logger.info("[silicon.facade]       " + p));
-                }
-            });
-            Set<String> addedSignatures = new HashSet<>();
-            for (Entry<BlockState, ItemStack> entry : usedStates.entrySet()) {
-                BlockState state = entry.getKey();
-                ItemStack stack = entry.getValue();
-                Map<Property<?>, Comparable<?>> vars = varyingProperties.get(new ItemStackKey(stack));
-                if (stack.isEmpty()) {
-                    continue;
-                }
-                String signature = createFacadeSignature(state, stack, vars);
-                if (!addedSignatures.add(signature)) {
-                    continue;
-                }
-                FacadeBlockStateInfo previousInfo = null;
-                boolean registeredForValidation = false;
-                try {
-                    ImmutableSet<Property<?>> varSet = ImmutableSet.copyOf(vars.keySet());
-                    FacadeBlockStateInfo info = new FacadeBlockStateInfo(state, stack, varSet);
-                    // The NBT/buffer readers resolve the state through this map, so register it temporarily for
-                    // validation and roll it back if a third-party state cannot be serialized safely.
-                    previousInfo = validFacadeStates.put(state, info);
-                    registeredForValidation = true;
-
-                    // Test to make sure that we can read + write it
-                    FacadePhasedState phasedState = info.createPhased(null);
-                    CompoundTag nbt = phasedState.writeToNbt();
-                    FacadePhasedState read = FacadePhasedState.readFromNbt(nbt);
-                    if (read.stateInfo != info) {
-                        throw new IllegalStateException("Read (from NBT) state was different! (\n\t" + read.stateInfo
-                            + "\n !=\n\t" + info + "\n\tNBT = " + nbt + "\n)");
-                    }
-                    phasedState.writeToBuffer(testingBuffer);
-                    read = FacadePhasedState.readFromBuffer(testingBuffer);
-                    if (read.stateInfo != info) {
-                        throw new IllegalStateException("Read (from buffer) state was different! (\n\t" + read.stateInfo
-                            + "\n !=\n\t" + info + "\n)");
-                    }
-                    testingBuffer.clear();
-                    if (!info.requiredStack.isEmpty()) {
-                        ItemStackKey stackKey = new ItemStackKey(info.requiredStack);
-                        stackFacades.computeIfAbsent(stackKey, k -> new ArrayList<>()).add(info);
-                    }
+            try {
+                varyingProperties.forEach((key, vars) -> {
                     if (DEBUG) {
-                        BCLog.logger.info("[silicon.facade]   Added " + info);
+                        BCLog.logger.info("[silicon.facade]   pre-" + key + ":");
+                        vars.keySet().forEach(p -> BCLog.logger.info("[silicon.facade]       " + p));
                     }
-                } catch (RuntimeException e) {
-                    testingBuffer.clear();
-                    if (registeredForValidation) {
-                        if (previousInfo == null) {
-                            validFacadeStates.remove(state);
-                        } else {
-                            validFacadeStates.put(state, previousInfo);
+                    vars.entrySet().removeIf(entry -> Objects.nonNull(entry.getValue())
+                        || shouldIgnoreFacadeProperty(block, entry.getKey()));
+                    if (DEBUG && !vars.isEmpty()) {
+                        BCLog.logger.info("[silicon.facade]   " + key + ":");
+                        vars.keySet().forEach(p -> BCLog.logger.info("[silicon.facade]       " + p));
+                    }
+                });
+                Map<ItemStackKey, Set<Map<String, String>>> addedSignatures = new HashMap<>();
+                for (Entry<BlockState, ItemStack> entry : usedStates.entrySet()) {
+                    BlockState state = entry.getKey();
+                    ItemStack stack = entry.getValue();
+                    ItemStackKey stackKey = new ItemStackKey(stack);
+                    Map<Property<?>, Comparable<?>> vars = varyingProperties.get(stackKey);
+                    if (stack.isEmpty()) {
+                        continue;
+                    }
+                    Map<String, String> signature = BlockUtil.getPropertiesStringMap(state, vars.keySet());
+                    Set<Map<String, String>> signatures = addedSignatures.computeIfAbsent(stackKey, k -> new HashSet<>());
+                    if (signatures.contains(signature)) {
+                        continue;
+                    }
+                    FacadeBlockStateInfo previousInfo = null;
+                    boolean registeredForValidation = false;
+                    try {
+                        ImmutableSet<Property<?>> varSet = ImmutableSet.copyOf(vars.keySet());
+                        FacadeBlockStateInfo info = new FacadeBlockStateInfo(state, stack, varSet);
+                        // The NBT/buffer readers resolve the state through this map, so register it temporarily for
+                        // validation and roll it back if a third-party state cannot be serialized safely.
+                        previousInfo = validFacadeStates.put(state, info);
+                        registeredForValidation = true;
+
+                        FacadeStateRoundTrip.verify(info, testingBuffer);
+                        if (!info.requiredStack.isEmpty()) {
+                            stackFacades.computeIfAbsent(stackKey, k -> new ArrayList<>()).add(info);
+                        }
+                        if (DEBUG) {
+                            BCLog.logger.info("[silicon.facade]   Added " + info);
+                        }
+                        capture.add(info);
+                        signatures.add(signature);
+                    } catch (RuntimeException e) {
+                        testingBuffer.clear();
+                        if (registeredForValidation) {
+                            if (previousInfo == null) {
+                                validFacadeStates.remove(state);
+                            } else {
+                                validFacadeStates.put(state, previousInfo);
+                            }
+                        }
+                        skippedStateCount++;
+                        if (firstStateFailure == null) {
+                            firstStateFailure = e;
+                            firstSkippedState = state;
                         }
                     }
-                    skippedStateCount++;
-                    if (firstStateFailure == null) {
-                        firstStateFailure = e;
-                        firstSkippedState = state;
-                    }
                 }
+            } finally {
+                testingBuffer.release();
             }
             if (skippedStateCount > 0) {
+                capture.failed = true;
 //? if mc_26_x {
                 Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
 //? } else {
@@ -583,6 +621,7 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
                 }
             }
         } catch (RuntimeException e) {
+            capture.failed = true;
 //? if mc_26_x {
             Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
 //? } else {
@@ -595,6 +634,72 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
             } else {
                 BCLog.logger.warn(summary);
             }
+        }
+    }
+
+    private static void commitCacheIfComplete(Runnable commitCache) {
+        // An early/incomplete registry scan must never overwrite a usable on-disk index.
+        if (hasExpectedSentinel(Blocks.STONE) && hasExpectedSentinel(Blocks.GLASS)) {
+            commitCache.run();
+        }
+    }
+
+    private static boolean hasExpectedSentinel(Block block) {
+        // If an addon deliberately disables/maps stone or glass, the absence of its default
+        // state is not an incomplete scan. The registry item must still exist.
+        return block.asItem() != Items.AIR && (validFacadeStates.containsKey(block.defaultBlockState())
+            || BuildCraftApiRuntime.INSTANCE.facadeRules().hasRuleFor(block));
+    }
+
+    private static Runnable indexFacades() {
+        Map<String, String> versions = new TreeMap<>();
+        try {
+            ModList.get().forEachModContainer((id, mod) ->
+            versions.put(mod.getModId(), mod.getModInfo().getVersion().toString()));
+        } catch (RuntimeException | LinkageError e) {
+            BCLog.logger.warn("[silicon.facade] Mod version metadata unavailable: {}", e.toString());
+            versions.clear();
+        }
+        return FacadePersistentCache.index(FMLPaths.GAMEDIR.get(), versions, BuiltInRegistries.BLOCK,
+            block -> Objects.toString(BuiltInRegistries.BLOCK.getKey(block), null),
+            item -> Objects.toString(BuiltInRegistries.ITEM.getKey(item), null),
+            FacadeStateManager::scanBlock, FacadeStateManager::registerCached,
+            state -> isValidFacadeBlock(state.getBlock()).getResult() == InteractionResult.PASS
+                && isValidFacadeState(state).getResult() == InteractionResult.SUCCESS
+                && !shouldSkipFacadeState(state.getBlock(), state), DEBUG);
+    }
+
+    private static void registerCached(List<FacadeBlockStateInfo> infos) {
+        if (infos.isEmpty()) return;
+        Map<BlockState, FacadeBlockStateInfo> previous = new HashMap<>();
+        List<FacadeBlockStateInfo> inserted = new ArrayList<>();
+        FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+        try {
+            for (FacadeBlockStateInfo info : infos) {
+                previous.put(info.state, validFacadeStates.put(info.state, info));
+                inserted.add(info);
+                FacadeStateRoundTrip.verify(info, buffer);
+            }
+            for (FacadeBlockStateInfo info : inserted) {
+                ItemStackKey key = new ItemStackKey(info.requiredStack);
+                stackFacades.computeIfAbsent(key, k -> new ArrayList<>()).add(info);
+            }
+        } catch (RuntimeException | LinkageError e) {
+            for (int i = inserted.size() - 1; i >= 0; i--) {
+                FacadeBlockStateInfo info = inserted.get(i);
+                FacadeBlockStateInfo old = previous.get(info.state);
+                if (old == null) validFacadeStates.remove(info.state);
+                else validFacadeStates.put(info.state, old);
+                ItemStackKey key = new ItemStackKey(info.requiredStack);
+                List<FacadeBlockStateInfo> list = stackFacades.get(key);
+                if (list != null) {
+                    list.remove(info);
+                    if (list.isEmpty()) stackFacades.remove(key);
+                }
+            }
+            throw e;
+        } finally {
+            buffer.release();
         }
     }
 
@@ -652,23 +757,6 @@ public enum FacadeStateManager implements FacadeMaterialAdapter {
             return true;
         }
         return false;
-    }
-
-    private static String createFacadeSignature(BlockState state, ItemStack stack, Map<Property<?>, Comparable<?>> vars) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(new ItemStackKey(stack));
-        vars.keySet().stream()
-            .sorted((a, b) -> a.getName().compareTo(b.getName()))
-            .forEach(prop -> sb.append('|').append(prop.getName()).append('=')
-                .append(safeToString(() -> getPropertyValueName(state, prop))));
-        return sb.toString();
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    private static String getPropertyValueName(BlockState state, Property<?> property) {
-        Property raw = (Property) property;
-        Comparable value = state.getValue(raw);
-        return raw.getName(value);
     }
 
     private static <V extends Comparable<V>> boolean doesPropertyConform(Property<V> property) {

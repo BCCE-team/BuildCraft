@@ -294,6 +294,8 @@ public class CreativeTabManager {
         @Override
         public void fillItemList(NonNullList<ItemStack> items) {
             super.fillItemList(items);
+            // The built-in facade generator already emits unique, ordered variants.
+            if ("buildcraft.facades".equals(name) && itemProviders.isEmpty()) return;
 
             Set<ItemStackKey> seen = new HashSet<>();
             for (ItemStack existing : items) {
@@ -333,8 +335,11 @@ public class CreativeTabManager {
             if (stack == null || stack.isEmpty()) {
                 return;
             }
-            ItemStack normalized = stack.copy();
-            normalized.setCount(1);
+            ItemStack normalized = stack;
+            if (stack.getCount() != 1) {
+                normalized = stack.copy();
+                normalized.setCount(1);
+            }
             if (seen.add(new ItemStackKey(normalized))) {
                 items.add(stack.copy());
             }

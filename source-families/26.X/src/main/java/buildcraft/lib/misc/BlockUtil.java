@@ -519,18 +519,30 @@ public final class BlockUtil {
     }
 
     public static Comparator<BlockState> blockStateComparator() {
-        return (blockStateA, blockStateB) -> {
-            Block blockA = blockStateA.getBlock();
-            Block blockB = blockStateB.getBlock();
+        final Map<Block, Integer> unregisteredOrder = new java.util.IdentityHashMap<>();
+        return (a, b) -> {
+            if (a == b) return 0;
+            Block blockA = a.getBlock();
+            Block blockB = b.getBlock();
             if (blockA != blockB) {
-                return blockA.getDescriptionId().toString().compareTo(blockB.getDescriptionId().toString());
-            }
-            for (Property<?> property : Sets.intersection(new HashSet<>(blockStateA.getProperties()),
-                    new HashSet<>(blockStateB.getProperties()))) {
-                int compareResult = BlockUtil.compareProperty(property, blockStateA, blockStateB);
-                if (compareResult != 0) {
-                    return compareResult;
+                var idA = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(blockA);
+                var idB = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(blockB);
+                if (idA != null && idB != null) {
+                    int result = idA.compareTo(idB);
+                    if (result != 0) return result;
+                } else if (idA != null || idB != null) {
+                    return idA == null ? -1 : 1;
                 }
+                // Distinct blocks must never compare equal, even when a loader has remapped a key.
+                synchronized (unregisteredOrder) {
+                    return Integer.compare(unregisteredOrder.computeIfAbsent(blockA, k -> unregisteredOrder.size()),
+                        unregisteredOrder.computeIfAbsent(blockB, k -> unregisteredOrder.size()));
+                }
+            }
+            // States of one block share the same StateDefinition and ordered properties.
+            for (Property<?> property : blockA.getStateDefinition().getProperties()) {
+                int result = compareProperty(property, a, b);
+                if (result != 0) return result;
             }
             return 0;
         };

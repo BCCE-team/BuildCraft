@@ -37,7 +37,7 @@ public class FacadeInstance {
     public static FacadeInstance readFromNbt(CompoundTag nbt) {
         ListTag list = nbt.getList("states", Tag.TAG_COMPOUND);
         if (list.isEmpty()) {
-            return FacadeInstance.createSingle(FacadeStateManager.defaultState, false);
+            return FacadeInstance.createSingle(FacadeStateManager.getDefaultState(), false);
         }
         if (list.size() > 17) {
             throw new IllegalArgumentException("Too many facade phases: " + list.size());

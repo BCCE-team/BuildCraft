@@ -20,6 +20,7 @@ public final class FacadeRuleRegistryImpl implements FacadeRuleService {
     private final Set<Identifier> ruleIds = new HashSet<>();
     private final Map<Block, DisabledRule> disabled = new LinkedHashMap<>();
     private final Map<BlockState, MappingRule> mappings = new LinkedHashMap<>();
+    private final Set<Block> mappedBlocks = new HashSet<>();
 
     public synchronized void disable(Identifier ruleId, Block block, DefinitionProvenance provenance) {
         Objects.requireNonNull(ruleId, "ruleId");
@@ -41,6 +42,7 @@ public final class FacadeRuleRegistryImpl implements FacadeRuleService {
         ensureNewRuleId(ruleId);
         MappingRule candidate = new MappingRule(ruleId, stack.copy(), provenance);
         mappings.merge(state, candidate, this::winningMapping);
+        mappedBlocks.add(state.getBlock());
     }
 
     public synchronized Optional<DefinitionProvenance> disabledBy(Block block) {
@@ -51,6 +53,11 @@ public final class FacadeRuleRegistryImpl implements FacadeRuleService {
     public synchronized Optional<ItemStack> mappedStack(BlockState state) {
         MappingRule value = mappings.get(state);
         return value == null ? Optional.empty() : Optional.of(value.stack().copy());
+    }
+
+    /** Dynamic rule targets must not use persisted standard-item facade discovery results. */
+    public synchronized boolean hasRuleFor(Block block) {
+        return disabled.containsKey(block) || mappedBlocks.contains(block);
     }
 
     private void ensureNewRuleId(Identifier id) {

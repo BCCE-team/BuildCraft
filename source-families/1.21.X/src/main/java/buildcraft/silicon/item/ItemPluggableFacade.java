@@ -24,6 +24,7 @@ import buildcraft.lib.misc.StackUtil;
 import buildcraft.silicon.BCSiliconConfig;
 import buildcraft.silicon.BCSiliconPlugs;
 import buildcraft.silicon.plug.FacadeBlockStateInfo;
+import buildcraft.silicon.plug.FacadeCreativeCache;
 import buildcraft.silicon.plug.FacadeInstance;
 import buildcraft.silicon.plug.FacadePhasedState;
 import buildcraft.silicon.plug.FacadeStateManager;
@@ -49,6 +50,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.core.registries.BuiltInRegistries;
 
 public class ItemPluggableFacade extends Item implements IItemPluggable, ICreativeTabItemProvider {
+    private final FacadeCreativeCache creativeCache = new FacadeCreativeCache();
+
     public ItemPluggableFacade() {
         super(new Item.Properties().stacksTo(64));
 //        setHasSubtypes(true);
@@ -63,12 +66,23 @@ public class ItemPluggableFacade extends Item implements IItemPluggable, ICreati
         return item;
     }
 
+    @Override
+    public ItemStack getDefaultInstance() {
+        FacadeBlockStateInfo preview = FacadeStateManager.previewState;
+        return !BCSiliconConfig.enableFacades || preview == null || preview.state.isAir()
+            ? super.getDefaultInstance() : createCachedSingle(preview, false);
+    }
+
+    public ItemStack createCachedSingle(FacadeBlockStateInfo info, boolean hollow) {
+        return creativeCache.get(info, hollow, this::createItemStack);
+    }
+
     public static FacadeInstance getStates(@Nonnull ItemStack item) {
         CompoundTag nbt = NBTUtilBC.getItemData(item);
 
         String strPreview = nbt.getString("preview");
         if ("basic".equalsIgnoreCase(strPreview)) {
-            return FacadeInstance.createSingle(FacadeStateManager.previewState, false);
+            return FacadeInstance.createSingle(FacadeStateManager.getPreviewState(), false);
         }
 
         if (!nbt.contains("facade") && nbt.contains("states")) {
@@ -95,6 +109,9 @@ public class ItemPluggableFacade extends Item implements IItemPluggable, ICreati
             return PipePluggable.EMPTY;
         }
         FacadeInstance fullState = getStates(stack);
+        for (FacadePhasedState phase : fullState.phasedStates) {
+            if (!FacadeStateManager.canPlaceState(phase.stateInfo.state)) return PipePluggable.EMPTY;
+        }
         SoundUtil.playBlockPlace(holder.getPipeWorld(), holder.getPipePos(), fullState.phasedStates[0].stateInfo.state);
         return new PluggableFacade(BCSiliconPlugs.facade, holder, side, fullState);
     }
@@ -106,6 +123,10 @@ public class ItemPluggableFacade extends Item implements IItemPluggable, ICreati
         if (!BCSiliconConfig.enableFacades) {
             return;
         }
+        creativeCache.appendAll(this::buildCreativeTabItems, output);
+    }
+
+    private void buildCreativeTabItems(Consumer<ItemStack> output) {
         // Add a single phased facade as a default
         // The facade index is populated once a world is available.
         FacadeBlockStateInfo stone = FacadeStateManager.getInfoForBlock(Blocks.STONE);
@@ -120,15 +141,14 @@ public class ItemPluggableFacade extends Item implements IItemPluggable, ICreati
             output.accept(createItemStack(new FacadeInstance(states, false)));
         }
 
-        for (FacadeBlockStateInfo info : FacadeStateManager.validFacadeStates.values()) {
+        for (FacadeBlockStateInfo info : FacadeStateManager.getIndexedStates()) {
             if (BuiltInRegistries.BLOCK.getKey(info.state.getBlock()) == null) {
                 // Forge can de-register blocks if the server a client is connected to
                 // doesn't have the mods that created them.
                 continue;
             }
-            if (info.isVisible) {
-                output.accept(createItemStack(FacadeInstance.createSingle(info, false)));
-                output.accept(createItemStack(FacadeInstance.createSingle(info, true)));
+            if (info.isVisible && !info.state.isAir()) {
+                creativeCache.append(info, this::createItemStack, output);
             }
         }
     }
@@ -149,7 +169,7 @@ public class ItemPluggableFacade extends Item implements IItemPluggable, ICreati
 
     public static Component getFacadeStateDisplayName(FacadePhasedState state) {
         ItemStack assumedStack = state.stateInfo.requiredStack;
-        return assumedStack.getHoverName();
+        return assumedStack.isEmpty() ? state.stateInfo.state.getBlock().getName() : assumedStack.getHoverName();
     }
 
     @Override
