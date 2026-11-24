@@ -57,7 +57,7 @@ class OriginalGuideResourcesTester {
         Assertions.assertTrue(listed >= 215, "The current guide must retain every contents entry");
         Assertions.assertEquals(pageKeys, layouts.keySet(), "Manifest and shared layouts disagree");
         Assertions.assertEquals(pageKeys, english.keySet(), "Default English text pack is incomplete");
-        Assertions.assertEquals(218, pageKeys.size(), "Unexpected number of distinct authored guide pages");
+        Assertions.assertTrue(pageKeys.size() >= 221, "The guide must retain its authored pages");
     }
 
     @Test
@@ -71,6 +71,7 @@ class OriginalGuideResourcesTester {
             String template = layout.get("template").getAsString();
             int slotCount = layout.get("slots").getAsInt();
             JsonArray en = english.getAsJsonArray(page);
+            Assertions.assertNotNull(en, "Missing default English text for " + page);
             Assertions.assertEquals(slotCount, en.size(), "English slot mismatch in " + page);
 
             Set<Integer> indexes = new HashSet<>();
@@ -143,7 +144,7 @@ class OriginalGuideResourcesTester {
     @Test
     void robotCareerEntriesCarryVariantNbt() throws Exception {
         JsonObject root = json(MANIFEST);
-        int careers = 0;
+        Set<String> careers = new HashSet<>();
         for (JsonElement element : root.getAsJsonArray("entries")) {
             JsonObject entry = element.getAsJsonObject();
             if (!entry.get("id").getAsString().startsWith("buildcraftrobotics:robot/")) {
@@ -151,10 +152,21 @@ class OriginalGuideResourcesTester {
             }
             Assertions.assertEquals("buildcraftrobotics:robot", entry.get("stack").getAsString());
             Assertions.assertTrue(entry.has("stack_nbt"), "Robot career entry must preserve its board variant");
-            net.minecraft.nbt.TagParser.parseTag(entry.get("stack_nbt").getAsString());
-            careers++;
+            String key = entry.get("id").getAsString().substring("buildcraftrobotics:robot/".length());
+            String variant = entry.get("stack_nbt").getAsString();
+            net.minecraft.nbt.TagParser.parseTag(variant);
+            Assertions.assertTrue(variant.contains("robot_key:\"" + key + "\""),
+                "Robot career variant does not match " + key);
+            Assertions.assertTrue(careers.add(key), "Duplicate robot career: " + key);
         }
-        Assertions.assertEquals(17, careers, "Every registered robot career must be documented");
+        // The source-side localization test also compares the guide against the
+        // effective board registry of every configured target. Keep this runtime
+        // baseline so existing careers cannot disappear when new ones are added.
+        Assertions.assertTrue(careers.containsAll(Set.of(
+            "picker", "carrier", "fluid_carrier", "lumberjack", "harvester", "miner",
+            "planter", "farmer", "leave_cutter", "butcher", "shovelman", "pump",
+            "delivery", "knight", "bomber", "stripes", "builder", "shepherd", "fisher", "beekeeper"
+        )), "Every existing built-in robot career must be documented");
     }
 
     @Test
@@ -341,7 +353,9 @@ class OriginalGuideResourcesTester {
                 continue;
             }
             String template = layouts.getAsJsonObject(page).get("template").getAsString();
-            String en = render(template, strings(english.getAsJsonArray(page)));
+            JsonArray text = english.getAsJsonArray(page);
+            Assertions.assertNotNull(text, "Missing default English text for " + page);
+            String en = render(template, strings(text));
             GuideDocument hidden = GuideDocument.parse(en, true, false, false);
             GuideDocument visible = GuideDocument.parse(en, true, true, false);
 

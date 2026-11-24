@@ -150,7 +150,11 @@ class GuiRegressions(unittest.TestCase):
         for kind in ['lens','filter']:
             for colour in ['clear', *COLOURS]:self.assertIn('item.'+kind+'.'+colour,self.lang)
         boards = re.findall(r'board\("[^"]+", "([^"]+)"',self.src('robotics/BCRoboticsBoards.java'))
-        self.assertEqual(19,len(boards))
+        # The parity guard locks the existing model-index order. Check names for
+        # every registered board, including any future append-only professions.
+        self.assertGreaterEqual(len(boards), 21)
+        self.assertEqual(len(boards), len(set(boards)))
+        self.assertTrue({'empty', 'shepherd', 'fisher', 'beekeeper'}.issubset(boards))
         for kind in ['robot','redstone_board']:
             for board in boards:self.assertIn('item.buildcraftrobotics.'+kind+'.'+board,self.lang)
         for path in ['silicon/item/ItemPluggableLens.java', 'silicon/item/ItemRedstoneChipset.java','builders/item/ItemSnapshot.java']:

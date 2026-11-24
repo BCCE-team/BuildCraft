@@ -347,7 +347,18 @@ class NeoForgeCompilerCompatibility(unittest.TestCase):
                 create_deps = [d for d in parsed["dependencies"]["buildcraftcompat"]
                                if d["modId"] == "create"]
                 self.assertEqual(create_deps, [])
-                self.assertEqual(bool(parsed.get("mixins")), not target.startswith("1.21.1-"))
+                # Robot hook protection is unconditional on every NeoForge
+                # target; the optional Jade integration starts at 1.21.11.
+                entries = parsed.get("mixins", [])
+                mixins = {entry["config"]: entry for entry in entries}
+                expected = {"buildcraft.robot-fishing.mixins.json"}
+                if target != "1.21.1-neoforge":
+                    expected.add("buildcraft.jade.mixins.json")
+                self.assertEqual(set(mixins), expected)
+                self.assertEqual(len(entries), len(expected))
+                self.assertNotIn("requiredMods", mixins["buildcraft.robot-fishing.mixins.json"])
+                if target != "1.21.1-neoforge":
+                    self.assertEqual(mixins["buildcraft.jade.mixins.json"]["requiredMods"], ["jade"])
 
     def test_moddev_gametest_metadata_is_staged_and_cleaned(self):
         # The 26.1.2 ModDev resources/main root can be empty. The GameTest

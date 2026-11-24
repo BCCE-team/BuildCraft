@@ -18,6 +18,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from source_lookup import read_materialized_java
+from source_config import target_ids
 LANG_FILE = ROOT / 'source-shared/src/main/resources/assets/buildcraft/lang/en_us.json'
 MANIFEST_FILE = ROOT / 'scripts/tests/localization_dedupe_manifest.json'
 
@@ -153,6 +154,59 @@ class LocalizationDeduplicationTests(unittest.TestCase):
         for file in [ROOT / 'source-shared/src/main/resources/assets/buildcraft/guide/page_layouts.json',
                      ROOT / 'source-shared/src/main/resources/assets/buildcraftbuilders/gui/filler_planner.json']:
             json.loads(file.read_text(encoding='utf-8'))
+
+    def test_english_guide_pack_covers_manifest_and_layout_slots(self):
+        # Run before Gradle: a valid JSON document can still be an invalid text
+        # pack if a new page is accidentally written outside the pages object.
+        guide = ROOT / 'source-shared/src/main/resources/assets/buildcraft/guide'
+        manifest = json.loads((guide / 'original_manifest.json').read_text(encoding='utf-8'))
+        layouts = json.loads((guide / 'page_layouts.json').read_text(encoding='utf-8'))['pages']
+        english = json.loads((guide / 'text/en_us.json').read_text(encoding='utf-8'))
+        self.assertEqual({'format', 'language', 'pages'}, set(english))
+        self.assertEqual('en_us', english['language'])
+        self.assertEqual(1, english['format'])
+        pages = english['pages']
+        self.assertEqual({entry['page'] for entry in manifest['entries']}, set(layouts))
+        self.assertEqual(set(layouts), set(pages))
+        self.assertGreaterEqual(len(pages), 221)
+        slot = re.compile(r'\{\{bc_text:(\d+)\}\}')
+        for page, layout in layouts.items():
+            with self.subTest(page=page):
+                values = pages[page]
+                self.assertIsInstance(values, list)
+                self.assertEqual(layout['slots'], len(values))
+                self.assertEqual(set(range(layout['slots'])),
+                                 {int(index) for index in slot.findall(layout['template'])})
+                self.assertTrue(all(isinstance(value, str) and value.strip() for value in values))
+                rendered = slot.sub(lambda match: values[int(match.group(1))], layout['template'])
+                self.assertIsNone(slot.search(rendered))
+
+    def test_guide_robot_careers_match_every_effective_board_registry(self):
+        guide = ROOT / 'source-shared/src/main/resources/assets/buildcraft/guide'
+        manifest = json.loads((guide / 'original_manifest.json').read_text(encoding='utf-8'))
+        entries = {}
+        for entry in manifest['entries']:
+            prefix = 'buildcraftrobotics:robot/'
+            if not entry['id'].startswith(prefix):
+                continue
+            key = entry['id'][len(prefix):]
+            self.assertNotIn(key, entries, 'Duplicate career guide entry')
+            self.assertEqual('buildcraftrobotics:robot', entry['stack'])
+            self.assertEqual('buildcraftrobotics/robot/' + key, entry['page'])
+            self.assertTrue(entry['listed'], key)
+            variant = re.fullmatch(r'\{board:\{id:"([^"]+)"\},energy:0,robot_key:"([^"]+)"\}',
+                                   entry['stack_nbt'])
+            self.assertIsNotNone(variant, key)
+            self.assertEqual(key, variant.group(2))
+            entries[key] = variant.group(1)
+        self.assertGreaterEqual(len(entries), 20)
+        for target in target_ids():
+            with self.subTest(target=target):
+                registry = read_materialized_java(target, 'src/main/java/buildcraft/robotics/BCRoboticsBoards.java')
+                boards = re.findall(r'\bboard\("([^"]+)",\s*"([^"]+)"', registry)
+                expected = {key: board_id for board_id, key in boards if key != 'empty'}
+                self.assertEqual(len(expected), sum(key != 'empty' for _, key in boards), 'Duplicate board key')
+                self.assertEqual(expected, entries)
 
 
 if __name__ == '__main__':

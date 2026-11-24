@@ -40,6 +40,7 @@ public class LivingEntity extends Entity{
 }''',
 'net/minecraft/world/entity/EquipmentSlot.java': '''package net.minecraft.world.entity;public enum EquipmentSlot{MAINHAND}''',
 'net/minecraft/world/item/SwordItem.java': '''package net.minecraft.world.item;public class SwordItem{}''',
+'net/minecraft/world/item/ShearsItem.java': '''package net.minecraft.world.item;public class ShearsItem{}''',
 'net/minecraft/world/item/ItemStack.java': '''package net.minecraft.world.item;
 public class ItemStack{
  public Object item;public boolean damaged;
@@ -70,13 +71,14 @@ public class ServerLevel extends net.minecraft.world.level.Level{}''',
 'buildcraft/lib/internal/area/IZone.java': '''package buildcraft.lib.internal.area;
 public interface IZone{boolean contains(net.minecraft.world.phys.Vec3 pos);}''',
 'buildcraft/api/v2/OperationMode.java': '''package buildcraft.api.v2;public enum OperationMode{SIMULATE,EXECUTE}''',
-'buildcraft/api/v2/permission/WorldOperationKind.java': '''package buildcraft.api.v2.permission;public enum WorldOperationKind{ENTITY_ATTACK}''',
+'buildcraft/api/v2/permission/WorldOperationKind.java': '''package buildcraft.api.v2.permission;public enum WorldOperationKind{ENTITY_ATTACK,ENTITY_INTERACT}''',
 'buildcraft/robotics/internal/api2/RobotAutomationSupport.java': '''package buildcraft.robotics.internal.api2;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;import net.minecraft.world.level.Level;
 import net.minecraft.world.entity.Entity;import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.permission.WorldOperationKind;
 public final class RobotAutomationSupport{
- public static boolean permitsEntity(EntityRobotBase robot,Level level,Entity target,WorldOperationKind kind,OperationMode mode){return !target.protectedMob;}
+ public static WorldOperationKind lastKind;
+ public static boolean permitsEntity(EntityRobotBase robot,Level level,Entity target,WorldOperationKind kind,OperationMode mode){lastKind=kind;return !target.protectedMob;}
 }''',
 'buildcraft/robotics/RobotTrace.java': '''package buildcraft.robotics;
 public class RobotTrace{
@@ -115,6 +117,13 @@ import buildcraft.robotics.internal.legacy.robots.*;import net.minecraft.world.e
 public class BoardRobotButcher extends AIRobot{
  public BoardRobotButcher(EntityRobotBase robot){super(robot);}
  public static boolean isValidTarget(Entity target){return target instanceof LivingEntity mob&&mob.passive&&!mob.tamed;}
+}''',
+'buildcraft/robotics/boards/BoardRobotShepherd.java': '''package buildcraft.robotics.boards;
+import buildcraft.robotics.internal.legacy.robots.*;import net.minecraft.world.entity.*;import net.minecraft.world.item.*;
+public class BoardRobotShepherd extends AIRobot {
+ public BoardRobotShepherd(EntityRobotBase robot){super(robot);}
+ public static boolean isValidTarget(Entity e){return e instanceof LivingEntity mob&&mob.passive&&!mob.tamed;}
+ public static boolean isUsableShears(ItemStack stack){return stack!=null&&!stack.isEmpty()&&stack.getItem() instanceof ShearsItem;}
 }''',
 'buildcraft/robotics/boards/BoardRobotKnight.java': '''package buildcraft.robotics.boards;
 import buildcraft.robotics.internal.legacy.robots.*;import net.minecraft.world.entity.*;
@@ -215,7 +224,30 @@ public class CombatPanelFixture {
   ok(level.entityQueries==before,"managed search unexpectedly scanned world");
   RobotCombatTargetScheduler.finished(d,selected.entity().getUUID(),selected.token());
   queueB.onRemoved();
-  System.out.println("PASS: shared entity scan, butcher/knight filters, cross-panel lease, Gate, sleep, autonomous fallback");
+  // Sheep shearing shares UUID leases without using ENTITY_ATTACK or harming the animal.
+  ServerLevel pasture=new ServerLevel();
+  TileRobotProcessor farm=new TileRobotProcessor(pasture,new BlockPos(0,65,0));
+  var shepherd=new EntityRobotBase(pasture,60,0,65,0);
+  shepherd.setBoard(new BoardRobotShepherd(shepherd));
+  shepherd.held=new net.minecraft.world.item.ItemStack(new net.minecraft.world.item.ShearsItem());
+  farm.linked.add(60L);
+  LivingEntity woolly=new LivingEntity(4,65,0,false,true);
+  pasture.entities.add(woolly);
+  RobotCombatTargetScheduler farmScheduler=new RobotCombatTargetScheduler(farm);
+  pasture.time=1;
+  farmScheduler.tick(pasture,List.of(shepherd));
+  ok(farmScheduler.queueCount(60L)==1,"shepherd did not receive a queued sheep");
+  ok(buildcraft.robotics.internal.api2.RobotAutomationSupport.lastKind
+      ==buildcraft.api.v2.permission.WorldOperationKind.ENTITY_INTERACT,
+      "sheep work requested entity ATTACK permission instead of INTERACT");
+  var fleece=RobotCombatTargetScheduler.acquire(shepherd,BoardRobotShepherd::isValidTarget,250,null);
+  ok(fleece!=null&&fleece.entity()==woolly&&fleece.token()>0,"shepherd did not acquire sheep lease");
+  ok(RobotCombatTargetScheduler.acquire(shepherd,BoardRobotShepherd::isValidTarget,250,null)==null,
+      "same sheep was reserved twice");
+  RobotCombatTargetScheduler.finished(shepherd,woolly.getUUID(),fleece.token());
+  ok(farmScheduler.queueCount(60L)==0,"shepherd did not release sheep lease");
+  farmScheduler.onRemoved();
+  System.out.println("PASS: shared entity scan, butcher/knight/shepherd filters, interact permissions, cross-panel lease, Gate, sleep, autonomous fallback");
  }
 }
 '''

@@ -81,6 +81,7 @@ source-family-platforms/26.X/fabric/src/main/java/buildcraft/energy/tile/TileEng
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/energy/tile/TileEngineIron_BC8.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/energy/tile/TileEngineStone_BC8.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/fabric/FabricModelLifecycle263.java
+source-family-platforms/26.X/fabric/src/main/java/buildcraft/fabric/mixin/FishingHookRobotGuardMixin.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/fabric/mixin/FluidFogMixin.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/fabric/mixin/GuiGraphicsStateAccess.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/fabric/mixin/LocalPlayerTickMixin.java

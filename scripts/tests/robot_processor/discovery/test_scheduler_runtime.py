@@ -300,6 +300,9 @@ public class RobotLogisticsScheduler {
 STUBS['buildcraft/robotics/boards/BoardRobotButcher.java'] = '''package buildcraft.robotics.boards;
 public class BoardRobotButcher extends buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot {}
 '''
+STUBS['buildcraft/robotics/boards/BoardRobotShepherd.java'] = '''package buildcraft.robotics.boards;
+public class BoardRobotShepherd extends buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot {}
+'''
 STUBS['buildcraft/robotics/boards/BoardRobotKnight.java'] = '''package buildcraft.robotics.boards;
 public class BoardRobotKnight extends buildcraft.robotics.internal.legacy.boards.RedstoneBoardRobot {}
 '''
@@ -335,7 +338,7 @@ public class RobotCombatTargetScheduler {
 '''
 for name in ['AIRobotSleep','AIRobotShutdown','AIRobotRecharge','AIRobotGotoSleep',
              'AIRobotGoAndLinkToDock','AIRobotSearchBlock','AIRobotSearchAndGotoBlock',
-             'AIRobotGotoBlock','AIRobotBreak','AIRobotHarvest','AIRobotPlant','AIRobotUseToolOnBlock','AIRobotSearchNearestBlock','AIRobotPumpBlock']:
+             'AIRobotGotoBlock','AIRobotBreak','AIRobotHarvest','AIRobotHarvestBeehive','AIRobotPlant','AIRobotUseToolOnBlock','AIRobotSearchNearestBlock','AIRobotPumpBlock']:
     STUBS[f'buildcraft/robotics/ai/{name}.java'] = (
         f'package buildcraft.robotics.ai; public class {name} '
         'extends buildcraft.robotics.internal.legacy.robots.AIRobot {}')

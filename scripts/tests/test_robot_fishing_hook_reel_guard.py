@@ -13,7 +13,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 MIXIN_FILES = {
-    'neoforge': ROOT / 'source-platforms/neoforge/src/main/java/buildcraft/robotics/mixin/FishingHookRobotGuardMixin.java',
+    'neoforge-1.21.X': ROOT / 'source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/robotics/mixin/FishingHookRobotGuardMixin.java',
+    'neoforge-26.X': ROOT / 'source-family-platforms/26.X/neoforge/src/main/java/buildcraft/robotics/mixin/FishingHookRobotGuardMixin.java',
     'fabric': ROOT / 'source-family-platforms/26.X/fabric/src/main/java/buildcraft/fabric/mixin/FishingHookRobotGuardMixin.java',
 }
 NEO_CONFIG = ROOT / 'source-platforms/neoforge/src/main/resources/buildcraft.robot-fishing.mixins.json'
@@ -118,7 +119,11 @@ class RobotFishingHookReelTests(unittest.TestCase):
         sources = dict(STUBS)
         for path in MIXIN_FILES.values():
             package = path.read_text().split('package ', 1)[1].split(';', 1)[0].replace('.', '/')
-            sources[f'{package}/FishingHookRobotGuardMixin.java'] = path.read_text()
+            relative = f'{package}/FishingHookRobotGuardMixin.java'
+            if relative in sources:
+                self.assertEqual(sources[relative], path.read_text(), 'NeoForge family variants must retain identical hook protection')
+            else:
+                sources[relative] = path.read_text()
         sources['ReelHarness.java'] = HARNESS
         with tempfile.TemporaryDirectory(prefix='bcce-robot-reel-') as tmp:
             dest = Path(tmp)
@@ -148,6 +153,20 @@ class RobotFishingHookReelTests(unittest.TestCase):
             for method in ('canHitEntity', 'onHitEntity', 'pullEntity'):
                 self.assertIn(f'@Inject(method = "{method}"', src)
             self.assertNotIn('setDeltaMovement', src, loader + ' must not alter AI motion')
+
+    def test_neoforge_mixin_is_owned_by_each_family_platform(self):
+        from scripts.source_layout import target_layout, effective_source_files, load_properties
+
+        props = load_properties()
+        relative = 'src/main/java/buildcraft/robotics/mixin/FishingHookRobotGuardMixin.java'
+        for family, target in [('1.21.X', '1.21.11-neoforge'), ('26.X', '26.3-neoforge')]:
+            source = MIXIN_FILES['neoforge-' + family]
+            self.assertTrue(source.is_file(), str(source))
+            allow_key = f'source.family_platform.{family}.neoforge.allow_loader_neutral'
+            self.assertIn(relative, props[allow_key].split(','), allow_key)
+            selected = effective_source_files(target_layout(target, props), props)
+            self.assertEqual(selected[relative], source, f'{target}: mixin must come from its family-platform owner')
+        self.assertFalse((ROOT / 'source-platforms/neoforge' / relative).exists())
 
     def test_robot_navigation_and_noclip_unchanged(self):
         roots = list(ROOT.rglob('EntityRobot.java'))

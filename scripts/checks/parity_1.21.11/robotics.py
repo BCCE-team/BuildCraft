@@ -340,10 +340,22 @@ def main() -> int:
         new_boards_registry = src(new, "robotics/BCRoboticsBoards.java")
         old_regs = board_registrations(old_boards_registry)
         new_regs = board_registrations(new_boards_registry)
-        require(old_regs == new_regs and len(new_regs) == 18,
-                "Robot profession registration/order/texture/effective cost diverged from 1.21.1")
-        require(len([entry for entry in new_regs if entry[1] != "empty"]) == 17,
-                "Expected all 17 playable robot professions")
+        require(old_regs == new_regs,
+                f"Robot profession registration/order/texture/effective cost diverged from 1.21.1: "
+                f"old={old_regs!r}, new={new_regs!r}")
+        # Model indices are persisted. Existing boards must retain their positions;
+        # new professions may only be appended, and must match on both targets.
+        expected_keys = (
+            "empty", "picker", "carrier", "fluid_carrier", "lumberjack", "harvester",
+            "miner", "planter", "farmer", "leave_cutter", "butcher", "shovelman", "pump",
+            "delivery", "knight", "bomber", "stripes", "builder", "shepherd", "fisher",
+            "beekeeper",
+        )
+        keys = tuple(entry[1] for entry in new_regs)
+        require(keys[:len(expected_keys)] == expected_keys,
+                f"Existing robot professions are missing or model indices changed: {keys!r}")
+        require(len(set(keys)) == len(keys) and len({entry[0] for entry in new_regs}) == len(new_regs),
+                "Duplicate robot board key or legacy ID")
 
         def ai_registrations(source: str) -> list[tuple[str, str, str | None]]:
             rows: list[tuple[str, str, str | None]] = []

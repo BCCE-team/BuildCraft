@@ -83,6 +83,31 @@ class TestRobotProcessorTextureAtlas(unittest.TestCase):
             for resource in SPRITES:
                 self.assertEqual(1, entries.get(resource), resource)
 
+    def test_board_atlas_contains_only_existing_board_textures(self):
+        prefix = 'buildcraftrobotics:items/board/'
+        expected = {prefix + path.stem for path in
+                    (ASSETS / 'textures/items/board').glob('*.png')}
+        self.assertTrue({prefix + color for color in
+                         ('blue', 'clean', 'green', 'red', 'yellow')} <= expected)
+        props = load_properties()
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp)
+            generate_legacy_resources_from_modern_canonical(
+                dest, minecraft='1.20.1', family='old', platform='forge')
+            paths = {'1.20.1-forge': dest / ATLAS_PATH}
+            for target in ('1.21.1-neoforge', '1.21.11-neoforge',
+                           '26.1.2-neoforge', '26.2-neoforge',
+                           '26.3-neoforge', '26.3-fabric'):
+                paths[target] = resolve_effective_source(
+                    target_layout(target, props), props, ATLAS_PATH)
+            for target, atlas in paths.items():
+                with self.subTest(target=target):
+                    self.assertIsNotNone(atlas)
+                    entries = read_sprites(atlas)
+                    actual = {resource: count for resource, count in entries.items()
+                              if resource.startswith(prefix)}
+                    self.assertEqual({resource: 1 for resource in expected}, actual)
+
     def test_119_does_not_need_modern_atlas(self):
         props = load_properties()
         path = resolve_effective_source(target_layout('1.19.2-forge', props), props, ATLAS_PATH)
