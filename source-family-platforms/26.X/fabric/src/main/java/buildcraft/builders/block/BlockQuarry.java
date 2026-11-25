@@ -6,6 +6,8 @@
 
 package buildcraft.builders.block;
 
+import java.util.List;
+
 import buildcraft.builders.tile.TileQuarry;
 import buildcraft.lib.block.BlockBCTile_Neptune;
 import buildcraft.lib.block.IBlockWithFacing;
@@ -27,10 +29,28 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.gameevent.GameEventListener;
 import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.storage.loot.LootParams.Builder;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 
 
 public class BlockQuarry extends BlockBCTile_Neptune implements IBlockWithFacing {
     private static final Identifier ADVANCEMENT = Identifier.parse("buildcraftbuilders:shaping_the_world");
+
+    /** Keep the enchanted item when the Quarry is harvested or exploded. */
+    @Override
+    public List<ItemStack> getDrops(BlockState state, Builder loot) {
+        List<ItemStack> drops = super.getDrops(state, loot);
+        BlockEntity blockEntity = loot.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
+        if (blockEntity instanceof TileQuarry quarry) {
+            for (int i = 0; i < drops.size(); i++) {
+                if (drops.get(i).is(asItem())) {
+                    drops.set(i, quarry.getQuarryDropStack());
+                    break;
+                }
+            }
+        }
+        return drops;
+    }
 
     public BlockQuarry() {
         super(Properties.of().mapColor(MapColor.METAL).sound(SoundType.ANVIL).strength(5.0f, 10.0f).requiresCorrectToolForDrops().dynamicShape());

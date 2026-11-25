@@ -416,19 +416,24 @@ jobs:
           set -euo pipefail
           cd "builds/${BUILD_GENERATION}"
           echo "Game-testing ${BUILD_GENERATION}/${STONECUTTER_TARGET}"
-          if ! ./gradlew --no-daemon --console=plain --stacktrace ":${STONECUTTER_TARGET}:runGameTestServer"; then
+          mkdir -p ../../build/gametest-logs
+          if ! ./gradlew --no-daemon --console=plain --stacktrace ":${STONECUTTER_TARGET}:runGameTestServer" 2>&1 | tee "../../build/gametest-logs/${STONECUTTER_TARGET}.log"; then
             echo "::error title=GameTests failed::${BUILD_GENERATION}/${STONECUTTER_TARGET} GameTests failed"
             exit 1
           fi
 
       - name: Extract semantic GameTest traces for cross-target parity
-        if: matrix.target != '26.3-fabric' 
         shell: bash
         run: |
           set -euo pipefail
+          log="run/${BUILD_GENERATION}/${STONECUTTER_TARGET}/logs/latest.log"
+          if [[ "${STONECUTTER_TARGET}" == "26.3-fabric" ]]; then
+            # Loom has its own GameTest run directory; consume this invocation only.
+            log="build/gametest-logs/${STONECUTTER_TARGET}.log"
+          fi
           python3 scripts/ci-system-trace-parity.py extract \
             --target "${STONECUTTER_TARGET}" \
-            --log "run/${BUILD_GENERATION}/${STONECUTTER_TARGET}/logs/latest.log" \
+            --log "$log" \
             --output "build/test-traces/${STONECUTTER_TARGET}.trace.json"
 
       # One blocking runtime gate replaces separate server-boot/client-menu smokes.
@@ -468,6 +473,7 @@ jobs:
           path: |
             build/*/*.jar
             build/test-traces/**
+            build/gametest-logs/**
             build/server-deps/${{ matrix.target }}/**
             builds/${{ matrix.generation }}/versions/${{ matrix.target }}/build/reports/tests/**
             builds/${{ matrix.generation }}/versions/${{ matrix.target }}/build/test-results/**
@@ -596,7 +602,7 @@ jobs:
           pattern: buildcraft-*
           path: build/aggregated-game-test-artifacts
           merge-multiple: true
-      - name: Compare observed NeoForge/Forge gameplay traces (Fabric pending scenario parity)
+      - name: Compare observed gameplay traces across all configured loaders
         run: |
           python3 scripts/ci-system-trace-parity.py compare \
             --directory build/aggregated-game-test-artifacts

@@ -84,11 +84,8 @@ def extract(target: str, log: Path, output: Path, configured: list[str]) -> None
 
 
 def compare(input_root: Path, configured: list[str]) -> None:
-    # Only targets with all four world-backed semantic scenario implementations
-    # enter this comparison. Fabric participates in the compile/GameTest/IT16
-    # matrix but its native four-scenario tests are still unported; never
-    # fabricate their success from a smoke test.
-    participating = [target for target in configured if target != "26.3-fabric"]
+    # Every configured target must emit all four completed world observations.
+    participating = configured
     files = sorted(input_root.rglob("*.trace.json"))
     datasets: dict[str, dict[str, dict[str, str]]] = {}
     for path in files:

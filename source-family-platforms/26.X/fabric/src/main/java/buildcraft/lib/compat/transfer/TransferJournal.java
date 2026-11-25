@@ -82,10 +82,21 @@ public final class TransferJournal<S> extends SnapshotParticipant<S> {
      */
     @SuppressWarnings("deprecation")
     public static TransactionContext current() {
+        // Fabric forbids querying the current context during close callbacks.
+        // Final-commit callbacks may themselves mark tiles dirty or publish a
+        // notification. At this point the outer result is already final: no
+        // savepoint can be added, so those notifications must run directly.
+        // Keep ordinary (including nested) close callbacks fail-fast: they
+        // are NOT final commits and must not publish tentative changes.
+        if (Transaction.getLifecycle() == Transaction.Lifecycle.OUTER_CLOSING) {
+            return null;
+        }
         return Transaction.getCurrentUnsafe();
     }
 
     public static boolean active() {
+        // Deliberately include closing states. Callers use this as a guard
+        // against starting a second transfer while Fabric closes the first.
         return Transaction.isOpen();
     }
 

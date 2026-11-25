@@ -21,7 +21,7 @@ class SystemTraceParityTests(unittest.TestCase):
                                        "waterDestination": "1000", "waterSource": "0",
                                        "inFlight": "false", "waterInPipes": "0"},
         }
-        self.targets = ["1.19.2-forge", "1.20.1-forge", "1.21.1-neoforge"]
+        self.targets = ["1.19.2-forge", "1.20.1-forge", "1.21.1-neoforge", "26.3-fabric"]
 
     def line(self, name, fields):
         body = "|".join(f"{k}={v}" for k, v in fields.items())
@@ -69,7 +69,7 @@ class SystemTraceParityTests(unittest.TestCase):
             trace.compare(d, self.targets)
             bad = {k: dict(v) for k, v in self.samples.items()}
             bad["enriched_item_pipeline"]["damage"] = "116"
-            self.make_dataset(d, self.targets[2], bad)
+            self.make_dataset(d, "26.3-fabric", bad)
             with self.assertRaisesRegex(ValueError, "damage"):
                 trace.compare(d, self.targets)
 

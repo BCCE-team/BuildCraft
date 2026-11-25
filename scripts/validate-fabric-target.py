@@ -12,7 +12,8 @@ import re
 import sys
 import tempfile
 
-from source_layout import ROOT, load_properties, materialize_target, target_ids, target_layout
+from source_layout import (ROOT, _materialize_text_file, effective_source_files, load_properties,
+                           materialize_target, target_ids, target_layout)
 
 TARGET = "26.3-fabric"
 
@@ -26,6 +27,63 @@ def contains(path: str, *needles: str) -> None:
     data = (ROOT / path).read_text(encoding="utf-8")
     for needle in needles:
         require(needle in data, f"{path}: missing {needle!r}")
+
+
+def validate_gametest_parity(fabric: Path, neoforge: Path) -> None:
+    """Keep the native Fabric registry in sync with the canonical gameplay suite."""
+    expected = {}
+    neo_sources = sorted((neoforge / "java").rglob("*.java"))
+    for path in neo_sources:
+        for raw in re.findall(r"// bc-gametest-v2: (\{[^\n]+\})", path.read_text(encoding="utf-8")):
+            marker = json.loads(raw)
+            template = marker["template"]
+            if template in ("PipeGameTestSupport.LARGE_EMPTY_TEMPLATE",
+                            "buildcraft.gametest.PipeGameTestSupport.LARGE_EMPTY_TEMPLATE"):
+                template = '"empty7x3x7"'
+            require(template in ('"empty3x3x3"', '"empty7x3x7"'),
+                    f"Unknown NeoForge GameTest template: {template}")
+            require(marker["template_namespace"] == "buildcraft.lib.BCLib.MODID",
+                    "Unknown NeoForge GameTest namespace")
+            key = (marker["owner"], marker["method"])
+            require(key not in expected, f"Duplicate NeoForge GameTest: {key}")
+            expected[key] = ("buildcraftlib:" + template.strip('"'), marker["timeout"])
+    require(expected, "Canonical NeoForge GameTest suite is missing")
+    registry = fabric / "java/buildcraft/gametest/FabricParityGameTests.java"
+    source = registry.read_text(encoding="utf-8")
+    actual = {}
+    pattern = (r'@GameTest\(structure = "([^"]+)", maxTicks = (\d+)\)\s+'
+               r'public void (\w+)\(GameTestHelper helper\) throws Exception \{\s+'
+               r'([\w.]+)\.(\w+)\(helper\);\s+\}')
+    for structure, timeout, wrapper, owner, method in re.findall(pattern, source):
+        key = (owner, method)
+        require(wrapper == method and key not in actual, f"Invalid/duplicate Fabric GameTest: {key}")
+        body = (fabric / "java" / Path(*owner.split(".")).with_suffix(".java")).read_text(encoding="utf-8")
+        require(re.search(r"public static void " + re.escape(method) + r"\(GameTestHelper ", body) is not None,
+                f"Missing Fabric test implementation: {key}")
+        actual[key] = (structure, int(timeout))
+    require(source.count("@GameTest(") == len(actual), "Unrecognized Fabric GameTest registration")
+    require(actual.keys() == expected.keys(),
+            f"GameTest registration drift: missing={sorted(expected.keys() - actual.keys())}, "
+            f"extra={sorted(actual.keys() - expected.keys())}")
+    for key in expected:
+        require(actual[key] == expected[key], f"GameTest structure/timeout drift: {key}")
+    metadata = json.loads((fabric / "resources/fabric.mod.json").read_text(encoding="utf-8"))
+    require("buildcraft.gametest.FabricParityGameTests" in metadata["entrypoints"]["fabric-gametest"],
+            "Fabric parity registry is not a GameTest entrypoint")
+    sources = sorted((fabric / "java").rglob("*.java"))
+    for path in sources:
+        text = path.read_text(encoding="utf-8")
+        require(not re.search(r"(?:net\.neoforged|net\.minecraftforge)\.", text),
+                f"Fabric GameTest contains a foreign loader reference: {path.name}")
+    def traces(paths):
+        return sorted(name for path in paths for name in re.findall(
+            r'SystemTrace\.emit\("([^"\n]+)"', path.read_text(encoding="utf-8")))
+    require(traces(sources) == traces(neo_sources) and len(traces(sources)) == 4,
+            "Fabric SystemTrace scenarios diverge from NeoForge")
+    for template in {structure.split(":")[1] for structure, _ in expected.values()}:
+        require((fabric / f"resources/data/buildcraftlib/gametest/structure/{template}.snbt").is_file(),
+                f"Missing Fabric GameTest fixture: {template}")
+    print(f"PASS: Fabric registers all {len(expected)} NeoForge GameTests and all four SystemTrace scenarios")
 
 
 def validate() -> None:
@@ -195,6 +253,16 @@ def validate() -> None:
                     f"Native Fabric storage contract still runs without loader mixins: {name}")
         require(native_source.count("helper.succeed();") == 2,
                 "Each native Fabric tank GameTest must explicitly report success")
+        neoforge = Path(tmp) / "neoforge"
+        neo_layout = target_layout("26.3-neoforge", props)
+        # Only GameTest sources are needed for registration parity, not another
+        # full copy of the entire production tree.
+        for relative, source in effective_source_files(neo_layout, props, "src/gametest/java").items():
+            _materialize_text_file(source, neoforge / relative, logical_relative=relative,
+                                   minecraft=props["target.26.3-neoforge.deps.minecraft"],
+                                   family=neo_layout.family, platform=neo_layout.platform,
+                                   preprocess=True)
+        validate_gametest_parity(gt, neoforge / "src/gametest")
         print(f"26.3-fabric source materialized: {len(classes)} Java classes, {len(excludes)} loader-only exclusions")
 
     print("PASS: 26.3-fabric is wired to Stonecutter, Loom, GameTests, installed server CI, IT16 and publication")

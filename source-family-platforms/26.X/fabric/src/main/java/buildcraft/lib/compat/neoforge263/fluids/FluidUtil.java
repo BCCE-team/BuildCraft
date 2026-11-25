@@ -143,28 +143,36 @@ public final class FluidUtil {
         ItemStack held = player.getItemInHand(hand);
         Storage<FluidVariant> item = FluidStorage.ITEM.find(held, ContainerItemContext.forPlayerInteraction(player, hand));
         if (item == null) return transferUnregisteredBucketToTank(player, hand, held, tank);
-        try (Transaction tx = FabricTransactionScope.begin()) {
-            for (StorageView<FluidVariant> view : item) {
-                if (view.isResourceBlank() || view.getAmount() < DROPLETS_PER_MB) continue;
-                FluidVariant resource = view.getResource();
-                int offered = bounded(view.getAmount() / DROPLETS_PER_MB);
-                int accepted = tank.fill(fluid(resource, offered), IFluidHandler.FluidAction.SIMULATE);
+        // A storage view exposes droplets, while IFluidHandler operates in mB.
+        // Convert exactly once and give each attempted move its own savepoint,
+        // so an unsuccessful/fractional move cannot leak into a later commit.
+        for (StorageView<FluidVariant> view : item) {
+            if (view.isResourceBlank() || view.getAmount() < DROPLETS_PER_MB) continue;
+            FluidVariant resource = view.getResource();
+            FluidStack offered = fluid(resource, view.getAmount());
+            try (Transaction tx = FabricTransactionScope.begin()) {
+                int accepted = Math.min(offered.getAmount(),
+                    tank.fill(offered.copy(), IFluidHandler.FluidAction.SIMULATE));
                 if (accepted <= 0) continue;
-                long extracted = item.extract(resource, (long) accepted * DROPLETS_PER_MB, tx);
-                if (extracted <= 0 || extracted % DROPLETS_PER_MB != 0) continue;
+                long requested = (long) accepted * DROPLETS_PER_MB;
+                long extracted = item.extract(resource, requested, tx);
+                if (extracted <= 0 || extracted > requested || extracted % DROPLETS_PER_MB != 0) continue;
                 int actuallyAccepted = tank.fill(fluid(resource, extracted), IFluidHandler.FluidAction.EXECUTE);
                 if ((long) actuallyAccepted * DROPLETS_PER_MB != extracted)
                     throw new IllegalStateException("Item to tank fluid amount mismatch");
                 tx.commit();
                 return true;
             }
-            for (int i=0; i<tank.getTanks(); i++) {
-                FluidStack available = tank.getFluidInTank(i);
-                if (available == null || available.isEmpty()) continue;
+        }
+        for (int i=0; i<tank.getTanks(); i++) {
+            FluidStack available = tank.getFluidInTank(i);
+            if (available == null || available.isEmpty()) continue;
+            try (Transaction tx = FabricTransactionScope.begin()) {
                 FluidStack simulated = tank.drain(available, IFluidHandler.FluidAction.SIMULATE);
                 if (simulated.isEmpty()) continue;
-                long moved = item.insert(variant(available), (long) simulated.getAmount() * DROPLETS_PER_MB, tx);
-                if (moved <= 0 || moved % DROPLETS_PER_MB != 0) continue;
+                long requested = (long) simulated.getAmount() * DROPLETS_PER_MB;
+                long moved = item.insert(variant(available), requested, tx);
+                if (moved <= 0 || moved > requested || moved % DROPLETS_PER_MB != 0) continue;
                 FluidStack extracted = tank.drain(available.copyWithAmount(bounded(moved / DROPLETS_PER_MB)),
                     IFluidHandler.FluidAction.EXECUTE);
                 if ((long) extracted.getAmount() * DROPLETS_PER_MB != moved)
