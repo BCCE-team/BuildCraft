@@ -342,9 +342,12 @@ class MinecraftBoundaries(unittest.TestCase):
 
     def test_legacy_pipe_targeting_uses_block_reach(self):
         pipe = (ROOT / 'version-src/1.19.2-forge/src/main/java/buildcraft/transport/block/BlockPipeHolder.java').read_text(encoding='utf-8')
-        shape = pipe[pipe.index('public VoxelShape getShape('):]
-        self.assertIn('player.getReachDistance()', shape)
-        self.assertNotIn('player.getAttackRange()', shape)
+        ray = PICK_1211_extract_method(pipe, 'public BCBlockHitResult rayTrace(BlockGetter world, BlockPos pos, Player player)')
+        self.assertIn('player.getReachDistance()', ray)
+        self.assertNotIn('player.getAttackRange()', ray)
+        shape = PICK_1211_extract_method(pipe, 'public VoxelShape getShape(')
+        self.assertNotIn('getEyePosition()', shape)
+        self.assertIn('getInteractionShape(state, world, pos)', shape)
 
     def test_smoke_scripts_read_canonical_target_metadata(self):
         for script in ('ci-server-smoke.sh', 'ci-client-smoke.sh'):
@@ -566,6 +569,10 @@ public class PipePickHookProbe extends NativeBlock {
   TilePipeHolder pipe = new TilePipeHolder();
   TilePipeHolder getPipe(LevelReader world,BlockPos pos,boolean load){return pipe;}
   VoxelShape[] getAllShape(BlockGetter world,BlockPos pos){return shapes;}
+  static class BCBlockHitResult { int subHit; }
+  BCBlockHitResult resolveBlockHit(BlockGetter world, BlockPos pos, BlockHitResult hit) {
+    throw new AssertionError("generic HitResult probe must not enter native path");
+  }
   int computSubhit(TilePipeHolder tile,Vec3 pos,int octant){return 0;}
   int computHitOctant(Vec3 pos){return 0;}
   ItemStack getPickStack(TilePipeHolder tile,int index){return new ItemStack(index);}
@@ -683,6 +690,10 @@ class LegacyPipePickTests(unittest.TestCase):
   }
   VoxelShape[] shapes=new VoxelShape[57];
   VoxelShape[] getAllShape(BlockGetter level,BlockPos pos){return shapes;}
+  static class BCBlockHitResult { int subHit; }
+  BCBlockHitResult resolveBlockHit(BlockGetter world, BlockPos pos, BlockHitResult hit) {
+    throw new AssertionError("generic HitResult probe must not enter native path");
+  }
   int computSubhit(TilePipeHolder tile,Vec3 location,int octant){return 0;}
   int computHitOctant(Vec3 location){return 0;}
   METHOD

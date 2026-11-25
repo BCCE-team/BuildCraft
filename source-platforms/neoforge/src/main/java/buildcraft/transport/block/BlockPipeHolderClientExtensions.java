@@ -32,7 +32,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.neoforge.client.extensions.common.IClientBlockExtensions;
 
@@ -46,10 +45,11 @@ final class BlockPipeHolderClientExtensions implements IClientBlockExtensions {
     private static HitSpriteInfo getHitSpriteInfo(BlockHitResult target, TilePipeHolder pipeHolder) {
         BlockPos pos = pipeHolder.getBlockPos();
 
-        Vec3 location = target.getLocation().subtract(pos.getX(), pos.getY(), pos.getZ());
-        Vec3 dvec = location.subtract(0.5f, 0.5f, 0.5f).scale(-0.00125);
-        location = location.add(dvec);
-        int p = BlockPipeHolder.computSubhit(pipeHolder, location, BlockPipeHolder.computHitOctant(location));
+        if (!(pipeHolder.getBlockState().getBlock() instanceof BlockPipeHolder holder)
+                || pipeHolder.getLevel() == null) return null;
+        BlockPipeHolder.BCBlockHitResult trace = holder.resolveBlockHit(pipeHolder.getLevel(), pos, target);
+        if (trace == null) return null;
+        int p = trace.subHit;
         VoxelShape aabb = null;
         TextureAtlasSprite sprite = SpriteUtil.missingSprite();
         BCLog.d("" + p);
@@ -97,7 +97,7 @@ final class BlockPipeHolderClientExtensions implements IClientBlockExtensions {
                 return null;
             }
             sprite = PipeWireRenderer.getWireSprite(colour).getSprite();
-        } else if (6 + 6 + 1 + 8 < p && p <= 6 + 6 + 1 + 8 + 36) {
+        } else if (6 + 6 + 1 + 8 <= p && p < 6 + 6 + 1 + 8 + EnumWireBetween.VALUES.length) {
             EnumWireBetween wireBetween = EnumWireBetween.values()[p - 6 - 6 - 1 - 8];
             aabb = wireBetween.boundingBox;
             DyeColor colour = pipeHolder.getWireManager().betweens.get(wireBetween);
@@ -142,8 +142,7 @@ final class BlockPipeHolderClientExtensions implements IClientBlockExtensions {
             double y = Math.random() * (info.aabb.max(Axis.Y) - info.aabb.min(Axis.Y)) + info.aabb.min(Axis.Y);
             double z = Math.random() * (info.aabb.max(Axis.Z) - info.aabb.min(Axis.Z)) + info.aabb.min(Axis.Z);
 
-            int hitface = BlockPipeHolder.computHitFacing(target.getLocation());
-            Direction dir = hitface == 0 ? target.getDirection() : Direction.from3DDataValue(hitface - 1);
+            Direction dir = target.getDirection();
             switch (dir) {
                 case DOWN:
                     y = info.aabb.min(Axis.Y) - 0.1;

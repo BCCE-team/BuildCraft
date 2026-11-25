@@ -64,6 +64,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
@@ -81,7 +82,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
-import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.MapColor;
@@ -91,7 +91,6 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
-import net.minecraft.world.phys.shapes.EntityCollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.neoforge.client.extensions.common.IClientBlockExtensions;
@@ -135,7 +134,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 
 	public BlockPipeHolder() {
 		super(RegistryCompat.blockProperties(BlockBehaviour.Properties.of()).mapColor(MapColor.STONE).sound(SoundType.METAL).strength(0.25f)
-				.explosionResistance(3.0f).noOcclusion());
+				.explosionResistance(3.0f).noOcclusion().dynamicShape());
 		registerDefaultState(stateDefinition.any().setValue(WATERLOGGED, false));
 	}
 
@@ -220,11 +219,21 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 
 	@Nullable
 	public BCBlockHitResult rayTrace(BlockGetter world, BlockPos pos, Player player) {
-		Vec3 start = player.getEyePosition();
-		double reachDistance = player.blockInteractionRange();
-		Vec3 end = start.add(player.getLookAngle().normalize().scale(reachDistance));
-		return rayTrace(world, pos, start, end);
-	}
+        Vec3 start = player.getEyePosition();
+        Vec3 end = start.add(player.getLookAngle().normalize().scale(player.blockInteractionRange()));
+        // Let the level (including moving-sublevel integrations) transform the ray.
+        // Never compare a world-space eye directly with a plot-space BlockPos.
+        BlockHitResult hit = world.clip(new ClipContext(start, end, ClipContext.Block.OUTLINE,
+                ClipContext.Fluid.NONE, player));
+        return resolveBlockHit(world, pos, hit);
+    }
+
+    /** Resolve a native hit in the coordinate system of its target block. */
+    @Nullable
+    BCBlockHitResult resolveBlockHit(BlockGetter world, BlockPos pos, @Nullable BlockHitResult hit) {
+        int part = PipeHitGeometry.findPart(getAllShape(world, pos), pos, hit);
+        return part < 0 ? null : new BCBlockHitResult(hit, part);
+    }
 	
 	public BCBlockHitResult rayTrace(BlockGetter world, BlockPos pos, Vec3 start, Vec3 end) {
         TilePipeHolder holder = getPipe(world, pos, false);
@@ -445,34 +454,12 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
     }
     
 	public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext collisionContext) {
-		TilePipeHolder tile = getPipe(world, pos, false);
-		if (tile == null) {
-			return BOX_CENTER;
-		}
-		if (!(collisionContext instanceof EntityCollisionContext context)) {
-			return getInteractionShape(state, world, pos);
-		}
-		Entity entity = context.getEntity();
-		double reachDistance = 4.5D;
-		if(entity == null)
-			return getInteractionShape(state, world, pos);
-		if(entity instanceof Player player)
-			reachDistance = player.blockInteractionRange();
-		Vec3 carmpos = entity.getEyePosition();
-		Vec3 vec31 = entity.getLookAngle();
-		Vec3 vec32 = carmpos.add(vec31.x * reachDistance, vec31.y * reachDistance, vec31.z * reachDistance);
-		
-		VoxelShape[] allShape = getAllShape(world, pos);
-		VoxelShape centerShape = tile.getPipe() == Pipe.EMPTY
-			? allShape[0]
-			: getCachedConnectionShapes(tile.getPipe()).combined();
-		if(allShape.length == 1)
-			return allShape[0] == null ? BOX_CENTER : allShape[0];
-		BCBlockHitResult trace = rayTrace(world, pos, carmpos, vec32, centerShape);
-		VoxelShape hitShape = trace != null ? allShape[trace.subHit] : null;
-		return hitShape == null ? Shapes.empty() : hitShape;//Shapes.create(hitShape.bounds().inflate(1 / 32.0));
-
-	}
+        // This is geometry, not a ray trace. A caller may be clipping a ray in
+        // a transformed coordinate system (e.g. a Sable physics sub-level).
+        // Returning an empty shape based on the untransformed eye makes the
+        // block impossible to target, even though its collision shape exists.
+        return getInteractionShape(state, world, pos);
+    }
 	
 	static int computHitOctant(Vec3 pos) {//zyx
 		return (int)((pos.z >0.5 ? 0b100 : 0)|(pos.y>0.5 ? 0b10 : 0)|(pos.x>0.5 ? 0b1 : 0));
@@ -568,6 +555,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 			if(pluggable != PipePluggable.EMPTY) {
 				VoxelShape bb = pluggable.getBoundingBox();
 				result[1+ 6 + face.get3DDataValue()] = bb;//Pluggable ,subHit [7, 12]
+                added = true;
 			}
 		}
 		for (EnumWirePart part : tile.getWireManager().parts.keySet()) {
@@ -586,14 +574,8 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 	}
 
 	public VoxelShape getInteractionShape(BlockState state, BlockGetter world, BlockPos pos) {
-		VoxelShape[] allShape = getAllShape(world, pos);
-		VoxelShape voxelShape = allShape[0];
-		int lenth = allShape.length;
-		for(int i = 1;i < lenth;i++) {
-			voxelShape = allShape[i] != null ? Shapes.or(voxelShape, allShape[i]) : voxelShape;
-		}
-		return voxelShape;
-	}
+        return PipeHitGeometry.combine(getAllShape(world, pos), BOX_CENTER);
+    }
 
 	// Kept as a compatibility helper for callers that already have the hit result.
 	public ItemStack getPickBlock(BlockState state, BlockHitResult target, Level world, BlockPos pos, Player player) {
@@ -601,12 +583,9 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 		if (tile == null) {
 			return ItemStack.EMPTY;
 		}
-		int subHit = 0;
-		if (target != null) {
-			Vec3 location = target.getLocation().subtract(pos.getX(), pos.getY(), pos.getZ());
-			subHit = computSubhit(tile, location, computHitOctant(location));
-		}
-		return getPickStack(tile, subHit);
+		BCBlockHitResult resolved = resolveBlockHit(world, pos, target);
+        int subHit = resolved == null ? 0 : resolved.subHit;
+        return getPickStack(tile, subHit);
 	}
 
 	private static ItemStack getPickStack(TilePipeHolder tile, int subHit) {
@@ -673,20 +652,15 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 		TilePipeHolder tile = getPipe(world, pos, false);
 		if (tile == null)
 			return InteractionResult.PASS;
-		BCBlockHitResult trace = rayTrace(world, pos, player);
-		int subHit;
-		Vec3 location;
-		if (trace != null && trace.result != null) {
-			re = trace.result;
-			subHit = trace.subHit;
-			location = re.getLocation().subtract(pos.getX(), pos.getY(), pos.getZ());
-		} else {
-			Vec3 carmpos = player.getEyePosition();
-			Vec3 dvec = re.getLocation().subtract(carmpos).scale(0.0125);
-			location = re.getLocation().subtract(pos.getX(), pos.getY(), pos.getZ()).add(dvec);
-			subHit = computSubhit(tile, location, computHitOctant(location));
-		}
-		Direction realSide = subHit == 0 ? re.getDirection() : getPartSideHit(re.getDirection(), subHit);
+		BCBlockHitResult trace = world.isClientSide() ? resolveBlockHit(world, pos, re) : rayTrace(world, pos, player);
+        if (trace == null) {
+            trace = world.isClientSide() ? rayTrace(world, pos, player) : resolveBlockHit(world, pos, re);
+        }
+        if (trace == null) return InteractionResult.PASS;
+        re = trace.result;
+        int subHit = trace.subHit;
+        Vec3 location = re.getLocation().subtract(pos.getX(), pos.getY(), pos.getZ());
+        Direction realSide = subHit == 0 ? re.getDirection() : getPartSideHit(re.getDirection(), subHit);
 		if (realSide == null)
 			realSide = re.getDirection();
 		if (subHit > 6 && subHit <= 12) {
@@ -825,17 +799,14 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 		}
 		
 		if (world.isClientSide()) {
-//			return super.onDestroyedByPlayer(state, world, pos, player, toolStack, willHarvest, fluid);
-			this.spawnDestroyParticles(world, player, pos, state);
-			if(side == null && part == null && between ==null ) {
-				
-				world.gameEvent(GameEvent.BLOCK_DESTROY, pos, GameEvent.Context.of(player, state));
-				return true;
-			}
-			return false;
-		}
+            if (side == null && part == null && between == null) {
+                return super.onDestroyedByPlayer(state, world, pos, player, toolStack, willHarvest, fluid);
+            }
+            this.spawnDestroyParticles(world, player, pos, state);
+            return false;
+        }
 
-		if (side != null) {
+        if (side != null) {
 			removePluggable(side, tile, toDrop);
 		} else if (part != null) {
 			ItemStack stack = new ItemStack(BCTransportItems.wires.get(tile.wireManager.getColorOfPart(part)), 1);
