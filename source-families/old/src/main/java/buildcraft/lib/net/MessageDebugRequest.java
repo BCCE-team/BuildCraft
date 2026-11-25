@@ -57,14 +57,12 @@ public class MessageDebugRequest {
             // Debug packets are never a remote-inspection API: the sender must be near an already-loaded tile.
             //? if <1.20 {
             if (!player.level.hasChunkAt(message.pos)
-                || player.distanceToSqr(message.pos.getX() + 0.5D, message.pos.getY() + 0.5D, message.pos.getZ() + 0.5D)
-                    > MAX_INTERACTION_DISTANCE_SQR) return;
+                || !buildcraft.lib.misc.ShipWorldAccess.withinReach(player, message.pos, MAX_INTERACTION_DISTANCE_SQR)) return;
             BlockEntity tile = player.level.getBlockEntity(message.pos);
             //?} else {
             /*?
             if (!player.level().hasChunkAt(message.pos)
-                || player.distanceToSqr(message.pos.getX() + 0.5D, message.pos.getY() + 0.5D, message.pos.getZ() + 0.5D)
-                    > MAX_INTERACTION_DISTANCE_SQR) return;
+                || !buildcraft.lib.misc.ShipWorldAccess.withinReach(player, message.pos, MAX_INTERACTION_DISTANCE_SQR)) return;
             BlockEntity tile = player.level().getBlockEntity(message.pos);
             ?*/
             //?}

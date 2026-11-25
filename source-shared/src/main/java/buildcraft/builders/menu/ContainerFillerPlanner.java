@@ -87,7 +87,7 @@ public final class ContainerFillerPlanner extends MenuBC_Neptune implements ICon
         VolumeBox box = findVolumeBox();
         if (box == null || !(box.addons.get(addonSlot) instanceof AddonFillerPlanner)) return false;
         return box.world == playerLevel() &&
-            box.addons.get(addonSlot).getBoundingBox().getCenter().distanceToSqr(player.getEyePosition()) <= 64;
+            buildcraft.lib.misc.ShipWorldAccess.distanceSquared(box.world, box.addons.get(addonSlot).getBoundingBox().getCenter(), player.getEyePosition()) <= 64;
     }
 
     @Override

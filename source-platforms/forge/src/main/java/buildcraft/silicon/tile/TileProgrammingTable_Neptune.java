@@ -215,6 +215,8 @@ public class TileProgrammingTable_Neptune extends TileLaserTableBase implements 
 
     @Override
     public void update() {
+        // Keep stored energy and inputs intact while the GUI remains usable.
+        if (isPhysicsOperationPaused()) return;
         super.update();
         if (level.isClientSide) {
             return;

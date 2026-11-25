@@ -1,0 +1,16 @@
+{
+  "selector": "buildcraftfactory:tank",
+  "priority": 1100,
+  "properties": {
+    "sable:mass": 0.5,
+    "sable:volume": 0.5625,
+    "sable:friction": 0.8,
+    "sable:restitution": 0,
+    "sable:fragile": false,
+    "sable:inertia": [
+      0.1302,
+      0.09375,
+      0.1302
+    ]
+  }
+}

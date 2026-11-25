@@ -1,0 +1,11 @@
+{
+  "selector": "buildcraftbuilders:frame",
+  "priority": 1100,
+  "properties": {
+    "sable:mass": 0.2,
+    "sable:volume": 0.125,
+    "sable:friction": 0.9,
+    "sable:restitution": 0,
+    "sable:fragile": false
+  }
+}

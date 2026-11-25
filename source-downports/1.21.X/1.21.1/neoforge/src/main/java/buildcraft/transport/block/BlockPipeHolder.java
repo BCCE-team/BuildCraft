@@ -6,6 +6,9 @@
 
 package buildcraft.transport.block;
 
+import buildcraft.compat.physics.PhysicalMassBalance;
+import buildcraft.compat.physics.SableMassState;
+
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -129,7 +132,8 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 	public BlockPipeHolder() {
 		super(BlockBehaviour.Properties.of().mapColor(MapColor.STONE).sound(SoundType.METAL).strength(0.25f)
 				.explosionResistance(3.0f).noOcclusion().dynamicShape());
-		registerDefaultState(stateDefinition.any().setValue(WATERLOGGED, false));
+		registerDefaultState(stateDefinition.any().setValue(WATERLOGGED, false)
+                .setValue(SableMassState.MASS, PhysicalMassBalance.DEFAULT_PIPE_STEP));
 	}
 
 
@@ -137,6 +141,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         super.createBlockStateDefinition(builder);
         // WATERLOGGED is inherited from BlockBCBase_Neptune.
+        builder.add(SableMassState.MASS);
     }
 
     @Override

@@ -859,7 +859,7 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
             if (side == null && part == null && between == null) {
                 return super.onDestroyedByPlayer(state, world, pos, player, toolStack, willHarvest, fluid);
             }
-            this.spawnDestroyParticles(world, player, pos, state);
+            this.spawnDestroyParticles(world, pos, state);
             return false;
         }
 

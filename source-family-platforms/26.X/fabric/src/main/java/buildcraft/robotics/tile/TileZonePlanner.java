@@ -267,8 +267,7 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
             int requestedRevision = buffer.readInt();
             ServerPlayer player = ctx == null ? null : ctx.getSender();
             if (player != null && requestedRevision == zoneRevision
-                    && player.distanceToSqr(worldPosition.getX() + 0.5,
-                        worldPosition.getY() + 0.5, worldPosition.getZ() + 0.5) <= 64 * 64) {
+                    && buildcraft.lib.misc.ShipWorldAccess.withinReach(player, level, worldPosition, 64 * 64)) {
                 outboundLayers.put(player.getUUID(), new LayerSend(zoneRevision));
             }
         }
@@ -306,8 +305,7 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
             var entry = iterator.next();
             ServerPlayer player = server.getServer().getPlayerList().getPlayer(entry.getKey());
             LayerSend send = entry.getValue();
-            if (player == null || player.distanceToSqr(worldPosition.getX() + 0.5,
-                    worldPosition.getY() + 0.5, worldPosition.getZ() + 0.5) > 64 * 64
+            if (player == null || !buildcraft.lib.misc.ShipWorldAccess.withinReach(player, level, worldPosition, 64 * 64)
                     || send.revision != zoneRevision) {
                 iterator.remove();
                 continue;

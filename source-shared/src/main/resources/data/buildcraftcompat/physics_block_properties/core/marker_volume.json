@@ -1,0 +1,16 @@
+{
+  "selector": "buildcraftcore:marker_volume",
+  "priority": 1100,
+  "properties": {
+    "sable:mass": 0.05,
+    "sable:volume": 0.03,
+    "sable:friction": 0.9,
+    "sable:restitution": 0,
+    "sable:fragile": false,
+    "sable:inertia": [
+      0.03,
+      0.03,
+      0.03
+    ]
+  }
+}

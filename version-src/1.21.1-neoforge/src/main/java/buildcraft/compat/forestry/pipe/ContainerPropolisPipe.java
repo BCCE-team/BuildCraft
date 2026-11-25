@@ -70,7 +70,7 @@ public final class ContainerPropolisPipe extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        if (player.distanceToSqr(pos.getX() + .5, pos.getY() + .5, pos.getZ() + .5) > 64) return false;
+        if (!buildcraft.lib.misc.ShipWorldAccess.withinReach(player, pos, 64.0D)) return false;
         if (player.level().isClientSide()) return true;
         PipeBehaviourPropolis live = findBehaviour(player.level(), pos);
         return live != null && live.pipe.getHolder().canPlayerInteract(player);

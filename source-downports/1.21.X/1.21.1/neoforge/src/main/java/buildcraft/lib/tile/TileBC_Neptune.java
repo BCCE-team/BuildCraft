@@ -387,6 +387,9 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
     }
 
     public void onPlayerOpen(Player player) {
+        if (player instanceof ServerPlayer && isPhysicsOperationPaused()) {
+            player.displayClientMessage(net.minecraft.network.chat.Component.translatable("gui.buildcraftlib.physics.paused"), true);
+        }
         // A client GUI/tooltip read must never claim a block before its server owner has arrived.
         if (level == null || level.isClientSide()) return;
         if (owner == null) {
@@ -502,11 +505,19 @@ public abstract class TileBC_Neptune extends BCBlockEntity implements IPayloadRe
         return PermissionUtil.hasPermission(PermissionUtil.PERM_EDIT, player, getPermBlock());
     }
 
+    /** True only for machines whose operation must be suspended on physical structures. */
+    public boolean isPhysicsOperationPaused() { return false; }
+
+    protected final boolean isOnPhysicalStructure() {
+        return buildcraft.lib.misc.ShipWorldAccess.isMounted(level, worldPosition);
+    }
+
     public boolean canInteractWith(Player player) {
-        if (level.getBlockEntity(worldPosition) != this) {
+        if (player == null || level == null || isRemoved() || buildcraft.lib.misc.ShipWorldAccess.playerLevel(player) != level
+            || !level.hasChunkAt(worldPosition) || level.getBlockEntity(worldPosition) != this) {
             return false;
         }
-        if (player.blockPosition().distToCenterSqr(worldPosition.getX() + 0.5D, worldPosition.getY() + 0.5D, worldPosition.getZ() + 0.5D) > 64.0D) {
+        if (!buildcraft.lib.misc.ShipWorldAccess.withinReach(player, level, worldPosition, 64.0D)) {
             return false;
         }
         // edit rather than view because you can normally change the contents from gui interaction

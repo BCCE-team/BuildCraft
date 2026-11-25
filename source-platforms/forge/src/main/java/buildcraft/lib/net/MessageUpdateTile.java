@@ -128,10 +128,7 @@ public class MessageUpdateTile {
                             return;
                         }
                     } else {
-                        double x = message.pos.getX() + 0.5D;
-                        double y = message.pos.getY() + 0.5D;
-                        double z = message.pos.getZ() + 0.5D;
-                        if (sender.distanceToSqr(x, y, z) > MAX_INTERACTION_DISTANCE_SQR) {
+                        if (!buildcraft.lib.misc.ShipWorldAccess.withinReach(sender, level, message.pos, MAX_INTERACTION_DISTANCE_SQR)) {
                             return;
                         }
                     }

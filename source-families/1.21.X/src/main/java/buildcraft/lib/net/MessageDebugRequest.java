@@ -57,8 +57,7 @@ public class MessageDebugRequest {
 				return;
 			}
             if (!player.level().hasChunkAt(message.pos)
-                || player.distanceToSqr(message.pos.getX() + 0.5D, message.pos.getY() + 0.5D, message.pos.getZ() + 0.5D)
-                    > MAX_INTERACTION_DISTANCE_SQR) return;
+                || !buildcraft.lib.misc.ShipWorldAccess.withinReach(player, message.pos, MAX_INTERACTION_DISTANCE_SQR)) return;
             BlockEntity tile = player.level().getBlockEntity(message.pos);
 			if (tile instanceof IDebuggable) {
 				List<String> left = new ArrayList<>();

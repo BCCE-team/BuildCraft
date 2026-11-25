@@ -109,7 +109,7 @@ public class ContainerArchitectTable extends ContainerBCTile<TileArchitectTable>
 
 	@Override
 	public boolean stillValid(Player player) {
-		return super.stillValid(access, player, BCBuildersBlocks.ARCHITECT.get());
+		return buildcraft.lib.gui.BCMenuUtil.stillValidBlock(access, player, BCBuildersBlocks.ARCHITECT.get());
 	}
 
 /*	@Override

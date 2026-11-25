@@ -750,7 +750,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
         if (level instanceof ServerLevel) {
             ChunkLoaderManager.releaseChunksFor(this);
         }
-        clearQuarryCollisionBlocks();
+        if (!isPhysicsOperationPaused()) clearQuarryCollisionBlocks();
         super.onRemove(dropSelf);
     }
 
@@ -768,6 +768,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     @Nullable
     @Override
     public Set<ChunkPos> getChunksToLoad() {
+        if (isPhysicsOperationPaused()) return java.util.Collections.emptySet();
         if (!apiChunkLoading || !frameBox.isInitialized() || !miningBox.isInitialized()) {
             return null;
         }
@@ -921,7 +922,11 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
     }
 
     @Override
+    public boolean isPhysicsOperationPaused() { return isOnPhysicalStructure(); }
+
+    @Override
     public void update() {
+        if (isPhysicsOperationPaused()) return;
         if (drillPos == null) {
             collisionBoxes = ImmutableList.of();
             collisionDrillPos = null;

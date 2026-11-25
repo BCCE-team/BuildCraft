@@ -79,7 +79,9 @@ public class NeighbourTileCache implements ITileCache {
             } else {
                 Level w = tile.getLevel();
                 // Unfortunately tile.isInvalid is false even when it is unloaded
-                if (w == null || !w.isLoaded(lastSeenTilePos.offset(offset.getNormal()))) {
+                if (w == null || !w.isLoaded(lastSeenTilePos.offset(offset.getNormal()))
+                    || (buildcraft.lib.misc.ShipWorldAccess.isMounted(w, lastSeenTilePos)
+                        && w.getBlockEntity(lastSeenTilePos.offset(offset.getNormal())) != oTile)) {
                     cachedTiles.remove(offset);
                 } else {
                     return new TileCacheRet(oTile);

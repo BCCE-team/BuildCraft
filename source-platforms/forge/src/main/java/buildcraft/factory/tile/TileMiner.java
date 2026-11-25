@@ -62,7 +62,7 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     public TileMiner(BlockEntityType<?> bet, BlockPos pos, BlockState state) {
     	super(bet, pos, state);
         caps.addProvider(new MjCapabilityHelper(createMjReceiver()));
-        caps.addCapabilityInstance(TilesAPI.CAP_HAS_WORK, () -> !this.isComplete(), EnumPipePart.VALUES);
+        caps.addCapabilityInstance(TilesAPI.CAP_HAS_WORK, () -> !isPhysicsOperationPaused() && !this.isComplete(), EnumPipePart.VALUES);
     }
 
     protected abstract void mine();
@@ -74,7 +74,11 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
         return IDS;
     }
 
+    @Override
+    public boolean isPhysicsOperationPaused() { return isOnPhysicalStructure(); }
+
     public void update() {
+        if (isPhysicsOperationPaused()) return;
         if (level.isClientSide) {
             lastLength = currentLength;
             if (Math.abs(wantedLength - currentLength) <= 0.01) {
@@ -110,6 +114,7 @@ public abstract class TileMiner extends TileBC_Neptune implements IDebuggable {
     @Override
     public void onRemove(boolean dropSelf) {
         super.onRemove(dropSelf);
+        if (level == null || isPhysicsOperationPaused()) return;
         int minimumBuildY = level.getMinBuildHeight();
         int lowestShaftY = Math.max(minimumBuildY, worldPosition.getY() - getMaxShaftDepth());
         for (int y = worldPosition.getY() - 1; y >= lowestShaftY; y--) {

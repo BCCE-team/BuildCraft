@@ -812,14 +812,21 @@ def validate_modpack_interop_fixes() -> None:
     else:
         fail("missing shared pipe holder blockstate")
 
-    # Waterlogging changes the baked block-model keys. Every target must replace the
-    # two real blockstate variants with ModelPipe; replacing only the old empty
-    # variant leaves the JSON fallback model in-world and breaks pipe/pluggable rendering.
+    # The full state key includes waterlogging and any other properties. The Sable
+    # mass property on 1.21.1 makes a fixed two-key registration incomplete.
     transport_models = "src/main/java/buildcraft/transport/BCTransportModels.java"
     for target in TARGETS:
-        require(target, transport_models,
-                'putModel(event, "pipe_holder#waterlogged=false", ModelPipe.INSTANCE);',
-                'putModel(event, "pipe_holder#waterlogged=true", ModelPipe.INSTANCE);')
+        if target == "1.21.1-neoforge":
+            require(target, transport_models,
+                    "BCTransportBlocks.pipeHolder.get().getStateDefinition().getPossibleStates()",
+                    "event.getModels().put(BlockModelShaper.stateToModelLocation(state), ModelPipe.INSTANCE);")
+            forbid(target, transport_models,
+                   'putModel(event, "pipe_holder#waterlogged=false", ModelPipe.INSTANCE);',
+                   'putModel(event, "pipe_holder#waterlogged=true", ModelPipe.INSTANCE);')
+        else:
+            require(target, transport_models,
+                    'putModel(event, "pipe_holder#waterlogged=false", ModelPipe.INSTANCE);',
+                    'putModel(event, "pipe_holder#waterlogged=true", ModelPipe.INSTANCE);')
         forbid(target, transport_models,
                'putModel(event, "pipe_holder", ModelPipe.INSTANCE);')
 

@@ -515,6 +515,9 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
             return;
         }
 
+        // Neighbour notifications can be skipped while a physical ship is assembled or restored.
+        // Query the real local redstone circuit; do not move the machine or synthesize extra ticks.
+        if (isOnPhysicalStructure()) isRedstonePowered = level.hasNeighborSignal(worldPosition);
         lastPower = 0;
 
         if (!isRedstonePowered) {

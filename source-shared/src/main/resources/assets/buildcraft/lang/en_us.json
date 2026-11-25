@@ -1,5 +1,6 @@
 {
   "_comment": "Unified BuildCraft language file; completed against current source usage",
+  "gui.buildcraftlib.physics.paused": "Unavailable on physical structures",
   "gui.buildcraftlib.update.title": "A new version is available!",
   "gui.buildcraftlib.update.description": "A newer BCCE release is available.",
   "gui.buildcraftlib.update.installed": "Installed version: %s",

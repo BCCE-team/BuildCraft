@@ -324,7 +324,11 @@ public class TileFiller extends TileBC_Neptune
     }
 
     @Override
+    public boolean isPhysicsOperationPaused() { return isOnPhysicalStructure(); }
+
+    @Override
     public void update() {
+        if (isPhysicsOperationPaused()) return;
         if (level.isClientSide) {
             if (isValid()) {
                 builder.tick();

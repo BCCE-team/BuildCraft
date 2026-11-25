@@ -1,0 +1,81 @@
+{
+  "selector": "buildcrafttransport:pipe_holder",
+  "priority": 1100,
+  "properties": {
+    "sable:mass": 0.2,
+    "sable:volume": 0.25,
+    "sable:friction": 0.9,
+    "sable:restitution": 0,
+    "sable:fragile": false,
+    "sable:inertia": [
+      0.075,
+      0.075,
+      0.075
+    ]
+  },
+  "overrides": {
+    "bc_physics_mass=0": {
+      "sable:mass": 0.1
+    },
+    "bc_physics_mass=1": {
+      "sable:mass": 0.15
+    },
+    "bc_physics_mass=2": {
+      "sable:mass": 0.2
+    },
+    "bc_physics_mass=3": {
+      "sable:mass": 0.25
+    },
+    "bc_physics_mass=4": {
+      "sable:mass": 0.3
+    },
+    "bc_physics_mass=5": {
+      "sable:mass": 0.35
+    },
+    "bc_physics_mass=6": {
+      "sable:mass": 0.4
+    },
+    "bc_physics_mass=7": {
+      "sable:mass": 0.45
+    },
+    "bc_physics_mass=8": {
+      "sable:mass": 0.5
+    },
+    "bc_physics_mass=9": {
+      "sable:mass": 0.55
+    },
+    "bc_physics_mass=10": {
+      "sable:mass": 0.6
+    },
+    "bc_physics_mass=11": {
+      "sable:mass": 0.65
+    },
+    "bc_physics_mass=12": {
+      "sable:mass": 0.7
+    },
+    "bc_physics_mass=13": {
+      "sable:mass": 0.75
+    },
+    "bc_physics_mass=14": {
+      "sable:mass": 0.8
+    },
+    "bc_physics_mass=15": {
+      "sable:mass": 0.85
+    },
+    "bc_physics_mass=16": {
+      "sable:mass": 0.9
+    },
+    "bc_physics_mass=17": {
+      "sable:mass": 0.95
+    },
+    "bc_physics_mass=18": {
+      "sable:mass": 1.0
+    },
+    "bc_physics_mass=19": {
+      "sable:mass": 1.05
+    },
+    "bc_physics_mass=20": {
+      "sable:mass": 1.1
+    }
+  }
+}

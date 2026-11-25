@@ -1,0 +1,16 @@
+{
+  "selector": "buildcraftsilicon:laser",
+  "priority": 1100,
+  "properties": {
+    "sable:mass": 0.5,
+    "sable:volume": 0.35,
+    "sable:friction": 0.9,
+    "sable:restitution": 0,
+    "sable:fragile": false,
+    "sable:inertia": [
+      0.09,
+      0.09,
+      0.09
+    ]
+  }
+}

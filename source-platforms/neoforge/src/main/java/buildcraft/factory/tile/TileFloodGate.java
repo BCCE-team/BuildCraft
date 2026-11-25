@@ -260,11 +260,15 @@ public class TileFloodGate extends TileBC_Neptune implements IDebuggable {
 
     // ITickable
 
+    @Override
+    public boolean isPhysicsOperationPaused() { return isOnPhysicalStructure(); }
+
 //? if mc_26_x && (>=26.3) {
 //? } else {
     @Override
 //?}
     public void update() {
+        if (isPhysicsOperationPaused()) return;
 //? if mc_26_x && (>=26.3) {
         if (level.isClientSide()) {
 //? } else {

@@ -460,7 +460,11 @@ public class TileBuilder extends TileBC_Neptune implements IDebuggable, ITileFor
     }
 
     @Override
+    public boolean isPhysicsOperationPaused() { return isOnPhysicalStructure(); }
+
+    @Override
     public void update() {
+        if (isPhysicsOperationPaused()) return;
         if (!level.isClientSide && !canWorkWithRedstoneControl()) return;
         if (shouldInit) {
             updateBasePoses();

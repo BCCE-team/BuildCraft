@@ -1,0 +1,212 @@
+[
+  {
+    "block": "buildcraftbuilders:architect",
+    "mass": 280,
+    "friction": 0.55,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftbuilders:builder",
+    "mass": 650,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftbuilders:filler",
+    "mass": 650,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftbuilders:frame",
+    "mass": 50,
+    "friction": 0.45,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftbuilders:library",
+    "mass": 150,
+    "friction": 0.6,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftbuilders:marker_construction",
+    "mass": 10,
+    "friction": 0.4,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftbuilders:quarry",
+    "mass": 1000,
+    "friction": 0.6,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftbuilders:quarry_drill_collision",
+    "mass": 10,
+    "friction": 0.4,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftbuilders:replacer",
+    "mass": 550,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftcore:engine",
+    "mass": 250,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftcore:marker_path",
+    "mass": 10,
+    "friction": 0.4,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftcore:marker_volume",
+    "mass": 10,
+    "friction": 0.4,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftcore:spring",
+    "mass": 250,
+    "friction": 0.6,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftenergy:mj_dynamo",
+    "mass": 400,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftfactory:autoworkbench_item",
+    "mass": 160,
+    "friction": 0.6,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftfactory:chute",
+    "mass": 70,
+    "friction": 0.4,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftfactory:distiller",
+    "mass": 500,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftfactory:flood_gate",
+    "mass": 250,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftfactory:heat_exchange",
+    "mass": 500,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftfactory:mining_well",
+    "mass": 550,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftfactory:pump",
+    "mass": 350,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftfactory:tank",
+    "mass": 125,
+    "friction": 0.3,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftfactory:tube",
+    "mass": 40,
+    "friction": 0.4,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftfactory:water_gel",
+    "mass": 180,
+    "friction": 0.45,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftrobotics:requester",
+    "mass": 200,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftrobotics:robot_processor",
+    "mass": 350,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftrobotics:zone_planner",
+    "mass": 250,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftsilicon:advanced_crafting_table",
+    "mass": 250,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftsilicon:assembly_table",
+    "mass": 250,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftsilicon:charging_table",
+    "mass": 250,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftsilicon:integration_table",
+    "mass": 250,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftsilicon:laser",
+    "mass": 110,
+    "friction": 0.45,
+    "priority": 110
+  },
+  {
+    "block": "buildcraftsilicon:programming_table",
+    "mass": 250,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcrafttransport:filtered_buffer",
+    "mass": 200,
+    "friction": 0.5,
+    "priority": 110
+  },
+  {
+    "block": "buildcrafttransport:pipe_holder",
+    "mass": 50,
+    "friction": 0.4,
+    "priority": 110
+  }
+]

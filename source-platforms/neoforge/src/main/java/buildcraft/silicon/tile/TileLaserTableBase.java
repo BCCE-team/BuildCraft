@@ -66,14 +66,17 @@ public abstract class TileLaserTableBase extends TileBC_Neptune implements Laser
         }
         @Override public MjAmount stored() { return MjAmount.ofMicro(Math.max(0L, power)); }
         @Override public MjAmount capacity() { return MjAmount.ofMicro(Math.max(power, Math.max(0L, getTarget()))); }
-        @Override public boolean canInsert() { return true; }
+        @Override public boolean canInsert() { return !isPhysicsOperationPaused(); }
         @Override public boolean canExtract() { return false; }
     };
 
     protected TileLaserTableBase(BlockEntityType<? extends TileLaserTableBase> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
-        caps.addCapabilityInstance(TilesAPI.CAP_HAS_WORK, () -> getTarget() > 0, EnumPipePart.VALUES);
+        caps.addCapabilityInstance(TilesAPI.CAP_HAS_WORK, () -> !isPhysicsOperationPaused() && getTarget() > 0, EnumPipePart.VALUES);
     }
+
+    @Override
+    public boolean isPhysicsOperationPaused() { return isOnPhysicalStructure(); }
 
     public abstract long getTarget();
 
@@ -102,6 +105,7 @@ public abstract class TileLaserTableBase extends TileBC_Neptune implements Laser
 
     @Override
     public void update() {
+        if (isPhysicsOperationPaused()) return;
         avgPower.tick();
         if (level.isClientSide) {
             return;
@@ -157,6 +161,7 @@ public abstract class TileLaserTableBase extends TileBC_Neptune implements Laser
 
 
     protected long getDirectPowerRequested() {
+        if (isPhysicsOperationPaused()) return 0;
         return Math.max(0, getTarget() - power);
     }
 

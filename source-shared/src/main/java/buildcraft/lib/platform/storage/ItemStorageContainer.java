@@ -72,7 +72,7 @@ public final class ItemStorageContainer implements Container {
         Level level = owner.getLevel();
         BlockPos pos = owner.getBlockPos();
         return level != null && level.hasChunkAt(pos) && level.getBlockEntity(pos) == owner
-                && player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0;
+                && buildcraft.lib.misc.ShipWorldAccess.withinReach(player, level, pos, 64.0D);
     }
 
     @Override

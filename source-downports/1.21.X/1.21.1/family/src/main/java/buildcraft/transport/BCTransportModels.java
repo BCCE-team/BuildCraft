@@ -38,6 +38,7 @@ import buildcraft.transport.pipe.flow.PipeFlowForgeEnergy;
 import buildcraft.transport.pipe.flow.PipeFlowItems;
 import buildcraft.transport.pipe.flow.PipeFlowPower;
 
+import net.minecraft.client.renderer.block.BlockModelShaper;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.resources.ResourceLocation;
@@ -118,10 +119,12 @@ public class BCTransportModels {
 	}
 	
     public static void onModelBake(ClientModelBaking.Models event) {
-        // BlockPipeHolder is waterloggable, so the baked block model is keyed by the full blockstate variant.
-        // Replacing only the legacy empty variant leaves the real in-world pipe on the JSON fallback model.
-        putModel(event, "pipe_holder#waterlogged=false", ModelPipe.INSTANCE);
-        putModel(event, "pipe_holder#waterlogged=true", ModelPipe.INSTANCE);
+        // Every complete state needs the dynamic model, including Sable mass classes.
+        // Ask vanilla for the canonical key instead of hardcoding property names/order.
+        // The same model serves all states; mass is not a visual property.
+        for (var state : BCTransportBlocks.pipeHolder.get().getStateDefinition().getPossibleStates()) {
+            event.getModels().put(BlockModelShaper.stateToModelLocation(state), ModelPipe.INSTANCE);
+        }
     	putModel(event, "pipe_item#inventory", ModelPipeItem.INSTANCE);
 //      putModel(event, "obsidian_item#inventory", ModelPipeItem.INSTANCE);
 

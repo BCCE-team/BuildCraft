@@ -6,6 +6,9 @@
 
 package buildcraft.factory.tile;
 
+import buildcraft.compat.physics.PhysicalMassBalance;
+import buildcraft.compat.physics.SableMassState;
+
 import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import java.io.IOException;
@@ -76,6 +79,7 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
 
     private int lastComparatorLevel;
     private boolean needsInitialBalance = true;
+    private boolean physicsMassInitialized;
 
     public TileTank(BlockPos pos, BlockState state) {
         this(BCFactoryBlocks.ENTITYBLOCKTANK.get(), pos, state);
@@ -138,6 +142,7 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
             balanceTankFluids();
         }
         smoothedTank.tick(level);
+        updatePhysicsMass();
 
         if (!level.isClientSide) {
             int compLevel = getComparatorLevel();
@@ -146,6 +151,23 @@ public class TileTank extends TileBC_Neptune implements IDebuggable, IFluidHandl
                 setChanged();
             }
         }
+    }
+
+    private void updatePhysicsMass() {
+        if (!SableMassState.due(this, physicsMassInitialized)) return;
+        BlockState state = getBlockState();
+        if (!state.hasProperty(SableMassState.MASS)) return;
+        FluidStack fluid = tank.getFluid(); // Local tank only, not the capacity of the entire connected column.
+        int density = fluid.isEmpty() ? 0 : fluid.getFluid().getFluidType().getDensity();
+        int step = PhysicalMassBalance.tankStep(tank.getFluidAmount(), tank.getCapacity(), density,
+            physicsMassInitialized ? state.getValue(SableMassState.MASS) : -1);
+        physicsMassInitialized = SableMassState.sync(this, step);
+    }
+
+    @Override
+    public void onLoad() {
+        super.onLoad();
+        physicsMassInitialized = false;
     }
 
     // BlockEntity

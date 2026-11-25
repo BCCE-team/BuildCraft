@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import itertools
+import re
 import sys
 import tempfile
 import unittest
@@ -190,6 +192,59 @@ class WaterloggingParity(unittest.TestCase):
                 for wet in ('false', 'true'):
                     self.assertIn('waterlogged=' + wet, dynamo_json['variants'])
                 self.assertTrue(any('waterlogged=" + waterlogged' in line for line in lines), target)
+
+    def test_pipe_dynamic_model_covers_all_blockstates(self):
+        owner = 'buildcraft/transport/BCTransportModels.java'
+        for target in (*TARGETS, '26.3-fabric'):
+            with self.subTest(target=target):
+                src = self.resolve(target, owner)
+                if target.endswith('-forge'):
+                    for wet in ('false', 'true'):
+                        self.assertIn(f'putModel(event, "pipe_holder#waterlogged={wet}", ModelPipe.INSTANCE);', src)
+                else:
+                    self.assertIn('BCTransportBlocks.pipeHolder.get().getStateDefinition().getPossibleStates()', src)
+                    if target == '1.21.1-neoforge':
+                        self.assertIn('import net.minecraft.client.renderer.block.BlockModelShaper;', src)
+                        self.assertRegex(src, r'for \(var state : BCTransportBlocks\.pipeHolder\.get\(\)\.getStateDefinition\(\)\.getPossibleStates\(\)\) \{\s*event\.getModels\(\)\.put\(BlockModelShaper\.stateToModelLocation\(state\), ModelPipe\.INSTANCE\);\s*\}')
+                        self.assertNotIn('pipe_holder#waterlogged=', src)
+                    else:
+                        self.assertIn('event.blockStateModels().put(state, ModelPipeNative', src)
+
+    def test_physics_mass_does_not_change_pipe_or_tank_json_model_selection(self):
+        target = '1.21.1-neoforge'
+        layout = target_layout(target, self.props)
+        mass_state = self.resolve(target, 'buildcraft/compat/physics/SableMassState.java')
+        balance = self.resolve(target, 'buildcraft/compat/physics/PhysicalMassBalance.java')
+        self.assertIn('IntegerProperty.create("bc_physics_mass", 0, PhysicalMassBalance.MAX_STEP)', mass_state)
+        maximum = int(re.search(r'MAX_STEP\s*=\s*(\d+)', balance).group(1))
+        for ns, block, owner, model_for_state in (
+            ('buildcrafttransport', 'pipe_holder', PIPE,
+             lambda state: 'buildcrafttransport:block/pipe_holder'),
+            ('buildcraftfactory', 'tank', TANK,
+             lambda state: 'buildcraftfactory:block/tank' +
+             ('_joined_below' if state['joined_below'] == 'true' else '')),
+        ):
+            with self.subTest(block=block):
+                self.assertIn('SableMassState.MASS', self.resolve(target, owner))
+                path = resolve_effective_source(layout, self.props,
+                    f'src/main/resources/assets/{ns}/blockstates/{block}.json')
+                self.assertIsNotNone(path)
+                variants = json.loads(path.read_text(encoding='utf-8'))['variants']
+                states = {'bc_physics_mass': [str(i) for i in range(maximum + 1)],
+                          'waterlogged': ['false', 'true']}
+                if block == 'tank':
+                    states['joined_below'] = ['false', 'true']
+                checked = set()
+                for values in itertools.product(*states.values()):
+                    state = dict(zip(states, values))
+                    # Vanilla blockstate JSON variants are predicates: omitted
+                    # properties (mass) are wildcards, not missing variants.
+                    matches = [model for key, model in variants.items()
+                               if all(state[name] == value for name, value in
+                                      (part.split('=', 1) for part in key.split(',')))]
+                    self.assertEqual(matches, [{'model': model_for_state(state)}], state)
+                    checked.add(','.join(f'{name}={state[name]}' for name in sorted(state)))
+                self.assertEqual((maximum + 1) * (4 if block == 'tank' else 2), len(checked))
 
     def test_loader_gametests_use_supported_registry_and_pump_names(self):
         # The first real 1.19.2 runGameTestServer compile must not be bypassed

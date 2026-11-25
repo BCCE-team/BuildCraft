@@ -120,7 +120,8 @@ public class GuiZonePlannerLegacy extends GuiBC8<ContainerZonePlanner> {
         imageWidth = SIZE_X;
         imageHeight = SIZE_Y;
         if (container.tile != null) {
-            BlockPos tilePos = container.tile.getBlockPos();
+            BlockPos tilePos = buildcraft.lib.misc.ShipWorldAccess.worldBlockPos(container.tile.getLevel(), container.tile.getBlockPos());
+            if (tilePos == null) tilePos = inv.player.blockPosition();
             centerX = tilePos.getX();
             centerZ = tilePos.getZ();
             selectedLayer = container.tile.getCurrentSelectedArea();
@@ -275,7 +276,8 @@ public class GuiZonePlannerLegacy extends GuiBC8<ContainerZonePlanner> {
         if (minecraft == null || minecraft.player == null) {
             return 0;
         }
-        return Math.max(0, minecraft.player.blockPosition().getY() / ZonePlannerMapChunkKey.LEVEL_HEIGHT);
+        BlockPos worldPlayer = buildcraft.lib.misc.ShipWorldAccess.worldBlockPos(buildcraft.lib.misc.ShipWorldAccess.playerLevel(minecraft.player), minecraft.player.blockPosition());
+        return worldPlayer == null ? 0 : Math.max(0, worldPlayer.getY() / ZonePlannerMapChunkKey.LEVEL_HEIGHT);
     }
 
     private int getDimensionId() {

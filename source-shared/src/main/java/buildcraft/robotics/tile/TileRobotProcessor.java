@@ -253,6 +253,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
      * the full 7x7 area, matching the initial configuration without a map.
      */
     public boolean allowsWorkPosition(BlockPos target) {
+        if (isPhysicsOperationPaused()) return false;
         if (!isWithinWorkArea(worldPosition, target.getX() >> 4, target.getZ() >> 4)) return false;
         boolean hasPaint = false;
         for (ZonePlan layer : layers) {
@@ -506,6 +507,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
 
     /** Force-load only explicitly linked robots, using BC's owner-scoped tickets. */
     public boolean forceRobotChunk(long robotId) {
+        if (isPhysicsOperationPaused()) return false;
         if (!(level instanceof ServerLevel server) || !linkedRobotIds.contains(robotId)
                 || !lastKnownRobotPositions.containsKey(robotId)) return false;
         if (BCLibConfig.chunkLoadingType == BCLibConfig.ChunkLoaderType.OFF
@@ -528,6 +530,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
 
     @Override
     public Set<ChunkPos> getChunksToLoad() {
+        if (isPhysicsOperationPaused()) return java.util.Collections.emptySet();
         Set<ChunkPos> chunks = new HashSet<>();
         for (long id : forceLoadedRobotIds) {
             BlockPos pos = lastKnownRobotPositions.get(id);
@@ -554,8 +557,12 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     }
 
     @Override
+    public boolean isPhysicsOperationPaused() { return isOnPhysicalStructure(); }
+
+    @Override
     public void update() {
         super.update();
+        if (isPhysicsOperationPaused()) return;
         if (!(level instanceof ServerLevel server)) return;
         workScheduler.tick(server);
         long now = server.getGameTime();

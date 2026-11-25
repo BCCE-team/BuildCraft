@@ -1,0 +1,16 @@
+{
+  "selector": "buildcraftbuilders:quarry_drill_collision",
+  "priority": 1100,
+  "properties": {
+    "sable:mass": 0.05,
+    "sable:volume": 0.05,
+    "sable:friction": 0.8,
+    "sable:restitution": 0,
+    "sable:fragile": false,
+    "sable:inertia": [
+      0.05,
+      0.05,
+      0.05
+    ]
+  }
+}

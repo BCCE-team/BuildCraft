@@ -1,0 +1,11 @@
+{
+  "selector": "buildcraftfactory:heat_exchange",
+  "priority": 1100,
+  "properties": {
+    "sable:mass": 2,
+    "sable:volume": 1,
+    "sable:friction": 1,
+    "sable:restitution": 0,
+    "sable:fragile": false
+  }
+}

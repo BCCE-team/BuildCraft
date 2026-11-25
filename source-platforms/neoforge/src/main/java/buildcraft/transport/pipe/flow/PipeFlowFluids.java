@@ -587,6 +587,17 @@ public class PipeFlowFluids extends PipeFlow implements IFlowFluid, IDebuggable 
 
     // Internal logic
 
+    /** Read-only mass of all fluid sections, including delayed contents (already in amount). */
+    public double getPhysicsContentsMass(int connections) {
+        if (currentFluid.isEmpty()) return 0;
+        long amount = 0;
+        for (Section section : sections.values()) amount += Math.max(0, section.amount);
+        int arms = Math.max(0, Math.min(6, connections));
+        return buildcraft.compat.physics.PhysicalMassBalance.contentsMass(amount,
+            (long) capacity * (1 + arms), currentFluid.getFluid().getFluidType().getDensity(),
+            0.05 + 0.025 * arms);
+    }
+
     /** Dynamic luminous-fluid light, with no glow when all pipe sections are empty. */
     public int getEmittedFluidLight() {
         if (currentFluid.isEmpty()) return 0;

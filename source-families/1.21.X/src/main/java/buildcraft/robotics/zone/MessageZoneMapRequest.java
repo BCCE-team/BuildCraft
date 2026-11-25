@@ -52,12 +52,16 @@ public class MessageZoneMapRequest {
                 return;
             }
 
-            int expectedLevel = Math.max(0, player.blockPosition().getY() / ZonePlannerMapChunkKey.LEVEL_HEIGHT);
+            net.minecraft.core.BlockPos worldPlayer = buildcraft.lib.misc.ShipWorldAccess.worldBlockPos(buildcraft.lib.misc.ShipWorldAccess.playerLevel(player), player.blockPosition());
+            if (worldPlayer == null) return;
+            int expectedLevel = Math.max(0, worldPlayer.getY() / ZonePlannerMapChunkKey.LEVEL_HEIGHT);
             if (message.key.level != expectedLevel) {
                 return;
             }
 
-            ChunkPos plannerChunk = new ChunkPos(menu.tile.getBlockPos());
+            net.minecraft.core.BlockPos worldOrigin = buildcraft.lib.misc.ShipWorldAccess.worldBlockPos(menu.tile.getLevel(), menu.tile.getBlockPos());
+            if (worldOrigin == null) return;
+            ChunkPos plannerChunk = new ChunkPos(worldOrigin);
             if (Math.abs(message.key.chunkPos.x - plannerChunk.x) > MAX_CHUNK_DISTANCE
                 || Math.abs(message.key.chunkPos.z - plannerChunk.z) > MAX_CHUNK_DISTANCE) {
                 return;

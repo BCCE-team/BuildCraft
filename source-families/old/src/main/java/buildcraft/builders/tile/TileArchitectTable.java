@@ -227,7 +227,11 @@ public class TileArchitectTable extends TileBC_Neptune implements IDebuggable, M
     }
 
     @Override
+    public boolean isPhysicsOperationPaused() { return isOnPhysicalStructure(); }
+
+    @Override
     public void update() {
+        if (isPhysicsOperationPaused()) return;
         deltaManager.tick();
 
         if (level.isClientSide) {

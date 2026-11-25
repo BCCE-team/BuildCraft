@@ -109,7 +109,7 @@ public final class ContainerPropolisPipe extends ContainerForestry {
 
     @Override
     public boolean stillValid(Player player) {
-        if (player.distanceToSqr(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D) > 64.0D) {
+        if (!buildcraft.lib.misc.ShipWorldAccess.withinReach(player, pos, 64.0D)) {
             return false;
         }
         //? if <1.20 {

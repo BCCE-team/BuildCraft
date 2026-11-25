@@ -6,6 +6,10 @@
 
 package buildcraft.transport.tile;
 
+import buildcraft.compat.physics.PhysicalMassBalance;
+import buildcraft.compat.physics.SableMassState;
+import buildcraft.transport.pipe.flow.PipeFlowFluids;
+
 import java.util.Optional;
 
 import buildcraft.lib.platform.permission.BCPermissions;
@@ -136,6 +140,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
     public final PipeEventBus eventBus = new PipeEventBus();
     private final Map<Direction, PluggableHolder> pluggables = new EnumMap<>(Direction.class);
     private Pipe pipe = Pipe.EMPTY;
+    private boolean physicsMassInitialized;
     private boolean scheduleRenderUpdate = true;
     /** Send one complete pipe creation payload after placement, before incremental behaviour/flow updates. */
     private boolean scheduleFullRenderSync;
@@ -357,6 +362,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
     @Override
     public void onLoad() {
         super.onLoad();
+        physicsMassInitialized = false;
         if (pipe != Pipe.EMPTY) {
             pipe.onLoad();
         }
@@ -421,6 +427,7 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
         }
 
         wireManager.tick();
+        updatePhysicsMass();
 
         if (!Arrays.equals(redstoneValues, oldRedstoneValues)) {
             Block block = level.getBlockState(worldPosition).getBlock();
@@ -448,6 +455,28 @@ public class TilePipeHolder extends TileBC_Neptune implements IPipeHolder, IDebu
             }
             wasFlowPersistentlyActive = flowActive;
         }
+    }
+
+    private void updatePhysicsMass() {
+        if (!SableMassState.due(this, physicsMassInitialized) || pipe == Pipe.EMPTY) return;
+        BlockState state = getBlockState();
+        if (!state.hasProperty(SableMassState.MASS)) return;
+        ResourceLocation id = pipe.getDefinition().identifier;
+        int connections = 0, attachments = 0, facades = 0;
+        for (Direction face : Direction.values()) {
+            if (pipe.isConnected(face)) connections++;
+            PipePluggable plug = getPluggable(face);
+            if (plug != null && plug != PipePluggable.EMPTY) {
+                attachments++;
+                if (plug instanceof buildcraft.silicon.plug.PluggableFacade) facades++;
+            }
+        }
+        double contents = pipe.getFlow() instanceof PipeFlowFluids fluids ? fluids.getPhysicsContentsMass(connections) : 0;
+        double mass = PhysicalMassBalance.pipeMass(PhysicalMassBalance.dryPipeMass(id.getNamespace(), id.getPath()),
+            connections, attachments, facades, wireManager.parts.size(), contents);
+        int step = PhysicalMassBalance.pipeStep(mass,
+            physicsMassInitialized ? state.getValue(SableMassState.MASS) : -1);
+        physicsMassInitialized = SableMassState.sync(this, step);
     }
 
     private void sendNetworkBatch(Set<PipeMessageReceiver> parts, boolean guiOnly) {

@@ -186,7 +186,26 @@ public class TileLaser extends TileBC_Neptune implements IDebuggable, GameEventL
         return 128 * MjAmount.MICRO_MJ_PER_MJ / 20;
     }
 
+    @Override
+    public boolean isPhysicsOperationPaused() { return isOnPhysicalStructure(); }
+
+    @Override
     public void update() {
+        if (isPhysicsOperationPaused()) {
+            boolean changed = targetPos != null || laserPos != null || renderPower != 0 || lastSentBeamActive;
+            targetPos = null;
+            laserPos = null;
+            renderPower = 0;
+            if (avgPower.getAverageLong() != 0) avgPower.clear();
+            targetPositions.clear();
+            lastSentBeamActive = false;
+            levelHasUpdated = true;
+            if (!level.isClientSide && changed) {
+                sendNetworkUpdate(NET_RENDER_DATA);
+                markChunkDirty();
+            }
+            return;
+        }
         if (level.isClientSide) {
             // set laser render position on client side
             if (clientLaserMoveInterval.markTimeIfDelay(level) || targetPos == null) {

@@ -1,0 +1,16 @@
+{
+  "selector": "buildcraftfactory:chute",
+  "priority": 1100,
+  "properties": {
+    "sable:mass": 0.3,
+    "sable:volume": 0.35,
+    "sable:friction": 0.9,
+    "sable:restitution": 0,
+    "sable:fragile": false,
+    "sable:inertia": [
+      0.1,
+      0.1,
+      0.1
+    ]
+  }
+}

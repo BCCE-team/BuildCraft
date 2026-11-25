@@ -6,6 +6,8 @@
 
 package buildcraft.factory.block;
 
+import buildcraft.compat.physics.SableMassState;
+
 import buildcraft.lib.internal.properties.BuildCraftProperties;
 import buildcraft.transport.internal.pipe.ICustomPipeConnection;
 import buildcraft.factory.tile.TileTank;
@@ -42,7 +44,7 @@ public class BlockTank extends BlockBCTile_Neptune implements ICustomPipeConnect
 
 	protected BlockTank(BlockBehaviour.Properties properties) {
 		super(properties);
-		this.registerDefaultState(this.defaultBlockState().setValue(JOINED_BELOW, false));
+		this.registerDefaultState(this.defaultBlockState().setValue(JOINED_BELOW, false).setValue(SableMassState.MASS, 0));
 	}
 
 	protected static BlockBehaviour.Properties defaultProperties() {
@@ -51,7 +53,7 @@ public class BlockTank extends BlockBCTile_Neptune implements ICustomPipeConnect
 
 	@Override
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> bs) {
-		bs.add(JOINED_BELOW);
+		bs.add(JOINED_BELOW, SableMassState.MASS);
 		super.createBlockStateDefinition(bs);
 	}
 

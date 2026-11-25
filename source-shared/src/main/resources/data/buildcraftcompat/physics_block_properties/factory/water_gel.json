@@ -1,0 +1,11 @@
+{
+  "selector": "buildcraftfactory:water_gel",
+  "priority": 1100,
+  "properties": {
+    "sable:mass": 0.9,
+    "sable:volume": 1,
+    "sable:friction": 0.9,
+    "sable:restitution": 0.25,
+    "sable:fragile": false
+  }
+}

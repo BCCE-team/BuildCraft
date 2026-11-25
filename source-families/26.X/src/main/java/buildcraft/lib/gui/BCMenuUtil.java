@@ -23,11 +23,7 @@ public final class BCMenuUtil {
             if (level.getBlockState(pos).getBlock() != expectedBlock) {
                 return false;
             }
-            return player.distanceToSqr(
-                pos.getX() + 0.5D,
-                pos.getY() + 0.5D,
-                pos.getZ() + 0.5D
-            ) <= 64.0D;
+            return buildcraft.lib.misc.ShipWorldAccess.withinReach(player, level, pos, 64.0D);
         }, false);
     }
 

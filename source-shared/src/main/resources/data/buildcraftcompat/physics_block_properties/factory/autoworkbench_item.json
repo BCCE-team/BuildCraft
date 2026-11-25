@@ -1,0 +1,11 @@
+{
+  "selector": "buildcraftfactory:autoworkbench_item",
+  "priority": 1100,
+  "properties": {
+    "sable:mass": 0.85,
+    "sable:volume": 0.8,
+    "sable:friction": 1,
+    "sable:restitution": 0,
+    "sable:fragile": false
+  }
+}

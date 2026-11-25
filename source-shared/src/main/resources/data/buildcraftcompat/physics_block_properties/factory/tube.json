@@ -1,0 +1,16 @@
+{
+  "selector": "buildcraftfactory:tube",
+  "priority": 1100,
+  "properties": {
+    "sable:mass": 0.15,
+    "sable:volume": 0.25,
+    "sable:friction": 0.8,
+    "sable:restitution": 0,
+    "sable:fragile": false,
+    "sable:inertia": [
+      0.104167,
+      0.041667,
+      0.104167
+    ]
+  }
+}

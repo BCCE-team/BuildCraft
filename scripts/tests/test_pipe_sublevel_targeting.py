@@ -179,7 +179,14 @@ class PipeSublevelTargeting(unittest.TestCase):
                     self.assertIn('.dynamicShape()',source)
                     self.assertNotIn('getEyePosition()',method(source,'public VoxelShape getShape('))
                     self.assertIn('world.clip(new ClipContext(', methods)
-                    self.assertIn('return super.onDestroyedByPlayer', method(source, 'public boolean onDestroyedByPlayer('))
+                    destroyed = method(source, 'public boolean onDestroyedByPlayer(')
+                    self.assertIn('return super.onDestroyedByPlayer', destroyed)
+                    # Minecraft 26.3 uses the vanilla three-argument method. The
+                    # NeoForge materializer adapts it, Fabric native sources do not.
+                    # Older targets expose the player-aware overload.
+                    particle_args = 'world, pos, state' if props[f'target.{target}.deps.minecraft'] == '26.3' else 'world, player, pos, state'
+                    self.assertIn(f'this.spawnDestroyParticles({particle_args});', destroyed)
+                    self.assertEqual(1, destroyed.count('this.spawnDestroyParticles('))
                     self.assertIn('resolveBlockHit(world, pos, re)',source)
                     name = 'Probe_' + target.replace('.','_').replace('-','_')
                     out = tmp / 'src/buildcraft/transport/block' / (name+'.java')

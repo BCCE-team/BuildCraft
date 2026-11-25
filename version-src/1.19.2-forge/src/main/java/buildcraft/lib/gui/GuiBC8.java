@@ -77,6 +77,11 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
     @Override
 	public void render(PoseStack pose, int mouseX, int mouseY, float partialTicks) {
 		super.render(pose, mouseX, mouseY, partialTicks);
+            if (container instanceof IMenuBCTile tileMenu && tileMenu.getBCTile() != null
+                && tileMenu.getBCTile().isPhysicsOperationPaused()) {
+                net.minecraft.network.chat.Component warning = net.minecraft.network.chat.Component.translatable("gui.buildcraftlib.physics.paused");
+                font.drawShadow(pose, warning, (width - font.width(warning)) / 2.0F, Math.max(2, topPos - 12), 0xFFAA00);
+            }
         if (mainGui.currentMenu == null || !mainGui.currentMenu.shouldFullyOverride()) {
             this.renderTooltip(pose, mouseX, mouseY);
         }

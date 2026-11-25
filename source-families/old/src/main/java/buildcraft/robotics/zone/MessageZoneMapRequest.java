@@ -63,7 +63,9 @@ public class MessageZoneMapRequest {
                 return;
             }
 
-            ChunkPos plannerChunk = new ChunkPos(menu.tile.getBlockPos());
+            net.minecraft.core.BlockPos worldOrigin = buildcraft.lib.misc.ShipWorldAccess.worldBlockPos(menu.tile.getLevel(), menu.tile.getBlockPos());
+            if (worldOrigin == null) return;
+            ChunkPos plannerChunk = new ChunkPos(worldOrigin);
             if (Math.abs(message.key.chunkPos.x - plannerChunk.x) > MAX_CHUNK_DISTANCE
                     || Math.abs(message.key.chunkPos.z - plannerChunk.z) > MAX_CHUNK_DISTANCE) {
                 return;

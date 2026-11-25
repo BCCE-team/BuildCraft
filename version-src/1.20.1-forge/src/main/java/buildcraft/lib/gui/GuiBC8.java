@@ -94,6 +94,11 @@ public abstract class GuiBC8<C extends MenuBC_Neptune> extends AbstractContainer
         activeGraphics = guiGraphics;
         try {
             super.render(guiGraphics, mouseX, mouseY, partialTicks);
+            if (container instanceof IMenuBCTile tileMenu && tileMenu.getBCTile() != null
+                && tileMenu.getBCTile().isPhysicsOperationPaused()) {
+                net.minecraft.network.chat.Component warning = net.minecraft.network.chat.Component.translatable("gui.buildcraftlib.physics.paused");
+                guiGraphics.drawCenteredString(font, warning, width / 2, Math.max(2, topPos - 12), 0xFFFFAA00);
+            }
             if (mainGui.currentMenu == null || !mainGui.currentMenu.shouldFullyOverride()) {
                 renderTooltip(guiGraphics, mouseX, mouseY);
             }
