@@ -70,6 +70,12 @@ public final class BCRobotics {
         BCCapabilityRegistration.registerBlockEntity(CapUtil.CAP_ITEMS, BCRoboticsBlocks.ZONE_PLANNER_TILE.get());
         BCCapabilityRegistration.registerBlockEntity(CapUtil.CAP_ITEMS, BCRoboticsBlocks.REQUESTER_TILE.get());
         BCCapabilityRegistration.registerBlockEntity(CapUtil.CAP_ITEMS, BCRoboticsBlocks.ROBOT_PROCESSOR_TILE.get());
+        var processor = BCRoboticsBlocks.ROBOT_PROCESSOR_TILE.get();
+        BCCapabilityRegistration.registerBlockEntity(buildcraft.lib.internal.mj.MjCapabilities.CAP_CONNECTOR, processor);
+        BCCapabilityRegistration.registerBlockEntity(buildcraft.lib.internal.mj.MjCapabilities.CAP_RECEIVER, processor);
+        BCCapabilityRegistration.registerBlockEntity(buildcraft.lib.internal.mj.MjCapabilities.CAP_REDSTONE_RECEIVER, processor);
+        BCCapabilityRegistration.registerBlockEntity(buildcraft.lib.internal.mj.MjCapabilities.CAP_READABLE, processor);
+        BCCapabilityRegistration.registerBlockEntity(CapUtil.CAP_FE, processor);
 
         MessageManager.registerMessageClass(
             BCModules.ROBOTICS, MessageZoneMapRequest.class,

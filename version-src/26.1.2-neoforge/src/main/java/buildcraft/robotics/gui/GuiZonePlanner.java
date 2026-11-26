@@ -69,7 +69,8 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     private static final int SIZE_Y = 228;
 
     private static final GuiIcon ICON_GUI = new GuiIcon(TEXTURE_BASE, 0, 0, SIZE_X, SIZE_Y);
-    private static final GuiIcon ICON_PROCESSOR = new GuiIcon(TEXTURE_PROCESSOR, 0, 0, 323, 272, 512);
+    private static final int PROCESSOR_WIDTH = 331;
+    private static final GuiIcon ICON_PROCESSOR = new GuiIcon(TEXTURE_PROCESSOR, 0, 0, PROCESSOR_WIDTH, 272, 512);
     private static final GuiIcon ICON_PROGRESS = new GuiIcon(TEXTURE_BASE, 16, 228, 8, 28);
     private static final GuiRectangle RECT_PROGRESS = new GuiRectangle(236, 26, 8, 28);
 
@@ -166,7 +167,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     }
 
     protected GuiZonePlanner(M container, Inventory inv, Component title, boolean processorMode) {
-        super(container, inv, title, processorMode ? 323 : SIZE_X, processorMode ? 272 : SIZE_Y);
+        super(container, inv, title, processorMode ? PROCESSOR_WIDTH : SIZE_X, processorMode ? 272 : SIZE_Y);
         this.processorMode = processorMode;
         if (!processorMode) container.applyClientGuiLayout(false);
         guiPlayerInventory = inv;

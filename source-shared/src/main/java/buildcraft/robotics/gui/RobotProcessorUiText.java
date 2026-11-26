@@ -1,6 +1,9 @@
 package buildcraft.robotics.gui;
 
 import buildcraft.robotics.RobotTaskNames;
+import buildcraft.lib.BCLibConfig;
+import buildcraft.lib.internal.mj.MjFormatting;
+import buildcraft.robotics.container.ContainerRobotProcessor;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -25,6 +28,34 @@ public final class RobotProcessorUiText {
 
     public static String text(String key, Object... args) {
         return component(key, args).getString();
+    }
+
+    // A narrow machine panel uses the short MJ unit even with long unit names enabled.
+    private static Component energyRate(long microMjPerTick) {
+        if (BCLibConfig.hidePowerValues) return Component.translatable("buildcraft.value.hidden");
+        var gap = BCLibConfig.displayTimeGap;
+        String key = gap == BCLibConfig.TimeGap.SECONDS
+                ? "buildcraft.mj.flow.seconds.short" : "buildcraft.mj.flow.short";
+        return Component.translatable(key, MjFormatting.formatMicroMj(gap.convertTicksToGap(microMjPerTick)));
+    }
+
+    static Component energyConsumption(ContainerRobotProcessor.PowerState state) {
+        boolean starved = state.requested() > state.consumed();
+        return component(starved ? "energy.need" : "energy.use",
+                energyRate(starved ? state.requested() : state.consumed()));
+    }
+
+    static List<Component> energyTooltip(ContainerRobotProcessor menu) {
+        var state = menu.getPowerState();
+        Component amount = BCLibConfig.hidePowerValues ? Component.translatable("buildcraft.value.hidden")
+                : Component.translatable("buildcraft.mj.static.short", MjFormatting.formatMicroMj(state.stored())
+                        + " / " + MjFormatting.formatMicroMj(menu.getEnergyCapacity()));
+        Component used = component("energy.use", energyRate(state.consumed()));
+        if (state.requested() > state.consumed()) {
+            return List.of(component("energy.title"), amount, used,
+                    component("energy.need", energyRate(state.requested())));
+        }
+        return List.of(component("energy.title"), amount, used);
     }
 
     public static List<Component> help(String key) {

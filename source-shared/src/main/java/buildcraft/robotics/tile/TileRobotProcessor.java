@@ -8,7 +8,13 @@ import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.Map;
+import buildcraft.api.v2.OperationMode;
+import buildcraft.api.v2.energy.MjAmount;
 import buildcraft.lib.BCLibConfig;
+import buildcraft.lib.internal.mj.MjBattery;
+import buildcraft.lib.mj.MjRedstoneBatteryReceiver;
+import buildcraft.lib.internal.mj.MjCapabilityHelper;
+import buildcraft.robotics.scheduler.RobotProcessorPower;
 import buildcraft.lib.chunkload.ChunkLoaderManager;
 import buildcraft.lib.chunkload.IChunkLoadingTile;
 import net.minecraft.server.level.ServerLevel;
@@ -48,8 +54,8 @@ import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * User-facing robot control panel. The Zone Planner ancestor supplies the
- * editable 16-layer work-area map and its save/network lifecycle. Dispatching
- * and job caching are intentionally not activated by this initial GUI patch.
+ * editable 16-layer work-area map and its save/network lifecycle. The server
+ * owns the MJ buffer, scan scheduler and explicit robot links.
  */
 public class TileRobotProcessor extends TileZonePlanner implements IChunkLoadingTile {
     private static final int MAX_FORCED_ROBOT_CHUNKS = 16;
@@ -59,6 +65,44 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     public static final int MAX_EXECUTION_QUEUE = 8;
     public static final int DEFAULT_EXECUTION_QUEUE = 5;
     public static final int MAX_LINK_NAME_LENGTH = 32;
+    public static final int MAX_LINKED_ROBOTS = RobotProcessorPower.MAX_ROBOTS;
+    public static final long ENERGY_CAPACITY = RobotProcessorPower.CAPACITY;
+    private final MjBattery processorBattery = new MjBattery(ENERGY_CAPACITY);
+    private long lastStoredEnergy, requestedPower, consumedPower;
+    private boolean schedulerRunning;
+
+    public long getStoredEnergy() { return processorBattery.getStored(); }
+    public long getRequestedPower() { return requestedPower; }
+    public long getConsumedPower() { return consumedPower; }
+
+    private void restoreEnergy(long stored) {
+        processorBattery.extractAll();
+        processorBattery.insert(MjAmount.ofMicro(Math.max(0L, Math.min(ENERGY_CAPACITY, stored))),
+                OperationMode.EXECUTE);
+        lastStoredEnergy = processorBattery.getStored();
+    }
+
+    /** Charge for loaded linked robots, even if they are sleeping at a dock.
+     * Unloaded/offline robots do not require scheduling work. */
+    private int loadedLinkedRobotCount() {
+        if (RobotManager.registryProvider == null || level == null) return 0;
+        var registry = RobotManager.registryProvider.getRegistry(level);
+        if (registry == null) return 0;
+        int count = 0;
+        for (long id : linkedRobotIds) {
+            EntityRobotBase robot = registry.getLoadedRobot(id);
+            if (robot != null && !robot.isRemoved()) count++;
+        }
+        return count;
+    }
+
+    private void stopScheduling() {
+        // Remove provisional leases and the panel from the world's active
+        // scheduler registry. Actual robot-owned work/energy is independent.
+        if (schedulerRunning) workScheduler.onPowerPaused();
+        schedulerRunning = false;
+        consumedPower = 0;
+    }
 
     /** Number of *execution* operations per robot packet; movement and searching are not jobs. */
     private int maxExecutionQueue = DEFAULT_EXECUTION_QUEUE;
@@ -76,6 +120,14 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
 
     /** Progress of the full, loaded-section background scan (not robot jobs). */
     public RobotProcessorWorkScheduler.ScanProgress getScanProgress() {
+        if (requestedPower == 0) {
+            return new RobotProcessorWorkScheduler.ScanProgress(0, 0, RobotProcessorWorkScheduler.SCAN_WAITING, 0);
+        }
+        if (consumedPower == 0) {
+            var progress = workScheduler.scanProgress();
+            return new RobotProcessorWorkScheduler.ScanProgress(progress.percent(), progress.currentPassPercent(),
+                    RobotProcessorWorkScheduler.SCAN_NO_POWER, progress.sections());
+        }
         return workScheduler.scanProgress();
     }
 
@@ -329,17 +381,20 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         legacyForcedTicketCleanup.clear();
         robotNames.clear();
         stationNames.clear();
-        for (int i = 0; i < robotIds.length && linkedRobotIds.size() < 64; i++) {
+        for (int i = 0; i < robotIds.length && linkedRobotIds.size() < MAX_LINKED_ROBOTS; i++) {
             long id = robotIds[i];
             if (id <= 0L || id == Long.MAX_VALUE || !linkedRobotIds.add(id)) continue;
             if (i < knownPositions.length && knownPositions[i] != UNKNOWN_ROBOT_POS) {
                 lastKnownRobotPositions.put(id, BlockPos.of(knownPositions[i]));
             }
         }
-        for (long id : forcedIds) {
-            if (forceLoadedRobotIds.size() >= MAX_FORCED_ROBOT_CHUNKS) break;
-            if (linkedRobotIds.contains(id) && lastKnownRobotPositions.containsKey(id)) {
-                BlockPos old = lastKnownRobotPositions.get(id);
+        // Old saves could contain 64 links. Release old platform tickets even
+        // for links beyond the new cap, before forgetting those positions.
+        Set<Long> oldForcedIds = new HashSet<>();
+        for (long id : forcedIds) oldForcedIds.add(id);
+        for (int i = 0; i < robotIds.length && i < knownPositions.length && i < 64; i++) {
+            if (oldForcedIds.contains(robotIds[i]) && knownPositions[i] != UNKNOWN_ROBOT_POS) {
+                BlockPos old = BlockPos.of(knownPositions[i]);
                 legacyForcedTicketCleanup.add(new ChunkPos(old.getX() >> 4, old.getZ() >> 4));
             }
         }
@@ -381,6 +436,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     @Override
     protected void readData(BCValueInput data) {
         super.readData(data);
+        restoreEnergy(data.readLong("processorEnergy"));
         loadLinks(data.readLongArray("linkedRobots"), data.readLongArray("linkedStations"),
                 data.readIntArray("linkedStationSides"),
                 data.readLongArray("knownRobotPositions"), data.readLongArray("forcedRobotChunks"));
@@ -398,6 +454,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     @Override
     protected void writeData(BCValueOutput data) {
         super.writeData(data);
+        data.writeLong("processorEnergy", getStoredEnergy());
         data.writeLongArray("linkedRobots", savedRobotIds());
         data.writeLongArray("knownRobotPositions", savedRobotPositions());
         data.writeLongArray("forcedRobotChunks", savedForceLoadedRobots());
@@ -417,6 +474,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     @Override
     public void load(CompoundTag tag) {
         super.load(tag);
+        restoreEnergy(tag.getLong("processorEnergy"));
         loadLinks(tag.getLongArray("linkedRobots"), tag.getLongArray("linkedStations"),
                 tag.getIntArray("linkedStationSides"),
                 tag.getLongArray("knownRobotPositions"), tag.getLongArray("forcedRobotChunks"));
@@ -434,6 +492,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     @Override
     public void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
+        tag.putLong("processorEnergy", getStoredEnergy());
         tag.putLongArray("linkedRobots", savedRobotIds());
         tag.putLongArray("knownRobotPositions", savedRobotPositions());
         tag.putLongArray("forcedRobotChunks", savedForceLoadedRobots());
@@ -466,7 +525,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     }
 
     public boolean linkRobot(long robotId, BlockPos location) {
-        if (robotId <= 0L || robotId == Long.MAX_VALUE || linkedRobotIds.size() >= 64) return false;
+        if (robotId <= 0L || robotId == Long.MAX_VALUE || linkedRobotIds.size() >= MAX_LINKED_ROBOTS) return false;
         boolean added = linkedRobotIds.add(robotId);
         if (added) {
             if (location != null) lastKnownRobotPositions.put(robotId, location.immutable());
@@ -544,6 +603,8 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         super.onLoad();
         chunkTicketsDirty = true;
         schedulerSuspended = false;
+        schedulerRunning = false;
+        requestedPower = consumedPower = 0;
         workScheduler.onLinkChanged();
         workScheduler.restorePendingWork(persistedMiningWork);
         if (level instanceof ServerLevel) {
@@ -562,11 +623,26 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     @Override
     public void update() {
         super.update();
-        if (isPhysicsOperationPaused()) return;
         if (!(level instanceof ServerLevel server)) return;
-        workScheduler.tick(server);
+        if (isPhysicsOperationPaused()) {
+            requestedPower = 0;
+            stopScheduling();
+            markEnergyChanged();
+            return;
+        }
+        // The battery and rate are in micro-MJ. Never spend a partial tick's
+        // cost or execute scheduler work for free when the supply is empty.
+        requestedPower = RobotProcessorPower.requiredPerTick(loadedLinkedRobotCount());
+        if (requestedPower > 0 && processorBattery.extractPower(requestedPower)) {
+            consumedPower = requestedPower;
+            schedulerRunning = true;
+            workScheduler.tick(server);
+        } else {
+            stopScheduling();
+        }
         long now = server.getGameTime();
         workScheduler.flushCatalogDirty(now);
+        markEnergyChanged();
         if (forceLoadedRobotIds.removeIf(id -> now >= forceChunkExpiries.getOrDefault(id, now))) {
             forceChunkExpiries.keySet().retainAll(forceLoadedRobotIds);
             chunkTicketsDirty = true;
@@ -592,6 +668,13 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         }
     }
 
+    private void markEnergyChanged() {
+        if (lastStoredEnergy != getStoredEnergy()) {
+            lastStoredEnergy = getStoredEnergy();
+            setChanged();
+        }
+    }
+
     @Override
     public void onChunkUnloaded() {
         // A panel must not keep short-lived candidate claims after its chunk
@@ -603,6 +686,8 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         persistedMiningWork = workScheduler.pendingWorkSnapshot();
         persistedCatalog = workScheduler.catalogSnapshot();
         schedulerSuspended = true;
+        schedulerRunning = false;
+        requestedPower = consumedPower = 0;
         workScheduler.onRemoved();
         super.onChunkUnloaded();
     }
@@ -626,6 +711,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
 
     public TileRobotProcessor(BlockPos pos, BlockState state) {
         super(BCRoboticsBlocks.ROBOT_PROCESSOR_TILE.get(), pos, state);
+        caps.addProvider(new MjCapabilityHelper(new MjRedstoneBatteryReceiver(processorBattery)));
     }
 
     @Override

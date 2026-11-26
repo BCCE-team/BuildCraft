@@ -26,12 +26,12 @@ class RobotProcessorHomeAndUnlinkTests(unittest.TestCase):
         for name in ZONE_SOURCES:
             with self.subTest(file=name):
                 text = (ROOT / name).read_text()
-                self.assertIn('new GuiIcon(TEXTURE_PROCESSOR, 0, 0, 323, 272, 512)', text)
+                self.assertIn('new GuiIcon(TEXTURE_PROCESSOR, 0, 0, PROCESSOR_WIDTH, 272, 512)', text)
                 self.assertIn('processorMode ? 104 : MAP_X', text)
                 self.assertIn('processorMode ? 246 : COLOUR_X', text)
                 self.assertIn('processorMode ? 195 : COLOUR_Y', text)
                 self.assertIn('processorMode ? 158 : HISTORY_Y', text)
-                self.assertIn('processorMode ? 323 : SIZE_X', text)
+                self.assertIn('processorMode ? PROCESSOR_WIDTH : SIZE_X', text)
 
     def test_home_uses_force_visual_only_with_shift_and_unlink_is_separate(self):
         for name in ROBOT_SCREENS:

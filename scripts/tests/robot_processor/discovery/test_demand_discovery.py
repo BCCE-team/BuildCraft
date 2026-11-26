@@ -71,14 +71,20 @@ public class Stage4Fixture {
   check(farmland!=null && farmland.position().equals(level.target),
        "Farmer candidate contract did not enter shared index");
   farm.onRemoved();
-  // Missing demand: a single non-queued worker keeps original local search.
+  // An explicitly linked single worker still gets a discovery pass.
   panel.linked.remove(2L);
+  first.asleep=true;
   var solo = new RobotProcessorWorkScheduler(panel);
   level.time++;solo.tick(level);
-  check(RobotProcessorWorkScheduler.suggest(first)==null,
-       "A single non-miner ran redundant shared discovery");
+  check(solo.scanProgress().phase()!=RobotProcessorWorkScheduler.SCAN_WAITING,
+       "A single sleeping linked worker never started discovery");
+  int oldProgress=solo.scanProgress().percent();
+  solo.onPowerPaused();
+  check(solo.scanProgress().percent()==oldProgress,"Power pause discarded scan coverage");
+  level.time++;solo.tick(level);
+  check(solo.scanProgress().percent()>=oldProgress,"Resuming power restarted discovery");
   solo.onRemoved();
-  System.out.println("PASS: sparse sections, changed crops, exclusive hints, farm category, solo fallback");
+  System.out.println("PASS: sparse sections, changed crops, exclusive hints, farm category, single sleeping worker and power pause");
  }
 }'''
 
@@ -112,6 +118,8 @@ class DemandDiscoveryTests(unittest.TestCase):
                 key = 'buildcraft/robotics/internal/legacy/robots/EntityRobotBase.java'
                 stubs[key] = stubs[key].replace(' public long getRobotId(){return id;}',
                     ' public void setBoardId(String id){board.setBoardId(id);}\n public long getRobotId(){return id;}')
+                stubs[key] = stubs[key].replace('public AIRobot getActiveAI(){return board;}',
+                    'public boolean asleep; public AIRobot getActiveAI(){return asleep?new AIRobot():board;}')
                 files=[]
                 for rel, text in stubs.items():
                     path = folder/rel;path.parent.mkdir(parents=True,exist_ok=True)

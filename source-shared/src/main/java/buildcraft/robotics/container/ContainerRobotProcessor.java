@@ -62,12 +62,14 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     // Append only: existing protocol message IDs must not be renumbered.
     private static final int ID_DIAGNOSTICS = ROBOT_IDS.allocId("processor_diagnostics");
     private static final int ID_NAVIGATION_PROFILE = ROBOT_IDS.allocId("processor_navigation_profile");
+    private static final int ID_POWER_STATE = ROBOT_IDS.allocId("processor_power_state");
     // A robot currently has four transfer slots and one tank; leave room for extensions.
     private static final int MAX_CARGO_ENTRIES = 32;
     private static final int MAX_CARGO_TANKS = 8;
     private static final int MAX_ROBOT_SLOTS = 32;
     private static final int MAX_FLUID_AMOUNT = 1_000_000;
-    private static final int ROBOT_LIMIT = 64;
+    private static final int ROBOT_LIMIT = TileRobotProcessor.MAX_LINKED_ROBOTS;
+    private static final int STATION_LIMIT = 64;
     private final List<RobotSnapshot> snapshots = new ArrayList<>();
     private final List<StationSnapshot> stationSnapshots = new ArrayList<>();
     // Demand-driven snapshots: only the selected, explicitly linked robot is inspected.
@@ -83,6 +85,13 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     public static final int SCAN_COMPLETE = 2;
     public static final int SCAN_REFRESHING = 3;
     public static final int SCAN_NO_CHUNKS = 4;
+    public static final int SCAN_NO_POWER = 5;
+
+    public record PowerState(long stored, long requested, long consumed) { }
+    private PowerState powerState = new PowerState(0L, 0L, 0L);
+    private PowerState lastSentPowerState;
+    public PowerState getPowerState() { return powerState; }
+    public long getEnergyCapacity() { return TileRobotProcessor.ENERGY_CAPACITY; }
 
     /** Values received from the server, never computed from the client's world. */
     public record ScanProgress(int percent, int passPercent, int phase, int sections) { }
@@ -272,6 +281,19 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
             sendMessage(ID_QUEUE_STATE, out -> out.writeByte(lastSentExecutionQueue));
         }
         if (playerInventory.player instanceof ServerPlayer && processor != null) {
+            PowerState power = new PowerState(processor.getStoredEnergy(), processor.getRequestedPower(),
+                    processor.getConsumedPower());
+            if (lastSentPowerState == null || ((snapshotTick % 5 == 0
+                    || power.requested() != lastSentPowerState.requested()
+                    || power.consumed() != lastSentPowerState.consumed()) && !power.equals(lastSentPowerState))) {
+                powerState = power;
+                lastSentPowerState = power;
+                sendMessage(ID_POWER_STATE, out -> {
+                    out.writeLong(power.stored());
+                    out.writeLong(power.requested());
+                    out.writeLong(power.consumed());
+                });
+            }
             var serverProgress = processor.getScanProgress();
             ScanProgress next = new ScanProgress(serverProgress.percent(),
                     serverProgress.currentPassPercent(), serverProgress.phase(), serverProgress.sections());
@@ -520,7 +542,7 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
         IRobotRegistry registry = RobotManager.registryProvider == null || processor.getLevel() == null
                 ? null : RobotManager.registryProvider.getRegistry(processor.getLevel());
         for (StationKey key : processor.getLinkedStations()) {
-            if (next.size() >= ROBOT_LIMIT) break;
+            if (next.size() >= STATION_LIMIT) break;
             DockingStation dock = registry == null ? null : registry.getStation(key.pos(), key.side());
             long robotId = dock == null ? EntityRobotBase.NULL_ROBOT_ID : dock.linkedId();
             String status = dock == null ? "Offline" : robotId != EntityRobotBase.NULL_ROBOT_ID
@@ -595,7 +617,7 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                         buffer.readUtf(96)));
             }
         } else if (id == ID_STATIONS && side == BCNetworkSide.CLIENT) {
-            int count = NetworkSecurity.requireRange(buffer.readVarInt(), 0, ROBOT_LIMIT, "station snapshots");
+            int count = NetworkSecurity.requireRange(buffer.readVarInt(), 0, STATION_LIMIT, "station snapshots");
             stationSnapshots.clear();
             for (int i = 0; i < count; i++) {
                 stationSnapshots.add(new StationSnapshot(buffer.readInt(), buffer.readInt(), buffer.readInt(),
@@ -603,11 +625,17 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                         buffer.readUtf(24), buffer.readLong(),
                         buffer.readUtf(TileRobotProcessor.MAX_LINK_NAME_LENGTH)));
             }
+        } else if (id == ID_POWER_STATE && side == BCNetworkSide.CLIENT) {
+            long stored = buffer.readLong(), requested = buffer.readLong(), consumed = buffer.readLong();
+            long max = buildcraft.robotics.scheduler.RobotProcessorPower.MAX_PER_TICK;
+            if (stored < 0 || stored > TileRobotProcessor.ENERGY_CAPACITY || requested < 0 || requested > max
+                    || consumed < 0 || consumed > requested) throw new IOException("Invalid processor power state");
+            powerState = new PowerState(stored, requested, consumed);
         } else if (id == ID_SCAN_PROGRESS && side == BCNetworkSide.CLIENT) {
             scanProgress = new ScanProgress(
                     NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0, 100, "scan percent"),
                     NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0, 100, "scan refresh percent"),
-                    NetworkSecurity.requireRange(buffer.readUnsignedByte(), SCAN_WAITING, SCAN_NO_CHUNKS,
+                    NetworkSecurity.requireRange(buffer.readUnsignedByte(), SCAN_WAITING, SCAN_NO_POWER,
                             "scan phase"),
                     NetworkSecurity.requireRange(buffer.readVarInt(), 0, 1_000_000,
                             "scan section count"));

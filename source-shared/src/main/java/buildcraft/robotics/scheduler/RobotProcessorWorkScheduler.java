@@ -66,6 +66,7 @@ public final class RobotProcessorWorkScheduler {
     public static final int SCAN_COMPLETE = 2;
     public static final int SCAN_REFRESHING = 3;
     public static final int SCAN_NO_CHUNKS = 4;
+    public static final int SCAN_NO_POWER = 5;
 
     /** Initial coverage is sticky at 100% while periodic passes refresh it.
      * The second percentage always refers to the currently active pass. */
@@ -278,7 +279,13 @@ public final class RobotProcessorWorkScheduler {
         return WORLDS.computeIfAbsent(level, ignored -> new WorldState());
     }
 
-    public void onRemoved() {
+    public void onRemoved() { stopRuntime(false); }
+
+    /** Drop provisional execution claims but keep scan coverage so intermittent
+     * power cannot force the scanner to restart from the first section forever. */
+    public void onPowerPaused() { stopRuntime(true); }
+
+    private void stopRuntime(boolean preserveScan) {
         pickupScheduler.onRemoved();
         logisticsScheduler.onRemoved();
         RobotBuilderMaterialScheduler.releasePanel(panel.getLevel(), panel.getBlockPos().asLong());
@@ -293,21 +300,26 @@ public final class RobotProcessorWorkScheduler {
         positiveRoutes.clear();
         chargerSnapshots.clear();
         energyPressure.clear();
-        activeCategories.clear();
         remainingDemand.clear();
         dirtyPositions.clear();
         focusedProbes.clear();
         probeCooldowns.clear();
         minerProbeAnchors.clear();
-        scanSections.clear();
-        verticalCursor.reset(0);
         diagnostics.reset();
         navigation.reset();
-        scanCost.reset();
-        scanPassStarted = false;
-        firstPassComplete = false;
-        loadedChunkCount = 0;
-        scanScopeFingerprint = Long.MIN_VALUE;
+        if (!preserveScan) {
+            activeCategories.clear();
+            scanSections.clear();
+            verticalCursor.reset(0);
+            scanCost.reset();
+            scanPassStarted = false;
+            firstPassComplete = false;
+            loadedChunkCount = 0;
+            scanScopeFingerprint = Long.MIN_VALUE;
+            demandFingerprint = "";
+            nextPass = 0;
+            passComplete = false;
+        }
         registered = false;
         Level level = panel.getLevel();
         if (level == null) return;
@@ -346,6 +358,7 @@ public final class RobotProcessorWorkScheduler {
         navigation.reset();
         scanCost.reset();
         if (state != null) state.adaptiveBudget.remove(panel.getBlockPos().asLong());
+        activeCategories.clear();
         remainingDemand.clear();
         dirtyPositions.clear();
         focusedProbes.clear();
@@ -454,15 +467,15 @@ public final class RobotProcessorWorkScheduler {
                     && robotLevelIs(level, robot) && isPrimaryController(state, robot.getRobotId())) {
                 readyPickers.add(robot);
             }
-            if (robot == null || !(robot.getBoard() instanceof ProcessorCandidateBoard board)
+            if (robot == null || robot.isRemoved() || !(robot.getBoard() instanceof ProcessorCandidateBoard board)
                     || !robotLevelIs(level, robot) || !isPrimaryController(state, id)) continue;
             boolean queued = isQueuedWorker(robot);
             if (queued) allQueuedWorkers.add(robot);
             boolean working = ready(robot);
             // The discovery catalog belongs to the PANEL, not to the currently
-            // active AI. A miner sleeping at its dock is still interested in ore.
-            // Only dispatch/leases require ready(), never background discovery.
-            if ((!working && !queued) || (!board.processorAcceptsHints() && !queued)) continue;
+            // active AI. A sleeping/charging robot still supplies a discovery
+            // predicate. Only dispatch/leases require ready().
+            if (!board.processorAcceptsHints() && !queued) continue;
             if (working && isQueueMiner(robot)) readyMiners.add(robot);
             if (working && queued) readyWorkers.add(robot);
             String category = board.processorWorkCategory();
@@ -479,11 +492,8 @@ public final class RobotProcessorWorkScheduler {
         areaActions.tick(level, areaWorkers);
         pickupScheduler.tick(level, readyPickers);
         logisticsScheduler.tick(level);
-        // There is no duplicated discovery work to eliminate when only one
-        // robot in a category is ready. Leave its existing autonomous search
-        // untouched and do not spend extra scanning CPU for that category.
-        activeCategories.keySet().removeIf(category -> byCategory.get(category).size() < 2
-                && !queuedCategories.contains(category));
+        // The panel is an explicit controller. A single linked candidate
+        // board deserves the same discovery pass as a fleet.
         // Reuse the connected deposit already discovered by a miner. One
         // deposit occupies one queue slot, regardless of its block count.
         seedMinerVeins(level, registry, readyMiners);
@@ -603,7 +613,7 @@ public final class RobotProcessorWorkScheduler {
         // scan whenever a miner crosses a section/chunk boundary starves the
         // remainder of the 7x7 area as miners travel to successive targets.
         // The next completed pass will be reordered around their new position.
-        String signature = activeCategories.keySet().toString();
+        String signature = new java.util.TreeSet<>(activeCategories.keySet()).toString();
         if (!signature.equals(demandFingerprint)) {
             demandFingerprint = signature;
             preparePass(level, consumers);
@@ -614,31 +624,10 @@ public final class RobotProcessorWorkScheduler {
             preparePass(level, consumers);
             if (scanSections.isEmpty()) nextPass = now + MAX_SCAN_IDLE_TICKS;
         }
-        // Dirty changes must still be processed while the full pass is sleeping.
-        // A full cache of ALREADY RESERVED targets is not a useful work pool.
-        // Count unclaimed, loaded, in-zone candidates per category.
-        boolean full = true;
-        for (var entry : remainingDemand.entrySet()) {
-            int needed = entry.getValue();
-            if (needed <= 0) continue;
-            int desired = Math.min(RobotWorkIndex.MAX_CANDIDATES_PER_CATEGORY,
-                    Math.max(2, needed * 2));
-            // A catalog is NOT a queue window. Continue the bounded pass even
-            // if enough work has already been discovered to fill every slot.
-            if (queuedCategories.contains(entry.getKey())) {
-                full = false;
-                break;
-            }
-            int available = index.countMatchingUpTo(entry.getKey(), now, packed -> {
-                BlockPos pos = BlockPos.of(packed);
-                return level.hasChunkAt(pos) && panel.allowsWorkPosition(pos)
-                        && state.leases.available(packed, -1L, panel.getBlockPos().asLong(), now)
-                        && !registry.isTaken(new ResourceIdBlock(pos));
-            }, desired);
-            if (available < desired) { full = false; break; }
-        }
-        boolean backgroundPending = !full && !scanSections.isEmpty()
-                && now >= nextPass && !passComplete;
+        // Progress describes a completed scan, not the amount of work needed
+        // to fill queues. Finish the bounded pass even if the cache already
+        // contains enough candidates for a hint-only profession.
+        boolean backgroundPending = !scanSections.isEmpty() && now >= nextPass && !passComplete;
         int dirtyDemand = Math.min(MAX_DIRTY_EVALUATIONS, dirtyPositions.size());
         int focusedDemand = Math.min(MAX_FOCUSED_EVALUATIONS, focusedProbes.size() * 124);
         int requested = backgroundPending ? PER_PANEL_BLOCK_BUDGET

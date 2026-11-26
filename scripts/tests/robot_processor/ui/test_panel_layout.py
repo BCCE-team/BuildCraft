@@ -26,7 +26,7 @@ ROBOT_SCREENS = [
 
 class RobotProcessorPanelLayout(unittest.TestCase):
     def test_editor_palette_matches_exact_4x5_artwork_grid(self):
-        # Updated background: 323x272 sprite in a 512x512 PNG.
+        # Updated background: 331x272 sprite in a 512x512 PNG.
         path = ROOT / 'source-shared/src/main/resources/assets/buildcraftrobotics/textures/gui/robot_processor.png'
         png = path.read_bytes()
         self.assertEqual(png[:8], b'\x89PNG\r\n\x1a\n')

@@ -148,7 +148,7 @@ public final class ItemRobotController extends Item {
         if (panel.linkRobot(robot.getRobotId(), robot.blockPosition())) {
             notice(player, "Robot linked: #" + robot.getRobotId());
         } else {
-            notice(player, "Robot already linked or panel is full");
+            notice(player, "Robot already linked or panel is full (" + TileRobotProcessor.MAX_LINKED_ROBOTS + " robots)");
         }
         return InteractionResult.SUCCESS;
     }

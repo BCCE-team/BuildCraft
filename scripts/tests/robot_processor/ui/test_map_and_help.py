@@ -167,7 +167,7 @@ class RobotProcessorWorkAreaTests(unittest.TestCase):
         for path in GUI_PATHS:
             with self.subTest(path=path):
                 s = (ROOT/path).read_text('utf-8')
-                self.assertIn('new GuiIcon(TEXTURE_PROCESSOR, 0, 0, 323, 272, 512)', s)
+                self.assertIn('new GuiIcon(TEXTURE_PROCESSOR, 0, 0, PROCESSOR_WIDTH, 272, 512)', s)
                 self.assertIn('processorMode ? 246 : UNDO_X', s)
                 self.assertIn('processorMode ? 264 : REDO_X', s)
                 self.assertIn('processorMode ? 300 : CLEAR_X', s)

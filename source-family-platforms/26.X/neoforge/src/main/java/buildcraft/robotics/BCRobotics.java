@@ -200,6 +200,11 @@ public class BCRobotics {
 
 
     private static void registerCapabilities(RegisterCapabilitiesEvent event) {
+        var processor = BCRoboticsBlocks.ROBOT_PROCESSOR_TILE.get();
+        BCCapabilityRegistration.registerBlockEntity(event, buildcraft.lib.internal.mj.MjCapabilities.CAP_CONNECTOR, processor);
+        BCCapabilityRegistration.registerBlockEntity(event, buildcraft.lib.internal.mj.MjCapabilities.CAP_RECEIVER, processor);
+        BCCapabilityRegistration.registerBlockEntity(event, buildcraft.lib.internal.mj.MjCapabilities.CAP_REDSTONE_RECEIVER, processor);
+        BCCapabilityRegistration.registerBlockEntity(event, buildcraft.lib.internal.mj.MjCapabilities.CAP_READABLE, processor);
         event.registerEntity(Capabilities.Fluid.ENTITY, BCRoboticsEntities.ROBOT.get(),
             (entity, side) -> entity.resourceHandler());
         BCCapabilityRegistration.registerBlockEntity(

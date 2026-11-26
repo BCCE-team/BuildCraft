@@ -30,7 +30,7 @@ import net.minecraft.resources.Identifier;
 /** Compact robot / docking-station viewer with shared Zone Planner map and palette. */
 public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     private static final int VISIBLE_ROWS = 7;
-    // These coordinates follow the 323x272 atlas provided for the new panel.
+    // These coordinates follow the 331x272 background in the processor atlas.
     private static final int HOME_X = 214, HOME_Y = 136;
     private static final int UNLINK_X = 214, UNLINK_Y = 154;
     private static final int MODE_X = 8, RENAME_X = 26, MODE_Y = 4;
@@ -373,6 +373,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     /** Contextual hover help. The map itself only shows a tooltip with Shift, so painting stays unobstructed. */
     private List<Component> contextualHelp(int mouseX, int mouseY) {
         int x = mouseX - leftPos, y = mouseY - topPos;
+        if (RobotProcessorPowerGauge.contains(x, y)) return RobotProcessorUiText.energyTooltip(processorMenu);
         if (renaming && inRenameField(mouseX, mouseY)) return RobotProcessorUiText.help("rename_editor");
         if (inModeButton(mouseX, mouseY)) return RobotProcessorUiText.help(
                 stationMode ? "mode_robots" : "mode_stations");
@@ -479,13 +480,16 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
                 .drawAt(getActiveGraphics(), leftPos + MINUS_X, topPos + ADJUST_Y);
         renderPanel(pose);
         renderCargo(pose);
+        renderEnergyGauge(pose);
     }
 
     private void renderPanel(PoseStack pose) {
         // Standard machine title uses the localized block name.
-        String machineTitle = title.getString();
-        panelText(pose, machineTitle, 107 + Math.max(0, (210 - font.width(machineTitle)) / 2),
-                6, 210, 0xFF_40_40_40);
+        String machineTitle = fitText(title.getString(), 202);
+        // The robot map spans x=104..210; center over the map, not the right pane.
+        panelText(pose, machineTitle, 157 - font.width(machineTitle) / 2,
+                6, 202, 0xFF_40_40_40);
+        renderProcessorEnergy(pose);
         panelText(pose, RobotProcessorUiText.text("max_queue", processorMenu.getMaxExecutionQueue()),
                 215, 56, 102, 0xFF_30_30_30);
         panelText(pose, RobotProcessorUiText.text("queue_range"), 215, 94, 102, 0xFF_4A_4A_4A);
@@ -516,12 +520,18 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     private void renderScanProgress(PoseStack pose) {
         var scan = processorMenu.getScanProgress();
         int phase = scan.phase();
-        String heading = phase == ContainerRobotProcessor.SCAN_WAITING
+        String heading = phase == ContainerRobotProcessor.SCAN_NO_POWER
+                ? RobotProcessorUiText.text("scan.no_power")
+                : phase == ContainerRobotProcessor.SCAN_WAITING
                 ? RobotProcessorUiText.text("scan.waiting")
                 : phase == ContainerRobotProcessor.SCAN_NO_CHUNKS
                         ? RobotProcessorUiText.text("scan.no_chunks")
                         : RobotProcessorUiText.text("scan.percent", scan.percent());
-        String detail = phase == ContainerRobotProcessor.SCAN_REFRESHING
+        String detail = phase == ContainerRobotProcessor.SCAN_NO_POWER
+                ? RobotProcessorUiText.text("scan.supply_power")
+                : phase == ContainerRobotProcessor.SCAN_WAITING
+                        ? RobotProcessorUiText.text("scan.link_worker")
+                : phase == ContainerRobotProcessor.SCAN_REFRESHING
                 ? RobotProcessorUiText.text("scan.rescan", scan.passPercent())
                 : phase == ContainerRobotProcessor.SCAN_COMPLETE
                         ? RobotProcessorUiText.text("scan.complete")
@@ -536,6 +546,25 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
                 ? scan.passPercent() : scan.percent();
         int barWidth = Math.max(0, Math.min(98, 98 * current / 100));
         if (barWidth > 0) panelFill(pose, 216, 131, 216 + barWidth, 133, 0xFF_37_9C_AA);
+    }
+
+    private void renderProcessorEnergy(PoseStack pose) {
+        var state = processorMenu.getPowerState();
+        // The reserve/capacity is shown on the gauge tooltip, not squeezed into the narrow text column.
+        panelText(pose, RobotProcessorUiText.energyConsumption(state).getString(), 215, 44, 102,
+                state.requested() > state.consumed() ? 0xFFA02424 : 0xFF303030);
+    }
+
+    /** Native atlas blit, after the background and panel content. */
+    private void renderEnergyGauge(PoseStack pose) {
+        var state = processorMenu.getPowerState();
+        if (RobotProcessorPowerGauge.filledHeight(state.stored(), processorMenu.getEnergyCapacity()) == 0) return;
+        // The deferred backend must not batch the fill behind the atlas background.
+        BCGraphics.nextLayer(getActiveGraphics());
+        RobotProcessorPowerGauge.draw(state.stored(), processorMenu.getEnergyCapacity(),
+                (x, y, u, v, w, h) -> RenderCompat.blit(getActiveGraphics(), BACKGROUND,
+                        leftPos + x, topPos + y, u, v, w, h,
+                        RobotProcessorPowerGauge.ATLAS_SIZE, RobotProcessorPowerGauge.ATLAS_SIZE));
     }
 
     private void renderRobots(PoseStack pose) {
