@@ -22,6 +22,12 @@ public interface ConfigurationService {
             value(DisplayUnits.FLUID_ID).map(DisplayUnits.FluidUnit::valueOf).orElse(DisplayUnits.DEFAULT.fluid()));
     }
 
+    /** Number and temperature presentation preferences. Existing DisplayUnits stays source/binary compatible. */
+    default DisplayFormat displayFormat() {
+        return new DisplayFormat(value(DisplayFormat.NUMBER_ID).map(DisplayFormat.NumberStyle::valueOf).orElse(DisplayFormat.DEFAULT.numbers()),
+            value(DisplayFormat.TEMPERATURE_ID).map(DisplayFormat.TemperatureUnit::valueOf).orElse(DisplayFormat.DEFAULT.temperature()));
+    }
+
     /** Resolve any registered client enum using ScreenMode choices (including addon-defined screens). */
     default ScreenMode screenMode(String id) {
         return value(id).map(ScreenMode::valueOf).orElse(ScreenMode.SWITCH);

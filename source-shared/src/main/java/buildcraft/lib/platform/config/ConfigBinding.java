@@ -15,7 +15,10 @@ import java.util.function.Supplier;
 public final class ConfigBinding {
     private static final Map<String, Consumer<String>> RELOAD = new LinkedHashMap<>();
     private static final Set<BCConfigSpec> BOUND = Collections.newSetFromMap(new IdentityHashMap<>());
+    private static final Map<String, String> LEGACY_CLIENT = new HashMap<>();
     private ConfigBinding() {}
+    /** Module-owned legacy imports; existing BCCE values always take precedence. */
+    public static synchronized void legacyClientValue(String id, String value) { LEGACY_CLIENT.put(id, value); }
 
     public static synchronized void bind(String module, BCConfigSpec schema, Consumer<String> reload) {
         if (BOUND.contains(schema) || RELOAD.containsKey(module)) throw new IllegalStateException("Already bound: " + module);
@@ -73,11 +76,14 @@ public final class ConfigBinding {
                     else if (legacy.equalsIgnoreCase("false")) raw = "MILLIBUCKETS";
                 }
             }
+            if (scope == Scope.CLIENT && raw == null) raw = LEGACY_CLIENT.remove(id);
             // Treat other current module values as lifecycle-bound: several are copied into
             // static fields, caches, capabilities and world generation workers.
             ApplyPolicy policy = scope == Scope.CLIENT ? ApplyPolicy.RESTART : ApplyPolicy.WORLD_RESTART;
             if (module.equals("buildcraftcore") && Set.of("display.timeGap", "display.fluidVolumeUnit",
-                    "display.zonePlannerMode", "display.electronicLibraryMode").contains(full)) policy = ApplyPolicy.LIVE;
+                    "display.zonePlannerMode", "display.electronicLibraryMode", "display.numberFormat",
+                    "display.temperatureUnit", "display.rememberGuidePage").contains(full)) policy = ApplyPolicy.LIVE;
+            if (module.equals("buildcraftcore") && (full.startsWith("display.pipes.") || full.startsWith("display.updates."))) policy = ApplyPolicy.LIVE;
             ConfigDefinition def = new ConfigDefinition(id, section, category, scope, kind,
                 defaultValue instanceof Enum<?> e ? e.name() : String.valueOf(defaultValue), min, max, choices,
                 nameKey + ".name", nameKey + ".description", nameKey + ".tooltip", fallbackName,
@@ -98,7 +104,7 @@ public final class ConfigBinding {
 
     private static Scope scope(String module, String key) {
         if (key.startsWith("display.")) return Scope.CLIENT;
-        if (module.equals("buildcraftcore") && Set.of("general.enableAnimatedSprites", "general.maxGuideSearchResults", "general.guideItemSearchLimit").contains(key)) return Scope.CLIENT;
+        if (module.equals("buildcraftcore") && Set.of("general.maxGuideSearchResults").contains(key)) return Scope.CLIENT;
         return Scope.SERVER;
     }
     private static boolean isBalance(String module, String key) {
@@ -109,17 +115,21 @@ public final class ConfigBinding {
         if (section == Section.CLIENT) {
             if (module.equals("buildcraftcore")) {
                 if (Set.of("display.zonePlannerMode", "display.electronicLibraryMode").contains(key)) return List.of("Interface", "Screens");
-                if (Set.of("display.timeGap", "display.fluidVolumeUnit").contains(key)) return List.of("Interface", "Units");
+                if (Set.of("display.timeGap", "display.fluidVolumeUnit", "display.useLongLocalizedName", "display.numberFormat", "display.temperatureUnit").contains(key)) return List.of("Interface", "Units");
             }
-            if (key.contains("colorBlind") || key.contains("Contrast")) return List.of("Accessibility");
+            if (key.contains("colorBlind") || key.contains("Contrast") || key.equals("display.useColouredLabels")) return List.of("Accessibility");
+            if (key.startsWith("display.updates.")) return List.of("Updates");
+            if (key.startsWith("display.pipes.")) return List.of("Rendering", "Pipes");
             if (key.contains("Guide") || key.contains("guide")) return List.of("Interface", "Guide");
             if (key.contains("Sprites") || key.contains("RenderRotation") || key.startsWith("display.pipes.")) return List.of("Rendering");
             return List.of("Interface");
         }
         if (section == Section.BALANCE) return module.equals("buildcrafttransport") ? List.of("Pipes") : List.of("Energy");
+        if (key.equals("worldgen.oil.can_burn") || key.equals("worldgen.oil.oilIsDense")) return List.of("Gameplay Rules", "Fluids");
         if (key.startsWith("worldgen.")) return key.startsWith("worldgen.oil.spouts.") ? List.of("World Generation", "Oil", "Spouts") : List.of("World Generation", "Oil");
         if (key.equals("general.useWrenchTag") || key.equals("power.powerMode")) return List.of("Compatibility");
-        if (key.contains("chunkLoad") || key.contains("updateFactor")) return List.of("Performance");
+        if (key.contains("chunkLoad")) return List.of("Performance", "Chunk Loading");
+        if (key.contains("updateFactor")) return List.of("Performance");
         if (key.startsWith("debug.")) return List.of("Diagnostics");
         if (key.startsWith("engines.")) return List.of("Operating Modes", "Engines");
         if (key.startsWith("facades.")) return List.of("Operating Modes", "Facades");

@@ -96,6 +96,8 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder, Ren
     public static final int[] UP_UV = { 4, 12, 0, 4 };
     public static final int[] DOWN_UV = { 4, 12, 12, 16 };
 
+    @Override public int getViewDistance() { return PipeContentRendering.viewDistance(); }
+
     public RenderPipeHolder(BlockEntityRendererProvider.Context ctx) {
     }
 
@@ -108,6 +110,7 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder, Ren
         BlockEntityRenderState.extractBase(tile, state, crumblingOverlay);
 
         state.tile = tile;
+        state.renderContents = PipeContentRendering.visible(tile.getBlockPos(), cameraPosition);
         state.partialTick = partialTick;
 
         // Static pipe and pluggable geometry is owned by ModelPipeNative121111.
@@ -144,15 +147,15 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder, Ren
             renderPluggables(tile, state.partialTick, matrix, buffers, light, overlay)
         );
 
-        if (pipe.flow instanceof PipeFlowItems itemFlow) {
+        if (state.renderContents && pipe.flow instanceof PipeFlowItems itemFlow) {
             // ItemStack rendering itself moved to ItemStackRenderState in 1.21.11 and cannot be tunneled through a
             // VertexConsumer-only custom-geometry callback. Use the native submission path for travelling items.
             PipeFlowRendererItems.INSTANCE.submit(itemFlow, state.partialTick, poseStack, collector, light, overlay);
-        } else if (pipe.flow instanceof PipeFlowFluids fluidFlow) {
+        } else if (state.renderContents && pipe.flow instanceof PipeFlowFluids fluidFlow) {
             // Fluids need their own transparent submit. Sending them through a cutout-only compatibility bridge can
             // discard the atlas geometry in 1.21.11, which made filled pipes look completely empty.
             PipeFlowRendererFluids.INSTANCE.submit(fluidFlow, state.partialTick, poseStack, collector, light, overlay);
-        } else if (pipe.flow != null) {
+        } else if (state.renderContents && pipe.flow != null) {
             submitLegacyGeometry(collector, poseStack, RenderCompat.cutout(), (matrix, buffers) ->
                 renderFlow(pipe.flow, state.partialTick, matrix, buffers, light, overlay)
             );
@@ -244,6 +247,7 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder, Ren
     }
 
     public static class PipeRenderState extends BlockEntityRenderState {
+        boolean renderContents;
         @Nullable
         TilePipeHolder tile;
         float partialTick;

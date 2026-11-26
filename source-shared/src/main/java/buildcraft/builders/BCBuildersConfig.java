@@ -2,7 +2,7 @@ package buildcraft.builders;
 
 import buildcraft.lib.balance.BalanceConfig;
 
-/** Quarry gameplay parameters are exclusively controlled by config/buildcraft-machines.ini. */
+/** Quarry gameplay parameters read the effective BCCE balance configuration. */
 public final class BCBuildersConfig {
     private static final String QUARRY = "buildcraftbuilders:quarry";
     public static int quarryFrameMinHeight = 4;

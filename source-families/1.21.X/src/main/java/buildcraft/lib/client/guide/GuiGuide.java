@@ -270,6 +270,10 @@ public final class GuiGuide extends Screen {
     }
 
     private void restoreInitialState() {
+        if (!buildcraft.lib.internal.config.ClientPresentation.rememberGuidePage()) {
+            view = View.CONTENTS; currentEntry = null; document = null; contentsSpread = 0;
+            return;
+        }
         if (initialState.document && initialState.entry != null) {
             GuideContent.Entry entry = resolveSavedEntry(initialState.entry);
             if (entry != null) {
@@ -307,14 +311,15 @@ public final class GuiGuide extends Screen {
     }
 
     private ItemGuide.GuideState currentGuideState() {
-        boolean documentView = view == View.DOCUMENT && currentEntry != null;
+        boolean rememberPage = buildcraft.lib.internal.config.ClientPresentation.rememberGuidePage();
+        boolean documentView = rememberPage && view == View.DOCUMENT && currentEntry != null;
         return new ItemGuide.GuideState(
             showLore,
             showHints,
             sortMode.name(),
             documentView,
             documentView ? currentEntry.id : null,
-            documentView ? documentSpread : contentsSpread
+            rememberPage ? (documentView ? documentSpread : contentsSpread) : 0
         );
     }
 

@@ -68,7 +68,10 @@ public enum PipeFlowRendererItems implements IPipeFlowRenderer<PipeFlowItems> {
         int light, int overlay) {
         Level world = flow.pipe.getHolder().getPipeWorld();
         long now = flow.getVisualTick();
+        int limit = buildcraft.lib.internal.config.ClientPresentation.pipeItemLimit();
+        if (limit == 0) return;
         List<TravellingItem> toRender = flow.getAllItemsForRender();
+        int rendered = 0;
 
         matrix.pushPose();
         matrix.translate(0.5f, 0.5f, 0.5f);
@@ -77,13 +80,16 @@ public enum PipeFlowRendererItems implements IPipeFlowRenderer<PipeFlowItems> {
                 if (!flow.shouldRenderClientItem(item, partialTicks)) {
                     continue;
                 }
+                if (rendered++ >= limit) break;
                 Vec3 pos = item.getRenderPosition(BlockPos.ZERO, now, partialTicks, flow);
                 ItemStack stack = item.clientItemLink.get();
                 if (stack == null || stack.isEmpty()) stack = item.getStack();
 
                 if (!stack.isEmpty()) {
                     matrix.pushPose();
-                    matrix.translate(pos.x, -0.2f + pos.y, pos.z);
+                    matrix.translate(pos.x, pos.y, pos.z);
+                    PipeItemOrientation.apply(matrix, item.getRenderDirection(now, partialTicks));
+                    matrix.translate(0, -0.2f, 0);
                     try {
                         ItemStackRenderState itemState = new ItemStackRenderState();
                         Minecraft.getInstance().getItemModelResolver().updateForTopItem(

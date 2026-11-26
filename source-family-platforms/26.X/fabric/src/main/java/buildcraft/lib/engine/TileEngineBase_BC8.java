@@ -639,7 +639,9 @@ public abstract class TileEngineBase_BC8 extends TileBC_Neptune implements IDebu
 
         BlockPos pos = worldPosition.immutable();
         level.explode(null, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-            explosionRange(), net.minecraft.world.level.Level.ExplosionInteraction.BLOCK);
+            explosionRange(), buildcraft.energy.BCEnergyConfig.engineExplosionBlockDamage
+                ? net.minecraft.world.level.Level.ExplosionInteraction.BLOCK
+                : net.minecraft.world.level.Level.ExplosionInteraction.NONE);
         if (level.getBlockEntity(pos) == this) {
             level.removeBlock(pos, false);
         }

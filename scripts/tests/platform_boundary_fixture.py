@@ -151,7 +151,7 @@ public static class PlayerTickEvent extends TickEvent {{public final Player play
         'storage/ItemStorage','storage/MutableItemStorage','storage/FilteredItemStorage','storage/EnergyStorage','storage/FluidStorage','storage/FilteredFluidStorage','storage/StorageMap','storage/StorageAdapters',
         'registry/BCMenuFactory','registry/PlatformMenus','registry/BCRegistryEntry','registry/BCDeferredRegister','registry/BCRegistryBinder','registry/RegistryNames','registry/RegistryBinding',
         'config/BCConfigSpec','config/ConfigBinding','events/BCEvents','events/PlatformEvents','events/PlatformClientEvents')]
-    actual += ['buildcraft/lib/net/BCNetworkSide.java', 'buildcraft/lib/gui/BCContainerFactory.java', 'buildcraft/lib/platform/config/LegacyToml.java', 'buildcraft/lib/internal/config/ConfigurationRegistry.java', 'buildcraft/api/v2/config/ConfigDefinition.java', 'buildcraft/api/v2/config/ConfigurationService.java']
+    actual += ['buildcraft/lib/net/BCNetworkSide.java', 'buildcraft/lib/gui/BCContainerFactory.java', 'buildcraft/lib/platform/config/LegacyToml.java', 'buildcraft/lib/internal/config/ConfigurationRegistry.java', 'buildcraft/api/v2/config/ConfigDefinition.java', 'buildcraft/api/v2/config/ConfigurationService.java', 'buildcraft/api/v2/config/DisplayUnits.java', 'buildcraft/api/v2/config/DisplayFormat.java', 'buildcraft/api/v2/config/ScreenMode.java']
     source=work/'src';classes=work/'classes'
     if source.exists():shutil.rmtree(source)
     if classes.exists():shutil.rmtree(classes)

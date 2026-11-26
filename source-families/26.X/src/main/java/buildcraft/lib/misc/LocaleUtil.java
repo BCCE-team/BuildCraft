@@ -11,7 +11,6 @@ import buildcraft.lib.internal.mj.MjFormatting;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 
-import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.IllegalFormatException;
@@ -38,8 +37,6 @@ public class LocaleUtil {
 
     public static final boolean DEBUG = BCDebugging.shouldDebugLog("lib.locale");
     private static final Set<String> failedStrings = new HashSet<>();
-
-    private static final NumberFormat FORMAT_FLUID = NumberFormat.getNumberInstance();
 
     private static String localeKeyFluidStatic, localeKeyFluidFlow;
     private static String localeKeyFluidStaticCap, localeKeyFluidStaticEmpty, localeKeyFluidStaticFull;
@@ -148,9 +145,9 @@ public class LocaleUtil {
             if (capacity > 0) {
                 String cap;
                 if (BCLibConfig.useBucketsStatic) {
-                    cap = FORMAT_FLUID.format(capacity / 1000.0);
+                    cap = buildcraft.lib.internal.config.ClientPresentation.number(capacity / 1000.0);
                 } else {
-                    cap = FORMAT_FLUID.format(capacity);
+                    cap = buildcraft.lib.internal.config.ClientPresentation.number(capacity);
                 }
                 return Component.translatable(localeKeyFluidStaticEmpty, cap);
             }
@@ -159,11 +156,11 @@ public class LocaleUtil {
             String amount;
             String cap;
             if (BCLibConfig.useBucketsStatic) {
-                amount = FORMAT_FLUID.format(fluidAmount / 1000.0);
-                cap = FORMAT_FLUID.format(capacity / 1000.0);
+                amount = buildcraft.lib.internal.config.ClientPresentation.number(fluidAmount / 1000.0);
+                cap = buildcraft.lib.internal.config.ClientPresentation.number(capacity / 1000.0);
             } else {
-                amount = FORMAT_FLUID.format(fluidAmount);
-                cap = FORMAT_FLUID.format(capacity);
+                amount = buildcraft.lib.internal.config.ClientPresentation.number(fluidAmount);
+                cap = buildcraft.lib.internal.config.ClientPresentation.number(capacity);
             }
             if (capacity == fluidAmount) {
                 return Component.translatable(localeKeyFluidStaticFull, amount);
@@ -180,8 +177,8 @@ public class LocaleUtil {
             ? milliBucketsPerTick * 20.0D
             : milliBucketsPerTick;
         String amount = BCLibConfig.useBucketsFlow
-            ? FORMAT_FLUID.format(amountPerGap / 1000.0D)
-            : FORMAT_FLUID.format(amountPerGap);
+            ? buildcraft.lib.internal.config.ClientPresentation.number(amountPerGap / 1000.0D)
+            : buildcraft.lib.internal.config.ClientPresentation.number(amountPerGap);
         return Component.translatable(localeKeyFluidFlow, amount);
     }
 
@@ -189,7 +186,7 @@ public class LocaleUtil {
         if (BCLibConfig.hidePowerValues) {
             return hiddenValue();
         }
-        return Component.translatable("buildcraft.fe.static.short", FORMAT_FLUID.format(fe));
+        return Component.translatable("buildcraft.fe.static.short", buildcraft.lib.internal.config.ClientPresentation.number(fe));
     }
 
     public static MutableComponent localizeFeFlow(long fePerTick) {
@@ -200,7 +197,7 @@ public class LocaleUtil {
         String key = BCLibConfig.displayTimeGap == BCLibConfig.TimeGap.SECONDS
             ? "buildcraft.fe.flow.seconds.short"
             : "buildcraft.fe.flow.short";
-        return Component.translatable(key, FORMAT_FLUID.format(value));
+        return Component.translatable(key, buildcraft.lib.internal.config.ClientPresentation.number(value));
     }
 
     public static MutableComponent localizeMj(long mj) {
@@ -232,7 +229,7 @@ public class LocaleUtil {
         // if (BCLibConfig.useLongLocalizedName) {
         // return localize("buildcraft.heat.long", heat);
         // } else {
-        return Component.literal(String.format("%.2f \u00B0C", heat));
+        return Component.literal(buildcraft.lib.internal.config.ClientPresentation.temperature(heat));
         // }
     }
 }

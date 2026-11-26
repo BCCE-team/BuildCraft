@@ -82,18 +82,25 @@ public enum PipeFlowRendererItems implements IPipeFlowRenderer<PipeFlowItems> {
         // ClientLevel#getGameTime is reset by vanilla's periodic time packets;
         // using it for rendering would make all fast items blink together.
         long now = flow.getVisualTick();
+        int limit = buildcraft.lib.internal.config.ClientPresentation.pipeItemLimit();
+        if (limit == 0) return;
         List<TravellingItem> toRender = flow.getAllItemsForRender();
+        int rendered = 0;
         
         matrix.translate(0.5f, 0.5f, 0.5f);
         for (TravellingItem item : toRender) {
             if (!flow.shouldRenderClientItem(item, partialTicks)) continue;
+            if (rendered++ >= limit) break;
             Vec3 pos = item.getRenderPosition(BlockPos.ZERO, now, partialTicks, flow);
             
             ItemStack stack = item.clientItemLink.get();
             if (stack == null || stack.isEmpty()) stack = item.getStack();
 
             if (stack != null && !stack.isEmpty()) {
-            	matrix.translate(pos.x, -0.2f+pos.y, pos.z);
+                matrix.pushPose();
+                matrix.translate(pos.x, pos.y, pos.z);
+                PipeItemOrientation.apply(matrix, item.getRenderDirection(now, partialTicks));
+                matrix.translate(0, -0.2f, 0);
             	//? if <1.20 {
             	itemRender.renderStatic(stack, TransformType.GROUND, lightc, combinedOverlay, matrix, buffer, 0);
             	//?} else {
@@ -101,7 +108,7 @@ public enum PipeFlowRendererItems implements IPipeFlowRenderer<PipeFlowItems> {
             	itemRender.renderStatic(stack, ItemDisplayContext.GROUND, lightc, combinedOverlay, matrix, buffer, world, 0);
             	?*/
             	//?}
-                matrix.translate(-pos.x, 0.2f-pos.y, -pos.z);
+                matrix.popPose();
             }
             if (item.colour != null) {
                 matrix.translate(pos.x, pos.y, pos.z);

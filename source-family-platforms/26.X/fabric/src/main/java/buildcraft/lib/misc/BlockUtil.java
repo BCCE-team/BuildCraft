@@ -212,7 +212,9 @@ public final class BlockUtil {
         double dz = world.getRandom().nextFloat() * var + (1.0F - var) * 0.5D;
         ItemEntity entityitem = new ItemEntity(world, pos.getX() + dx, pos.getY() + dy, pos.getZ() + dz, stack);
 
-        entityitem.age = Math.max(0, 6000 - Math.max(1, forcedLifespan));
+        // Vanilla expires items at age 6000; a negative initial age is needed for lifetimes above 300 s.
+        // The schema permits at most 12000 ticks, safely away from the never-despawn sentinel (-32768).
+        entityitem.age = 6000 - Math.max(1, Math.min(12000, forcedLifespan));
         entityitem.setDefaultPickUpDelay();;
 
         world.addFreshEntity(entityitem);

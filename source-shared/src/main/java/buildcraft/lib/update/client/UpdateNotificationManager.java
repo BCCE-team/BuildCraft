@@ -17,6 +17,7 @@ public final class UpdateNotificationManager {
     private static final int MAIN_MENU_SETTLE_TICKS = 20;
 
     private static boolean started;
+    private static boolean previouslyEnabled;
     private static boolean shownThisSession;
     private static boolean manualCheck;
     private static int titleScreenTicks;
@@ -28,14 +29,13 @@ public final class UpdateNotificationManager {
 
     /** Called from the existing client tick hook. The first call starts one asynchronous check. */
     public static void tick() {
-        if (!started) {
-            started = true;
-            if (UpdatePreferences.isEnabled()) {
-                checkFuture = UpdateChecker.check(BuildCraftTarget.MOD_VERSION, BuildCraftTarget.TARGET_ID);
-            }
+        boolean enabled = UpdatePreferences.isEnabled();
+        if ((!started || !previouslyEnabled) && enabled && checkFuture == null) {
+            result = null;
+            checkFuture = UpdateChecker.check(BuildCraftTarget.MOD_VERSION, BuildCraftTarget.TARGET_ID);
         }
-
-        if (shownThisSession) return;
+        started = true;
+        previouslyEnabled = enabled;
         if (checkFuture != null && checkFuture.isDone()) {
             try {
                 result = checkFuture.join();
@@ -56,6 +56,7 @@ public final class UpdateNotificationManager {
             nextManifestRetryAt = 0L;
             checkFuture = UpdateChecker.check(BuildCraftTarget.MOD_VERSION, BuildCraftTarget.TARGET_ID, true);
         }
+        if (shownThisSession || !UpdatePreferences.notificationsEnabled()) return;
         if (checkFuture != null || result == null
             || result.status != UpdateCheckResult.Status.UPDATE_AVAILABLE
             || result.latestVersion == null || result.releaseUrl == null) return;
@@ -84,8 +85,16 @@ public final class UpdateNotificationManager {
         }
     }
 
-    /** Public hook for a future settings entry; skips the result cache but keeps conditional HTTP validation. */
+    /** Read-only status for the configuration editor, even with notifications disabled. */
+    public static String statusKey() {
+        if (checkFuture != null) return "checking";
+        return result == null ? "idle" : result.status.name().toLowerCase(java.util.Locale.ROOT);
+    }
+    public static String latestVersion() { return result == null || result.latestVersion == null ? "" : result.latestVersion; }
+
+    /** Explicit user action skips the result cache but keeps conditional HTTP validation. */
     public static void checkNow() {
+        if (checkFuture != null && !checkFuture.isDone()) return;
         checkFuture = UpdateChecker.check(BuildCraftTarget.MOD_VERSION, BuildCraftTarget.TARGET_ID, true);
         result = null;
         manualCheck = true;

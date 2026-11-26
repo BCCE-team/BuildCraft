@@ -311,8 +311,10 @@ class ResourcePipeline(unittest.TestCase):
                 self.assertIn('oilGenerationProfile = propOilGenerationProfile.get();', config)
                 self.assertIn('OilGenerator.clearCache();', config)
                 self.assertIn('configuration.oilWellGenerationRate() * '
-                              'BCEnergyConfig.oilGenerationProfile.multiplier()', generator)
+                              'BCEnergyConfig.oilGenerationMultiplier', generator)
                 self.assertIn('VERY_HIGH(1.0D)', profile)
+                self.assertIn('CUSTOM(0.3D)', profile)
+                self.assertIn('defineInRange("customGenerationRate", 0.3D, 0.0D, 1.0D)', config)
 
     def test_special_modern_item_definitions_are_versioned_resource_sources(self):
         special = (

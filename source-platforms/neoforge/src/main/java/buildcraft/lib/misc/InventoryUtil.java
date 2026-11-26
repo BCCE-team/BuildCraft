@@ -119,7 +119,9 @@ public class InventoryUtil {
     public static void addToBestAcceptor(Level world, BlockPos pos, Direction ignore, @Nonnull ItemStack stack) {
         stack = addToRandomInjectable(world, pos, ignore, stack);
         stack = addToRandomInventory(world, pos, stack);
-        drop(world, pos, stack);
+        if (world instanceof net.minecraft.server.level.ServerLevel server && !stack.isEmpty()) {
+            BlockUtil.dropItem(server, pos, buildcraft.lib.BCLibConfig.itemLifespan * 20, stack.split(stack.getCount()));
+        }
     }
 
     /** Adds every stack from src to dst. Doesn't add empty stacks. */

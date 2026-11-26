@@ -74,6 +74,8 @@ public final class ConfigurationRegistry implements ConfigurationService {
     }
 
     private static String validatedOrDefault(ConfigDefinition def, String raw) {
+        // ALL_TILES was indistinguishable from SELF_TILES: both only load requesting tiles.
+        if (def.id().equals("buildcraftcore:general/chunkLoadLevel") && "ALL_TILES".equals(raw)) raw = "SELF_TILES";
         try { return def.validate(raw); }
         catch (IllegalArgumentException e) {
             System.err.println("[BCCE/Config] Invalid value for " + def.id() + "; using schema default: " + e.getMessage());

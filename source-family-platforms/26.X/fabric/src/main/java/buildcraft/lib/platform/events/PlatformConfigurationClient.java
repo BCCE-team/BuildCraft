@@ -7,6 +7,9 @@ public final class PlatformConfigurationClient {
     private PlatformConfigurationClient() {}
     public static void configurationScreen() {
         KeyMappingHelper.registerKeyMapping(ConfigurationKey.OPEN);
-        PlatformClientEvents.tick(BCEvents.Phase.END,event->ConfigurationKey.tick());
+        PlatformClientEvents.tick(BCEvents.Phase.END,event->{
+            ConfigurationKey.tick();
+            buildcraft.lib.update.client.UpdateNotificationManager.tick();
+        });
     }
 }

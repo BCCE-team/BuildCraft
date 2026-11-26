@@ -11,7 +11,8 @@ package buildcraft.energy.generation.features;
 public enum OilGenerationProfile {
     STANDARD(0.3D),
     HIGH(0.6D),
-    VERY_HIGH(1.0D);
+    VERY_HIGH(1.0D),
+    CUSTOM(0.3D);
 
     private final double rate;
 
@@ -23,6 +24,13 @@ public enum OilGenerationProfile {
     public double rate() {
         return rate;
     }
+
+    /** CUSTOM uses the configured stock-equivalent rate; other presets ignore it. */
+    public double rate(double customRate) {
+        return this == CUSTOM ? customRate : rate;
+    }
+
+    public double multiplier(double customRate) { return rate(customRate) / STANDARD.rate; }
 
     /** Multiplier relative to the stock STANDARD 0.3 worldgen resource. */
     public double multiplier() {

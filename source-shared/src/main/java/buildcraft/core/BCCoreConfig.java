@@ -8,6 +8,10 @@ package buildcraft.core;
 
 import buildcraft.lib.internal.mj.MjCapabilities;
 import buildcraft.api.v2.config.DisplayUnits;
+import buildcraft.api.v2.config.DisplayFormat;
+import buildcraft.lib.internal.config.ClientPresentation;
+import buildcraft.lib.platform.config.ConfigBinding;
+import buildcraft.lib.update.UpdatePreferences;
 import buildcraft.api.v2.config.ScreenMode;
 import buildcraft.lib.internal.debug.BCLogProfile;
 import buildcraft.lib.balance.BalanceConfig;
@@ -28,7 +32,6 @@ public class BCCoreConfig {
 
     public static BCConfigSpec config;
 
-    public static boolean minePlayerProtected;
     public static boolean hidePower;
     public static boolean hideFluid;
     public static boolean pumpsConsumeWater;
@@ -39,6 +42,8 @@ public class BCCoreConfig {
     public static volatile boolean verboseRobotLogging = false;
     public static double miningMultiplier = 1;
     public static int miningMaxDepth;
+    /** @deprecated Protection is always enforced by the automation permission checks. */
+    @Deprecated public static boolean minePlayerProtected = false;
 
     private static BooleanValue propColourBlindMode;
     private static BooleanValue propUseColouredLabels;
@@ -48,14 +53,10 @@ public class BCCoreConfig {
     private static BooleanValue propGuideBookEnableDetail;
     private static EnumValue<DisplayUnits.FluidUnit> propFluidVolumeUnit;
     private static BooleanValue propUseLongLocalizedName;
-    private static BooleanValue propUseSwappableSprites;
-    private static BooleanValue propMinePlayerProtected;
-    private static BooleanValue propEnableAnimatedSprites;
     private static BooleanValue propUseWrenchTag;
     private static BooleanValue propVerboseRobotLogging;
     private static EnumValue<BCLogProfile.Profile> propLoggingProfile;
 
-    private static IntValue propGuideItemSearchLimit;
     private static BCConfigSpec.DoubleValue propMjPerFe;
     private static BCConfigSpec.EnumValue<BCLibConfig.PowerMode> propPowerMode;
     private static IntValue propMaxGuideSearchResults;
@@ -71,7 +72,7 @@ public class BCCoreConfig {
         BCConfigSpec.Builder builder = new BCConfigSpec.Builder();
 
         builder.push("display");
-        propColourBlindMode = builder.comment("Should I enable colorblind mode?")
+        propColourBlindMode = builder.comment("Use color-blind-friendly visuals in supported pipe interfaces.")
             .define("colorBlindMode", false);
 
         propUseColouredLabels = builder.comment("Should colours be displayed as their own (or a similar) colour in tooltips?")
@@ -80,13 +81,13 @@ public class BCCoreConfig {
         propUseHighContrastColouredLabels = builder.comment("Should colours displayed in tooltips use higher-contrast colours?")
             .define("useHighContrastColouredLabels", false);
 
-        propHidePower = builder.comment("Should all power values (MJ, MJ/t) be hidden?")
+        propHidePower = builder.comment("Hide supported energy readouts without changing gameplay.")
             .define("hidePowerValues", false);
 
-        propHideFluid = builder.comment("Should all fluid values (Buckets, mB, mB/t) be hidden?")
+        propHideFluid = builder.comment("Hide supported fluid readouts without changing gameplay.")
             .define("hideFluidValues", false);
 
-        propGuideBookEnableDetail = builder.define("guideBookEnableDetail", false);
+        propGuideBookEnableDetail = builder.comment("Show optional detailed sections of guide pages.").define("guideBookEnableDetail", false);
 
         propFluidVolumeUnit = builder.comment("Fluid volume unit for all readouts.",
             "BUCKETS displays amounts in B; MILLIBUCKETS displays amounts in mB. Applies to both stored volumes and flow rates.")
@@ -99,7 +100,7 @@ public class BCCoreConfig {
             "SWITCH remembers the last manually selected layout. LEGACY_ONLY and MODERN_ONLY lock the layout and hide the switch.")
             .defineEnum("electronicLibraryMode", ScreenMode.SWITCH);
 
-        propUseLongLocalizedName = builder.comment("Should localised strings be displayed in long or short form (10 mB / t vs 10 milli buckets per tick)")
+        propUseLongLocalizedName = builder.comment("Use full unit names for supported fluid readouts and stored MJ values. Energy rates and FE readouts remain compact.")
             .define("useLongLocalizedName", true);
 
         propDisplayTimeGap = builder.comment(
@@ -107,21 +108,33 @@ public class BCCoreConfig {
             "TICKS displays quantities per game tick; SECONDS displays quantities per nominal 20-tick second. This does not change gameplay."
         ).defineEnum("timeGap", TimeGap.valueOf(DisplayUnits.DEFAULT.rate().name()), TimeGap.values());
 
-        propUseSwappableSprites = builder.comment(
-            "Disable this if you get texture errors with optifine. Disables some texture switching functionality",
-            "when changing config options such as colour blind mode."
-        ).define("useSwappableSprites", true);
-
         propItemRenderRotation = builder.comment(
             "The rotation that items use when travelling through pipes. Set to 'enabled' for full rotation,",
             "'disabled' for no rotation, or 'horizontals_only' to only rotate items when going horizontally."
         ).defineEnum("itemRenderRotation", RenderRotation.ENABLED, RenderRotation.values());
+        builder.comment("Format displayed numbers: plain, grouped with spaces, or abbreviated (K, M, B).")
+            .defineEnum("numberFormat", DisplayFormat.DEFAULT.numbers());
+        builder.comment("Display engine temperatures in Kelvin, Celsius or Fahrenheit.")
+            .defineEnum("temperatureUnit", DisplayFormat.DEFAULT.temperature());
+        builder.comment("Reopen the guide book at its last saved page.").define("rememberGuidePage", true);
+        builder.push("pipes");
+        builder.comment("Animate directional fluid textures in pipes.").define("fluidAnimation", true);
+        builder.comment("Render all travelling payloads, a single representative, or none.")
+            .defineEnum("itemDisplay", ClientPresentation.PipeItems.ALL);
+        builder.comment("Maximum distance in blocks from the camera to render pipe contents.")
+            .defineInRange("contentRenderDistance", 64, 16, 128);
+        builder.comment("Maximum travelling item payloads rendered per pipe in ALL mode.")
+            .defineInRange("maxRenderedItems", 64, 1, 512);
         builder.pop();
+        builder.push("updates");
+        builder.comment("Automatically check for compatible BCCE releases.").define("automaticCheck", true);
+        builder.comment("Show available-update notifications on the title screen.").define("notifications", true);
+        builder.pop();
+        builder.pop();
+        // Preserve an existing opt-out from the old update-checker preference file.
+        ConfigBinding.legacyClientValue("buildcraftcore:display/updates/automaticCheck", Boolean.toString(UpdatePreferences.legacyEnabled()));
 
         builder.push("general");
-        propMinePlayerProtected = builder.comment("Should BuildCraft miners be allowed to break blocks using player-specific protection?")
-            .define("miningBreaksPlayerProtectedBlocks", false);
-
         propChunkLoadType = builder.comment(
             "Controls whether BuildCraft machines may keep chunks loaded.",
             "AUTO enables chunk loading in singleplayer/LAN and disables it on dedicated servers."
@@ -129,9 +142,10 @@ public class BCCoreConfig {
 
         propChunkLoadLevel = builder.comment(
             "Selects which BuildCraft chunk-loading tiles are allowed to request tickets."
-        ).worldRestart().defineEnum("chunkLoadLevel", ChunkLoaderLevel.SELF_TILES, ChunkLoaderLevel.values());
+        ).worldRestart().defineEnum("chunkLoadLevel", ChunkLoaderLevel.SELF_TILES,
+                ChunkLoaderLevel.NONE, ChunkLoaderLevel.STRICT_TILES, ChunkLoaderLevel.SELF_TILES);
 
-        propItemLifespan = builder.comment("How long, in seconds, should items stay on the ground? (Vanilla = 300, default = 60)")
+        propItemLifespan = builder.comment("Seconds before unaccepted machine output dropped by BuildCraft despawns (vanilla normally 300).")
             .defineInRange("itemLifespan", 60, 5, 600);
 
         propUseWrenchTag = builder.comment(
@@ -139,21 +153,15 @@ public class BCCoreConfig {
             "Legacy items implementing BuildCraft's IToolWrench interface remain supported even when disabled."
         ).define("useWrenchTag", true);
 
-        propNetworkUpdateRate = builder.comment("How often, in ticks, should network update packets be sent? Increasing this might help network performance.")
+        propNetworkUpdateRate = builder.comment("Base interval in ticks for periodic BuildCraft synchronization. Some trackers add a small delay or send immediate updates.")
             .defineInRange("updateFactor", 10, 1, 10);
 
-        propEnableAnimatedSprites = builder.comment("Disable this if you get sub-standard framerates due to buildcraft's ~60 sprites animating every frame.")
-            .define("enableAnimatedSprites", true);
-
         propMaxGuideSearchResults = builder.comment("The maximum number of search results to display in the guide book.")
-            .defineInRange("maxGuideSearchResults", 1200, 500, 5000);
-
-        propGuideItemSearchLimit = builder.comment("The maximum number of items that the guide book will index.")
-            .defineInRange("guideItemSearchLimit", 10_000, 1_500, 5_000_000);
+            .defineInRange("maxGuideSearchResults", 1200, 1, 5000);
         builder.pop();
 
         builder.push("power");
-        propMjPerFe = builder.comment("MJ per 1 FE. Default 0.1 means 1 MJ = 10 FE.")
+        propMjPerFe = builder.comment("MJ represented by one FE. The inverse ratio is calculated from the edited value in the configuration screen.")
             .worldRestart().defineInRange("mjPerFe", 0.1D, 0.0001D, 0.2D);
         propPowerMode = builder.comment("MJ_ONLY, MJ_AUTOCONVERT_FE, or DISPLAY_FE")
             .worldRestart().defineEnum("powerMode", BCLibConfig.PowerMode.MJ_ONLY);
@@ -202,7 +210,6 @@ public class BCCoreConfig {
             return;
         }
 
-        minePlayerProtected = propMinePlayerProtected.get();
         BCLogProfile.Profile chosenLoggingProfile = propLoggingProfile.get();
         BCLogProfile.applyCoreProfile(chosenLoggingProfile == null
             ? BCLogProfile.Profile.DEFAULT : chosenLoggingProfile);
@@ -216,8 +223,7 @@ public class BCCoreConfig {
         BCLibConfig.hideFluidValues = hideFluid;
 
         BCLibConfig.guideShowDetail = propGuideBookEnableDetail.get();
-        BCLibConfig.maxGuideSearchCount = Mth.clamp(propMaxGuideSearchResults.get(), 500, 5000);
-        BCLibConfig.guideItemSearchLimit = Mth.clamp(propGuideItemSearchLimit.get(), 1_500, 5_000_000);
+        BCLibConfig.maxGuideSearchCount = Mth.clamp(propMaxGuideSearchResults.get(), 1, 5000);
         updateDisplayUnits();
         BCLibConfig.useLongLocalizedName = propUseLongLocalizedName.get();
         BCLibConfig.itemLifespan = propItemLifespan.get();
@@ -228,12 +234,10 @@ public class BCCoreConfig {
         networkUpdateRate = Mth.clamp(propNetworkUpdateRate.get(), 1, 10);
         BCLibConfig.colourBlindMode = propColourBlindMode.get();
         BCLibConfig.rotateTravelingItems = propItemRenderRotation.get();
-        BCLibConfig.enableAnimatedSprites = propEnableAnimatedSprites.get();
         miningMultiplier = BalanceConfig.machine("mining", "energy_multiplier", 1);
         miningMaxDepth = BalanceConfig.machineInt("mining", "max_depth", 256);
         BCLibConfig.chunkLoadingType = propChunkLoadType.get();
         BCLibConfig.chunkLoadingLevel = propChunkLoadLevel.get();
-        BCLibConfig.useSwappableSprites = propUseSwappableSprites.get();
 
         BCLibConfig.mjFeConversion = MjFeConversion.createParsed(propMjPerFe.get());
         BCLibConfig.powerMode = propPowerMode.get();

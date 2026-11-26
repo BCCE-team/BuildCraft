@@ -62,14 +62,12 @@ public class BCLibConfig {
      * than "60mB/t") */
     public static boolean useLongLocalizedName = false;
 
-    /** If true then {@link AtlasSpriteVariants#createForConfig(net.minecraft.util.Identifier)} will retun
-     * {@link AtlasSpriteSwappable}, allowing for instant reloads when switching between colourblind modes and other
-     * changable things. If false it will return a normal {@link TextureAtlasSprite}. Disabling this might help if you
-     * get sprite issues with mods like optifine. */
+    /** @deprecated Legacy compatibility field; no longer controls a runtime feature. */
+    @Deprecated
     public static boolean useSwappableSprites = true;
 
-    /** If false then {@link AtlasSpriteVariants#updateAnimation()} will never update the animation for wrapped
-     * sprites. */
+    /** @deprecated Legacy compatibility field; no longer controls a runtime feature. */
+    @Deprecated
     public static boolean enableAnimatedSprites = true;
 
     /** The maximum number of results to display in the guide contents page for the search bar. */
@@ -86,7 +84,8 @@ public class BCLibConfig {
 
     public static boolean guideShowDetail = false;
 
-    /** The maximum number of items that the guide book will index. */
+    /** @deprecated Legacy compatibility field; no longer controls a runtime feature. */
+    @Deprecated
     public static int guideItemSearchLimit = 10_000;
 
     /** MJ/FE conversion. Default matches BuildCraft 8: 1 MJ = 10 FE. */
@@ -195,7 +194,7 @@ public class BCLibConfig {
          * DON'T return null. */
         SELF_TILES,
 
-        /** All {@link EntityBlock}'s in the world. */
+        /** Legacy alias for SELF_TILES; not exposed as a separate option. */
         ALL_TILES;
 
         public boolean canLoad(LoadType loadType) {

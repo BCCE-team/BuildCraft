@@ -38,6 +38,8 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder> {
 	public static final int[] DOWN_UV = {4,12,12,16};
 	
 	
+    @Override public int getViewDistance() { return PipeContentRendering.viewDistance(); }
+
 	public RenderPipeHolder(BlockEntityRendererProvider.Context ctx) {
     }
 	
@@ -103,7 +105,8 @@ public class RenderPipeHolder implements BlockEntityRenderer<TilePipeHolder> {
         if (p == null) {
             return;
         }
-        if (p.flow != null) {
+        if (p.flow != null && PipeContentRendering.visible(pipe.getBlockPos(),
+            Minecraft.getInstance().gameRenderer.getMainCamera().getPosition())) {
             renderFlow(p.flow,  partialTicks, matrix, buffer, combinedLight, combinedOverlay);
         }
         if (p.behaviour != null) {

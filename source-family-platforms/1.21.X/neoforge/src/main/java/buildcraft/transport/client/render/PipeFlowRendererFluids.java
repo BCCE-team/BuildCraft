@@ -290,7 +290,8 @@ public enum PipeFlowRendererFluids implements IPipeFlowRenderer<PipeFlowFluids> 
 	private static void renderFluidGeometry(PipeFlowFluids flow, float partialTicks, PoseStack.Pose pose,
 			VertexConsumer fluidBuffer, FluidStack forRender, int combinedOverlay) {
 		double[] amounts = flow.getAmountsForRender(partialTicks);
-		Vec3[] offsets = flow.getOffsetsForRender(partialTicks);
+		Vec3[] offsets = buildcraft.lib.internal.config.ClientPresentation.animatePipeFluids()
+            ? flow.getOffsetsForRender(partialTicks) : new Vec3[7];
 
 		int blocklight = forRender.getFluid().getFluidType().getLightLevel();// to debug
 		IPipeHolder holder = flow.pipe.getHolder();

@@ -254,7 +254,8 @@ public enum PipeFlowRendererFluids implements IPipeFlowRenderer<PipeFlowFluids> 
 		VertexConsumer fluidBuffer = buffer.getBuffer(RenderType.translucent());
 
 		double[] amounts = flow.getAmountsForRender(partialTicks);
-		Vec3[] offsets = flow.getOffsetsForRender(partialTicks);
+		Vec3[] offsets = buildcraft.lib.internal.config.ClientPresentation.animatePipeFluids()
+            ? flow.getOffsetsForRender(partialTicks) : new Vec3[7];
 
 		int blocklight = forRender.getFluid().getFluidType().getLightLevel();// to debug
 		IPipeHolder holder = flow.pipe.getHolder();

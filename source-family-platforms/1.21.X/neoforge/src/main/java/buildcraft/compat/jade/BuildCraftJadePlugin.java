@@ -870,7 +870,7 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
             tooltip.add(line("engine.name", Component.translatable(NbtCompat.getString(tag, "NameKey")).withStyle(ChatFormatting.WHITE)));
         }
         tooltip.add(line("engine.stage", Component.translatable("buildcraft.jade.engine.stage." + safeTranslationPart(NbtCompat.getString(tag, "Stage"))).withStyle(ChatFormatting.WHITE)));
-        tooltip.add(line("engine.heat", Component.literal(String.format(Locale.ROOT, "%.1f C", NbtCompat.getDouble(tag, "Heat"))).withStyle(ChatFormatting.WHITE)));
+        tooltip.add(line("engine.heat", Component.literal(buildcraft.lib.internal.config.ClientPresentation.temperature(NbtCompat.getDouble(tag, "Heat"))).withStyle(ChatFormatting.WHITE)));
         long output = NbtCompat.getLong(tag, "Output");
         if (output > 0L) {
             MutableComponent value = BCLibConfig.hidePowerValues

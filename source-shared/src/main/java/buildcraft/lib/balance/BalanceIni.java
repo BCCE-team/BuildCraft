@@ -94,6 +94,22 @@ public final class BalanceIni {
     }
     public static List<Parameter> parameters() { return PARAMETERS; }
 
+    /** Active schema. The legacy schema above is kept for importing old files without discarding their keys. */
+    public static List<Parameter> runtimeParameters() {
+        return PARAMETERS.stream().filter(BalanceIni::hasRuntimeConsumer).toList();
+    }
+
+    private static boolean hasRuntimeConsumer(Parameter p) {
+        if (p.file() == FileKind.ROBOTS) return true;
+        if (p.key().equals("work_speed_multiplier")) return p.section().equals("machine.buildcraftbuilders:quarry");
+        if (p.key().equals("energy_cost_multiplier")) return switch (p.section()) {
+            case "machine.buildcraftbuilders:quarry", "machine.buildcraftfactory:pump", "machine.buildcraftfactory:mining_well" -> true;
+            default -> false;
+        };
+        return true;
+    }
+
+
     private final Path directory;
     private volatile Map<String, String> effective = Map.of();
     private volatile Map<FileKind, Boolean> enabledFiles = Map.of(

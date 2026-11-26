@@ -22,6 +22,10 @@ public class BCEnergyConfig {
     public static boolean enableOilGeneration = true;
     /** Worldgen workers read the selected preset after the config is loaded. */
     public static volatile OilGenerationProfile oilGenerationProfile = OilGenerationProfile.STANDARD;
+    public static volatile double customOilGenerationRate = 0.3D;
+    /** Published as one value so worldgen workers never observe a mixed profile/rate. */
+    public static volatile double oilGenerationMultiplier = 1.0D;
+    public static boolean engineExplosionBlockDamage = true;
     public static boolean enableOilSpouts = true;
     public static boolean enableOilBurn = true;
     public static boolean oilIsSticky;
@@ -47,6 +51,8 @@ public class BCEnergyConfig {
 
     private static BooleanValue propEnableOilGeneration;
     private static BCConfigSpec.EnumValue<OilGenerationProfile> propOilGenerationProfile;
+    private static BCConfigSpec.DoubleValue propCustomOilGenerationRate;
+    private static BooleanValue propEngineExplosionBlockDamage;
     private static BooleanValue propEnableOilSpouts;
     private static BooleanValue propEnableOilBurn;
     private static BooleanValue propOilIsSticky;
@@ -70,6 +76,9 @@ public class BCEnergyConfig {
         propEnableStirlingEngineExplosion = builder.comment(
             "Whether Stirling Engines explode when they overheat."
         ).define("stirlingExplosion", false);
+        propEngineExplosionBlockDamage = builder.comment("Allow overheating engine explosions to damage surrounding blocks.",
+            "When disabled, the failed engine is still destroyed and entities can still take damage.")
+            .worldRestart().define("engineExplosionBlockDamage", true);
 
         builder.pop();
 
@@ -80,16 +89,19 @@ public class BCEnergyConfig {
             .define("enable", true);
 
         propOilGenerationProfile = builder.comment(
-            "Oil deposit frequency preset: STANDARD (0.3), HIGH (0.6), VERY_HIGH (1.0).",
+            "Oil deposit frequency preset: STANDARD (0.3), HIGH (0.6), VERY_HIGH (1.0), or CUSTOM.",
             "Applies to newly generated chunks; deposit sizes are unchanged.",
             "Custom datapack oilWellGenerationRate values are scaled relative to the STANDARD preset."
         ).worldRestart().defineEnum("generationProfile", OilGenerationProfile.STANDARD,
             OilGenerationProfile.values());
+        propCustomOilGenerationRate = builder.comment("Stock-equivalent oil well generation rate in CUSTOM mode.",
+            "0.3 is Standard; 0.6 is High; 1.0 is Very High. Zero disables this deposit generator. Enable Oil Generation remains the master switch.")
+            .worldRestart().defineInRange("customGenerationRate", 0.3D, 0.0D, 1.0D);
 
-        propEnableOilBurn = builder.comment("Can oil blocks burn?")
+        propEnableOilBurn = builder.comment("Allow flammable oil and oil-product blocks to catch fire. Does not change engine fuel consumption.")
             .define("can_burn", true);
 
-        propOilIsSticky = builder.comment("Should oil slow entities moving through it?")
+        propOilIsSticky = builder.comment("Slow entities in oil and oil-product blocks marked as sticky.")
             .define("oilIsDense", false);
 
         propBiomeBlacklist = builder.comment(
@@ -99,7 +111,7 @@ public class BCEnergyConfig {
 
         propBiomeWhitelist = builder.comment(
             "Comma-separated biome registry names that may generate oil.",
-            "Leave empty to allow every biome that is not blacklisted."
+            "Leave empty to use the normal biome and datapack generation rules."
         ).define("biomeWhitelist", "");
 
         propDimensionBlacklist = builder.comment(
@@ -150,6 +162,9 @@ public class BCEnergyConfig {
 
         enableOilGeneration = propEnableOilGeneration.get();
         oilGenerationProfile = propOilGenerationProfile.get();
+        customOilGenerationRate = propCustomOilGenerationRate.get();
+        oilGenerationMultiplier = oilGenerationProfile.multiplier(customOilGenerationRate);
+        engineExplosionBlockDamage = propEngineExplosionBlockDamage.get();
         enableOilSpouts = propEnableOilSpouts.get();
         enableOilBurn = propEnableOilBurn.get();
         oilIsSticky = propOilIsSticky.get();

@@ -7,15 +7,6 @@ src/main/java/buildcraft/lib/compat/jade/mixin/JadeEntrypointDedupMixin.java
 src/main/java/buildcraft/lib/compat/transfer/TransferInterop.java
 src/main/java/buildcraft/lib/fake/FakePlayerBC.java
 src/main/java/buildcraft/lib/fluid/NeoForgeFluidItemAdapter.java
-src/main/java/buildcraft/lib/update/BCVersion.java
-src/main/java/buildcraft/lib/update/ReleaseManifest.java
-src/main/java/buildcraft/lib/update/UpdateCheckResult.java
-src/main/java/buildcraft/lib/update/UpdateChecker.java
-src/main/java/buildcraft/lib/update/UpdatePreferences.java
-src/main/java/buildcraft/lib/update/client/UpdateNotificationManager.java
-src/main/java/buildcraft/lib/update/client/UpdateScreenCompat.java
-src/main/java/buildcraft/lib/update/client/UpdateSettingsScreen.java
-src/main/java/buildcraft/lib/update/client/UpdateWarningScreen.java
 src/main/java/buildcraft/transport/BCTransportRecipesProvider.java
 src/test/java/buildcraft/BCVersionTest.java
 src/test/java/buildcraft/ReleaseManifestTest.java

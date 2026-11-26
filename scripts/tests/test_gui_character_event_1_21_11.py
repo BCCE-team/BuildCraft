@@ -88,8 +88,9 @@ class ElectronicLibraryCharacterEventCompatibilityTests(unittest.TestCase):
                 locale = read_materialized_java(target, base + 'misc/LocaleUtil.java')
                 self.assertIn('LocaleUtil.canLocalize(key)?I18n.get(key):fallback', screen)
                 self.assertIn('Language.getInstance().has(key)' if modern else 'I18n.exists(key)', locale)
-                self.assertIn('ClientGuiModeNavigation.show(new ConfirmScreen(', screen)
-                self.assertIn('ClientGuiModeNavigation.show(this)', screen)
+                self.assertNotIn('ConfirmScreen', screen)
+                self.assertIn('showConfirmation(', screen)
+                self.assertIn('closeConfirmation(', screen)
                 self.assertIn('ClientGuiModeNavigation.show(parent)', screen)
                 self.assertIn('ClientGuiModeNavigation.currentScreen()==null', key)
                 self.assertIn('ClientGuiModeNavigation.show(new BuildCraftConfigurationScreen(null))', key)
@@ -167,7 +168,7 @@ class ElectronicLibraryCharacterEventCompatibilityTests(unittest.TestCase):
                 if target.startswith(('1.19.2-', '1.20.1-', '1.21.1-')):
                     self.assertNotIn('MouseButtonEvent', code)
                     self.assertIn('clickList(mx,my,button)', code)
-                    self.assertIn('dragList(my,button)', code)
+                    self.assertIn('dragList(mx,my,button)', code)
                     self.assertIn('releaseList(button)', code)
                     continue
                 body = re.search(r'private static int mouseButton\(MouseButtonEvent event\)\s*\{([^}]+)\}', code)
@@ -182,7 +183,7 @@ class ElectronicLibraryCharacterEventCompatibilityTests(unittest.TestCase):
                     self.assertIn('return event.button();', body.group(1))
                     self.assertNotIn('legacyButton', body.group(1))
                 self.assertIn('clickList(event.x(),event.y(),mouseButton(event))', code)
-                self.assertIn('dragList(event.y(),mouseButton(event))', code)
+                self.assertIn('dragList(event.x(),event.y(),mouseButton(event))', code)
                 self.assertIn('releaseList(mouseButton(event))', code)
                 # Vanilla widgets still receive their original native events.
                 self.assertIn('super.mouseClicked(event,doubleClick)', code)

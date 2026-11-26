@@ -256,7 +256,8 @@ public enum PipeFlowRendererFluids implements IPipeFlowRenderer<PipeFlowFluids> 
 		VertexConsumer fluidBuffer = buffer.getBuffer(buildcraft.lib.compat.minecraft.render.BCRenderTypes.translucent());
 
 		double[] amounts = flow.getAmountsForRender(partialTicks);
-		Vec3[] offsets = flow.getOffsetsForRender(partialTicks);
+		Vec3[] offsets = buildcraft.lib.internal.config.ClientPresentation.animatePipeFluids()
+            ? flow.getOffsetsForRender(partialTicks) : new Vec3[7];
 
 		int blocklight = net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariantAttributes.getLuminance(
                     net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant.of(forRender.getFluid(), forRender.getComponentsPatch()));// to debug

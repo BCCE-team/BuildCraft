@@ -65,6 +65,8 @@ public final class VerifyOilProfiles {
   }
   static final class Backend implements BCConfigSpec.Backend {
     OilGenerationProfile chosen = OilGenerationProfile.STANDARD;
+    double customRate = 0.3D;
+    boolean blockDamage = true;
     boolean restartPending;
     int choices;
     public void push(String path) {}
@@ -72,6 +74,10 @@ public final class VerifyOilProfiles {
     public void comment(String... lines) {}
     public void worldRestart() { restartPending = true; }
     public Supplier<Boolean> bool(String name, boolean value) {
+      if ("engineExplosionBlockDamage".equals(name)) {
+        check(value && restartPending, "Engine explosion default changed");
+        restartPending = false; return () -> blockDamage;
+      }
       restartPending = false;
       return () -> value;
     }
@@ -80,6 +86,10 @@ public final class VerifyOilProfiles {
       return () -> value;
     }
     public Supplier<Double> decimal(String name, double value, double min, double max) {
+      if ("customGenerationRate".equals(name)) {
+        check(restartPending && value == 0.3D && min == 0D && max == 1D, "Invalid custom range/default");
+        restartPending = false; return () -> customRate;
+      }
       restartPending = false;
       return () -> value;
     }
@@ -92,7 +102,7 @@ public final class VerifyOilProfiles {
       if ("generationProfile".equals(name)) {
         check(restartPending, "Oil profile needs a restart for deterministic generation");
         check(value == OilGenerationProfile.STANDARD, "Wrong default preset");
-        check(allowed.length == 3, "Expected exactly three user choices");
+        check(allowed.length == 4, "Expected exactly four user choices");
         for (OilGenerationProfile profile : OilGenerationProfile.values()) {
           boolean present = false;
           for (E allowedValue : allowed) if (allowedValue == profile) present = true;
@@ -108,11 +118,11 @@ public final class VerifyOilProfiles {
   }
   public static void main(String[] args) {
     OilGenerationProfile[] presets = OilGenerationProfile.values();
-    double[] rates = {0.3D, 0.6D, 1.0D};
-    double[] factors = {1.0D, 2.0D, (1.0D / 0.3D)};
-    check(presets.length == 3, "Wrong number of presets");
+    double[] rates = {0.3D, 0.6D, 1.0D, 0.3D};
+    double[] factors = {1.0D, 2.0D, (1.0D / 0.3D), 1.0D};
+    check(presets.length == 4, "Wrong number of presets");
     check(presets[0].name().equals("STANDARD") && presets[1].name().equals("HIGH")
-        && presets[2].name().equals("VERY_HIGH"), "Unstable preset IDs");
+        && presets[2].name().equals("VERY_HIGH") && presets[3].name().equals("CUSTOM"), "Unstable preset IDs");
     BCEnergyConfig.preInit();
     Backend backend = new Backend();
     BCEnergyConfig.config.bind(backend);
@@ -123,11 +133,22 @@ public final class VerifyOilProfiles {
       check(BCEnergyConfig.oilGenerationProfile == presets[i], "Config reload ignored preset " + i);
       equalsDouble(rates[i], presets[i].rate(), "Wrong frequency");
       equalsDouble(factors[i], presets[i].multiplier(), "Wrong profile multiplier");
+      equalsDouble(factors[i], BCEnergyConfig.oilGenerationMultiplier, "Wrong runtime multiplier");
       equalsDouble(rates[i], 0.3D * presets[i].multiplier(), "Wrong stock datapack rate");
       equalsDouble(2.0D * rates[i], 0.6D * presets[i].multiplier(), "Custom datapack scaling lost");
     }
-    check(OilGenerator.clears == 3, "Config reload did not clear cached oil structures");
-    System.out.println("PASS: three native-config profiles, default 0.3, preset rates, datapack scaling, cache invalidation");
+    backend.customRate = 0.73D; backend.blockDamage = false;
+    BCEnergyConfig.onLoadConfig(BCEnergy.MODID);
+    equalsDouble(0.73D, 0.3D * BCEnergyConfig.oilGenerationMultiplier, "Custom rate ignored");
+    check(!BCEnergyConfig.engineExplosionBlockDamage, "Explosion block damage toggle ignored");
+    backend.customRate = 0D;
+    BCEnergyConfig.onLoadConfig(BCEnergy.MODID);
+    equalsDouble(0D, BCEnergyConfig.oilGenerationMultiplier, "Custom zero ignored");
+    backend.chosen = OilGenerationProfile.HIGH;
+    BCEnergyConfig.onLoadConfig(BCEnergy.MODID);
+    equalsDouble(2D, BCEnergyConfig.oilGenerationMultiplier, "Preset affected by custom value");
+    check(OilGenerator.clears == 7, "Config reload did not clear cached oil structures");
+    System.out.println("PASS: four profiles, default 0.3, custom rate, independent preset rates, block damage, cache invalidation");
   }
 }
 """,

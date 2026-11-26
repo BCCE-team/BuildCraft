@@ -40,20 +40,20 @@ public class BCTransportConfig {
         BCConfigSpec.Builder builder = new BCConfigSpec.Builder();
 
         builder.push("general");
-        propMjPerMillibucket = builder.worldRestart()
+        propMjPerMillibucket = builder.comment("Energy charged per millibucket extracted by powered fluid extraction pipes, stored in micro-MJ.").worldRestart()
             .defineInRange("pipes.mjPerMillibucket", (int) mjPerMillibucket, (int) MJ_REQ_MILLIBUCKET_MIN, Integer.MAX_VALUE);
 
-        propMjPerItem = builder.worldRestart()
+        propMjPerItem = builder.comment("Energy charged per item extracted by powered item extraction pipes, stored in micro-MJ.").worldRestart()
             .defineInRange("pipes.mjPerItem", (int) mjPerItem, (int) MJ_REQ_ITEM_MIN, Integer.MAX_VALUE);
 
-        propBaseFlowRate = builder.worldRestart()
+        propBaseFlowRate = builder.comment("Base fluid pipe transfer rate in mB per tick, scaled by pipe material.").worldRestart()
             .defineInRange("pipes.baseFluidRate", baseFlowRate, 1, 40);
-        propBaseFeRate = builder.worldRestart()
+        propBaseFeRate = builder.comment("Base FE pipe transfer rate in FE per tick, scaled by pipe material. Does not affect MJ pipes.").worldRestart()
             .defineInRange("pipes.baseFeRate", baseFeRate, 10, 4000);
         builder.pop();
 
         builder.push("display");
-        propFluidPipeColourBorder = builder.worldRestart()
+        propFluidPipeColourBorder = builder.comment("Use an inner coloured border instead of translucent colouring for fluid pipes.").worldRestart()
             .define("pipes.fluidColourIsBorder", true);
         builder.pop();
 

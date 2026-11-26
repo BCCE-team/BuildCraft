@@ -14,7 +14,18 @@ public final class UpdatePreferences {
 
     private UpdatePreferences() {}
 
-    public static synchronized boolean isEnabled() {
+    public static boolean isEnabled() {
+        return buildcraft.lib.internal.config.ConfigurationRegistry.INSTANCE.value("buildcraftcore:display/updates/automaticCheck")
+            .map(Boolean::parseBoolean).orElseGet(UpdatePreferences::legacyEnabled);
+    }
+
+    public static boolean notificationsEnabled() {
+        return buildcraft.lib.internal.config.ConfigurationRegistry.INSTANCE.value("buildcraftcore:display/updates/notifications")
+            .map(Boolean::parseBoolean).orElse(true);
+    }
+
+    /** Used only for migration and before configuration schema registration. */
+    public static synchronized boolean legacyEnabled() {
         try {
             JsonObject root = readRoot();
             return !root.has("enabled") || root.get("enabled").getAsBoolean();
@@ -23,7 +34,22 @@ public final class UpdatePreferences {
         }
     }
 
-    public static synchronized void setEnabled(boolean enabled) {
+    public static void setEnabled(boolean enabled) {
+        var registry = buildcraft.lib.internal.config.ConfigurationRegistry.INSTANCE;
+        String key = "buildcraftcore:display/updates/automaticCheck";
+        if (registry.value(key).isPresent()) {
+            try {
+                var scope = buildcraft.api.v2.config.ConfigDefinition.Scope.CLIENT;
+                registry.commit(scope, registry.snapshot(scope).revision(), java.util.Map.of(key, Boolean.toString(enabled)));
+            } catch (IOException | IllegalArgumentException e) {
+                System.err.println("[BCCE/Updates] Cannot save preference: " + e.getMessage());
+            }
+            return;
+        }
+        setLegacyEnabled(enabled);
+    }
+
+    private static synchronized void setLegacyEnabled(boolean enabled) {
         JsonObject root = readRoot();
         root.addProperty("schema", 1);
         root.addProperty("enabled", enabled);
@@ -63,11 +89,13 @@ public final class UpdatePreferences {
         }
     }
 
-    public static synchronized void clearIgnoredVersions() {
+    public static synchronized void clearIgnoredVersions() { clearIgnoredVersionsChecked(); }
+
+    public static synchronized boolean clearIgnoredVersionsChecked() {
         JsonObject root = readRoot();
         root.remove("ignoredVersions");
         root.addProperty("schema", 1);
-        writeRoot(root);
+        return writeRoot(root);
     }
 
     public static synchronized void ignore(String target, String version) {
@@ -148,7 +176,7 @@ public final class UpdatePreferences {
         return new JsonObject();
     }
 
-    private static void writeRoot(JsonObject root) {
+    private static boolean writeRoot(JsonObject root) {
         try {
             Files.createDirectories(FILE.getParent());
             Path temp = FILE.resolveSibling(FILE.getFileName() + ".tmp");
@@ -158,8 +186,10 @@ public final class UpdatePreferences {
             } catch (IOException ignored) {
                 Files.move(temp, FILE, StandardCopyOption.REPLACE_EXISTING);
             }
+            return true;
         } catch (Exception ignored) {
             // Update notifications must never prevent the game from starting.
+            return false;
         }
     }
 

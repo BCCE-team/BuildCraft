@@ -1747,15 +1747,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             long target = getTarget();
             long req = Math.max(0, target - power);
             double rate = BCBuildersConfig.quarryMaxBlockMineRate * apiWorkSpeedMultiplier;
-            if (rate < 0.1) {
-                return req;
-            }
-            rate /= 20; // seconds -> ticks
-            rate -= blockPercentSoFar;
-            if (rate <= 0) {
-                return 0;
-            }
-            return Math.min(req, (long) (target * rate));
+            return buildcraft.builders.QuarryRateLimit.progress(req, target, 1.0, rate, blockPercentSoFar);
         }
 
         @Override
@@ -1969,15 +1961,7 @@ public class TileQuarry extends TileBC_Neptune implements IDebuggable, IChunkLoa
             long req = Math.max(0, getTarget() - power);
 
             double max = BCBuildersConfig.quarryMaxFrameMoveSpeed * apiWorkSpeedMultiplier;
-            if (max < 0.1) {
-                return req;
-            }
-            max /= 20;
-            max -= moveDistanceSoFar;
-            if (max <= 0) {
-                return 0;
-            }
-            return Math.min(req, (long) (max * 20 * MjAmount.MICRO_MJ_PER_MJ));
+            return buildcraft.builders.QuarryRateLimit.progress(req, getTarget(), from.distanceTo(to), max, moveDistanceSoFar);
         }
 
         @Override
