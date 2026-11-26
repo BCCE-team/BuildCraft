@@ -25,7 +25,6 @@ import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig.Type;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
@@ -44,7 +43,7 @@ public class BCEnergy {
     public BCEnergy() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::commonSetup);
-        ConfigBinding.listen(modEventBus, BCEnergyConfig::onLoadConfig, BCEnergyConfig::onReloadConfig);
+
 
         modEventBus.addListener(this::gatherData);
 
@@ -57,7 +56,7 @@ public class BCEnergy {
         BCCore.BUILDCRAFT_TAB.addItemProvider(BCEnergyBlocks::getCreativeTabItems);
         BCCore.tabFluids.addItemProvider(BCEnergyFluids::getCreativeTabItems);
 
-        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCEnergyConfig.config));
+        ConfigBinding.bind(MODID, BCEnergyConfig.config, BCEnergyConfig::onReloadConfig);
         RegistryBinding.register(ITEMS, modEventBus);
         RegistryBinding.register(MENUS, modEventBus);
         registerGameplayEvents();

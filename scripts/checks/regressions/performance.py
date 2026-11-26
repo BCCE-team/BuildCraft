@@ -250,8 +250,8 @@ for platform in ("forge", "neoforge"):
             "item.shouldRender(now, partialTicks)",
         )
         require("build-config/targets.properties",
-            "target.1.19.2-forge.network.protocol=BC8.0.x-1.19.2-net5",
-            "target.1.20.1-forge.network.protocol=BC8.0.x-1.20.1-net5")
+            "target.1.19.2-forge.network.protocol=BC8.0.x-1.19.2-net6",
+            "target.1.20.1-forge.network.protocol=BC8.0.x-1.20.1-net6")
     else:
         require(
             f"source-platforms/{platform}/src/main/java/buildcraft/transport/pipe/flow/PipeFlowItems.java",

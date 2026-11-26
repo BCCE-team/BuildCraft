@@ -150,6 +150,7 @@ dependencies {
     implementation "teamreborn:energy:${requiredProperty('deps.energy')}"
     compileOnly requiredProperty('deps.jei')
     compileOnly requiredProperty('deps.jade')
+    compileOnly requiredProperty('deps.modmenu')
     // JEI/Jade are dev-runtime only, never bundled inside BCCE.
     runtimeOnly requiredProperty('deps.jei')
     runtimeOnly requiredProperty('deps.jade')

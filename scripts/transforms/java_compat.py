@@ -606,9 +606,15 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
         or is_container_input_bridge
     )
     if not legacy_gui_input_bridge:
-        text = re.sub(r"super\.mouseClicked\([^;]+?\)", "false", text)
-        text = re.sub(r"super\.mouseDragged\([^;]+?\)", "false", text)
-        text = re.sub(r"super\.mouseReleased\([^;]+?\)", "false", text)
+        # Native MouseButtonEvent overloads are already compatible. Removing
+        # their super calls disables vanilla widget clicks, focus and dragging
+        # (e.g. the schema-driven configuration screen). Only suppress the old
+        # coordinate/button overloads, not a typed event passed unchanged.
+        native_mouse_events = set(re.findall(r"\bMouseButtonEvent\s+([A-Za-z_$][\w$]*)\b", text))
+        native_mouse_arg = (r"(?!\s*(?:" + "|".join(map(re.escape, sorted(native_mouse_events))) + r")\s*[,\)])"
+                            if native_mouse_events else "")
+        for method in ("mouseClicked", "mouseDragged", "mouseReleased"):
+            text = re.sub(r"super\." + method + r"\(" + native_mouse_arg + r"[^;]+?\)", "false", text)
         text = re.sub(r"super\.keyPressed\((?!event\))[^;]+?\)", "false", text)
     # Adapt child widget calls, but never rewrite the native compatibility implementations themselves.
     if not (is_render_compat_impl or is_gui_input_impl):

@@ -40,7 +40,6 @@ import net.minecraft.world.item.CreativeModeTab;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig.Type;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
@@ -76,7 +75,7 @@ public class BCCore {
         () -> BCContainerFactory.create(ContainerList::new));
 
     public BCCore(IEventBus modEventBus, ModContainer modContainer) {
-        ConfigBinding.listen(modEventBus, BCCoreConfig::onLoadConfig, BCCoreConfig::onReloadConfig);
+
 
         modEventBus.addListener(this::init);
         modEventBus.addListener(this::registerCapabilities);
@@ -88,7 +87,7 @@ public class BCCore {
         RegistryBinding.register(CREATIVE_TABS, modEventBus);
         RegistryBinding.register(MENUS, modEventBus);
         BCCoreConfig.registry();
-        modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCCoreConfig.config));
+        ConfigBinding.bind(MODID, BCCoreConfig.config, BCCoreConfig::onReloadConfig);
         ConfigScreenRegistration.register(modContainer);
         MessageManager.registerClientboundMessageClass(BCModules.CORE, MessageVolumeBoxes.class, MessageVolumeBoxes.HANDLER, MessageVolumeBoxes::toBytes, MessageVolumeBoxes::new);
         NeoForge.EVENT_BUS.addListener(this::onPaintbrushRightClickBlock);

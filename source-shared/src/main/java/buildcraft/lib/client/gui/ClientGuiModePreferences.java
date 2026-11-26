@@ -2,6 +2,8 @@
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. */
 package buildcraft.lib.client.gui;
 
+import buildcraft.api.v2.config.ScreenMode;
+import buildcraft.lib.internal.config.ConfigurationRegistry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -31,12 +33,24 @@ public final class ClientGuiModePreferences {
 
     private ClientGuiModePreferences() { }
 
+    public static ScreenMode policy(String key) {
+        String id = switch (key) {
+            case ELECTRONIC_LIBRARY -> "buildcraftcore:display/electronicLibraryMode";
+            case ZONE_PLANNER -> "buildcraftcore:display/zonePlannerMode";
+            default -> throw new IllegalArgumentException("Unknown screen: " + key);
+        };
+        return ConfigurationRegistry.INSTANCE.screenMode(id);
+    }
+
+    public static boolean canSwitch(String key) { return policy(key).switchable(); }
+
     public static synchronized Mode get(String key) {
         load();
-        return Mode.parse(VALUES.getProperty(key));
+        return policy(key).useLegacy(Mode.parse(VALUES.getProperty(key)) == Mode.LEGACY) ? Mode.LEGACY : Mode.MODERN;
     }
 
     public static synchronized void set(String key, Mode mode) {
+        if (!canSwitch(key)) return;
         load();
         VALUES.setProperty(key, mode.id());
         try {

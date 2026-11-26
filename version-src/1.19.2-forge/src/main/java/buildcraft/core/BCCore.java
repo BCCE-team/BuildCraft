@@ -56,7 +56,6 @@ import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig.Type;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
@@ -74,7 +73,7 @@ public class BCCore {
     public BCCore() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::init);
-        ConfigBinding.listen(modEventBus, BCCoreConfig::onLoadConfig, BCCoreConfig::onReloadConfig);
+
 
 //        modEventBus.addListener(this::gatherData);//DataGenerator
 
@@ -83,7 +82,8 @@ public class BCCore {
 
         RegistryBinding.register(MENUS, modEventBus);
         BCCoreConfig.registry();
-        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCCoreConfig.config));
+        ConfigBinding.bind(MODID, BCCoreConfig.config, BCCoreConfig::onReloadConfig);
+        buildcraft.lib.platform.config.ConfigScreenRegistration.register();
         MessageManager.registerMessageClass(BCModules.CORE, MessageVolumeBoxes.class, MessageVolumeBoxes.HANDLER, MessageVolumeBoxes::toBytes, MessageVolumeBoxes::new, Dist.CLIENT);
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.addListener(ItemPaintbrush_BC8::onRightClickBlock);

@@ -24,7 +24,6 @@ import net.minecraftforge.data.event.GatherDataEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig.Type;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
@@ -42,7 +41,7 @@ public class BCTransport {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::init);
         modEventBus.addListener(this::gatherData);//DataGenerator
-        ConfigBinding.listen(modEventBus, BCTransportConfig::onConfigLoad, BCTransportConfig::onConfigReload);
+
 
 
         BCLibRegistries.initApiRegistries();
@@ -57,7 +56,7 @@ public class BCTransport {
         BCTransportGuis.preInit(RegistryBinding.on(modEventBus));
         BCTransportStatements.preInit();
 
-        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCTransportConfig.config));
+        ConfigBinding.bind(MODID, BCTransportConfig.config, BCTransportConfig::onConfigReload);
 
         MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageWireSystems.class, MessageWireSystems.HANDLER, MessageWireSystems::toBytes, MessageWireSystems::new, Dist.CLIENT);
         MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageWireSystemsPowered.class, MessageWireSystemsPowered.HANDLER, MessageWireSystemsPowered::toBytes, MessageWireSystemsPowered::new, Dist.CLIENT);

@@ -102,6 +102,8 @@ public abstract class BCLibProxy {
             MessageGuideState::new,
             Dist.DEDICATED_SERVER
         );
+        MessageManager.registerMessageClass(BCModules.LIB, buildcraft.lib.net.MessageConfigurationRequest.class, buildcraft.lib.net.MessageConfigurationRequest.HANDLER, buildcraft.lib.net.MessageConfigurationRequest::toBytes, buildcraft.lib.net.MessageConfigurationRequest::new, Dist.DEDICATED_SERVER);
+        MessageManager.registerMessageClass(BCModules.LIB, buildcraft.lib.net.MessageConfigurationResponse.class, buildcraft.lib.net.MessageConfigurationResponse.HANDLER, buildcraft.lib.net.MessageConfigurationResponse::toBytes, buildcraft.lib.net.MessageConfigurationResponse::new, Dist.CLIENT);
     }
 
     static void fmlInit() {}

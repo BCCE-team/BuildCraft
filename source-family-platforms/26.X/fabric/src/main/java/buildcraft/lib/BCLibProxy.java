@@ -110,6 +110,8 @@ public abstract class BCLibProxy {
             buildcraft.lib.net.MessageGuideRecipeDisplays::new,
             BCNetworkSide.CLIENT
         );
+        MessageManager.registerMessageClass(BCModules.LIB, buildcraft.lib.net.MessageConfigurationRequest.class, buildcraft.lib.net.MessageConfigurationRequest.HANDLER, buildcraft.lib.net.MessageConfigurationRequest::toBytes, buildcraft.lib.net.MessageConfigurationRequest::new, BCNetworkSide.SERVER);
+        MessageManager.registerMessageClass(BCModules.LIB, buildcraft.lib.net.MessageConfigurationResponse.class, buildcraft.lib.net.MessageConfigurationResponse.HANDLER, buildcraft.lib.net.MessageConfigurationResponse::toBytes, buildcraft.lib.net.MessageConfigurationResponse::new, BCNetworkSide.CLIENT);
     }
 
     static void fmlInit() {}

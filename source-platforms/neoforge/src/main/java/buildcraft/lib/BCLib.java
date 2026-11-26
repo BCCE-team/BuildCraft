@@ -73,6 +73,14 @@ public class BCLib {
         MjApi2PlatformBridge.install();
         PlatformApi2Bootstrap.install();
 
+//? if mc_26_x {
+        if (net.neoforged.fml.loading.FMLEnvironment.getDist() == net.neoforged.api.distmarker.Dist.CLIENT) {
+//?} else {
+        if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
+//?}
+            buildcraft.lib.platform.events.PlatformConfigurationClient.registerKeys(modEventBus);
+            buildcraft.lib.platform.config.ConfigScreenRegistration.register(modContainer);
+        }
         modEventBus.addListener(this::init);
         modEventBus.addListener(this::postInit);
         modEventBus.addListener(MessageManager::registerPayloads);

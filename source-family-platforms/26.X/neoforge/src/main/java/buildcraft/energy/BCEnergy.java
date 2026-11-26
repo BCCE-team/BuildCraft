@@ -28,7 +28,6 @@ import net.minecraft.world.level.material.Fluids;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig.Type;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import buildcraft.lib.misc.CapUtil;
@@ -48,7 +47,7 @@ public class BCEnergy {
     public static final BCDeferredRegister<MenuType<?>> MENUS = BCDeferredRegister.create("minecraft:menu", MODID);
 
     public BCEnergy(IEventBus modEventBus, ModContainer modContainer) {
-        ConfigBinding.listen(modEventBus, BCEnergyConfig::onLoadConfig, BCEnergyConfig::onReloadConfig);
+
 
         modEventBus.addListener(this::commonSetup);
         modEventBus.addListener(this::registerCapabilities);
@@ -62,7 +61,7 @@ public class BCEnergy {
         BCCore.BUILDCRAFT_TAB.addItemProvider(BCEnergyBlocks::getCreativeTabItems);
         BCCore.tabFluids.addItemProvider(BCEnergyFluids::getCreativeTabItems);
 
-        modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCEnergyConfig.config));
+        ConfigBinding.bind(MODID, BCEnergyConfig.config, BCEnergyConfig::onReloadConfig);
         ConfigScreenRegistration.register(modContainer);
         RegistryBinding.register(ITEMS, modEventBus);
         RegistryBinding.register(MENUS, modEventBus);

@@ -249,7 +249,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     private static String cargoAmount(CargoEntry entry) {
         if (!entry.isFluid()) return "x" + entry.stack().getCount();
         int amount = entry.amountMb();
-        return amount >= 1000 && amount % 1000 == 0 ? amount / 1000 + " B" : amount + " mB";
+        return buildcraft.lib.internal.config.ConfigurationRegistry.INSTANCE.displayUnits().formatFluid(amount);
     }
 
     private Fluid cargoFluid(String id) {
@@ -321,7 +321,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
         if (hovered == null) return;
         if (hovered.isFluid()) {
             graphics.renderTooltip(font, java.util.List.of(cargoFluidName(hovered),
-                    Component.literal(hovered.amountMb() + " mB")),
+                    Component.literal(buildcraft.lib.internal.config.ConfigurationRegistry.INSTANCE.displayUnits().formatFluid(hovered.amountMb()))),
                     java.util.Optional.empty(), mouseX, mouseY);
         } else graphics.renderTooltip(font, hovered.stack(), mouseX, mouseY);
     }

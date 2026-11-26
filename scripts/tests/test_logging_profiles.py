@@ -249,7 +249,7 @@ class BuildCraftLoggingProfilesTest(unittest.TestCase):
         for relative in ('source-platforms/neoforge/src/main/java/buildcraft/lib/platform/config/ConfigScreenRegistration.java',
                          'source-families/26.X/src/main/java/buildcraft/lib/platform/config/ConfigScreenRegistration.java'):
             code=(ROOT/relative).read_text()
-            self.assertIn('net.neoforged.neoforge.client.gui.ConfigurationScreen::new', code)
+            self.assertIn('new buildcraft.lib.client.config.BuildCraftConfigurationScreen(parent)', code)
             self.assertNotIn('new buildcraft.lib.client.config.LoggingSettingsScreen', code)
             self.assertNotIn('LoggingSettingsScreen',code)
             self.assertNotIn('registerLogging(',code)

@@ -108,7 +108,7 @@ def validate() -> None:
         rule in ignore_rules for rule in ("config/", "**/config/", "*/config/")
     ), "Do not ignore Java config source packages: use a root-anchored /config/ gitignore rule")
     fabric_config = ROOT / "source-family-platforms/26.X/fabric/src/main/java/buildcraft/lib/platform/config"
-    for filename in ("ConfigBinding.java", "ConfigScreenRegistration.java"):
+    for filename in ("ConfigScreenRegistration.java",):
         require((fabric_config / filename).is_file(),
                 f"Missing tracked Fabric config adapter: {fabric_config.relative_to(ROOT) / filename}")
 

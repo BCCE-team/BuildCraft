@@ -66,8 +66,8 @@ public final class BCTransport {
         BCTransportGuis.preInit(RegistryBinding.direct());
         CREATIVE_TABS.register(RegistryBinding.direct());
         BCTransportStatements.preInit();
-        ConfigBinding.listen(MODID, BCTransportConfig::onConfigLoad, BCTransportConfig::onConfigReload);
-        ConfigBinding.bind(MODID, BCTransportConfig.config);
+
+        ConfigBinding.bind(MODID, BCTransportConfig.config, BCTransportConfig::onConfigReload);
         MessageManager.registerClientboundMessageClass(BCModules.TRANSPORT,
             MessageWireSystems.class, null, MessageWireSystems::toBytes, MessageWireSystems::new);
         MessageManager.registerClientboundMessageClass(BCModules.TRANSPORT,

@@ -7,8 +7,6 @@ package buildcraft.builders;
 import buildcraft.builders.BCBuildersClientRenderers;
 import buildcraft.lib.platform.client.PlatformClientRegistration;
 import buildcraft.lib.platform.registry.RegistryBinding;
-import buildcraft.lib.platform.config.ConfigBinding;
-import buildcraft.lib.platform.config.ConfigScreenRegistration;
 import buildcraft.lib.internal.mj.MjCapabilities;
 
 import org.slf4j.Logger;
@@ -51,7 +49,6 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.fml.config.ModConfig.Type;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.capabilities.Capabilities;

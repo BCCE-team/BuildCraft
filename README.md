@@ -56,7 +56,7 @@ If you want to improve existing translations or add a new language, you can cont
 
 BCCE provides a modern **API v2** designed to offer a stable, loader-neutral interface for addons and integrations.
 
-The current API version is **2.1.0**, exposed through the `buildcraft.api.v2` namespace.
+The current API version is **2.2.0**, exposed through the `buildcraft.api.v2` namespace.
 
 Loader-specific implementation details remain outside the public API, while common concepts such as energy, fluids, pipes, robotics, machines, schematics, statements, automation, registration and debugging are exposed through shared contracts.
 

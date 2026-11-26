@@ -35,7 +35,6 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig.Type;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
@@ -68,7 +67,7 @@ public class BCTransport {
             .build());
 
     public BCTransport(IEventBus modEventBus, ModContainer modContainer) {
-        ConfigBinding.listen(modEventBus, BCTransportConfig::onConfigLoad, BCTransportConfig::onConfigReload);
+
 
         modEventBus.addListener(this::init);
         modEventBus.addListener(this::registerCapabilities);
@@ -90,7 +89,7 @@ public class BCTransport {
         RegistryBinding.register(CREATIVE_TABS, modEventBus);
         BCTransportStatements.preInit();
 
-        modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCTransportConfig.config));
+        ConfigBinding.bind(MODID, BCTransportConfig.config, BCTransportConfig::onConfigReload);
         ConfigScreenRegistration.register(modContainer);
 
         MessageManager.registerMessageClass(BCModules.TRANSPORT, MessageWireSystems.class, MessageWireSystems.HANDLER, MessageWireSystems::toBytes, MessageWireSystems::new, Dist.CLIENT);

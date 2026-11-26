@@ -27,6 +27,9 @@
     "client": [
       "buildcraft.fabric.BuildCraftFabric263Client"
     ],
+    "modmenu": [
+      "buildcraft.fabric.BuildCraftModMenu"
+    ],
     "jei_mod_plugin": [
       "buildcraft.compat.jei.BuildCraftJeiPlugin"
     ],

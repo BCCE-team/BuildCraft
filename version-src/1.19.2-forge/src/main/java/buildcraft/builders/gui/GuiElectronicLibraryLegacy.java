@@ -324,6 +324,7 @@ public class GuiElectronicLibraryLegacy extends GuiBC8<ContainerElectronicLibrar
     }
 
     private void initModeButtons() {
+        if (!ClientGuiModePreferences.canSwitch(ClientGuiModePreferences.ELECTRONIC_LIBRARY)) return;
         int x = leftPos + imageWidth - 38;
         int y = topPos - 16;
         legacyModeButton = addRenderableWidget(new Button(x, y, 17, 17,
@@ -335,6 +336,7 @@ public class GuiElectronicLibraryLegacy extends GuiBC8<ContainerElectronicLibrar
     }
 
     private void switchMode(ClientGuiModePreferences.Mode mode) {
+        if (!ClientGuiModePreferences.canSwitch(ClientGuiModePreferences.ELECTRONIC_LIBRARY)) return;
         if (mode == ClientGuiModePreferences.get(ClientGuiModePreferences.ELECTRONIC_LIBRARY)) return;
         ClientGuiModePreferences.set(ClientGuiModePreferences.ELECTRONIC_LIBRARY, mode);
         ClientGuiModeNavigation.show(mode == ClientGuiModePreferences.Mode.LEGACY

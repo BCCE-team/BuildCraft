@@ -76,7 +76,6 @@ public final class BCLib {
             if (!module.loaded()) BCLog.logger.info("  - " + module.id().getPath());
         }
 
-        buildcraft.lib.platform.config.ConfigBinding.installWatch();
         buildcraft.lib.platform.chunk.BCChunkTickets.init();
         BCLibItems.registry(RegistryBinding.direct());
         BCLibIngredientTypes.register();

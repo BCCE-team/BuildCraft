@@ -50,6 +50,7 @@ import net.minecraft.resources.ResourceLocation;
 
 /** Stable keys for services provided by the BuildCraft API 2 runtime. */
 public final class BuildCraftServices {
+    public static final ServiceKey<buildcraft.api.v2.config.ConfigurationService> CONFIGURATION = ServiceKey.of(id("configuration"));
     public static final ServiceKey<EnergyService> ENERGY = ServiceKey.of(id("energy"));
     public static final ServiceKey<PermissionServiceRegistry> PERMISSIONS = ServiceKey.of(id("permissions"));
     public static final ServiceKey<EnergyFluidService> ENERGY_FLUIDS = ServiceKey.of(id("energy_fluids"));

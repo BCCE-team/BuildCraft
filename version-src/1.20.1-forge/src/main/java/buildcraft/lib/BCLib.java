@@ -55,6 +55,10 @@ public class BCLib {
         MjApi2PlatformBridge.install();
         PlatformApi2Bootstrap.install();
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        if (FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
+            buildcraft.lib.platform.events.PlatformConfigurationClient.registerKeys(modEventBus);
+            buildcraft.lib.platform.config.ConfigScreenRegistration.register();
+        }
 
 
         modEventBus.addListener(this::init);

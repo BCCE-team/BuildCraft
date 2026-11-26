@@ -31,7 +31,6 @@ import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.config.ModConfig.Type;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent;
@@ -49,7 +48,7 @@ public class BCSilicon {
         modEventBus.addListener(BCSilicon::commonSetup);
         modEventBus.addListener(BCSilicon::postInit);
         modEventBus.addListener(BCSilicon::gatherData);
-    ConfigBinding.listen(modEventBus, BCSiliconConfig::onLoadConfig, BCSiliconConfig::onReloadConfig);
+
 
 
         BuildCraftApi.registry(BuildCraftRegistries.FACADE_MATERIAL_ADAPTERS).register(
@@ -58,7 +57,7 @@ public class BCSilicon {
         );
 
         BCSiliconConfig.preInit();
-        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCSiliconConfig.config));
+        ConfigBinding.bind(MODID, BCSiliconConfig.config, BCSiliconConfig::onReloadConfig);
         BCSiliconStatements.preInit();
         BCSiliconPlugs.preInit();
         BCSiliconBlocks.registry(RegistryBinding.on(modEventBus));

@@ -1202,10 +1202,9 @@ def validate_gametest_runtime_guards() -> None:
     for target in TARGETS:
         silicon = text(target, "src/main/java/buildcraft/silicon/BCSilicon.java")
         for required in (
-                "BCSiliconConfig::onLoadConfig",
                 "BCSiliconConfig::onReloadConfig",
                 "BCSiliconConfig.preInit()",
-                "registerConfig(Type.COMMON, ConfigBinding.bind(BCSiliconConfig.config))",
+                "ConfigBinding.bind(MODID, BCSiliconConfig.config, BCSiliconConfig::onReloadConfig)",
                 "BCSiliconConfig.reloadConfig(MODID)",
         ):
             if required not in silicon:

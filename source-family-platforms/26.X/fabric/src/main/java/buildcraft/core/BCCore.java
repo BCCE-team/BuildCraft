@@ -97,9 +97,8 @@ public final class BCCore {
             BCCoreItems.FRAGILE_FLUID_SHARD.get()
         );
 
-        ConfigBinding.listen(MODID, BCCoreConfig::onLoadConfig, BCCoreConfig::onReloadConfig);
         BCCoreConfig.registry();
-        ConfigBinding.bind(MODID, BCCoreConfig.config);
+        ConfigBinding.bind(MODID, BCCoreConfig.config, BCCoreConfig::onReloadConfig);
 
         MessageManager.registerClientboundMessageClass(
             BCModules.CORE, MessageVolumeBoxes.class, null,

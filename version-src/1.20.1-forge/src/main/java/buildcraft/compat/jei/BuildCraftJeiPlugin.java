@@ -1537,7 +1537,7 @@ public class BuildCraftJeiPlugin implements IModPlugin {
             long total = fuel.powerPerTickMicroMj() * (long) fuel.burnTicksPerBucket();
             int seconds = fuel.burnTicksPerBucket() / 20;
             drawSanitizedComponent(guiGraphics, Component.translatable("jei.buildcraftenergy.burn_time", seconds), 24, 8, 0xFF404040);
-            drawSanitizedComponent(guiGraphics, Component.translatable("jei.buildcraftenergy.power_per_tick", formatMj(fuel.powerPerTickMicroMj())), 24, 20, 0xFF404040);
+            drawSanitizedComponent(guiGraphics, Component.translatable("jei.buildcraftenergy.power_output", LocaleUtil.localizeMjFlow(fuel.powerPerTickMicroMj())), 24, 20, 0xFF404040);
             drawSanitizedComponent(guiGraphics, Component.translatable("jei.buildcraftenergy.total_energy", formatMj(total)), 24, 32, 0xFF707070);
         }
     }

@@ -46,7 +46,6 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent;
 import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.config.ModConfig.Type;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -77,7 +76,7 @@ public class BCSilicon {
         modEventBus.addListener(BCSilicon::postInit);
         modEventBus.addListener(BCSilicon::gatherData);
         modEventBus.addListener(BCSilicon::registerCapabilities);
-        ConfigBinding.listen(modEventBus, BCSiliconConfig::onLoadConfig, BCSiliconConfig::onReloadConfig);
+
 
 
 
@@ -87,7 +86,7 @@ public class BCSilicon {
         );
 
         BCSiliconConfig.preInit();
-        modContainer.registerConfig(Type.COMMON, ConfigBinding.bind(BCSiliconConfig.config));
+        ConfigBinding.bind(MODID, BCSiliconConfig.config, BCSiliconConfig::onReloadConfig);
         ConfigScreenRegistration.register(modContainer);
         BCSiliconStatements.preInit();
         BCSiliconPlugs.preInit();

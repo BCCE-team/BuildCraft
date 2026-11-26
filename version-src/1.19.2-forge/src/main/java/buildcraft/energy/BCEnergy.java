@@ -31,7 +31,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig.Type;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
@@ -55,7 +54,7 @@ public class BCEnergy {
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
         modEventBus.addListener(this::gatherData);
-        ConfigBinding.listen(modEventBus, BCEnergyConfig::onLoadConfig, BCEnergyConfig::onReloadConfig);
+
 
         BCEnergyFluids.registry(modEventBus);
         registerOptionalCompatItems();
@@ -63,7 +62,7 @@ public class BCEnergy {
         BCEnergyGuis.init();
         BCEnergyWorldGen.preInit(RegistryBinding.on(modEventBus));
         BCEnergyConfig.preInit();
-        ModLoadingContext.get().registerConfig(Type.COMMON, ConfigBinding.bind(BCEnergyConfig.config));
+        ConfigBinding.bind(MODID, BCEnergyConfig.config, BCEnergyConfig::onReloadConfig);
         registerGameplayEvents();
         // Register the Deferred Register to the mod event bus so blocks get registered
         // Register the Deferred Register to the mod event bus so items get registered

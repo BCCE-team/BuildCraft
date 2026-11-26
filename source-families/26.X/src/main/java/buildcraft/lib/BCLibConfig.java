@@ -52,11 +52,11 @@ public class BCLibConfig {
 
     /** If true then fluidstacks will localize with something similar to "4B Water" rather than "4000mB of Water" when
      * calling {@link LocaleUtil#localizeFluidStaticAmount(int)} */
-    public static boolean useBucketsStatic = true;
+    public static boolean useBucketsStatic = false;
 
     /** If true then fluid flow values use buckets rather than millibuckets. The /s versus /t suffix is controlled
      * independently by {@link #displayTimeGap}. */
-    public static boolean useBucketsFlow = true;
+    public static boolean useBucketsFlow = false;
 
     /** If true then fluidstacks and Mj will be localized with longer names (for example "1.2 Buckets per second" rather
      * than "60mB/t") */
@@ -75,7 +75,7 @@ public class BCLibConfig {
     /** The maximum number of results to display in the guide contents page for the search bar. */
     public static int maxGuideSearchCount = 1200;
 
-    public static TimeGap displayTimeGap = TimeGap.SECONDS;
+    public static TimeGap displayTimeGap = TimeGap.TICKS;
 
     /** Controls the preferred orientation of travelling item rendering. */
     public static RenderRotation rotateTravelingItems = RenderRotation.ENABLED;

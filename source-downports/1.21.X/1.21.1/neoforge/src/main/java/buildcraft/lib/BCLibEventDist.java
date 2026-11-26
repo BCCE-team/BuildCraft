@@ -244,10 +244,12 @@ public class BCLibEventDist {
     public static synchronized void registerGameplayEvents() {
         if (gameplayEventsRegistered) return;
         gameplayEventsRegistered = true;
+        buildcraft.lib.platform.events.PlatformConfigurationEvents.configurationLifecycle();
         PlatformEvents.entityJoin(BCLibEventDist::onEntityJoinWorld);
         PlatformEvents.levelUnload(BCLibEventDist::onWorldUnload);
         PlatformEvents.serverTick(BCEvents.Phase.END, BCLibEventDist::serverTick);
         if (PlatformEvents.isClient()) {
+            buildcraft.lib.platform.events.PlatformConfigurationClient.configurationScreen();
             PlatformClientEvents.login(BCLibEventDist::onConnectToServer);
             PlatformClientEvents.logout(BCLibEventDist::onDisconnectFromServer);
             PlatformClientEvents.tick(BCEvents.Phase.END, BCLibEventDist::clientTick);

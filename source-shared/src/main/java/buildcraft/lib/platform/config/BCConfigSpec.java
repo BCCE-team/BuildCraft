@@ -8,7 +8,7 @@ import java.util.function.Supplier;
 
 /** Internal schema and live value handles. No loader object is exposed to gameplay. */
 public final class BCConfigSpec {
-    /** Implemented only by the native config binding. Native validation/reload semantics remain authoritative. */
+    /** Implemented by the BCCE configuration registry adapter. */
     public interface Backend {
         void push(String path);
         void pop();
@@ -24,7 +24,7 @@ public final class BCConfigSpec {
     private boolean bound;
     private BCConfigSpec(List<Consumer<Backend>> steps) { this.steps = List.copyOf(steps); }
 
-    /** Bind once during module construction, before loading a config. Values keep live native getters. */
+    /** Bind once during module construction, before loading a config. Values retain effective registry getters. */
     public synchronized void bind(Backend backend) {
         Objects.requireNonNull(backend, "backend");
         if (bound) throw new IllegalStateException("Config schema already bound");
@@ -36,7 +36,7 @@ public final class BCConfigSpec {
         private Supplier<T> source;
         private void bindValue(Supplier<T> source) { this.source = Objects.requireNonNull(source); }
         @Override public T get() {
-            if (source == null) throw new IllegalStateException("Config value read before native binding");
+            if (source == null) throw new IllegalStateException("Config value read before binding");
             return source.get();
         }
     }

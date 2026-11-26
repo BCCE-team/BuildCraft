@@ -164,7 +164,7 @@ for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
         "FMLEnvironment",
         "Dist.CLIENT",
         "IConfigScreenFactory.class",
-        "ConfigurationScreen::new",
+        "new buildcraft.lib.client.config.BuildCraftConfigurationScreen(parent)",
     )
     for module_rel in (
         "buildcraft/core/BCCore.java",
@@ -175,7 +175,7 @@ for target in ("1.21.1-neoforge", "1.21.11-neoforge"):
         require_effective(
             target,
             f"src/main/java/{module_rel}",
-            "registerConfig(Type.COMMON, ConfigBinding.bind(",
+            "ConfigBinding.bind(MODID,",
             "ConfigScreenRegistration.register(modContainer);",
         )
     # The Builders module has no remaining native config: Quarry balance is INI-owned.

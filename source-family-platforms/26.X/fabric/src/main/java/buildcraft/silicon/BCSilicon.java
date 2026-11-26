@@ -77,8 +77,7 @@ public final class BCSilicon {
         tabPlugs.addItemProvider(BCSiliconItems::getPlugTabItems);
         tabFacades.addUniqueGeneratedItemProvider(BCSiliconItems::getFacadeTabItems);
 
-        ConfigBinding.listen(MODID, BCSiliconConfig::onLoadConfig, BCSiliconConfig::onReloadConfig);
-        ConfigBinding.bind(MODID, BCSiliconConfig.config);
+        ConfigBinding.bind(MODID, BCSiliconConfig.config, BCSiliconConfig::onReloadConfig);
         BCSiliconConfig.reloadConfig(MODID);
 
         registerCapabilities();

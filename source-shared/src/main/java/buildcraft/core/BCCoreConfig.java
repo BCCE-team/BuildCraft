@@ -7,6 +7,8 @@
 package buildcraft.core;
 
 import buildcraft.lib.internal.mj.MjCapabilities;
+import buildcraft.api.v2.config.DisplayUnits;
+import buildcraft.api.v2.config.ScreenMode;
 import buildcraft.lib.internal.debug.BCLogProfile;
 import buildcraft.lib.balance.BalanceConfig;
 import buildcraft.lib.internal.mj.MjFeConversion;
@@ -44,8 +46,7 @@ public class BCCoreConfig {
     private static BooleanValue propHidePower;
     private static BooleanValue propHideFluid;
     private static BooleanValue propGuideBookEnableDetail;
-    private static BooleanValue propUseBucketsStatic;
-    private static BooleanValue propUseBucketsFlow;
+    private static EnumValue<DisplayUnits.FluidUnit> propFluidVolumeUnit;
     private static BooleanValue propUseLongLocalizedName;
     private static BooleanValue propUseSwappableSprites;
     private static BooleanValue propMinePlayerProtected;
@@ -87,19 +88,24 @@ public class BCCoreConfig {
 
         propGuideBookEnableDetail = builder.define("guideBookEnableDetail", false);
 
-        propUseBucketsStatic = builder.comment("Should static fluid values be displayed in terms of buckets rather than thousandths of a bucket? (B vs mB)")
-            .define("useBucketsStatic", true);
+        propFluidVolumeUnit = builder.comment("Fluid volume unit for all readouts.",
+            "BUCKETS displays amounts in B; MILLIBUCKETS displays amounts in mB. Applies to both stored volumes and flow rates.")
+            .defineEnum("fluidVolumeUnit", DisplayUnits.DEFAULT.fluid());
 
-        propUseBucketsFlow = builder.comment("Should flowing fluid values be displayed in terms of buckets per second rather than thousandths of a bucket per tick? (B/s vs mB/t)")
-            .define("useBucketsFlow", true);
+        builder.comment("Zone Planner screen mode.",
+            "SWITCH remembers the last manually selected layout. LEGACY_ONLY and MODERN_ONLY lock the layout and hide the switch.")
+            .defineEnum("zonePlannerMode", ScreenMode.SWITCH);
+        builder.comment("Electronic Library screen mode.",
+            "SWITCH remembers the last manually selected layout. LEGACY_ONLY and MODERN_ONLY lock the layout and hide the switch.")
+            .defineEnum("electronicLibraryMode", ScreenMode.SWITCH);
 
         propUseLongLocalizedName = builder.comment("Should localised strings be displayed in long or short form (10 mB / t vs 10 milli buckets per tick)")
             .define("useLongLocalizedName", true);
 
         propDisplayTimeGap = builder.comment(
-            "Flow-rate display unit for BuildCraft energy values.",
-            "TICKS displays values as unit/t; SECONDS displays values as unit/s."
-        ).defineEnum("timeGap", TimeGap.SECONDS, TimeGap.values());
+            "Display unit for all rates.",
+            "TICKS displays quantities per game tick; SECONDS displays quantities per nominal 20-tick second. This does not change gameplay."
+        ).defineEnum("timeGap", TimeGap.valueOf(DisplayUnits.DEFAULT.rate().name()), TimeGap.values());
 
         propUseSwappableSprites = builder.comment(
             "Disable this if you get texture errors with optifine. Disables some texture switching functionality",
@@ -168,6 +174,21 @@ public class BCCoreConfig {
         config = builder.build();
     }
 
+    private static void updateDisplayUnits() {
+        boolean buckets = propFluidVolumeUnit.get() == DisplayUnits.FluidUnit.BUCKETS;
+        BCLibConfig.useBucketsStatic = buckets;
+        BCLibConfig.useBucketsFlow = buckets;
+        BCLibConfig.displayTimeGap = propDisplayTimeGap.get();
+    }
+
+    /** Only refresh these live client preferences, not restart-bound gameplay fields. */
+    public static void refreshDisplayUnits() {
+        boolean previous = BCLibConfig.useBucketsStatic;
+        TimeGap previousGap = BCLibConfig.displayTimeGap;
+        updateDisplayUnits();
+        if (previous != BCLibConfig.useBucketsStatic || previousGap != BCLibConfig.displayTimeGap) BCLibConfig.refreshConfigs();
+    }
+
     public static void onReloadConfig(String modId) {
         reloadConfig(modId);
     }
@@ -182,11 +203,6 @@ public class BCCoreConfig {
         }
 
         minePlayerProtected = propMinePlayerProtected.get();
-        // The optional diagnostic flag can be null while Forge 1.19.2 is normalizing a fresh
-        // COMMON config during the loader config-loading callback. Treat that transient value as its
-        // declared default (false) instead of aborting dedicated-server startup.
-        // Forge 1.19.2 can call the reload hook while normalizing a freshly created
-        // COMMON config. Keep a safe default until the enum handle is populated.
         BCLogProfile.Profile chosenLoggingProfile = propLoggingProfile.get();
         BCLogProfile.applyCoreProfile(chosenLoggingProfile == null
             ? BCLogProfile.Profile.DEFAULT : chosenLoggingProfile);
@@ -202,8 +218,7 @@ public class BCCoreConfig {
         BCLibConfig.guideShowDetail = propGuideBookEnableDetail.get();
         BCLibConfig.maxGuideSearchCount = Mth.clamp(propMaxGuideSearchResults.get(), 500, 5000);
         BCLibConfig.guideItemSearchLimit = Mth.clamp(propGuideItemSearchLimit.get(), 1_500, 5_000_000);
-        BCLibConfig.useBucketsStatic = propUseBucketsStatic.get();
-        BCLibConfig.useBucketsFlow = propUseBucketsFlow.get();
+        updateDisplayUnits();
         BCLibConfig.useLongLocalizedName = propUseLongLocalizedName.get();
         BCLibConfig.itemLifespan = propItemLifespan.get();
         pumpsConsumeWater = BalanceConfig.machineInt("buildcraftfactory:pump", "consume_water_sources", 0) != 0;
@@ -212,7 +227,6 @@ public class BCCoreConfig {
         pumpMaxDistance = BalanceConfig.machineInt("buildcraftfactory:pump", "max_distance_blocks", 64);
         networkUpdateRate = Mth.clamp(propNetworkUpdateRate.get(), 1, 10);
         BCLibConfig.colourBlindMode = propColourBlindMode.get();
-        BCLibConfig.displayTimeGap = propDisplayTimeGap.get();
         BCLibConfig.rotateTravelingItems = propItemRenderRotation.get();
         BCLibConfig.enableAnimatedSprites = propEnableAnimatedSprites.get();
         miningMultiplier = BalanceConfig.machine("mining", "energy_multiplier", 1);

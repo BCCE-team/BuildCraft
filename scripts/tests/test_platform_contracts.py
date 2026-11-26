@@ -275,10 +275,10 @@ class ConfigContract(_AllTargets):
         for marker in (
             "bool default",
             "typed values",
-            "reload read through live native value",
-            "invalid range rejected by native binding",
+            "world restart loads saved value",
+            "invalid range rejected by registry",
             "invalid value does not replace last valid config",
-            "config event types and mod IDs",
+            "config lifecycle callback",
         ):
             self.assertIn(marker, fixture)
 
@@ -300,12 +300,8 @@ class ConfigContract(_AllTargets):
                 if not path.exists():
                     continue
                 text = path.read_text(encoding="utf-8")
-                if "registerConfig(" not in text:
-                    continue
                 with self.subTest(target=target, module=relative):
-                    self.assertIn("Type.COMMON", text)
-                    self.assertNotIn("Type.CLIENT", text)
-                    self.assertNotIn("Type.SERVER", text)
+                    self.assertNotIn("registerConfig(", text)
 
 
 class PermissionFakePlayerContract(_AllTargets):

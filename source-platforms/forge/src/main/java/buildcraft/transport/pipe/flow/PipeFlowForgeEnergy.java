@@ -343,7 +343,7 @@ public class PipeFlowForgeEnergy extends PipeFlow implements IFlowForgeEnergy, I
 
     @Override
     public void getDebugInfo(List<String> left, List<String> right, Direction side) {
-        left.add("maxFE = " + maxPower + " FE/t");
+        left.add("maxFE = " + buildcraft.lib.internal.config.ConfigurationRegistry.INSTANCE.displayUnits().formatFeRate(maxPower));
         left.add("isReceiver = " + isReceiver);
         left.add("disabled = " + disabled);
         left.add("internalFE = " + arrayToString(s -> s.internalPower) + " <- " + arrayToString(s -> s.internalNextPower));

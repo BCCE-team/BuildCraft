@@ -4,7 +4,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.loading.FMLEnvironment;
 
-/** Registers the native NeoForge configuration editor without hiding other config categories. */
+/** Registers BCCE's own configuration editor in the loader mod list. */
 public final class ConfigScreenRegistration {
     private ConfigScreenRegistration() {}
 
@@ -25,7 +25,7 @@ public final class ConfigScreenRegistration {
         private static void register(ModContainer container) {
             container.registerExtensionPoint(
                 net.neoforged.neoforge.client.gui.IConfigScreenFactory.class,
-                net.neoforged.neoforge.client.gui.ConfigurationScreen::new
+                (ignored, parent) -> new buildcraft.lib.client.config.BuildCraftConfigurationScreen(parent)
             );
         }
     }

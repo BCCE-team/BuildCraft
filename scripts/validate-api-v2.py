@@ -128,8 +128,8 @@ def main() -> int:
                     if imported.startswith(("net.minecraftforge.", "net.neoforged.", "net.fabricmc.", "org.quiltmc.")):
                         errors.append(f"{target}: materialized API v2 imports loader type {imported} in {path.relative_to(api_root)}")
             facade = api_root / "BuildCraftApi.java"
-            if not facade.is_file() or not re.search(r"new ApiVersion\(2, 1, 0\)", facade.read_text(encoding="utf-8")):
-                errors.append(f"{target}: API facade does not advertise version 2.1.0")
+            if not facade.is_file() or not re.search(r"new ApiVersion\(2, 2, 0\)", facade.read_text(encoding="utf-8")):
+                errors.append(f"{target}: API facade does not advertise version 2.2.0")
             target_registry = api_root / "BuildCraftRegistries.java"
             target_runtime = destination / "src/main/java/buildcraft/lib/internal/api/v2/BuildCraftApiRuntime.java"
             if not target_registry.is_file() or not target_runtime.is_file():

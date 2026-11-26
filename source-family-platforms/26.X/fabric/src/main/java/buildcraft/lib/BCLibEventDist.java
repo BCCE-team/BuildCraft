@@ -35,6 +35,7 @@ public final class BCLibEventDist {
             new buildcraft.lib.recipe.MachineRecipeDatapackReloadListener()
         );
 
+        buildcraft.lib.platform.events.PlatformConfigurationEvents.configurationLifecycle();
         PlatformEvents.entityJoin(BCLibEventDist::onEntityJoinWorld);
         PlatformEvents.levelUnload(BCLibEventDist::onWorldUnload);
         PlatformEvents.serverTick(BCEvents.Phase.END, BCLibEventDist::serverTick);
@@ -80,6 +81,7 @@ public final class BCLibEventDist {
         private ClientGame() {}
 
         static void registerGameplayEvents() {
+            buildcraft.lib.platform.events.PlatformConfigurationClient.configurationScreen();
             PlatformClientEvents.login(ClientGame::onConnect);
             PlatformClientEvents.logout(ClientGame::onDisconnect);
             PlatformClientEvents.tick(BCEvents.Phase.END, event -> clientTick());

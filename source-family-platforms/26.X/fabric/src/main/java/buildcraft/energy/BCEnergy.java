@@ -86,8 +86,7 @@ public final class BCEnergy {
         BCCore.tabFluids.setItem(BCEnergyFluids.OIL_BUCKET.get(0).get());
         registerCapabilities();
 
-        ConfigBinding.listen(MODID, BCEnergyConfig::onLoadConfig, BCEnergyConfig::onReloadConfig);
-        ConfigBinding.bind(MODID, BCEnergyConfig.config);
+        ConfigBinding.bind(MODID, BCEnergyConfig.config, BCEnergyConfig::onReloadConfig);
         BCEnergyRecipes.init();
         BCEnergyConfig.reloadConfig(MODID);
         PlatformEvents.playerTick(BCEvents.Phase.END, BCEnergy::onPlayerTick);

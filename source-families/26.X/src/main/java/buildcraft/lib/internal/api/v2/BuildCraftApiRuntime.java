@@ -134,6 +134,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     private final ClientPresentationServiceImpl clientPresentations = new ClientPresentationServiceImpl();
 
     private BuildCraftApiRuntime() {
+        services.put(BuildCraftServices.CONFIGURATION, buildcraft.lib.internal.config.ConfigurationRegistry.INSTANCE);
         services.put(BuildCraftServices.ENERGY, energy);
         services.put(BuildCraftServices.PERMISSIONS, permissions);
         services.put(BuildCraftServices.ENERGY_FLUIDS, energyFluids);

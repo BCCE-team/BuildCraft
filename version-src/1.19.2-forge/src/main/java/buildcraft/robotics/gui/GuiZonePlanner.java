@@ -1085,6 +1085,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     }
 
     private void initModeButtons() {
+        if (!ClientGuiModePreferences.canSwitch(ClientGuiModePreferences.ZONE_PLANNER)) return;
         int x = leftPos + imageWidth - 38;
         int y = topPos - 16;
         legacyModeButton = addRenderableWidget(new Button(x, y, 17, 17,
@@ -1096,6 +1097,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     }
 
     private void switchMode(ClientGuiModePreferences.Mode mode) {
+        if (!ClientGuiModePreferences.canSwitch(ClientGuiModePreferences.ZONE_PLANNER)) return;
         if (mode == ClientGuiModePreferences.get(ClientGuiModePreferences.ZONE_PLANNER)) return;
         ClientGuiModePreferences.set(ClientGuiModePreferences.ZONE_PLANNER, mode);
         ClientGuiModeNavigation.show(mode == ClientGuiModePreferences.Mode.LEGACY
