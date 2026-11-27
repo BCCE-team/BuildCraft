@@ -1064,7 +1064,7 @@
       "subtype": "pipe_item",
       "name": "pipe_empty",
       "book": "buildcraftcore:main",
-      "listed": true,
+      "listed": false,
       "statement": "buildcraft:pipe_empty",
       "page": "buildcrafttransport/trigger/pipe_empty"
     },
@@ -2469,6 +2469,81 @@
       "stack": "buildcraftrobotics:robot",
       "stack_nbt": "{board:{id:\"buildcraft:boardRobotBeekeeper\"},energy:0,robot_key:\"beekeeper\"}",
       "page": "buildcraftrobotics/robot/beekeeper"
+    },
+    {
+      "id": "buildcraftcore:item/redstone_control_module",
+      "module": "buildcraftcore",
+      "type": "item",
+      "subtype": "component",
+      "name": "redstone_control_module",
+      "book": "buildcraftcore:main",
+      "listed": true,
+      "page": "buildcraftcore/item/redstone_control_module",
+      "stack": "buildcraftcore:redstone_control_module"
+    },
+    {
+      "id": "buildcraftlib:config/bcce_settings",
+      "module": "buildcraftlib",
+      "type": "config",
+      "subtype": "gameplay",
+      "name": "bcce_settings",
+      "book": "buildcraftcore:main",
+      "listed": true,
+      "page": "buildcraftlib/config/bcce_settings"
+    },
+    {
+      "id": "buildcrafttransport:trigger/power_requested",
+      "module": "buildcrafttransport",
+      "type": "trigger",
+      "subtype": "pipe_power",
+      "name": "power_requested",
+      "book": "buildcraftcore:main",
+      "listed": true,
+      "page": "buildcrafttransport/trigger/power_requested",
+      "statement": "buildcraft:powerRequested"
+    },
+    {
+      "id": "buildcraftrobotics:config/gate_setup",
+      "module": "buildcraftrobotics",
+      "type": "guide",
+      "subtype": "robot_control",
+      "name": "gate_setup",
+      "book": "buildcraftcore:main",
+      "listed": true,
+      "page": "buildcraftrobotics/config/gate_setup"
+    },
+    {
+      "id": "buildcraftrobotics:block/robot_processor",
+      "module": "buildcraftrobotics",
+      "type": "block",
+      "subtype": "robot_control",
+      "name": "robot_processor",
+      "book": "buildcraftcore:main",
+      "listed": true,
+      "page": "buildcraftrobotics/block/robot_processor",
+      "stack": "buildcraftrobotics:robot_processor"
+    },
+    {
+      "id": "buildcraftrobotics:item/controller",
+      "module": "buildcraftrobotics",
+      "type": "item",
+      "subtype": "robot_control",
+      "name": "controller",
+      "book": "buildcraftcore:main",
+      "listed": true,
+      "page": "buildcraftrobotics/item/controller",
+      "stack": "buildcraftrobotics:controller"
+    },
+    {
+      "id": "buildcraftrobotics:item/hard_disk",
+      "module": "buildcraftrobotics",
+      "type": "item",
+      "subtype": "robot_control",
+      "name": "hard_disk",
+      "book": "buildcraftcore:main",
+      "listed": true,
+      "page": "buildcraftrobotics/item/hard_disk",
+      "stack": "buildcraftrobotics:hard_disk"
     }
   ]
 }

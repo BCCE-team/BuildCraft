@@ -1973,7 +1973,7 @@
   "gui.buildcraft.configuration.calculated.invalid": "Enter a valid value to calculate the result.",
   "gui.buildcraft.configuration.calculated.invalid_dependency": "Requires a valid related setting.",
   "gui.buildcraft.configuration.calculated.mj_to_fe": "1 MJ = %s FE",
-  "gui.buildcraft.configuration.calculated.mj_to_fe_approx": "1 MJ \u2248 %s FE",
+  "gui.buildcraft.configuration.calculated.mj_to_fe_approx": "1 MJ ≈ %s FE",
   "gui.buildcraft.configuration.calculated.fe_to_mj": "1 FE = %s MJ",
   "gui.buildcraft.configuration.calculated.ratio_rounded": "Game conversion rounds the coefficient to %s MJ/FE.",
   "gui.buildcraft.configuration.calculated.multiplier": "%s of base (%s)",
@@ -2056,5 +2056,14 @@
   "gui.buildcraft.configuration.update_status.up_to_date": "You are up to date.",
   "gui.buildcraft.configuration.update_status.no_compatible_release": "No compatible newer release.",
   "gui.buildcraft.configuration.update_status.manifest_pending": "Release manifest is pending.",
-  "gui.buildcraft.configuration.update_status.failed": "Update check failed."
+  "gui.buildcraft.configuration.update_status.failed": "Update check failed.",
+  "buildcraft.guide.page.redstone_control_module": "Redstone Controlling Module",
+  "buildcraft.guide.page.bcce_settings": "BCCE Settings",
+  "buildcraft.guide.page.power_requested": "Power Requested",
+  "buildcraft.guide.page.gate_setup": "Robot Gate Setup",
+  "buildcraft.guide.page.robot_processor": "Robot Control Panel",
+  "buildcraft.guide.page.controller": "Robot Controller",
+  "buildcraft.guide.page.hard_disk": "Hard Disk Drive",
+  "buildcraft.guide.chapter.type.guide": "Guides",
+  "buildcraft.guide.chapter.subtype.gameplay": "Gameplay Settings"
 }
