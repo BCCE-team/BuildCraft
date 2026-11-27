@@ -1,5 +1,13 @@
 package buildcraft.gametest;
 
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.entity.item.ItemEntity;
+import buildcraft.api.v2.energy.MjAmount;
+import buildcraft.lib.recipe.MachineRecipeApiBridge;
+import buildcraft.factory.tile.TileDistiller_BC8;
+import buildcraft.energy.OilIndustry;
+import buildcraft.core.item.ItemFragileFluidContainer;
+import buildcraft.core.BCCoreItems;
 import java.util.EnumSet;
 
 import io.netty.buffer.Unpooled;
@@ -26,6 +34,11 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.fluid.FluidVolume;
+import buildcraft.energy.BCEnergyFluids;
+import buildcraft.lib.misc.FluidUtilBC;
+import buildcraft.lib.misc.CapUtil;
+import net.neoforged.neoforge.fluids.FluidUtil;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;
 import buildcraft.factory.BCFactoryBlocks;
 import buildcraft.factory.container.ContainerTank;
 import buildcraft.factory.tile.TileTank;
@@ -51,6 +64,92 @@ public final class FluidCompatibilityGameTests {
     private static final String EMPTY_TEMPLATE = "empty3x3x3";
 
     private FluidCompatibilityGameTests() {
+    }
+
+    @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 20)
+    public static void petroleumBucketsExposeNativeFluidHandlers(GameTestHelper helper) {
+        require(helper, BCEnergyFluids.OIL_BUCKET.size() == 30, "missing petroleum buckets");
+        for (int i = 0; i < BCEnergyFluids.OIL_BUCKET.size(); i++) {
+            var bucket = BCEnergyFluids.OIL_BUCKET.get(i).get();
+            var expected = BCEnergyFluids.OIL_SOURCE.get(i).get();
+            var handler = FluidUtil.getFluidHandler(new ItemStack(bucket)).orElse(null);
+            require(helper, handler != null, "missing fluid handler for " + bucket);
+            FluidStack simulated = handler.drain(1000, FluidAction.SIMULATE);
+            require(helper, simulated.getAmount() == 1000 && simulated.getFluid() == expected,
+                "bucket simulation returned the wrong contents: " + bucket);
+            require(helper, handler.getContainer().is(bucket), "simulation changed the bucket");
+            FluidStack drained = handler.drain(1000, FluidAction.EXECUTE);
+            require(helper, drained.getAmount() == 1000 && drained.getFluid() == expected,
+                "bucket execution returned the wrong contents: " + bucket);
+            require(helper, handler.getContainer().is(Items.BUCKET), "draining did not return an empty bucket");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 20)
+    public static void distillerAcceptsOilFromRegisteredBucket(GameTestHelper helper) {
+        BlockPos pos = new BlockPos(1, 1, 1);
+        helper.setBlock(pos, BCFactoryBlocks.DISTILLER_BLOCK.get().defaultBlockState());
+        var input = CapUtil.getFluidHandler(helper.getLevel(), helper.absolutePos(pos), Direction.NORTH);
+        require(helper, input != null, "distiller has no horizontal fluid input");
+        var bucket = BCEnergyFluids.OIL_BUCKET.get(0).get();
+        var handler = FluidUtil.getFluidHandler(new ItemStack(bucket)).orElse(null);
+        require(helper, handler != null, "oil bucket has no fluid capability");
+        FluidStack moved = FluidUtilBC.move(handler, input, 1000);
+        require(helper, moved != null && moved.getAmount() == 1000
+            && moved.getFluid() == BCEnergyFluids.crudeOil[0], "distiller rejected crude oil");
+        require(helper, input.getFluidInTank(0).getAmount() == 1000, "oil did not reach the input tank");
+        require(helper, handler.getContainer().is(Items.BUCKET), "transfer did not return the empty bucket");
+        helper.succeed();
+    }
+
+    @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 20)
+    public static void classicOilAcceptsAllTemperaturesAndEjectsObsoleteInput(GameTestHelper helper) {
+        OilIndustry.Mode previous = OilIndustry.serverMode();
+        BlockPos pos = new BlockPos(1, 1, 1);
+        BlockPos absolute = helper.absolutePos(pos);
+        try {
+            OilIndustry.setServerMode(OilIndustry.Mode.MODERN);
+            helper.setBlock(pos, BCFactoryBlocks.DISTILLER_BLOCK.get().defaultBlockState());
+            var input = CapUtil.getFluidHandler(helper.getLevel(), helper.absolutePos(pos), Direction.NORTH);
+            require(helper, input != null, "missing distiller input");
+            var distiller = (TileDistiller_BC8) helper.getLevel().getBlockEntity(absolute);
+            FluidStack obsolete = new FluidStack(BCEnergyFluids.oilDistilled[0], 1251);
+            require(helper, input.fill(obsolete, FluidAction.EXECUTE) == 1251, "modern input was rejected");
+            OilIndustry.setServerMode(OilIndustry.Mode.CLASSIC);
+            distiller.update();
+            require(helper, input.getFluidInTank(0).isEmpty(), "obsolete input still blocks the distiller");
+            int recovered = 0;
+            int shards = 0;
+            for (ItemEntity entity : helper.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(absolute).inflate(1.0))) {
+                if (!entity.getItem().is(BCCoreItems.FRAGILE_FLUID_SHARD.get())) continue;
+                FluidStack contents = ItemFragileFluidContainer.getFluid(entity.getItem());
+                require(helper, contents.getFluid() == obsolete.getFluid(), "ejection changed the fluid type");
+                recovered += contents.getAmount();
+                shards++;
+                entity.discard();
+            }
+            require(helper, recovered == 1251 && shards == 3, "ejection lost or duplicated fluid");
+            for (var oil : BCEnergyFluids.crudeOil) {
+                FluidStack stack = new FluidStack(oil, 1000);
+                require(helper, input.fill(stack, FluidAction.SIMULATE) == 1000, "legacy oil temperature rejected");
+                var recipe = MachineRecipeApiBridge.findDistillation(stack);
+                require(helper, recipe != null && recipe.gasOutput().isEmpty()
+                    && recipe.input().amount().milliBuckets() == recipe.liquidOutput().amount().milliBuckets()
+                    && MachineRecipeApiBridge.outputStack(recipe.liquidOutput()).getFluid() == BCEnergyFluids.fuelDense[0]
+                    && recipe.powerRequiredMicroMj() == 32 * MjAmount.MICRO_MJ_PER_MJ, "incorrect classic distillation");
+                var fuel = BuildCraftApi.service(BuildCraftServices.ENERGY_FLUIDS)
+                    .findFuel(FuelApiBridge.variantOf(stack), FuelApiBridge.MATCH_CONTEXT).orElseThrow().profile();
+                require(helper, !fuel.hasResidue() && fuel.burnTicksPerBucket() == 10000
+                    && fuel.powerPerTickMicroMj() == 3 * MjAmount.MICRO_MJ_PER_MJ, "incorrect classic oil fuel");
+            }
+            require(helper, input.fill(obsolete, FluidAction.SIMULATE) == 0, "obsolete fluid can re-enter classic input");
+            OilIndustry.setServerMode(OilIndustry.Mode.MODERN);
+            require(helper, input.fill(obsolete, FluidAction.SIMULATE) == 1251, "modern input did not recover");
+        } finally {
+            OilIndustry.setServerMode(previous);
+        }
+        helper.succeed();
     }
 
     @GameTest(templateNamespace = BCLib.MODID, template = EMPTY_TEMPLATE, timeoutTicks = 20)

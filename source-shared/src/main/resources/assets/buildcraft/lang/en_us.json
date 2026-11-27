@@ -52,7 +52,7 @@
   "advancements.buildcraftenergy.lava_power.title": "Lava Power",
   "advancements.buildcraftenergy.poweringUp.description": "Power a Stirling or Combustion Engine with redstone",
   "advancements.buildcraftenergy.poweringUp.title": "Powering Up!",
-  "advancements.buildcraftenergy.refine_and_redefine.description": "Collect a bucket of each type of oil and fuel",
+  "advancements.buildcraftenergy.refine_and_redefine.description": "Collect a bucket of each oil and fuel product required by the active oil industry",
   "advancements.buildcraftenergy.refine_and_redefine.title": "Refine and Redefine",
   "advancements.buildcraftenergy.sticky_dipping.description": "Discover the sticky nature of oil",
   "advancements.buildcraftenergy.sticky_dipping.title": "Sticky Dipping",
@@ -2007,9 +2007,6 @@
   "config.buildcraftcore.display.temperatureUnit.name.choice.celsius.description": "Use Celsius, the native engine unit.",
   "config.buildcraftcore.display.temperatureUnit.name.choice.fahrenheit": "°F",
   "config.buildcraftcore.display.temperatureUnit.name.choice.fahrenheit.description": "0 degrees Celsius = 32 degrees Fahrenheit.",
-  "config.buildcraftcore.display.rememberGuidePage.name": "Remember Guide Page",
-  "config.buildcraftcore.display.rememberGuidePage.description": "Reopen the guide book at its last page.",
-  "config.buildcraftcore.display.rememberGuidePage.tooltip": "When enabled, the held book restores its previously saved entry and page. When disabled, it opens at the beginning and clears page position on saving. Other book preferences are retained.",
   "config.buildcraftcore.display.pipes.fluidAnimation.name": "Pipe Fluid Animation",
   "config.buildcraftcore.display.pipes.fluidAnimation.description": "Animate the direction of fluid flow.",
   "config.buildcraftcore.display.pipes.fluidAnimation.tooltip": "Disabling animation freezes the flowing texture; liquid volume and flow simulation remain unchanged.",
@@ -2065,5 +2062,13 @@
   "buildcraft.guide.page.controller": "Robot Controller",
   "buildcraft.guide.page.hard_disk": "Hard Disk Drive",
   "buildcraft.guide.chapter.type.guide": "Guides",
-  "buildcraft.guide.chapter.subtype.gameplay": "Gameplay Settings"
+  "buildcraft.guide.chapter.subtype.gameplay": "Gameplay Settings",
+  "buildcraft.guide.contents.remember_page": "Remember page",
+  "config.buildcraftenergy.oilIndustry.mode.name": "Oil Industry Mode",
+  "config.buildcraftenergy.oilIndustry.mode.description": "Modern fractionation or classic direct refining.",
+  "config.buildcraftenergy.oilIndustry.mode.tooltip": "MODERN retains the full temperature-based oil industry. CLASSIC converts oil directly into fuel with no residue. Reopen the world to apply. Existing fluids remain registered.",
+  "fluid_type.buildcraftenergy.classic.oil": "Oil",
+  "fluid_type.buildcraftenergy.classic.fuel": "Fuel",
+  "item.buildcraftenergy.classic.oil_bucket": "Oil Bucket",
+  "item.buildcraftenergy.classic.fuel_bucket": "Fuel Bucket"
 }

@@ -5,6 +5,7 @@
  */
 package buildcraft.factory.tile;
 
+import buildcraft.lib.fluid.FluidDropRuntime;
 import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
@@ -264,6 +265,7 @@ public class TileDistiller_BC8 extends TileBC_Neptune implements IDebuggable, Ma
         // supply can fill the buffer perpetually and deadlock distillation.
         refundPendingPower();
 
+        FluidDropRuntime.ejectInvalidClassicInput(getLevel(), getBlockPos(), tankIn);
         var matching = MachineRecipeApiBridge.findDistillationMatch(tankIn.getFluid());
         String activeKey = DistillationProgressIdentity.of(matching);
         if (distillPower > 0 && !activeKey.equals(inFlightRecipeKey)) {

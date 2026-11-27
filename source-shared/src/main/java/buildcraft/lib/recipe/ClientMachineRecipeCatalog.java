@@ -58,6 +58,7 @@ public final class ClientMachineRecipeCatalog {
 
     public static synchronized void clear() {
         current = Snapshot.empty();
+        buildcraft.energy.OilIndustry.setRemoteMode(null);
         pending = null;
         if (listener != null) listener.run();
     }
@@ -95,6 +96,7 @@ public final class ClientMachineRecipeCatalog {
             for (int index = 0; index < pending.count; index++) {
                 var chunk = pending.parts.get(index);
                 if (chunk == null) throw new IllegalArgumentException("Missing chunk " + index);
+                if (chunk.oilMode() != part.oilMode()) throw new IllegalArgumentException("Inconsistent oil industry mode");
                 for (var encoded : chunk.recipes()) {
                     RecipeDefinition definition = MachineRecipeDatapackReloadListener.decode(
                         encoded.machine(), JsonParser.parseString(encoded.json()).getAsJsonObject());
@@ -107,6 +109,7 @@ public final class ClientMachineRecipeCatalog {
                     denied.computeIfAbsent(ban.machine(), ignored -> new LinkedHashSet<>()).add(ban.id());
                 }
             }
+            buildcraft.energy.OilIndustry.setRemoteMode(part.oilMode());
             current = new Snapshot(part.generation(), true, all, denied);
             LOG.info("Received {} authoritative machine recipe displays and {} deny rules",
                 all.size(), denied.values().stream().mapToInt(Set::size).sum());

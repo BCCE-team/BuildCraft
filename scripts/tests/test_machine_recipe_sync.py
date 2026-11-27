@@ -62,6 +62,8 @@ class MachineRecipeSyncTest(unittest.TestCase):
                 package net.minecraft.resources;
                 public record ResourceLocation(String id) {
                   public static ResourceLocation tryParse(String s) {return new ResourceLocation(s);}
+                  public String getNamespace() {return id.split(":",2)[0];}
+                  public String getPath() {return id.split(":",2)[1];}
                   public String toString() {return id;}
                 }
             ''',
@@ -100,6 +102,8 @@ class MachineRecipeSyncTest(unittest.TestCase):
                   public byte[] bytes() {return bytes.toByteArray();}
                   public int writerIndex() {return bytes.size();}
                   public int readerIndex() {return position;}
+                  public <E extends Enum<E>> void writeEnum(E v) {writeVarInt(v.ordinal());}
+                  public <E extends Enum<E>> E readEnum(Class<E> c) {return c.getEnumConstants()[readVarInt()];}
                   public void writeVarInt(int n) {try {out.writeInt(n);} catch(IOException e){throw new RuntimeException(e);}}
                   public int readVarInt() {try {position+=4;return in.readInt();} catch(IOException e){throw new RuntimeException(e);}}
                   public void writeLong(long n) {try {out.writeLong(n);}catch(IOException e){throw new RuntimeException(e);}}
@@ -180,6 +184,7 @@ class MachineRecipeSyncTest(unittest.TestCase):
                 import net.minecraft.network.FriendlyByteBuf;
                 public class MessageSyncExercise {
                   public static void main(String[] args) {
+                    buildcraft.energy.OilIndustry.setServerMode(buildcraft.energy.OilIndustry.Mode.CLASSIC);
                     MessageMachineRecipes.sendAll(new ServerPlayer());
                     if(MessageManager.sent.size()<3) throw new AssertionError("chunking failed");
                     int count=0;
@@ -191,6 +196,7 @@ class MachineRecipeSyncTest(unittest.TestCase):
                       var restored=new MessageMachineRecipes(new FriendlyByteBuf(buf.bytes()));
                       if(restored.partIndex()!=i || restored.partCount()!=MessageManager.sent.size())
                         throw new AssertionError("chunk ordering");
+                      if(restored.oilMode()!=buildcraft.energy.OilIndustry.Mode.CLASSIC) throw new AssertionError("oil mode lost");
                       count+=restored.recipes().size();
                     }
                     if(count!=150) throw new AssertionError("dropped recipe entries: "+count);
@@ -208,7 +214,7 @@ class MachineRecipeSyncTest(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory(prefix="bcce-machine-recipe-wire-") as directory:
             base = Path(directory)
-            inputs = [source]
+            inputs = [source, ROOT / "source-shared/src/main/java/buildcraft/energy/OilIndustry.java"]
             for path, java in stubs.items():
                 target = base / path
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -312,6 +318,7 @@ class MachineRecipeSyncTest(unittest.TestCase):
                 import net.minecraft.resources.ResourceLocation;
                 public record MessageMachineRecipes(long generation,int partIndex,int partCount,
                     List<Recipe> recipes, List<Ban> bans) {
+                  public buildcraft.energy.OilIndustry.Mode oilMode() { return buildcraft.energy.OilIndustry.Mode.CLASSIC; }
                   public static final int MAX_TOTAL_ENTRIES=8192;
                   public static final int MAX_TOTAL_BYTES=8*1024*1024;
                   public record Recipe(String machine,ResourceLocation id,String json) {}
@@ -336,8 +343,10 @@ class MachineRecipeSyncTest(unittest.TestCase):
                     require(!ClientMachineRecipeCatalog.snapshot().authoritative(),"no pre-login authority");
                     ClientMachineRecipeCatalog.accept(part(5,1,2,"second",true));
                     require(!ClientMachineRecipeCatalog.snapshot().authoritative(),"partial must not publish");
+                    require(!buildcraft.energy.OilIndustry.classic(),"partial oil mode leaked");
                     ClientMachineRecipeCatalog.accept(part(5,0,2,"first",false));
                     require(ClientMachineRecipeCatalog.snapshot().recipes().size()==2,"two chunks required");
+                    require(buildcraft.energy.OilIndustry.classic(),"classic mode not published");
                     require(ClientMachineRecipeCatalog.isDenied("distiller",id("pack:distiller/steam")),"deny union");
                     ClientMachineRecipeCatalog.accept(part(4,0,1,"stale",false));
                     require(ClientMachineRecipeCatalog.snapshot().generation()==5,"stale generation replaced published");
@@ -347,6 +356,7 @@ class MachineRecipeSyncTest(unittest.TestCase):
                     require(!ClientMachineRecipeCatalog.isDenied("distiller",id("pack:distiller/steam")),"removed deny persists");
                     ClientMachineRecipeCatalog.clear();
                     require(!ClientMachineRecipeCatalog.snapshot().authoritative(),"logout leak");
+                    require(!buildcraft.energy.OilIndustry.classic(),"logout oil mode leaked");
                     System.out.println("client recipe sync PASS");
                   }
                 }
@@ -354,7 +364,7 @@ class MachineRecipeSyncTest(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory(prefix="bcce-client-recipe-sync-") as directory:
             base = Path(directory)
-            inputs = [source]
+            inputs = [source, ROOT / "source-shared/src/main/java/buildcraft/energy/OilIndustry.java"]
             for path, java in stubs.items():
                 target = base / path
                 target.parent.mkdir(parents=True, exist_ok=True)

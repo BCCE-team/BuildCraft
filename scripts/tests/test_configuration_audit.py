@@ -18,12 +18,12 @@ SCHEMAS = {
     'core/BCCoreConfig': '''display.colorBlindMode display.useColouredLabels display.useHighContrastColouredLabels
         display.hidePowerValues display.hideFluidValues display.guideBookEnableDetail display.fluidVolumeUnit
         display.zonePlannerMode display.electronicLibraryMode display.useLongLocalizedName display.timeGap
-        display.itemRenderRotation display.numberFormat display.temperatureUnit display.rememberGuidePage
+        display.itemRenderRotation display.numberFormat display.temperatureUnit
         display.pipes.fluidAnimation display.pipes.itemDisplay display.pipes.contentRenderDistance display.pipes.maxRenderedItems
         display.updates.automaticCheck display.updates.notifications general.chunkLoading general.chunkLoadLevel general.itemLifespan
         general.useWrenchTag general.updateFactor general.maxGuideSearchResults power.mjPerFe power.powerMode
         debug.loggingProfile debug.verboseRobotLogging''',
-    'energy/BCEnergyConfig': '''engines.stirlingExplosion engines.engineExplosionBlockDamage worldgen.oil.enable worldgen.oil.generationProfile worldgen.oil.customGenerationRate
+    'energy/BCEnergyConfig': '''oilIndustry.mode engines.stirlingExplosion engines.engineExplosionBlockDamage worldgen.oil.enable worldgen.oil.generationProfile worldgen.oil.customGenerationRate
         worldgen.oil.can_burn worldgen.oil.oilIsDense worldgen.oil.biomeBlacklist worldgen.oil.biomeWhitelist
         worldgen.oil.dimensionBlacklist worldgen.oil.dimensionWhitelist worldgen.oil.spouts.enable
         worldgen.oil.spouts.small_min_height worldgen.oil.spouts.small_max_height

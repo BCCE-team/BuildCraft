@@ -1,7 +1,7 @@
 {
   "display": {
     "icon": {
-      "item": "buildcraftenergy:oil_residue/cool_bucket"
+      "item": "buildcraftenergy:fuel_dense/cool_bucket"
     },
     "title": {
       "translate": "advancements.buildcraftenergy.refine_and_redefine.title"
@@ -189,48 +189,81 @@
           }
         ]
       }
+    },
+    "classic_oil_seen": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "buildcraftenergy:oil/cool_bucket",
+              "buildcraftenergy:oil/hot_bucket",
+              "buildcraftenergy:oil/searing_bucket"
+            ]
+          }
+        ]
+      }
+    },
+    "code_trigger": {
+      "trigger": "minecraft:impossible"
     }
   },
   "requirements": [
     [
       "has_all_oil_products",
-      "oil_cool_bucket"
+      "oil_cool_bucket",
+      "code_trigger"
     ],
     [
       "has_all_oil_products",
-      "oil_residue_cool_bucket"
+      "oil_residue_cool_bucket",
+      "code_trigger"
     ],
     [
       "has_all_oil_products",
-      "oil_heavy_cool_bucket"
+      "oil_heavy_cool_bucket",
+      "code_trigger"
     ],
     [
       "has_all_oil_products",
-      "oil_dense_cool_bucket"
+      "oil_dense_cool_bucket",
+      "code_trigger"
     ],
     [
       "has_all_oil_products",
-      "oil_distilled_cool_bucket"
+      "oil_distilled_cool_bucket",
+      "code_trigger"
     ],
     [
       "has_all_oil_products",
-      "fuel_dense_cool_bucket"
+      "fuel_dense_cool_bucket",
+      "code_trigger"
     ],
     [
       "has_all_oil_products",
-      "fuel_mixed_heavy_cool_bucket"
+      "fuel_mixed_heavy_cool_bucket",
+      "code_trigger"
     ],
     [
       "has_all_oil_products",
-      "fuel_light_cool_bucket"
+      "fuel_light_cool_bucket",
+      "code_trigger"
     ],
     [
       "has_all_oil_products",
-      "fuel_mixed_light_cool_bucket"
+      "fuel_mixed_light_cool_bucket",
+      "code_trigger"
     ],
     [
       "has_all_oil_products",
-      "fuel_gaseous_cool_bucket"
+      "fuel_gaseous_cool_bucket",
+      "code_trigger"
+    ],
+    [
+      "has_all_oil_products",
+      "oil_cool_bucket",
+      "code_trigger",
+      "classic_oil_seen"
     ]
   ]
 }

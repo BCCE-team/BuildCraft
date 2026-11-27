@@ -239,7 +239,7 @@ public final class MachineRecipeDatapackReloadListener
             // including native assembly recipes. Dynamic types may require runtime diagnostics.
             Map<Signature, SourceFile> identical = new HashMap<>();
             Map<ProgrammingRecipeDefinition, SourceFile> identicalProgramming = new HashMap<>();
-            Map<Signature, SourceFile> overlapping = new HashMap<>();
+            Map<Signature, List<SourceFile>> overlapping = new HashMap<>();
             for (SourceFile file : recipes) {
                 String machine = folder(file.location());
                 if ("programming_table".equals(machine)) {
@@ -265,13 +265,20 @@ public final class MachineRecipeDatapackReloadListener
                 }
                 if (MANAGED.contains(machine) && file.json().has("input")) {
                     JsonElement mode = file.json().get("mode");
-                    Signature key = new Signature(machine, new com.google.gson.JsonArray());
-                    com.google.gson.JsonArray inputSignature = new com.google.gson.JsonArray();
+                    JsonArray inputSignature = new JsonArray();
                     inputSignature.add(file.json().get("input"));
                     if (mode != null) inputSignature.add(mode);
-                    key = new Signature(machine, inputSignature);
-                    SourceFile competing = overlapping.putIfAbsent(key, file);
-                    if (competing != null && !competing.location().equals(file.location())) {
+                    Signature key = new Signature(machine, inputSignature);
+                    List<SourceFile> previous = overlapping.computeIfAbsent(key, ignored -> new ArrayList<>());
+                    ResourceLocation id = recipeId(file.location());
+                    SourceFile competing = previous.stream().filter(candidate -> {
+                        if (candidate.location().equals(file.location())) return false;
+                        ResourceLocation other = recipeId(candidate.location());
+                        return buildcraft.energy.OilIndustry.recipesCanOverlap(
+                            id.getNamespace(), id.getPath(), other.getNamespace(), other.getPath());
+                    }).findFirst().orElse(null);
+                    previous.add(file);
+                    if (competing != null) {
                         warnings.add("Overlapping machine recipe input at " + competing.location()
                             + " and " + file.location() + "; the selected recipe is determined by priority");
                     }

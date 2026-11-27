@@ -1,7 +1,7 @@
 {
   "display": {
     "icon": {
-      "id": "buildcraftenergy:oil_residue/cool_bucket"
+      "id": "buildcraftenergy:oil/cool_bucket"
     },
     "title": {
       "translate": "advancements.buildcraftenergy.sticky_dipping.title"

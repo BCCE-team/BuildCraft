@@ -33,6 +33,7 @@ public class BCEnergy {
     public static final String MODID = "buildcraftenergy";
 
     private static final ResourceLocation ADVANCEMENT_FIND_OIL_SPOT = new ResourceLocation(MODID, "fine_riches");
+    private static final ResourceLocation ADVANCEMENT_REFINE = new ResourceLocation(MODID, "refine_and_redefine");
     private static final int OIL_SPOT_CHECK_INTERVAL = 40;
     private static final int OIL_SPOT_CHECK_RADIUS_XZ = 12;
     private static final int OIL_SPOT_CHECK_RADIUS_Y = 8;
@@ -88,11 +89,28 @@ public class BCEnergy {
         if (player.tickCount % OIL_SPOT_CHECK_INTERVAL != 0) {
             return;
         }
+        checkClassicRefinement(player);
         if (hasAdvancement(player, ADVANCEMENT_FIND_OIL_SPOT)) {
             return;
         }
         if (isNearOilSpot(player)) {
             AdvancementUtil.unlockAdvancement(player, ADVANCEMENT_FIND_OIL_SPOT);
+        }
+    }
+
+    /** Classic completion is authorized only by the server, without weakening the modern criteria. */
+    private static void checkClassicRefinement(ServerPlayer player) {
+        if (!OilIndustry.classic() || player.getServer() == null) return;
+        Advancement advancement = player.getServer().getAdvancements().getAdvancement(ADVANCEMENT_REFINE);
+        if (advancement == null) return;
+        var progress = player.getAdvancements().getOrStartProgress(advancement);
+        if (progress.isDone() || progress.getCriterion("code_trigger") == null) return;
+        var anyOil = progress.getCriterion("classic_oil_seen");
+        var coldOil = progress.getCriterion("oil_cool_bucket");
+        var fuel = progress.getCriterion("fuel_dense_cool_bucket");
+        if (fuel != null && fuel.isDone() && ((anyOil != null && anyOil.isDone())
+            || (coldOil != null && coldOil.isDone()))) {
+            AdvancementUtil.unlockAdvancement(player, ADVANCEMENT_REFINE);
         }
     }
 

@@ -1,5 +1,6 @@
 package buildcraft.factory.tile;
 
+import buildcraft.lib.fluid.FluidDropRuntime;
 import buildcraft.api.v2.OperationMode;
 import buildcraft.api.v2.permission.WorldOperationKind;
 import buildcraft.lib.misc.AutomationPermissionUtil;
@@ -723,6 +724,7 @@ markCheckNeighbours();
 
         void tick() {
             Level world = getTile().level;
+            FluidDropRuntime.ejectInvalidClassicInput(world, getTile().getBlockPos(), tankInput);
             smoothedTankInput.tick(world);
             smoothedTankOutput.tick(world);
         }

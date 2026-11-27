@@ -31,6 +31,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.fluids.capability.wrappers.FluidBucketWrapper;
 import net.neoforged.neoforge.data.event.GatherDataEvent;
 
 @Mod(BCEnergy.MODID)
@@ -39,6 +40,8 @@ public class BCEnergy {
 
     private static final ResourceLocation ADVANCEMENT_FIND_OIL_SPOT =
         ResourceLocation.fromNamespaceAndPath(MODID, "fine_riches");
+    private static final ResourceLocation ADVANCEMENT_REFINE =
+        ResourceLocation.fromNamespaceAndPath(MODID, "refine_and_redefine");
     private static final int OIL_SPOT_CHECK_INTERVAL = 40;
     private static final int OIL_SPOT_CHECK_RADIUS_XZ = 12;
     private static final int OIL_SPOT_CHECK_RADIUS_Y = 8;
@@ -77,6 +80,12 @@ public class BCEnergy {
     }
 
     private void registerCapabilities(RegisterCapabilitiesEvent event) {
+        // Petroleum buckets override getName, so NeoForge skips its exact-BucketItem auto-registration.
+        // Register every temperature/fraction in both oil modes, including hidden legacy buckets.
+        for (var bucket : BCEnergyFluids.OIL_BUCKET) {
+            event.registerItem(Capabilities.FluidHandler.ITEM, (stack, context) -> new FluidBucketWrapper(stack), bucket.get());
+        }
+
         registerEngineCapabilities(event, BCEnergyBlocks.ENGINE_STONE_TILE_BC8.get());
         registerEngineCapabilities(event, BCEnergyBlocks.ENGINE_IRON_TILE_BC8.get());
         registerEngineCapabilities(event, BCEnergyBlocks.ENGINE_FE_TILE_BC8.get());
@@ -128,11 +137,28 @@ public class BCEnergy {
         if (player.tickCount % OIL_SPOT_CHECK_INTERVAL != 0) {
             return;
         }
+        checkClassicRefinement(player);
         if (hasAdvancement(player, ADVANCEMENT_FIND_OIL_SPOT)) {
             return;
         }
         if (isNearOilSpot(player)) {
             AdvancementUtil.unlockAdvancement(player, ADVANCEMENT_FIND_OIL_SPOT);
+        }
+    }
+
+    /** Classic completion is authorized only by the server, without weakening the modern criteria. */
+    private static void checkClassicRefinement(ServerPlayer player) {
+        if (!OilIndustry.classic() || player.getServer() == null) return;
+        AdvancementHolder advancement = player.getServer().getAdvancements().get(ADVANCEMENT_REFINE);
+        if (advancement == null) return;
+        var progress = player.getAdvancements().getOrStartProgress(advancement);
+        if (progress.isDone() || progress.getCriterion("code_trigger") == null) return;
+        var anyOil = progress.getCriterion("classic_oil_seen");
+        var coldOil = progress.getCriterion("oil_cool_bucket");
+        var fuel = progress.getCriterion("fuel_dense_cool_bucket");
+        if (fuel != null && fuel.isDone() && ((anyOil != null && anyOil.isDone())
+            || (coldOil != null && coldOil.isDone()))) {
+            AdvancementUtil.unlockAdvancement(player, ADVANCEMENT_REFINE);
         }
     }
 

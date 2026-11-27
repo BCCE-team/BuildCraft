@@ -26,6 +26,7 @@ public final class MessageGuideState {
     private final InteractionHand hand;
     private final boolean showLore;
     private final boolean showHints;
+    private final boolean rememberPage;
     private final String sortMode;
     private final boolean document;
     private final @Nullable ResourceLocation entry;
@@ -35,6 +36,7 @@ public final class MessageGuideState {
         this.hand = hand;
         this.showLore = state.showLore;
         this.showHints = state.showHints;
+        this.rememberPage = state.rememberPage;
         this.sortMode = state.sortMode;
         this.document = state.document;
         this.entry = state.entry;
@@ -45,6 +47,7 @@ public final class MessageGuideState {
         hand = buffer.readEnum(InteractionHand.class);
         showLore = buffer.readBoolean();
         showHints = buffer.readBoolean();
+        rememberPage = buffer.readBoolean();
         sortMode = buffer.readUtf(32);
         if (!VALID_SORT_MODES.contains(sortMode)) {
             throw new DecoderException("Invalid guide sort mode " + sortMode);
@@ -58,6 +61,7 @@ public final class MessageGuideState {
         buffer.writeEnum(message.hand);
         buffer.writeBoolean(message.showLore);
         buffer.writeBoolean(message.showHints);
+        buffer.writeBoolean(message.rememberPage);
         buffer.writeUtf(message.sortMode, 32);
         buffer.writeBoolean(message.document);
         buffer.writeBoolean(message.entry != null);
@@ -68,7 +72,7 @@ public final class MessageGuideState {
     }
 
     private ItemGuide.GuideState state() {
-        return new ItemGuide.GuideState(showLore, showHints, sortMode, document, entry, spread);
+        return new ItemGuide.GuideState(showLore, showHints, sortMode, document, entry, spread, rememberPage);
     }
 
     public static final BiConsumer<MessageGuideState, Supplier<BCPacketContext>> HANDLER = (message, ctx) -> {

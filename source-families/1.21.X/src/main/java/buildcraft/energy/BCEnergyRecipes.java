@@ -78,6 +78,10 @@ public final class BCEnergyRecipes {
         addFuel(BCEnergyFluids.oilDistilled, gasLightDense, 1, 5);
         addDirtyFuel(BCEnergyFluids.oilHeavy, lightDenseResidue, 2, 4);
         addDirtyFuel(BCEnergyFluids.crudeOil, oil, 3, 4);
+        registerClassicFuel("oil", BCEnergyFluids.crudeOil[0], 3, 10_000);
+        registerClassicFuel("oil_heat_1", BCEnergyFluids.crudeOil[1], 3, 10_000);
+        registerClassicFuel("oil_heat_2", BCEnergyFluids.crudeOil[2], 3, 10_000);
+        registerClassicFuel("fuel", BCEnergyFluids.fuelDense[0], 6, 100_000);
 
         // The identical packaged JSON is also used for local client-side recipe previews.
         // An authoritative server datapack reload replaces this fallback catalogue.
@@ -127,6 +131,11 @@ public final class BCEnergyRecipes {
 
     private static Fluid getFirstOrNull(Fluid[] fluids) {
         return fluids == null || fluids.length == 0 ? null : fluids[0];
+    }
+
+    private static void registerClassicFuel(String name, Fluid fluid, int power, int ticks) {
+        energyFluids().register(id("fuel/classic/" + name), FuelProfile.clean(
+            FluidSelector.fluid(variantOf(fluid).fluidId()), (long) power * MjAmount.MICRO_MJ_PER_MJ, ticks), BUILTIN);
     }
 
     private static void addFuel(Fluid[] input, int amountDifference, int multiplier, int boostOverFour) {

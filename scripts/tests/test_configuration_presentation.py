@@ -42,7 +42,6 @@ public class PresentationProbe {
         var builder=new BCConfigSpec.Builder();builder.push("display");
         builder.defineEnum("numberFormat",NumberStyle.GROUPED);
         builder.defineEnum("temperatureUnit",TemperatureUnit.CELSIUS);
-        builder.define("rememberGuidePage",true);
         builder.push("pipes"); builder.define("fluidAnimation",true);
         builder.defineEnum("itemDisplay",ClientPresentation.PipeItems.ALL);
         builder.defineInRange("contentRenderDistance",64,16,128);
@@ -55,11 +54,11 @@ public class PresentationProbe {
         eq(r.value(base+"updates/automaticCheck").orElseThrow(),"false");
         for(var d:r.definitions()) { eq(d.scope(),Scope.CLIENT);eq(d.applyPolicy(),ApplyPolicy.LIVE); }
         eq(ClientPresentation.pipeItemLimit(),64);eq(ClientPresentation.pipeDistance(),64);
-        ok(ClientPresentation.animatePipeFluids() && ClientPresentation.rememberGuidePage());
+        ok(ClientPresentation.animatePipeFluids());
         r.commit(Scope.CLIENT,r.snapshot(Scope.CLIENT).revision(),Map.of(base+"numberFormat","COMPACT",base+"temperatureUnit","KELVIN",
-            base+"pipes/itemDisplay","SIMPLIFIED",base+"pipes/contentRenderDistance","128",base+"pipes/fluidAnimation","false",base+"rememberGuidePage","false"));
+            base+"pipes/itemDisplay","SIMPLIFIED",base+"pipes/contentRenderDistance","128",base+"pipes/fluidAnimation","false"));
         eq(ClientPresentation.pipeItemLimit(),1);eq(ClientPresentation.pipeDistance(),128);
-        ok(!ClientPresentation.animatePipeFluids() && !ClientPresentation.rememberGuidePage());
+        ok(!ClientPresentation.animatePipeFluids());
         eq(ClientPresentation.number(1000000),"1M");eq(ClientPresentation.temperature(0),"273.15 K");
         r.commit(Scope.CLIENT,r.snapshot(Scope.CLIENT).revision(),Map.of(base+"pipes/itemDisplay","DISABLED"));eq(ClientPresentation.pipeItemLimit(),0);
         r.commit(Scope.CLIENT,r.snapshot(Scope.CLIENT).revision(),Map.of(base+"pipes/itemDisplay","ALL",base+"pipes/maxRenderedItems","12"));eq(ClientPresentation.pipeItemLimit(),12);
@@ -95,7 +94,9 @@ class PresentationPreferencesTest(unittest.TestCase):
                 self.assertIn('PipeContentRendering.visible(',holder)
                 self.assertIn('PipeContentRendering.viewDistance()',holder)
                 guide=read('lib/client/guide/GuiGuide')
-                self.assertGreaterEqual(guide.count('ClientPresentation.rememberGuidePage()'),2)
+                self.assertIn('initialState.rememberPage',guide)
+                self.assertIn('rememberPage = !rememberPage',guide)
+                self.assertNotIn('ClientPresentation.rememberGuidePage()',guide)
                 self.assertIn('rememberPage ? (documentView ? documentSpread : contentsSpread) : 0',guide)
                 self.assertIn('ClientPresentation.temperature(heat)',read('lib/misc/LocaleUtil'))
                 self.assertIn('ClientPresentation.temperature(',read('compat/jade/BuildCraftJadePlugin'))

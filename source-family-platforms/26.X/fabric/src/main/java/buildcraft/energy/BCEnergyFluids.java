@@ -11,6 +11,10 @@ import buildcraft.lib.fluid.FluidCompatRegistry;
 import buildcraft.lib.fluid.FabricFluidProperties;
 import net.fabricmc.fabric.api.registry.fluid.EntityFluidInteractionRegistry;
 import net.fabricmc.fabric.api.registry.fluid.FluidBehavior;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariantAttributeHandler;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariantAttributes;
+import net.minecraft.network.chat.Component;
 import buildcraft.lib.compat.RegistryCompat;
 import buildcraft.lib.platform.registry.BCDeferredRegister;
 import buildcraft.lib.platform.registry.BCRegistryEntry;
@@ -115,6 +119,9 @@ public final class BCEnergyFluids {
         index = copyTriple(fuelLight, index);
         index = copyTriple(fuelMixedLight, index);
         copyTriple(fuelGaseous, index);
+        registerPetroleumName(crudeOil[0], "oil");
+        registerPetroleumName(fuelDense[0], "fuel_dense");
+        registerPetroleumName(SPOUT_OIL_SOURCE.get(), "spout_oil");
         for (int i=0; i<OIL_SOURCE.size(); i++) {
             int heat = i % HEAT_NAMES.length;
             String name = NAME[i / HEAT_NAMES.length];
@@ -145,6 +152,18 @@ public final class BCEnergyFluids {
             .build());
     }
 
+    /** Native Fabric display hook used by Jade, recipe viewers and BuildCraft tank tooltips. */
+    private static void registerPetroleumName(Fluid source, String path) {
+        FluidVariantAttributes.register(source, new FluidVariantAttributeHandler() {
+            @Override
+            public Component getName(FluidVariant variant) {
+                String classicName = OilIndustry.classicFluidName(BCEnergy.MODID, path);
+                return classicName == null ? FluidVariantAttributeHandler.super.getName(variant)
+                    : Component.translatable(classicName);
+            }
+        });
+    }
+
     private static int copyTriple(BCFluid[] target, int index) {
         for (int heat=0; heat<target.length; heat++) {
             target[heat] = OIL_SOURCE.get(index++).get();
@@ -155,7 +174,9 @@ public final class BCEnergyFluids {
 
     public static List<ItemStack> getCreativeTabItems() {
         List<ItemStack> result = new ArrayList<>(OIL_BUCKET.size());
-        for (BCRegistryEntry<BucketItem> bucket : OIL_BUCKET) result.add(bucket.get().getDefaultInstance());
+        for (int index = 0; index < OIL_BUCKET.size(); index++) {
+            if (OilIndustry.bucketEnabled(index)) result.add(OIL_BUCKET.get(index).get().getDefaultInstance());
+        }
         return result;
     }
 
@@ -171,7 +192,12 @@ public final class BCEnergyFluids {
         BCRegistryEntry<BucketItem> bucket = RegistryCompat.registerItem(BCEnergy.ITEMS,
             name + "/" + HEAT_NAMES[heat] + "_bucket",
             () -> new BucketItem(source.get(), RegistryCompat.itemProperties(
-                new Item.Properties().stacksTo(1).craftRemainder(Items.BUCKET))));
+                new Item.Properties().stacksTo(1).craftRemainder(Items.BUCKET))) {
+                @Override public net.minecraft.network.chat.Component getName(ItemStack stack) {
+                    String classic = OilIndustry.classicBucketName(name, heat);
+                    return classic == null ? super.getName(stack) : net.minecraft.network.chat.Component.translatable(classic);
+                }
+            });
         BCRegistryEntry<LiquidBlock> block = RegistryCompat.registerBlock(BCEnergyBlocks.BLOCKS,
             fluidName, () -> new BCLiquidBlock(source.get(),
                 RegistryCompat.blockProperties(BlockBehaviour.Properties.of())

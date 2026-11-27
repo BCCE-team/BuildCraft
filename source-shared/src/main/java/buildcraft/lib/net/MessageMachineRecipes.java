@@ -31,20 +31,23 @@ public final class MessageMachineRecipes {
     public record Recipe(String machine, ResourceLocation id, String json) {}
     public record Ban(String machine, ResourceLocation id) {}
     private final long generation;
+    private final buildcraft.energy.OilIndustry.Mode oilMode;
     private final int partIndex;
     private final int partCount;
     private final List<Recipe> recipes;
     private final List<Ban> bans;
 
     private MessageMachineRecipes(long generation, int partIndex, int partCount,
-                                  List<Recipe> recipes, List<Ban> bans) {
+                                  List<Recipe> recipes, List<Ban> bans, buildcraft.energy.OilIndustry.Mode oilMode) {
         this.generation = generation;
+        this.oilMode = oilMode;
         this.partIndex = partIndex;
         this.partCount = partCount;
         this.recipes = List.copyOf(recipes);
         this.bans = List.copyOf(bans);
     }
     public long generation() { return generation; }
+    public buildcraft.energy.OilIndustry.Mode oilMode() { return oilMode; }
     public int partIndex() { return partIndex; }
     public int partCount() { return partCount; }
     public List<Recipe> recipes() { return recipes; }
@@ -52,6 +55,7 @@ public final class MessageMachineRecipes {
 
     public MessageMachineRecipes(FriendlyByteBuf buffer) {
         generation = buffer.readLong();
+        oilMode = buffer.readEnum(buildcraft.energy.OilIndustry.Mode.class);
         partIndex = buffer.readVarInt();
         partCount = buffer.readVarInt();
         if (partCount <= 0 || partCount > MAX_PARTS || partIndex < 0 || partIndex >= partCount) {
@@ -81,6 +85,7 @@ public final class MessageMachineRecipes {
 
     public static void toBytes(MessageMachineRecipes message, FriendlyByteBuf buffer) {
         buffer.writeLong(message.generation);
+        buffer.writeEnum(message.oilMode);
         buffer.writeVarInt(message.partIndex);
         buffer.writeVarInt(message.partCount);
         buffer.writeVarInt(message.recipes.size());
@@ -118,7 +123,10 @@ public final class MessageMachineRecipes {
 
     /** Bounded chunking; never silently drop the tail of a large datapack. */
     private static List<MessageMachineRecipes> parts() {
-        List<Recipe> recipes = MachineRecipeDatapackReloadListener.syncedMachineRecipes();
+        var oilMode = buildcraft.energy.OilIndustry.serverMode();
+        List<Recipe> recipes = MachineRecipeDatapackReloadListener.syncedMachineRecipes().stream()
+            .filter(recipe -> buildcraft.energy.OilIndustry.recipeEnabled(oilMode, recipe.id().getNamespace(), recipe.id().getPath()))
+            .toList();
         List<Ban> bans = new ArrayList<>();
         RecipeBlacklist.snapshot().denied().forEach((machine, ids) -> ids.forEach(id -> bans.add(new Ban(machine, id))));
         if (recipes.size() + bans.size() > MAX_TOTAL_ENTRIES) {
@@ -160,7 +168,7 @@ public final class MessageMachineRecipes {
         long generation = RecipeBlacklist.generation();
         List<MessageMachineRecipes> result = new ArrayList<>();
         for (int i = 0; i < recipeParts.size(); i++) {
-            result.add(new MessageMachineRecipes(generation, i, recipeParts.size(), recipeParts.get(i), banParts.get(i)));
+            result.add(new MessageMachineRecipes(generation, i, recipeParts.size(), recipeParts.get(i), banParts.get(i), oilMode));
         }
         return result;
     }

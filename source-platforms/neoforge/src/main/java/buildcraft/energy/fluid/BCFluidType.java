@@ -25,6 +25,11 @@ import net.neoforged.neoforge.fluids.FluidType;
 
 public class BCFluidType extends FluidType{
 
+    @Override
+    public String getDescriptionId() {
+        return buildcraft.energy.OilIndustry.fluidDescriptionId(super.getDescriptionId());
+    }
+
     //store fluid type, but no temperature
     private final ResourceLocation stillTexture;
     private final ResourceLocation flowTexture;

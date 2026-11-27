@@ -82,7 +82,7 @@ public final class ConfigBinding {
             ApplyPolicy policy = scope == Scope.CLIENT ? ApplyPolicy.RESTART : ApplyPolicy.WORLD_RESTART;
             if (module.equals("buildcraftcore") && Set.of("display.timeGap", "display.fluidVolumeUnit",
                     "display.zonePlannerMode", "display.electronicLibraryMode", "display.numberFormat",
-                    "display.temperatureUnit", "display.rememberGuidePage").contains(full)) policy = ApplyPolicy.LIVE;
+                    "display.temperatureUnit").contains(full)) policy = ApplyPolicy.LIVE;
             if (module.equals("buildcraftcore") && (full.startsWith("display.pipes.") || full.startsWith("display.updates."))) policy = ApplyPolicy.LIVE;
             ConfigDefinition def = new ConfigDefinition(id, section, category, scope, kind,
                 defaultValue instanceof Enum<?> e ? e.name() : String.valueOf(defaultValue), min, max, choices,
@@ -131,6 +131,7 @@ public final class ConfigBinding {
         if (key.contains("chunkLoad")) return List.of("Performance", "Chunk Loading");
         if (key.contains("updateFactor")) return List.of("Performance");
         if (key.startsWith("debug.")) return List.of("Diagnostics");
+        if (key.startsWith("oilIndustry.")) return List.of("Operating Modes", "Oil Industry");
         if (key.startsWith("engines.")) return List.of("Operating Modes", "Engines");
         if (key.startsWith("facades.")) return List.of("Operating Modes", "Facades");
         return List.of("Gameplay Rules");

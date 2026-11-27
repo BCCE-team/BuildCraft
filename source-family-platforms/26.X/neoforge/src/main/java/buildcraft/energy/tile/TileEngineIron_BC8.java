@@ -6,6 +6,7 @@
 
 package buildcraft.energy.tile;
 
+import buildcraft.lib.fluid.FluidDropRuntime;
 import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 import buildcraft.lib.compat.minecraft.persistence.BCValueInput;
 import buildcraft.api.v2.energy.MjAmount;
@@ -388,6 +389,9 @@ public class TileEngineIron_BC8 extends TileEngineBase_BC8 implements MenuProvid
     }
 
     public void updateHeatLevel() {
+        // Runs on every server tick, even with no redstone signal or active burn.
+        FluidDropRuntime.ejectInvalidClassicInput(getLevel(), getBlockPos(), tankFuel);
+        FluidDropRuntime.ejectInvalidClassicInput(getLevel(), getBlockPos(), tankCoolant);
         double target;
         if (heat > MIN_HEAT && (penaltyCooling > 0 || !isRedstonePowered)) {
             heat -= COOLDOWN_RATE;

@@ -18,6 +18,7 @@ import buildcraft.lib.platform.config.BCConfigSpec.IntValue;
 public class BCEnergyConfig {
 
     public static BCConfigSpec config;
+    private static BCConfigSpec.EnumValue<OilIndustry.Mode> propOilIndustryMode;
 
     public static boolean enableOilGeneration = true;
     /** Worldgen workers read the selected preset after the config is loaded. */
@@ -71,6 +72,11 @@ public class BCEnergyConfig {
     public static void preInit() {
         BCConfigSpec.Builder builder = new BCConfigSpec.Builder();
 
+        builder.push("oilIndustry");
+        propOilIndustryMode = builder.comment("Select MODERN fractionation or CLASSIC direct oil-to-fuel refining.",
+            "Requires reopening the world. Registered fluids and stored tanks are preserved.")
+            .worldRestart().defineEnum("mode", OilIndustry.Mode.MODERN);
+        builder.pop();
         builder.push("engines");
 
         propEnableStirlingEngineExplosion = builder.comment(
@@ -160,6 +166,7 @@ public class BCEnergyConfig {
             return;
         }
 
+        OilIndustry.setServerMode(propOilIndustryMode.get());
         enableOilGeneration = propEnableOilGeneration.get();
         oilGenerationProfile = propOilGenerationProfile.get();
         customOilGenerationRate = propCustomOilGenerationRate.get();

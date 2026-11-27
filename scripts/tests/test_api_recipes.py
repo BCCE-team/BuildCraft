@@ -33,6 +33,7 @@ RECIPES_PUBLIC = [
         'ReloadDiagnostic', 'ReloadGeneration', 'ResolvedDefinition')),
 ]
 RECIPES_BACKEND = [
+    'buildcraft/energy/OilIndustry.java',
     'buildcraft/lib/recipe/RecipeBlacklist.java',
     'buildcraft/lib/internal/api/v2/MachineRecipeRegistryImpl.java',
     *('buildcraft/lib/internal/api/v2/reload/' + name + '.java' for name in (
@@ -46,6 +47,8 @@ public class ResourceLocation {
  private final String id;
  protected ResourceLocation(String id){this.id=id;}
  public static ResourceLocation tryParse(String s){return s == null || !s.contains(":")?null:new ResourceLocation(s);}
+ public String getNamespace(){return id.split(":",2)[0];}
+ public String getPath(){return id.split(":",2)[1];}
  public String toString(){return id;}
  public int hashCode(){return id.hashCode();}
  public boolean equals(Object value){return value instanceof ResourceLocation that && id.equals(that.id);}

@@ -35,5 +35,15 @@ class GuideBookStateTester {
         Assertions.assertFalse(secondState.document);
         Assertions.assertNull(secondState.entry);
         Assertions.assertEquals(5, secondState.spread);
+        Assertions.assertTrue(firstState.rememberPage);
+        GuideBookStateCodec.write(first, new ItemGuide.GuideState(false, true, "MODULE", true,
+            firstState.entry, 99, false));
+        ItemGuide.GuideState disabled = GuideBookStateCodec.read(first);
+        Assertions.assertFalse(disabled.rememberPage);
+        Assertions.assertFalse(disabled.document);
+        Assertions.assertNull(disabled.entry);
+        Assertions.assertEquals(0, disabled.spread);
+        Assertions.assertTrue(disabled.showHints);
+        Assertions.assertTrue(GuideBookStateCodec.read(second).rememberPage);
     }
 }

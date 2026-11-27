@@ -348,7 +348,7 @@
     ],
     "buildcraftenergy/block/engine_iron": [
       "Burning refined fuel is a fine way to power a factory. Just remember to keep the engine cool.",
-      "The Combustion Engine burns liquid fuel to generate MJ. Fuel type and temperature determine power and heat; coolant and a residue outlet keep the engine operating.",
+      "The Combustion Engine burns liquid fuel to generate MJ. Fuel type and temperature determine power and heat; coolant and a residue outlet keep the engine operating. In Classic mode, Oil generates 3 MJ/t (30,000 MJ per bucket) and Fuel generates 6 MJ/t (600,000 MJ per bucket), without residue. Cooling and engine overheating still apply.",
       "<bold>Hint:</bold> Test fuel, cooling, residue removal and automatic shutdown together. Hotter fuel gives more MJ per bucket but raises engine heat faster than it raises useful output.",
       "Tanks and Fuels",
       "The engine has three separate 10-bucket tanks: fuel, coolant and residue. Supply the correct fluids with pipes or containers, then apply redstone to burn fuel. Its energy buffer holds 10,000 MJ.\n\nCrude Oil, Heavy Oil and Dense Oil are dirty fuels. Their residue must be drained: when the residue tank cannot accept the next by-product, the engine stops consuming more dirty fuel. Refined fuels do not produce residue. A residue outlet is therefore part of the fuel supply, not an optional cleanup step.\n\nThe fuel pages list the built-in MJ/t and MJ per bucket. The highest built-in output is Searing Gaseous Fuel at 12 MJ/t; the Cool version produces 8 MJ/t. Datapacks and addons can supply different fuel profiles.",
@@ -361,7 +361,7 @@
     ],
     "buildcraftfactory/block/distiller": [
       "Crude oil is a complicated collection of useful fluids waiting for someone to separate them.",
-      "The Distiller uses MJ to split a feed fluid into two products. The recipe is selected by both the fluid and its temperature.",
+      "The Distiller uses MJ to split a feed fluid into two products. The recipe is selected by both the fluid and its temperature. In Classic oil industry mode (World configuration > Operating Modes > Oil Industry), the Distiller acts as a refinery: 8 mB of Oil becomes 8 mB of Fuel for 32 MJ, with only the liquid output used. All fractionation routes below apply to Modern mode only.",
       "<bold>Hint:</bold> Build and test both output lines before starting the feed. A full or contaminated output tank stops the entire recipe, even when the other product has plenty of room.",
       "Connections",
       "Feed the source fluid through a horizontal face. Extract the lighter product from the top and the heavier product from the bottom. Each internal tank holds four buckets. Use separate tanks and pipes for the two products; the top port is the recipe's lighter-output port even when that product is called an oil or a mixed fuel.\n\nThe Distiller does not push its outputs out by itself. With BuildCraft pipes, fit a powered Wooden Fluid Pipe or Diamond Wooden Fluid Pipe to each output. Ordinary transport pipes alone do not extract fluid. Supply MJ to the machine as well as to the extraction pipes. The default processing limit is 6 MJ/t; server balance settings and addons can change effective rates.",
@@ -372,7 +372,7 @@
     ],
     "buildcraftfactory/block/heat_exchange": [
       "Some recipes need heat; others have too much of it. A Heat Exchanger can help with both.",
-      "The Heat Exchanger transfers heat between two fluid streams. It can heat one BuildCraft fluid while cooling another and does not require MJ.",
+      "The Heat Exchanger transfers heat between two fluid streams. It can heat one BuildCraft fluid while cooling another and does not require MJ. Classic mode disables the built-in oil and fuel temperature recipes; non-petroleum heat exchange recipes remain available.",
       "<bold>Hint:</bold> Identify the two end sections by their vertical ports: the bottom inlet receives the fluid to heat, while the top outlet releases the heated product. The hotter supply enters the other end horizontally.",
       "Building the Multiblock",
       "Place three to five Heat Exchanger blocks in one straight horizontal row, with matching orientation. The machine forms a start section, one to three middle sections and an end section. Two blocks are insufficient; a row longer than five is not a larger valid exchanger. More middle sections increase throughput.\n\nUse the Wrench to change orientation. When a complete exchanger is rotated, its start and end swap, so recheck all four connections before reconnecting a running refinery.",
@@ -1628,7 +1628,7 @@
     ],
     "buildcraftenergy/item/oil": [
       "A dark liquid bubbling out of the ground is either a valuable energy resource or a very expensive environmental problem.",
-      "Crude Oil is the starting fluid for BuildCraft refining and a usable dirty fuel. Its temperature selects both its distillation route and its engine output.",
+      "Crude Oil is the starting fluid for BuildCraft refining and a usable dirty fuel. Its temperature selects both its distillation route and its engine output. In Classic mode, Oil burns without residue at 3 MJ/t, or can be refined directly into Fuel. The fractionation and temperature values below apply to Modern mode.",
       "<bold>Hint:</bold> Keep the incoming oil, both Distiller outputs and engine residue in separate lines. A backed-up by-product can stop an otherwise powered refinery.",
       "Collecting Oil",
       "Oil deposits generate in the world and can be collected with Buckets, a Pump or other compatible fluid handlers. Store it in Tanks and move it with Fluid Pipes.",
@@ -1637,7 +1637,7 @@
     ],
     "buildcraftenergy/item/oil_residue": [
       "Every elegant refining chain eventually produces something sticky that nobody wanted to store.",
-      "Residue is the heavy by-product of dirty fuels and several high-temperature distillation routes.",
+      "Residue is the heavy by-product of dirty fuels and several high-temperature distillation routes. This petroleum fraction is part of Modern mode only; it is not produced by the built-in Classic refining chain.",
       "<bold>Hint:</bold> Reserve a tank and an outlet for Residue before starting dirty-fuel engines or Searing distillation. A full output prevents further processing.",
       "Production",
       "Burning Crude Oil, Heavy Oil or Dense Oil produces Cool Residue, even if the fuel was Hot or Searing. Searing Oil, Searing Heavy Oil and Searing Dense Oil also produce Residue in a Distiller; those recipes output Searing Residue.\n\nResidue has no built-in Combustion Engine fuel profile. Drain it into a dedicated tank or a deliberately chosen disposal line. A full engine residue tank blocks further dirty-fuel consumption; it does not make the by-product disappear.",
@@ -1646,7 +1646,7 @@
     ],
     "buildcraftenergy/item/oil_heavy": [
       "The lighter fractions have left. What remains is still energetic, but considerably less cooperative.",
-      "Heavy Oil is the dirty intermediate obtained from Cool Crude Oil. It can be burned directly or heated for further separation.",
+      "Heavy Oil is the dirty intermediate obtained from Cool Crude Oil. It can be burned directly or heated for further separation. This petroleum fraction is part of Modern mode only; it is not produced by the built-in Classic refining chain.",
       "<bold>Hint:</bold> Label Heavy Oil lines clearly and keep them separate from fuels; intermediate fluids may look similar in pipes and tanks.",
       "Fuel",
       "<bold>Built-in fuel values:</bold> One bucket is 1,000 mB.\nCool: 2 MJ/t; 80,000 MJ per bucket.\nHot: 2.5 MJ/t; 100,000 MJ per bucket.\nSearing: 3 MJ/t; 120,000 MJ per bucket.\n\nBurn duration is unchanged by temperature. Hot and Searing variants produce 1.5 and 2 times the Cool variant's engine heat per tick. Each bucket produces 333 mB of Cool Residue at every fuel temperature; drain it to keep the engine running.\n\nThese are the default fuel profiles. Server datapacks or addons may change them; processing energy is not deducted from the totals.",
@@ -1655,7 +1655,7 @@
     ],
     "buildcraftenergy/item/oil_dense": [
       "Dense Oil contains the part of the original mixture that strongly objects to moving quickly through machinery.",
-      "Dense Oil is a dirty intermediate obtained by distilling Hot Crude Oil or Hot Heavy Oil.",
+      "Dense Oil is a dirty intermediate obtained by distilling Hot Crude Oil or Hot Heavy Oil. This petroleum fraction is part of Modern mode only; it is not produced by the built-in Classic refining chain.",
       "<bold>Hint:</bold> Store Dense Oil separately until the next processing step is ready. Feeding it into the wrong temperature stage wastes refinery capacity.",
       "Fuel",
       "<bold>Built-in fuel values:</bold> One bucket is 1,000 mB.\nCool: 4 MJ/t; 120,000 MJ per bucket.\nHot: 5 MJ/t; 150,000 MJ per bucket.\nSearing: 6 MJ/t; 180,000 MJ per bucket.\n\nBurn duration is unchanged by temperature. Hot and Searing variants produce 1.5 and 2 times the Cool variant's engine heat per tick. Each bucket produces 500 mB of Cool Residue at every fuel temperature; drain it to keep the engine running.\n\nThese are the default fuel profiles. Server datapacks or addons may change them; processing energy is not deducted from the totals.",
@@ -1664,7 +1664,7 @@
     ],
     "buildcraftenergy/item/oil_distilled": [
       "The first pass removed the worst impurities. Several useful fractions are still sharing the same tank.",
-      "Distilled Oil is the clean-burning intermediate produced by distilling Searing Crude Oil. Cool or heat it to choose its next separation step.",
+      "Distilled Oil is the clean-burning intermediate produced by distilling Searing Crude Oil. Cool or heat it to choose its next separation step. This petroleum fraction is part of Modern mode only; it is not produced by the built-in Classic refining chain.",
       "<bold>Hint:</bold> Distilled Oil is an intermediate product. Buffer it so the upstream Distiller can continue while downstream cooling or refining pauses.",
       "Fuel",
       "<bold>Built-in fuel values:</bold> One bucket is 1,000 mB.\nCool: 1 MJ/t; 37,500 MJ per bucket.\nHot: 1.25 MJ/t; 46,875 MJ per bucket.\nSearing: 1.5 MJ/t; 56,250 MJ per bucket.\n\nBurn duration is unchanged by temperature. Hot and Searing variants produce 1.5 and 2 times the Cool variant's engine heat per tick. All three temperatures burn without residue.\n\nThese are the default fuel profiles. Server datapacks or addons may change them; processing energy is not deducted from the totals.",
@@ -1673,7 +1673,7 @@
     ],
     "buildcraftenergy/item/fuel_gaseous": [
       "The lightest fraction is eager to leave both the Distiller and any poorly planned pipe network.",
-      "Gaseous Fuel is the highest-output built-in refined fuel: 8 MJ/t when Cool, 10 MJ/t when Hot and 12 MJ/t when Searing.",
+      "Gaseous Fuel is the highest-output built-in refined fuel: 8 MJ/t when Cool, 10 MJ/t when Hot and 12 MJ/t when Searing. This petroleum fraction is part of Modern mode only; it is not produced by the built-in Classic refining chain.",
       "<bold>Hint:</bold> High MJ/t and high MJ per bucket are different properties. Gaseous Fuel delivers energy quickly but each bucket lasts much less time than Dense Fuel.",
       "Production",
       "Cool Oil, Cool Distilled Oil and Cool Mixed Light Fuel produce Gaseous Fuel through the Distiller's gas output. It can be heated to Hot or Searing in a Heat Exchanger. All three temperatures are ready to burn; there is no further built-in distillation step.",
@@ -1682,7 +1682,7 @@
     ],
     "buildcraftenergy/item/fuel_light": [
       "Light Fuel is the sensible middle ground between a short energetic burst and a barrel that lasts all week.",
-      "Light Fuel is a clean refined fuel producing 6 MJ/t when Cool, 7.5 MJ/t when Hot and 9 MJ/t when Searing.",
+      "Light Fuel is a clean refined fuel producing 6 MJ/t when Cool, 7.5 MJ/t when Hot and 9 MJ/t when Searing. This petroleum fraction is part of Modern mode only; it is not produced by the built-in Classic refining chain.",
       "<bold>Hint:</bold> Use separate fuel tanks for each grade. This makes engine runtime and refinery throughput easier to compare.",
       "Production",
       "Cool Mixed Light Fuel and Cool Distilled Oil produce Cool Light Fuel. Hot Heavy Oil and Hot Mixed Heavy Fuel produce Hot Light Fuel. A Heat Exchanger can change its temperature; it needs no further distillation before use.",
@@ -1691,7 +1691,7 @@
     ],
     "buildcraftenergy/item/fuel_dense": [
       "Dense Fuel values endurance over enthusiasm and is quite content to keep an engine working for a long time.",
-      "Dense Fuel is a long-burning clean fuel: 4 MJ/t when Cool, 5 MJ/t when Hot and 6 MJ/t when Searing.",
+      "Dense Fuel is a long-burning clean fuel: 4 MJ/t when Cool, 5 MJ/t when Hot and 6 MJ/t when Searing. In Classic mode this fluid is called Fuel, obtained directly from Oil, with 6 MJ/t and 600,000 MJ per bucket. The production routes and temperature values below apply only to Modern mode.",
       "<bold>Hint:</bold> Dense Fuel is valuable enough to justify buffered delivery and an engine shutdown trigger before unattended operation.",
       "Production",
       "Hot Distilled Oil and Hot Mixed Heavy Fuel produce Hot Dense Fuel. Searing Dense Oil produces Searing Dense Fuel together with Searing Residue. Remove both products from that last recipe. A Heat Exchanger can prepare the temperature required by the engine setup.",
@@ -1700,7 +1700,7 @@
     ],
     "buildcraftenergy/item/fuel_mixed_light": [
       "Two useful fuels are sharing one tank. The Distiller can settle the ownership dispute.",
-      "Mixed Light Fuel combines the gaseous and light fractions. It burns cleanly or can be cooled and separated into two fuels.",
+      "Mixed Light Fuel combines the gaseous and light fractions. It burns cleanly or can be cooled and separated into two fuels. This petroleum fraction is part of Modern mode only; it is not produced by the built-in Classic refining chain.",
       "<bold>Hint:</bold> Treat mixed fuels as distinct products and avoid reconnecting them to intermediate-oil lines.",
       "Production",
       "Hot Oil and Hot Distilled Oil produce Hot Mixed Light Fuel through the Distiller's gas output. Cool it before further separation.\n\n<bold>Built-in fuel values:</bold> One bucket is 1,000 mB.\nCool: 3 MJ/t; 30,000 MJ per bucket.\nHot: 3.75 MJ/t; 37,500 MJ per bucket.\nSearing: 4.5 MJ/t; 45,000 MJ per bucket.\n\nBurn duration is unchanged by temperature. Hot and Searing variants produce 1.5 and 2 times the Cool variant's engine heat per tick. All three temperatures burn without residue.\n\nThese are the default fuel profiles. Server datapacks or addons may change them; processing energy is not deducted from the totals.",
@@ -1709,7 +1709,7 @@
     ],
     "buildcraftenergy/item/fuel_mixed_heavy": [
       "Light and dense fuel are compatible tank-mates, but separating them makes their different strengths easier to use.",
-      "Mixed Heavy Fuel combines the light and dense fractions. It is a clean fuel and an intermediate for a final separation step.",
+      "Mixed Heavy Fuel combines the light and dense fractions. It is a clean fuel and an intermediate for a final separation step. This petroleum fraction is part of Modern mode only; it is not produced by the built-in Classic refining chain.",
       "<bold>Hint:</bold> Buffer heavy mixed fuel close to its consumers, but keep the main refinery outputs separated for easier troubleshooting.",
       "Production",
       "Distilling Searing Heavy Oil produces Searing Mixed Heavy Fuel and Searing Residue. Cool the mixture to Hot for its next distillation step. Cool Distilled Oil now produces Light Fuel directly, not Mixed Heavy Fuel.\n\n<bold>Built-in fuel values:</bold> One bucket is 1,000 mB.\nCool: 5 MJ/t; 96,000 MJ per bucket.\nHot: 6.25 MJ/t; 120,000 MJ per bucket.\nSearing: 7.5 MJ/t; 144,000 MJ per bucket.\n\nBurn duration is unchanged by temperature. Hot and Searing variants produce 1.5 and 2 times the Cool variant's engine heat per tick. All three temperatures burn without residue.\n\nThese are the default fuel profiles. Server datapacks or addons may change them; processing energy is not deducted from the totals.",

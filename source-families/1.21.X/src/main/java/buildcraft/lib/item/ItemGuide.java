@@ -62,6 +62,7 @@ public class ItemGuide extends Item {
 
         public final boolean showLore;
         public final boolean showHints;
+        public final boolean rememberPage;
         public final String sortMode;
         public final boolean document;
         public final @Nullable Identifier entry;
@@ -69,12 +70,18 @@ public class ItemGuide extends Item {
 
         public GuideState(boolean showLore, boolean showHints, String sortMode, boolean document,
             @Nullable Identifier entry, int spread) {
+            this(showLore, showHints, sortMode, document, entry, spread, true);
+        }
+
+        public GuideState(boolean showLore, boolean showHints, String sortMode, boolean document,
+            @Nullable Identifier entry, int spread, boolean rememberPage) {
             this.showLore = showLore;
             this.showHints = showHints;
+            this.rememberPage = rememberPage;
             this.sortMode = sortMode == null || sortMode.isEmpty() ? "TYPE" : sortMode;
-            this.document = document && entry != null;
-            this.entry = entry;
-            this.spread = Math.max(0, spread);
+            this.document = rememberPage && document && entry != null;
+            this.entry = this.document ? entry : null;
+            this.spread = rememberPage ? Math.max(0, spread) : 0;
         }
     }
 

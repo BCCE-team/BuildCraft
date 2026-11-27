@@ -39,10 +39,10 @@ class RecipeContractsTest(unittest.TestCase):
                 base = ROOT / "source-families" / family / "src/main/resources/data/buildcraftfactory" / directory
                 distiller = sorted((base / "distiller").rglob("*.json"))
                 heat = sorted((base / "heat_exchanger").rglob("*.json"))
-                self.assertEqual(len(distiller), 10)
+                self.assertEqual(len(distiller), 13)
                 self.assertEqual(len(heat), 42)
                 manifest = json.loads((base.parent / "bundled_machine_recipes.json").read_text(encoding="utf-8"))
-                self.assertEqual(len(manifest), 52)
+                self.assertEqual(len(manifest), 55)
                 self.assertEqual(set(manifest), {str(f.relative_to(base.parent)).replace("\\", "/") for f in [*distiller, *heat]})
                 fluid_inputs = set()
                 for path in distiller:
@@ -54,8 +54,13 @@ class RecipeContractsTest(unittest.TestCase):
                     self.assertGreater(sum(v["amount_mb"] for v in data["outputs"].values()), 0)
                     for obj in (data["input"], *data["outputs"].values()):
                         self.assertRegex(obj["fluid"], r"^[a-z0-9_.-]+:[a-z0-9_./-]+$")
-                    self.assertNotIn(data["input"]["fluid"], fluid_inputs)
-                    fluid_inputs.add(data["input"]["fluid"])
+                    if path.stem in ("classic_oil", "classic_oil_heat_1", "classic_oil_heat_2"):
+                        self.assertEqual(data["input"], {"fluid": "buildcraftenergy:" + path.stem.removeprefix("classic_"), "amount_mb": 8})
+                        self.assertEqual(data["outputs"], {"liquid": {"fluid": "buildcraftenergy:fuel_dense", "amount_mb": 8}})
+                        self.assertEqual(data["energy"]["mj"], 32)
+                    else:
+                        self.assertNotIn(data["input"]["fluid"], fluid_inputs)
+                        fluid_inputs.add(data["input"]["fluid"])
                 for path in heat:
                     data = json.loads(path.read_text(encoding="utf-8"))
                     self.assertEqual(data["type"], "buildcraftfactory:heat_exchange")

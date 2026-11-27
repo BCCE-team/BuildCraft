@@ -363,7 +363,36 @@ public class BuildCraftJeiPlugin implements IModPlugin {
     }
 
     /** Reconcile every API-backed JEI category after recipe or datapack sync. */
+    private static List<ItemStack> hiddenOilBuckets = List.of();
+    private static List<FluidStack> hiddenOilFluids = List.of();
+    private static boolean oilIngredientsHidden;
+
+    private static void refreshOilIngredients(IJeiRuntime runtime) {
+        boolean classic = buildcraft.energy.OilIndustry.classic();
+        if (classic == oilIngredientsHidden) return;
+        var manager = runtime.getIngredientManager();
+        if (classic) {
+            hiddenOilBuckets = manager.getAllIngredients(VanillaTypes.ITEM_STACK).stream().filter(stack -> {
+                var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+                return id != null && !buildcraft.energy.OilIndustry.bucketEnabled(id.getNamespace(), id.getPath());
+            }).toList();
+            hiddenOilFluids = manager.getAllIngredients(NeoForgeTypes.FLUID_STACK).stream().filter(stack -> {
+                var id = BuiltInRegistries.FLUID.getKey(stack.getFluid());
+                return id != null && !buildcraft.energy.OilIndustry.fluidEnabled(id.getNamespace(), id.getPath());
+            }).toList();
+            if (!hiddenOilBuckets.isEmpty()) manager.removeIngredientsAtRuntime(VanillaTypes.ITEM_STACK, hiddenOilBuckets);
+            if (!hiddenOilFluids.isEmpty()) manager.removeIngredientsAtRuntime(NeoForgeTypes.FLUID_STACK, hiddenOilFluids);
+        } else {
+            if (!hiddenOilBuckets.isEmpty()) manager.addIngredientsAtRuntime(VanillaTypes.ITEM_STACK, hiddenOilBuckets);
+            if (!hiddenOilFluids.isEmpty()) manager.addIngredientsAtRuntime(NeoForgeTypes.FLUID_STACK, hiddenOilFluids);
+            hiddenOilBuckets = List.of();
+            hiddenOilFluids = List.of();
+        }
+        oilIngredientsHidden = classic;
+    }
+
     private static void refreshOtherRecipes(IJeiRuntime runtime) {
+        refreshOilIngredients(runtime);
         BCRoboticsBoards.init();
         List<ProgrammingRecipeView> programming = getSortedProgrammingRecipes();
         List<IntegrationRecipeView> integration = collectIntegrationRecipes();
@@ -401,6 +430,9 @@ public class BuildCraftJeiPlugin implements IModPlugin {
 
     @Override
     public void onRuntimeUnavailable() {
+        oilIngredientsHidden = false;
+        hiddenOilBuckets = List.of();
+        hiddenOilFluids = List.of();
         BCSiliconRecipeSync.Client.setAssemblyRecipesChangedListener(null);
         ClientMachineRecipeCatalog.setListener(null);
         activeRuntime = null;

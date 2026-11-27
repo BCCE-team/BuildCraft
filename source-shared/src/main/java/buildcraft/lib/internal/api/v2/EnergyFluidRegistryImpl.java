@@ -21,10 +21,22 @@ public final class EnergyFluidRegistryImpl implements EnergyFluidService {
     private final ReloadableDefinitionRegistry<EnergyFluidDefinition> published = new ReloadableDefinitionRegistry<>();
     private final Map<ResourceLocation, EnergyFluidRegistration> codeDefinitions = new LinkedHashMap<>();
     private List<EnergyFluidRegistration> dataDefinitions = List.of();
+    private record Visible(DefinitionSnapshot<EnergyFluidDefinition> source,
+        buildcraft.energy.OilIndustry.Mode mode, DefinitionSnapshot<EnergyFluidDefinition> result) {}
+    private volatile Visible cachedVisible;
 
     @Override
     public DefinitionSnapshot<EnergyFluidDefinition> snapshot() {
-        return published.current();
+        var all = published.current();
+        var mode = buildcraft.energy.OilIndustry.mode();
+        Visible cached = cachedVisible;
+        if (cached != null && cached.source() == all && cached.mode() == mode) return cached.result();
+        var visible = new LinkedHashMap<>(all.asMap());
+        visible.entrySet().removeIf(entry -> !buildcraft.energy.OilIndustry.fuelEnabled(mode,
+            entry.getKey().getNamespace(), entry.getKey().getPath()));
+        var result = DefinitionSnapshot.of(all.generation(), visible);
+        cachedVisible = new Visible(all, mode, result);
+        return result;
     }
 
     @Override

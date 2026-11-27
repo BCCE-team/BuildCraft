@@ -1126,7 +1126,10 @@ public final class BuildCraftJadePlugin implements snownee.jade.api.IWailaPlugin
                 return Component.translatable(engineNameKey(state)).withStyle(BCTextFormat.WHITE);
             }
             if (block instanceof LiquidBlock && isBuildCraftBlock(block)) {
-                return block.getName();
+                var id = BuiltInRegistries.BLOCK.getKey(block);
+                String classicName = id == null ? null : buildcraft.energy.OilIndustry.classicFluidName(
+                    id.getNamespace(), id.getPath());
+                return classicName == null ? block.getName() : Component.translatable(classicName);
             }
             ItemStack picked = blockAccessor.getPickedResult();
             if (isBuildCraftStack(picked)) {

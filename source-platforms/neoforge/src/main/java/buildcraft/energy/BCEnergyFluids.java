@@ -145,8 +145,8 @@ public final class BCEnergyFluids {
 
     public static List<ItemStack> getCreativeTabItems() {
         List<ItemStack> items = new ArrayList<>(OIL_BUCKET.size());
-        for (BCRegistryEntry<BucketItem> bucket : OIL_BUCKET) {
-            items.add(bucket.get().getDefaultInstance());
+        for (int index = 0; index < OIL_BUCKET.size(); index++) {
+            if (OilIndustry.bucketEnabled(index)) items.add(OIL_BUCKET.get(index).get().getDefaultInstance());
         }
         return items;
     }
@@ -201,7 +201,12 @@ public final class BCEnergyFluids {
 
         BCRegistryEntry<BucketItem> bucket = BCEnergy.ITEMS.register(
             name + "/" + HEAT_NAMES[heat] + "_bucket",
-            () -> new BucketItem(source.get(), new Item.Properties().stacksTo(1).craftRemainder(Items.BUCKET))
+            () -> new BucketItem(source.get(), new Item.Properties().stacksTo(1).craftRemainder(Items.BUCKET)) {
+                @Override public net.minecraft.network.chat.Component getName(ItemStack stack) {
+                    String classic = OilIndustry.classicBucketName(name, heat);
+                    return classic == null ? super.getName(stack) : net.minecraft.network.chat.Component.translatable(classic);
+                }
+            }
         );
         BCRegistryEntry<LiquidBlock> block = BCEnergyBlocks.BLOCKS.register(fullName, () -> new BCLiquidBlock(
             source.get(),

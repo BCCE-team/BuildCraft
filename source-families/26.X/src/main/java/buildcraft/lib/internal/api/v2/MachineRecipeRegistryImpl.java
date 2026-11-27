@@ -23,17 +23,25 @@ public final class MachineRecipeRegistryImpl implements MachineRecipeService {
     private final ReloadableDefinitionRegistry<RecipeDefinition> published = new ReloadableDefinitionRegistry<>();
     private final Map<Identifier, MachineRecipeRegistration> codeDefinitions = new LinkedHashMap<>();
     private List<MachineRecipeRegistration> dataDefinitions = List.of();
+    private record Visible(DefinitionSnapshot<RecipeDefinition> source, RecipeBlacklist.Snapshot policy,
+        buildcraft.energy.OilIndustry.Mode mode, DefinitionSnapshot<RecipeDefinition> result) {}
+    private volatile Visible cachedVisible;
 
     /** Public service queries and addon lookups never expose blacklisted recipes.
      * The internal published snapshot retains all definitions for reload diagnostics. */
     public DefinitionSnapshot<RecipeDefinition> snapshot() {
         DefinitionSnapshot<RecipeDefinition> all = published.current();
         RecipeBlacklist.Snapshot policy = RecipeBlacklist.snapshot();
-        if (policy.denied().isEmpty()) return all;
+        var mode = buildcraft.energy.OilIndustry.mode();
+        Visible cached = cachedVisible;
+        if (cached != null && cached.source() == all && cached.policy() == policy && cached.mode() == mode) return cached.result();
         var visible = new LinkedHashMap<>(all.asMap());
-        visible.entrySet().removeIf(entry -> RecipeBlacklist.isDenied(
+        visible.entrySet().removeIf(entry -> !buildcraft.energy.OilIndustry.recipeEnabled(mode,
+            entry.getKey().getNamespace(), entry.getKey().getPath()) || policy.denies(
             RecipeBlacklist.machineFor(entry.getValue().value().kind()), entry.getKey()));
-        return DefinitionSnapshot.of(all.generation(), visible);
+        var result = DefinitionSnapshot.of(all.generation(), visible);
+        cachedVisible = new Visible(all, policy, mode, result);
+        return result;
     }
 
     public synchronized void register(Identifier id, RecipeDefinition definition, DefinitionProvenance provenance) {

@@ -386,6 +386,21 @@ public final class FabricParityGameTests {
     }
 
     @GameTest(structure = "buildcraftlib:empty3x3x3", maxTicks = 20)
+    public void petroleumBucketsExposeNativeFluidHandlers(GameTestHelper helper) throws Exception {
+        buildcraft.gametest.FluidCompatibilityGameTests.petroleumBucketsExposeNativeFluidHandlers(helper);
+    }
+
+    @GameTest(structure = "buildcraftlib:empty3x3x3", maxTicks = 20)
+    public void distillerAcceptsOilFromRegisteredBucket(GameTestHelper helper) throws Exception {
+        buildcraft.gametest.FluidCompatibilityGameTests.distillerAcceptsOilFromRegisteredBucket(helper);
+    }
+
+    @GameTest(structure = "buildcraftlib:empty3x3x3", maxTicks = 20)
+    public void classicOilAcceptsAllTemperaturesAndEjectsObsoleteInput(GameTestHelper helper) throws Exception {
+        buildcraft.gametest.FluidCompatibilityGameTests.classicOilAcceptsAllTemperaturesAndEjectsObsoleteInput(helper);
+    }
+
+    @GameTest(structure = "buildcraftlib:empty3x3x3", maxTicks = 20)
     public void fluidItemServiceResolvesStandardContainersAndRejectsNonFluidItems(GameTestHelper helper) throws Exception {
         buildcraft.gametest.FluidCompatibilityGameTests.fluidItemServiceResolvesStandardContainersAndRejectsNonFluidItems(helper);
     }

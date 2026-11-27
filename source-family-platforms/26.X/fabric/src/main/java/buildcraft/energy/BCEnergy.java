@@ -48,6 +48,8 @@ public final class BCEnergy {
 
     private static final Identifier ADVANCEMENT_FIND_OIL_SPOT =
         Identifier.fromNamespaceAndPath(MODID, "fine_riches");
+    private static final Identifier ADVANCEMENT_REFINE =
+        Identifier.fromNamespaceAndPath(MODID, "refine_and_redefine");
     private static final int OIL_SPOT_CHECK_INTERVAL = 40;
     private static final int OIL_SPOT_CHECK_RADIUS_XZ = 12;
     private static final int OIL_SPOT_CHECK_RADIUS_Y = 8;
@@ -132,8 +134,25 @@ public final class BCEnergy {
         if (event.getEntity().level().isClientSide()) return;
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (player.tickCount % OIL_SPOT_CHECK_INTERVAL != 0) return;
+        checkClassicRefinement(player);
         if (hasAdvancement(player, ADVANCEMENT_FIND_OIL_SPOT)) return;
         if (isNearOilSpot(player)) AdvancementUtil.unlockAdvancement(player, ADVANCEMENT_FIND_OIL_SPOT);
+    }
+
+    /** Classic completion is authorized only by the server, without weakening the modern criteria. */
+    private static void checkClassicRefinement(ServerPlayer player) {
+        if (!OilIndustry.classic() || player.level().getServer() == null) return;
+        AdvancementHolder advancement = player.level().getServer().getAdvancements().get(ADVANCEMENT_REFINE);
+        if (advancement == null) return;
+        var progress = player.getAdvancements().getOrStartProgress(advancement);
+        if (progress.isDone() || progress.getCriterion("code_trigger") == null) return;
+        var anyOil = progress.getCriterion("classic_oil_seen");
+        var coldOil = progress.getCriterion("oil_cool_bucket");
+        var fuel = progress.getCriterion("fuel_dense_cool_bucket");
+        if (fuel != null && fuel.isDone() && ((anyOil != null && anyOil.isDone())
+            || (coldOil != null && coldOil.isDone()))) {
+            AdvancementUtil.unlockAdvancement(player, ADVANCEMENT_REFINE);
+        }
     }
 
     private static boolean hasAdvancement(ServerPlayer player, Identifier id) {

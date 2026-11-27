@@ -294,6 +294,10 @@ public class CreativeTabManager {
         @Override
         public void fillItemList(NonNullList<ItemStack> items) {
             super.fillItemList(items);
+            items.removeIf(stack -> {
+                ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+                return id != null && !buildcraft.energy.OilIndustry.bucketEnabled(id.getNamespace(), id.getPath());
+            });
             // The built-in facade generator already emits unique, ordered variants.
             if ("buildcraft.facades".equals(name) && itemProviders.isEmpty()) return;
 

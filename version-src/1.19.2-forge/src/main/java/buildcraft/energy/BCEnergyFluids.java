@@ -19,6 +19,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.level.block.LiquidBlock;
@@ -203,7 +204,17 @@ public class BCEnergyFluids {
         FluidReferences refs = new FluidReferences();
         java.util.function.Supplier<BCFluid> SOURCE = () -> refs.source.get();
         java.util.function.Supplier<BCFluid> FLOWING = () -> refs.flowing.get();
-        BCRegistryEntry<BucketItem> BUCKET = BCEnergy.ITEMS.register(name+"/"+HEAT_NAMES[heat]+"_bucket", () -> new BucketItem(SOURCE,new Item.Properties().stacksTo(1).tab(BCCore.tabFluids).craftRemainder(Items.BUCKET)));
+        BCRegistryEntry<BucketItem> BUCKET = BCEnergy.ITEMS.register(name+"/"+HEAT_NAMES[heat]+"_bucket", () -> new BucketItem(SOURCE,new Item.Properties().stacksTo(1).tab(BCCore.tabFluids).craftRemainder(Items.BUCKET)) {
+                // Preserve the standard Forge bucket capability on our named subclass.
+                @Override public net.minecraftforge.common.capabilities.ICapabilityProvider initCapabilities(
+                    ItemStack stack, net.minecraft.nbt.CompoundTag nbt) {
+                    return new net.minecraftforge.fluids.capability.wrappers.FluidBucketWrapper(stack);
+                }
+                @Override public net.minecraft.network.chat.Component getName(ItemStack stack) {
+                    String classic = OilIndustry.classicBucketName(name, heat);
+                    return classic == null ? super.getName(stack) : net.minecraft.network.chat.Component.translatable(classic);
+                }
+            });
         BCRegistryEntry<LiquidBlock> FUEL_GAS_COOL_BLOCK = BCEnergyBlocks.BLOCKS.register(fullName, () ->
             new BCLiquidBlock(SOURCE, BlockBehaviour.Properties.of(FLAMMABLELIQUID).noCollission().strength(100.0F).noLootTable(), sticky, igniteOdds, burnOdds));
         ForgeFlowingFluid.Properties properties = new ForgeFlowingFluid.Properties(TYPE, SOURCE, FLOWING).bucket(BUCKET).block(FUEL_GAS_COOL_BLOCK).tickRate(10 + 10*(2 - heat))/*.levelDecreasePerBlock(boilAdjustedDensity)*/;//.slopeFindDistance(0);

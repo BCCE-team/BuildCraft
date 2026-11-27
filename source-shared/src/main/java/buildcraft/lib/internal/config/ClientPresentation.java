@@ -28,5 +28,4 @@ public final class ClientPresentation {
             case ALL -> Integer.parseInt(value("pipes/maxRenderedItems", "64"));
         };
     }
-    public static boolean rememberGuidePage() { return Boolean.parseBoolean(value("rememberGuidePage", "true")); }
 }

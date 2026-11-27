@@ -21,6 +21,7 @@ final class GuideBookStateCodec {
     private static final String TAG_VERSION = "Version";
     private static final String TAG_SHOW_LORE = "ShowLore";
     private static final String TAG_SHOW_HINTS = "ShowHints";
+    private static final String TAG_REMEMBER_PAGE = "RememberPage";
     private static final String TAG_SORT_MODE = "SortMode";
     private static final String TAG_DOCUMENT = "Document";
     private static final String TAG_ENTRY = "Entry";
@@ -52,7 +53,8 @@ final class GuideBookStateCodec {
             }
         }
         int spread = Math.max(0, tag.getInt(TAG_SPREAD));
-        return new ItemGuide.GuideState(showLore, showHints, sortMode, document, entry, spread);
+        boolean rememberPage = !tag.contains(TAG_REMEMBER_PAGE) || tag.getBoolean(TAG_REMEMBER_PAGE);
+        return new ItemGuide.GuideState(showLore, showHints, sortMode, document, entry, spread, rememberPage);
     }
 
     static void write(CompoundTag root, ItemGuide.GuideState state) {
@@ -60,6 +62,7 @@ final class GuideBookStateCodec {
         tag.putInt(TAG_VERSION, GUIDE_STATE_VERSION);
         tag.putBoolean(TAG_SHOW_LORE, state.showLore);
         tag.putBoolean(TAG_SHOW_HINTS, state.showHints);
+        tag.putBoolean(TAG_REMEMBER_PAGE, state.rememberPage);
         tag.putString(TAG_SORT_MODE, state.sortMode);
         tag.putBoolean(TAG_DOCUMENT, state.document && state.entry != null);
         if (state.document && state.entry != null) {

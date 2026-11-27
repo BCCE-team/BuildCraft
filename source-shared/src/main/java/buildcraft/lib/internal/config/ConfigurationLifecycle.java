@@ -19,6 +19,7 @@ public final class ConfigurationLifecycle {
             if (next.isDedicatedServer()) ConfigurationRegistry.INSTANCE.openWorld(next.getWorldPath(LevelResource.ROOT));
             else ConfigurationRegistry.INSTANCE.openLocalWorld();
             server = next;
+            buildcraft.energy.OilIndustry.setServerRunning(true);
             refresh();
         } catch (IOException e) {
             throw new IllegalStateException("Unable to load BuildCraft world configuration", e);
@@ -27,6 +28,7 @@ public final class ConfigurationLifecycle {
     public static void stop(MinecraftServer stopped) {
         if (server != stopped) return;
         server = null;
+        buildcraft.energy.OilIndustry.setServerRunning(false);
         ConfigurationRegistry.INSTANCE.closeWorld();
         refresh();
     }

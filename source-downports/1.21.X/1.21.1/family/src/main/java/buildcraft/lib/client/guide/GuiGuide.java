@@ -167,6 +167,7 @@ public final class GuiGuide extends Screen {
     private int documentSpread;
     private boolean showLore = true;
     private boolean showHints;
+    private boolean rememberPage = true;
     private SortMode sortMode = SortMode.TYPE;
     private View view = View.CONTENTS;
     private @Nullable GuideContent.Entry currentEntry;
@@ -198,6 +199,7 @@ public final class GuiGuide extends Screen {
         this.initialState = ItemGuide.readGuideState(guideStack);
         this.showLore = initialState.showLore;
         this.showHints = initialState.showHints;
+        this.rememberPage = initialState.rememberPage;
         try {
             this.sortMode = SortMode.valueOf(initialState.sortMode);
         } catch (IllegalArgumentException ignored) {
@@ -255,7 +257,7 @@ public final class GuiGuide extends Screen {
     }
 
     private void restoreInitialState() {
-        if (!buildcraft.lib.internal.config.ClientPresentation.rememberGuidePage()) {
+        if (!rememberPage) {
             view = View.CONTENTS; currentEntry = null; document = null; contentsSpread = 0;
             return;
         }
@@ -296,7 +298,6 @@ public final class GuiGuide extends Screen {
     }
 
     private ItemGuide.GuideState currentGuideState() {
-        boolean rememberPage = buildcraft.lib.internal.config.ClientPresentation.rememberGuidePage();
         boolean documentView = rememberPage && view == View.DOCUMENT && currentEntry != null;
         return new ItemGuide.GuideState(
             showLore,
@@ -304,7 +305,8 @@ public final class GuiGuide extends Screen {
             sortMode.name(),
             documentView,
             documentView ? currentEntry.id : null,
-            rememberPage ? (documentView ? documentSpread : contentsSpread) : 0
+            rememberPage ? (documentView ? documentSpread : contentsSpread) : 0,
+            rememberPage
         );
     }
 
@@ -650,6 +652,15 @@ public final class GuiGuide extends Screen {
         clickRegions.add(new ClickRegion(pageX, hintY, PAGE_TEXT_WIDTH, 11, () -> {
             showHints = !showHints;
             rebuildOpenDocument();
+            persistGuideState();
+        }));
+        int rememberY = hintY + 14;
+        String remember = GuideContent.translateOrLiteral("buildcraft.guide.contents.remember_page")
+            + " " + (rememberPage ? "[x]" : "[ ]");
+        drawCentred(guiGraphics, Component.literal(remember), pageX, rememberY, PAGE_TEXT_WIDTH,
+            isInside(mouseX, mouseY, pageX, rememberY, PAGE_TEXT_WIDTH, 10) ? LINK_COLOUR : TEXT_COLOUR);
+        clickRegions.add(new ClickRegion(pageX, rememberY, PAGE_TEXT_WIDTH, 11, () -> {
+            rememberPage = !rememberPage;
             persistGuideState();
         }));
     }

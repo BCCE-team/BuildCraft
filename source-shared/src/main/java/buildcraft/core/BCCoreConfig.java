@@ -116,7 +116,6 @@ public class BCCoreConfig {
             .defineEnum("numberFormat", DisplayFormat.DEFAULT.numbers());
         builder.comment("Display engine temperatures in Kelvin, Celsius or Fahrenheit.")
             .defineEnum("temperatureUnit", DisplayFormat.DEFAULT.temperature());
-        builder.comment("Reopen the guide book at its last saved page.").define("rememberGuidePage", true);
         builder.push("pipes");
         builder.comment("Animate directional fluid textures in pipes.").define("fluidAnimation", true);
         builder.comment("Render all travelling payloads, a single representative, or none.")
