@@ -36,6 +36,9 @@ public class BCRoboticsItems {
     public static final BCRegistryEntry<BlockItem> ROBOT_PROCESSOR = ITEMS.register("robot_processor",
             () -> new ItemRobotProcessor(BCRoboticsBlocks.ROBOT_PROCESSOR.get(), new Item.Properties().tab(BCRobotics.TAB_ROBOTICS)));
 
+    public static final BCRegistryEntry<buildcraft.robotics.item.ItemHardDisk> HARD_DISK = ITEMS.register("hard_disk",
+            () -> new buildcraft.robotics.item.ItemHardDisk(new Item.Properties().tab(BCRobotics.TAB_ROBOTICS)));
+
     public static void registry(BCRegistryBinder bus) {
         ITEMS.register(bus);
     }

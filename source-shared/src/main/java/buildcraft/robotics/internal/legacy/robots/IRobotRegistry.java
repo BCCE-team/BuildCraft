@@ -17,6 +17,8 @@ import net.minecraft.nbt.CompoundTag;
 public interface IRobotRegistry {
     long getNextRobotId();
 
+    RobotIdentityLedger robotIdentities();
+
     void registerRobot(EntityRobotBase robot);
 
     void killRobot(EntityRobotBase robot);

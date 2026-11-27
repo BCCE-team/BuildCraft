@@ -47,7 +47,7 @@ class RobotProcessorPanelLayout(unittest.TestCase):
 
     def test_map_import_slot_absent_and_palette_is_not_machine_inventory(self):
         code = (ROOT / 'source-shared/src/main/java/buildcraft/robotics/container/ContainerRobotProcessor.java').read_text()
-        self.assertIn('replaceSlot(2, new SlotBase(', code)
+        self.assertIn('replaceSlot(HDD_SLOT, new SlotBase(disk, 0, HDD_X, HDD_Y))', code)
         self.assertIn('mayPlace(ItemStack stack) { return false; }', code)
         self.assertIn('mayPickup(Player player) { return false; }', code)
         self.assertNotIn('relocateSlot(2, 225, 25)', code)

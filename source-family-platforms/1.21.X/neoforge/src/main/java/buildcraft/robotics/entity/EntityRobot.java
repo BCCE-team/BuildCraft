@@ -133,6 +133,7 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
     private GameProfile owner;
 
     private DockingStation linkedStation;
+    private transient DockingStation checkedHomeStation;
     private BlockIndex linkedStationIndex;
     private Direction linkedStationSide;
 
@@ -404,6 +405,13 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
                 mainAI.start();
             }
             validateLinkedStation();
+            if (linkedStation != checkedHomeStation && linkedStation != null
+                    && linkedStation.isMainStation() && linkedStation.robotIdTaking() == robotId) {
+                buildcraft.robotics.internal.legacy.robots.RobotHomeLinks.keepOnly(this, linkedStation);
+                checkedHomeStation = linkedStation;
+            } else if (linkedStation == null) {
+                checkedHomeStation = null;
+            }
             // Station availability must not gate the AI cycle. Lost-station recovery owns station loss explicitly,
             // while the normal cycle remains responsible for updating movement every tick.
             mainAI.cycle();
@@ -1074,6 +1082,9 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
         }
 
         if (player.isShiftKeyDown() && WrenchUtil.isWrench(stack)) {
+            if (!level().isClientSide() && !buildcraft.robotics.item.RobotItemIdentity.hasOwnershipAccess(this, player)) {
+                return InteractionResult.FAIL;
+            }
             if (RobotEventSupport.denied(RobotEventKind.DISMANTLE, this, player, stack)) {
                 return InteractionResult.PASS;
             }
@@ -1150,7 +1161,7 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
 
     private List<ItemStack> getDrops() {
         List<ItemStack> drops = new ArrayList<>();
-        drops.add(asItemStack());
+        drops.add(buildcraft.robotics.item.RobotItemIdentity.pack(this, asItemStack()));
         if (!itemInUse.isEmpty()) drops.add(itemInUse.copy());
         for (ItemStack stack : inventory) {
             if (!stack.isEmpty()) drops.add(stack.copy());
@@ -1586,6 +1597,7 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
         }
 
         rememberMainStation(station.index(), station.side());
+        if (dockingStation == station) undock();
         mainStationReleasedManually = true;
         linkedStation = null;
         linkedStationIndex = null;
@@ -1622,7 +1634,10 @@ public class EntityRobot extends EntityRobotBase implements IEntityWithComplexSp
             linkedStationSide = null;
         }
         if (previous != null && previous != station) {
+            if (dockingStation == previous) undock();
             previous.unsafeRelease(this);
+            IRobotRegistry registry = getRegistry();
+            if (registry != null) registry.release(previous, robotId);
         }
     }
 

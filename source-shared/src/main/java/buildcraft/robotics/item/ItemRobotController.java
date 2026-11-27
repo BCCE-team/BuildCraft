@@ -145,6 +145,14 @@ public final class ItemRobotController extends Item {
             notice(player, "Bind controller to a loaded control panel first");
             return InteractionResult.FAIL;
         }
+        if (!panel.isOperational()) {
+            notice(player, "The panel requires a working HDD and MJ power");
+            return InteractionResult.FAIL;
+        }
+        if (!RobotItemIdentity.canManage(robot, player, stack)) {
+            notice(player, "You do not have permission to relink this robot");
+            return InteractionResult.FAIL;
+        }
         if (panel.linkRobot(robot.getRobotId(), robot.blockPosition())) {
             notice(player, "Robot linked: #" + robot.getRobotId());
         } else {
@@ -167,6 +175,10 @@ public final class ItemRobotController extends Item {
         // Hit the face occupied by a real station. Never link an arbitrary pipe.
         if (station == null) {
             notice(player, "No robot docking station on that face");
+            return InteractionResult.FAIL;
+        }
+        if (!panel.isOperational()) {
+            notice(player, "The panel requires a working HDD and MJ power");
             return InteractionResult.FAIL;
         }
         if (panel.linkStation(pos, side)) {

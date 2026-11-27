@@ -1,6 +1,10 @@
 package buildcraft.robotics.container;
 
 import buildcraft.robotics.RobotTaskNames;
+import buildcraft.robotics.item.ItemHardDisk;
+import buildcraft.robotics.zone.ProcessorDiskLayout;
+import buildcraft.robotics.zone.ZonePlan;
+import buildcraft.lib.tile.item.ItemHandlerSimple;
 import buildcraft.robotics.scheduler.RobotProcessorDiagnostics;
 import buildcraft.robotics.scheduler.RobotProcessorNavigationProfiler;
 
@@ -28,6 +32,7 @@ import buildcraft.robotics.internal.legacy.robots.IRobotRegistry;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import buildcraft.robotics.internal.legacy.robots.RobotManager;
 import buildcraft.robotics.tile.TileRobotProcessor;
+import buildcraft.robotics.tile.TileZonePlanner;
 import buildcraft.robotics.item.ItemRobotController;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
@@ -63,6 +68,26 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     private static final int ID_DIAGNOSTICS = ROBOT_IDS.allocId("processor_diagnostics");
     private static final int ID_NAVIGATION_PROFILE = ROBOT_IDS.allocId("processor_navigation_profile");
     private static final int ID_POWER_STATE = ROBOT_IDS.allocId("processor_power_state");
+    private static final int ID_DISK_STATE = ROBOT_IDS.allocId("processor_disk_state");
+    public static final int HDD_SLOT = 2;
+    public static final int HDD_X = 229, HDD_Y = 22;
+    private record DiskState(boolean present, boolean mounted, boolean online, int revision, int offsetX, int offsetZ, int layer) { }
+    private DiskState diskState = new DiskState(false, false, false, -1, -48, -48, 0);
+    private DiskState lastSentDiskState;
+    private boolean areaReady;
+    public boolean areaReady() { return areaReady; }
+    @Override protected boolean isPortableMediaMenu() { return true; }
+    @Override protected void onAreaReceived(int index) { areaReady = true; }
+    @Override protected void sendEditorMessage(int id, buildcraft.lib.net.IPayloadWriter writer) {
+        sendMessage(id, out -> { out.writeInt(diskState.revision()); writer.write(out); });
+    }
+    public boolean processorOnline() { return diskState.online(); }
+    public boolean diskPresent() { return diskState.present(); }
+    public boolean diskMounted() { return diskState.mounted(); }
+    public int mediaRevision() { return diskState.revision(); }
+    public int diskLayer() { return diskState.layer(); }
+    public ProcessorDiskLayout diskLayout() { return new ProcessorDiskLayout(diskState.offsetX(), diskState.offsetZ()); }
+
     // A robot currently has four transfer slots and one tank; leave room for extensions.
     private static final int MAX_CARGO_ENTRIES = 32;
     private static final int MAX_CARGO_TANKS = 8;
@@ -119,19 +144,20 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     public ContainerRobotProcessor(int containerId, Inventory inventory, TileRobotProcessor tile,
                                    ContainerLevelAccess access) {
         super(BCRoboticsGuis.MENU_ROBOT_PROCESSOR.get(), containerId, inventory, tile, access);
-        // Zone Planner's two map crafting slots are not used by this block.
-        relocateSlot(0, -200, -200);
-        relocateSlot(1, -200, -200);
-        // No Map Location slot: leave an inert placeholder only to retain the
-        // inherited menu's player-slot indices (3..38). It cannot accept items.
-        Slot importedMap = slots.get(2);
-        if (importedMap instanceof SlotBase base) {
-            replaceSlot(2, new SlotBase(base.itemHandler, base.handlerIndex, -200, -200) {
+        // Retain the inherited menu indices: 0/1 are inert, 2 is the HDD, 3..38 are player slots.
+        for (int index = 0; index < 2; index++) {
+            SlotBase base = (SlotBase) slots.get(index);
+            replaceSlot(index, new SlotBase(base.itemHandler, base.handlerIndex, -200, -200) {
                 @Override public boolean mayPlace(ItemStack stack) { return false; }
                 @Override public boolean mayPickup(Player player) { return false; }
                 @Override public boolean canShift() { return false; }
             });
         }
+        TileRobotProcessor machine = getProcessor();
+        ItemHandlerSimple disk = machine == null
+                ? new ItemHandlerSimple(1).setChecker((slot, stack) -> ItemHardDisk.isDisk(stack)).setLimitedInsertor(1)
+                : machine.hardDisk;
+        replaceSlot(HDD_SLOT, new SlotBase(disk, 0, HDD_X, HDD_Y));
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 int slot = 3 + row * 9 + col;
@@ -147,17 +173,19 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
         if (processor != null) maxExecutionQueue = processor.getMaxExecutionQueue();
     }
 
-    private void relocateSlot(int index, int x, int y) {
-        Slot old = slots.get(index);
-        if (old instanceof SlotBase base) {
-            replaceSlot(index, new SlotBase(base.itemHandler, base.handlerIndex, x, y));
-        }
-    }
-
     private void replaceSlot(int index, Slot replacement) {
         replacement.index = index;
         slots.set(index, replacement);
     }
+
+    @Override public void loadArea(int index) {
+        if (processorOnline() && index >= 0 && index < TileZonePlanner.LAYER_COUNT) {
+            areaReady = false; currentAreaSelection = new ZonePlan();
+            super.loadArea(index);
+        }
+    }
+    @Override public void saveArea(int index, ZonePlan area) { if (processorOnline() && areaReady) super.saveArea(index, area); }
+    @Override public void sendNameToServer(String name) { if (processorOnline()) super.sendNameToServer(name); }
 
     @Override
     public void applyClientGuiLayout(boolean legacy) {
@@ -176,11 +204,12 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
 
     /** Ask the server for contents on selection change; never trust client-supplied contents. */
     public void requestCargo(long robotId) {
+        if (!processorOnline()) return;
         if (cargoRobotId == robotId) return;
         cargoRobotId = robotId;
         cargo.clear();
         cargoOnline = false;
-        sendMessage(ID_REQUEST_CARGO, out -> out.writeLong(robotId));
+        sendEditorMessage(ID_REQUEST_CARGO, out -> out.writeLong(robotId));
     }
 
     public int getMaxExecutionQueue() { return maxExecutionQueue; }
@@ -191,26 +220,29 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
 
     /** Configure the limit for queued execution actions, not pathfinding/search steps. */
     public void setMaxExecutionQueue(int requested) {
+        if (!processorOnline()) return;
         int target = Math.max(TileRobotProcessor.MIN_EXECUTION_QUEUE,
                 Math.min(TileRobotProcessor.MAX_EXECUTION_QUEUE, requested));
         if (target == maxExecutionQueue) return;
         maxExecutionQueue = target; // responsive UI; server sends the authoritative value.
-        sendMessage(ID_SET_QUEUE, out -> out.writeByte(target));
+        sendEditorMessage(ID_SET_QUEUE, out -> out.writeByte(target));
     }
 
     public void renameRobot(long id, String name) {
+        if (!processorOnline()) return;
         if (id <= 0) return;
         String requested = name == null ? "" : name;
-        sendMessage(ID_RENAME_ROBOT, out -> {
+        sendEditorMessage(ID_RENAME_ROBOT, out -> {
             out.writeLong(id);
             out.writeUtf(requested, TileRobotProcessor.MAX_LINK_NAME_LENGTH);
         });
     }
 
     public void renameStation(int x, int y, int z, int side, String name) {
+        if (!processorOnline()) return;
         if (side < 0 || side > 5) return;
         String requested = name == null ? "" : name;
-        sendMessage(ID_RENAME_STATION, out -> {
+        sendEditorMessage(ID_RENAME_STATION, out -> {
             out.writeBlockPos(new BlockPos(x, y, z));
             out.writeByte(side);
             out.writeUtf(requested, TileRobotProcessor.MAX_LINK_NAME_LENGTH);
@@ -253,19 +285,23 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     }
 
     public void recall(long robotId) {
-        if (robotId > 0L) sendMessage(ID_RECALL, out -> out.writeLong(robotId));
+        if (!processorOnline()) return;
+        if (robotId > 0L) sendEditorMessage(ID_RECALL, out -> out.writeLong(robotId));
     }
 
     public void forceRobotChunk(long robotId) {
-        if (robotId > 0L) sendMessage(ID_FORCE_CHUNK, out -> out.writeLong(robotId));
+        if (!processorOnline()) return;
+        if (robotId > 0L) sendEditorMessage(ID_FORCE_CHUNK, out -> out.writeLong(robotId));
     }
 
     public void unlinkRobot(long robotId) {
-        if (robotId > 0L) sendMessage(ID_UNLINK_ROBOT, out -> out.writeLong(robotId));
+        if (!processorOnline()) return;
+        if (robotId > 0L) sendEditorMessage(ID_UNLINK_ROBOT, out -> out.writeLong(robotId));
     }
 
     public void unlinkStation(int x, int y, int z, int side) {
-        if (side >= 0 && side < 6) sendMessage(ID_UNLINK_STATION, out -> {
+        if (!processorOnline()) return;
+        if (side >= 0 && side < 6) sendEditorMessage(ID_UNLINK_STATION, out -> {
             out.writeBlockPos(new BlockPos(x, y, z));
             out.writeByte(side);
         });
@@ -275,6 +311,30 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     public void broadcastChanges() {
         super.broadcastChanges();
         TileRobotProcessor processor = getProcessor();
+        if (playerInventory.player instanceof ServerPlayer && processor != null) {
+            ProcessorDiskLayout layout = processor.getDiskLayout();
+            DiskState next = new DiskState(processor.hasHardDisk(), processor.hasMountedDisk(), processor.isOperational(),
+                    processor.getMediaRevision(), layout.offsetX(), layout.offsetZ(), processor.getCurrentSelectedArea());
+            if (lastSentDiskState == null || next.revision() != lastSentDiskState.revision()
+                    || next.online() != lastSentDiskState.online() || next.present() != lastSentDiskState.present()
+                    || next.mounted() != lastSentDiskState.mounted()) {
+                lastSentDiskState = next;
+                diskState = next;
+                resetAreaTransfers();
+                snapshots.clear();
+                stationSnapshots.clear();
+                requestedCargoRobotId = -1L;
+                sendMessage(ID_DISK_STATE, out -> {
+                    out.writeBoolean(next.present()); out.writeBoolean(next.mounted()); out.writeBoolean(next.online());
+                    out.writeInt(next.revision()); out.writeInt(next.offsetX()); out.writeInt(next.offsetZ());
+                    out.writeByte(next.layer());
+                });
+                snapshotTick = 0;
+                if (next.online()) {
+                    sendAreaParts(ID_AREA_LOADED_PART, next.layer(), processor.selectArea(next.layer()));
+                }
+            }
+        }
         if (playerInventory.player instanceof ServerPlayer && processor != null
                 && lastSentExecutionQueue != processor.getMaxExecutionQueue()) {
             lastSentExecutionQueue = processor.getMaxExecutionQueue();
@@ -311,6 +371,10 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                     out.writeVarInt(next.sections());
                 });
             }
+        }
+        if (playerInventory.player instanceof ServerPlayer && processor != null && !processor.isOperational()) {
+            snapshotTick++;
+            return;
         }
         if (playerInventory.player instanceof ServerPlayer && processor != null && snapshotTick % 20 == 0) {
             RobotProcessorDiagnostics.Snapshot next = processor.getDiagnostics();
@@ -404,7 +468,7 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                 BlockPos last = processor.getLastKnownRobotPosition(robotId);
                 if (last != null) next.add(new RobotSnapshot(robotId, "Unknown", "Offline", "Offline",
                         last.getX(), last.getY(), last.getZ(), 0, -1, processor.getRobotName(robotId), 0,
-                        "Robot chunk unloaded"));
+                        registry.robotIdentities().isPacked(robotId) ? "Robot stored as an item" : "Robot chunk unloaded"));
                 continue;
             }
             processor.recordRobotPosition(robotId, robot.blockPosition());
@@ -543,7 +607,7 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
                 ? null : RobotManager.registryProvider.getRegistry(processor.getLevel());
         for (StationKey key : processor.getLinkedStations()) {
             if (next.size() >= STATION_LIMIT) break;
-            DockingStation dock = registry == null ? null : registry.getStation(key.pos(), key.side());
+            DockingStation dock = registry == null || !processor.stationInRange(key.pos()) ? null : registry.getStation(key.pos(), key.side());
             long robotId = dock == null ? EntityRobotBase.NULL_ROBOT_ID : dock.linkedId();
             String status = dock == null ? "Offline" : robotId != EntityRobotBase.NULL_ROBOT_ID
                     ? "Occupied" : "Available";
@@ -573,7 +637,25 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
 
     @Override
     public void readMessage(int id, FriendlyByteBuf buffer, BCNetworkSide side, BCPacketContext ctx) throws IOException {
-        if (id == ID_REQUEST_CARGO && side == BCNetworkSide.SERVER) {
+        if (side == BCNetworkSide.SERVER) {
+            TileRobotProcessor machine = getProcessor();
+            if (machine == null || !stillValid(playerInventory.player) || !machine.isOperational()
+                    || lastSentDiskState == null || lastSentDiskState.revision() != machine.getMediaRevision()) return;
+            if (buffer.readableBytes() < Integer.BYTES || buffer.readInt() != machine.getMediaRevision()) return;
+        }
+        if (id == ID_DISK_STATE && side == BCNetworkSide.CLIENT) {
+            boolean present = buffer.readBoolean(), mounted = buffer.readBoolean(), online = buffer.readBoolean();
+            int revision = buffer.readInt();
+            int offsetX = NetworkSecurity.requireRange(buffer.readInt(), -63, -48, "HDD X offset");
+            int offsetZ = NetworkSecurity.requireRange(buffer.readInt(), -63, -48, "HDD Z offset");
+            int layer = NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0, 15, "HDD layer");
+            if (online && !mounted || mounted && !present) throw new IOException("Invalid HDD state");
+            diskState = new DiskState(present, mounted, online, revision, offsetX, offsetZ, layer);
+            snapshots.clear(); stationSnapshots.clear(); cargo.clear(); cargoOnline = false; cargoRobotId = -1L;
+            areaReady = false;
+            currentAreaSelection = new ZonePlan(); currentLayer = layer;
+            resetAreaTransfers();
+        } else if (id == ID_REQUEST_CARGO && side == BCNetworkSide.SERVER) {
             long requested = buffer.readLong();
             TileRobotProcessor processor = getProcessor();
             if (processor != null && stillValid(playerInventory.player)

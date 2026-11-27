@@ -1,0 +1,28 @@
+{
+  "type": "buildcraftsilicon:assembly",
+  "MJ": 12000000000,
+  "group": "buildcraftrobotics:processor",
+  "ingredient_counts": [
+    2,
+    1,
+    1,
+    1
+  ],
+  "ingredients": [
+    {
+      "item": "minecraft:iron_ingot"
+    },
+    {
+      "item": "buildcraftsilicon:redstone_chipset/gold"
+    },
+    {
+      "item": "minecraft:quartz"
+    },
+    {
+      "item": "minecraft:redstone"
+    }
+  ],
+  "result": {
+    "item": "buildcraftrobotics:hard_disk"
+  }
+}

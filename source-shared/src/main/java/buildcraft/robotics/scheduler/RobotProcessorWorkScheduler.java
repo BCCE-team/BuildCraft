@@ -880,11 +880,8 @@ public final class RobotProcessorWorkScheduler {
         anchors.add(panel.getBlockPos());
         int min = level.getMinBuildHeight() >> 4;
         int max = (level.getMaxBuildHeight() - 1) >> 4;
-        for (int dx = -TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS;
-                dx <= TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS; dx++) {
-            for (int dz = -TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS;
-                    dz <= TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS; dz++) {
-                int x = cx + dx, z = cz + dz;
+        for (int x = panel.workMinX() >> 4; x <= (panel.workMinX() + 111) >> 4; x++) {
+            for (int z = panel.workMinZ() >> 4; z <= (panel.workMinZ() + 111) >> 4; z++) {
                 if (ChunkUtil.getChunk(level, x, z, false) == null) continue;
                 chunks++;
                 scope = (scope ^ (((long) x << 32) ^ (z & 0xffffffffL))) * 1099511628211L;
@@ -1847,6 +1844,7 @@ public final class RobotProcessorWorkScheduler {
             if (scheduler != null && !scheduler.panel.isRemoved()
                     && scheduler.panel.isRobotLinked(robot.getRobotId())
                     && scheduler.isPrimaryController(state, robot.getRobotId())
+                    && scheduler.panel.stationInRange(pos)
                     && scheduler.panel.getLinkedStations().contains(key)) return true;
         }
         return false;

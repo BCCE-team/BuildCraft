@@ -75,6 +75,12 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
         @Nullable
         private Level level;
         private final Map<Long, EntityRobotBase> robots = new HashMap<>();
+        private final buildcraft.robotics.internal.legacy.robots.RobotIdentityLedger packedIdentities =
+                new buildcraft.robotics.internal.legacy.robots.RobotIdentityLedger();
+
+        public buildcraft.robotics.internal.legacy.robots.RobotIdentityLedger robotIdentities() {
+            return packedIdentities;
+        }
         private final Set<Long> unloadedRobotIds = new HashSet<>();
         // A restored reservation has no proof its robot entity still exists. Give
         // chunks time to load before reclaiming orphaned claims after a restart.
@@ -354,6 +360,22 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
 
         public void writeToNBT(CompoundTag nbt) {
             nbt.putLong("nextRobotId", nextRobotId);
+            ListTag packedList = new ListTag();
+            for (var entry : packedIdentities.snapshot().entrySet()) {
+                CompoundTag packedTag = new CompoundTag();
+                packedTag.putLong("id", entry.getKey());
+                packedTag.putString("proof", entry.getValue());
+                packedList.add(packedTag);
+            }
+            nbt.put("packedRobots", packedList);
+            ListTag controllerList = new ListTag();
+            for (var entry : packedIdentities.controllerSnapshot().entrySet()) {
+                CompoundTag controllerTag = new CompoundTag();
+                controllerTag.putLong("id", entry.getKey());
+                controllerTag.putString("disk", entry.getValue());
+                controllerList.add(controllerTag);
+            }
+            nbt.put("robotControllers", controllerList);
 
             ListTag resourceList = new ListTag();
             for (Map.Entry<ResourceId, Long> entry : resources.entrySet()) {
@@ -404,6 +426,23 @@ public enum SimpleRobotRegistryProvider implements IRobotRegistryProvider {
                 nextRobotId = Math.max(1, NbtCompat.getLong(nbt, "nextRobotID"));
             } else {
                 nextRobotId = 1;
+            }
+
+            packedIdentities.clear();
+            ListTag packedList = NbtCompat.getList(nbt, "packedRobots");
+            for (int i = 0; i < packedList.size(); i++) {
+                CompoundTag packedTag = NbtCompat.getCompound(packedList, i);
+                long id = NbtCompat.getLong(packedTag, "id");
+                packedIdentities.restore(id, NbtCompat.getString(packedTag, "proof"));
+                if (id > 0 && id < Long.MAX_VALUE) nextRobotId = Math.max(nextRobotId, id + 1);
+            }
+
+            ListTag controllerList = NbtCompat.getList(nbt, "robotControllers");
+            for (int i = 0; i < controllerList.size(); i++) {
+                CompoundTag controllerTag = NbtCompat.getCompound(controllerList, i);
+                long id = NbtCompat.getLong(controllerTag, "id");
+                packedIdentities.restoreController(id, NbtCompat.getString(controllerTag, "disk"));
+                if (id > 0 && id < Long.MAX_VALUE) nextRobotId = Math.max(nextRobotId, id + 1);
             }
 
             ListTag resourceList = NbtCompat.getList(nbt, "resourceList");

@@ -40,6 +40,9 @@ public final class BCRoboticsItems {
     public static final BCRegistryEntry<BlockItem> ROBOT_PROCESSOR = ITEMS.register("robot_processor",
             () -> new ItemRobotProcessor(BCRoboticsBlocks.ROBOT_PROCESSOR.get(), new Item.Properties()));
 
+    public static final BCRegistryEntry<buildcraft.robotics.item.ItemHardDisk> HARD_DISK = ITEMS.register("hard_disk",
+            () -> new buildcraft.robotics.item.ItemHardDisk(new Item.Properties()));
+
     private BCRoboticsItems() {
     }
 
@@ -55,6 +58,7 @@ public final class BCRoboticsItems {
         stacks.add(ROBOT_STATION.get().getDefaultInstance());
         stacks.add(ROBOT_PROCESSOR.get().getDefaultInstance());
         stacks.add(CONTROLLER.get().getDefaultInstance());
+        stacks.add(HARD_DISK.get().getDefaultInstance());
         return List.copyOf(stacks);
     }
 

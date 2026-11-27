@@ -197,8 +197,8 @@ public final class RobotAreaActionScheduler {
         int width = (TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS * 2 + 1) * 16;
         int cells = (width + 7) / 8;
         int grid = cells * cells;
-        int startX = (centerX - TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS) << 4;
-        int startZ = (centerZ - TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS) << 4;
+        int startX = panel.workMinX();
+        int startZ = panel.workMinZ();
         for (int i = 0; i < allowance; i++) {
             // Half the budget probes the actual robot's 3D neighborhood;
             // the other half eventually covers the *whole* panel at the
@@ -249,8 +249,8 @@ public final class RobotAreaActionScheduler {
         // sub-cell passes. Unlike random retries this visits every column
         // eventually, yet only examines a few loaded columns per scan tick.
         int cx = panel.getBlockPos().getX() >> 4, cz = panel.getBlockPos().getZ() >> 4;
-        int startX = (cx - TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS) << 4;
-        int startZ = (cz - TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS) << 4;
+        int startX = panel.workMinX();
+        int startZ = panel.workMinZ();
         int width = (TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS * 2 + 1) * 16;
         int cells = (width + 7) / 8;
         int grid = cells * cells;

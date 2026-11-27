@@ -116,7 +116,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     private int clearX() { return processorMode ? 300 : CLEAR_X; }
     private int historyY() { return processorMode ? 158 : HISTORY_Y; }
 
-    private final ZonePlannerEditor.History editHistory = new ZonePlannerEditor.History();
+    private ZonePlannerEditor.History editHistory = new ZonePlannerEditor.History();
     private final Map<ChunkPos, Boolean> paintAvailableChunks = new HashMap<>();
     private ZonePlan brushPreview;
     private ZonePlannerEditor.Tool selectedTool = ZonePlannerEditor.Tool.RECTANGLE;
@@ -371,8 +371,26 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
         return minecraft.level.dimension().location().hashCode();
     }
 
+    protected boolean processorControlsEnabled() {
+        return !processorMode || container instanceof ContainerRobotProcessor processor && processor.processorOnline();
+    }
+    private int observedMediaRevision = -1;
+    private boolean observedOnline;
+    private void syncProcessorMedia() {
+        if (!(container instanceof ContainerRobotProcessor processor)) return;
+        boolean online = processor.processorOnline();
+        if (observedMediaRevision == processor.mediaRevision() && observedOnline == online) return;
+        observedMediaRevision = processor.mediaRevision(); observedOnline = online;
+        cancelSelection();
+        editHistory = new ZonePlannerEditor.History();
+        selectedLayer = processor.diskLayer();
+        invalidateMapTexture(true);
+        // The server sends the selected layer immediately after the media state.
+    }
+
     private ZonePlan getBaseSelectedArea() {
         if (brushPreview != null) return brushPreview;
+        if (processorMode) return container.currentAreaSelection;
         if (container.tile != null && selectedLayer >= 0 && selectedLayer < container.tile.layers.length) {
             ZonePlan layer = container.tile.layers[selectedLayer];
             if (layer != null) {
@@ -425,22 +443,21 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     private ZonePlannerEditor.Bounds processorWorkBounds() {
         BlockPos origin = processorOrigin();
         if (origin == null) return null;
-        int radius = TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS;
-        int cx = origin.getX() >> 4, cz = origin.getZ() >> 4;
-        return new ZonePlannerEditor.Bounds((cx - radius) << 4, (cz - radius) << 4,
-                ((cx + radius + 1) << 4) - 1, ((cz + radius + 1) << 4) - 1);
+        var layout = ((ContainerRobotProcessor) container).diskLayout();
+        int x = layout.minX(origin), z = layout.minZ(origin);
+        return new ZonePlannerEditor.Bounds(x, z, x + 111, z + 111);
     }
 
     private boolean inProcessorWorkArea(int chunkX, int chunkZ) {
         if (!processorMode) return true;
         BlockPos origin = processorOrigin();
-        return origin != null && TileRobotProcessor.isWithinWorkArea(origin, chunkX, chunkZ);
+        return origin != null && ((ContainerRobotProcessor) container).diskLayout().intersectsChunk(origin, chunkX, chunkZ);
     }
 
     private ZonePlan restrictProcessorSelection(ZonePlan area) {
         if (!processorMode) return area;
         BlockPos origin = processorOrigin();
-        return origin == null ? new ZonePlan() : TileRobotProcessor.limitToWorkArea(area, origin);
+        return origin == null ? new ZonePlan() : ((ContainerRobotProcessor) container).diskLayout().clip(area, origin);
     }
 
     private boolean availableForPaint(ChunkPos chunk) {
@@ -505,6 +522,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     }
 
     public boolean mouseClicked(double mouseX, double mouseY, int mouseButton) {
+        if (!processorControlsEnabled() || container instanceof ContainerRobotProcessor processor && !processor.areaReady()) return super.mouseClicked(mouseX, mouseY, mouseButton);
         if (!isInsideNameField(mouseX, mouseY)) {
             clearNameFocus();
         }
@@ -594,6 +612,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int mouseButton, double dragX, double dragY) {
+        if (!processorControlsEnabled() || container instanceof ContainerRobotProcessor processor && !processor.areaReady()) return super.mouseDragged(mouseX, mouseY, mouseButton, dragX, dragY);
         if (selecting && selectionStartXZ != null) {
             selX2 = Mth.clamp(Mth.floor(mouseX), mapXScreen(), mapXScreen() + mapWidth() - 1);
             selY2 = Mth.clamp(Mth.floor(mouseY), mapYScreen(), mapYScreen() + mapHeight() - 1);
@@ -605,6 +624,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (!processorControlsEnabled() || container instanceof ContainerRobotProcessor processor && !processor.areaReady()) return super.mouseReleased(mouseX, mouseY, button);
         if (selecting && selectionStartXZ != null && button == 0) {
             updateBufferedSelection(mouseX, mouseY);
             ZonePlan updatedArea = brushPreview != null ? brushPreview : new ZonePlan(getBaseSelectedArea());
@@ -626,6 +646,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (!processorControlsEnabled()) return super.mouseScrolled(mouseX, mouseY, delta);
         if (isInsideMap(mouseX, mouseY)) {
             boolean changed = delta > 0 ? decBlocksPerPixel() : incBlocksPerPixel();
             return changed || super.mouseScrolled(mouseX, mouseY, delta);
@@ -657,7 +678,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
         }
         selectedLayer = index;
         cancelSelection();
-        if (container.tile != null) {
+        if (!processorMode && container.tile != null) {
             container.currentAreaSelection = new ZonePlan(container.tile.selectArea(index));
         }
         container.loadArea(index);
@@ -699,6 +720,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
     private void drawBackgroundLayer(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
         if (processorMode) ICON_PROCESSOR.drawAt(guiGraphics, mainGui.rootElement);
         else ICON_GUI.drawAt(guiGraphics, mainGui.rootElement);
+        if (!processorControlsEnabled()) return;
         drawMap(guiGraphics, mouseX, mouseY);
         drawColourSlots(guiGraphics);
         drawEditorSlots(guiGraphics);
@@ -1026,6 +1048,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
 
     @Override
     public void containerTick() {
+        syncProcessorMedia();
         super.containerTick();
         if (nameField != null) {
             nameField.tick();
@@ -1034,6 +1057,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (!processorControlsEnabled() || container instanceof ContainerRobotProcessor processor && !processor.areaReady()) return super.keyPressed(keyCode, scanCode, modifiers);
         if (nameField != null && nameField.isFocused()) {
             if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER || keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 clearNameFocus();
@@ -1066,6 +1090,7 @@ public class GuiZonePlanner<M extends ContainerZonePlanner> extends GuiBC8<M> {
 
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
+        if (!processorControlsEnabled()) return super.charTyped(codePoint, modifiers);
         if (nameField != null && nameField.isFocused()) {
             return nameField.charTyped(codePoint, modifiers);
         }

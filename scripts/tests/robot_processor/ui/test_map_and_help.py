@@ -145,7 +145,7 @@ class RobotProcessorWorkAreaTests(unittest.TestCase):
         self.assertIn('WORK_AREA_RADIUS_CHUNKS = 3;', s)
         self.assertIn('Math.abs((long) chunkX - centerChunkX) <= WORK_AREA_RADIUS_CHUNKS', s)
         self.assertIn('Math.abs((long) chunkZ - centerChunkZ) <= WORK_AREA_RADIUS_CHUNKS', s)
-        self.assertIn('super.setArea(index, limitToWorkArea(area, worldPosition));', s)
+        self.assertIn('layers[index] = getDiskLayout().clip(area, worldPosition);', s)
         self.assertIn('plan.copyChunksMatching(', s)
         for cx, cz in [(0,0),(-1,-1),(224,-301)]:
             seen = {(x,z) for x in range(cx-7,cx+8) for z in range(cz-7,cz+8)

@@ -21,11 +21,11 @@ class RobotProcessorQueueAndNames(unittest.TestCase):
         for part in ('MIN_EXECUTION_QUEUE = 1', 'MAX_EXECUTION_QUEUE = 8',
                      'DEFAULT_EXECUTION_QUEUE = 5', 'setMaxExecutionQueue(int value)',
                      'Math.max(MIN_EXECUTION_QUEUE', 'setChanged();',
-                     'data.writeInt("maxExecutionQueue", maxExecutionQueue)',
-                     'tag.putInt("maxExecutionQueue", maxExecutionQueue)',
+                     'data.putInt("maxExecutionQueue", maxExecutionQueue)',
+                     'diskInt(data, "maxExecutionQueue")',
                      'getMaxExecutionQueue()'):
             self.assertIn(part, s)
-        for part in ('ID_QUEUE_STATE', 'ID_SET_QUEUE', 'sendMessage(ID_SET_QUEUE',
+        for part in ('ID_QUEUE_STATE', 'ID_SET_QUEUE', 'sendEditorMessage(ID_SET_QUEUE',
                      'NetworkSecurity.requireRange(buffer.readUnsignedByte()',
                      'stillValid(playerInventory.player)',
                      'processor.setMaxExecutionQueue(limit)'):
@@ -38,9 +38,9 @@ class RobotProcessorQueueAndNames(unittest.TestCase):
         menu = MENU.read_text()
         for part in ('linkedRobotIds.contains(robotId)', 'linkedStations.contains(key)',
                      'serializeRobotNames()', 'serializeStationNames()',
-                     'restoreNames(', 'data.writeString("robotNames"',
-                     'data.writeString("stationNames"', 'tag.putString("robotNames"',
-                     'tag.putString("stationNames"', 'robotNames.remove(robotId)',
+                     'restoreNames(', 'data.putString("robotNames"',
+                     'data.putString("stationNames"', 'diskString(data, "robotNames")',
+                     'diskString(data, "stationNames")', 'robotNames.remove(robotId)',
                      'stationNames.remove(new StationKey(pos, side))'):
             self.assertIn(part, s)
         self.assertIn('ID_RENAME_ROBOT', menu)
@@ -117,7 +117,8 @@ class QueueLiveSyncTests(unittest.TestCase):
         self.assertIn("persistedMiningWork = workScheduler.pendingWorkSnapshot()", segment)
         self.assertIn("workScheduler.onRemoved()", segment)
         self.assertNotIn("setChanged();", segment)
-        self.assertIn('data.writeLongArray("pendingMiningWork", savedMiningWork())', src)
+        self.assertIn('ItemHardDisk.write(hardDisk.getStackInSlot(0), data)', src)
+        self.assertNotIn('data.writeLongArray("pendingMiningWork", savedMiningWork())', src)
 
 
 if __name__ == "__main__":

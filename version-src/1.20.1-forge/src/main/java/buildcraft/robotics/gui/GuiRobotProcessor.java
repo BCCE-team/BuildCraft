@@ -237,6 +237,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
 
     /** Hover only; cargo rows are not real slots and never accept clicks. */
     private CargoEntry hoveredCargo(double mouseX, double mouseY) {
+        if (!processorControlsEnabled()) return null;
         if (stationMode || !inCargoWindow(mouseX, mouseY)
                 || processorMenu.getCargoRobotId() != selectedRobotId) return null;
         int row = (int) (mouseY - topPos - CARGO_Y) / CARGO_ROW_HEIGHT;
@@ -325,6 +326,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     }
     /** The server sends all counters; the tooltip never scans the world or computes paths. */
     private List<Component> diagnosticLines(int mouseX, int mouseY) {
+        if (!processorControlsEnabled()) return List.of();
         int x = mouseX - leftPos, y = mouseY - topPos;
         if (x >= 215 && x < 317 && y >= 108 && y < 135) {
             if (hasShiftDown()) {
@@ -370,6 +372,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     private List<Component> contextualHelp(int mouseX, int mouseY) {
         int x = mouseX - leftPos, y = mouseY - topPos;
         if (RobotProcessorPowerGauge.contains(x, y)) return RobotProcessorUiText.energyTooltip(processorMenu);
+        if (!processorControlsEnabled()) return List.of();
         if (renaming && inRenameField(mouseX, mouseY)) return RobotProcessorUiText.help("rename_editor");
         if (inModeButton(mouseX, mouseY)) return RobotProcessorUiText.help(
                 stationMode ? "mode_robots" : "mode_stations");
@@ -462,6 +465,19 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     @Override
     protected void drawBackgroundLayer(PoseStack pose, int mouseX, int mouseY, float partialTicks) {
         super.drawBackgroundLayer(pose, mouseX, mouseY, partialTicks);
+        if (!processorControlsEnabled()) {
+            if (renaming) finishRenaming(false);
+            draggingScrollbar = draggingCargoScrollbar = false;
+            selectedRobotId = -1L; selectedStationSide = -1;
+            listOffset = cargoOffset = 0;
+            String label = !processorMenu.diskPresent() ? "disk.required"
+                    : !processorMenu.diskMounted() ? "disk.invalid" : "disk.power";
+            panelText(pose, RobotProcessorUiText.text(label), 215, 44, 108, 0xFFA02424);
+            String machineTitle = fitText(title.getString(), 202);
+            panelText(pose, machineTitle, 157 - font.width(machineTitle) / 2, 6, 202, 0xFF404040);
+            renderEnergyGauge(pose);
+            return;
+        }
         lastMouseX = mouseX;
         lastMouseY = mouseY;
         GuiIcon icon = stationMode
@@ -744,6 +760,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
 
     @Override
     public boolean mouseClicked(double x, double y, int button) {
+        if (!processorControlsEnabled()) return super.mouseClicked(x, y, button);
         if (button == 0 && inCargoScrollbar(x, y) && cargoSize() > CARGO_ROWS) {
             draggingCargoScrollbar = true;
             scrollCargoTo(y);
@@ -810,6 +827,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int mouseButton, double dragX, double dragY) {
+        if (!processorControlsEnabled()) return super.mouseDragged(mouseX, mouseY, mouseButton, dragX, dragY);
         if (draggingCargoScrollbar && mouseButton == 0) {
             scrollCargoTo(mouseY);
             return true;
@@ -823,6 +841,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (!processorControlsEnabled()) return super.mouseReleased(mouseX, mouseY, button);
         if (draggingCargoScrollbar && button == 0) {
             draggingCargoScrollbar = false;
             return true;
@@ -836,6 +855,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (!processorControlsEnabled()) return super.keyPressed(keyCode, scanCode, modifiers);
         if (renaming) {
             if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
                 finishRenaming(true);
@@ -859,12 +879,14 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
 
     @Override
     public boolean charTyped(char value, int modifiers) {
+        if (!processorControlsEnabled()) return super.charTyped(value, modifiers);
         if (renaming) return renameField.charTyped(value, modifiers);
         return super.charTyped(value, modifiers);
     }
 
     @Override
     public boolean mouseScrolled(double x, double y, double delta) {
+        if (!processorControlsEnabled()) return super.mouseScrolled(x, y, delta);
         if (inCargoWindow(x, y) || inCargoScrollbar(x, y)) {
             cargoScrollBy(delta > 0 ? -1 : 1);
             return true;

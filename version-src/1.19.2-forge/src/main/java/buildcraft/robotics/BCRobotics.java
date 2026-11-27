@@ -120,6 +120,10 @@ public class BCRobotics {
         BCRoboticsPlugs.preInit();
         BCRoboticsBlocks.registry(RegistryBinding.on(modEventBus));
         BCRoboticsItems.registry(RegistryBinding.on(modEventBus));
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.addListener(
+                (net.minecraftforge.event.level.ExplosionEvent.Detonate event) -> event.getAffectedEntities().removeIf(
+                        entity -> entity instanceof net.minecraft.world.entity.item.ItemEntity item
+                                && buildcraft.robotics.item.ItemHardDisk.isDisk(item.getItem())));
         BCRoboticsEntities.registry(RegistryBinding.on(modEventBus));
         BCRoboticsGuis.registry(RegistryBinding.on(modEventBus));
 

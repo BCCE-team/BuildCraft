@@ -233,6 +233,11 @@ public class RobotStationPluggable extends PipePluggable implements IDockingStat
             }
 
             EntityRobotBase releasedRobot = station.robotTaking();
+            if (releasedRobot == null ? !buildcraft.robotics.item.RobotItemIdentity.operator(player)
+                    : !buildcraft.robotics.item.RobotItemIdentity.canManage(releasedRobot, player,
+                            player.getItemInHand(EntityUtil.getWrenchHand(player)))) {
+                return InteractionResult.FAIL;
+            }
             station.forceRelease();
             if (releasedRobot instanceof EntityRobot robot) {
                 robot.releaseMainStationForPlayer(station);

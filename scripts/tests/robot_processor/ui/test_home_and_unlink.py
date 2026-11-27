@@ -60,7 +60,7 @@ class RobotProcessorHomeAndUnlinkTests(unittest.TestCase):
         self.assertIn('processor.isRobotLinked(robotId)', menu)
         self.assertIn('processor.unlinkStation(pos, Direction.from3DDataValue(direction))', menu)
         self.assertIn('NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0, 5', menu)
-        self.assertIn('replaceSlot(2, new SlotBase(', menu)
+        self.assertIn('replaceSlot(HDD_SLOT, new SlotBase(disk, 0, HDD_X, HDD_Y))', menu)
         self.assertIn('getLastKnownRobotPosition(robotId)', menu)
         self.assertNotIn('getLoadedRobots()', menu)
 

@@ -125,6 +125,7 @@ public abstract class DockingStation {
         robotTaking = robot;
         robotTakingId = robot.getRobotId();
         setLevel(robot.level());
+        RobotHomeLinks.keepOnly(robot, this);
         registry.registryMarkDirty();
         return true;
     }

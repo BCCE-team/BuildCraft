@@ -153,6 +153,12 @@ public class BCRobotics {
         BCRoboticsPlugs.preInit();
         BCRoboticsBlocks.registry(RegistryBinding.on(modEventBus));
         BCRoboticsItems.registry(RegistryBinding.on(modEventBus));
+        //? if <1.21.11 {
+        NeoForge.EVENT_BUS.addListener(
+                (net.neoforged.neoforge.event.level.ExplosionEvent.Detonate event) -> event.getAffectedEntities().removeIf(
+                        entity -> entity instanceof net.minecraft.world.entity.item.ItemEntity item
+                                && buildcraft.robotics.item.ItemHardDisk.isDisk(item.getItem())));
+        //?}
         BCRoboticsEntities.registry(RegistryBinding.on(modEventBus));
         BCRoboticsGuis.registry(RegistryBinding.on(modEventBus));
         TAB_ROBOTICS.addItemProvider(BCRoboticsItems::getRoboticsTabItems);

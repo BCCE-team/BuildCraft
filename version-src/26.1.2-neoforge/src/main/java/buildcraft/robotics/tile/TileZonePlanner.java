@@ -248,6 +248,14 @@ public class TileZonePlanner extends TileBC_Neptune implements IDebuggable, Menu
         sendNetworkUpdate(NET_RENDER_DATA);
     }
 
+    /** Processor media swaps replace all layers atomically. */
+    protected final void notifyZoneMediaChanged() {
+        zoneRevision++;
+        outboundLayers.clear();
+        setChanged();
+        sendNetworkUpdate(NET_RENDER_DATA);
+    }
+
     public int getCurrentSelectedArea() {
         return currentSelectedArea;
     }

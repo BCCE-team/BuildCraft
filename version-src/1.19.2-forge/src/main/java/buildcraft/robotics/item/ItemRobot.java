@@ -141,22 +141,36 @@ public class ItemRobot extends Item {
         if (robot == null || robot.getRegistry() == null) {
             return InteractionResult.SUCCESS;
         }
-        robot.setOwner(player.getGameProfile());
+        long savedId = RobotItemIdentity.preparePlacement(currentItem, robot, player);
+        if (savedId < 0) return InteractionResult.FAIL;
         if (RobotEventSupport.denied(RobotEventKind.PLACE, robot, player, currentItem)) {
             return InteractionResult.SUCCESS;
         }
 
-        robot.setUniqueRobotId(robot.getRegistry().getNextRobotId());
-        BlockPos pos = tile.getPipePos();
-        robot.setPos(pos.getX() + 0.5D + side.getStepX() * 0.5D,
-                pos.getY() + 0.5D + side.getStepY() * 0.5D,
-                pos.getZ() + 0.5D + side.getStepZ() * 0.5D);
-        if (station.takeAsMain(robot)) {
-            robot.dock(robot.getLinkedStation());
-            level.addFreshEntity(robot);
-            tile.scheduleRenderUpdate();
-            if (!player.isCreative()) {
-                currentItem.shrink(1);
+        var registry = robot.getRegistry();
+        if (!RobotItemIdentity.claimPlacement(currentItem, registry, savedId)) return InteractionResult.FAIL;
+        boolean placed = false;
+        try {
+            robot.setUniqueRobotId(savedId == 0 ? registry.getNextRobotId() : savedId);
+            BlockPos pos = tile.getPipePos();
+            robot.setPos(pos.getX() + 0.5D + side.getStepX() * 0.5D,
+                    pos.getY() + 0.5D + side.getStepY() * 0.5D,
+                    pos.getZ() + 0.5D + side.getStepZ() * 0.5D);
+            if (station.takeAsMain(robot)) {
+                robot.dock(robot.getLinkedStation());
+                if (level.addFreshEntity(robot)) {
+                    placed = true;
+                    // A packed identity is single use even in Creative mode.
+                    if (savedId > 0 || !player.isCreative()) currentItem.shrink(1);
+                    tile.scheduleRenderUpdate();
+                    return InteractionResult.SUCCESS;
+                }
+            }
+        } finally {
+            // Failed placement must not leave a ghost robot or burn the one-use identity.
+            if (!placed) {
+                if (registry.getLoadedRobot(robot.getRobotId()) == robot) registry.killRobot(robot);
+                RobotItemIdentity.cancelPlacement(currentItem, registry, savedId);
             }
         }
         return InteractionResult.SUCCESS;

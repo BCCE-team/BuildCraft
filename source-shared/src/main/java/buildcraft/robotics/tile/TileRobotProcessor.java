@@ -34,9 +34,7 @@ import buildcraft.robotics.scheduler.RobotWorkIndex;
 import buildcraft.robotics.item.ItemRobotController;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
-//? if <1.21.1 {
 import net.minecraft.nbt.CompoundTag;
-//?}
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.phys.BlockHitResult;
 //? if >=1.21.1 {
@@ -45,6 +43,10 @@ import buildcraft.lib.compat.minecraft.persistence.BCValueOutput;
 //?}
 import buildcraft.robotics.container.ContainerRobotProcessor;
 import buildcraft.robotics.zone.ZonePlan;
+import buildcraft.robotics.zone.ProcessorDiskLayout;
+import buildcraft.robotics.item.ItemHardDisk;
+import buildcraft.robotics.BCRoboticsItems;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -70,6 +72,197 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     private final MjBattery processorBattery = new MjBattery(ENERGY_CAPACITY);
     private long lastStoredEnergy, requestedPower, consumedPower;
     private boolean schedulerRunning;
+    private boolean diskMounted;
+    private boolean diskFault;
+    private boolean loadingDisk;
+    private String linkDimension = "";
+    private String diskIdentity = "";
+    private transient buildcraft.robotics.internal.legacy.robots.IRobotRegistry linkRegistry;
+    private ProcessorDiskLayout diskLayout;
+    private byte[] diskPaint;
+    private int mediaRevision;
+
+    public final ItemHandlerSimple hardDisk = itemManager.addInvHandler("hardDisk", 1,
+            (slot, stack) -> stack.isEmpty() || ItemHardDisk.isDisk(stack), EnumAccess.NONE);
+
+    public boolean hasHardDisk() { return ItemHardDisk.isDisk(hardDisk.getStackInSlot(0)); }
+    public boolean hasMountedDisk() { return hasHardDisk() && diskMounted && !diskFault; }
+    public int getMediaRevision() { return mediaRevision; }
+    public ProcessorDiskLayout getDiskLayout() {
+        return diskLayout == null ? ProcessorDiskLayout.at(worldPosition) : diskLayout;
+    }
+    public int workMinX() { return getDiskLayout().minX(worldPosition); }
+    public int workMinZ() { return getDiskLayout().minZ(worldPosition); }
+    public boolean stationInRange(BlockPos pos) {
+        return getDiskLayout().contains(worldPosition, pos.getX(), pos.getZ()) && linksInThisDimension();
+    }
+    public boolean isOperational() {
+        if (!hasMountedDisk() || isPhysicsOperationPaused()) return false;
+        long required = Math.max(RobotProcessorPower.BASE_PER_TICK, requestedPower);
+        return consumedPower > 0 || getStoredEnergy() >= required;
+    }
+    private String currentDimension() {
+        if (level == null) return "";
+        return level.dimension().location().toString();
+    }
+    private boolean linksInThisDimension() { return linkDimension.equals(currentDimension()); }
+
+    private static int diskInt(CompoundTag t, String key) {
+        //? if >=1.21.11 {
+        return buildcraft.lib.compat.NbtCompat.getInt(t, key);
+        //?} else {
+        return t.getInt(key);
+        //?}
+    }
+    private static String diskString(CompoundTag t, String key) {
+        //? if >=1.21.11 {
+        return buildcraft.lib.compat.NbtCompat.getString(t, key);
+        //?} else {
+        return t.getString(key);
+        //?}
+    }
+    private static long[] diskLongs(CompoundTag t, String key) {
+        //? if >=1.21.11 {
+        return buildcraft.lib.compat.NbtCompat.getLongArray(t, key);
+        //?} else {
+        return t.getLongArray(key);
+        //?}
+    }
+    private static int[] diskInts(CompoundTag t, String key) {
+        //? if >=1.21.11 {
+        return buildcraft.lib.compat.NbtCompat.getIntArray(t, key);
+        //?} else {
+        return t.getIntArray(key);
+        //?}
+    }
+    private static byte[] diskBytes(CompoundTag t, String key) {
+        //? if >=1.21.11 {
+        return buildcraft.lib.compat.NbtCompat.getByteArray(t, key);
+        //?} else {
+        return t.getByteArray(key);
+        //?}
+    }
+
+    /** Write through on durable edits, before any menu extraction can copy the stack. */
+    private void saveDisk(boolean paintChanged) {
+        if (loadingDisk || !hasMountedDisk() || !(level instanceof ServerLevel)) return;
+        if (paintChanged || diskPaint == null) diskPaint = getDiskLayout().encode(layers, worldPosition);
+        CompoundTag data = new CompoundTag();
+        data.putInt("format", ItemHardDisk.FORMAT);
+        data.putInt("offsetX", getDiskLayout().offsetX());
+        data.putInt("offsetZ", getDiskLayout().offsetZ());
+        data.putByteArray("paint", diskPaint);
+        data.putString("dimension", linkDimension);
+        data.putString("diskIdentity", diskIdentity);
+        data.putString("name", mapName);
+        data.putInt("selectedLayer", getCurrentSelectedArea());
+        data.putInt("maxExecutionQueue", maxExecutionQueue);
+        data.putLongArray("linkedRobots", savedRobotIds());
+        data.putLongArray("knownRobotPositions", savedRobotPositions());
+        data.putLongArray("linkedStations", savedStationPositions());
+        data.putIntArray("linkedStationSides", savedStationSides());
+        data.putString("robotNames", serializeRobotNames());
+        data.putString("stationNames", serializeStationNames());
+        ItemHardDisk.write(hardDisk.getStackInSlot(0), data);
+        setChanged();
+    }
+
+    private void resetDiskRuntime() {
+        stopScheduling();
+        workScheduler.onRemoved();
+        workScheduler.onLinkChanged();
+        Set<ChunkPos> obsoleteTickets = new HashSet<>(legacyForcedTicketCleanup);
+        for (long id : forceLoadedRobotIds) {
+            BlockPos pos = lastKnownRobotPositions.get(id);
+            if (pos != null) obsoleteTickets.add(new ChunkPos(pos.getX() >> 4, pos.getZ() >> 4));
+        }
+        loadLinks(new long[0], new long[0], new int[0], new long[0], new long[0]);
+        legacyForcedTicketCleanup.addAll(obsoleteTickets);
+        persistedMiningWork = new long[0];
+        persistedCatalog = RobotWorkIndex.CatalogSnapshot.empty();
+        for (int i = 0; i < layers.length; i++) layers[i] = new ZonePlan();
+        super.selectArea(0);
+        mapName = "";
+        maxExecutionQueue = DEFAULT_EXECUTION_QUEUE;
+        diskLayout = ProcessorDiskLayout.at(worldPosition);
+        diskPaint = null;
+        diskIdentity = "";
+        linkRegistry = null;
+        linkDimension = currentDimension();
+        requestedPower = consumedPower = 0;
+        diskMounted = false;
+        diskFault = false;
+    }
+
+    private void mountDisk() {
+        loadingDisk = true;
+        try {
+            resetDiskRuntime();
+            ItemStack stack = hardDisk.getStackInSlot(0);
+            if (!ItemHardDisk.isDisk(stack)) return;
+            if (ItemHardDisk.initialized(stack)) {
+                CompoundTag data = ItemHardDisk.read(stack);
+                if (diskInt(data, "format") != ItemHardDisk.FORMAT) throw new IllegalArgumentException("Unknown HDD format");
+                diskLayout = new ProcessorDiskLayout(diskInt(data, "offsetX"), diskInt(data, "offsetZ"));
+                if (!data.contains("paint")) throw new IllegalArgumentException("Missing HDD paint data");
+                diskPaint = diskBytes(data, "paint");
+                ZonePlan[] decoded = diskLayout.decode(diskPaint, worldPosition);
+                System.arraycopy(decoded, 0, layers, 0, layers.length);
+                linkDimension = diskString(data, "dimension");
+                diskIdentity = diskString(data, "diskIdentity");
+                Set<ChunkPos> obsoleteTickets = new HashSet<>(legacyForcedTicketCleanup);
+                loadLinks(diskLongs(data, "linkedRobots"), diskLongs(data, "linkedStations"),
+                        diskInts(data, "linkedStationSides"), diskLongs(data, "knownRobotPositions"), new long[0]);
+                legacyForcedTicketCleanup.addAll(obsoleteTickets);
+                restoreNames(diskString(data, "robotNames"), diskString(data, "stationNames"));
+                maxExecutionQueue = Math.max(MIN_EXECUTION_QUEUE, Math.min(MAX_EXECUTION_QUEUE, diskInt(data, "maxExecutionQueue")));
+                super.selectArea(diskInt(data, "selectedLayer"));
+                super.setMapName(diskString(data, "name"));
+            }
+            if (diskIdentity.isEmpty()) diskIdentity = java.util.UUID.randomUUID().toString();
+            else java.util.UUID.fromString(diskIdentity); // Preserve unreadable media rather than assigning a new identity.
+            diskMounted = true;
+            reconcileControllerLinks(true);
+        } catch (RuntimeException invalidDisk) {
+            resetDiskRuntime();
+            diskFault = true; // Preserve unreadable data verbatim; never silently format it.
+        } finally {
+            loadingDisk = false;
+            mediaRevision++;
+            notifyZoneMediaChanged();
+        }
+        saveDisk(false);
+    }
+
+    private void diskChanged(ItemStack before, ItemStack after) {
+        if (loadingDisk || !(level instanceof ServerLevel)) return;
+        // Slot#setChanged may notify with the exact same stack after a normal click.
+        if (before == after && diskMounted) return;
+        mountDisk();
+    }
+
+    private void restoreMediaOnLoad() {
+        if (!(level instanceof ServerLevel)) return;
+        if (hasHardDisk()) { mountDisk(); return; }
+        // One-time migration for configured legacy processors. New empty blocks do not get a free disk.
+        boolean legacy = !linkedRobotIds.isEmpty() || !linkedStations.isEmpty() || !mapName.isEmpty()
+                || maxExecutionQueue != DEFAULT_EXECUTION_QUEUE;
+        for (ZonePlan layer : layers) legacy |= !layer.getChunkMapping().isEmpty();
+        if (legacy) {
+            loadingDisk = true;
+            try { hardDisk.setStackInSlot(0, new ItemStack(BCRoboticsItems.HARD_DISK.get())); }
+            finally { loadingDisk = false; }
+            linkDimension = currentDimension();
+            diskLayout = ProcessorDiskLayout.at(worldPosition);
+            diskIdentity = java.util.UUID.randomUUID().toString();
+            diskMounted = true;
+            reconcileControllerLinks(true);
+            saveDisk(true);
+            mediaRevision++;
+            notifyZoneMediaChanged();
+        } else mountDisk();
+    }
+
 
     public long getStoredEnergy() { return processorBattery.getStored(); }
     public long getRequestedPower() { return requestedPower; }
@@ -85,11 +278,11 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     /** Charge for loaded linked robots, even if they are sleeping at a dock.
      * Unloaded/offline robots do not require scheduling work. */
     private int loadedLinkedRobotCount() {
-        if (RobotManager.registryProvider == null || level == null) return 0;
-        var registry = RobotManager.registryProvider.getRegistry(level);
+        if (!hasMountedDisk() || !linksInThisDimension() || RobotManager.registryProvider == null || level == null) return 0;
+        var registry = controllerRegistry();
         if (registry == null) return 0;
         int count = 0;
-        for (long id : linkedRobotIds) {
+        for (long id : getLinkedRobotIds()) {
             EntityRobotBase robot = registry.getLoadedRobot(id);
             if (robot != null && !robot.isRemoved()) count++;
         }
@@ -166,11 +359,12 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     }
 
     public void setMaxExecutionQueue(int value) {
+        if (!isOperational()) return;
         int clamped = Math.max(MIN_EXECUTION_QUEUE, Math.min(MAX_EXECUTION_QUEUE, value));
         if (maxExecutionQueue != clamped) {
             maxExecutionQueue = clamped;
             workScheduler.onQueueLimitChanged();
-            setChanged();
+            saveDisk(false);
         }
     }
 
@@ -189,21 +383,21 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     }
 
     public boolean renameRobot(long robotId, String name) {
-        if (!linkedRobotIds.contains(robotId)) return false;
+        if (!isRobotLinked(robotId)) return false;
         String clean = normalizeLinkName(name);
         if (clean.isEmpty()) robotNames.remove(robotId);
         else robotNames.put(robotId, clean);
-        setChanged();
+        saveDisk(false);
         return true;
     }
 
     public boolean renameStation(BlockPos pos, Direction side, String name) {
         StationKey key = new StationKey(pos, side);
-        if (!linkedStations.contains(key)) return false;
+        if (!isOperational() || !linksInThisDimension() || !linkedStations.contains(key)) return false;
         String clean = normalizeLinkName(name);
         if (clean.isEmpty()) stationNames.remove(key);
         else stationNames.put(key, clean);
-        setChanged();
+        saveDisk(false);
         return true;
     }
 
@@ -268,6 +462,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     /** Soft persistent discovery catalog; claims and real work remain transient. */
     private final RobotProcessorWorkScheduler workScheduler = new RobotProcessorWorkScheduler(this);
     private boolean chunkTicketsDirty = true;
+    private boolean lastOperationalForTickets;
     private int chunkLoadingStartupDelay = 40;
     /** A 7x7 square of chunks centered on the chunk containing this machine. */
     public static final int WORK_AREA_RADIUS_CHUNKS = 3;
@@ -305,8 +500,8 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
      * the full 7x7 area, matching the initial configuration without a map.
      */
     public boolean allowsWorkPosition(BlockPos target) {
-        if (isPhysicsOperationPaused()) return false;
-        if (!isWithinWorkArea(worldPosition, target.getX() >> 4, target.getZ() >> 4)) return false;
+        if (!isOperational()) return false;
+        if (!getDiskLayout().contains(worldPosition, target.getX(), target.getZ())) return false;
         boolean hasPaint = false;
         for (ZonePlan layer : layers) {
             if (!layer.getChunkMapping().isEmpty()) {
@@ -319,10 +514,24 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
 
     @Override
     public void setArea(int index, ZonePlan area) {
+        if (!(level instanceof ServerLevel) || !isOperational() || index < 0 || index >= layers.length) return;
+        layers[index] = getDiskLayout().clip(area, worldPosition);
         workScheduler.onLinkChanged();
-        // Enforce the limit on the server too: GUI packets and Map Location imports
-        // must not silently install a larger selection than this machine allows.
-        super.setArea(index, limitToWorkArea(area, worldPosition));
+        saveDisk(true);
+        notifyZoneMediaChanged();
+    }
+
+    @Override public ZonePlan selectArea(int index) {
+        int previous = getCurrentSelectedArea();
+        ZonePlan result = super.selectArea(index);
+        if (previous != getCurrentSelectedArea()) saveDisk(false);
+        return result;
+    }
+
+    @Override public void setMapName(String name) {
+        if (!isOperational()) return;
+        super.setMapName(name);
+        saveDisk(false);
     }
 
     public final ItemHandlerSimple storage = itemManager.addInvHandler(
@@ -338,21 +547,23 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     private final Set<StationKey> linkedStations = new LinkedHashSet<>();
 
     public List<StationKey> getLinkedStations() {
-        return List.copyOf(linkedStations);
+        return hasMountedDisk() && linksInThisDimension() ? List.copyOf(linkedStations) : List.of();
     }
 
     public boolean linkStation(BlockPos pos, Direction side) {
+        if (!isOperational() || !linksInThisDimension()) return false;
         if (pos == null || side == null || linkedStations.size() >= 64) return false;
         boolean added = linkedStations.add(new StationKey(pos.immutable(), side));
-        if (added) setChanged();
+        if (added) saveDisk(false);
         return added;
     }
 
     public boolean unlinkStation(BlockPos pos, Direction side) {
+        if (!isOperational() || !linksInThisDimension()) return false;
         boolean removed = linkedStations.remove(new StationKey(pos, side));
         if (removed) {
             stationNames.remove(new StationKey(pos, side));
-            setChanged();
+            saveDisk(false);
         }
         return removed;
     }
@@ -440,6 +651,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         loadLinks(data.readLongArray("linkedRobots"), data.readLongArray("linkedStations"),
                 data.readIntArray("linkedStationSides"),
                 data.readLongArray("knownRobotPositions"), data.readLongArray("forcedRobotChunks"));
+        restoreCleanupTickets(data.readLongArray("cleanupTickets"));
         maxExecutionQueue = Math.max(MIN_EXECUTION_QUEUE, Math.min(MAX_EXECUTION_QUEUE,
                 data.has("maxExecutionQueue") ? data.readInt("maxExecutionQueue") : DEFAULT_EXECUTION_QUEUE));
         restoreNames(data.readString("robotNames"), data.readString("stationNames"));
@@ -455,20 +667,8 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     protected void writeData(BCValueOutput data) {
         super.writeData(data);
         data.writeLong("processorEnergy", getStoredEnergy());
-        data.writeLongArray("linkedRobots", savedRobotIds());
-        data.writeLongArray("knownRobotPositions", savedRobotPositions());
-        data.writeLongArray("forcedRobotChunks", savedForceLoadedRobots());
-        data.writeLongArray("linkedStations", savedStationPositions());
-        data.writeIntArray("linkedStationSides", savedStationSides());
-        data.writeInt("maxExecutionQueue", maxExecutionQueue);
-        data.writeLongArray("pendingMiningWork", savedMiningWork());
-        RobotWorkIndex.CatalogSnapshot catalog = savedCatalog();
-        data.writeInt(CATALOG_VERSION_KEY, RobotWorkIndex.CATALOG_FORMAT);
-        data.writeString(CATALOG_TYPES_KEY, catalog.categories());
-        data.writeIntArray(CATALOG_COUNTS_KEY, catalog.counts());
-        data.writeLongArray(CATALOG_POSITIONS_KEY, catalog.positions());
-        data.writeString("robotNames", serializeRobotNames());
-        data.writeString("stationNames", serializeStationNames());
+        removeLegacyMapData(data.tag());
+        data.writeLongArray("cleanupTickets", cleanupTicketPositions());
     }
     //?} else {
     @Override
@@ -478,6 +678,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         loadLinks(tag.getLongArray("linkedRobots"), tag.getLongArray("linkedStations"),
                 tag.getIntArray("linkedStationSides"),
                 tag.getLongArray("knownRobotPositions"), tag.getLongArray("forcedRobotChunks"));
+        restoreCleanupTickets(tag.getLongArray("cleanupTickets"));
         maxExecutionQueue = Math.max(MIN_EXECUTION_QUEUE, Math.min(MAX_EXECUTION_QUEUE,
                 tag.contains("maxExecutionQueue") ? tag.getInt("maxExecutionQueue") : DEFAULT_EXECUTION_QUEUE));
         restoreNames(tag.getString("robotNames"), tag.getString("stationNames"));
@@ -493,30 +694,76 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     public void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
         tag.putLong("processorEnergy", getStoredEnergy());
-        tag.putLongArray("linkedRobots", savedRobotIds());
-        tag.putLongArray("knownRobotPositions", savedRobotPositions());
-        tag.putLongArray("forcedRobotChunks", savedForceLoadedRobots());
-        tag.putLongArray("linkedStations", savedStationPositions());
-        tag.putIntArray("linkedStationSides", savedStationSides());
-        tag.putInt("maxExecutionQueue", maxExecutionQueue);
-        tag.putLongArray("pendingMiningWork", savedMiningWork());
-        RobotWorkIndex.CatalogSnapshot catalog = savedCatalog();
-        tag.putInt(CATALOG_VERSION_KEY, RobotWorkIndex.CATALOG_FORMAT);
-        tag.putString(CATALOG_TYPES_KEY, catalog.categories());
-        tag.putIntArray(CATALOG_COUNTS_KEY, catalog.counts());
-        tag.putLongArray(CATALOG_POSITIONS_KEY, catalog.positions());
-        tag.putString("robotNames", serializeRobotNames());
-        tag.putString("stationNames", serializeStationNames());
+        removeLegacyMapData(tag);
+        tag.putLongArray("cleanupTickets", cleanupTicketPositions());
     }
     //?}
 
 
+    private long[] cleanupTicketPositions() {
+        Set<ChunkPos> chunks = new HashSet<>(legacyForcedTicketCleanup);
+        for (long id : forceLoadedRobotIds) {
+            BlockPos pos = lastKnownRobotPositions.get(id);
+            if (pos != null) chunks.add(new ChunkPos(pos.getX() >> 4, pos.getZ() >> 4));
+        }
+        // Pack the chunk coordinates with the same block-position codec used by links.
+        return chunks.stream().mapToLong(c -> new BlockPos(chunkX(c), 0, chunkZ(c)).asLong()).toArray();
+    }
+
+    private void restoreCleanupTickets(long[] encoded) {
+        for (int i = 0; i < Math.min(128, encoded.length); i++) {
+            BlockPos pos = BlockPos.of(encoded[i]);
+            legacyForcedTicketCleanup.add(new ChunkPos(pos.getX(), pos.getZ()));
+        }
+    }
+
+    private static void removeLegacyMapData(CompoundTag tag) {
+        tag.remove("name");
+        tag.remove("currentSelectedArea");
+        for (int i = 0; i < LAYER_COUNT; i++) {
+            tag.remove("selectedArea[" + i + "]");
+            tag.remove("layer_" + i);
+        }
+    }
+
+    private buildcraft.robotics.internal.legacy.robots.IRobotRegistry controllerRegistry() {
+        if (!(level instanceof ServerLevel) || RobotManager.registryProvider == null
+                || !hasMountedDisk() || !linksInThisDimension() || diskIdentity.isEmpty()) return null;
+        if (linkRegistry == null) linkRegistry = RobotManager.registryProvider.getRegistry(level);
+        return linkRegistry;
+    }
+
+    private boolean ownsRobotLink(long id) {
+        var registry = controllerRegistry();
+        return registry != null && registry.robotIdentities().controls(id, diskIdentity);
+    }
+
+    /** Never let a stale HDD reclaim a robot explicitly moved to a different HDD, even after unload. */
+    private void reconcileControllerLinks(boolean adoptLegacy) {
+        var registry = controllerRegistry();
+        if (registry == null || linkedRobotIds.isEmpty()) return;
+        var identities = registry.robotIdentities();
+        boolean changed = false;
+        for (long id : List.copyOf(linkedRobotIds)) {
+            boolean accepted = adoptLegacy ? identities.adopt(id, diskIdentity) : identities.controls(id, diskIdentity);
+            if (!accepted) changed |= removeLocalRobotLink(id);
+        }
+        if (adoptLegacy) registry.registryMarkDirty();
+        if (changed) {
+            workScheduler.onLinkChanged();
+            saveDisk(false);
+        }
+    }
+
     public List<Long> getLinkedRobotIds() {
-        return List.copyOf(linkedRobotIds);
+        var registry = controllerRegistry();
+        if (registry == null) return List.of();
+        var identities = registry.robotIdentities();
+        return linkedRobotIds.stream().filter(id -> identities.controls(id, diskIdentity)).toList();
     }
 
     public boolean isRobotLinked(long robotId) {
-        return linkedRobotIds.contains(robotId);
+        return isOperational() && linksInThisDimension() && linkedRobotIds.contains(robotId) && ownsRobotLink(robotId);
     }
 
     /** Called only by an explicit binding action, never from automatic discovery. */
@@ -525,14 +772,19 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     }
 
     public boolean linkRobot(long robotId, BlockPos location) {
-        if (robotId <= 0L || robotId == Long.MAX_VALUE || linkedRobotIds.size() >= MAX_LINKED_ROBOTS) return false;
-        boolean added = linkedRobotIds.add(robotId);
-        if (added) {
-            if (location != null) lastKnownRobotPositions.put(robotId, location.immutable());
-            workScheduler.onLinkChanged();
-            setChanged();
-        }
-        return added;
+        if (!isOperational() || !linksInThisDimension()) return false;
+        var registry = controllerRegistry();
+        if (registry == null || robotId <= 0L || robotId == Long.MAX_VALUE) return false;
+        reconcileControllerLinks(false);
+        // Check the destination capacity before invalidating the previous controller.
+        if (linkedRobotIds.contains(robotId) || linkedRobotIds.size() >= MAX_LINKED_ROBOTS) return false;
+        registry.robotIdentities().assign(robotId, diskIdentity);
+        registry.registryMarkDirty();
+        linkedRobotIds.add(robotId);
+        if (location != null) lastKnownRobotPositions.put(robotId, location.immutable());
+        workScheduler.onLinkChanged();
+        saveDisk(false);
+        return true;
     }
 
     public BlockPos getLastKnownRobotPosition(long robotId) {
@@ -541,33 +793,41 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
 
     /** Preserve the last known chunk even if the robot entity later unloads. */
     public void recordRobotPosition(long robotId, BlockPos pos) {
-        if (!linkedRobotIds.contains(robotId) || pos == null) return;
+        if (!hasMountedDisk() || !linksInThisDimension() || !linkedRobotIds.contains(robotId) || !ownsRobotLink(robotId) || pos == null) return;
         BlockPos previous = lastKnownRobotPositions.put(robotId, pos.immutable());
         if (!pos.equals(previous)) {
             if (forceLoadedRobotIds.contains(robotId) && (previous == null
                     || (previous.getX() >> 4) != (pos.getX() >> 4)
                     || (previous.getZ() >> 4) != (pos.getZ() >> 4))) chunkTicketsDirty = true;
-            setChanged();
+            saveDisk(false);
         }
     }
 
     public boolean unlinkRobot(long robotId) {
-        boolean removed = linkedRobotIds.remove(robotId);
-        if (removed) {
-            robotNames.remove(robotId);
-            lastKnownRobotPositions.remove(robotId);
-            workScheduler.onLinkChanged();
-            forceChunkExpiries.remove(robotId);
-            if (forceLoadedRobotIds.remove(robotId)) chunkTicketsDirty = true;
-            setChanged();
-        }
-        return removed;
+        if (!isOperational() || !linksInThisDimension()) return false;
+        var registry = controllerRegistry();
+        if (registry == null || !ownsRobotLink(robotId)) return false;
+        if (!removeLocalRobotLink(robotId)) return false;
+        registry.robotIdentities().release(robotId, diskIdentity);
+        registry.registryMarkDirty();
+        workScheduler.onLinkChanged();
+        saveDisk(false);
+        return true;
+    }
+
+    private boolean removeLocalRobotLink(long robotId) {
+        if (!linkedRobotIds.remove(robotId)) return false;
+        robotNames.remove(robotId);
+        lastKnownRobotPositions.remove(robotId);
+        forceChunkExpiries.remove(robotId);
+        if (forceLoadedRobotIds.remove(robotId)) chunkTicketsDirty = true;
+        return true;
     }
 
     /** Force-load only explicitly linked robots, using BC's owner-scoped tickets. */
     public boolean forceRobotChunk(long robotId) {
-        if (isPhysicsOperationPaused()) return false;
-        if (!(level instanceof ServerLevel server) || !linkedRobotIds.contains(robotId)
+        if (!isOperational()) return false;
+        if (!(level instanceof ServerLevel server) || !isRobotLinked(robotId)
                 || !lastKnownRobotPositions.containsKey(robotId)) return false;
         if (BCLibConfig.chunkLoadingType == BCLibConfig.ChunkLoaderType.OFF
                 || (BCLibConfig.chunkLoadingType == BCLibConfig.ChunkLoaderType.AUTO
@@ -589,7 +849,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
 
     @Override
     public Set<ChunkPos> getChunksToLoad() {
-        if (isPhysicsOperationPaused()) return java.util.Collections.emptySet();
+        if (!isOperational()) return java.util.Collections.emptySet();
         Set<ChunkPos> chunks = new HashSet<>();
         for (long id : forceLoadedRobotIds) {
             BlockPos pos = lastKnownRobotPositions.get(id);
@@ -605,14 +865,8 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         schedulerSuspended = false;
         schedulerRunning = false;
         requestedPower = consumedPower = 0;
+        restoreMediaOnLoad();
         workScheduler.onLinkChanged();
-        workScheduler.restorePendingWork(persistedMiningWork);
-        if (level instanceof ServerLevel) {
-            workScheduler.restoreCatalog(persistedCatalog);
-            // The scheduler owns the restored positions now. Do not hold a
-            // second large NBT array in the tile throughout its lifetime.
-            persistedCatalog = RobotWorkIndex.CatalogSnapshot.empty();
-        }
         // Avoid ticket operations inside the owner's chunk load future.
         chunkLoadingStartupDelay = 40;
     }
@@ -624,24 +878,27 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     public void update() {
         super.update();
         if (!(level instanceof ServerLevel server)) return;
-        if (isPhysicsOperationPaused()) {
+        reconcileControllerLinks(false);
+        if (!hasMountedDisk() || isPhysicsOperationPaused()) {
             requestedPower = 0;
             stopScheduling();
-            markEnergyChanged();
-            return;
-        }
-        // The battery and rate are in micro-MJ. Never spend a partial tick's
-        // cost or execute scheduler work for free when the supply is empty.
-        requestedPower = RobotProcessorPower.requiredPerTick(loadedLinkedRobotCount());
-        if (requestedPower > 0 && processorBattery.extractPower(requestedPower)) {
-            consumedPower = requestedPower;
-            schedulerRunning = true;
-            workScheduler.tick(server);
         } else {
-            stopScheduling();
+            // Do not execute scheduler work without enough MJ for the full tick.
+            requestedPower = RobotProcessorPower.requiredPerTick(loadedLinkedRobotCount());
+            if (requestedPower > 0 && processorBattery.extractPower(requestedPower)) {
+                consumedPower = requestedPower;
+                schedulerRunning = true;
+                workScheduler.tick(server);
+            } else {
+                stopScheduling();
+            }
         }
         long now = server.getGameTime();
-        workScheduler.flushCatalogDirty(now);
+        if (hasMountedDisk()) workScheduler.flushCatalogDirty(now);
+        if (lastOperationalForTickets != isOperational()) {
+            lastOperationalForTickets = isOperational();
+            chunkTicketsDirty = true;
+        }
         markEnergyChanged();
         if (forceLoadedRobotIds.removeIf(id -> now >= forceChunkExpiries.getOrDefault(id, now))) {
             forceChunkExpiries.keySet().retainAll(forceLoadedRobotIds);
@@ -711,6 +968,11 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
 
     public TileRobotProcessor(BlockPos pos, BlockState state) {
         super(BCRoboticsBlocks.ROBOT_PROCESSOR_TILE.get(), pos, state);
+        hardDisk.setLimitedInsertor(1);
+        hardDisk.setCallback((handler, slot, before, after) -> {
+            diskChanged(before, after);
+            if (level != null) itemManager.callback.onStackChange(handler, slot, before, after);
+        });
         caps.addProvider(new MjCapabilityHelper(new MjRedstoneBatteryReceiver(processorBattery)));
     }
 

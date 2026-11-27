@@ -121,10 +121,8 @@ public final class RobotPickupScheduler {
         // only currently loaded entities and do not force-load other chunks.
         int centerX = panel.getBlockPos().getX() >> 4;
         int centerZ = panel.getBlockPos().getZ() >> 4;
-        int minX = (centerX - TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS) << 4;
-        int minZ = (centerZ - TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS) << 4;
-        int maxX = (centerX + TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS + 1) << 4;
-        int maxZ = (centerZ + TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS + 1) << 4;
+        int minX = panel.workMinX(), minZ = panel.workMinZ();
+        int maxX = minX + 112, maxZ = minZ + 112;
         AABB bounds = new AABB(minX, level.getMinBuildHeight(), minZ,
                 maxX, level.getMaxBuildHeight(), maxZ);
         List<ItemEntity> nearby = level.getEntitiesOfClass(ItemEntity.class, bounds,

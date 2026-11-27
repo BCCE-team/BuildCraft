@@ -11,6 +11,7 @@ import buildcraft.lib.gui.slot.SlotBase;
 import buildcraft.lib.gui.slot.SlotOutput;
 import buildcraft.lib.misc.data.IdAllocator;
 import buildcraft.lib.net.NetworkSecurity;
+import buildcraft.lib.net.IPayloadWriter;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
 import buildcraft.robotics.BCRoboticsGuis;
 import buildcraft.robotics.tile.TileZonePlanner;
@@ -31,7 +32,7 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
     private static final int ID_AREA_LOADED = IDS.allocId("AREA_LOADED");
     private static final int ID_SET_NAME = IDS.allocId("SET_NAME");
     private static final int ID_SAVE_AREA_PART = IDS.allocId("SAVE_AREA_PART");
-    private static final int ID_AREA_LOADED_PART = IDS.allocId("AREA_LOADED_PART");
+    protected static final int ID_AREA_LOADED_PART = IDS.allocId("AREA_LOADED_PART");
     private final ZoneTransferCodec.Assembler incomingSave = new ZoneTransferCodec.Assembler();
     private final ZoneTransferCodec.Assembler incomingLoad = new ZoneTransferCodec.Assembler();
     private int transferSerial;
@@ -97,15 +98,25 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
         return IDS;
     }
 
+    protected final void resetAreaTransfers() {
+        incomingSave.reset();
+        incomingLoad.reset();
+    }
+
+    protected void sendEditorMessage(int id, IPayloadWriter writer) { sendMessage(id, writer); }
+
+    protected boolean isPortableMediaMenu() { return false; }
+    protected void onAreaReceived(int index) { }
+
     public void loadArea(int index) {
         if (index < 0 || index >= TileZonePlanner.LAYER_COUNT) {
             return;
         }
         currentLayer = index;
-        if (tile != null) {
+        if (tile != null && !isPortableMediaMenu()) {
             currentAreaSelection = new ZonePlan(tile.selectArea(index));
         }
-        sendMessage(ID_LOAD_AREA, buffer -> buffer.writeByte(index));
+        sendEditorMessage(ID_LOAD_AREA, buffer -> buffer.writeByte(index));
     }
 
     public void saveArea(int index, ZonePlan area) {
@@ -114,26 +125,28 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
         }
         currentLayer = index;
         currentAreaSelection = new ZonePlan(area);
-        if (tile != null) {
+        if (tile != null && !isPortableMediaMenu()) {
             tile.layers[index] = new ZonePlan(area);
         }
         sendAreaParts(ID_SAVE_AREA_PART, index, area);
     }
 
     /** Existing map layers can exceed the vanilla packet limit. Transfer them in <=8KiB parts. */
-    private void sendAreaParts(int messageId, int index, ZonePlan zone) {
+    protected final void sendAreaParts(int messageId, int index, ZonePlan zone) {
         byte[] payload = ZoneTransferCodec.encode(zone);
         int serial = ++transferSerial;
         for (int offset = 0; offset < payload.length; offset += ZoneTransferCodec.PART_BYTES) {
             byte[] part = ZoneTransferCodec.part(payload, offset);
             final int partOffset = offset;
-            sendMessage(messageId, buffer -> {
+            IPayloadWriter writer = buffer -> {
                 buffer.writeInt(serial);
                 buffer.writeByte(index);
                 buffer.writeInt(payload.length);
                 buffer.writeInt(partOffset);
                 buffer.writeByteArray(part);
-            });
+            };
+            if (messageId == ID_SAVE_AREA_PART) sendEditorMessage(messageId, writer);
+            else sendMessage(messageId, writer);
         }
     }
 
@@ -146,7 +159,7 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
             if (tile != null) {
                 tile.mapName = clean;
             }
-            sendMessage(ID_SET_NAME, buffer -> buffer.writeUtf(clean, TileZonePlanner.MAX_MAP_NAME_LENGTH));
+            sendEditorMessage(ID_SET_NAME, buffer -> buffer.writeUtf(clean, TileZonePlanner.MAX_MAP_NAME_LENGTH));
         }
     }
 
@@ -198,13 +211,15 @@ public class ContainerZonePlanner extends ContainerBCTile<TileZonePlanner> {
                 if (complete != null) {
                     currentLayer = index;
                     currentAreaSelection = complete;
-                    if (tile != null) tile.layers[index] = new ZonePlan(complete);
+                    if (tile != null && !isPortableMediaMenu()) tile.layers[index] = new ZonePlan(complete);
+                    onAreaReceived(index);
                 }
             } else if (id == ID_AREA_LOADED) {
                 currentLayer = NetworkSecurity.requireRange(buffer.readUnsignedByte(), 0, TileZonePlanner.LAYER_COUNT - 1,
                     "zone planner layer");
                 currentAreaSelection = new ZonePlan().readFromByteBuf(buffer);
-                if (tile != null && currentLayer >= 0 && currentLayer < tile.layers.length) {
+                onAreaReceived(currentLayer);
+                if (tile != null && !isPortableMediaMenu() && currentLayer >= 0 && currentLayer < tile.layers.length) {
                     tile.layers[currentLayer] = new ZonePlan(currentAreaSelection);
                 }
             }

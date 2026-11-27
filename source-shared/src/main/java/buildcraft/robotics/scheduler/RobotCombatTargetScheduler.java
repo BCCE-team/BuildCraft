@@ -153,8 +153,8 @@ public final class RobotCombatTargetScheduler {
         // Server entity queries only include loaded entities, never generate chunks.
         int cx = panel.getBlockPos().getX() >> 4, cz = panel.getBlockPos().getZ() >> 4;
         int radius = TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS;
-        AABB bounds = new AABB((cx - radius) << 4, level.getMinBuildHeight(), (cz - radius) << 4,
-                (cx + radius + 1) << 4, level.getMaxBuildHeight(), (cz + radius + 1) << 4);
+        AABB bounds = new AABB(panel.workMinX(), level.getMinBuildHeight(), panel.workMinZ(),
+                panel.workMinX() + 112, level.getMaxBuildHeight(), panel.workMinZ() + 112);
         boolean haveButchers = eligible.values().stream().anyMatch(robot -> robot.getBoard() instanceof BoardRobotButcher);
         boolean haveKnights = eligible.values().stream().anyMatch(robot -> robot.getBoard() instanceof BoardRobotKnight);
         boolean haveShepherds = eligible.values().stream().anyMatch(robot -> robot.getBoard() instanceof BoardRobotShepherd);
