@@ -77,6 +77,20 @@ class ModernRobotPreviewTests(unittest.TestCase):
                 self.assertIn('renderRobotModel(pose, robot.board(), robot.charge(), 18, y + 7, 24, false)', gui)
                 self.assertIn('renderRobotModel(pose, selected.board(), selected.charge(), 25, 160, 32, true)', gui)
 
+    def test_preview_bounds_signature_matches_minecraft_version(self):
+        for target in MODERN:
+            with self.subTest(target=target):
+                submit = generated(target, PREVIEW + 'RobotPreviewSubmission.java')
+                scissor = 'null' if target.endswith('-fabric') else 'scissor'
+                args = 'x0, y0, x1, y1, '
+                if target.startswith('26.3-'):
+                    args += 'pose, '
+                args += scissor
+                calls = re.findall(r'PictureInPictureRenderState\.getBounds\(([^)]*)\)', submit)
+                self.assertEqual([args], calls)
+                if target.startswith(('26.2-', '26.3-')):
+                    self.assertIn('new RobotPreviewRenderState(model, x0, y0, x1, y1, size, pose,', submit)
+
     def test_legacy_targets_do_not_include_new_preview_backend(self):
         for target in OLD:
             with self.subTest(target=target):

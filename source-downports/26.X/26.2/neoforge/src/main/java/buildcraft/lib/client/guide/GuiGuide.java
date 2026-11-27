@@ -22,8 +22,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import buildcraft.lib.compat.minecraft.text.BCTextFormat;
@@ -1893,6 +1891,7 @@ public final class GuiGuide extends Screen {
 
     private void drawOverflowText(GuiGraphicsExtractor guiGraphics, FormattedCharSequence text, int x, int y, int availableWidth,
         int colour, HorizontalAlignment alignment, int seed) {
+        if (availableWidth <= 0) return;
         int lineHeight = font.lineHeight;
         int textWidth = font.width(text);
         if (textWidth <= availableWidth) {
@@ -1902,12 +1901,21 @@ public final class GuiGuide extends Screen {
             guiGraphics.text(font, text, (int) drawX, y, opaqueGuideTextColour(colour), false);
             return;
         }
-        enableGuiScissor(x, y - 1, availableWidth, lineHeight + 2);
+        // Clip the moving glyphs to this label, not to the whole book. Keep the
+        // original origin for the animation even when the window cuts off the label.
+        int clipLeft = Math.max(0, x);
+        int clipTop = Math.max(0, y - 1);
+        int clipRight = Math.min(width, x + availableWidth);
+        int clipBottom = Math.min(height, y + lineHeight + 1);
+        if (clipRight <= clipLeft || clipBottom <= clipTop) return;
+        // Use the GUI scissor stack so buffered/extracted text keeps its clip
+        // and any enclosing GUI scissor is restored when this label is done.
+        guiGraphics.enableScissor(clipLeft, clipTop, clipRight, clipBottom);
         try {
             float offset = marqueeOffset(textWidth - availableWidth, seed);
             guiGraphics.text(font, text, (int) (x + offset), y, opaqueGuideTextColour(colour), false);
         } finally {
-            RenderCompat.disableScissor();
+            guiGraphics.disableScissor();
         }
     }
 
@@ -1936,20 +1944,6 @@ public final class GuiGuide extends Screen {
         }
         phase -= pause;
         return -overflow * (1.0F - phase / travelFrames);
-    }
-
-    private void enableGuiScissor(int x, int y, int width, int height) {
-        if (width <= 0 || height <= 0) {
-            return;
-        }
-        Window window = Minecraft.getInstance().getWindow();
-        double scale = window.getGuiScale();
-        int x0 = Mth.clamp((int) Math.floor(x * scale), 0, window.getWidth());
-        int x1 = Mth.clamp((int) Math.ceil((x + width) * scale), 0, window.getWidth());
-        int y0 = Mth.clamp((int) Math.floor(window.getHeight() - (y + height) * scale), 0, window.getHeight());
-        int y1 = Mth.clamp((int) Math.ceil(window.getHeight() - y * scale), 0, window.getHeight());
-        if (x1 <= x0 || y1 <= y0) return;
-        RenderCompat.enableScissor(x0, y0, x1 - x0, y1 - y0);
     }
 
     private static int parseInt(@Nullable String value, int fallback) {

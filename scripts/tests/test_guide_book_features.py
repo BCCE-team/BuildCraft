@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from source_layout import load_properties, materialize_target
+from source_lookup import read_materialized_java
 
 
 class GuideBookFeatures(unittest.TestCase):
@@ -98,13 +100,6 @@ class GuideBookFeatures(unittest.TestCase):
             self.assertIn("private static int tabWindowStart", gui, target)
             self.assertIn("topLevel = document.chapters.stream()", gui, target)
 
-    def test_tiny_window_scissors_are_clamped_to_framebuffer(self):
-        for target in self.roots:
-            gui = self.java(target, "buildcraft/lib/client/guide/GuiGuide.java")
-            self.assertIn("window.getWidth()", gui, target)
-            self.assertIn("window.getHeight()", gui, target)
-            self.assertIn("if (x1 <= x0 || y1 <= y0) return;", gui, target)
-
     def test_1_21_11_recipe_cache_preserves_datapack_ids_and_has_revision(self):
         cache = self.java("1.21.11-neoforge", "buildcraft/lib/net/GuideRecipeDisplayCache.java")
         message = self.java("1.21.11-neoforge", "buildcraft/lib/net/MessageGuideRecipeDisplays.java")
@@ -186,6 +181,130 @@ class GuideBookFeatures(unittest.TestCase):
         old_event = self.java("1.21.1-neoforge", "buildcraft/lib/BCLibEventDist.java")
         self.assertNotIn("MessageGuideRecipeDisplays", old_event)
         self.assertNotIn("OnDatapackSyncEvent", old_event)
+
+
+# Compile the actual selected marquee methods against lightweight rendering probes.
+# This exercises clipping and restoration, not the Minecraft GPU implementation.
+class GuideMarqueeClipping(unittest.TestCase):
+    def test_label_clipping_on_all_targets(self):
+        classes = []
+        for index, target in enumerate(load_properties()["targets"].split(",")):
+            gui = read_materialized_java(target, "src/main/java/buildcraft/lib/client/guide/GuiGuide.java")
+            start = gui.index("    private void drawOverflowText(", gui.index("    private void drawOverflowText(") + 1)
+            end = gui.index("    private static int parseInt", start)
+            methods = gui[start:end]
+            legacy = "PoseStack pose" in methods
+            graphics = "PoseStack" if legacy else ("GuiGraphicsExtractor" if "GuiGraphicsExtractor guiGraphics" in methods else "GuiGraphics")
+            if not legacy:
+                self.assertIn("guiGraphics.enableScissor(", methods, target)
+                self.assertIn("guiGraphics.disableScissor();", methods, target)
+                self.assertNotIn("RenderSystem.enableScissor", methods, target)
+                self.assertNotIn("RenderCompat.enableScissor", methods, target)
+            classes.append(f"""
+    static class Target{index} {{
+        int width=320, height=240, tick;
+        Font font=new Font();
+        {methods}
+        void draw(int x,int y,int w,int textWidth, HorizontalAlignment alignment) {{
+            drawOverflowText(new {graphics}(), new FormattedCharSequence(textWidth), x,y,w,0,alignment,0);
+        }}
+        void run() {{
+            reset(); tick=0;
+            draw(50,30,30,100,HorizontalAlignment.LEFT);
+            check(50,29,80,40,50);
+            tick=195; // the other end of the same marquee
+            draw(50,30,30,100,HorizontalAlignment.LEFT);
+            check(50,29,80,40,-20);
+            tick=0;
+            // Negative origin, e.g. a long chapter tab on a small window.
+            draw(-10,0,30,100,HorizontalAlignment.LEFT);
+            check(0,0,20,10,-10);
+            draw(310,235,30,100,HorizontalAlignment.LEFT);
+            check(310,234,320,240,310);
+            int before=drawCount;
+            draw(-50,30,30,100,HorizontalAlignment.LEFT);
+            draw(330,30,30,100,HorizontalAlignment.LEFT);
+            draw(50,250,30,100,HorizontalAlignment.LEFT);
+            draw(50,30,0,100,HorizontalAlignment.LEFT);
+            if(drawCount!=before || !clips.isEmpty()) throw new AssertionError("empty clip drew text");
+            draw(50,30,30,10,HorizontalAlignment.CENTRE);
+            if(renderedClip!=null || renderedX!=60 || !clips.isEmpty()) throw new AssertionError("short label changed");
+            failDraw=true;
+            try {{ draw(50,30,30,100,HorizontalAlignment.LEFT); throw new AssertionError("missing draw error"); }}
+            catch (IllegalStateException expected) {{ }}
+            finally {{ failDraw=false; }}
+            if(!clips.isEmpty()) throw new AssertionError("clip leaked after error");
+            if(!{str(legacy).lower()}) {{
+                // The native GUI stack must intersect and then restore its parent.
+                push(55,20,70,50);
+                draw(50,30,30,100,HorizontalAlignment.LEFT);
+                if(!renderedClip.equals(new Rect(55,29,70,40)) || !clips.peek().equals(new Rect(55,20,70,50)))
+                    throw new AssertionError("parent clip lost");
+                clips.pop();
+            }}
+        }}
+    }}
+""")
+        probe = r"""
+import java.util.ArrayDeque;
+public class GuideMarqueeProbe {
+    enum HorizontalAlignment { LEFT, CENTRE }
+    record FormattedCharSequence(int width) {}
+    record Rect(int l,int t,int r,int b) {}
+    static ArrayDeque<Rect> clips=new ArrayDeque<>();
+    static Rect renderedClip;
+    static float renderedX;
+    static int drawCount;
+    static boolean failDraw;
+    static void reset() { clips.clear(); renderedClip=null; drawCount=0; failDraw=false; }
+    static void push(int l,int t,int r,int b) {
+        Rect parent=clips.peek();
+        if(parent!=null) { l=Math.max(l,parent.l); t=Math.max(t,parent.t); r=Math.min(r,parent.r); b=Math.min(b,parent.b); }
+        clips.push(new Rect(l,t,r,b));
+    }
+    static void recordDraw(float x) {
+        if(failDraw) throw new IllegalStateException("draw failed");
+        drawCount++; renderedClip=clips.peek(); renderedX=x;
+    }
+    static void check(int l,int t,int r,int b,int x) {
+        if(!new Rect(l,t,r,b).equals(renderedClip) || renderedX!=x || !clips.isEmpty())
+            throw new AssertionError("expected "+new Rect(l,t,r,b)+" at "+x+", got "+renderedClip+" at "+renderedX);
+    }
+    static class PoseStack {}
+    static class Font {
+        int lineHeight=9;
+        int width(FormattedCharSequence text) { return text.width; }
+        void draw(PoseStack pose,FormattedCharSequence text,float x,int y,int colour) { recordDraw(x); }
+    }
+    static class GuiGraphics {
+        void enableScissor(int l,int t,int r,int b) { push(l,t,r,b); }
+        void disableScissor() { clips.pop(); }
+        void drawString(Font font,FormattedCharSequence text,int x,int y,int colour,boolean shadow) { recordDraw(x); }
+        void text(Font font,FormattedCharSequence text,int x,int y,int colour,boolean shadow) { recordDraw(x); }
+    }
+    static class GuiGraphicsExtractor extends GuiGraphics {}
+    static class Window {
+        double getGuiScale() { return 2; }
+        int getWidth() { return 640; }
+        int getHeight() { return 480; }
+    }
+    static class Minecraft {
+        static Minecraft getInstance() { return new Minecraft(); }
+        Window getWindow() { return new Window(); }
+    }
+    static class Mth { static int clamp(int x,int lo,int hi) { return Math.min(hi,Math.max(lo,x)); } }
+    static class RenderSystem {
+        static void enableScissor(int x,int y,int w,int h) { push(x/2,(480-y-h)/2,(x+w)/2,(480-y)/2); }
+        static void disableScissor() { clips.pop(); }
+    }
+""" + "\n".join(classes) + "\n    public static void main(String[] args) {\n" + "\n".join(
+            f"        new Target{i}().run();" for i in range(len(classes))
+        ) + "\n    }\n}\n"
+        with tempfile.TemporaryDirectory(prefix="bc-guide-marquee-") as temp:
+            path = Path(temp) / "GuideMarqueeProbe.java"
+            path.write_text(probe, encoding="utf-8")
+            subprocess.run(["javac", "--release", "17", "-d", temp, str(path)], check=True, timeout=60)
+            subprocess.run(["java", "-cp", temp, "GuideMarqueeProbe"], check=True, timeout=30)
 
 
 if __name__ == "__main__":

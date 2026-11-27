@@ -1781,6 +1781,7 @@ public final class GuiGuide extends Screen {
 
     private void drawOverflowText(PoseStack pose, FormattedCharSequence text, int x, int y, int availableWidth,
         int colour, HorizontalAlignment alignment, int seed) {
+        if (availableWidth <= 0) return;
         int lineHeight = font.lineHeight;
         int textWidth = font.width(text);
         if (textWidth <= availableWidth) {
@@ -1790,7 +1791,22 @@ public final class GuiGuide extends Screen {
             font.draw(pose, text, drawX, y, colour);
             return;
         }
-        enableGuiScissor(x, y - 1, availableWidth, lineHeight + 2);
+        // Clip the moving glyphs to this label, not to the whole book. Keep the
+        // original origin for the animation even when the window cuts off the label.
+        int clipLeft = Math.max(0, x);
+        int clipTop = Math.max(0, y - 1);
+        int clipRight = Math.min(width, x + availableWidth);
+        int clipBottom = Math.min(height, y + lineHeight + 1);
+        if (clipRight <= clipLeft || clipBottom <= clipTop) return;
+        // 1.19.2 draws text immediately and has no GuiGraphics scissor stack.
+        Window window = Minecraft.getInstance().getWindow();
+        double scale = window.getGuiScale();
+        int x0 = Mth.clamp((int) Math.floor(clipLeft * scale), 0, window.getWidth());
+        int x1 = Mth.clamp((int) Math.ceil(clipRight * scale), 0, window.getWidth());
+        int y0 = Mth.clamp((int) Math.floor(window.getHeight() - clipBottom * scale), 0, window.getHeight());
+        int y1 = Mth.clamp((int) Math.ceil(window.getHeight() - clipTop * scale), 0, window.getHeight());
+        if (x1 <= x0 || y1 <= y0) return;
+        RenderSystem.enableScissor(x0, y0, x1 - x0, y1 - y0);
         try {
             float offset = marqueeOffset(textWidth - availableWidth, seed);
             font.draw(pose, text, x + offset, y, colour);
@@ -1820,19 +1836,6 @@ public final class GuiGuide extends Screen {
         }
         phase -= pause;
         return -overflow * (1.0F - phase / travelFrames);
-    }
-
-    private void enableGuiScissor(int x, int y, int width, int height) {
-        if (width <= 0 || height <= 0) {
-            return;
-        }
-        Window window = Minecraft.getInstance().getWindow();
-        double scale = window.getGuiScale();
-        int scissorX = Math.max(0, (int) Math.floor(x * scale));
-        int scissorY = Math.max(0, (int) Math.floor(window.getHeight() - (y + height) * scale));
-        int scissorWidth = Math.max(0, (int) Math.ceil(width * scale));
-        int scissorHeight = Math.max(0, (int) Math.ceil(height * scale));
-        RenderSystem.enableScissor(scissorX, scissorY, scissorWidth, scissorHeight);
     }
 
     private static int parseInt(@Nullable String value, int fallback) {

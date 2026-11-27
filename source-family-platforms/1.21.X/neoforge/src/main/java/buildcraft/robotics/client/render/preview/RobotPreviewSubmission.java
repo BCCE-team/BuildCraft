@@ -40,8 +40,13 @@ public final class RobotPreviewSubmission {
         var scissor = graphics.peekScissorStack();
         //? if >=26.2 {
         var pose = new Matrix3x2f(graphics.pose());
+        //?}
+        //? if >=26.3 {
         var state = new RobotPreviewRenderState(model, x0, y0, x1, y1, size, pose, scissor,
             PictureInPictureRenderState.getBounds(x0, y0, x1, y1, pose, scissor));
+        //?} else if >=26.2 {
+        /*var state = new RobotPreviewRenderState(model, x0, y0, x1, y1, size, pose, scissor,
+            PictureInPictureRenderState.getBounds(x0, y0, x1, y1, scissor));*/
         //?} else {
         /*var state = new RobotPreviewRenderState(model, x0, y0, x1, y1, size, scissor,
             PictureInPictureRenderState.getBounds(x0, y0, x1, y1, scissor));*/

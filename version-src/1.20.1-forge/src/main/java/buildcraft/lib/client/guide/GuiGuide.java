@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -1780,6 +1779,7 @@ public final class GuiGuide extends Screen {
 
     private void drawOverflowText(GuiGraphics guiGraphics, FormattedCharSequence text, int x, int y, int availableWidth,
         int colour, HorizontalAlignment alignment, int seed) {
+        if (availableWidth <= 0) return;
         int lineHeight = font.lineHeight;
         int textWidth = font.width(text);
         if (textWidth <= availableWidth) {
@@ -1789,12 +1789,21 @@ public final class GuiGuide extends Screen {
             guiGraphics.drawString(font, text, (int) drawX, y, colour, false);
             return;
         }
-        enableGuiScissor(x, y - 1, availableWidth, lineHeight + 2);
+        // Clip the moving glyphs to this label, not to the whole book. Keep the
+        // original origin for the animation even when the window cuts off the label.
+        int clipLeft = Math.max(0, x);
+        int clipTop = Math.max(0, y - 1);
+        int clipRight = Math.min(width, x + availableWidth);
+        int clipBottom = Math.min(height, y + lineHeight + 1);
+        if (clipRight <= clipLeft || clipBottom <= clipTop) return;
+        // Use the GUI scissor stack so buffered/extracted text keeps its clip
+        // and any enclosing GUI scissor is restored when this label is done.
+        guiGraphics.enableScissor(clipLeft, clipTop, clipRight, clipBottom);
         try {
             float offset = marqueeOffset(textWidth - availableWidth, seed);
             guiGraphics.drawString(font, text, (int) (x + offset), y, colour, false);
         } finally {
-            RenderSystem.disableScissor();
+            guiGraphics.disableScissor();
         }
     }
 
@@ -1819,19 +1828,6 @@ public final class GuiGuide extends Screen {
         }
         phase -= pause;
         return -overflow * (1.0F - phase / travelFrames);
-    }
-
-    private void enableGuiScissor(int x, int y, int width, int height) {
-        if (width <= 0 || height <= 0) {
-            return;
-        }
-        Window window = Minecraft.getInstance().getWindow();
-        double scale = window.getGuiScale();
-        int scissorX = Math.max(0, (int) Math.floor(x * scale));
-        int scissorY = Math.max(0, (int) Math.floor(window.getHeight() - (y + height) * scale));
-        int scissorWidth = Math.max(0, (int) Math.ceil(width * scale));
-        int scissorHeight = Math.max(0, (int) Math.ceil(height * scale));
-        RenderSystem.enableScissor(scissorX, scissorY, scissorWidth, scissorHeight);
     }
 
     private static int parseInt(@Nullable String value, int fallback) {
