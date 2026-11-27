@@ -58,9 +58,8 @@ public class RenderRobot extends EntityRenderer<EntityRobot> {
         renderRobotCube(buffer.getBuffer(RenderType.entityCutoutNoCull(getTextureLocation(robot))),
                 pose.pose(), pose.normal(), packedLight, 1.0F, 1.0F);
 
-        // Placed robots show the active overlay only while doing work; the inventory preview always
-        // uses the active overlay.
-        if (!robot.isAsleepForRendering()) {
+        // Placed robots retain their sleep state; an empty battery never lights either overlay.
+        if (!robot.isAsleepForRendering() && robot.getEnergyForRendering() > 0) {
             float storagePercent = Math.max(0.0F, Math.min(1.0F,
                     robot.getEnergyForRendering() / (float) EntityRobot.MAX_ENERGY));
             renderRobotCube(buffer.getBuffer(RenderType.entityTranslucent(OVERLAY_RED)),

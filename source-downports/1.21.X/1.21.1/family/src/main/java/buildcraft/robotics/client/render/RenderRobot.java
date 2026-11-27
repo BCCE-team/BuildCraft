@@ -44,7 +44,7 @@ public class RenderRobot extends EntityRenderer<EntityRobot> {
                 pose, packedLight, 1.0F, 1.0F);
 
         // The active overlay is always visible for inventory items; placed robots show it only while doing work.
-        if (!robot.isAsleepForRendering()) {
+        if (!robot.isAsleepForRendering() && robot.getEnergyForRendering() > 0) {
             float storagePercent = Math.max(0.0F, Math.min(1.0F,
                     robot.getEnergyForRendering() / (float) EntityRobot.MAX_ENERGY));
             renderRobotCube(buffer.getBuffer(RenderType.entityTranslucent(OVERLAY_RED)),

@@ -73,6 +73,71 @@
           "texture": "#all"
         }
       }
+    },
+    {
+      "name": "robot_lights",
+      "from": [
+        3.984375,
+        3.984375,
+        3.984375
+      ],
+      "to": [
+        12.015625,
+        12.015625,
+        12.015625
+      ],
+      "shade": false,
+      "faces": {
+        "north": {
+          "uv": [
+            4,
+            4,
+            8,
+            8
+          ],
+          "texture": "#overlay_side",
+          "tintindex": 0
+        },
+        "south": {
+          "uv": [
+            12,
+            4,
+            16,
+            8
+          ],
+          "texture": "#overlay_side",
+          "tintindex": 0
+        },
+        "west": {
+          "uv": [
+            8,
+            4,
+            12,
+            8
+          ],
+          "texture": "#overlay_side",
+          "tintindex": 0
+        },
+        "east": {
+          "uv": [
+            0,
+            4,
+            4,
+            8
+          ],
+          "texture": "#overlay_side",
+          "tintindex": 0
+        },
+        "down": {
+          "uv": [
+            4,
+            0,
+            8,
+            4
+          ],
+          "texture": "#overlay_bottom"
+        }
+      }
     }
   ],
   "display": {
@@ -195,5 +260,10 @@
         1.0
       ]
     }
+  },
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "overlay_side": "buildcraftrobotics:entities/overlay_side",
+    "overlay_bottom": "buildcraftrobotics:entities/overlay_bottom"
   }
 }

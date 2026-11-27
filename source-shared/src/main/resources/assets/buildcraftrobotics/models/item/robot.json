@@ -1,9 +1,22 @@
 {
-  "parent": "buildcraftrobotics:item/robot/empty",
+  "parent": "buildcraftrobotics:item/robot/off/empty",
   "overrides": [
     {
       "predicate": {
+        "buildcraftrobotics:robot_power": 1
+      },
+      "model": "buildcraftrobotics:item/robot/empty"
+    },
+    {
+      "predicate": {
         "buildcraftrobotics:robot": 0.01
+      },
+      "model": "buildcraftrobotics:item/robot/off/picker"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.01,
+        "buildcraftrobotics:robot_power": 1
       },
       "model": "buildcraftrobotics:item/robot/picker"
     },
@@ -11,11 +24,25 @@
       "predicate": {
         "buildcraftrobotics:robot": 0.02
       },
+      "model": "buildcraftrobotics:item/robot/off/carrier"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.02,
+        "buildcraftrobotics:robot_power": 1
+      },
       "model": "buildcraftrobotics:item/robot/carrier"
     },
     {
       "predicate": {
         "buildcraftrobotics:robot": 0.03
+      },
+      "model": "buildcraftrobotics:item/robot/off/fluid_carrier"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.03,
+        "buildcraftrobotics:robot_power": 1
       },
       "model": "buildcraftrobotics:item/robot/fluid_carrier"
     },
@@ -23,11 +50,25 @@
       "predicate": {
         "buildcraftrobotics:robot": 0.04
       },
+      "model": "buildcraftrobotics:item/robot/off/lumberjack"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.04,
+        "buildcraftrobotics:robot_power": 1
+      },
       "model": "buildcraftrobotics:item/robot/lumberjack"
     },
     {
       "predicate": {
         "buildcraftrobotics:robot": 0.05
+      },
+      "model": "buildcraftrobotics:item/robot/off/harvester"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.05,
+        "buildcraftrobotics:robot_power": 1
       },
       "model": "buildcraftrobotics:item/robot/harvester"
     },
@@ -35,11 +76,25 @@
       "predicate": {
         "buildcraftrobotics:robot": 0.06
       },
+      "model": "buildcraftrobotics:item/robot/off/miner"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.06,
+        "buildcraftrobotics:robot_power": 1
+      },
       "model": "buildcraftrobotics:item/robot/miner"
     },
     {
       "predicate": {
         "buildcraftrobotics:robot": 0.07
+      },
+      "model": "buildcraftrobotics:item/robot/off/planter"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.07,
+        "buildcraftrobotics:robot_power": 1
       },
       "model": "buildcraftrobotics:item/robot/planter"
     },
@@ -47,11 +102,25 @@
       "predicate": {
         "buildcraftrobotics:robot": 0.08
       },
+      "model": "buildcraftrobotics:item/robot/off/farmer"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.08,
+        "buildcraftrobotics:robot_power": 1
+      },
       "model": "buildcraftrobotics:item/robot/farmer"
     },
     {
       "predicate": {
         "buildcraftrobotics:robot": 0.09
+      },
+      "model": "buildcraftrobotics:item/robot/off/leave_cutter"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.09,
+        "buildcraftrobotics:robot_power": 1
       },
       "model": "buildcraftrobotics:item/robot/leave_cutter"
     },
@@ -59,11 +128,25 @@
       "predicate": {
         "buildcraftrobotics:robot": 0.1
       },
+      "model": "buildcraftrobotics:item/robot/off/butcher"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.1,
+        "buildcraftrobotics:robot_power": 1
+      },
       "model": "buildcraftrobotics:item/robot/butcher"
     },
     {
       "predicate": {
         "buildcraftrobotics:robot": 0.11
+      },
+      "model": "buildcraftrobotics:item/robot/off/shovelman"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.11,
+        "buildcraftrobotics:robot_power": 1
       },
       "model": "buildcraftrobotics:item/robot/shovelman"
     },
@@ -71,11 +154,25 @@
       "predicate": {
         "buildcraftrobotics:robot": 0.12
       },
+      "model": "buildcraftrobotics:item/robot/off/pump"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.12,
+        "buildcraftrobotics:robot_power": 1
+      },
       "model": "buildcraftrobotics:item/robot/pump"
     },
     {
       "predicate": {
         "buildcraftrobotics:robot": 0.13
+      },
+      "model": "buildcraftrobotics:item/robot/off/delivery"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.13,
+        "buildcraftrobotics:robot_power": 1
       },
       "model": "buildcraftrobotics:item/robot/delivery"
     },
@@ -83,11 +180,25 @@
       "predicate": {
         "buildcraftrobotics:robot": 0.14
       },
+      "model": "buildcraftrobotics:item/robot/off/knight"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.14,
+        "buildcraftrobotics:robot_power": 1
+      },
       "model": "buildcraftrobotics:item/robot/knight"
     },
     {
       "predicate": {
         "buildcraftrobotics:robot": 0.15
+      },
+      "model": "buildcraftrobotics:item/robot/off/bomber"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.15,
+        "buildcraftrobotics:robot_power": 1
       },
       "model": "buildcraftrobotics:item/robot/bomber"
     },
@@ -95,11 +206,25 @@
       "predicate": {
         "buildcraftrobotics:robot": 0.16
       },
+      "model": "buildcraftrobotics:item/robot/off/stripes"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.16,
+        "buildcraftrobotics:robot_power": 1
+      },
       "model": "buildcraftrobotics:item/robot/stripes"
     },
     {
       "predicate": {
         "buildcraftrobotics:robot": 0.17
+      },
+      "model": "buildcraftrobotics:item/robot/off/builder"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.17,
+        "buildcraftrobotics:robot_power": 1
       },
       "model": "buildcraftrobotics:item/robot/builder"
     },
@@ -107,17 +232,38 @@
       "predicate": {
         "buildcraftrobotics:robot": 0.18
       },
+      "model": "buildcraftrobotics:item/robot/off/shepherd"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.18,
+        "buildcraftrobotics:robot_power": 1
+      },
       "model": "buildcraftrobotics:item/robot/shepherd"
     },
     {
       "predicate": {
         "buildcraftrobotics:robot": 0.19
       },
+      "model": "buildcraftrobotics:item/robot/off/fisher"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.19,
+        "buildcraftrobotics:robot_power": 1
+      },
       "model": "buildcraftrobotics:item/robot/fisher"
     },
     {
       "predicate": {
         "buildcraftrobotics:robot": 0.2
+      },
+      "model": "buildcraftrobotics:item/robot/off/beekeeper"
+    },
+    {
+      "predicate": {
+        "buildcraftrobotics:robot": 0.2,
+        "buildcraftrobotics:robot_power": 1
       },
       "model": "buildcraftrobotics:item/robot/beekeeper"
     }

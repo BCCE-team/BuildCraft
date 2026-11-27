@@ -2,6 +2,6 @@
   "parent": "buildcraftrobotics:robot",
   "textures": {
     "particle": "#all",
-    "all": "buildcraftrobotics:entities/robot_fisher_active"
+    "all": "buildcraftrobotics:entities/robot_fisher"
   }
 }

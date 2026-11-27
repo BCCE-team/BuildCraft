@@ -3,148 +3,526 @@
     "type": "minecraft:range_dispatch",
     "property": "buildcraftrobotics:robot",
     "fallback": {
-      "type": "minecraft:model",
-      "model": "buildcraftrobotics:item/robot/empty"
+      "type": "minecraft:range_dispatch",
+      "property": "buildcraftrobotics:robot_power",
+      "fallback": {
+        "type": "minecraft:model",
+        "model": "buildcraftrobotics:item/robot/off/empty"
+      },
+      "entries": [
+        {
+          "threshold": 1,
+          "model": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/empty",
+            "tints": [
+              {
+                "type": "buildcraftrobotics:robot_charge"
+              }
+            ]
+          }
+        }
+      ]
     },
     "entries": [
       {
         "threshold": 0.01,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/picker"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/picker"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/picker",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.02,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/carrier"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/carrier"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/carrier",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.03,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/fluid_carrier"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/fluid_carrier"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/fluid_carrier",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.04,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/lumberjack"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/lumberjack"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/lumberjack",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.05,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/harvester"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/harvester"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/harvester",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.06,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/miner"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/miner"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/miner",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.07,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/planter"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/planter"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/planter",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.08,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/farmer"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/farmer"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/farmer",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.09,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/leave_cutter"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/leave_cutter"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/leave_cutter",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.1,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/butcher"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/butcher"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/butcher",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.11,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/shovelman"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/shovelman"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/shovelman",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.12,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/pump"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/pump"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/pump",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.13,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/delivery"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/delivery"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/delivery",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.14,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/knight"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/knight"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/knight",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.15,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/bomber"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/bomber"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/bomber",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.16,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/stripes"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/stripes"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/stripes",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.17,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/builder"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/builder"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/builder",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.18,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/shepherd"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/shepherd"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/shepherd",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.19,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/fisher"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/fisher"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/fisher",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       {
         "threshold": 0.2,
         "model": {
-          "type": "minecraft:model",
-          "model": "buildcraftrobotics:item/robot/beekeeper"
+          "type": "minecraft:range_dispatch",
+          "property": "buildcraftrobotics:robot_power",
+          "fallback": {
+            "type": "minecraft:model",
+            "model": "buildcraftrobotics:item/robot/off/beekeeper"
+          },
+          "entries": [
+            {
+              "threshold": 1,
+              "model": {
+                "type": "minecraft:model",
+                "model": "buildcraftrobotics:item/robot/beekeeper",
+                "tints": [
+                  {
+                    "type": "buildcraftrobotics:robot_charge"
+                  }
+                ]
+              }
+            }
+          ]
         }
       }
     ]

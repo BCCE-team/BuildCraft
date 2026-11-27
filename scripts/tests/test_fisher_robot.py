@@ -566,7 +566,7 @@ class FisherRobotTests(unittest.TestCase):
         self.assertIn('board("buildcraft:boardRobotFisher", "fisher"',board)
         self.assertIn('return new BoardRobotFisher(robot);',board)
         self.assertTrue((ROOT/'source-shared/src/main/resources/assets/buildcraftrobotics/textures/entities/robot_fisher.png').exists())
-        self.assertTrue((ROOT/'source-shared/src/main/resources/assets/buildcraftrobotics/textures/entities/robot_fisher_active.png').exists())
+        self.assertTrue((ROOT/'source-shared/src/main/resources/assets/buildcraftrobotics/textures/entities/overlay_side.png').exists())
         self.assertIn('"fisher"', (ROOT/'source-shared/src/main/java/buildcraft/lib/balance/BalanceIni.java').read_text())
         for target in self.TARGETS:
             self.assertEqual((ROOT/'source-shared/src/main/java/buildcraft/robotics/ai/AIRobotFish.java').read_text().count('rod.getItem().use('),2)

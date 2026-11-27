@@ -45,6 +45,9 @@ class ModernRobotPreviewTests(unittest.TestCase):
                 self.assertIn('int side = pixelSize / 2;', preview)
                 self.assertIn('8, 8, side, side, 8, 8, 32, 32', preview)
                 self.assertIn('robotTexture()', preview)
+                self.assertIn('textures/entities/overlay_side.png', preview)
+                self.assertIn('BCGraphics.nextLayer(graphics)', preview)
+                self.assertNotIn('_active.png', preview)
                 self.assertIn('180.0F + (System.currentTimeMillis() % 12000L) * 0.03F', renderer)
                 self.assertIn('ITEMS_FLAT', renderer)
                 self.assertIn('FULL_BRIGHT', renderer)
@@ -71,8 +74,8 @@ class ModernRobotPreviewTests(unittest.TestCase):
                     self.assertIn('gameRenderer.getLighting()', renderer)
                 gui = generated(target, BASE + 'gui/GuiRobotProcessor.java')
                 self.assertIn('RobotProcessorPreview.render(getActiveGraphics(), stack, leftPos + cx, topPos + cy, pixelSize, rotate)', gui)
-                self.assertIn('renderRobotModel(pose, robot.board(), 18, y + 7, 24, false)', gui)
-                self.assertIn('renderRobotModel(pose, selected.board(), 25, 160, 32, true)', gui)
+                self.assertIn('renderRobotModel(pose, robot.board(), robot.charge(), 18, y + 7, 24, false)', gui)
+                self.assertIn('renderRobotModel(pose, selected.board(), selected.charge(), 25, 160, 32, true)', gui)
 
     def test_legacy_targets_do_not_include_new_preview_backend(self):
         for target in OLD:
@@ -95,7 +98,7 @@ class ModernRobotPreviewTests(unittest.TestCase):
         self.assertEqual(len(names), 21)
         for name in names:
             with self.subTest(robot=name):
-                data = (assets / 'textures/entities' / (name + '_active.png')).read_bytes()
+                data = (assets / 'textures/entities' / (name + '.png')).read_bytes()
                 self.assertEqual(data[:8], b'\x89PNG\r\n\x1a\n')
                 self.assertEqual(struct.unpack('>II', data[16:24]), (32, 32))
 

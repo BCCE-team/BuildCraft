@@ -361,19 +361,20 @@ class ShepherdRobotTests(unittest.TestCase):
             data = json.loads((ROOT / f"source-families/{family}/src/main/resources/data/buildcraftrobotics/{path}/programming_table/shepherd.json").read_text())
             self.assertEqual(data["energy"]["mj"], 3200)
         model = json.loads((ROOT / "source-shared/src/main/resources/assets/buildcraftrobotics/models/item/robot/shepherd.json").read_text())
-        self.assertEqual("buildcraftrobotics:entities/robot_sheepherd_active", model["textures"]["all"])
-        for suffix in ("", "_active"):
-            self.assertTrue((ROOT / f"source-shared/src/main/resources/assets/buildcraftrobotics/textures/entities/robot_sheepherd{suffix}.png").exists())
+        self.assertEqual("buildcraftrobotics:entities/robot_sheepherd", model["textures"]["all"])
+        for texture in ("robot_sheepherd", "overlay_side", "overlay_bottom"):
+            self.assertTrue((ROOT / f"source-shared/src/main/resources/assets/buildcraftrobotics/textures/entities/{texture}.png").exists())
         for path in ("source-shared/src/main/resources/assets/buildcraftrobotics/models/item/robot.json",
                      "resource-src/1.21.X/1.21.11/assets/buildcraftrobotics/items/robot.json",
                      "source-families/26.X/src/main/resources/assets/buildcraftrobotics/items/robot.json"):
             item = json.loads((ROOT / path).read_text())
-            entries = item.get("overrides", item.get("model", {}).get("entries", []))
+            entries = ([e for e in item["overrides"] if "buildcraftrobotics:robot" in e["predicate"] and e["predicate"].get("buildcraftrobotics:robot_power") == 1]
+                       if "overrides" in item else item["model"]["entries"])
             # Existing model IDs are append-only; never reuse Shepherd or Fisher IDs.
             self.assertEqual(20, len(entries))
             shepherd, fisher, beekeeper = entries[-3:]
             model = lambda entry: (entry.get("model") if "overrides" in item
-                                   else entry["model"]["model"])
+                                   else entry["model"]["entries"][0]["model"]["model"])
             self.assertEqual("buildcraftrobotics:item/robot/shepherd", model(shepherd))
             self.assertEqual("buildcraftrobotics:item/robot/fisher", model(fisher))
             self.assertEqual("buildcraftrobotics:item/robot/beekeeper", model(beekeeper))

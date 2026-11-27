@@ -43,7 +43,7 @@ class RobotProcessorPreviewProgressTests(unittest.TestCase):
         for path in ROBOT_SCREENS:
             with self.subTest(screen=path):
                 code = (ROOT / path).read_text()
-                self.assertIn('ItemRobot.createRobotStack(BCRoboticsBoards.getById(id)', code)
+                self.assertIn('ItemRobot.createRobotStack(BCRoboticsBoards.getById(boardId)', code)
                 self.assertIn('renderRobotModel(pose, selected.board(),', code)
                 self.assertIn('renderRobotModel(pose, robot.board(),', code)
                 self.assertNotIn('Temporary item preview', code)
@@ -110,10 +110,10 @@ class RobotPreviewAndTaskNameTests(unittest.TestCase):
         for source in ROBOT_SCREENS:
             with self.subTest(path=source):
                 code = (ROOT / source).read_text(encoding='utf-8')
-                self.assertIn('renderRobotModel(pose, robot.board(), 18, y + 7, 24, false);', code)
+                self.assertIn('renderRobotModel(pose, robot.board(), robot.charge(), 18, y + 7, 24, false);', code)
                 self.assertIn('29, y - 1, 57', code)
                 self.assertIn('29, y + 5, 57', code)
-                self.assertIn('renderRobotModel(pose, selected.board(), 25, 160, 32, true);', code)
+                self.assertIn('renderRobotModel(pose, selected.board(), selected.charge(), 25, 160, 32, true);', code)
 
     def test_old_renderers_use_front_lighting_and_restore_default_lighting(self):
         for source in ROBOT_SCREENS[:3]:

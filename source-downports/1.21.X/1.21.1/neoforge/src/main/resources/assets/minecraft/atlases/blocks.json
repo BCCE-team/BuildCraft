@@ -2123,83 +2123,91 @@
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_base_active"
+      "resource": "buildcraftrobotics:entities/robot_base"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_bomber_active"
+      "resource": "buildcraftrobotics:entities/overlay_side"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_builder_active"
+      "resource": "buildcraftrobotics:entities/overlay_bottom"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_butcher_active"
+      "resource": "buildcraftrobotics:entities/robot_bomber"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_sheepherd_active"
+      "resource": "buildcraftrobotics:entities/robot_builder"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_fisher_active"
+      "resource": "buildcraftrobotics:entities/robot_butcher"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_carrier_active"
+      "resource": "buildcraftrobotics:entities/robot_sheepherd"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_delivery_active"
+      "resource": "buildcraftrobotics:entities/robot_fisher"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_farmer_active"
+      "resource": "buildcraftrobotics:entities/robot_carrier"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_fluid_carrier_active"
+      "resource": "buildcraftrobotics:entities/robot_delivery"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_harvester_active"
+      "resource": "buildcraftrobotics:entities/robot_farmer"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_knight_active"
+      "resource": "buildcraftrobotics:entities/robot_fluid_carrier"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_leave_cutter_active"
+      "resource": "buildcraftrobotics:entities/robot_harvester"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_lumberjack_active"
+      "resource": "buildcraftrobotics:entities/robot_knight"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_miner_active"
+      "resource": "buildcraftrobotics:entities/robot_leave_cutter"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_picker_active"
+      "resource": "buildcraftrobotics:entities/robot_lumberjack"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_planter_active"
+      "resource": "buildcraftrobotics:entities/robot_miner"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_pump_active"
+      "resource": "buildcraftrobotics:entities/robot_picker"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_shovelman_active"
+      "resource": "buildcraftrobotics:entities/robot_planter"
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_stripes_active"
+      "resource": "buildcraftrobotics:entities/robot_pump"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftrobotics:entities/robot_shovelman"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftrobotics:entities/robot_stripes"
     },
     {
       "type": "minecraft:single",
@@ -3884,7 +3892,7 @@
     },
     {
       "type": "minecraft:single",
-      "resource": "buildcraftrobotics:entities/robot_beekeeper_active"
+      "resource": "buildcraftrobotics:entities/robot_beekeeper"
     }
   ]
 }

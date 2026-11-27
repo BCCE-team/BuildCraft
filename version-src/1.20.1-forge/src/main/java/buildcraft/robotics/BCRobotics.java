@@ -82,6 +82,7 @@ import buildcraft.robotics.boards.BoardRobotPump;
 import buildcraft.robotics.boards.BoardRobotShovelman;
 import buildcraft.robotics.boards.BoardRobotStripes;
 import buildcraft.robotics.internal.legacy.robots.RobotManager;
+import buildcraft.robotics.item.RobotCreativeTabIcon;
 import buildcraft.robotics.client.render.RenderRobot;
 import buildcraft.robotics.client.render.RenderZonePlanner;
 import buildcraft.robotics.zone.MessageZoneMapResponse;
@@ -173,7 +174,7 @@ public class BCRobotics {
         StatementManager.registerParameter(StatementParameterMapLocation::readFromNbt);
 
         RobotIntegrationRecipe.register();
-        TAB_ROBOTICS.setItem(BCRoboticsItems.ROBOT.get());
+        TAB_ROBOTICS.setItem(RobotCreativeTabIcon.create());
     }
 
     private static void registerEntityAttributes(EntityAttributeCreationEvent event) {
@@ -252,7 +253,13 @@ public class BCRobotics {
     @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static class ClientModEvents {
         private static final ResourceLocation ROBOT_MODEL = new ResourceLocation(MODID, "robot");
+        private static final ResourceLocation ROBOT_POWER_MODEL = new ResourceLocation(MODID, "robot_power");
         private static final ResourceLocation BOARD_MODEL = new ResourceLocation(MODID, "board");
+
+        @SubscribeEvent
+        public static void registerRobotItemColors(net.minecraftforge.client.event.RegisterColorHandlersEvent.Item event) {
+            event.register(buildcraft.robotics.client.RobotBatteryVisuals::itemColor, BCRoboticsItems.ROBOT.get());
+        }
 
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
@@ -260,7 +267,9 @@ public class BCRobotics {
             BCRoboticsSprites.preInit();
             event.enqueueWork(() -> {
                 ItemProperties.register(BCRoboticsItems.ROBOT.get(), ROBOT_MODEL,
-                        (stack, level, entity, seed) -> BCRoboticsBoards.getRobotModelValue(stack));
+                        (stack, level, entity, seed) -> RobotCreativeTabIcon.modelValue(stack));
+                ItemProperties.register(BCRoboticsItems.ROBOT.get(), ROBOT_POWER_MODEL,
+                        (stack, level, entity, seed) -> buildcraft.robotics.client.RobotBatteryVisuals.powerModel(stack));
                 ItemProperties.register(BCRoboticsItems.REDSTONE_BOARD.get(), BOARD_MODEL,
                         (stack, level, entity, seed) -> BCRoboticsBoards.getBoardModelValue(stack));
                 BCRoboticsModels.init();

@@ -71,7 +71,7 @@ public class RenderRobot extends EntityRenderer<EntityRobot, RenderRobot.RobotRe
             (pose, consumer) -> renderRobotCube(consumer, pose, light, 1.0F, 1.0F)
         );
 
-        if (!state.asleep) {
+        if (!state.asleep && state.energy > 0) {
             float storagePercent = Math.max(0.0F, Math.min(1.0F, state.energy / (float) EntityRobot.MAX_ENERGY));
             collector.submitCustomGeometry(
                 poseStack,

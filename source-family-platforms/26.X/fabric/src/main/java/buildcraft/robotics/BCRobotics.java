@@ -19,6 +19,7 @@ import buildcraft.robotics.ai.*;
 import buildcraft.robotics.boards.*;
 import buildcraft.robotics.internal.api2.RoboticsApi2Bootstrap;
 import buildcraft.robotics.internal.legacy.robots.RobotManager;
+import buildcraft.robotics.item.RobotCreativeTabIcon;
 import buildcraft.robotics.recipes.RobotIntegrationRecipe;
 import buildcraft.robotics.statements.*;
 import buildcraft.robotics.zone.*;
@@ -95,7 +96,7 @@ public final class BCRobotics {
         StatementManager.registerParameter(StatementParameterRobot::readFromNbt, StatementParameterRobot::readFromBuf);
         StatementManager.registerParameter(StatementParameterMapLocation::readFromNbt, StatementParameterMapLocation::readFromBuf);
         RobotIntegrationRecipe.register();
-        TAB_ROBOTICS.setItem(BCRoboticsItems.ROBOT.get());
+        TAB_ROBOTICS.setItem(RobotCreativeTabIcon::create);
     }
 
     private static void registerRoboticsAI() {

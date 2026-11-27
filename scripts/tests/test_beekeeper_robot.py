@@ -276,17 +276,18 @@ class BeekeeperRobotTests(unittest.TestCase):
         for suffix in ("", "_active"):
             self.assertTrue((ROOT / f"source-shared/src/main/resources/assets/buildcraftrobotics/textures/entities/robot_beekeeper{suffix}.png").exists())
         model = json.loads((ROOT / "source-shared/src/main/resources/assets/buildcraftrobotics/models/item/robot.json").read_text())
-        self.assertEqual(20, len(model["overrides"]))
-        self.assertEqual("buildcraftrobotics:item/robot/fisher", model["overrides"][-2]["model"])
-        self.assertEqual(0.19, model["overrides"][-2]["predicate"]["buildcraftrobotics:robot"])
-        self.assertEqual("buildcraftrobotics:item/robot/beekeeper", model["overrides"][-1]["model"])
-        self.assertEqual(0.20, model["overrides"][-1]["predicate"]["buildcraftrobotics:robot"])
+        powered = [e for e in model["overrides"] if "buildcraftrobotics:robot" in e["predicate"] and e["predicate"].get("buildcraftrobotics:robot_power") == 1]
+        self.assertEqual(20, len(powered))
+        self.assertEqual("buildcraftrobotics:item/robot/fisher", powered[-2]["model"])
+        self.assertEqual(0.19, powered[-2]["predicate"]["buildcraftrobotics:robot"])
+        self.assertEqual("buildcraftrobotics:item/robot/beekeeper", powered[-1]["model"])
+        self.assertEqual(0.20, powered[-1]["predicate"]["buildcraftrobotics:robot"])
         for asset in ("resource-src/1.21.X/1.21.11/assets/buildcraftrobotics/items/robot.json",
                       "source-families/26.X/src/main/resources/assets/buildcraftrobotics/items/robot.json"):
             modern = json.loads((ROOT / asset).read_text())
-            self.assertEqual("buildcraftrobotics:item/robot/fisher", modern["model"]["entries"][-2]["model"]["model"])
+            self.assertEqual("buildcraftrobotics:item/robot/fisher", modern["model"]["entries"][-2]["model"]["entries"][0]["model"]["model"])
             self.assertEqual(0.19, modern["model"]["entries"][-2]["threshold"])
-            self.assertEqual("buildcraftrobotics:item/robot/beekeeper", modern["model"]["entries"][-1]["model"]["model"])
+            self.assertEqual("buildcraftrobotics:item/robot/beekeeper", modern["model"]["entries"][-1]["model"]["entries"][0]["model"]["model"])
             self.assertEqual(0.20, modern["model"]["entries"][-1]["threshold"])
         lang = json.loads((ROOT / "source-shared/src/main/resources/assets/buildcraft/lang/en_us.json").read_text())
         self.assertIn("Beekeeper Robot", lang["item.buildcraftrobotics.robot.beekeeper"])

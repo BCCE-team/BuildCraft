@@ -4,6 +4,8 @@ package buildcraft.robotics.client.render.preview;
 
 import buildcraft.lib.compat.minecraft.gui.BCGraphics;
 import buildcraft.robotics.BCRoboticsBoards;
+import buildcraft.robotics.client.RobotBatteryVisuals;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.item.TrackingItemStackRenderState;
 import net.minecraft.resources.Identifier;
@@ -17,6 +19,9 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /** Side-on list portraits and a real, animated detail model; no GUI item transform. */
 public final class RobotProcessorPreview {
+    private static final Identifier SIDE_OVERLAY = Identifier.fromNamespaceAndPath(
+        "buildcraftrobotics", "textures/entities/overlay_side.png");
+
     private RobotProcessorPreview() {}
 
     //? if >=26.1 {
@@ -32,10 +37,16 @@ public final class RobotProcessorPreview {
             // i.e. (8,8)..(16,16) on the original 32x32 profession texture.
             String name = BCRoboticsBoards.getRobotBoard(stack).robotTexture();
             Identifier texture = Identifier.fromNamespaceAndPath("buildcraftrobotics",
-                "textures/entities/" + name + "_active.png");
+                "textures/entities/" + name + ".png");
             int side = pixelSize / 2;
             BCGraphics.blit(graphics, texture, cx - side / 2, cy - side / 2,
                 8, 8, side, side, 8, 8, 32, 32);
+            // Deferred GUI extraction must draw the transparent lights after the body.
+            if (RobotBatteryVisuals.powered(stack)) {
+                BCGraphics.nextLayer(graphics);
+                graphics.blit(RenderPipelines.GUI_TEXTURED, SIDE_OVERLAY, cx - side / 2, cy - side / 2,
+                    8.0F, 8.0F, side, side, 8, 8, 32, 32, RobotBatteryVisuals.sideTint(stack));
+            }
             return;
         }
         // Capture the real board-dependent baked item geometry during GUI extraction.

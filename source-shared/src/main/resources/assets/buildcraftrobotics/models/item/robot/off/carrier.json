@@ -1,0 +1,7 @@
+{
+  "parent": "buildcraftrobotics:robot_off",
+  "textures": {
+    "particle": "#all",
+    "all": "buildcraftrobotics:entities/robot_carrier"
+  }
+}

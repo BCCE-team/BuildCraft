@@ -82,6 +82,7 @@ import buildcraft.robotics.boards.BoardRobotPump;
 import buildcraft.robotics.boards.BoardRobotShovelman;
 import buildcraft.robotics.boards.BoardRobotStripes;
 import buildcraft.robotics.internal.legacy.robots.RobotManager;
+import buildcraft.robotics.item.RobotCreativeTabIcon;
 import buildcraft.robotics.client.render.RenderRobot;
 import buildcraft.robotics.client.render.RenderZonePlanner;
 import buildcraft.robotics.zone.MessageZoneMapResponse;
@@ -202,7 +203,7 @@ public class BCRobotics {
         StatementManager.registerParameter(StatementParameterMapLocation::readFromNbt, StatementParameterMapLocation::readFromBuf);
 
         RobotIntegrationRecipe.register();
-        TAB_ROBOTICS.setItem(BCRoboticsItems.ROBOT.get());
+        TAB_ROBOTICS.setItem(RobotCreativeTabIcon.create());
     }
 
 
@@ -299,6 +300,7 @@ public class BCRobotics {
     @EventBusSubscriber(modid = MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static class ClientModEvents {
         private static final ResourceLocation ROBOT_MODEL = ResourceLocation.fromNamespaceAndPath(MODID, "robot");
+        private static final ResourceLocation ROBOT_POWER_MODEL = ResourceLocation.fromNamespaceAndPath(MODID, "robot_power");
         private static final ResourceLocation BOARD_MODEL = ResourceLocation.fromNamespaceAndPath(MODID, "board");
 
         @SubscribeEvent
@@ -306,6 +308,13 @@ public class BCRobotics {
             BCRoboticsClientGuis.clientInit(PlatformClientRegistration.screens(event));
         }
 
+        //? if <1.21.4 {
+        @SubscribeEvent
+        public static void registerRobotItemColors(net.neoforged.neoforge.client.event.RegisterColorHandlersEvent.Item event) {
+            event.register(buildcraft.robotics.client.RobotBatteryVisuals::itemColor, BCRoboticsItems.ROBOT.get());
+        }
+
+        //?}
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
 
@@ -313,7 +322,9 @@ public class BCRobotics {
             event.enqueueWork(() -> {
                 //? if <1.21.4 {
                 ItemProperties.register(BCRoboticsItems.ROBOT.get(), ROBOT_MODEL,
-                        (stack, level, entity, seed) -> BCRoboticsBoards.getRobotModelValue(stack));
+                        (stack, level, entity, seed) -> RobotCreativeTabIcon.modelValue(stack));
+                ItemProperties.register(BCRoboticsItems.ROBOT.get(), ROBOT_POWER_MODEL,
+                        (stack, level, entity, seed) -> buildcraft.robotics.client.RobotBatteryVisuals.powerModel(stack));
                 ItemProperties.register(BCRoboticsItems.REDSTONE_BOARD.get(), BOARD_MODEL,
                         (stack, level, entity, seed) -> BCRoboticsBoards.getBoardModelValue(stack));
                 //?}
@@ -325,7 +336,28 @@ public class BCRobotics {
         @SubscribeEvent
         public static void registerItemModelProperties(RegisterRangeSelectItemModelPropertyEvent event) {
             event.register(ROBOT_MODEL, RobotModelProperty.MAP_CODEC);
+            event.register(ROBOT_POWER_MODEL, RobotPowerProperty.MAP_CODEC);
             event.register(BOARD_MODEL, BoardModelProperty.MAP_CODEC);
+        }
+
+        @SubscribeEvent
+        public static void registerRobotItemTints(net.neoforged.neoforge.client.event.RegisterColorHandlersEvent.ItemTintSources event) {
+            event.register(ResourceLocation.fromNamespaceAndPath(MODID, "robot_charge"),
+                buildcraft.robotics.client.RobotChargeItemTintSource.MAP_CODEC);
+        }
+
+        public record RobotPowerProperty() implements RangeSelectItemModelProperty {
+            public static final MapCodec<RobotPowerProperty> MAP_CODEC = MapCodec.unit(new RobotPowerProperty());
+
+            @Override
+            public float get(net.minecraft.world.item.ItemStack stack, @Nullable ClientLevel level, @Nullable ItemOwner owner, int seed) {
+                return buildcraft.robotics.client.RobotBatteryVisuals.powerModel(stack);
+            }
+
+            @Override
+            public MapCodec<RobotPowerProperty> type() {
+                return MAP_CODEC;
+            }
         }
 
         public record RobotModelProperty() implements RangeSelectItemModelProperty {
@@ -333,7 +365,7 @@ public class BCRobotics {
 
             @Override
             public float get(net.minecraft.world.item.ItemStack stack, @Nullable ClientLevel level, @Nullable ItemOwner owner, int seed) {
-                return BCRoboticsBoards.getRobotModelValue(stack);
+                return RobotCreativeTabIcon.modelValue(stack);
             }
 
             @Override

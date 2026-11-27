@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.HashMap;
 import net.minecraft.world.item.ItemStack;
 import buildcraft.robotics.BCRoboticsBoards;
+import buildcraft.robotics.client.RobotBatteryVisuals;
 import buildcraft.robotics.RobotTaskNames;
 import buildcraft.robotics.item.ItemRobot;
 import buildcraft.robotics.client.render.preview.RobotProcessorPreview;
@@ -622,7 +623,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
             RobotSnapshot robot = robots.get(i + listOffset);
             int y = 23 + i * ROW_HEIGHT;
             drawListBackground(pose, y, i, robot.id() == selectedRobotId);
-            renderRobotModel(pose, robot.board(), 18, y + 7, 24, false);
+            renderRobotModel(pose, robot.board(), robot.charge(), 18, y + 7, 24, false);
             // Two lines share a 15px row, with a larger centered model in the left icon column.
             panelSmallText(pose, robot.name().isBlank() ? "#" + robot.id() : robot.name(),
                     29, y + 1, 57, robot.id() == selectedRobotId ? 0xFF_FF_E0_80 : 0xFF_20_20_20);
@@ -640,7 +641,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
             return;
         }
         // Render the real, profession-specific 3D robot model, not the generic empty robot icon.
-        renderRobotModel(pose, selected.board(), 25, 160, 32, true);
+        renderRobotModel(pose, selected.board(), selected.charge(), 25, 160, 32, true);
         panelText(pose, RobotProcessorUiText.text("robot", selected.name().isBlank() ? boardName(selected.board()) : selected.name()),
                 45, 134, 162, 0xFF_25_25_25);
         panelText(pose, RobotProcessorUiText.text("task", RobotProcessorUiText.task(selected.task())), 45, 144, 162, 0xFF_25_25_25);
@@ -653,10 +654,13 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
                 45, 176, 162, 0xFF_25_25_25);
     }
 
-    private ItemStack modelForBoard(String boardId) {
+    private ItemStack modelForBoard(String boardId, int percent) {
         if (boardId == null || boardId.isBlank() || "Unknown".equals(boardId)) return ItemStack.EMPTY;
-        return cachedRobotModels.computeIfAbsent(boardId, id ->
-                ItemRobot.createRobotStack(BCRoboticsBoards.getById(id), EntityRobotBase.MAX_ENERGY));
+        int clamped = Math.max(0, Math.min(100, percent));
+        // Immutable previews are keyed by board and the server's 0..100 charge, not raw energy.
+        String key = boardId + "#" + clamped;
+        return cachedRobotModels.computeIfAbsent(key, id ->
+                ItemRobot.createRobotStack(BCRoboticsBoards.getById(boardId), RobotBatteryVisuals.energyFromPercent(clamped)));
     }
 
     private static int statusColor(String status) {
@@ -698,8 +702,8 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     }
 
     /** Side-on profession texture in the list; original-size rotating model in the detail panel. */
-    private void renderRobotModel(PoseStack pose, String boardId, int cx, int cy, int pixelSize, boolean rotate) {
-        ItemStack stack = modelForBoard(boardId);
+    private void renderRobotModel(PoseStack pose, String boardId, int percent, int cx, int cy, int pixelSize, boolean rotate) {
+        ItemStack stack = modelForBoard(boardId, percent);
         if (stack.isEmpty()) return;
         RobotProcessorPreview.render(getActiveGraphics(), stack, leftPos + cx, topPos + cy, pixelSize, rotate);
     }
