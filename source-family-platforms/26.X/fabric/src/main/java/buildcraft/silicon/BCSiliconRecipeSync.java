@@ -214,7 +214,7 @@ public final class BCSiliconRecipeSync {
 
     /** Client-only snapshot cache used by JEI; never execute recipes on the client. */
     public static final class Client {
-        private static List<RecipeHolder<AssemblyRecipeBasic>> assembly = List.of();
+        private static volatile List<RecipeHolder<AssemblyRecipeBasic>> assembly = List.of();
         private static Runnable assemblyRecipesChanged;
         private static long appliedGeneration = -1;
         private static long pendingGeneration = -1;
@@ -259,6 +259,7 @@ public final class BCSiliconRecipeSync {
             pendingCount = 0;
             pending.clear();
             changed();
+            buildcraft.lib.recipe.ClientMachineRecipeCatalog.notifyEmi();
         }
 
         public static void clear() {

@@ -32,6 +32,7 @@ def prepareEffectiveSource = bc.prepareEffectiveSource
 def effectiveSourceDir = bc.effectiveSourceDir
 def effectiveDirs = bc.effectiveDirs
 def centralJarOutputDir = bc.centralJarOutputDir
+def emiDependency = optionalProperty('deps.emi')
 def jeiCompatEnabled = booleanProperty('compat.jei.enabled', true)
 def jadeCompatEnabled = booleanProperty('compat.jade.enabled', true)
 def ic2CompatEnabled = booleanProperty('compat.ic2.enabled', false)
@@ -87,6 +88,10 @@ sourceSets {
 
 }
 
+// No compatible published EMI for 1.21.11 NeoForge: build other integrations normally.
+if (!emiDependency) {
+    sourceSets.main.java.exclude 'buildcraft/compat/emi/**'
+}
 if (!jeiCompatEnabled) {
     sourceSets.main.java.exclude 'buildcraft/compat/jei/**'
 }
@@ -446,8 +451,8 @@ dependencies {
             localRuntime dependency
         }
     }
+    if (emiDependency) compileOnly emiDependency
     if (recipeViewerRuntimeEnabled('emi')) {
-        def emiDependency = optionalProperty('deps.emi')
         if (emiDependency) {
             localRuntime emiDependency
         } else {

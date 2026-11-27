@@ -170,6 +170,7 @@ dependencies {
     // REI's widget signatures use Point/Rectangle from Cloth Config's nested jar.
     // Runtime obtains basic-math from Cloth Config itself; do not bundle it twice.
     compileOnly requiredProperty('deps.rei_math')
+    compileOnly requiredProperty('deps.emi')
     if (selectedRecipeViewer == 'emi') runtimeOnly requiredProperty('deps.emi')
     runtimeOnly requiredProperty('deps.jade')
     compileOnly 'javax.annotation:javax.annotation-api:1.3.2'

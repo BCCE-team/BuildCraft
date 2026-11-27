@@ -397,8 +397,11 @@ dependencies {
             runtimeOnly fg.deobf(dependency)
         }
     }
+    // Native EMI is compile-only unless selected for the development runtime.
+    def emiDependency = requiredProperty('deps.emi')
+    compileOnly fg.deobf(emiDependency)
     if (recipeViewerRuntimeEnabled('emi')) {
-        runtimeOnly fg.deobf(requiredProperty('deps.emi'))
+        runtimeOnly fg.deobf(emiDependency)
     }
 
     def jadeDependency = optionalProperty('deps.jade')

@@ -24,6 +24,7 @@ public final class ClientMachineRecipeCatalog {
     private static Pending pending;
     private static Runnable listener;
     private static Runnable reiListener;
+    private static volatile Runnable emiListener;
 
     public record Entry(String machine, ResourceLocation id, RecipeDefinition definition) {}
     public record Snapshot(long generation, boolean authoritative, List<Entry> recipes,
@@ -62,6 +63,17 @@ public final class ClientMachineRecipeCatalog {
         reiListener = callback;
     }
 
+    /** EMI owns a baked recipe index, unlike REI's dynamic displays. */
+    public static void setEmiListener(Runnable callback) { emiListener = callback; }
+
+    /** Called after a complete recipe snapshot is published, never on a partial packet. */
+    public static void notifyEmi() {
+        Runnable callback = emiListener;
+        if (callback == null) return;
+        try { callback.run(); }
+        catch (RuntimeException failure) { LOG.warn("Could not refresh EMI recipe viewer", failure); }
+    }
+
     private static void notifyRei() {
         if (reiListener != null) {
             try {
@@ -76,6 +88,7 @@ public final class ClientMachineRecipeCatalog {
         current = Snapshot.empty();
         buildcraft.energy.OilIndustry.setRemoteMode(null);
         pending = null;
+        emiListener = null;
         if (listener != null) listener.run();
         notifyRei();
     }
@@ -132,6 +145,7 @@ public final class ClientMachineRecipeCatalog {
                 all.size(), denied.values().stream().mapToInt(Set::size).sum());
             if (listener != null) listener.run();
             notifyRei();
+            notifyEmi();
         } catch (RuntimeException invalid) {
             LOG.warn("Rejected invalid recipe display snapshot: {}", invalid.toString());
         } finally {

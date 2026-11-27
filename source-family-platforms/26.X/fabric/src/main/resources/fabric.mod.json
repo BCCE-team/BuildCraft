@@ -41,6 +41,9 @@
     ],
     "jade": [
       "buildcraft.compat.jade.BuildCraftJadePlugin"
+    ],
+    "emi": [
+      "buildcraft.compat.emi.BuildCraftEmiPlugin"
     ]
   },
   "mixins": [
@@ -61,6 +64,7 @@
     "jei": "*",
     "roughlyenoughitems": "*",
     "jade": "*",
-    "modmenu": "*"
+    "modmenu": "*",
+    "emi": "*"
   }
 }

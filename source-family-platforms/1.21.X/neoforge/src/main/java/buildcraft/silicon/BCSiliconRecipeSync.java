@@ -23,7 +23,7 @@ public final class BCSiliconRecipeSync {
     /** Only this nested subscriber references client classes; dedicated servers never load it. */
     @EventBusSubscriber(modid = BCSilicon.MODID, value = Dist.CLIENT)
     public static final class Client {
-        private static List<RecipeHolder<AssemblyRecipeBasic>> assembly = List.of();
+        private static volatile List<RecipeHolder<AssemblyRecipeBasic>> assembly = List.of();
         /** Optional client callback. JEI installs it only while its runtime is active. */
         private static Runnable assemblyRecipesChanged;
 
@@ -52,6 +52,7 @@ public final class BCSiliconRecipeSync {
             if (event.getRecipeTypes().contains(BCSiliconRecipes.ASSEMBLY_TYPE.get())) {
                 assembly = List.copyOf(event.getRecipeMap().byType(BCSiliconRecipes.ASSEMBLY_TYPE.get()));
                 notifyAssemblyRecipesChanged();
+                buildcraft.lib.recipe.ClientMachineRecipeCatalog.notifyEmi();
             }
         }
 
