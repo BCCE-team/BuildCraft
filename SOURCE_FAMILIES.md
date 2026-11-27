@@ -47,7 +47,7 @@ Current targets:
 
 Build root: `builds/26.X`
 
-The 26.X build uses Java 25 and its own NeoForge/ModDevGradle toolchain. It shares the same repository-level source architecture and parity rules as the older generations while keeping toolchain requirements isolated.
+The 26.X build uses Java 25, NeoForge/ModDevGradle and Fabric Loom toolchains. It shares the same repository-level source architecture and parity rules as the older generations while keeping toolchain requirements isolated.
 
 ## Repository layout
 
@@ -59,6 +59,7 @@ build-config/
 
 build-logic/
 ├─ common-target.gradle           shared target/materialization wiring
+├─ api-v2-gates.gradle             production-JAR API and addon fixture gates
 └─ loaders/                       Forge/NeoForge/Fabric build adapters
 
 builds/
@@ -460,7 +461,7 @@ bindings stay in `source-platforms/<loader>`.
 | Energy | `EnergyStorage` (FE quantities, no unit conversion) | Native energy lookup/import/export |
 | Events | `BCEvents` records and explicit tick phases | `PlatformEvents`, `PlatformClientEvents` |
 | Content | `BCDeferredRegister`, `BCRegistryEntry`, `BCRegistryBinder`, `BCMenuFactory` | `RegistryBinding`, `PlatformMenus` |
-| Configuration | `BCConfigSpec` schema and live value handles | `ConfigBinding` and native config events |
+| Configuration | `BCConfigSpec`, shared `ConfigBinding` and BCCE configuration registry | Loader lifecycle and editor entrypoints |
 
 Storage adapters preserve native identity when unwrapped. This is required for
 Tank/TankManager rollback and for NeoForge transactions; a new operation view must
@@ -479,9 +480,12 @@ continues stamping block/item property IDs. Registry entries are not fake vanill
 `Holder` implementations.
 
 Config builders record schema operations, including names, comments, ranges,
-enum choices, defaults and world-restart flags. Binding creates one native spec;
-value handles forward live getters so reload does not become a stale snapshot.
-Module-specific reload filtering remains in the owning config class.
+enum choices, defaults and world-restart flags. Shared `ConfigBinding` registers
+these definitions in BCCE's own configuration registry, not a native loader spec.
+Handles read effective values according to the application policy; loader lifecycle
+hooks refresh module caches. Legacy TOML/INI files are migration inputs. Addons
+use the public `ConfigurationService`; internal binding and storage remain outside
+the public API. See [configuration](docs/configuration-v2.2.md).
 
 Gameplay tick/join/unload/watch callbacks receive normalized records and are
 registered once. START and END phases are not coalesced: Transport's two distinct
@@ -540,9 +544,11 @@ Source ownership is retained: shared gameplay stays in `source-shared` and
 `source-family-platforms/26.X/fabric`. The target exclusion manifest removes
 NeoForge-only files that have no Fabric equivalent.
 
-**Verification limitation:** The Fabric target currently has a world-backed
-startup GameTest, while the original four cross-target semantic scenario
-GameTests have not yet been ported. The semantic comparison remains strict for
-its seven existing implementations and must not be mistaken for a Fabric 1:1
-behavior certificate. A successful release also requires actual CI compilation,
-client/server world join and installed production server boot, not static validation alone.
+**Verification boundary:** Fabric now has a world-backed GameTest suite, including
+the four cross-target semantic scenarios. `scripts/ci-system-trace-parity.py`
+requires all four observations from every configured target, including Fabric;
+missing traces and mismatched observations fail the aggregate gate. Passing these
+scenarios is not a complete 1:1 behavior certificate. Release acceptance also
+requires actual CI compilation, API/ABI gates, client/server world join and
+restart/rejoin, and installed production-server conformance. See
+[release gates](docs/api-v2-abi-gates.md).

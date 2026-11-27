@@ -94,7 +94,7 @@ When editing machines, pipes, energy, robotics, or building systems, consider:
 
 ### Public API
 
-The supported addon-facing API is **`buildcraft.api.v2`**. Internal implementation packages are not part of the public compatibility guarantee. Prefer the existing public contracts instead of making addons depend on internal classes, and discuss potentially breaking API changes before implementing them. When updating the API, update relevant tests and documentation as well. All loaders enforce released API ABI compatibility and independent production-JAR addon compilation as part of `check`. See [Public API v2 compatibility and release gates](docs/api-v2-abi-gates.md) for the pinned baseline, offline cache, reports and release acceptance.
+The supported addon-facing API is **`buildcraft.api.v2`**. Internal implementation packages are not part of the public compatibility guarantee. Prefer the existing public contracts instead of making addons depend on internal classes, and discuss potentially breaking API changes before implementing them. When updating the API, update relevant tests and documentation as well. All loaders enforce released API ABI compatibility and independent production-JAR addon compilation as part of `check`. See [Public API v2 compatibility and release gates](docs/api-v2-abi-gates.md) for the pinned baseline, offline cache, reports and release acceptance. Use [the runtime and threading contracts](docs/api-v2-runtime-contracts.md) and [the API developer guide](https://bcce-team.github.io/BuildCraft/) when changing public contracts. Register addon configuration through `ConfigurationService` and keep loader-specific UI entrypoints separate from BCCE-owned storage. See [configuration](docs/configuration-v2.2.md).
 
 ### Localization
 
@@ -123,6 +123,8 @@ python scripts/validate-repository-cleanliness.py
 The first command runs validators and Python-based tests only; the second also builds and runs GameTests for maintained targets. You can inspect available stages with `./run-ci-local.ps1 -ListSteps`. Local logs are saved under `logs/ci-local/`.
 
 **Important:** Client and dedicated-server smoke tests run in GitHub CI, not in the Windows local CI runner. A successful local run is valuable, but it does **not** replace those checks or manual gameplay testing.
+
+The release CI also requires four semantic GameTest traces from every configured target, including Fabric, and runs an independently compiled [installed API conformance addon](docs/api-v2-test-addon.md) against the exact production JAR. Do not equate static validation, offline API doubles or a successful startup with complete gameplay verification.
 
 For gameplay fixes, add or update a regression test when feasible. For rendering, GUI, and interaction changes, include screenshots or a short recording and test in-game. If you could not run a relevant test, **say so in the PR** instead of claiming that everything passed.
 

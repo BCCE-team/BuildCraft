@@ -23,8 +23,9 @@ Make sure to download the version matching your Minecraft version and mod loader
 | 26.1.2 | NeoForge |
 | 26.2 | NeoForge |
 | 26.3 | NeoForge |
+| 26.3 | Fabric |
 
-## Roadmap 2.1
+## Roadmap 2.1 / 2.2
 
 - [x] Drop support for 1.21.1 Forge
 - [x] Introduce the new API v2 system
@@ -33,10 +34,12 @@ Make sure to download the version matching your Minecraft version and mod loader
 - [x] Port to 26.x NeoForge
 - [x] Extend API v2 to version 2.1
 - [x] Port to 26.3 Fabric
+- [x] Extend API v2 to version 2.2
+- [x] Introduce the shared BCCE configuration system and addon configuration API
 - [ ] Port to 1.20.1 Fabric
 - [ ] Port to 1.21.1 Fabric
 - [ ] Port to 1.21.11 Fabric
-- [ ] Port to 26.x Fabric
+- [ ] Port the remaining 26.x versions to Fabric (26.1.2 and 26.2)
 
 ## For Modpack Creators
 
@@ -60,15 +63,19 @@ The current API version is **2.2.0**, exposed through the `buildcraft.api.v2` na
 
 Loader-specific implementation details remain outside the public API, while common concepts such as energy, fluids, pipes, robotics, machines, schematics, statements, automation, registration and debugging are exposed through shared contracts.
 
-API v2.1 significantly expands addon capabilities, including custom pipe behaviours and flows, robot programs, machine integrations and interactions with BuildCraft's internal systems through supported public interfaces.
+API v2.1 expanded addon capabilities, including custom pipe behaviours and flows, robot programs, machine integrations and interactions with BuildCraft's internal systems through supported public interfaces. API v2.2 adds typed and versioned addon configuration, runtime capability negotiation based on installed services and registries, independent fuel heat output, and new machine recipe definitions. Same-target binary compatibility with the published API 2.1 release is checked as part of the production build.
 
-Forge Energy (FE) compatibility is integrated without making the public API depend on Forge or NeoForge classes.
+Forge Energy (FE) compatibility is integrated through loader-specific adapters, including TeamReborn Energy on Fabric, without making the public API depend on loader classes.
 
 Addons should use the public `buildcraft.api.v2` contracts rather than relying on internal implementation packages such as `buildcraft.lib`, `buildcraft.transport` or `buildcraft.factory`, which are not covered by the public API compatibility guarantees.
 
 The long-term goal is to make addons easier to develop and maintain across BCCE's supported Minecraft versions and future loader ports.
 
-Documentation: [BCCE API Documentation](https://bcce-team.github.io/BuildCraft/)
+Documentation: [BCCE API Documentation](https://bcce-team.github.io/BuildCraft/) | [Runtime contracts](docs/api-v2-runtime-contracts.md) | [API compatibility gates](docs/api-v2-abi-gates.md)
+
+## Configuration and datapacks
+
+All eight targets use the BCCE configuration editor and storage rather than native loader configuration specs. Modpack creators can configure client preferences, world rules and balance, including addon settings; dedicated-server settings are server-authoritative. See [configuration and migration](docs/configuration-v2.2.md), [machine recipe datapacks and blacklists](docs/recipe_docs.md) and [logging and diagnostics](docs/LOGGING.md).
 
 ## Multi-version build and source architecture
 
@@ -76,7 +83,7 @@ BCCE has three active Stonecutter/Gradle build generations:
 
 - **old** — Minecraft 1.19.2 and 1.20.1;
 - **1.21.X** — Minecraft 1.21.1 and 1.21.11;
-- **26.X** — Minecraft 26.1.2, 26.2 and 26.3.
+- **26.X** — Minecraft 26.1.2, 26.2 and 26.3 (NeoForge), plus 26.3 Fabric.
 
 Each generation has its own Gradle Wrapper and Stonecutter controller under `builds/<generation>`.
 
@@ -98,7 +105,7 @@ The 1.19.2 implementation is the gameplay reference, but source code is allowed 
 
 The compatibility target is player-visible behaviour: **different implementation, indistinguishable BuildCraft**.
 
-CI builds and tests each maintained target independently. Every target has its own build, GameTest, dedicated-server smoke and client smoke run, while cross-target architecture and parity checks remain global.
+CI builds and tests all eight maintained targets independently. Each target has production-JAR API compatibility checks, GameTests, a real client/server world-join and restart/rejoin check, and an installed dedicated-server smoke with an independent API test addon. The aggregate job compares four semantic gameplay traces across all eight targets. Release publication consumes those same verified artifacts; configured targets and checks are not a claim that every runtime behavior has been tested.
 
 See [`SOURCE_FAMILIES.md`](SOURCE_FAMILIES.md) for layout rules, parity policy and build commands.
 

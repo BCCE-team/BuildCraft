@@ -9,7 +9,7 @@ Do not replace these with JARs rebuilt from a branch or with the candidate JAR.
 ## Mandatory gates
 
 `build-logic/api-v2-gates.gradle` is shared by Forge, NeoForge and Fabric.
-`check`, and therefore `build` / `buildAndCollect`, requires both gates:
+`check`, and therefore `build` / `buildAndCollect`, requires the following production-JAR checks:
 
 1. `verifyApi2AddonBinary` independently compiles all 18 materialized addon
    fixtures against the target's production JAR and Minecraft/loader compile
@@ -28,6 +28,9 @@ Do not replace these with JARs rebuilt from a branch or with the candidate JAR.
    the entry point/version, MJ value/result types, default interface methods and
    a precompiled implementation of `MjPort`. It checks which JAR actually
    supplied `BuildCraftApi`.
+
+`verifyApi2Fixtures` depends on both verification tasks and `buildApiTestAddon`,
+which builds the standalone runtime conformance addon for the same target.
 
 Forge gates explicitly wait for `reobfJar` when that task exists. The comparison
 is always same-target: it does not promise Minecraft or loader ABI portability.
@@ -64,13 +67,13 @@ It is also required for publication through the shared CI workflow.
 
 ## Release acceptance
 
-The existing eight-target matrix builds each production JAR, runs unit tests,
+The eight-target matrix builds each production JAR, runs unit tests,
 GameTests, IT16 client/server join/rejoin, and the installed dedicated-server
 smoke test. It stages the ABI-verified JAR and report before the development
 runtime checks, restores that exact JAR before the installed-server smoke, and
 uploads the staged pair only after the runtime gates succeed. The aggregate
 job validates exactly one JAR/report for every configured target, including its
-SHA-256, in addition to the existing gameplay trace comparison.
+SHA-256, in addition to the four semantic gameplay trace comparisons required from all eight targets, including Fabric. The separate [installed-server API conformance addon](api-v2-test-addon.md) must also pass against the same candidate JAR.
 
 `publish.yml` invokes this same reusable CI workflow on the release tag, with the
 release's pinned localization revision. It publishes the verified artifacts,

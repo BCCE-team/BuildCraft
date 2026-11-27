@@ -1,6 +1,6 @@
 # Live physical ship runtime compatibility
 
-Targets: Forge 1.19.2 and 1.20.1 (Valkyrien Skies 2 / Clockwork / Interactive), NeoForge 1.21.1 (Sable / Create Aeronautics). Shared reach checks also materialize on newer targets; no new required dependency is introduced. This complements the pipe-hit and physical-property patches. It is not a promise of support for regular Create moving contraption entities, which do not expose live world block entities in the same way.
+Targets: Forge 1.19.2 and 1.20.1 (Valkyrien Skies 2 / Clockwork / Interactive), NeoForge 1.21.1 (Sable / Create Aeronautics). Shared reach checks also materialize on newer targets; no new required dependency is introduced. This complements [the optional physics definitions and mass bridge](create-physics.md) and the existing pipe-hit handling. It is not a promise of support for regular Create moving contraption entities, which do not expose live world block entities in the same way.
 
 ## Coordinate contract
 

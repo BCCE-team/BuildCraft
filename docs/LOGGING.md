@@ -8,9 +8,9 @@ This page covers configuration, log contents, robot tracing, troubleshooting, an
 
 For normal gameplay, leave **Logging Profile** set to `DEFAULT`. When investigating a problem:
 
-1. On NeoForge, open **BuildCraft Core > Config > Debug** in the mod configuration UI. On Forge or Fabric, edit the Core TOML file instead (see [Configuration](#configuration)).
+1. Open the BCCE settings editor on your loader and select **BCCE > World/Server > Diagnostics** (see [Configuration](#configuration)). On a dedicated server, edit its world configuration while it is stopped or use the authorized in-game editor.
 2. Select the profile appropriate to the problem using the table below.
-3. Restart the client or server to ensure the configuration has taken effect.
+3. Save with Done and reopen the world or restart the dedicated server; these settings are world-restart-bound. A process restart is necessary to change JVM/environment overrides.
 4. Reproduce the issue, retain the resulting `latest.log` (and any relevant crash report), then return to `DEFAULT`.
 
 Do not enable the most detailed profiles permanently on busy servers: the additional messages can increase log volume and diagnostic overhead.
@@ -37,29 +37,26 @@ Profiles are cumulative. Moving to a more detailed profile does not remove error
 
 ### In-game configuration
 
-Logging is owned by **BuildCraft Core**, under **Debug**. It is not a separate Library configuration page.
+Logging settings are owned by **BuildCraft Core** and exposed in the shared BCCE configuration editor, under **World/Server > Diagnostics** in the BCCE view. They are server-scoped and use the `WORLD_RESTART` policy.
 
 | Platform | Configuration entry |
 | --- | --- |
-| Forge 1.19.2 / 1.20.1 | Edit `config/buildcraftcore-common.toml`: the loader has no built-in complete Core config editor. |
-| NeoForge | **Mods > BuildCraft Core > Config > Debug** in the native Core configuration editor |
-| Fabric 26.3 | Edit `config/buildcraftcore-common.toml`: Fabric does not provide a native full config editor. |
+| Forge / NeoForge | Native **Mods > Config** entrypoint opens the BCCE editor |
+| Fabric 26.3 | Optional Mod Menu configuration entrypoint opens the same editor |
+| All targets | In a world, assign and use the **Open BuildCraft settings** key binding (unbound by default) |
 
-The Core Debug section contains two independent settings: **Logging Profile** and **Verbose Robot Logging**. The latter is described in [Robot tracing](#robot-tracing).
-
-The native NeoForge configuration screen must retain **all existing Core categories and options**. An editor containing only these two debug options is incomplete and must not be registered in place of the full editor. Forge and Fabric require a separate, full-featured editor before a comparable in-game Config button can be provided; the earlier debug-only screen has been disconnected.
+The Diagnostics category contains two independent settings: **Logging Profile** and **Verbose Robot Logging**. The latter is described in [Robot tracing](#robot-tracing). In multiplayer only an authorized operator can read and modify the remote server's settings; they do not configure the local client's installation.
 
 ### Configuration file
 
-The two settings are stored in the native Core COMMON configuration file, `config/buildcraftcore-common.toml`, on the client or dedicated server where they are used:
+For integrated singleplayer use `config/buildcraft/server-defaults.properties`. For an existing dedicated-server world use `<world>/buildcraft/configuration.properties`; its installation's `config/buildcraft/server-defaults.properties` is the template for new worlds. Stop the world/server before editing files directly.
 
-```toml
-[debug]
-loggingProfile = "DEFAULT"
-verboseRobotLogging = false
+```properties
+buildcraftcore\:debug/loggingProfile=DEFAULT
+buildcraftcore\:debug/verboseRobotLogging=false
 ```
 
-Accepted profile values are `DEFAULT`, `DEBUG`, `HARD_DEBUGGING`, and `VERBOSE`. If you edit the TOML directly, preserve the other Core configuration sections. Restarting the client/server is the reliable way to apply a new setting; Core configuration reloads can also update the selected profile when the loader performs a reload.
+The escaped colon is Java properties syntax for a literal colon in the setting ID. Accepted profile values are `DEFAULT`, `DEBUG`, `HARD_DEBUGGING`, and `VERBOSE`. Preserve other entries in the file. The legacy `config/buildcraftcore-common.toml` is imported as a migration input; existing new-format values take precedence. See [BCCE Configuration](configuration-v2.2.md) for the storage and authorization rules.
 
 ### Temporary launch overrides
 
@@ -76,10 +73,10 @@ The effective selection is resolved in this order:
 1. `-Dbuildcraft.log.profile=...`
 2. Legacy `-Dbuildcraft.debug=...` setting, when it specifies a supported mode
 3. `BUILDCRAFT_LOG_PROFILE`
-4. `[debug] loggingProfile` in `buildcraftcore-common.toml`
+4. `buildcraftcore:debug/loggingProfile` in the active BCCE server configuration
 5. `DEFAULT`
 
-A supported external override takes precedence over the in-game choice until the process is restarted without that override. An invalid explicit profile is reported and uses `DEFAULT` for that process.
+A supported external override takes precedence over the saved configuration choice until the process is restarted without that override. An invalid explicit profile is reported and uses `DEFAULT` for that process.
 
 ## Robot tracing
 
@@ -159,10 +156,10 @@ Existing subsystem-specific debugging switches are separate compatibility mechan
 
 ## Troubleshooting and limitations
 
-**Changing the profile has no apparent effect.** Check the effective value in the Core configuration, then look for `-Dbuildcraft.log.profile`, `-Dbuildcraft.debug`, or `BUILDCRAFT_LOG_PROFILE` overrides. Restart after modifying the setting. The profile does not control logging from other mods or Minecraft itself.
+**Changing the profile has no apparent effect.** Check the effective value in the BCCE world/server configuration, then look for `-Dbuildcraft.log.profile`, `-Dbuildcraft.debug`, or `BUILDCRAFT_LOG_PROFILE` overrides. Restart after modifying the setting. The profile does not control logging from other mods or Minecraft itself.
 
 **The log contains repeated warnings even in Default.** Identify the logger that emitted them. Messages written directly by Minecraft, the mod loader, or another mod are outside the BuildCraft profile filter. A vanilla pick-block warning involving `quarry_drill_collision`, for example, needs a fix in the block interaction rather than a BuildCraft log-level change.
 
 **Hard debugging is not enough to explain a robot problem.** Enable `verboseRobotLogging` temporarily and reproduce the issue on the affected side, usually the server. Disable it afterward to avoid per-tick output accumulating indefinitely.
 
-**Migration from earlier experimental builds.** The retired `config/buildcraft-logging.properties` file is no longer read. Transfer its `profile` value once to `[debug] loggingProfile` in `config/buildcraftcore-common.toml` or select the profile through the Core configuration screen. Legacy `-Dbuildcraft.debug` flags remain supported for compatibility, but new workflows should use `loggingProfile` or `-Dbuildcraft.log.profile`.
+**Migration from earlier experimental builds.** The retired `config/buildcraft-logging.properties` file is no longer read. Transfer its `profile` value once to `[debug] loggingProfile` in `config/buildcraftcore-common.toml` or select the profile through the BCCE editor. Legacy `-Dbuildcraft.debug` flags remain supported for compatibility, but new workflows should use `loggingProfile` or `-Dbuildcraft.log.profile`.

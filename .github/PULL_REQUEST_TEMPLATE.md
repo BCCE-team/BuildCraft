@@ -12,6 +12,7 @@ Check only what you actually tested.
 
 - [ ] Build successful
 - [ ] Relevant validators passed
+- [ ] Public API / documentation updated where applicable
 - [ ] GameTests passed
 - [ ] Tested in-game
 
@@ -19,7 +20,7 @@ Check only what you actually tested.
 
 ## Compatibility
 
-Does this PR affect gameplay parity, API compatibility, world saves, or integrations with other mods?
+Does this PR affect gameplay parity (including Fabric), API compatibility, configuration, world saves, or integrations with other mods?
 
 `None` if not applicable.
 

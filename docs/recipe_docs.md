@@ -8,7 +8,7 @@ For Minecraft 1.19.2 and 1.20.1 (Forge):
 data/<namespace>/recipes/<machine>/<recipe>.json
 ```
 
-For Minecraft 1.21+ (NeoForge):
+For Minecraft 1.21+:
 
 ```text
 data/<namespace>/recipe/<machine>/<recipe>.json
@@ -116,7 +116,7 @@ Programming a registered robot board uses a JSON definition rather than the old 
 }
 ```
 
-All 17 standard board recipes are supplied in `buildcraftrobotics` resources for each supported source family. The `board_key` must correspond to a registered Java robot-board program; datapacks control whether it is programmable and what it costs, **not its AI behavior**. A registered board with no active JSON definition is not offered in the Programming Table.
+All 20 standard board recipes are supplied in `buildcraftrobotics` resources for each supported source family. The `board_key` must correspond to a registered Java robot-board program; datapacks control whether it is programmable and what it costs, **not its AI behavior**. A registered board with no active JSON definition is not offered in the Programming Table.
 A board may be referenced by multiple recipe IDs; blacklist checks operate on the
 **actual recipe IDs**, not an assumed `buildcraftrobotics:programming_table/<board_key>`.
 When one recipe ID is forbidden, another independent non-blacklisted recipe for the
@@ -157,7 +157,7 @@ data/my_pack/blacklist_recipes/programming_table/no_picker.json
   {"recipe":"buildcraftrobotics:programming_table/picker"}
 ```
 
-For Programming Table the recipe key uses a registered board's `key` field (`picker`, `carrier`, etc., or the addon-defined key). The server filters the available board list and synchronizes blocked keys with the client GUI.
+For Programming Table, the JSON `board_key` refers to a registered board (`picker`, `carrier`, etc., or the addon-defined key), but a blacklist uses the exact recipe ID, not the board key. The server filters and synchronizes the remaining active board/energy variants with the client GUI.
 
 ## Duplicate recipe reporting
 
@@ -174,11 +174,11 @@ The highest-priority standard Minecraft resource wins for duplicate IDs, and a w
 
 The loader validates staged machine recipes and deny rules before publishing the new registry and blacklist snapshots. On validation failure it retains the previous machine recipe registry, **but merges every newly discovered blacklist entry into the previous blacklist** (fail-closed), so an invalid recipe cannot bypass a ban. The errors are logged. Successful reloads replace the blacklist with the exact union of currently loaded bans, allowing removal of bans only when all applicable rules are gone. This does not override Minecraft's own native recipe-loading error policy.
 
-Native Assembly and ordinary crafting recipes already use Minecraft recipe files. Static Integration Table processing, the built-in robot-board integration descriptor, and standard Programming Table costs are now JSON-defined as well. The robot integration **algorithm** and each board AI are still Java implementations; they cannot and should not be serialized as arbitrary code in JSON. Generic dynamic addon integrations still require a registered handler or the legacy API v2 Java registration path. The blacklist applies in all machine runtimes. A follow-up synchronizes the **static Distiller/Heat Exchanger JSON catalog and machine blacklist rules** to remote clients and JEI (see below). Programmatic addon recipes without a JSON wire representation remain an explicit limitation. Existing public API v2 Java registration remains available for addon compatibility.
+Native Assembly and ordinary crafting recipes already use Minecraft recipe files. Static Integration Table processing, the built-in robot-board integration descriptor, and standard Programming Table costs are now JSON-defined as well. The robot integration **algorithm** and each board AI are still Java implementations; they cannot and should not be serialized as arbitrary code in JSON. Generic dynamic addon integrations still require a registered handler or the legacy API v2 Java registration path. The blacklist applies in all machine runtimes. The server synchronizes the **Distiller, Heat Exchanger, Integration and Programming JSON catalogs and machine blacklist rules** to remote clients and JEI (see below). Programmatic addon recipes without a JSON wire representation remain an explicit limitation. Existing public API v2 Java registration remains available for addon compatibility.
 
 The migration changes built-in distillation and heat-exchange recipe IDs to `buildcraftfactory:distiller/...` and `buildcraftfactory:heat_exchanger/...`. Update any datapacks and persisted machine configurations that reference older `buildcraftenergy:distillation/...` or `buildcraftenergy:heating/...` IDs. The fluids and energy amounts are intended to remain unchanged.
 
-## Client recipe synchronization (follow-up)
+## Client recipe synchronization
 
 On server datapack publication, BCCE sends the winning machine JSON definitions and the
 absolute deny-union to connected players; it resends this snapshot after players join.
@@ -207,7 +207,7 @@ Programming Table GUI do use the new JSON definitions and costs. Some legacy
 board-registry metadata still contains the historical fallback cost for API
 compatibility; it no longer decides the Programming Table craft cost.
 
-## Safe Distiller progress after recipe reload (phase 4)
+## Safe Distiller progress after recipe reload
 
 Each Distiller now saves the identity of the **selected recipe**, including its ID,
 input variant and amount, outputs and MJ requirement, alongside its unfinished MJ.
@@ -222,7 +222,7 @@ Normal battery energy and fluid inventories are not discarded on a recipe change
 
 ### Verification boundary
 
-The phase-4 tests validate the shared recipe-identity algorithm and the materialized
+The recipe-identity regression tests validate the shared recipe-identity algorithm and the materialized
 source wiring. A successful source materialization is **not** a Gradle build or a
 GameTest run. Actual tank rollback and JEI UI rendering should still be verified
 with a dedicated modded client and server before release.

@@ -14,7 +14,9 @@ if (runtime.features().supports(BuildCraftFeatures.PIPES, 2)) {
 }
 ```
 
-The shared Lib `RuntimeFeatures` policy is applied by the legacy, 26.X NeoForge and 26.X Fabric runtime implementations. Missing optional backends suppress the corresponding flags, not startup. The TestKit remains an explicitly configured simulation; features supplied to its constructor are not automatically a guarantee that the fake runtime implements them.
+The shared Lib `RuntimeFeatures` policy is applied by the old/1.21.X, 26.X NeoForge and 26.X Fabric runtime implementations. Missing optional backends suppress the corresponding flags, not startup. The TestKit remains an explicitly configured simulation; features supplied to its constructor are not automatically a guarantee that the fake runtime implements them.
+
+For configuration registration, migrations, typed values and client display preferences, see [the configuration guide](configuration-v2.2.md). Same-target production-JAR compatibility is verified separately by the [ABI gates](api-v2-abi-gates.md).
 
 ## Thread ownership
 

@@ -49,7 +49,7 @@ All three independent consumers now use the same fixture umbrella and helper log
 - common javac options, with source lookup and annotation processing disabled;
 - bytecode-level checks that internal BCCE packages are not referenced, including during validation of the packaged probe.
 
-The old top-level `api-test-addon/` tree is removed; the relocated probe and loader adapters retain their original contents.
+The old top-level `api-test-addon/` tree is removed; the probe and its loader adapters live in the fixture tree.
 
 This reduces drift between the compile-time and live-runtime gates while keeping
 release packaging unchanged.
@@ -83,8 +83,7 @@ The test addon is staged separately and uploaded only as a diagnostic artifact.
 This is an installed **dedicated-server** conformance smoke, not exhaustive
 coverage of every API operation. It does not place an addon block, create a
 custom robot in the world, simulate pipe transport, render a client UI, or
-simulate connection/reconnect with the test addon installed. Keep existing
-GameTests, fixture conformance, binary compatibility and client/world-join
-checks enabled. Offline tests compile the probe with materialized API contracts
+simulate connection/reconnect with the test addon installed. Keep the four mandatory cross-target semantic scenarios, other GameTests, fixture conformance, binary compatibility and client/world-join
+checks enabled on all eight targets. Offline tests compile the probe with materialized API contracts
 and stand-ins, check loader metadata and artifact binding; they are not live
 Minecraft tests. Only the real target matrix establishes installed-server success.

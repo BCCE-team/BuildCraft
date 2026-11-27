@@ -18,6 +18,8 @@ The server authorizes both read and write requests (operator permission level 2 
 
 ## Addon API
 
+The production runtime advertises `BuildCraftFeatures.CONFIGURATION` at level 1 only when the configuration service is available. Discover it after registration when it is optional; do not retain an early negative feature snapshot. See [runtime contracts](api-v2-runtime-contracts.md) for threading and lifecycle rules.
+
 `BuildCraftApi.service(BuildCraftServices.CONFIGURATION)` provides `ConfigurationService`. Register a `ConfigDefinition` during initialization using an addon-owned namespace and one of `CLIENT`, `WORLD`, or `BALANCE`. The returned `Supplier<String>` reads the effective value, while the editor shows the saved value. The registry prefixes the category with the addon namespace. Client settings may use `LIVE`; the addon should read the supplier at the point of use instead of caching it indefinitely. Server-side definitions are transmitted only to authorized clients and must use a restart policy. Registration (both client and server) closes at `ApiLifecycle.FROZEN`; register during normal mod initialization. Registering a schema increments its scope revision so an editor with a stale snapshot cannot overwrite it. A frozen schema remains frozen across world unloads and reloads. Legacy `Section.ADDONS` remains binary/wire compatible and maps to Client or World by scope; new definitions should use an explicit section. The existing setting ID and stored values are unchanged.
 
 Example (the addon selects its own categories):
@@ -76,7 +78,7 @@ Other previews cover pipe extraction costs, energy equivalents of the base trans
 
 The editor covers existing BCConfigSpec schemas and the 56 active machine/robot balance parameters. It does not yet expose every hardcoded fuel, recipe or gameplay constant, separate internal UI state or profile import/export. Every built-in module setting has an English name, concise description and detailed tooltip; machine/robot descriptions are supplied by the balance schema. Translations use the registered localization keys. Enum values cycle through allowed choices. No advanced-settings switch or manual world selector is provided.
 
-Run `python scripts/tests/test_configuration_registry.py`, `python scripts/tests/test_configuration_tree.py` and `python scripts/tests/test_configuration_scroll.py` for standalone validation. Full loader compilation and in-game QA are required before release, particularly the GUI and lifecycle hooks on 26.X, world-specific changes that affect registration, network payload sizes with many addons, and existing-world capacity changes.
+Run `python -m unittest discover -s scripts/tests -p 'test_configuration_*.py' -v` for the full standalone configuration regression suite used by CI. The installed-server API conformance addon also checks schema registration, typed values, migration and freeze enforcement; see [the installed-server probe](api-v2-test-addon.md). Full loader compilation and in-game QA are required before release, particularly the GUI and lifecycle hooks on 26.X, world-specific changes that affect registration, network payload sizes with many addons, and existing-world capacity changes.
 
 ## Additional client and world preferences
 
