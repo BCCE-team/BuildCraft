@@ -75,8 +75,11 @@ The server must log `BCCE_API_TEST REGISTERED v1` and `BCCE_API_TEST PASS v1`,
 and reach its normal ready state while the process is alive. A failure marker,
 fatal startup error, missing marker, timeout or mismatched candidate fails the
 blocking CI job. The candidate JAR restored after userdev GameTests/world-join
-checks is byte-for-byte the one used for this probe and eventual publication.
-The test addon is staged separately and uploaded only as a diagnostic artifact.
+checks is byte-for-byte the one used for this probe and verified CI artifact
+upload. The independent release workflow builds new JARs with the pinned
+release localization revision and rechecks ABI compatibility; it does not
+publish this CI artifact or rerun the installed-server probe. The test addon
+is staged separately and uploaded only as a diagnostic artifact.
 
 ## Scope and limits
 

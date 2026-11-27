@@ -63,11 +63,11 @@ python -m unittest discover -s scripts/tests -p 'test_configuration_*.py' -v
 ```
 
 The configuration suite is mandatory in GitHub CI and the local CI runner.
-It is also required for publication through the shared CI workflow.
+The independent release workflow runs the configuration suite during metadata validation before building any release JAR.
 
-## Release acceptance
+## CI and release acceptance
 
-The eight-target matrix builds each production JAR, runs unit tests,
+The eight-target CI matrix builds each production JAR, runs unit tests,
 GameTests, IT16 client/server join/rejoin, and the installed dedicated-server
 smoke test. It stages the ABI-verified JAR and report before the development
 runtime checks, restores that exact JAR before the installed-server smoke, and
@@ -75,10 +75,22 @@ uploads the staged pair only after the runtime gates succeed. The aggregate
 job validates exactly one JAR/report for every configured target, including its
 SHA-256, in addition to the four semantic gameplay trace comparisons required from all eight targets, including Fabric. The separate [installed-server API conformance addon](api-v2-test-addon.md) must also pass against the same candidate JAR.
 
-`publish.yml` invokes this same reusable CI workflow on the release tag, with the
-release's pinned localization revision. It publishes the verified artifacts,
-not a second independent build. All eight artifacts and their passing ABI
-reports must be present and match before the first distribution upload.
+`publish.yml` independently checks out the release tag and resolves the current
+`BCCE-team/Localizations` main revision once per release. Its three build jobs
+(`old` / Java 17, `1.21.X` / Java 21, `26.X` / Java 25) check out that same
+localization commit and run `buildAndCollect`. This includes the mandatory ABI
+and independent addon compilation gates. Each finished production JAR is also
+checked for the expected embedded localization resources and staged with its
+SHA-256-bound ABI report. The sequential publication job downloads only those
+release-workflow artifacts (`bcce-release-*`); all eight JAR/report pairs must
+pass verification before the first distribution upload.
+
+CI remains responsible for GameTests, semantic parity, real client/server
+join/rejoin and installed-server conformance. The release workflow neither
+invokes that matrix nor consumes its artifacts. The independently rebuilt JARs
+therefore pass the release build/ABI/localization gates, but are not claimed to
+be byte-identical to the JARs that passed the CI runtime probes. Review green CI
+for the release source before publishing the tag.
 
 ## Scope and maintenance
 

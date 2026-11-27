@@ -8,7 +8,7 @@ on:
   workflow_call:
     inputs:
       localizations_ref:
-        description: Pinned localization revision for publication
+        description: External localization revision to test
         type: string
         required: false
         default: main
@@ -425,7 +425,7 @@ jobs:
             --report "build/api-abi/reports/${STONECUTTER_TARGET}.json" \
             --directory "build/api-abi/verified/${STONECUTTER_TARGET}"
           # Preserve the separately compiled probe alongside (not inside) the
-          # publication artifacts; subsequent userdev runs may rebuild either JAR.
+          # verified CI artifacts; subsequent userdev runs may rebuild either JAR.
           addon="build/addon-fixture/installable/${STONECUTTER_TARGET}/bcce-api-test.jar"
           python scripts/build-api-test-addon.py check --target "$STONECUTTER_TARGET" --bcce-jar "$jar" --output "$addon"
           mkdir -p "build/addon-fixture/staged/${STONECUTTER_TARGET}"
@@ -484,7 +484,7 @@ jobs:
           # runtime gate. No disconnected client-only smoke is considered a pass.
           # Dev-runtime Gradle launches may regenerate the central JAR. Restore
           # the exact immutable candidate that passed ABI/addon/localization checks
-          # before the installed-server test and eventual publication.
+          # before the installed-server test and CI artifact upload.
           minecraft="${STONECUTTER_TARGET%-*}"
           loader="${STONECUTTER_TARGET##*-}"
           version="$(sed -n 's/^common\.mod\.version=//p' build-config/common.properties)"

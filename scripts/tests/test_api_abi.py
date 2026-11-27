@@ -191,16 +191,24 @@ class BaselineAndReleaseGateTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'exactly 8 unique production JARs'):
                 artifacts.verify_all(root, baseline)
 
-    def test_publication_cannot_bypass_runtime_matrix_or_config_suite(self):
+    def test_independent_release_preserves_abi_and_configuration_gates(self):
         ci = (ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8')
         local = (ROOT / 'scripts/run-ci-local.py').read_text(encoding='utf-8')
         release = (ROOT / '.github/workflows/publish.yml').read_text(encoding='utf-8')
         self.assertIn("-p 'test_configuration_*.py'", ci)
         self.assertIn('_unittest_command("test_configuration_*.py")', local)
         self.assertIn('workflow_call:', ci)
-        self.assertIn('uses: ./.github/workflows/ci.yml', release)
+        self.assertNotIn('uses: ./.github/workflows/ci.yml', release)
+        self.assertNotIn('bcce-verified-', release)
+        self.assertIn("-p 'test_configuration_*.py'", release)
         self.assertIn('needs: [metadata, build]', release)
-        self.assertIn('verify-api-artifacts.py verify-all --directory release', release)
+        self.assertIn('run: sh ./gradlew --no-daemon buildAndCollect', release)
+        self.assertIn('scripts/verify-api-artifacts.py stage', release)
+        self.assertIn('--report "build/api-abi/reports/${target}.json"', release)
+        self.assertIn('name: bcce-release-${{ matrix.generation }}', release)
+        self.assertLess(release.index('buildAndCollect'), release.index('scripts/verify-api-artifacts.py stage'))
+        self.assertLess(release.index('scripts/verify-api-artifacts.py stage'), release.index('name: bcce-release-${{ matrix.generation }}'))
+        self.assertLess(release.index('verify-api-artifacts.py verify-all --directory release'), release.index('uses: Kira-NT/mc-publish@v3'))
         self.assertLess(ci.index('SERVER_RUNTIME_PROFILE=base bash scripts/ci-server-smoke.sh'), ci.index('name: bcce-verified-${{ matrix.target }}'))
         self.assertIn('verify-api-artifacts.py verify-all --directory build/verified-production-targets', ci)
 

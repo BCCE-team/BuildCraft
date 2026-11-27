@@ -548,7 +548,9 @@ NeoForge-only files that have no Fabric equivalent.
 the four cross-target semantic scenarios. `scripts/ci-system-trace-parity.py`
 requires all four observations from every configured target, including Fabric;
 missing traces and mismatched observations fail the aggregate gate. Passing these
-scenarios is not a complete 1:1 behavior certificate. Release acceptance also
-requires actual CI compilation, API/ABI gates, client/server world join and
-restart/rejoin, and installed production-server conformance. See
+scenarios is not a complete 1:1 behavior certificate. CI also requires actual
+compilation, API/ABI gates, client/server world join and restart/rejoin, and
+installed production-server conformance. The independent release workflow
+rebuilds the release tag with pinned external translations and rechecks the
+production-JAR API/ABI gates; it does not rerun or consume the CI runtime matrix. See
 [release gates](docs/api-v2-abi-gates.md).

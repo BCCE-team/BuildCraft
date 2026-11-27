@@ -208,10 +208,23 @@ class ExternalLocalizationPackagingTest(unittest.TestCase):
         for token in ("repository: BCCE-team/Localizations", "embed_localizations.py verify-jar",
                       "path: build/external/localizations", "inputs.localizations_ref"):
             self.assertIn(token, ci)
-        self.assertIn("uses: ./.github/workflows/ci.yml", release)
-        self.assertIn("localizations_ref: ${{ needs.metadata.outputs.localizations_sha }}", release)
-        self.assertIn("pattern: bcce-verified-*", release)
+        self.assertNotIn("uses: ./.github/workflows/ci.yml", release)
+        self.assertNotIn("bcce-verified-", release)
+        self.assertIn("repository: BCCE-team/Localizations", release)
+        self.assertIn("ref: ${{ needs.metadata.outputs.localizations_sha }}", release)
+        self.assertIn("BCCE_LOCALIZATIONS_DIR: ${{ github.workspace }}/build/external/localizations", release)
+        self.assertIn("BCCE_LOCALIZATIONS_REF: ${{ needs.metadata.outputs.localizations_sha }}", release)
+        self.assertIn("git ls-remote https://github.com/BCCE-team/Localizations.git refs/heads/main", release)
+        self.assertLess(release.index("Checkout pinned external BuildCraft localizations"), release.index("run: sh ./gradlew --no-daemon buildAndCollect"))
+        self.assertLess(release.index("run: sh ./gradlew --no-daemon buildAndCollect"), release.index("embed_localizations.py verify-jar"))
+        self.assertLess(release.index("embed_localizations.py verify-jar"), release.index("scripts/verify-api-artifacts.py stage"))
         self.assertIn("verify-api-artifacts.py verify-all --directory release", release)
+        configured = next(line.split("=", 1)[1] for line in (ROOT / "build-config/targets.properties").read_text(encoding="utf-8").splitlines() if line.startswith("targets="))
+        build_job = release.split("\n  build:\n", 1)[1].split("\n  publish:\n", 1)[0]
+        built_targets = [target for line in build_job.splitlines() if line.strip().startswith("targets: '") for target in line.strip().split("'", 2)[1].split(",")]
+        self.assertEqual(configured.split(","), built_targets)
+        for generation in ("old", "1.21.X", "26.X"):
+            self.assertIn(f"name: bcce-release-{generation}", release)
         self.assertIn("https://github.com/BCCE-team/Localizations.git", common)
         self.assertIn("https://github.com/BCCE-team/Localizations.git", (ROOT / "scripts/embed_localizations.py").read_text(encoding="utf-8"))
 

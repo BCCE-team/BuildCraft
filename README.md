@@ -105,7 +105,7 @@ The 1.19.2 implementation is the gameplay reference, but source code is allowed 
 
 The compatibility target is player-visible behaviour: **different implementation, indistinguishable BuildCraft**.
 
-CI builds and tests all eight maintained targets independently. Each target has production-JAR API compatibility checks, GameTests, a real client/server world-join and restart/rejoin check, and an installed dedicated-server smoke with an independent API test addon. The aggregate job compares four semantic gameplay traces across all eight targets. Release publication consumes those same verified artifacts; configured targets and checks are not a claim that every runtime behavior has been tested.
+CI builds and tests all eight maintained targets independently. Each target has production-JAR API compatibility checks, GameTests, a real client/server world-join and restart/rejoin check, and an installed dedicated-server smoke with an independent API test addon. The aggregate job compares four semantic gameplay traces across all eight targets. Release publication independently rebuilds all eight targets from the release tag with a freshly pinned external localization revision, verifies the resulting JARs and their ABI reports, and does not consume CI artifacts. Configured targets and checks are not a claim that every runtime behavior has been tested.
 
 See [`SOURCE_FAMILIES.md`](SOURCE_FAMILIES.md) for layout rules, parity policy and build commands.
 

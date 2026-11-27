@@ -62,6 +62,9 @@ jobs:
           python -m unittest discover -s scripts/tests -p test_external_addon_conformance.py -v
           python -m unittest discover -s scripts/tests -p test_presentation_runtime.py -v
           python -m unittest discover -s scripts/tests -p test_update_notification_system.py -v
+          python -m unittest discover -s scripts/tests -p 'test_configuration_*.py' -v
+          python -m unittest discover -s scripts/tests -p test_api_abi.py -v
+          python -m unittest discover -s scripts/tests -p test_localization_packaging.py -v
 
       - name: Validate Gradle wrappers
         uses: gradle/actions/wrapper-validation@v4
@@ -110,11 +113,94 @@ jobs:
           exit "$missing"
 
   build:
-    name: Verify all eight production targets before publication
+    name: Build release targets (${{ matrix.generation }})
     needs: metadata
-    uses: ./.github/workflows/ci.yml
-    with:
-      localizations_ref: ${{ needs.metadata.outputs.localizations_sha }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - generation: old
+            java: '17'
+            targets: '1.19.2-forge,1.20.1-forge'
+          - generation: 1.21.X
+            java: '21'
+            targets: '1.21.1-neoforge,1.21.11-neoforge'
+          - generation: 26.X
+            java: '25'
+            targets: '26.1.2-neoforge,26.2-neoforge,26.3-neoforge,26.3-fabric'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout pinned external BuildCraft localizations
+        uses: actions/checkout@v4
+        with:
+          repository: BCCE-team/Localizations
+          ref: ${{ needs.metadata.outputs.localizations_sha }}
+          path: build/external/localizations
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+
+      - name: Build and collect ${{ matrix.generation }} targets
+        working-directory: builds/${{ matrix.generation }}
+        env:
+          BCCE_LOCALIZATIONS_DIR: ${{ github.workspace }}/build/external/localizations
+          BCCE_LOCALIZATIONS_REF: ${{ needs.metadata.outputs.localizations_sha }}
+        # buildAndCollect includes check, the mandatory production-JAR ABI gate,
+        # independent addon compilation and construction of the runtime probe.
+        run: sh ./gradlew --no-daemon buildAndCollect
+
+      - name: Capture and verify release artifacts
+        shell: bash
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          TARGETS: ${{ matrix.targets }}
+          GENERATION: ${{ matrix.generation }}
+        run: |
+          set -euo pipefail
+          destination="release/$GENERATION"
+          mkdir -p "$destination"
+
+          IFS=',' read -ra targets <<< "$TARGETS"
+          for target in "${targets[@]}"; do
+            minecraft="${target%%-*}"
+            loader="${target#*-}"
+            jar="build/${minecraft}/BuildCraft-Community-Edition-${TAG}+${minecraft}+${loader}.jar"
+            if [ ! -f "$jar" ]; then
+              echo "::error::Missing release artifact: $jar"
+              find build -maxdepth 3 -type f -name '*.jar' -print || true
+              exit 1
+            fi
+            python scripts/embed_localizations.py verify-jar \
+              --source build/external/localizations \
+              --english source-shared/src/main/resources/assets/buildcraft/lang/en_us.json \
+              --jar "$jar"
+            python scripts/verify-api-artifacts.py stage \
+              --target "$target" --jar "$jar" \
+              --report "build/api-abi/reports/${target}.json" \
+              --directory "$destination"
+          done
+
+      - name: Upload ${{ matrix.generation }} release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bcce-release-${{ matrix.generation }}
+          path: release/${{ matrix.generation }}/
+          if-no-files-found: error
+          overwrite: true
 
   publish:
     name: Publish versions sequentially
@@ -133,14 +219,25 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download all verified production artifacts
+      - name: Download old release artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: bcce-verified-*
+          name: bcce-release-old
           path: release
-          merge-multiple: true
 
-      - name: Require the exact eight ABI-verified production JARs
+      - name: Download 1.21.X release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bcce-release-1.21.X
+          path: release
+
+      - name: Download 26.X release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bcce-release-26.X
+          path: release
+
+      - name: Require the exact eight ABI-verified release JARs
         run: python scripts/verify-api-artifacts.py verify-all --directory release
 
       - name: Publish 1.19.2 Forge

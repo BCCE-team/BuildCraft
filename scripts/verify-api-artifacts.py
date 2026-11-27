@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Stage and verify the exact production JARs that passed the per-target API gate.
 
-The runtime matrix uploads these only after its GameTest/world-join/installed
-server checks pass. Publication consumes these artifacts, not a second build.
+The CI runtime matrix uploads these only after its GameTest/world-join/installed
+server checks pass. The independent release matrix uses the same ABI/digest
+checks on freshly built release JARs, without consuming CI artifacts.
 """
 from __future__ import annotations
 
