@@ -291,3 +291,5 @@ tasks.register('buildAndCollect') {
     description = "Build and collect ${targetName} in ${centralJarOutputDir}"
     dependsOn tasks.named('build')
 }
+
+apply from: new File(repositoryRoot, 'build-logic/api-v2-gates.gradle')

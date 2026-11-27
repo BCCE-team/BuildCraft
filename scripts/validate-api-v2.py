@@ -9,12 +9,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 from source_layout import load_properties, materialize_target, target_ids
+from addon_fixture_common import ADDON_FIXTURE_ROOT, API_TEST_ADDON_LOADER_ROOT, ensure_public_sources
 API_ROOTS = [
     ROOT / "source-shared/src/main/java/buildcraft/api/v2",
     ROOT / "source-families/old/src/main/java/buildcraft/api/v2",
     ROOT / "source-families/1.21.X/src/main/java/buildcraft/api/v2",
 ]
-FIXTURE_ROOT = ROOT / "addon-fixture/src/main/java"
+FIXTURE_ROOT = ADDON_FIXTURE_ROOT / "src"
 REGISTRY_KEYS_FILE = ROOT / "source-shared/src/main/java/buildcraft/api/v2/BuildCraftRegistries.java"
 RUNTIME_FILE = ROOT / "source-shared/src/main/java/buildcraft/lib/internal/api/v2/BuildCraftApiRuntime.java"
 PUBLIC_API_FILE = ROOT / "source-shared/src/main/java/buildcraft/api/v2/BuildCraftApi.java"
@@ -100,12 +101,17 @@ def main() -> int:
     if not fixture_files:
         errors.append("addon-fixture has no Java sources")
     for path in fixture_files:
+        try:
+            ensure_public_sources([path])
+        except ValueError as error:
+            errors.append(str(error))
         text = path.read_text(encoding="utf-8")
         rel = path.relative_to(ROOT)
         for imported in IMPORT_RE.findall(text):
             if imported.startswith("buildcraft.") and not imported.startswith("buildcraft.api.v2."):
                 errors.append(f"{rel}: fixture imports non-v2 BuildCraft class {imported}")
-            if imported.startswith(("net.minecraftforge.", "net.neoforged.", "net.fabricmc.")):
+            if (not path.is_relative_to(API_TEST_ADDON_LOADER_ROOT)
+                    and imported.startswith(("net.minecraftforge.", "net.neoforged.", "net.fabricmc."))):
                 errors.append(f"{rel}: fixture common code imports loader API {imported}")
 
     if OLD_IMPL_ROOT.is_dir() and any(OLD_IMPL_ROOT.rglob("*.java")):

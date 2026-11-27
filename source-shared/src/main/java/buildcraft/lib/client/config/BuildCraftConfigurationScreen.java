@@ -10,6 +10,7 @@ import buildcraft.lib.internal.config.ConfigurationRegistry;
 import buildcraft.lib.net.MessageConfigurationRequest;
 import buildcraft.lib.net.MessageConfigurationResponse;
 import buildcraft.lib.net.MessageManager;
+import buildcraft.lib.net.ConfigurationWire;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -67,7 +68,8 @@ public final class BuildCraftConfigurationScreen extends Screen {
     private boolean draggingOil;
     private String updateActionMessage="";
     private long clientRevision, serverRevision, token;
-    private int pendingTicks;
+    private Map<String,String> submittedServerChanges=Map.of();
+    private int pendingTicks, pendingAge, pendingBytes;
     private boolean allowed, pending, saving, rebuild, focusSearch;
     private EditBox search;
     private Confirmation confirmation;
@@ -315,8 +317,11 @@ public final class BuildCraftConfigurationScreen extends Screen {
     }
     private void request(boolean commit,Map<String,String> changes) {
         if(!inWorld || Minecraft.getInstance().getConnection()!=connection) throw new IllegalStateException(tr("session_changed").getString());
-        token=TOKENS.incrementAndGet();pending=true;pendingTicks=0;
-        MessageManager.sendToServer(new MessageConfigurationRequest(token,serverRevision,commit,changes));
+        token=TOKENS.incrementAndGet();pending=true;pendingTicks=0;pendingAge=0;pendingBytes=0;
+        submittedServerChanges=commit?Map.copyOf(changes):Map.of();
+        MessageConfigurationResponse.begin(token);
+        try { MessageManager.sendToServer(new MessageConfigurationRequest(token,serverRevision,commit,changes)); }
+        catch (RuntimeException e) { MessageConfigurationResponse.cancel(token); pending=false; throw e; }
     }
     private Map<String,String> changes(Scope scope) {
         Map<String,String> result=new LinkedHashMap<>();
@@ -336,8 +341,8 @@ public final class BuildCraftConfigurationScreen extends Screen {
                 if(!inWorld && (minecraft.level!=null || registry.hasWorld())) throw new IllegalStateException(tr("session_changed").getString());
                 // Bound the custom payload even on older transports.
                 if(inWorld) {
-                    long bytes=server.entrySet().stream().mapToLong(e->(e.getKey().length()+e.getValue().length())*3L+12).sum();
-                    if(bytes>24000)throw new IllegalArgumentException(tr("too_large").getString());
+                    long bytes=ConfigurationWire.requestBytes(server);
+                    if(bytes>ConfigurationWire.MAX_REQUEST_BYTES)throw new IllegalArgumentException(tr("too_large").getString());
                 }
             }
             // Validate every edit before presenting the warning; do not write or send anything until confirmed.
@@ -358,6 +363,10 @@ public final class BuildCraftConfigurationScreen extends Screen {
     private void saveClient() throws IOException { registry.commit(Scope.CLIENT,clientRevision,changes(Scope.CLIENT)); BCCoreConfig.refreshDisplayUnits(); onClose(); }
     @Override public void tick() {
         super.tick();
+        if(pending && minecraft.getConnection()!=connection) {
+            MessageConfigurationResponse.cancel(token); pending=false;saving=false;allowed=false;
+            definitions.values().removeIf(d->d.scope()==Scope.SERVER);error=tr("session_changed").getString();changed();
+        }
         if(pending) {
             var response=MessageConfigurationResponse.latest(token);
             if(response!=null) {
@@ -365,14 +374,28 @@ public final class BuildCraftConfigurationScreen extends Screen {
                 if(response.error().isEmpty())serverRevision=response.revision();
                 if(!allowed) {
                     definitions.values().removeIf(d->d.scope()==Scope.SERVER); if(section==Section.WORLD||section==Section.BALANCE){section=Section.CLIENT;category=null;generalCategory=false;}
-                    error=tr("denied").getString();saving=false;
+                    error=response.error().isEmpty()?tr("denied").getString():response.error();saving=false;
                 } else if(!response.error().isEmpty()) {error=response.error();saving=false;}
                 else {
-                    for(var entry:response.entries())add(entry.definition(),entry.value(),entry.effective());
-                    if(saving){saving=false;try{saveClient();return;}catch(IOException|IllegalArgumentException e){error=String.valueOf(e.getMessage());}}
+                    if(saving) {
+                        // The acknowledgement confirms the atomic server commit. All server settings
+                        // are restart-bound, so effective values remain as in the original snapshot.
+                        submittedServerChanges.forEach((id,value)->{
+                            original.put(id,value); edited.put(id,value); numberDrafts.remove(id);
+                        });
+                        submittedServerChanges=Map.of();
+                        invalidateDirtyPaths();
+                        saving=false;try{saveClient();return;}catch(IOException|IllegalArgumentException e){error=String.valueOf(e.getMessage());}
+                    } else for(var entry:response.entries())add(entry.definition(),entry.value(),entry.effective());
                 }
                 changed();
-            } else if(++pendingTicks>200) {pending=false;saving=false;error=tr("timeout").getString();changed();}
+            } else {
+                int bytes=MessageConfigurationResponse.received(token);
+                if(bytes>pendingBytes) {pendingBytes=bytes;pendingTicks=0;}
+                if(++pendingTicks>200 || ++pendingAge>2400) {
+                    MessageConfigurationResponse.cancel(token);pending=false;saving=false;error=tr("timeout").getString();changed();
+                }
+            }
         }
         if(rebuild){rebuild=false;layout();}
     }
@@ -558,6 +581,7 @@ public final class BuildCraftConfigurationScreen extends Screen {
     }
 //?}
     @Override public boolean isPauseScreen(){return false;}
+    @Override public void removed(){MessageConfigurationResponse.cancel(token);super.removed();}
     @Override public void onClose(){
         if(confirmation!=null) { closeConfirmation(false); return; }
         if(!saving)ClientGuiModeNavigation.show(parent);

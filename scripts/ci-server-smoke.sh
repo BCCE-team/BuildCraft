@@ -3,6 +3,11 @@ set -Eeuo pipefail
 
 startup_timeout="${SERVER_STARTUP_TIMEOUT:-360}"
 runtime_profile="${SERVER_RUNTIME_PROFILE:-base}"
+api_test_addon="${BCCE_API_TEST_ADDON:-}"
+if [[ -n "$api_test_addon" && "$runtime_profile" != base ]]; then
+  echo "API test addon requires the installed production server profile." >&2
+  exit 2
+fi
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(cd "${script_dir}/.." && pwd -P)"
 target="${STONECUTTER_TARGET:-}"
@@ -139,6 +144,11 @@ if [[ "$runtime_profile" == "base" ]]; then
     exit 2
   fi
 
+  if [[ -n "$api_test_addon" ]]; then
+    python3 "${repo_root}/scripts/build-api-test-addon.py" check --target "$target" \
+      --bcce-jar "$production_jar" --output "$api_test_addon"
+  fi
+
   server_dir="${repo_root}/run-server/${generation}/${target}"
   install_log="${SERVER_INSTALL_LOG_FILE:-${repo_root}/ci-server-install-${generation}-${target}.log}"
   mkdir -p "$(dirname "$install_log")"
@@ -181,6 +191,15 @@ if [[ "$runtime_profile" == "base" ]]; then
 
   mkdir -p "${server_dir}/mods"
   cp "$production_jar" "${server_dir}/mods/$(basename "$production_jar")"
+  if [[ -n "$api_test_addon" ]]; then
+    cp "$api_test_addon" "${server_dir}/mods/bcce-api-test.jar"
+    # A clean fixture exercises both global and world-specific legacy migrations.
+    # Java Properties requires an escaped colon in a namespaced key.
+    mkdir -p "${server_dir}/config/buildcraft" "${server_dir}/ci-world/buildcraft"
+    printf '%s\n' 'bcceapitest\:old_capacity=41' > "${server_dir}/config/buildcraft/server-defaults.properties"
+    printf '%s\n' 'bcceapitest\:old_capacity=73' > "${server_dir}/ci-world/buildcraft/configuration.properties"
+    export BCCE_API_TEST_EXPECTED_CAPACITY=73
+  fi
   if [[ "$loader" == fabric ]]; then
     fabric_dependency_dir="${repo_root}/build/server-deps/${target}"
     # Fail closed if the production server would be missing mandatory Fabric API
@@ -260,7 +279,22 @@ while (( SECONDS < deadline )); do
   log_files=("$server_log")
   [[ -n "$latest_log" && -f "$latest_log" ]] && log_files+=("$latest_log")
 
-  if grep -Eiq "$success_regex" "${log_files[@]}" 2>/dev/null; then
+  if [[ -n "$api_test_addon" ]] && grep -Eq 'BCCE_API_TEST FAIL v1[[:space:]]*$' "${log_files[@]}" 2>/dev/null; then
+    echo "Independent API test addon reported failure."
+    show_log_tail
+    exit 1
+  fi
+
+  if grep -Eiq "$fatal_regex" "${log_files[@]}" 2>/dev/null; then
+    echo "Dedicated server reported a fatal startup error."
+    show_log_tail
+    exit 1
+  fi
+
+  # ServerStartedEvent can be emitted after Minecraft logs Done. Do not pass
+  # until the independent addon has registered and completed its assertions.
+  if grep -Eiq "$success_regex" "${log_files[@]}" 2>/dev/null &&
+     { [[ -z "$api_test_addon" ]] || api_test_addon_passed "${log_files[@]}"; }; then
     if grep -Eq 'Starting BuildCraft[[:space:]]+(\$version|\$\{|.*\$\{)' "${log_files[@]}" 2>/dev/null; then
       echo "Dedicated server started with unresolved BuildCraft Java build metadata."
       show_log_tail
@@ -273,14 +307,16 @@ while (( SECONDS < deadline )); do
       show_log_tail
       exit 1
     fi
+    if ! kill -0 "$server_pid" 2>/dev/null; then
+      echo "Server exited before the smoke gate completed." >&2
+      show_log_tail
+      exit 1
+    fi
+    if [[ -n "$api_test_addon" ]]; then
+      echo "Independent API test addon passed on the installed production server."
+    fi
     echo "Dedicated server reached the ready state successfully with BuildCraft ${expected_buildcraft_version}."
     exit 0
-  fi
-
-  if grep -Eiq "$fatal_regex" "${log_files[@]}" 2>/dev/null; then
-    echo "Dedicated server reported a fatal startup error."
-    show_log_tail
-    exit 1
   fi
 
   if ! kill -0 "$server_pid" 2>/dev/null; then
@@ -296,6 +332,6 @@ while (( SECONDS < deadline )); do
   sleep 5
 done
 
-echo "Dedicated server did not reach the ready state within ${startup_timeout}s."
+echo "Dedicated server or independent API test addon did not reach the required ready state within ${startup_timeout}s."
 show_log_tail
 exit 1

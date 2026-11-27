@@ -38,7 +38,7 @@ JAVA_ROOTS = (
     "source-family-platforms/old/fabric/src/gametest/java",
     "source-family-platforms/1.21.X/neoforge/src/gametest/java",
     "source-family-platforms/1.21.X/fabric/src/gametest/java",
-    "addon-fixture/src/main/java",
+    "addon-fixture/src",
 )
 
 PACKAGE_OR_IMPORT = re.compile(

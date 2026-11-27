@@ -1,56 +1,64 @@
 package buildcraft.lib.net;
 
-import buildcraft.api.v2.config.ConfigDefinition;
-import buildcraft.api.v2.config.ConfigDefinition.*;
+import buildcraft.api.v2.config.ConfigDefinition.Scope;
 import buildcraft.lib.internal.config.ConfigurationRegistry;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
 import java.util.*;
 import java.util.function.*;
 
-/** Authoritative schema and values. Server-only addon definitions work without client registration. */
-public record MessageConfigurationResponse(long token, boolean allowed, long revision, String error, List<Entry> entries) {
-    public record Entry(ConfigDefinition definition, String value, String effective) {}
-    public MessageConfigurationResponse { entries=List.copyOf(entries); }
-    private static volatile MessageConfigurationResponse latest;
-    public static MessageConfigurationResponse latest(long token) { var result=latest; return result!=null && result.token==token ? result:null; }
-    public static MessageConfigurationResponse denied(long token) { return new MessageConfigurationResponse(token,false,0,"",List.of()); }
-    public static MessageConfigurationResponse snapshot(long token,String error) {
-        var registry=ConfigurationRegistry.INSTANCE;
-        var snapshot=registry.snapshot(Scope.SERVER);
-        var entries=new ArrayList<Entry>();
-        for(var def:registry.definitions()) if(def.scope()==Scope.SERVER) entries.add(new Entry(def,snapshot.values().get(def.id()),snapshot.effective().get(def.id())));
-        return new MessageConfigurationResponse(token,true,snapshot.revision(),error,entries);
+/** A fragment of an authoritative configuration snapshot or commit acknowledgement. */
+public record MessageConfigurationResponse(ConfigurationWire.Frame frame) {
+    private static final int WIRE_VERSION = 2;
+    private static final ConfigurationWire.Inbox INBOX = new ConfigurationWire.Inbox();
+    public static void begin(long token) { INBOX.begin(token); }
+    public static void cancel(long token) { INBOX.cancel(token); }
+    public static int received(long token) { return INBOX.received(token); }
+    public static ConfigurationWire.Result latest(long token) { return INBOX.take(token); }
+
+    public static void denied(long token, ServerPlayer player) {
+        send(token, new ConfigurationWire.Result(false, 0, "", List.of()), player);
     }
-    private static void strings(FriendlyByteBuf b,List<String> strings,int max) { b.writeVarInt(strings.size()); for(String s:strings)b.writeUtf(s,max); }
-    private static List<String> strings(FriendlyByteBuf b,int count,int max) {
-        int n=NetworkSecurity.requireCount(b.readVarInt(),count,"configuration list");
-        var result=new ArrayList<String>(n); for(int i=0;i<n;i++)result.add(b.readUtf(max)); return result;
-    }
-    public static void toBytes(MessageConfigurationResponse msg,FriendlyByteBuf b) {
-        b.writeLong(msg.token); b.writeBoolean(msg.allowed); b.writeLong(msg.revision); b.writeUtf(msg.error.length()>1024?msg.error.substring(0,1024):msg.error,1024);
-        b.writeVarInt(msg.entries.size());
-        for(Entry entry:msg.entries) {
-            var d=entry.definition;
-            b.writeUtf(d.id(),192); b.writeEnum(d.section()); strings(b,d.category(),96); b.writeEnum(d.scope()); b.writeEnum(d.kind());
-            b.writeUtf(d.defaultValue(),4096); b.writeDouble(d.minimum()); b.writeDouble(d.maximum()); strings(b,d.choices(),96);
-            b.writeUtf(d.nameKey(),512); b.writeUtf(d.descriptionKey(),512); b.writeUtf(d.tooltipKey(),512);
-            b.writeUtf(d.fallbackName(),512); b.writeUtf(d.fallbackDescription(),2048); b.writeUtf(d.fallbackTooltip(),4096); b.writeEnum(d.applyPolicy());
-            b.writeUtf(entry.value,4096); b.writeUtf(entry.effective,4096);
+    public static void snapshot(long token, ServerPlayer player) {
+        var registry = ConfigurationRegistry.INSTANCE;
+        var snapshot = registry.snapshot(Scope.SERVER);
+        var entries = new ArrayList<ConfigurationWire.Entry>();
+        List<ConfigurationWire.Frame> frames;
+        try {
+            for (var def : registry.definitions()) if (def.scope() == Scope.SERVER)
+                entries.add(new ConfigurationWire.Entry(def, snapshot.values().get(def.id()), snapshot.effective().get(def.id())));
+            frames = ConfigurationWire.frames(token, new ConfigurationWire.Result(true, snapshot.revision(), "", entries));
+        } catch (IllegalArgumentException e) {
+            // No partial transfer: frame construction and validation precede sending any packet.
+            frames = ConfigurationWire.frames(token, new ConfigurationWire.Result(false, snapshot.revision(), String.valueOf(e.getMessage()), List.of()));
         }
+        sendFrames(frames, player);
     }
-    public MessageConfigurationResponse(FriendlyByteBuf b) { this(b.readLong(),b.readBoolean(),b.readLong(),b.readUtf(1024),readEntries(b)); }
-    private static List<Entry> readEntries(FriendlyByteBuf b) {
-        int count=NetworkSecurity.requireCount(b.readVarInt(),2048,"configuration entry count");
-        List<Entry> entries=new ArrayList<>(count);
-        for(int i=0;i<count;i++) {
-            var d=new ConfigDefinition(b.readUtf(192),b.readEnum(Section.class),strings(b,12,96),b.readEnum(Scope.class),b.readEnum(Kind.class),b.readUtf(4096),b.readDouble(),b.readDouble(),strings(b,128,96),b.readUtf(512),b.readUtf(512),b.readUtf(512),b.readUtf(512),b.readUtf(2048),b.readUtf(4096),b.readEnum(ApplyPolicy.class));
-            if(d.scope()!=Scope.SERVER) throw new IllegalArgumentException("Unexpected client configuration in server snapshot");
-            entries.add(new Entry(d,d.validate(b.readUtf(4096)),d.validate(b.readUtf(4096))));
-        }
-        return entries;
+    public static void acknowledge(long token, long revision, String error, ServerPlayer player) {
+        send(token, new ConfigurationWire.Result(true, revision, error, List.of()), player);
     }
-    public static final BiConsumer<MessageConfigurationResponse,Supplier<BCPacketContext>> HANDLER=(msg,ctx)->{
-        var context=ctx.get(); if(context.side()!=BCNetworkSide.CLIENT)return;
-        context.enqueueWork(()->latest=msg); context.setPacketHandled(true);
+    private static void send(long token, ConfigurationWire.Result result, ServerPlayer player) {
+        sendFrames(ConfigurationWire.frames(token, result), player);
+    }
+    private static void sendFrames(List<ConfigurationWire.Frame> frames, ServerPlayer player) {
+        for (var frame : frames) MessageManager.sendTo(new MessageConfigurationResponse(frame), player);
+    }
+    public MessageConfigurationResponse(FriendlyByteBuf b) { this(readFrame(b)); }
+    private static ConfigurationWire.Frame readFrame(FriendlyByteBuf b) {
+        if (b.readVarInt() != WIRE_VERSION) throw new IllegalArgumentException("Unsupported configuration response protocol");
+        long token = b.readLong(); int total = b.readVarInt(), offset = b.readVarInt();
+        int length = ConfigurationWire.frameLength(total, offset);
+        if (b.readableBytes() != length) throw new IllegalArgumentException("Invalid configuration frame size");
+        byte[] bytes = new byte[length]; b.readBytes(bytes);
+        return new ConfigurationWire.Frame(token, total, offset, bytes);
+    }
+    public static void toBytes(MessageConfigurationResponse msg, FriendlyByteBuf b) {
+        var frame = msg.frame;
+        b.writeVarInt(WIRE_VERSION); b.writeLong(frame.token()); b.writeVarInt(frame.total()); b.writeVarInt(frame.offset());
+        b.writeBytes(frame.data());
+    }
+    public static final BiConsumer<MessageConfigurationResponse, Supplier<BCPacketContext>> HANDLER = (msg, ctx) -> {
+        var context = ctx.get(); if (context.side() != BCNetworkSide.CLIENT) return;
+        context.enqueueWork(() -> INBOX.accept(msg.frame)); context.setPacketHandled(true);
     };
 }

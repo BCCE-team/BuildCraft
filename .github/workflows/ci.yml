@@ -5,6 +5,13 @@ on:
     branches:
       - '**'
   pull_request:
+  workflow_call:
+    inputs:
+      localizations_ref:
+        description: Pinned localization revision for publication
+        type: string
+        required: false
+        default: main
 
 permissions:
   contents: read
@@ -99,6 +106,9 @@ jobs:
 
       - name: Verify independent API extension contracts
         run: python -m unittest discover -s scripts/tests -p 'test_api_*.py' -v
+
+      - name: Verify configuration contracts and runtime
+        run: python -m unittest discover -s scripts/tests -p 'test_configuration_*.py' -v
 
       - name: Test balance INI and independent use_config modes
         run: python -m unittest discover -s scripts/tests -p test_balance_integration.py -v
@@ -318,7 +328,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BCCE-team/Localizations
-          ref: main
+          ref: ${{ inputs.localizations_ref || 'main' }}
           path: build/external/localizations
           persist-credentials: false
 
@@ -405,10 +415,21 @@ jobs:
           minecraft="${STONECUTTER_TARGET%-*}"
           loader="${STONECUTTER_TARGET##*-}"
           version="$(sed -n 's/^common\.mod\.version=//p' build-config/common.properties)"
+          jar="build/${minecraft}/BuildCraft-Community-Edition-${version}+${minecraft}+${loader}.jar"
           python scripts/embed_localizations.py verify-jar \
             --source build/external/localizations \
             --english source-shared/src/main/resources/assets/buildcraft/lang/en_us.json \
-            --jar "build/${minecraft}/BuildCraft-Community-Edition-${version}+${minecraft}+${loader}.jar"
+            --jar "$jar"
+          python scripts/verify-api-artifacts.py stage \
+            --target "$STONECUTTER_TARGET" --jar "$jar" \
+            --report "build/api-abi/reports/${STONECUTTER_TARGET}.json" \
+            --directory "build/api-abi/verified/${STONECUTTER_TARGET}"
+          # Preserve the separately compiled probe alongside (not inside) the
+          # publication artifacts; subsequent userdev runs may rebuild either JAR.
+          addon="build/addon-fixture/installable/${STONECUTTER_TARGET}/bcce-api-test.jar"
+          python scripts/build-api-test-addon.py check --target "$STONECUTTER_TARGET" --bcce-jar "$jar" --output "$addon"
+          mkdir -p "build/addon-fixture/staged/${STONECUTTER_TARGET}"
+          cp "$addon" "build/addon-fixture/staged/${STONECUTTER_TARGET}/bcce-api-test.jar"
 
       - name: Run GameTests
         shell: bash
@@ -461,7 +482,27 @@ jobs:
             --restart-timeout 800 --stable-seconds 30 "${flags[@]}"
           # Keep the distributable JAR deployment check inside the same blocking
           # runtime gate. No disconnected client-only smoke is considered a pass.
-          SERVER_STARTUP_TIMEOUT=360 SERVER_RUNTIME_PROFILE=base bash scripts/ci-server-smoke.sh
+          # Dev-runtime Gradle launches may regenerate the central JAR. Restore
+          # the exact immutable candidate that passed ABI/addon/localization checks
+          # before the installed-server test and eventual publication.
+          minecraft="${STONECUTTER_TARGET%-*}"
+          loader="${STONECUTTER_TARGET##*-}"
+          version="$(sed -n 's/^common\.mod\.version=//p' build-config/common.properties)"
+          jar="BuildCraft-Community-Edition-${version}+${minecraft}+${loader}.jar"
+          mkdir -p "build/${minecraft}"
+          cp "build/api-abi/verified/${STONECUTTER_TARGET}/${jar}" "build/${minecraft}/${jar}"
+          BCCE_API_TEST_ADDON="${PWD}/build/addon-fixture/staged/${STONECUTTER_TARGET}/bcce-api-test.jar" \
+            SERVER_STARTUP_TIMEOUT=360 SERVER_RUNTIME_PROFILE=base bash scripts/ci-server-smoke.sh
+          cmp "build/${minecraft}/${jar}" "build/api-abi/verified/${STONECUTTER_TARGET}/${jar}"
+
+      - name: Upload verified production JAR and API report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bcce-verified-${{ matrix.target }}
+          path: build/api-abi/verified/${{ matrix.target }}/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
 
       - name: Upload build products and diagnostics
         if: always()
@@ -473,6 +514,8 @@ jobs:
           path: |
             build/*/*.jar
             build/test-traces/**
+            build/api-abi/reports/${{ matrix.target }}.json
+            build/addon-fixture/staged/${{ matrix.target }}/bcce-api-test.jar
             build/gametest-logs/**
             build/server-deps/${{ matrix.target }}/**
             builds/${{ matrix.generation }}/versions/${{ matrix.target }}/build/reports/tests/**
@@ -606,3 +649,12 @@ jobs:
         run: |
           python3 scripts/ci-system-trace-parity.py compare \
             --directory build/aggregated-game-test-artifacts
+
+      - name: Download verified production target artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bcce-verified-*
+          path: build/verified-production-targets
+          merge-multiple: true
+      - name: Require API compatibility on every configured production target
+        run: python scripts/verify-api-artifacts.py verify-all --directory build/verified-production-targets

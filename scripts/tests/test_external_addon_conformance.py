@@ -20,8 +20,8 @@ SOURCE = ROOT / "source-shared/src/main/java"
 ADDONS = ROOT / "addon-fixture/src/main/java/dev/bcce/apifixture"
 
 
-def run(*args: str, timeout: int = 90) -> None:
-    result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+def run(*args: str, timeout: int = 90, cwd: Path | None = None) -> None:
+    result = subprocess.run(args, capture_output=True, text=True, timeout=timeout, cwd=cwd)
     if result.returncode:
         raise AssertionError(f"{' '.join(args[:4])}: {result.stdout}\n{result.stderr[-15000:]}")
 
@@ -269,7 +269,7 @@ class ExternalAddonConformanceTest(unittest.TestCase):
             extra = [write(root, name, contents) for name, contents in (extra_host or {}).items()]
             compile_jar(runtime_stubs + runtime + [main] + extra, runtime_jar,
                         dependencies=(api_jar, addon_jar))
-            run("java", "-cp", os.pathsep.join(map(str, (api_jar, addon_jar, runtime_jar))), main_class)
+            run("java", "-cp", os.pathsep.join(map(str, (api_jar, addon_jar, runtime_jar))), main_class, cwd=root)
 
 
 PRESENTATION_TEST = r'''package fixture;

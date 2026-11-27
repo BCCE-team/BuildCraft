@@ -6,7 +6,11 @@ import buildcraft.api.v2.service.ServiceKey;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 
-/** Immutable API runtime facade. */
+/**
+ * Runtime facade. Production runtime lookup, lifecycle and feature queries may be made from any thread.
+ * This does not make the returned services, registry values, or Minecraft objects thread-safe.
+ * See the package threading contract and individual domain contracts before invoking them.
+ */
 public interface ApiRuntime {
     ApiRuntime EMPTY = new ApiRuntime() {
         @Override public <T> Optional<ApiRegistry<T>> registry(ResourceLocation id) { return Optional.empty(); }
@@ -34,6 +38,8 @@ public interface ApiRuntime {
     }
 
     default ApiVersion version() { return BuildCraftApi.VERSION; }
+    /** Immutable capability snapshot. During bootstrap reacquire it after modules install services.
+     * After freeze, installed service/registry availability is stable for the process. */
     default ApiFeatureSet features() { return ApiFeatureSet.EMPTY; }
     default ApiLifecycle lifecycle() { return ApiLifecycle.DISCOVERY; }
 }

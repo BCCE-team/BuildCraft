@@ -4,9 +4,10 @@ import java.util.Objects;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Stable feature identifiers for API contract negotiation. A feature means that the public contract is present at
- * the advertised level; callers must still query the matching service when they need a live runtime backend. This
- * distinction keeps implementation domains independent behind an already-stable API surface.
+ * Stable identifiers for runtime capability negotiation. The production runtime advertises a level only
+ * when the required services and registries are installed. Availability can grow during bootstrap;
+ * obtain a fresh feature snapshot after registration. A feature is not a guarantee of a loaded world,
+ * client-side context, registered content or success of any particular operation.
  */
 public final class BuildCraftFeatures {
     public static final ResourceLocation REGISTRIES = id("registries");
@@ -42,6 +43,8 @@ public final class BuildCraftFeatures {
     public static final ResourceLocation WRENCH_ADAPTERS = id("wrench_adapters");
     public static final ResourceLocation CROPS = id("crops");
     public static final ResourceLocation PAINT = id("paint");
+
+    public static final ResourceLocation CONFIGURATION = id("configuration");
 
     private BuildCraftFeatures() {}
 

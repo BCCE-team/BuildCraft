@@ -29,7 +29,7 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     private final Map<Identifier, ApiRegistryImpl<?>> registries = new LinkedHashMap<>();
     private volatile ApiLifecycle lifecycle = ApiLifecycle.DISCOVERY;
     private final Map<ServiceKey<?>, Object> services = new LinkedHashMap<>();
-    private final ApiFeatureSet features = ApiFeatureSet.of(List.of(
+    private final ApiFeatureSet declaredFeatures = ApiFeatureSet.of(List.of(
         new ApiFeature(BuildCraftFeatures.REGISTRIES, 1),
         new ApiFeature(BuildCraftFeatures.PERSISTENCE, 1),
         new ApiFeature(BuildCraftFeatures.RELOAD, 2),
@@ -62,7 +62,8 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         new ApiFeature(BuildCraftFeatures.WRENCH_ADAPTERS, 1),
         new ApiFeature(BuildCraftFeatures.CROPS, 1),
         new ApiFeature(BuildCraftFeatures.PAINT, 1),
-        new ApiFeature(BuildCraftFeatures.WORLDGEN, 1)
+        new ApiFeature(BuildCraftFeatures.WORLDGEN, 1),
+        new ApiFeature(BuildCraftFeatures.CONFIGURATION, 1)
     ));
 
     private final EnergyServiceImpl energy = new EnergyServiceImpl();
@@ -212,6 +213,8 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
         if (lifecycle.ordinal() >= ApiLifecycle.FROZEN.ordinal()) {
             throw new IllegalStateException("Cannot install API service after freeze: " + key.id());
         }
+        java.util.Objects.requireNonNull(key, "key");
+        java.util.Objects.requireNonNull(service, "service");
         if (services.putIfAbsent(key, service) != null) {
             throw new IllegalStateException("Duplicate API service: " + key.id());
         }
@@ -236,12 +239,12 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> Optional<T> service(ServiceKey<T> key) {
+    public synchronized <T> Optional<T> service(ServiceKey<T> key) {
         return Optional.ofNullable((T) services.get(key));
     }
 
     public ApiVersion version() { return BuildCraftApi.VERSION; }
-    public ApiFeatureSet features() { return features; }
+    public synchronized ApiFeatureSet features() { return RuntimeFeatures.available(this, declaredFeatures); }
     public ApiLifecycle lifecycle() { return lifecycle; }
 
     /** Advances the internal API lifecycle through its ordered bootstrap phases. */
@@ -258,6 +261,10 @@ public final class BuildCraftApiRuntime implements ApiRuntime {
             // bad addon aliases/dependencies from partially freezing the API.
             for (ApiRegistryImpl<?> registry : registries.values()) registry.validateFreeze();
             modules.validateFreeze();
+            // Balance is lazy on some loaders (notably Fabric); finish the built-in
+            // schema before sealing both the addon and internal configuration registries.
+            buildcraft.lib.balance.BalanceConfig.initialize();
+            buildcraft.lib.internal.config.ConfigurationRegistry.INSTANCE.freezeSchema();
             for (ApiRegistryImpl<?> registry : registries.values()) registry.freeze();
             modules.freeze();
             definitionReload.freeze();

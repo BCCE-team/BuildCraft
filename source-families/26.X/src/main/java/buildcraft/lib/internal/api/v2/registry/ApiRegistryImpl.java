@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -26,11 +27,14 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
     }
 
     public void register(Identifier id, T value, RegistrationContext context) {
-        ensureMutable();
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(value, "value");
-        Objects.requireNonNull(context, "context");
-        String owner = Objects.requireNonNull(context.owner(), "context.owner()");
+        String owner = Objects.requireNonNull(Objects.requireNonNull(context, "context").owner(), "context.owner()");
+        registerOwned(id, value, owner);
+    }
+
+    private synchronized void registerOwned(Identifier id, T value, String owner) {
+        ensureMutable();
         checkNamespace(id, owner);
         if (entries.containsKey(id) || aliases.containsKey(id)) {
             throw new IllegalStateException("Duplicate registry id or alias: " + id);
@@ -39,16 +43,15 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
     }
 
     public void registerAlias(Identifier alias, Identifier canonicalId, RegistrationContext context) {
-        ensureMutable();
         Objects.requireNonNull(alias, "alias");
         Objects.requireNonNull(canonicalId, "canonicalId");
-        Objects.requireNonNull(context, "context");
-//? if neoforge {
-        String owner = Objects.requireNonNull(context.owner(), "context.owner()");
+        String owner = Objects.requireNonNull(Objects.requireNonNull(context, "context").owner(), "context.owner()");
+        registerAliasOwned(alias, canonicalId, owner);
+    }
+
+    private synchronized void registerAliasOwned(Identifier alias, Identifier canonicalId, String owner) {
+        ensureMutable();
         checkNamespace(alias, owner);
-//? } else {
-        checkNamespace(alias, Objects.requireNonNull(context.owner(), "context.owner()"));
-//?}
         if (alias.equals(canonicalId)) throw new IllegalArgumentException("alias must differ from canonicalId");
 //? if neoforge {
         if (entries.containsKey(alias) || aliases.containsKey(alias)) {
@@ -73,16 +76,16 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
 //?}
     }
 
-    public T get(Identifier id) {
+    public synchronized T get(Identifier id) {
         RegistryEntry<T> entry = entries.get(canonicalId(id));
         return entry == null ? null : entry.value();
     }
 
-    public Optional<RegistryEntry<T>> entry(Identifier id) {
+    public synchronized Optional<RegistryEntry<T>> entry(Identifier id) {
         return Optional.ofNullable(entries.get(canonicalId(id)));
     }
 
-    public Identifier canonicalId(Identifier id) {
+    public synchronized Identifier canonicalId(Identifier id) {
         Objects.requireNonNull(id, "id");
         Identifier current = id;
         Set<Identifier> visited = new LinkedHashSet<>();
@@ -93,27 +96,27 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
         return current;
     }
 
-    public Collection<T> values() {
+    public synchronized Collection<T> values() {
         ArrayList<T> values = new ArrayList<>(entries.size());
         for (RegistryEntry<T> entry : entries.values()) values.add(entry.value());
         return Collections.unmodifiableList(values);
     }
 
-    public Collection<RegistryEntry<T>> entries() {
-        return Collections.unmodifiableCollection(entries.values());
+    public synchronized Collection<RegistryEntry<T>> entries() {
+        return List.copyOf(entries.values());
     }
 
-    public Map<Identifier, Identifier> aliases() {
-        return Collections.unmodifiableMap(aliases);
+    public synchronized Map<Identifier, Identifier> aliases() {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(aliases));
     }
 
-    public boolean frozen() { return frozen; }
+    public synchronized boolean frozen() { return frozen; }
 
 //? if neoforge {
     /** Validation is side-effect-free so the runtime can preflight all registries. */
-    public void validateFreeze() {
+    public synchronized void validateFreeze() {
 //? } else {
-    public void freeze() {
+    public synchronized void freeze() {
 //?}
         if (frozen) return;
         for (Identifier alias : aliases.keySet()) {
@@ -125,7 +128,7 @@ public final class ApiRegistryImpl<T> implements ApiRegistry<T> {
 //? if neoforge {
     }
 
-    public void freeze() {
+    public synchronized void freeze() {
         if (frozen) return;
         validateFreeze();
 //? } else {

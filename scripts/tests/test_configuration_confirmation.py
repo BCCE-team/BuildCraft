@@ -45,7 +45,7 @@ public class ConfirmationProbe {
         eq(ConfigurationRestartNotice.requirements(defs,Map.of(),Map.of(),active,true,true),Map.of());
         eq(ConfigurationRestartNotice.requirements(defs,Map.of(live.id(),"2"),Map.of(),active,true,true),Map.of());
         eq(ConfigurationRestartNotice.requirements(defs,Map.of(client.id(),"1"),Map.of(world.id(),"1"),active,true,true),Map.of());
-        eq(ConfigurationRestartNotice.requirements(defs,Map.of(clientWorld.id(),"2"),Map.of(),active,true,true),Map.of(Requirement.GAME,1));
+        eq(ConfigurationRestartNotice.requirements(defs,Map.of(clientWorld.id(),"2"),Map.of(),active,true,true),Map.of(Requirement.WORLD,1));
         eq(ConfigurationRestartNotice.requirements(defs,Map.of(),Map.of(addon.id(),"2"),active,false,true),Map.of(Requirement.NEXT_WORLD,1));
         System.out.println("Restart classification passed");
     }
@@ -68,7 +68,7 @@ class ConfirmationTests(unittest.TestCase):
                 self.assertNotIn('ConfirmScreen',screen)
                 save=screen.split('private void save(boolean confirmed)',1)[1].split('private void saveClient()',1)[0]
                 warning=save.index('if(!confirmed && showRestartWarning(client,server)) return;')
-                for preflight in ('changes(Scope.CLIENT)','changes(Scope.SERVER)','if(!allowed)','bytes>24000'):
+                for preflight in ('changes(Scope.CLIENT)','changes(Scope.SERVER)','if(!allowed)','bytes>ConfigurationWire.MAX_REQUEST_BYTES'):
                     self.assertLess(save.index(preflight),warning)
                 for write in ('registry.commitLocalDefaults(', 'request(true,server)', 'saveClient();'):
                     self.assertLess(warning,save.index(write))

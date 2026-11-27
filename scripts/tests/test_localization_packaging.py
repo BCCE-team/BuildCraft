@@ -205,10 +205,13 @@ class ExternalLocalizationPackagingTest(unittest.TestCase):
             self.assertIn("build-logic/common-target.gradle", text)
         ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         release = (ROOT / ".github/workflows/publish.yml").read_text(encoding="utf-8")
-        for text in (ci, release):
-            self.assertIn("repository: BCCE-team/Localizations", text)
-            self.assertIn("embed_localizations.py verify-jar", text)
-            self.assertIn("path: build/external/localizations", text)
+        for token in ("repository: BCCE-team/Localizations", "embed_localizations.py verify-jar",
+                      "path: build/external/localizations", "inputs.localizations_ref"):
+            self.assertIn(token, ci)
+        self.assertIn("uses: ./.github/workflows/ci.yml", release)
+        self.assertIn("localizations_ref: ${{ needs.metadata.outputs.localizations_sha }}", release)
+        self.assertIn("pattern: bcce-verified-*", release)
+        self.assertIn("verify-api-artifacts.py verify-all --directory release", release)
         self.assertIn("https://github.com/BCCE-team/Localizations.git", common)
         self.assertIn("https://github.com/BCCE-team/Localizations.git", (ROOT / "scripts/embed_localizations.py").read_text(encoding="utf-8"))
 

@@ -1,0 +1,88 @@
+/* Mandatory public API gates shared by every loader adapter. */
+def bc = project.ext.bcTarget
+def productionJar = tasks.named('jar', Jar)
+def targetCompiler = tasks.named('compileJava', org.gradle.api.tasks.compile.JavaCompile)
+
+def verifyApi2AddonBinary = tasks.register('verifyApi2AddonBinary', Exec) {
+    group = 'verification'
+    description = "Compile independent addon fixtures against the production ${bc.targetName} JAR"
+    dependsOn productionJar, bc.prepareEffectiveSource
+    workingDir bc.repositoryRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    doFirst {
+        def javac = targetCompiler.get().javaCompiler.get().executablePath.asFile.absolutePath
+        commandLine bc.pythonExecutable,
+            new File(bc.repositoryRoot, 'scripts/verify-addon-binary.py').absolutePath,
+            '--bcce-jar', productionJar.get().archiveFile.get().asFile.absolutePath,
+            '--dependencies', sourceSets.main.compileClasspath.asPath,
+            '--release', bc.javaVersion.toString(),
+            '--javac', javac,
+            '--fixture-root', new File(bc.effectiveSourceDir, 'addon-fixture/src/main/java/dev/bcce/apifixture').absolutePath,
+            '--output', new File(project.buildDir, 'conformance/api2-fixtures.jar').absolutePath
+    }
+}
+
+def verifyApi2Compatibility = tasks.register('verifyApi2Compatibility', Exec) {
+    group = 'verification'
+    description = "Check released API ABI and old addon binary against ${bc.targetName}"
+    dependsOn productionJar, verifyApi2AddonBinary
+    workingDir bc.repositoryRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    doFirst {
+        def javac = targetCompiler.get().javaCompiler.get().executablePath.asFile.absolutePath
+        def command = [bc.pythonExecutable,
+            new File(bc.repositoryRoot, 'scripts/api_v2_abi.py').absolutePath,
+            '--target', bc.targetName,
+            '--bcce-jar', productionJar.get().archiveFile.get().asFile.absolutePath,
+            '--release', bc.javaVersion.toString(),
+            '--javac', javac,
+            '--report', new File(bc.repositoryRoot, "build/api-abi/reports/${bc.targetName}.json").absolutePath]
+        if (gradle.startParameter.offline) {
+            command.add('--offline')
+        }
+        commandLine command
+    }
+}
+
+// Installable test-only addon, compiled separately from public bytecode extracted
+// from the exact production candidate. Never put this JAR in the release folder.
+def buildApiTestAddon = tasks.register('buildApiTestAddon', Exec) {
+    group = 'verification'
+    description = "Build independent installable API test addon for ${bc.targetName}"
+    dependsOn productionJar
+    workingDir bc.repositoryRoot
+    environment 'PYTHONDONTWRITEBYTECODE', '1'
+    doFirst {
+        def javac = targetCompiler.get().javaCompiler.get().executablePath.asFile.absolutePath
+        commandLine bc.pythonExecutable,
+            new File(bc.repositoryRoot, 'scripts/build-api-test-addon.py').absolutePath,
+            'build', '--target', bc.targetName,
+            '--bcce-jar', productionJar.get().archiveFile.get().asFile.absolutePath,
+            '--dependencies', sourceSets.main.compileClasspath.asPath,
+            '--javac', javac,
+            '--output', new File(bc.repositoryRoot, "build/addon-fixture/installable/${bc.targetName}/bcce-api-test.jar").absolutePath
+    }
+}
+
+// ForgeGradle may rewrite the JAR in reobfJar. A finalizer alone is not an
+// explicit dependency of consumers; verify only after the distributable exists.
+if (bc.loaderName == 'forge') {
+    afterEvaluate {
+        def reobfTask = tasks.findByName('reobfJar')
+        if (reobfTask != null) {
+            verifyApi2AddonBinary.configure { dependsOn reobfTask }
+            verifyApi2Compatibility.configure { dependsOn reobfTask }
+            buildApiTestAddon.configure { dependsOn reobfTask }
+        }
+    }
+}
+
+def verifyApi2Fixtures = tasks.register('verifyApi2Fixtures') {
+    group = 'verification'
+    description = 'Run all independent API fixture build gates (compile-only, released ABI and installable probe)'
+    dependsOn verifyApi2AddonBinary, verifyApi2Compatibility, buildApiTestAddon
+}
+tasks.named('check') {
+    dependsOn verifyApi2Fixtures
+}
+// buildAndCollect -> build -> check on every loader, including publication.

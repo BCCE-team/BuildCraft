@@ -10,17 +10,27 @@ import java.io.IOException;
 
 /** Snapshot request or atomic commit; never trusts the client to authorize access. */
 public record MessageConfigurationRequest(long token, long revision, boolean commit, Map<String,String> changes) {
-    public MessageConfigurationRequest { changes = Map.copyOf(changes); }
+    public MessageConfigurationRequest {
+        changes = Map.copyOf(changes);
+        if (!commit && !changes.isEmpty()) throw new IllegalArgumentException("Snapshot request contains changes");
+        if (ConfigurationWire.requestBytes(changes) > ConfigurationWire.MAX_REQUEST_BYTES)
+            throw new IllegalArgumentException("Configuration request exceeds size limit");
+    }
     public MessageConfigurationRequest(FriendlyByteBuf buf) {
-        this(buf.readLong(), buf.readLong(), buf.readBoolean(), readChanges(buf));
+        this(readToken(buf), buf.readLong(), buf.readBoolean(), readChanges(buf));
+    }
+    private static long readToken(FriendlyByteBuf b) {
+        NetworkSecurity.requireCount(b.readableBytes(), ConfigurationWire.MAX_REQUEST_BYTES, "configuration request bytes");
+        return b.readLong();
     }
     private static Map<String,String> readChanges(FriendlyByteBuf b) {
-        int count = NetworkSecurity.requireCount(b.readVarInt(), 2048, "configuration change count");
+        int count = NetworkSecurity.requireCount(b.readVarInt(), ConfigurationWire.MAX_ENTRIES, "configuration change count");
         Map<String,String> values = new LinkedHashMap<>();
         for (int i=0;i<count;i++) {
             String id=b.readUtf(192), value=b.readUtf(4096);
             if (values.putIfAbsent(id,value)!=null) throw new IllegalArgumentException("Duplicate setting");
         }
+        NetworkSecurity.requireFullyRead(b, "configuration request");
         return values;
     }
     public static void toBytes(MessageConfigurationRequest msg, FriendlyByteBuf b) {
@@ -35,13 +45,19 @@ public record MessageConfigurationRequest(long token, long revision, boolean com
             var player=context.getSender();
             if(player==null) return;
             if(!ConfigurationLifecycle.canEdit(player)) {
-                MessageManager.sendTo(MessageConfigurationResponse.denied(message.token),player); return;
+                MessageConfigurationResponse.denied(message.token, player); return;
             }
             var registry=ConfigurationRegistry.INSTANCE;
+            if (!message.commit) { MessageConfigurationResponse.snapshot(message.token, player); return; }
+            // One atomic commit, then a small acknowledgement. Do not resend a large schema on save.
             String error="";
-            try { if(message.commit) registry.commit(Scope.SERVER,message.revision,message.changes); }
-            catch(IOException|IllegalArgumentException|IllegalStateException e) { error=String.valueOf(e.getMessage()); }
-            MessageManager.sendTo(MessageConfigurationResponse.snapshot(message.token,error),player);
+            long revision;
+            try { revision = registry.commit(Scope.SERVER,message.revision,message.changes).revision(); }
+            catch(IOException|IllegalArgumentException|IllegalStateException e) {
+                error=e.getMessage()==null || e.getMessage().isBlank()?"Configuration commit rejected":e.getMessage();
+                revision=registry.snapshot(Scope.SERVER).revision();
+            }
+            MessageConfigurationResponse.acknowledge(message.token, revision, error, player);
         });
         context.setPacketHandled(true);
     };

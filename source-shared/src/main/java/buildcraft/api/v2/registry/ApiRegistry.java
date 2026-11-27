@@ -4,7 +4,12 @@ import java.util.Collection;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 
-/** Registration happens before freeze. After freeze this becomes immutable. */
+/**
+ * Registration happens during loader-controlled bootstrap before freeze. Complete registration work
+ * before the loader's registration barrier; do not start background registration tasks.
+ * The production registry supports concurrent lookup and returns stable immutable collection snapshots.
+ * After freeze its mappings are immutable; this does not imply that registered values are thread-safe.
+ */
 public interface ApiRegistry<T> {
     void register(ResourceLocation id, T value);
 

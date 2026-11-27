@@ -25,8 +25,8 @@ final class ConfigurationRestartNotice {
                 continue;
             Requirement requirement;
             if (d.scope() == Scope.CLIENT) {
-                // Currently the registry only reapplies non-LIVE client values on client startup.
-                requirement = Requirement.GAME;
+                requirement = d.applyPolicy() == ApplyPolicy.WORLD_RESTART
+                    ? (inWorld ? Requirement.WORLD : Requirement.NEXT_WORLD) : Requirement.GAME;
             } else if (inWorld && !singleplayer) {
                 requirement = Requirement.SERVER;
             } else if (d.applyPolicy() == ApplyPolicy.RESTART) {

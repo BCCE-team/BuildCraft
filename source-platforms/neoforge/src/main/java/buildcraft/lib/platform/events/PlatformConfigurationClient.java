@@ -16,6 +16,7 @@ public final class PlatformConfigurationClient {
         });
     }
     public static void configurationScreen() {
+        PlatformClientEvents.login(buildcraft.lib.internal.config.ConfigurationRegistry.INSTANCE::openClientSession);
         PlatformClientEvents.tick(BCEvents.Phase.END,event->ConfigurationKey.tick());
     }
 }

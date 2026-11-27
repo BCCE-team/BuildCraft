@@ -103,7 +103,7 @@ class PlatformBoundaries(unittest.TestCase):
                     source = (self.java[target]/'buildcraft'/(name+'.java')).read_text(encoding='utf-8')
                     self.assertNotRegex(source, r'\b(?:ForgeConfigSpec|ModConfigSpec|ModConfigEvent)\b')
                     if name == 'builders/BCBuildersConfig':
-                        # Quarry balance is read from the independent INI settings.
+                        # Quarry balance is read through the BCCE balance registry.
                         self.assertNotIn('BCConfigSpec', source)
                         self.assertIn('import buildcraft.lib.balance.BalanceConfig;', source)
                         self.assertIn('BalanceConfig.machineInt(QUARRY,', source)
@@ -118,7 +118,9 @@ class PlatformBoundaries(unittest.TestCase):
                     if name == 'core/BCCoreConfig':
                         # Persisted public keys and their documented defaults/ranges.
                         required = {
-                            ('miningBreaksPlayerProtectedBlocks', 'define', 'false'),
+                            # The retired miningBreaksPlayerProtectedBlocks key is no longer
+                            # part of the schema; current permission decisions use the permission API.
+                            ('itemLifespan', 'defineInRange', '60,5,600'),
                             ('useWrenchTag', 'define', 'true'),
                             ('updateFactor', 'defineInRange', '10,1,10'),
                             ('mjPerFe', 'defineInRange', '0.1D,0.0001D,0.2D'),
@@ -147,15 +149,19 @@ class PlatformBoundaries(unittest.TestCase):
         base = ROOT/'source-shared/src/main/java/buildcraft/lib/platform'
         paths = list(base.rglob('*.java'))
         self.assertGreaterEqual(len(paths), 10)
-        # Only the pre-existing permission-service integration may depend on API2 here.
+        # Explicit bridges may depend on their public API domain, not on loaders.
         api_bridge = base/'permission/BCPermissions.java'
+        config_bridge = base/'config/ConfigBinding.java'
         for path in paths:
             source = path.read_text(encoding='utf-8')
             self.assertNotRegex(source, r'\b(?:net\.minecraftforge|net\.neoforged|net\.fabricmc)\.', str(path))
-            if path != api_bridge:
-                self.assertNotRegex(source, r'\bbuildcraft\.api\.', str(path))
-            else:
+            if path == config_bridge:
+                self.assertIn('import buildcraft.api.v2.config.ConfigDefinition;', source)
+                self.assertNotRegex(source, r'\bbuildcraft\.api\.(?!v2\.config\.)', str(path))
+            elif path == api_bridge:
                 self.assertIn('BuildCraftApi.service(BuildCraftServices.PERMISSIONS).decide(', source)
+            else:
+                self.assertNotRegex(source, r'\bbuildcraft\.api\.', str(path))
 
     def test_no_factory_is_evaluated_before_native_registration(self):
         entry = (ROOT/'source-shared/src/main/java/buildcraft/lib/platform/registry/BCRegistryEntry.java').read_text()

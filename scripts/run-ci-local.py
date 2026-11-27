@@ -63,6 +63,7 @@ VALIDATE_STEPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Test dynamic API2 client presentation", _unittest_command("test_presentation_runtime.py")),
     ("Verify independent API2 addon JAR conformance", _unittest_command("test_external_addon_conformance.py")),
     ("Verify independent API extension contracts", _unittest_command("test_api_*.py")),
+    ("Verify configuration contracts and runtime", _unittest_command("test_configuration_*.py")),
     ("Test balance INI and independent use_config modes", _unittest_command("test_balance_integration.py")),
     ("Test cross-target live GameTest trace collector", _unittest_command("test_system_trace_parity.py")),
     ("Test modpack join and datapack-reload integration harness", _unittest_command("test_modpack_world_join.py")),
@@ -655,6 +656,7 @@ def copy_artifact_patterns(patterns: Iterable[str], destination: Path) -> int:
 def build_artifact_patterns(target: str, generation: str) -> tuple[str, ...]:
     return (
         "build/*/*.jar",
+        f"build/addon-fixture/installable/{target}/bcce-api-test.jar",
         f"builds/{generation}/versions/{target}/build/reports/tests/**",
         f"builds/{generation}/versions/{target}/build/test-results/**",
         f"run/{generation}/{target}/logs/**",

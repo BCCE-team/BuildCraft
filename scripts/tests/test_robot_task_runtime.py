@@ -22,6 +22,13 @@ JAVA = [
     # robot AI now consults BalanceConfig when calculating movement/energy.
     "buildcraft/lib/balance/BalanceIni.java",
     "buildcraft/lib/balance/BalanceConfig.java",
+    # API 2.2 migrated effective balance to the BCCE configuration registry.
+    *(f"buildcraft/api/v2/config/{n}.java" for n in (
+        "ConfigDefinition", "ConfigSchema", "ConfigKey", "ConfigValue", "ConfigurationService", "DisplayFormat", "DisplayUnits", "ScreenMode")),
+    "buildcraft/lib/internal/config/ConfigurationRegistry.java",
+    "buildcraft/lib/platform/config/BCConfigSpec.java",
+    "buildcraft/lib/platform/config/ConfigBinding.java",
+    "buildcraft/lib/platform/config/LegacyToml.java",
     "buildcraft/api/v2/OperationMode.java",
     *(f"buildcraft/api/v2/robot/{n}.java" for n in (
         "RobotTask", "RobotTaskResult", "RobotTaskLifecycle", "RobotTaskContext",
@@ -319,8 +326,12 @@ public class RobotTaskFixture {
   return ((ByteArrayTag)data.get("task")).getAsByteArray();}
  public static void main(String[]args) throws Exception {
   // The real config must run against an isolated temporary game directory.
-  ok(buildcraft.lib.balance.BalanceConfig.robot("empty", "energy_cost_multiplier", 1.0) == 1.0,
-   "built-in robot balance used when use_config=false");
+  ok(buildcraft.lib.balance.BalanceConfig.robot("picker", "energy_cost_multiplier", 1.0) == 1.0,
+   "built-in robot balance used with no legacy configuration");
+  var configuration = buildcraft.lib.internal.config.ConfigurationRegistry.INSTANCE;
+  ok(configuration.definitions().stream().anyMatch(d -> d.id().equals("buildcraft:balance/robot/picker/energy_cost_multiplier")),
+   "robot balance registered in BCCE configuration");
+  configuration.persistDefaults();
   RobotManager.registerAIRobot(AIRobotMain.class,"main");
   register();
   ok("api2Task".equals(RobotManager.getAIRobotName(ApiTaskAI.class)),"AI registered by a stable name");
@@ -449,12 +460,14 @@ class RobotTaskRuntimeTest(unittest.TestCase):
             self.assertEqual(0, compile_result.returncode, compile_result.stderr[-8000:])
             executed = subprocess.run(
                 ["java", "-cp", str(classes), "fixture.RobotTaskFixture"],
-                cwd=root,  # isolate generated INI files from the developer's workspace
+                cwd=root,  # isolate configuration from the developer's workspace
                 capture_output=True, text=True, timeout=15,
             )
             self.assertEqual(0, executed.returncode, executed.stderr[-8000:])
+            for filename in ("client.properties", "server-defaults.properties"):
+                self.assertTrue((root / "config" / "buildcraft" / filename).is_file(), filename)
             for filename in ("buildcraft-machines.ini", "buildcraft-robots.ini"):
-                self.assertTrue((root / "config" / filename).is_file(), filename)
+                self.assertFalse((root / "config" / filename).exists(), filename)
             self.assertIn("PASS:", executed.stdout)
             print(executed.stdout.strip(), flush=True)
 

@@ -1,5 +1,6 @@
 package buildcraft.api.v2.config;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
 
@@ -20,7 +21,8 @@ public record ConfigDefinition(String id, Section section, List<String> category
     public Section editorSection() { return section == Section.ADDONS ? (scope == Scope.CLIENT ? Section.CLIENT : Section.WORLD) : section; }
     public enum Scope { CLIENT, SERVER }
     public enum Kind { BOOLEAN, INTEGER, DECIMAL, STRING, ENUM }
-    /** RESTART is deliberately conservative for values cached during registration. */
+    /** Application boundary: process restart, next world/session, or immediately after a successful save.
+     * Server addon values are authoritative on the server and must not use LIVE. */
     public enum ApplyPolicy { RESTART, WORLD_RESTART, LIVE }
 
     public ConfigDefinition {
@@ -60,7 +62,10 @@ public record ConfigDefinition(String id, Section section, List<String> category
                 return Boolean.toString(Boolean.parseBoolean(value));
             case INTEGER:
                 long number = Long.parseLong(value.trim());
-                if (number < min || number > max) throw new IllegalArgumentException("Outside range " + min + ".." + max);
+                // Comparing a long directly with a double rounds the long first (notably above 2^53).
+                BigDecimal exact = BigDecimal.valueOf(number);
+                if (exact.compareTo(new BigDecimal(min)) < 0 || exact.compareTo(new BigDecimal(max)) > 0)
+                    throw new IllegalArgumentException("Outside range " + min + ".." + max);
                 return Long.toString(number);
             case DECIMAL:
                 double decimal = Double.parseDouble(value.trim());

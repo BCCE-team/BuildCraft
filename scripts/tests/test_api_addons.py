@@ -218,17 +218,34 @@ class ProductionJarAddonGateTest(unittest.TestCase):
         self.module.ensure_public_sources([self.module.FIXTURE_ROOT / name for name in names])
 
     def test_every_loader_runs_gate_after_jar(self):
-        for path in (ROOT / "build-logic/loaders/forge-target.gradle",
-                     ROOT / "build-logic/loaders/neoforge-target.gradle"):
-            with self.subTest(loader=path.name):
-                text = path.read_text(encoding="utf-8")
-                self.assertIn("dependsOn tasks.named('jar')", text)
-                self.assertIn("tasks.register('verifyApi2AddonBinary', Exec)", text)
-                self.assertIn("dependsOn verifyApi2AddonBinary", text)
-                self.assertIn("--fixture-root", text)
-                self.assertIn("--bcce-jar", text)
-                self.assertIn("'--javac', javac", text)
-                self.assertIn(".javaCompiler.get().executablePath.asFile.absolutePath", text)
+        for loader in ("forge", "neoforge", "fabric"):
+            with self.subTest(loader=loader):
+                text = (ROOT / f"build-logic/loaders/{loader}-target.gradle").read_text(encoding="utf-8")
+                self.assertIn("apply from: new File(repositoryRoot, 'build-logic/api-v2-gates.gradle')", text)
+                self.assertIn("dependsOn tasks.named('build')", text)
+        gate = (ROOT / "build-logic/api-v2-gates.gradle").read_text(encoding="utf-8")
+        for token in ("tasks.named('jar', Jar)", "dependsOn productionJar", "tasks.register('verifyApi2AddonBinary', Exec)",
+                      "tasks.register('verifyApi2Compatibility', Exec)", "dependsOn verifyApi2AddonBinary, verifyApi2Compatibility",
+                      "tasks.named('check')", "--fixture-root", "--bcce-jar", "'--javac', javac",
+                      ".javaCompiler.get().executablePath.asFile.absolutePath", "dependsOn reobfTask"):
+            self.assertIn(token, gate)
+
+    def test_all_materialized_fixtures_are_in_binary_gate(self):
+        discovered = self.module.fixture_source_files(self.module.FIXTURE_ROOT)
+        self.assertEqual(set(discovered), set(self.module.FIXTURE_ROOT.rglob("*.java")))
+        self.assertTrue(set(self.module.ADDONS).issubset({p.name for p in discovered}))
+
+    def test_new_fixture_discovered_and_missing_baseline_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in self.module.ADDONS:
+                (root / name).touch()
+            extra = root / 'NewFixture.java'
+            extra.touch()
+            self.assertIn(extra, self.module.fixture_source_files(root))
+            (root / self.module.ADDONS[0]).unlink()
+            with self.assertRaisesRegex(ValueError, 'Missing independent'):
+                self.module.fixture_source_files(root)
 
     def test_uses_requested_toolchain_javac(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -237,6 +254,7 @@ class ProductionJarAddonGateTest(unittest.TestCase):
             with zipfile.ZipFile(jar, "w") as archive:
                 for name in ("buildcraft/api/v2/BuildCraftApi.class", "buildcraft/api/v2/BuildCraftRegistries.class"):
                     archive.writestr(name, b"test-api-class")
+                archive.writestr("buildcraft/lib/Internal.class", b"hidden implementation")
             fixtures = root / "fixtures"
             fixtures.mkdir()
             for name in self.module.ADDONS:
@@ -247,6 +265,13 @@ class ProductionJarAddonGateTest(unittest.TestCase):
 
             def compile_fixture(command, **kwargs):
                 commands.append(command)
+                self.assertIn('-proc:none', command)
+                self.assertEqual(command[command.index('-sourcepath') + 1], '')
+                public_api = Path(command[command.index('-cp') + 1])
+                self.assertNotEqual(public_api, jar)
+                with zipfile.ZipFile(public_api) as archive:
+                    self.assertNotIn('buildcraft/lib/Internal.class', archive.namelist())
+                    self.assertIn('buildcraft/api/v2/BuildCraftApi.class', archive.namelist())
                 classes = Path(command[command.index("-d") + 1])
                 classes.mkdir(parents=True, exist_ok=True)
                 (classes / "Fixture.class").write_bytes(b"Lbuildcraft/api/v2/BuildCraftApi;")

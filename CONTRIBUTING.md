@@ -27,7 +27,7 @@ BCCE is a multi-version Java project with **three independent Gradle/Stonecutter
 | --- | --- | --- |
 | `old` | `1.19.2-forge`, `1.20.1-forge` | 17 |
 | `1.21.X` | `1.21.1-neoforge`, `1.21.11-neoforge` | 21 |
-| `26.X` | `26.1.2-neoforge`, `26.2-neoforge`, `26.3-neoforge` | 25 |
+| `26.X` | `26.1.2-neoforge`, `26.2-neoforge`, `26.3-neoforge`, `26.3-fabric` | 25 |
 
 You will also need **Python 3.11+** for the local CI runner. Use the Gradle Wrapper included with each build generation; there is no need to install a system-wide Gradle version.
 
@@ -94,7 +94,7 @@ When editing machines, pipes, energy, robotics, or building systems, consider:
 
 ### Public API
 
-The supported addon-facing API is **`buildcraft.api.v2`**. Internal implementation packages are not part of the public compatibility guarantee. Prefer the existing public contracts instead of making addons depend on internal classes, and discuss potentially breaking API changes before implementing them. When updating the API, update relevant tests and documentation as well.
+The supported addon-facing API is **`buildcraft.api.v2`**. Internal implementation packages are not part of the public compatibility guarantee. Prefer the existing public contracts instead of making addons depend on internal classes, and discuss potentially breaking API changes before implementing them. When updating the API, update relevant tests and documentation as well. All loaders enforce released API ABI compatibility and independent production-JAR addon compilation as part of `check`. See [Public API v2 compatibility and release gates](docs/api-v2-abi-gates.md) for the pinned baseline, offline cache, reports and release acceptance.
 
 ### Localization
 

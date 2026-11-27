@@ -7,6 +7,7 @@ package buildcraft.lib.net;
 
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Locale;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,13 +41,15 @@ public final class MessageManager {
     public static final boolean DEBUG = BCDebugging.shouldDebugLog("lib.messages");
     public static final String PROTOCOL_VERSION = BuildCraftTarget.NETWORK_PROTOCOL;
     private static final int MAX_MESSAGE_CLASS_NAME = 256;
+    // Fabric has no NeoForge-style registrar protocol version; encode the canonical version in the payload IDs.
+    private static final String WIRE_SUFFIX = "_" + PROTOCOL_VERSION.toLowerCase(Locale.ROOT).replace('.', '_').replace('-', '_');
 
     // Separate protocol types allow packet direction to be established before
     // any message-specific decoder runs on untrusted network input.
     private static final CustomPacketPayload.Type<BuildCraftPayload> CLIENTBOUND_TYPE =
-        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("buildcraftlib", "messages_to_client"));
+        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("buildcraftlib", "messages_to_client" + WIRE_SUFFIX));
     private static final CustomPacketPayload.Type<BuildCraftPayload> SERVERBOUND_TYPE =
-        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("buildcraftlib", "messages_to_server"));
+        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("buildcraftlib", "messages_to_server" + WIRE_SUFFIX));
 
     private static final Map<IBuildCraftMod, PerModHandler> MOD_HANDLERS =
         new TreeMap<>(MessageManager::compareMods);
