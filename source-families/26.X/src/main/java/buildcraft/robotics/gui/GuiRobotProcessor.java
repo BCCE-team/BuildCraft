@@ -7,6 +7,7 @@ import net.minecraft.world.item.ItemStack;
 import buildcraft.robotics.BCRoboticsBoards;
 import buildcraft.robotics.RobotTaskNames;
 import buildcraft.robotics.item.ItemRobot;
+import buildcraft.robotics.client.render.preview.RobotProcessorPreview;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
 import org.lwjgl.glfw.GLFW;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -15,8 +16,14 @@ import buildcraft.lib.client.render.fluid.FluidRenderer;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
+//? if fabric {
+import buildcraft.lib.fluid.FluidStack;
+//?} else {
+import net.neoforged.neoforge.fluids.FluidStack;
+//?}
 
 import buildcraft.lib.compat.RenderCompat;
+import buildcraft.lib.compat.FluidCompat;
 import net.minecraft.client.gui.components.EditBox;
 import buildcraft.lib.compat.minecraft.gui.BCGraphics;
 import buildcraft.robotics.container.ContainerRobotProcessor;
@@ -256,8 +263,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
 
     private Fluid cargoFluid(String id) {
         try {
-            return BuiltInRegistries.FLUID.get(net.minecraft.resources.Identifier.parse(id))
-                    .map(net.minecraft.core.Holder.Reference::value).orElse(Fluids.EMPTY);
+            return BuiltInRegistries.FLUID.getOptional(Identifier.parse(id)).orElse(Fluids.EMPTY);
         } catch (IllegalArgumentException exception) {
             return Fluids.EMPTY;
         }
@@ -274,10 +280,20 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
         RobotSnapshot selected = selectedRobot();
         if (selected == null) {
             SCROLL_DISABLED.drawAt(getActiveGraphics(), leftPos + CARGO_SCROLL_X, topPos + CARGO_SCROLL_Y);
+            drawInactiveCargoPanel(pose);
+            panelWrappedText(pose, RobotProcessorUiText.text("no_robot_selected"), CARGO_X + 4, CARGO_Y + 26,
+                    CARGO_SCROLL_X - CARGO_X - 9, 2, 0xFF_55_55_55, true);
             return;
         }
         clampCargoOffset();
         List<CargoEntry> contents = processorMenu.getCargo();
+        if (contents.isEmpty()) {
+            SCROLL_DISABLED.drawAt(getActiveGraphics(), leftPos + CARGO_SCROLL_X, topPos + CARGO_SCROLL_Y);
+            drawInactiveCargoPanel(pose);
+            panelWrappedText(pose, RobotProcessorUiText.text("empty"), CARGO_X + 4, CARGO_Y + 31,
+                    CARGO_SCROLL_X - CARGO_X - 9, 2, 0xFF_55_55_55, true);
+            return;
+        }
         for (int row = 0; row < CARGO_ROWS && row + cargoOffset < contents.size(); row++) {
             CargoEntry entry = contents.get(row + cargoOffset);
             int y = CARGO_Y + row * CARGO_ROW_HEIGHT;
@@ -432,11 +448,10 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     }
 
     private Component cargoFluidName(CargoEntry entry) {
-        String id = entry.fluidId();
-        int colon = id.indexOf(':');
-        String namespace = colon >= 0 ? id.substring(0, colon) : "minecraft";
-        String path = colon >= 0 ? id.substring(colon + 1) : id;
-        return Component.translatable("fluid." + namespace + "." + path);
+        Fluid fluid = cargoFluid(entry.fluidId());
+        if (fluid == Fluids.EMPTY) return Component.literal(entry.fluidId());
+        // Loader-specific stacks delegate to the registered fluid's localized name.
+        return FluidCompat.getDisplayName(new FluidStack(fluid, Math.max(1, entry.amountMb())));
     }
 
     private RobotSnapshot selectedRobot() {
@@ -561,7 +576,14 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
                                 ? RobotProcessorUiText.text("scan.sections", scan.sections())
                                 : RobotProcessorUiText.text("scan.loaded_only");
         panelText(pose, heading, 215, 108, 102, 0xFF_30_30_30);
-        panelText(pose, detail, 215, 119, 102, 0xFF_55_55_55);
+        // Only one line fits above the scan progress bar.
+        float detailScale = Math.min(1.0F, 102.0F / Math.max(1, font.width(detail)));
+        var graphics = getActiveGraphics();
+        BCGraphics.push(graphics);
+        BCGraphics.translate(graphics, leftPos + 215, topPos + 119);
+        BCGraphics.scale(graphics, detailScale, detailScale);
+        BCGraphics.text(graphics, font, detail, 0, 0, 0xFF_55_55_55, false);
+        BCGraphics.pop(graphics);
         // Two-pixel inner bar with a 1-pixel border, entirely above Home/Unlink.
         panelFill(pose, 215, 130, 316, 134, 0xFF_53_53_53);
         int current = phase == ContainerRobotProcessor.SCAN_REFRESHING
@@ -675,26 +697,11 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
         getActiveGraphics().fill(leftPos + x1, topPos + y1, leftPos + x2, topPos + y2, argb);
     }
 
-    /** Draws the baked 3D robot model selected by its real board ID. */
+    /** Side-on profession texture in the list; original-size rotating model in the detail panel. */
     private void renderRobotModel(PoseStack pose, String boardId, int cx, int cy, int pixelSize, boolean rotate) {
         ItemStack stack = modelForBoard(boardId);
         if (stack.isEmpty()) return;
-        // Extraction-based GUI rendering honors the robot model's gui_light=front lighting.
-        // Both list and detail previews use the same front-lit item model.
-        // The baked model still contains the real 3D robot geometry and profession texture.
-        var graphics = getActiveGraphics();
-        BCGraphics.push(graphics);
-        BCGraphics.translate(graphics, leftPos + cx, topPos + cy);
-        float scale = pixelSize / 16.0F;
-        BCGraphics.scale(graphics, scale, scale);
-        //? if >=1.21.11 {
-        graphics.item(stack, -8, -8);
-        //?} else {
-        /*?
-        graphics.renderItem(stack, -8, -8);
-        ?*/
-        //?}
-        BCGraphics.pop(graphics);
+        RobotProcessorPreview.render(getActiveGraphics(), stack, leftPos + cx, topPos + cy, pixelSize, rotate);
     }
 
     private void renderStations(PoseStack pose) {
@@ -734,8 +741,7 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
 
     private void drawCentered(PoseStack pose, String message) {
         // Information panel: x=7..210, y=132..186 in the latest atlas.
-        int x = 8 + Math.max(0, (202 - font.width(message)) / 2);
-        panelText(pose, message, x, 155, 202, 0xFF_30_30_30);
+        panelWrappedText(pose, message, 12, 149, 194, 2, 0xFF_30_30_30, true);
     }
 
     private static String sideName(int side) {
@@ -755,6 +761,32 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
 
     private void panelText(PoseStack pose, String text, int x, int y, int maxWidth, int color) {
         drawString(getActiveGraphics(), font, fitText(text, maxWidth), leftPos + x, topPos + y, color, false);
+    }
+
+    private void panelWrappedText(PoseStack pose, String text, int x, int y, int maxWidth, int maxLines, int color, boolean centered) {
+        if (text == null || text.isEmpty()) return;
+        var graphics = getActiveGraphics();
+        var lines = font.split(Component.literal(text), Math.max(1, maxWidth));
+        int count = Math.min(maxLines, lines.size());
+        for (int i = 0; i < count; i++) {
+            var line = lines.get(i);
+            int drawX = leftPos + x;
+            if (centered) {
+                drawX += Math.max(0, (maxWidth - font.width(line)) / 2);
+            }
+            BCGraphics.text(graphics, font, line, drawX, topPos + y + i * font.lineHeight, color, false);
+        }
+    }
+
+    private void drawInactiveCargoPanel(PoseStack pose) {
+        int top = CARGO_Y;
+        int bottom = CARGO_Y + CARGO_ROWS * CARGO_ROW_HEIGHT;
+        panelFill(pose, CARGO_X, top, CARGO_SCROLL_X - 1, bottom, 0x12_20_20_20);
+        for (int row = 0; row < CARGO_ROWS; row++) {
+            int y = CARGO_Y + row * CARGO_ROW_HEIGHT;
+            panelFill(pose, CARGO_X, y, CARGO_SCROLL_X - 1, y + 17,
+                    row % 2 == 0 ? 0x14_20_20_20 : 0x10_20_20_20);
+        }
     }
 
     private String fitText(String text, int maxWidth) {

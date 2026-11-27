@@ -601,6 +601,9 @@ def upgrade_symbols(text: str, *, minecraft: str, relative: str) -> str:
     # subclasses so machine-specific controls still reach the BuildCraft base handler before vanilla slots.
     legacy_gui_input_bridge = (
         "extends GuiBC8<" in text
+        # RobotProcessor inherits the same legacy callbacks through GuiZonePlanner.
+        # Its unhandled clicks, drags and keys must reach the map editor.
+        or "extends GuiZonePlanner<" in text
         or "extends ContainerScreenBase<" in text
         or "extends BCContainerScreen<" in text
         or is_container_input_bridge

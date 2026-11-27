@@ -16,7 +16,11 @@ public final class ItemHardDisk extends Item {
 
     private static Properties configure(Properties properties) {
         properties.stacksTo(1);
-        //? if >=1.21.11 {
+        //? if >=26.1 {
+        properties.delayedComponent(net.minecraft.core.component.DataComponents.DAMAGE_RESISTANT,
+                registries -> new net.minecraft.world.item.component.DamageResistant(
+                        registries.getOrThrow(net.minecraft.tags.DamageTypeTags.IS_EXPLOSION)));
+        //?} else if >=1.21.11 {
         properties.component(net.minecraft.core.component.DataComponents.DAMAGE_RESISTANT,
                 new net.minecraft.world.item.component.DamageResistant(net.minecraft.tags.DamageTypeTags.IS_EXPLOSION));
         //?}

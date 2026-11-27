@@ -80,6 +80,55 @@ public class CheckDisk {
             text=(ROOT/path).read_text()
             self.assertIn('if (!processorControlsEnabled()',text)
 
+    def test_hdd_translation_and_sprite_are_available_on_all_targets(self):
+        from scripts.source_config import load_properties, target_layout
+        from scripts.source_layout import resolve_effective_source
+        from scripts.transforms.resources import (generate_legacy_resources_from_modern_canonical,
+                                                  generate_modern_item_definitions)
+        from scripts.tests.robot_processor.ui.test_map_and_help import TARGETS
+
+        props = load_properties()
+        base = 'src/main/resources/assets/'
+        sprite = 'buildcraftrobotics:items/hard_disk'
+        atlas = base + 'minecraft/atlases/blocks.json'
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp)
+            generate_legacy_resources_from_modern_canonical(
+                destination, minecraft='1.20.1', family='old', platform='forge')
+            for target in TARGETS:
+                with self.subTest(target=target):
+                    layout = target_layout(target, props)
+                    def resource(path):
+                        source = resolve_effective_source(layout, props, base + path)
+                        self.assertIsNotNone(source, path)
+                        return source
+                    lang = json.loads(resource('buildcraft/lang/en_us.json').read_text(encoding='utf-8'))
+                    self.assertEqual('Hard Disk Drive', lang['item.buildcraftrobotics.hard_disk'])
+                    model_source = resource('buildcraftrobotics/models/item/hard_disk.json')
+                    model = json.loads(model_source.read_text(encoding='utf-8'))
+                    self.assertEqual(sprite, model['textures']['layer0'])
+                    self.assertEqual(b'\x89PNG\r\n\x1a\n', resource('buildcraftrobotics/textures/items/hard_disk.png').read_bytes()[:8])
+                    if target.startswith('26.'):
+                        item = json.loads(resource('buildcraftrobotics/items/hard_disk.json').read_text(encoding='utf-8'))
+                        self.assertEqual('buildcraftrobotics:item/hard_disk', item['model']['model'])
+                    elif target.startswith('1.21.11-'):
+                        # This family generates its client item definition from the model.
+                        generated_model = destination / base / 'buildcraftrobotics/models/item/hard_disk.json'
+                        generated_model.parent.mkdir(parents=True, exist_ok=True)
+                        generated_model.write_bytes(model_source.read_bytes())
+                        generate_modern_item_definitions(destination, minecraft='1.21.11', platform='neoforge')
+                        item_path = destination / base / 'buildcraftrobotics/items/hard_disk.json'
+                        item = json.loads(item_path.read_text(encoding='utf-8'))
+                        self.assertEqual('buildcraftrobotics:item/hard_disk', item['model']['model'])
+                    if target.startswith('1.19.2-'):
+                        continue # vanilla directory source automatically stitches legacy item textures
+                    path = (destination / atlas if target.startswith('1.20.1-') else
+                            resolve_effective_source(layout, props, atlas))
+                    self.assertIsNotNone(path)
+                    sources = json.loads(path.read_text(encoding='utf-8'))['sources']
+                    self.assertEqual([{'type': 'minecraft:single', 'resource': sprite}],
+                                     [entry for entry in sources if entry.get('resource') == sprite])
+
     def test_recipe_and_user_assets(self):
         from PIL import Image
         resources=ROOT/'source-shared/src/main/resources/assets/buildcraftrobotics'

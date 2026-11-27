@@ -19,6 +19,7 @@ ASSETS = ROOT / 'source-shared/src/main/resources/assets/buildcraftrobotics'
 SPRITES = {
     'buildcraftrobotics:blocks/robot_processor/down',
     'buildcraftrobotics:blocks/robot_processor/front',
+    'buildcraftrobotics:blocks/robot_processor/front_off',
     'buildcraftrobotics:blocks/robot_processor/top',
     'buildcraftrobotics:items/controller',
 }
@@ -40,7 +41,8 @@ class TestRobotProcessorTextureAtlas(unittest.TestCase):
     def test_referenced_textures_exist_and_are_valid(self):
         model = json.loads((ASSETS / 'models/block/robot_processor.json').read_text(encoding='utf-8'))
         controller = json.loads((ASSETS / 'models/item/controller.json').read_text(encoding='utf-8'))
-        referenced = set(model['textures'].values()) | set(controller['textures'].values())
+        off = json.loads((ASSETS / 'models/block/robot_processor_off.json').read_text(encoding='utf-8'))
+        referenced = set(model['textures'].values()) | set(off['textures'].values()) | set(controller['textures'].values())
         self.assertEqual(SPRITES, referenced)
         for resource in SPRITES:
             namespace, path = resource.split(':', 1)
@@ -51,6 +53,43 @@ class TestRobotProcessorTextureAtlas(unittest.TestCase):
                 self.assertEqual(b'\x89PNG\r\n\x1a\n', texture.read_bytes()[:8])
         frame = json.loads((ASSETS / 'textures/blocks/robot_processor/front.png.mcmeta').read_text())
         self.assertEqual(list(range(8)), frame['animation']['frames'])
+
+    def test_power_models_cover_all_facings_and_waterlogged_states(self):
+        model = json.loads((ASSETS / 'models/block/robot_processor.json').read_text(encoding='utf-8'))
+        off = json.loads((ASSETS / 'models/block/robot_processor_off.json').read_text(encoding='utf-8'))
+        self.assertEqual('buildcraftrobotics:blocks/robot_processor/front', model['textures']['north'])
+        self.assertEqual('buildcraftrobotics:block/robot_processor', off['parent'])
+        self.assertEqual({'north': 'buildcraftrobotics:blocks/robot_processor/front_off'}, off['textures'])
+        variants = json.loads((ASSETS / 'blockstates/robot_processor.json').read_text(encoding='utf-8'))['variants']
+        expected = {}
+        for active in ('false', 'true'):
+            for facing, rotation in (('north', 0), ('east', 90), ('south', 180), ('west', 270)):
+                for waterlogged in ('false', 'true'):
+                    name = 'robot_processor' if active == 'true' else 'robot_processor_off'
+                    variant = {'model': 'buildcraftrobotics:block/' + name}
+                    if rotation:
+                        variant['y'] = rotation
+                    expected[f'active={active},facing={facing},waterlogged={waterlogged}'] = variant
+        self.assertEqual(expected, variants)
+
+    def test_server_readiness_drives_visual_state(self):
+        robotics = ROOT / 'source-shared/src/main/java/buildcraft/robotics'
+        block = (robotics / 'block/BlockRobotProcessor.java').read_text(encoding='utf-8')
+        tile = (robotics / 'tile/TileRobotProcessor.java').read_text(encoding='utf-8')
+        self.assertIn('registerDefaultState(defaultBlockState().setValue(ACTIVE, false))', block)
+        self.assertIn('super.createBlockStateDefinition(builder)', block)
+        self.assertIn('builder.add(ACTIVE)', block)
+        self.assertIn('if (!hasMountedDisk() || isPhysicsOperationPaused()) return false;', tile)
+        self.assertIn('return consumedPower > 0 || getStoredEnergy() >= required;', tile)
+        update = tile.split('public void update() {', 1)[1].split('private void syncOperationalBlockState', 1)[0]
+        self.assertIn('if (!(level instanceof ServerLevel server)) return;', update)
+        self.assertLess(update.index('processorBattery.extractPower(requestedPower)'),
+                        update.index('syncOperationalBlockState(server, operational)'))
+        self.assertIn('boolean operational = isOperational();', update)
+        sync = tile.split('private void syncOperationalBlockState', 1)[1].split('private void markEnergyChanged', 1)[0]
+        self.assertIn('getCurrentStateForBlock(BCRoboticsBlocks.ROBOT_PROCESSOR.get())', sync)
+        self.assertIn('state.getValue(BlockRobotProcessor.ACTIVE) != operational', sync)
+        self.assertIn('state.setValue(BlockRobotProcessor.ACTIVE, operational), Block.UPDATE_CLIENTS', sync)
 
     def test_modern_source_atlases_declare_every_sprite_once(self):
         for root in (

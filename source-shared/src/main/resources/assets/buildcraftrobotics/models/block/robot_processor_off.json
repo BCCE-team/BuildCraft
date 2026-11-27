@@ -1,0 +1,6 @@
+{
+  "parent": "buildcraftrobotics:block/robot_processor",
+  "textures": {
+    "north": "buildcraftrobotics:blocks/robot_processor/front_off"
+  }
+}

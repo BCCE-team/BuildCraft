@@ -44,6 +44,24 @@ class RobotProcessorMapAndLocalizedTooltipTests(unittest.TestCase):
                 self.assertIn('if (button == 1 && panningMap)',java)
                 self.assertIn('if (!inProcessorWorkArea(clicked.getX() >> 4',java)
 
+    def test_processor_input_reaches_inherited_map_editor_after_materialization(self):
+        # A direct GuiBC8 subclass was previously the only recognized bridge.
+        # GuiRobotProcessor inherits it indirectly via GuiZonePlanner, and the
+        # old transform silently replaced its fallback calls with false.
+        for target in TARGETS:
+            with self.subTest(target=target):
+                java = source_for(target, 'gui/GuiRobotProcessor.java')
+                for signature, fallback in (
+                    ('mouseClicked(double', 'super.mouseClicked(x, y, button)'),
+                    ('mouseDragged(double', 'super.mouseDragged(mouseX, mouseY, mouseButton, dragX, dragY)'),
+                    ('mouseReleased(double', 'super.mouseReleased(mouseX, mouseY, button)'),
+                    ('keyPressed(int', 'super.keyPressed(keyCode, scanCode, modifiers)'),
+                ):
+                    body = java.split('public boolean ' + signature, 1)[1].split('\n    }', 1)[0]
+                    self.assertTrue(body.rstrip().endswith('return ' + fallback + ';'), (target, signature, body))
+                scroll_args = 'delta' if target.endswith('-forge') else 'deltaX, deltaY'
+                self.assertIn(f'return super.mouseScrolled(x, y, {scroll_args});', java)
+
     def test_all_processor_views_use_shared_translations_and_help(self):
         for target in TARGETS:
             with self.subTest(target=target):
@@ -160,8 +178,15 @@ class RobotProcessorWorkAreaTests(unittest.TestCase):
                 s = (ROOT/path).read_text('utf-8')
                 self.assertIn('RobotProcessorUiText.text("no_linked")', s)
                 self.assertNotIn('"No linked robots"', s)
-                self.assertIn('202 - font.width(message)', s)
-                self.assertIn('panelText(pose, message, x, 155, 202', s)
+                if path.startswith('source-families/'):
+                    self.assertIn('panelWrappedText(pose, message, 12, 149, 194, 2,', s)
+                    wrap = s.split('private void panelWrappedText(', 1)[1].split('\n    }', 1)[0]
+                    self.assertIn('font.split(Component.literal(text)', wrap)
+                    self.assertIn('(maxWidth - font.width(line)) / 2', wrap)
+                    self.assertIn('BCGraphics.text(graphics, font, line,', wrap)
+                else:
+                    self.assertIn('202 - font.width(message)', s)
+                    self.assertIn('panelText(pose, message, x, 155, 202', s)
 
     def test_all_zone_variants_share_new_button_locations_and_work_area_limit(self):
         for path in GUI_PATHS:

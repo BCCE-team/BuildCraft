@@ -2087,6 +2087,10 @@
     },
     {
       "type": "minecraft:single",
+      "resource": "buildcraftrobotics:blocks/robot_processor/front_off"
+    },
+    {
+      "type": "minecraft:single",
       "resource": "buildcraftrobotics:blocks/robot_processor/top"
     },
     {
@@ -2200,6 +2204,10 @@
     {
       "type": "minecraft:single",
       "resource": "buildcraftrobotics:items/controller"
+    },
+    {
+      "type": "minecraft:single",
+      "resource": "buildcraftrobotics:items/hard_disk"
     },
     {
       "type": "minecraft:single",

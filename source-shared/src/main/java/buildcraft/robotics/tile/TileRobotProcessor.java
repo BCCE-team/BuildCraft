@@ -25,6 +25,7 @@ import java.util.Set;
 import buildcraft.lib.tile.item.ItemHandlerManager.EnumAccess;
 import buildcraft.lib.tile.item.ItemHandlerSimple;
 import buildcraft.robotics.BCRoboticsBlocks;
+import buildcraft.robotics.block.BlockRobotProcessor;
 import buildcraft.robotics.ai.AIRobotBreak;
 import buildcraft.robotics.ai.AIRobotFetchItem;
 import buildcraft.robotics.internal.legacy.robots.EntityRobotBase;
@@ -52,6 +53,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerLevelAccess;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -895,8 +897,10 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         }
         long now = server.getGameTime();
         if (hasMountedDisk()) workScheduler.flushCatalogDirty(now);
-        if (lastOperationalForTickets != isOperational()) {
-            lastOperationalForTickets = isOperational();
+        boolean operational = isOperational();
+        syncOperationalBlockState(server, operational);
+        if (lastOperationalForTickets != operational) {
+            lastOperationalForTickets = operational;
             chunkTicketsDirty = true;
         }
         markEnergyChanged();
@@ -922,6 +926,14 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
                 chunkTicketsDirty = false;
                 ChunkLoaderManager.loadChunksForTile(this);
             }
+        }
+    }
+
+    /** The front model follows server-side readiness, without extra tile packets or neighbour updates. */
+    private void syncOperationalBlockState(ServerLevel server, boolean operational) {
+        BlockState state = getCurrentStateForBlock(BCRoboticsBlocks.ROBOT_PROCESSOR.get());
+        if (state != null && state.getValue(BlockRobotProcessor.ACTIVE) != operational) {
+            server.setBlock(worldPosition, state.setValue(BlockRobotProcessor.ACTIVE, operational), Block.UPDATE_CLIENTS);
         }
     }
 

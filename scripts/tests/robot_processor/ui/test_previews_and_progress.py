@@ -70,8 +70,9 @@ class RobotProcessorPreviewProgressTests(unittest.TestCase):
             self.assertIn('(System.currentTimeMillis() % 12000L) * 0.03F', code)
         for path in ROBOT_SCREENS[3:]:
             code = (ROOT / path).read_text()
-            self.assertTrue('graphics.item(stack, -8, -8);' in code or 'graphics.renderItem(stack, -8, -8);' in code)
-            self.assertIn('BCGraphics.scale(graphics, scale, scale);', code)
+            self.assertIn('RobotProcessorPreview.render(getActiveGraphics(), stack,', code)
+            self.assertNotIn('graphics.item(stack, -8, -8);', code)
+            self.assertNotIn('graphics.renderItem(stack, -8, -8);', code)
 
     def test_library_positions_fit_existing_background(self):
         for path in ROBOT_SCREENS:

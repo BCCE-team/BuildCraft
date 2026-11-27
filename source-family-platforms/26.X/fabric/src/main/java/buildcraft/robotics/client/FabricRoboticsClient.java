@@ -8,6 +8,8 @@ import buildcraft.robotics.BCRoboticsClientGuis;
 import buildcraft.robotics.BCRoboticsClientRenderers;
 import buildcraft.robotics.BCRoboticsModels;
 import buildcraft.robotics.BCRoboticsSprites;
+import buildcraft.robotics.client.render.preview.RobotPreviewPipRenderer;
+import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
 import com.mojang.serialization.MapCodec;
 import javax.annotation.Nullable;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -26,6 +28,7 @@ public final class FabricRoboticsClient {
         BCRoboticsModels.init();
         BCRoboticsClientGuis.clientInit(PlatformClientRegistration.screens());
         BCRoboticsClientRenderers.register(PlatformClientRegistration.renderers());
+        PictureInPictureRendererRegistry.register(context -> new RobotPreviewPipRenderer());
         PlatformClientRegistration.rangeProperties().register(
             net.minecraft.resources.Identifier.fromNamespaceAndPath("buildcraftrobotics", "robot"),
             RobotModelProperty.MAP_CODEC);

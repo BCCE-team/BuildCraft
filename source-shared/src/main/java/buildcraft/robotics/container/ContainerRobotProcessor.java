@@ -36,6 +36,7 @@ import buildcraft.robotics.tile.TileZonePlanner;
 import buildcraft.robotics.item.ItemRobotController;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EquipmentSlot;
 import buildcraft.robotics.tile.TileRobotProcessor.StationKey;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -88,7 +89,7 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
     public int diskLayer() { return diskState.layer(); }
     public ProcessorDiskLayout diskLayout() { return new ProcessorDiskLayout(diskState.offsetX(), diskState.offsetZ()); }
 
-    // A robot currently has four transfer slots and one tank; leave room for extensions.
+    // A robot has a held stack, four transfer slots and one tank; leave room for extensions.
     private static final int MAX_CARGO_ENTRIES = 32;
     private static final int MAX_CARGO_TANKS = 8;
     private static final int MAX_ROBOT_SLOTS = 32;
@@ -556,6 +557,10 @@ public class ContainerRobotProcessor extends ContainerZonePlanner {
             return;
         }
         List<CargoEntry> current = new ArrayList<>();
+        // The working item is stored separately from the transfer inventory.
+        // Put it first so equipment is visible even when all four cargo rows are occupied.
+        ItemStack held = robot.getItemBySlot(EquipmentSlot.MAINHAND);
+        if (!held.isEmpty()) current.add(new CargoEntry(held.copy(), "", 0, 0));
         for (int slot = 0; slot < Math.min(MAX_ROBOT_SLOTS, robot.getContainerSize()); slot++) {
             if (current.size() >= MAX_CARGO_ENTRIES) break;
             ItemStack item = robot.getItem(slot);
