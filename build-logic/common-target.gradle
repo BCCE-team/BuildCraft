@@ -67,6 +67,11 @@ def booleanProperty = { String key, boolean fallback ->
     providers.gradleProperty(key).map { it.toBoolean() }.getOrElse(fallback)
 }
 
+def recipeViewerMod = requiredProperty('recipe_viewer_mod').toLowerCase(java.util.Locale.ROOT)
+if (!(recipeViewerMod in ['jei', 'rei', 'emi'])) {
+    throw new GradleException("Invalid recipe_viewer_mod '${recipeViewerMod}': expected jei, rei or emi")
+}
+
 def loaderName = requiredProperty('source.platform')
 def minecraftVersion = requiredProperty('deps.minecraft')
 def modVersion = requiredProperty('mod.version')
@@ -258,6 +263,7 @@ project.ext.bcTarget = [
         targetRegistryFile: targetRegistryFile,
         generationConfigFile: generationConfigFile,
         targetConfiguration: targetConfiguration,
+        recipeViewerMod: recipeViewerMod,
         configuredProperty: configuredProperty,
         requiredProperty: requiredProperty,
         optionalProperty: optionalProperty,

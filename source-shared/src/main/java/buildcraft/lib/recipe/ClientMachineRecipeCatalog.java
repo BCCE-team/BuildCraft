@@ -23,6 +23,7 @@ public final class ClientMachineRecipeCatalog {
     private static volatile Snapshot current = Snapshot.empty();
     private static Pending pending;
     private static Runnable listener;
+    private static Runnable reiListener;
 
     public record Entry(String machine, ResourceLocation id, RecipeDefinition definition) {}
     public record Snapshot(long generation, boolean authoritative, List<Entry> recipes,
@@ -56,11 +57,27 @@ public final class ClientMachineRecipeCatalog {
         if (callback != null) callback.run();
     }
 
+    /** REI filtering is independent of the optional JEI runtime. */
+    public static synchronized void setReiListener(Runnable callback) {
+        reiListener = callback;
+    }
+
+    private static void notifyRei() {
+        if (reiListener != null) {
+            try {
+                reiListener.run();
+            } catch (RuntimeException failure) {
+                LOG.warn("Could not refresh REI recipe viewer", failure);
+            }
+        }
+    }
+
     public static synchronized void clear() {
         current = Snapshot.empty();
         buildcraft.energy.OilIndustry.setRemoteMode(null);
         pending = null;
         if (listener != null) listener.run();
+        notifyRei();
     }
 
     /** Invoked exclusively on the client main thread by the message handler. */
@@ -114,6 +131,7 @@ public final class ClientMachineRecipeCatalog {
             LOG.info("Received {} authoritative machine recipe displays and {} deny rules",
                 all.size(), denied.values().stream().mapToInt(Set::size).sum());
             if (listener != null) listener.run();
+            notifyRei();
         } catch (RuntimeException invalid) {
             LOG.warn("Rejected invalid recipe display snapshot: {}", invalid.toString());
         } finally {

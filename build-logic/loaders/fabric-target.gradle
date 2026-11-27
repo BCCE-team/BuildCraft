@@ -151,8 +151,16 @@ dependencies {
     compileOnly requiredProperty('deps.jei')
     compileOnly requiredProperty('deps.jade')
     compileOnly requiredProperty('deps.modmenu')
-    // JEI/Jade are dev-runtime only, never bundled inside BCCE.
-    runtimeOnly requiredProperty('deps.jei')
+    // Viewer libraries are compile-only unless explicitly selected for dev runtime.
+    def selectedRecipeViewer = ciWorldJoin ? 'jei' : bc.recipeViewerMod
+    if (selectedRecipeViewer == 'jei') {
+        runtimeOnly requiredProperty('deps.jei')
+    }
+    ['deps.rei', 'deps.rei_architectury', 'deps.rei_cloth'].each { key ->
+        compileOnly requiredProperty(key)
+        if (selectedRecipeViewer == 'rei') runtimeOnly requiredProperty(key)
+    }
+    if (selectedRecipeViewer == 'emi') runtimeOnly requiredProperty('deps.emi')
     runtimeOnly requiredProperty('deps.jade')
     compileOnly 'javax.annotation:javax.annotation-api:1.3.2'
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'

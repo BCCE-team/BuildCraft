@@ -234,7 +234,7 @@ if (ciWorldJoin && targetName == '26.2-neoforge') {
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
         .map { it.trim().toLowerCase() }
         .getOrElse('default')
-def knownCiRuntimeProfiles = ['default', 'base', 'forestry', 'ic2', 'jei', 'jade', 'all', 'modpack']
+def knownCiRuntimeProfiles = ['default', 'base', 'forestry', 'ic2', 'jei', 'rei', 'emi', 'jade', 'all', 'modpack']
 if (!knownCiRuntimeProfiles.contains(ciRuntimeProfile)) {
     throw new GradleException("Unsupported ci_runtime_profile '${ciRuntimeProfile}'. Expected one of: ${knownCiRuntimeProfiles.sort().join(', ')}")
 }
@@ -260,6 +260,13 @@ def buildcraftModIds = [
         'buildcraftrobotics'
 ]
 def buildcraftModIdList = buildcraftModIds.join(',')
+// Exactly one active viewer; CI modpack fixtures intentionally remain on JEI.
+def selectedRecipeViewer = ciRuntimeProfile == 'modpack' ? 'jei' :
+        (ciRuntimeProfile in ['jei', 'rei', 'emi'] ? ciRuntimeProfile : bc.recipeViewerMod)
+def recipeViewerRuntimeEnabled = { String viewer ->
+    viewer == selectedRecipeViewer && runtimeEnabled(viewer, true)
+}
+
 def runDirectory = new File(repositoryRoot, "run/${buildGeneration}/${targetName}")
 def dataRunDirectory = new File(repositoryRoot, "run-data/${buildGeneration}/${targetName}")
 def generatedResources = layout.buildDirectory.dir("generated-resources/datagen").get().asFile
@@ -426,8 +433,30 @@ dependencies {
     def jeiDependency = optionalProperty('deps.jei')
     if (jeiCompatEnabled && jeiDependency) {
         compileOnly jeiDependency
-        if (runtimeEnabled('jei', true)) {
+        if (recipeViewerRuntimeEnabled('jei')) {
             localRuntime jeiDependency
+        }
+    }
+
+    // Native REI integration is always compiled; only the selected viewer runs.
+    ['deps.rei', 'deps.rei_architectury', 'deps.rei_cloth'].each { key ->
+        def dependency = requiredProperty(key)
+        compileOnly dependency
+        if (recipeViewerRuntimeEnabled('rei')) {
+            localRuntime dependency
+        }
+    }
+    if (recipeViewerRuntimeEnabled('emi')) {
+        def emiDependency = optionalProperty('deps.emi')
+        if (emiDependency) {
+            localRuntime emiDependency
+        } else {
+            // Do not fail configuration of other targets sharing this Gradle root.
+            tasks.matching { it.name == 'runClient' }.configureEach {
+                doFirst {
+                    throw new GradleException("No verified EMI build for ${targetName}; set target.${targetName}.deps.emi or pass -Pdeps.emi=<Maven coordinate>")
+                }
+            }
         }
     }
 

@@ -896,6 +896,7 @@
   "block.buildcraftfactory.water_gel": "Water Gel",
   "itemGroup.buildcraft.fluid": "BuildCraft Oil",
   "buildcraft.value.hidden": "Hidden",
+  "buildcraft.rei.transfer.unsupported_grid": "This recipe cannot be placed in a 3x3 blueprint grid",
   "gui.ledger.ownership.none": "No owner",
   "gui.ledger.ownership.unknown": "Unknown owner",
   "gui.ledger.help.selected": "Help: %s",

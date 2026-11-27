@@ -33,6 +33,12 @@
     "jei_mod_plugin": [
       "buildcraft.compat.jei.BuildCraftJeiPlugin"
     ],
+    "rei_common": [
+      "buildcraft.compat.rei.BuildCraftReiCommonPlugin"
+    ],
+    "rei_client": [
+      "buildcraft.compat.rei.BuildCraftReiPlugin"
+    ],
     "jade": [
       "buildcraft.compat.jade.BuildCraftJadePlugin"
     ]
@@ -53,6 +59,7 @@
   },
   "suggests": {
     "jei": "*",
+    "roughlyenoughitems": "*",
     "jade": "*",
     "modmenu": "*"
   }

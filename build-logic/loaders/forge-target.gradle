@@ -223,7 +223,7 @@ def ciWorldJoinRoot = new File(repositoryRoot, "run-modpack-join/${buildGenerati
 def ciRuntimeProfile = providers.gradleProperty('ci_runtime_profile')
         .map { it.trim().toLowerCase() }
         .getOrElse('default')
-def knownCiRuntimeProfiles = ['default', 'base', 'forestry', 'ic2', 'jei', 'jade', 'all', 'modpack']
+def knownCiRuntimeProfiles = ['default', 'base', 'forestry', 'ic2', 'jei', 'rei', 'emi', 'jade', 'all', 'modpack']
 if (!knownCiRuntimeProfiles.contains(ciRuntimeProfile)) {
     throw new GradleException("Unsupported ci_runtime_profile '${ciRuntimeProfile}'. Expected one of: ${knownCiRuntimeProfiles.sort().join(', ')}")
 }
@@ -236,6 +236,13 @@ def runtimeEnabled = { String profile, boolean defaultEnabled ->
     if (ciRuntimeProfile == 'default') return defaultEnabled
     ciRuntimeProfile == 'all' || ciRuntimeProfile == profile ||
         (ciRuntimeProfile == 'modpack' && ['jei', 'jade', 'forestry', 'ic2'].contains(profile))
+}
+
+// Exactly one active viewer; CI modpack fixtures intentionally remain on JEI.
+def selectedRecipeViewer = ciRuntimeProfile == 'modpack' ? 'jei' :
+        (ciRuntimeProfile in ['jei', 'rei', 'emi'] ? ciRuntimeProfile : bc.recipeViewerMod)
+def recipeViewerRuntimeEnabled = { String viewer ->
+    viewer == selectedRecipeViewer && runtimeEnabled(viewer, true)
 }
 
 def runDirectory = new File(repositoryRoot, "run/${buildGeneration}/${targetName}")
@@ -377,9 +384,21 @@ dependencies {
     def jeiDependency = optionalProperty('deps.jei')
     if (jeiCompatEnabled && jeiDependency) {
         compileOnly fg.deobf(jeiDependency)
-        if (runtimeEnabled('jei', true)) {
+        if (recipeViewerRuntimeEnabled('jei')) {
             runtimeOnly fg.deobf(jeiDependency)
         }
+    }
+
+    // Native REI integration is always compiled; only the selected viewer runs.
+    ['deps.rei', 'deps.rei_architectury', 'deps.rei_cloth'].each { key ->
+        def dependency = requiredProperty(key)
+        compileOnly fg.deobf(dependency)
+        if (recipeViewerRuntimeEnabled('rei')) {
+            runtimeOnly fg.deobf(dependency)
+        }
+    }
+    if (recipeViewerRuntimeEnabled('emi')) {
+        runtimeOnly fg.deobf(requiredProperty('deps.emi'))
     }
 
     def jadeDependency = optionalProperty('deps.jade')
