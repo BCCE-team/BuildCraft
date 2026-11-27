@@ -131,6 +131,17 @@ public class ReiPreviewProbe {
             self.assertIn("['deps.rei', 'deps.rei_architectury', 'deps.rei_cloth']", code)
             self.assertIn("'deps.emi'", code)
 
+    def test_fabric_rei_math_compile_dependency(self):
+        props = load_properties()
+        self.assertEqual(props['target.26.3-fabric.deps.rei_math'],
+                         'me.shedaniel.cloth:basic-math:0.6.1')
+        code = (ROOT / 'build-logic/loaders/fabric-target.gradle').read_text()
+        self.assertIn("url = 'https://maven.shedaniel.me/'", code)
+        self.assertIn("includeModule 'me.shedaniel.cloth', 'basic-math'", code)
+        self.assertIn("compileOnly requiredProperty('deps.rei_math')", code)
+        self.assertNotIn("runtimeOnly requiredProperty('deps.rei_math')", code)
+        self.assertNotIn("include requiredProperty('deps.rei_math')", code)
+
     def test_fabric_entrypoints(self):
         meta = json.loads((ROOT / 'source-family-platforms/26.X/fabric/src/main/resources/fabric.mod.json').read_text())
         self.assertEqual(meta['entrypoints']['rei_client'], ['buildcraft.compat.rei.BuildCraftReiPlugin'])

@@ -38,6 +38,13 @@ repositories {
         }
         filter { includeGroup 'maven.modrinth' }
     }
+    // Cloth Config's Fabric distribution nests basic-math; expose it to javac.
+    exclusiveContent {
+        forRepository {
+            maven { name = 'Shedaniel'; url = 'https://maven.shedaniel.me/' }
+        }
+        filter { includeModule 'me.shedaniel.cloth', 'basic-math' }
+    }
     mavenCentral()
 }
 
@@ -160,6 +167,9 @@ dependencies {
         compileOnly requiredProperty(key)
         if (selectedRecipeViewer == 'rei') runtimeOnly requiredProperty(key)
     }
+    // REI's widget signatures use Point/Rectangle from Cloth Config's nested jar.
+    // Runtime obtains basic-math from Cloth Config itself; do not bundle it twice.
+    compileOnly requiredProperty('deps.rei_math')
     if (selectedRecipeViewer == 'emi') runtimeOnly requiredProperty('deps.emi')
     runtimeOnly requiredProperty('deps.jade')
     compileOnly 'javax.annotation:javax.annotation-api:1.3.2'
