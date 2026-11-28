@@ -36,7 +36,7 @@ class IdeaClientConfigTests(unittest.TestCase):
 
     def test_all_committed_configs_launch_the_versioned_power_shell_script(self):
         configs = self.generator.validate_client_configs()
-        self.assertEqual(len(configs), 8)
+        self.assertEqual(len(configs), 9)
         for c in configs:
             with self.subTest(target=c.target):
                 node = ET.parse(ROOT / ".run" / c.filename).getroot().find("configuration")

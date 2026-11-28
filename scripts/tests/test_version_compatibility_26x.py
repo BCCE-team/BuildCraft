@@ -228,6 +228,25 @@ class NativeApiConformance263(unittest.TestCase):
         for old in PLATFORM_263_REMOVED: self.assertNotIn(old,new)
         self.assertIn('buildcraft.lib.compat.neoforge263.',new)
 
+    def test_262_fabric_internal_api_relocations(self):
+        sample = '\n'.join('import '+name+';' for name in PLATFORM_263_REMOVED)
+        fabric = relocate_removed_neoforge_apis(sample, minecraft='26.2',
+                                                relative='Any.java', platform='fabric')
+        self.assertEqual(fabric, relocate_removed_neoforge_apis(sample, minecraft='26.3',
+                                                               relative='Any.java'))
+        self.assertEqual(sample, relocate_removed_neoforge_apis(sample, minecraft='26.2',
+                                                               relative='Any.java', platform='neoforge'))
+        from transforms import apply_text_transforms
+        code = ('import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction;\n'
+                '    long receivePower(long microJoules, FluidAction simulate);\n'
+                'getGuiLeft()')
+        patched = apply_text_transforms(code, minecraft='26.2',
+            relative='src/main/java/buildcraft/lib/internal/mj/IMjReceiver.java', platform='fabric')
+        self.assertIn('buildcraft.lib.compat.neoforge263.fluids.IFluidHandler.FluidAction', patched)
+        self.assertIn('Enum<?> action', patched)
+        self.assertIn('getGuiLeft()', patched)
+        self.assertNotIn('getLeftPos()', patched)
+
     def test_262_previous_api_preserved(self):
         for rel in ('lib/compat/transfer/TransferInterop.java','lib/misc/CapUtil.java'):
             self.assertIn('net.neoforged.neoforge.items.IItemHandler;',self.sources['26.2',rel])

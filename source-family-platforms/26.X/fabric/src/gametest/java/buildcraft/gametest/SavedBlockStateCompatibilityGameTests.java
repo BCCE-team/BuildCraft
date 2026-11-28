@@ -67,6 +67,7 @@ public final class SavedBlockStateCompatibilityGameTests {
         helper.succeed();
     }
 
+    //? if >=26.3 {
     public static void conflictingLegacyAndModernFieldsAreRejected(GameTestHelper helper) throws Exception {
         CompoundTag malicious = new CompoundTag();
         malicious.putString("Name", "minecraft:stone");
@@ -78,6 +79,8 @@ public final class SavedBlockStateCompatibilityGameTests {
             helper.succeed();
         }
     }
+
+    //?}
 
     private static void require(GameTestHelper helper, boolean condition, String message) {
         if (!condition) helper.fail(message);

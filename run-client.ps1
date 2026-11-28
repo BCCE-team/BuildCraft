@@ -25,8 +25,8 @@ $Targets = @{
 
 $Config = $Targets[$Version]
 if ($Loader -eq "fabric") {
-    if ($Version -ne "26.3") { throw "Fabric is currently supported only on Minecraft 26.3" }
-    $Config = @{ Generation = "26.X"; Target = "26.3-fabric" }
+    if ($Version -notin @("26.2", "26.3")) { throw "Fabric is supported on Minecraft 26.2 and 26.3" }
+    $Config = @{ Generation = "26.X"; Target = "$Version-fabric" }
 }
 $BuildRoot = Join-Path $RepositoryRoot "builds/$($Config.Generation)"
 $Task = ":$($Config.Target):runClient"

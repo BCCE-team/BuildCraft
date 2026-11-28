@@ -155,10 +155,12 @@ public final class FabricParityGameTests {
         buildcraft.gametest.SystemGateAutomationGameTests.conflictingActiveGateActionsCommitOnlyFinalPhysicalDirection(helper);
     }
 
+    //? if >=26.3 {
     @GameTest(structure = "buildcraftlib:empty3x3x3", maxTicks = 20)
     public void conflictingLegacyAndModernFieldsAreRejected(GameTestHelper helper) throws Exception {
         buildcraft.gametest.SavedBlockStateCompatibilityGameTests.conflictingLegacyAndModernFieldsAreRejected(helper);
     }
+    //?}
 
     @GameTest(structure = "buildcraftlib:empty7x3x7", maxTicks = 220)
     public void connectedFluidPipesConserveWaterWhileTicking(GameTestHelper helper) throws Exception {

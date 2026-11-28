@@ -33,6 +33,7 @@ TARGETS = (
     ("26.2-neoforge", "26.X", 25),
     ("26.3-neoforge", "26.X", 25),
     ("26.3-fabric", "26.X", 25),
+    ("26.2-fabric", "26.X", 25),
 )
 def _unittest_command(pattern: str) -> tuple[str, ...]:
     """One source of truth for Python unittest discovery in local CI."""

@@ -22,5 +22,8 @@
     "26.2-neoforge": 751690191,
     "26.3-neoforge": 751692752,
     "26.3-fabric": 751695580
+  },
+  "first_release_reference": {
+    "26.2-fabric": "26.3-fabric"
   }
 }

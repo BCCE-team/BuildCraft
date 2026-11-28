@@ -103,7 +103,7 @@ class SystemTraceParityTests(unittest.TestCase):
         self.assertIn("26.3-neoforge", targets)
         self.assertIn("26.3-fabric", targets)
         self.assertIn("1.19.2-forge", targets)
-        self.assertEqual(len(targets), 8)
+        self.assertEqual(len(targets), 9)
 
 
 if __name__ == "__main__":

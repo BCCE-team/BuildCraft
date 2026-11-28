@@ -187,6 +187,27 @@ def validate_source_selector_policy(
             if not allow:
                 fail(f"whole-file source selector is not allowed in {label}: {path.relative_to(ROOT)}")
             if re.search(r"\b(?:forge|neoforge|fabric)\b", condition):
+                # These are BuildCraft-owned contracts, not implementations of a
+                # loader API. Fabric 26.2 needs the same contracts as 26.3 NeoForge.
+                # Keep the exception exact: never allow general loader forks here.
+                internal_root = ROOT / "source-families/26.X/src/main/java/buildcraft"
+                storage_paths = {
+                    "lib/compat/neoforge263/energy/IEnergyStorage.java",
+                    "lib/compat/neoforge263/fluids/IFluidHandlerItem.java",
+                    "lib/compat/neoforge263/items/IItemHandler.java",
+                    "lib/compat/neoforge263/items/IItemHandlerModifiable.java",
+                    "lib/compat/neoforge263/items/ItemHandlerCopySlot.java",
+                    "lib/compat/neoforge263/items/wrapper/CombinedInvWrapper.java",
+                    "lib/compat/neoforge263/items/wrapper/InvWrapper.java",
+                    "builders/compat/BuildersItemContainer263.java",
+                    "builders/compat/BuildersDisplayContainer263.java",
+                    "silicon/compat/SiliconDisplayContainer263.java",
+                    "transport/internal/pipe/FluidAction.java",
+                }
+                if (path.is_relative_to(internal_root)
+                        and path.relative_to(internal_root).as_posix() in storage_paths
+                        and condition == ">=26.3 || (fabric && >=26.2)"):
+                    continue
                 fail(
                     f"loader predicate in source selector {path.relative_to(ROOT)}; "
                     "loader selection belongs in platform/family-platform ownership"

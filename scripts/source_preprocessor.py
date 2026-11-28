@@ -75,8 +75,9 @@ def source_condition(text: str) -> str | None:
 
     The directive is stripped from the effective source. Disabled higher-layer
     candidates fall back to the next lower layer with the same logical path.
-    Loader predicates are intentionally not a use case: loader ownership belongs
-    in source-platforms/source-family-platforms.
+    Loader ownership belongs in source-platforms/source-family-platforms.
+    The architecture validator permits only an explicit shared-contract exception
+    for Fabric 26.2 and NeoForge 26.3 internal storage compatibility.
     """
     if not text:
         return None

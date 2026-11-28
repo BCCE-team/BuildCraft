@@ -81,8 +81,11 @@ def _materialize_text_file(
     # authored against that loader's target API. Do not re-apply the shared
     # NeoForge/Minecraft upgrade rewrites to Fabric's compiled, reviewed port.
     if native_passthrough:
-        if b"//? source" in raw[:512]:
+        if is_conditional_text_path(source_path) and (b"//?" in raw or b"/*?" in raw):
             content, _ = strip_source_condition(raw.decode("utf-8"))
+            if preprocess:
+                content = preprocess_text(content, minecraft=minecraft, family=family,
+                                          platform=platform, source=str(source_path.relative_to(ROOT)))
             raw = content.encode("utf-8")
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_bytes(raw)
@@ -114,7 +117,7 @@ def _materialize_text_file(
             source=str(source_path.relative_to(ROOT)),
         )
         text = apply_text_transforms(
-            text, minecraft=minecraft, relative=logical_relative, native_source=native_source
+            text, minecraft=minecraft, relative=logical_relative, native_source=native_source, platform=platform
         )
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(text, encoding="utf-8", newline="")
@@ -134,7 +137,7 @@ def _materialize_text_file(
             _copy_source(source_path, output)
             return
         text = apply_text_transforms(
-            text, minecraft=minecraft, relative=logical_relative, native_source=native_source
+            text, minecraft=minecraft, relative=logical_relative, native_source=native_source, platform=platform
         )
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(text, encoding="utf-8", newline="")
@@ -290,7 +293,9 @@ def materialize_target(
             preprocess=preprocess,
             native_source=any(source_path.is_relative_to(root) for root in downport_roots),
             native_passthrough=(layout.platform == "fabric" and
-                                source_path.is_relative_to(layout.family_platform_root)),
+                                (source_path.is_relative_to(layout.family_platform_root) or
+                                 (layout.family_platform_downport_root is not None and
+                                  source_path.is_relative_to(layout.family_platform_downport_root)))),
         )
     generate_target_files(
         dest, minecraft=minecraft, family=layout.family, platform=layout.platform

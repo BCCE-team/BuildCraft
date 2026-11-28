@@ -1,9 +1,10 @@
-"""26.3-only Java relocations for the legacy BuildCraft storage implementation.
+"""Java relocations for the legacy BuildCraft storage implementation.
 
 NeoForge removed the deprecated IItemHandler/IFluidHandler/IEnergyStorage family
 in 26.3; do not generate shadow classes under the loader's own namespaces.
-The BuildCraft-owned compatibility contracts remain INTERNAL and are exposed
-through TransferInterop's native ResourceHandler/EnergyHandler boundaries.
+The BuildCraft-owned compatibility contracts remain INTERNAL. NeoForge 26.3
+uses ResourceHandler/EnergyHandler boundaries; Fabric 26.2+ uses native Fabric
+Transfer API and TeamReborn Energy adapters.
 """
 from __future__ import annotations
 
@@ -25,8 +26,14 @@ _RELOCATIONS = {
     "net.neoforged.neoforge.energy.IEnergyStorage": "buildcraft.lib.compat.neoforge263.energy.IEnergyStorage",
 }
 
-def relocate_removed_neoforge_apis(text: str, *, minecraft: str, relative: str) -> str:
-    if not relative.endswith('.java') or version_tuple(minecraft) < version_tuple('26.3'):
+def uses_internal_storage_contracts(minecraft: str, platform: str) -> bool:
+    return (version_tuple(minecraft) >= version_tuple('26.3')
+            or (platform == 'fabric' and version_tuple(minecraft) >= version_tuple('26.2')))
+
+
+def relocate_removed_neoforge_apis(text: str, *, minecraft: str, relative: str,
+                                   platform: str = 'neoforge') -> str:
+    if not relative.endswith('.java') or not uses_internal_storage_contracts(minecraft, platform):
         return text
     for old, new in _RELOCATIONS.items():
         text = text.replace(old, new)
@@ -158,12 +165,19 @@ def upgrade_minecraft_263_apis(text: str, *, minecraft: str, relative: str) -> s
         text = text.replace("new ItemHandlerSimple(24), DataSlot.standalone()",
                             "new ItemProvider(slot -> net.minecraft.world.item.ItemStack.EMPTY, 24), DataSlot.standalone()")
 
+    return bridge_internal_power_actions(text, relative=relative)
+
+
+def bridge_internal_power_actions(text: str, *, relative: str) -> str:
+    """Adapt internal MJ and pipe actions independently of the vanilla API version."""
+    if not relative.endswith('.java'):
+        return text
     # The power-transport module has its own FluidAction enum. Keep both
     # contracts explicit: all IMjReceiver callers use an adapter, while each
     # transport-specific receiver implements the required legacy bridge.
     if relative.endswith("/lib/internal/mj/IMjReceiver.java"):
         needle = "    long receivePower(long microJoules, FluidAction simulate);"
-        if needle in text:
+        if needle in text and "receivePower(long microJoules, Enum<?> action)" not in text:
             text = text.replace(needle, needle + "\n\n" +
                 "    default long receivePower(long microJoules, Enum<?> action) {\n" +
                 "        return receivePower(microJoules, FluidAction.valueOf(action.name()));\n" +
@@ -176,7 +190,8 @@ def upgrade_minecraft_263_apis(text: str, *, minecraft: str, relative: str) -> s
         "/transport/pipe/flow/PipeFlowPower.java",
         "/robotics/plug/RobotStationPluggable.java",
     )
-    if any(relative.endswith(path) for path in transport_receivers):
+    if (any(relative.endswith(path) for path in transport_receivers)
+            and not re.search(r"receivePower\(long microJoules, buildcraft\.lib\.compat\.neoforge263\.fluids\.IFluidHandler\.FluidAction ", text)):
         pattern = r"(\s+public long receivePower\(long microJoules, FluidAction (?:simulate|action)\) \{)"
         bridge = ("\n    public long receivePower(long microJoules, "
                   "buildcraft.lib.compat.neoforge263.fluids.IFluidHandler.FluidAction action) {\n"
@@ -186,7 +201,7 @@ def upgrade_minecraft_263_apis(text: str, *, minecraft: str, relative: str) -> s
 
     if relative.endswith("/lib/internal/mj/MjBattery.java"):
         needle = "    public long addPowerChecking(long microJoulesToAdd, FluidAction simulate) {"
-        if needle in text:
+        if needle in text and "Enum<?> action)" not in text:
             bridge = ("    public long addPowerChecking(long microJoulesToAdd, "
                 "Enum<?> action) {\n"
                 "        return addPowerChecking(microJoulesToAdd, FluidAction.valueOf(action.name()));\n"

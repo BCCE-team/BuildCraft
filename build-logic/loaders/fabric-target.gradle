@@ -26,8 +26,8 @@ if (ciWorldJoinUsername && !(ciWorldJoinUsername ==~ /[A-Za-z0-9_]{1,16}/)) {
 }
 def ciWorldJoinRoot = new File(repositoryRoot, "run-modpack-join/26.X/${targetName}")
 
-if (bc.loaderName != 'fabric' || minecraftVersion != '26.3') {
-    throw new GradleException("Fabric adapter supports 26.3-fabric, received ${targetName}")
+if (bc.loaderName != 'fabric' || !(minecraftVersion in ['26.2', '26.3'])) {
+    throw new GradleException("Fabric adapter supports 26.2-fabric and 26.3-fabric, received ${targetName}")
 }
 
 repositories {
@@ -45,6 +45,7 @@ repositories {
         }
         filter { includeModule 'me.shedaniel.cloth', 'basic-math' }
     }
+    maven { name = 'JEI'; url = 'https://maven.blamejared.com/'; content { includeGroup 'mezz.jei'; includeGroup 'net.mezzdev.config' } }
     mavenCentral()
 }
 
@@ -182,7 +183,7 @@ dependencies {
     // Align the unversioned launcher with the pinned Jupiter modules on Gradle 9.
     testRuntimeOnly platform("org.junit:junit-bom:${requiredProperty('deps.junit')}")
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    include "teamreborn:energy:5.0.0"
+    include "teamreborn:energy:${requiredProperty('deps.energy')}"
 
 }
 

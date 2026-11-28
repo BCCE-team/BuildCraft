@@ -1,4 +1,4 @@
-//? source if >=26.3
+//? source if >=26.3 || (fabric && >=26.2)
 package buildcraft.lib.compat.neoforge263.energy;
 
 /** Internal classic FE-sized storage used behind 26.3's EnergyHandler boundary. */

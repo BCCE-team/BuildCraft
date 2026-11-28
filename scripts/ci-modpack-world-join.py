@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """IT16: actual Minecraft modpack -> world login -> save -> server restart -> rejoin.
 
-Tests the real client/server handshake and world persistence on all eight
+Tests the real client/server handshake and world persistence on all nine
 maintained targets. JEI and Jade are mandatory. AE2, Forestry CE and IC2 Classic
 are included wherever matching target releases exist. Two original targets retain
 full item NBT, recipe reload and chunk lifecycle fixtures; others run a real
@@ -39,6 +39,7 @@ TARGETS = {
     "26.2-neoforge": "26.X",
     "26.3-neoforge": "26.X",
     "26.3-fabric": "26.X",
+    "26.2-fabric": "26.X",
 }
 # Supported upstream releases, not a claim that BCCE integration has been implemented.
 # These expectations are intentionally independent of the lock contents: removing
@@ -52,6 +53,7 @@ EXPECTED_PRESENCE = {
     "26.2-neoforge": (True, False, False, False),
     "26.3-neoforge": (True, False, False, False),
     "26.3-fabric": (False, False, False, False),
+    "26.2-fabric": (False, False, False, False),
 }
 OPTIONAL_NAMES = ("ae2", "forestry", "ic2", "create")
 MODRINTH_PROJECTS = {"ae2": "XxWD5pD3", "forestry": "2oORTOi2", "guideme": "Ck4E7v7R",
@@ -1188,19 +1190,19 @@ def create_run_directories(generation: str, target: str, mods: dict[str, str], p
             (directory / "options.txt").write_text(
                 "renderDistance:2\n"
                 # Modern 26.2+ clients reject simulationDistance=2 (minimum is 5).
-                f"simulationDistance:{5 if target in ('26.2-neoforge', '26.3-neoforge', '26.3-fabric') else 2}\n"
+                f"simulationDistance:{5 if target in ('26.2-neoforge', '26.2-fabric', '26.3-neoforge', '26.3-fabric') else 2}\n"
                 "skipMultiplayerWarning:true\n"
                 "joinedFirstServer:true\n"
                 "maxFps:10\n"
                 "enableVsync:false\n"
                 "mipmapLevels:0\n"
                 "graphicsMode:0\n"
-                f"guiScale:{2 if target == '26.2-neoforge' else 0}\n"
+                f"guiScale:{2 if target in ('26.2-neoforge', '26.2-fabric') else 0}\n"
                 "narrator:0\n"
                 "pauseOnLostFocus:false\n",
                 encoding="utf-8",
             )
-            if target == "26.2-neoforge":
+            if target in ("26.2-neoforge", "26.2-fabric"):
                 write_26_2_saved_server_list(directory, f"127.0.0.1:{port}")
     (server / "eula.txt").write_text("eula=true\n", encoding="utf-8")
     (server / "server.properties").write_text(
@@ -1377,7 +1379,7 @@ def main() -> int:
     try:
         env = os.environ.copy()
         prepare_headless_client_environment(args.target, env)
-        if args.client_resource_reload or (args.target == "26.2-neoforge" and os.name != "nt"):
+        if args.client_resource_reload or (args.target in ("26.2-neoforge", "26.2-fabric") and os.name != "nt"):
             # 26.2 needs an X11 UI fallback if Quick Play never initiates a login.
             private_display, display = start_private_display(base / "xvfb-display.log", launch_dir, env)
             env["DISPLAY"] = display
@@ -1409,7 +1411,7 @@ def main() -> int:
                 if has_joined_world():
                     return True
                 now = time.monotonic()
-                if (args.target == "26.2-neoforge" and os.name != "nt"
+                if (args.target in ("26.2-neoforge", "26.2-fabric") and os.name != "nt"
                     and ui_attempts < 6 and now - last_ui_attempt >= 60
                     and "minecraft:textures/atlas/gui.png-atlas" in read_text(client_log)
                     and find_minecraft_window(env) is not None):

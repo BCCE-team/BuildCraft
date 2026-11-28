@@ -1,0 +1,10 @@
+{
+  "pack": {
+    "description": "BuildCraft Community Edition resources and data",
+    "pack_format": 88.0,
+    "min_format": 88.0,
+    "max_format": 88.0,
+    "forge:resource_pack_format": 88.0,
+    "forge:data_pack_format": 107.1
+  }
+}

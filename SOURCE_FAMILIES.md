@@ -42,6 +42,7 @@ Current targets:
 
 - `26.1.2-neoforge`
 - `26.2-neoforge`
+- `26.2-fabric`
 - `26.3-neoforge`
 - `26.3-fabric`
 
@@ -237,7 +238,7 @@ package buildcraft.example;
 
 The selector is structural metadata, not emitted Java. If it is disabled for a target, materialization falls back to the next lower layer at the same logical path. A selected whole-file variant is already native to that Minecraft API and bypasses mechanical upgrade transforms.
 
-Use whole-file selectors only in `source-families` or `source-family-platforms`. Do not put loader predicates in them; loader ownership is represented by the directory tree. Do not use them in `source-shared`, `source-platforms` or `version-src`.
+Use whole-file selectors only in `source-families` or `source-family-platforms`. Do not put loader predicates in them; loader ownership is represented by the directory tree. The sole narrowly allowlisted exception is the BuildCraft-owned internal storage and inventory/GUI compatibility contracts, selected for Fabric 26.2+ and NeoForge 26.3+ (`>=26.3 || (fabric && >=26.2)`). Their loader-native implementations still live in the platform layers; the exception avoids duplicating the shared contracts and does not change NeoForge 26.2's legacy API. Do not use them in `source-shared`, `source-platforms` or `version-src`.
 
 This is intended for a genuinely different complete implementation. Small API differences still belong in localized `//? if ...` blocks, and repeated API cliffs should move behind a compat facade.
 
@@ -554,3 +555,7 @@ installed production-server conformance. The independent release workflow
 rebuilds the release tag with pinned external translations and rechecks the
 production-JAR API/ABI gates; it does not rerun or consume the CI runtime matrix. See
 [release gates](docs/api-v2-abi-gates.md).
+
+## 26.2 Fabric downport
+
+The ninth canonical target reuses the 26.X Fabric platform layer and the 26.2 family downport. Its native API differences live in `source-downports/26.X/26.2/fabric`. See [port verification notes](docs/port-26.2-fabric.md).

@@ -86,16 +86,18 @@ def validate_gametest_parity(fabric: Path, neoforge: Path) -> None:
     print(f"PASS: Fabric registers all {len(expected)} NeoForge GameTests and all four SystemTrace scenarios")
 
 
-def validate() -> None:
+def validate(target: str = "26.3-fabric") -> None:
+    global TARGET
+    TARGET = target
     props = load_properties()
-    require(TARGET in target_ids(props), "26.3-fabric is not registered in the canonical matrix")
+    require(TARGET in target_ids(props), f"{TARGET} is not registered in the canonical matrix")
     layout = target_layout(TARGET, props)
-    require(layout.family == "26.X" and layout.platform == "fabric", "Fabric 26.3 has the wrong source family/platform")
+    require(layout.family == "26.X" and layout.platform == "fabric", f"{TARGET} has the wrong source family/platform")
     for key in ("fabric_loader", "fabric_api", "fabric_installer", "energy", "jei", "jade"):
         require(props.get(f"target.{TARGET}.deps.{key}"), f"Missing pinned Fabric dependency {key}")
-    require(props.get(f"target.{TARGET}.java.version") == "25", "Fabric 26.3 must use JDK 25")
-    require(props.get(f"target.{TARGET}.network.protocol") == props.get("target.26.3-neoforge.network.protocol"),
-            "Network protocol diverges between 26.3 loaders")
+    require(props.get(f"target.{TARGET}.java.version") == "25", f"{TARGET} must use JDK 25")
+    require(props.get(f"target.{TARGET}.network.protocol") == props.get(f"target.{TARGET.split('-')[0]}-neoforge.network.protocol"),
+            f"Network protocol diverges between loaders for {TARGET}")
 
     # An unanchored 'config/' rule ignores Java packages named config at any
     # depth. This once left Fabric's native config adapters untracked while
@@ -169,16 +171,16 @@ def validate() -> None:
     contains("source-family-platforms/26.X/fabric/src/test/java/buildcraft/lib/fluid/FabricTankStateTest.java",
              "@BeforeAll", "SharedConstants.tryDetectVersion();", "Bootstrap.bootStrap();")
     contains("scripts/ci-server-smoke.sh", "fabric-installer", "fabric-server-launch.jar", "collectFabricServerMods")
-    contains("scripts/ci-modpack-world-join.py", '"26.3-fabric": "26.X"', "ci_world_join")
-    contains("scripts/run-ci-local.py", '("26.3-fabric", "26.X", 25)')
-    contains(".github/workflows/ci.yml", "- target: 26.3-fabric", "Collect installed Fabric server dependencies")
-    contains(".github/workflows/publish.yml", "26.3-fabric", "Publish 26.3 Fabric", "loaders: fabric")
+    contains("scripts/ci-modpack-world-join.py", f'"{TARGET}": "26.X"', "ci_world_join")
+    contains("scripts/run-ci-local.py", f'("{TARGET}", "26.X", 25)')
+    contains(".github/workflows/ci.yml", f"- target: {TARGET}", "Collect installed Fabric server dependencies")
+    contains(".github/workflows/publish.yml", TARGET, f"Publish {TARGET.split('-')[0]} Fabric", "loaders: fabric")
 
     lock = json.loads((ROOT / "build-config/modpack-world-join-lock.json").read_text(encoding="utf-8"))
-    require(TARGET in lock.get("targets", {}), "Fabric 26.3 is absent from the locked client/server test")
+    require(TARGET in lock.get("targets", {}), f"{TARGET} is absent from the locked client/server test")
     require(lock["targets"][TARGET]["generation"] == "26.X", "Invalid Fabric world-join generation")
 
-    with tempfile.TemporaryDirectory(prefix="buildcraft-fabric-26.3-") as tmp:
+    with tempfile.TemporaryDirectory(prefix=f"buildcraft-{TARGET}-") as tmp:
         dest = Path(tmp) / "target"
         materialize_target(TARGET, dest, props)
         resources = dest / "src/main/resources"
@@ -189,6 +191,42 @@ def validate() -> None:
             content = path.read_text(encoding="utf-8")
             require("net.neoforged." not in content and "net.minecraftforge." not in content,
                     f"Fabric source has a forbidden loader dependency: {path.relative_to(dest)}")
+        # Loader-free imports alone are insufficient: internal compatibility types
+        # must also be selected by the materializer for the older Fabric target.
+        source_roots = [java, dest / "src/test/java", dest / "src/gametest/java",
+                        dest / "addon-fixture/src/main/java"]
+        internal_import = re.compile(r"^import (buildcraft\.[\w.]+);", re.MULTILINE)
+        for source_root in source_roots:
+            for path in source_root.rglob("*.java"):
+                content = path.read_text(encoding="utf-8")
+                require("net.neoforged." not in content and "net.minecraftforge." not in content,
+                        f"Fabric source has a forbidden loader dependency: {path.relative_to(dest)}")
+                for name in internal_import.findall(content):
+                    if (".compat.neoforge263." not in name
+                            and not name.endswith(("Container263", ".FluidAction"))):
+                        continue
+                    parts = name.split(".")
+                    require(any((java / Path(*parts[:end]).with_suffix(".java")).is_file()
+                                for end in range(len(parts), 2, -1)),
+                            f"Missing Fabric internal contract {name}: {path.relative_to(dest)}")
+        for name in ("lib/internal/mj/IMjReceiver.java", "lib/internal/mj/MjBattery.java"):
+            content = (java / "buildcraft" / name).read_text(encoding="utf-8")
+            require("Enum<?> action" in content and
+                    "buildcraft.lib.compat.neoforge263.fluids.IFluidHandler.FluidAction" in content,
+                    f"Fabric MJ action bridge missing: {name}")
+        if TARGET == "26.2-fabric":
+            for name, old, forbidden in (
+                ("builders/client/render/pip/BlueprintPipRenderState.java",
+                 "getBounds(x0, y0, x1, y1, scissorArea)", "getBounds(x0, y0, x1, y1, pose,"),
+                ("robotics/client/render/preview/RobotPreviewSubmission.java",
+                 "getBounds(x0, y0, x1, y1, null)", "getBounds(x0, y0, x1, y1, pose,"),
+                ("transport/block/BlockPipeHolder.java",
+                 "spawnDestroyParticles(world, player, pos, state)", "spawnDestroyParticles(world, pos, state)"),
+                ("builders/snapshot/FakeWorld.java", "return superLevel.fuelValues();", ""),
+            ):
+                content = (java / "buildcraft" / name).read_text(encoding="utf-8")
+                require(old in content and (not forbidden or forbidden not in content),
+                        f"26.2 Fabric vanilla downport missing: {name}")
         # Dedicated-server class loading must not resolve client-only types from
         # the Builders item registry or entity schematic factory. This is a
         # verified runGameTest startup regression on Fabric 26.3.
@@ -254,23 +292,25 @@ def validate() -> None:
         require(native_source.count("helper.succeed();") == 2,
                 "Each native Fabric tank GameTest must explicitly report success")
         neoforge = Path(tmp) / "neoforge"
-        neo_layout = target_layout("26.3-neoforge", props)
+        neo_target = TARGET.replace("-fabric", "-neoforge")
+        neo_layout = target_layout(neo_target, props)
         # Only GameTest sources are needed for registration parity, not another
         # full copy of the entire production tree.
         for relative, source in effective_source_files(neo_layout, props, "src/gametest/java").items():
             _materialize_text_file(source, neoforge / relative, logical_relative=relative,
-                                   minecraft=props["target.26.3-neoforge.deps.minecraft"],
+                                   minecraft=props[f"target.{neo_target}.deps.minecraft"],
                                    family=neo_layout.family, platform=neo_layout.platform,
                                    preprocess=True)
         validate_gametest_parity(gt, neoforge / "src/gametest")
-        print(f"26.3-fabric source materialized: {len(classes)} Java classes, {len(excludes)} loader-only exclusions")
+        print(f"{TARGET} source materialized: {len(classes)} Java classes, {len(excludes)} loader-only exclusions")
 
-    print("PASS: 26.3-fabric is wired to Stonecutter, Loom, GameTests, installed server CI, IT16 and publication")
+    print(f"PASS: {TARGET} is wired to Stonecutter, Loom, GameTests, installed server CI, IT16 and publication")
 
 
 if __name__ == "__main__":
     try:
-        validate()
+        for target in ("26.3-fabric", "26.2-fabric"):
+            validate(target)
     except (ValueError, FileNotFoundError, KeyError, OSError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         raise SystemExit(1)

@@ -266,19 +266,28 @@ def load_baseline() -> dict:
     baseline = json.loads(BASELINE.read_text(encoding='utf-8'))
     target_line = next(line for line in (ROOT / 'build-config/targets.properties').read_text(encoding='utf-8').splitlines() if line.startswith('targets='))
     targets = target_line.split('=', 1)[1].split(',')
-    if set(targets) != set(baseline['sha256']) or len(targets) != len(set(targets)):
+    references = baseline.get('first_release_reference', {})
+    direct = set(baseline['sha256'])
+    if (set(targets) != direct | set(references) or direct & set(references)
+            or len(targets) != len(set(targets))
+            or any(source not in direct or target.split('-')[-1] != source.split('-')[-1]
+                   for target, source in references.items())):
         raise ValueError('ABI baseline must cover exactly the configured target registry')
     if not all(re.fullmatch(r'[0-9a-f]{64}', digest) for digest in baseline['sha256'].values()):
         raise ValueError('Invalid baseline SHA-256')
     asset_ids = baseline['asset_ids']
-    if (set(asset_ids) != set(targets)
+    if (set(asset_ids) != direct
             or any(type(value) is not int or value <= 0 for value in asset_ids.values())
-            or len(set(asset_ids.values())) != len(targets)):
+            or len(set(asset_ids.values())) != len(direct)):
         raise ValueError('ABI baseline must pin one distinct release asset ID per target')
+    for target, source in references.items():
+        baseline['sha256'][target] = baseline['sha256'][source]
+        baseline['asset_ids'][target] = baseline['asset_ids'][source]
     return baseline
 
 
 def baseline_jar(baseline: dict, target: str, cache: Path, offline: bool) -> Path:
+    target = baseline.get('first_release_reference', {}).get(target, target)
     release = baseline['release']
     digest = baseline['sha256'][target]
     filename = f'BuildCraft-Community-Edition-{release}+{target.replace("-", "+")}.jar'

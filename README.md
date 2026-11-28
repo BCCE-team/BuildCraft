@@ -22,6 +22,7 @@ Make sure to download the version matching your Minecraft version and mod loader
 | 1.21.11 | NeoForge |
 | 26.1.2 | NeoForge |
 | 26.2 | NeoForge |
+| 26.2 | Fabric (port candidate; build verification pending) |
 | 26.3 | NeoForge |
 | 26.3 | Fabric |
 
@@ -39,7 +40,8 @@ Make sure to download the version matching your Minecraft version and mod loader
 - [ ] Port to 1.20.1 Fabric
 - [ ] Port to 1.21.1 Fabric
 - [ ] Port to 1.21.11 Fabric
-- [ ] Port the remaining 26.x versions to Fabric (26.1.2 and 26.2)
+- [ ] Port 26.1.2 to Fabric
+- [ ] Verify and release the 26.2 Fabric port
 
 ## For Modpack Creators
 
@@ -75,7 +77,7 @@ Documentation: [BCCE API Documentation](https://bcce-team.github.io/BuildCraft/)
 
 ## Configuration and datapacks
 
-All eight targets use the BCCE configuration editor and storage rather than native loader configuration specs. Modpack creators can configure client preferences, world rules and balance, including addon settings; dedicated-server settings are server-authoritative. See [configuration and migration](docs/configuration-v2.2.md), [machine recipe datapacks and blacklists](docs/recipe_docs.md) and [logging and diagnostics](docs/LOGGING.md).
+All nine configured targets use the BCCE configuration editor and storage rather than native loader configuration specs. Modpack creators can configure client preferences, world rules and balance, including addon settings; dedicated-server settings are server-authoritative. See [configuration and migration](docs/configuration-v2.2.md), [machine recipe datapacks and blacklists](docs/recipe_docs.md) and [logging and diagnostics](docs/LOGGING.md).
 
 ## Multi-version build and source architecture
 
@@ -83,7 +85,7 @@ BCCE has three active Stonecutter/Gradle build generations:
 
 - **old** — Minecraft 1.19.2 and 1.20.1;
 - **1.21.X** — Minecraft 1.21.1 and 1.21.11;
-- **26.X** — Minecraft 26.1.2, 26.2 and 26.3 (NeoForge), plus 26.3 Fabric.
+- **26.X** — Minecraft 26.1.2, 26.2 and 26.3 (NeoForge), plus 26.2 and 26.3 Fabric.
 
 Each generation has its own Gradle Wrapper and Stonecutter controller under `builds/<generation>`.
 
@@ -105,7 +107,7 @@ The 1.19.2 implementation is the gameplay reference, but source code is allowed 
 
 The compatibility target is player-visible behaviour: **different implementation, indistinguishable BuildCraft**.
 
-CI builds and tests all eight maintained targets independently. Each target has production-JAR API compatibility checks, GameTests, a real client/server world-join and restart/rejoin check, and an installed dedicated-server smoke with an independent API test addon. The aggregate job compares four semantic gameplay traces across all eight targets. Release publication independently rebuilds all eight targets from the release tag with a freshly pinned external localization revision, verifies the resulting JARs and their ABI reports, and does not consume CI artifacts. Configured targets and checks are not a claim that every runtime behavior has been tested.
+CI builds and tests all nine configured targets independently. Each target has production-JAR API compatibility checks, GameTests, a real client/server world-join and restart/rejoin check, and an installed dedicated-server smoke with an independent API test addon. The aggregate job compares four semantic gameplay traces across all nine configured targets. Release publication independently rebuilds all nine configured targets from the release tag with a freshly pinned external localization revision, verifies the resulting JARs and their ABI reports, and does not consume CI artifacts. Configured targets and checks are not a claim that every runtime behavior has been tested.
 
 See [`SOURCE_FAMILIES.md`](SOURCE_FAMILIES.md) for layout rules, parity policy and build commands.
 

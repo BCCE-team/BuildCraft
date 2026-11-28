@@ -150,7 +150,8 @@ class BaselineAndReleaseGateTest(unittest.TestCase):
         baseline = abi.load_baseline()
         self.assertEqual(baseline['release'], '8.0.30')
         self.assertEqual(baseline['api'], '2.1.0')
-        self.assertEqual(len(baseline['sha256']), 8)
+        self.assertEqual(len(baseline['sha256']), 9)
+        self.assertEqual(baseline['first_release_reference'], {'26.2-fabric': '26.3-fabric'})
         self.assertEqual(len(set(baseline['sha256'].values())), 8)
         self.assertEqual(set(baseline['asset_ids']), set(baseline['sha256']))
         self.assertEqual(len(set(baseline['asset_ids'].values())), 8)
@@ -246,7 +247,7 @@ class BaselineAndReleaseGateTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'candidate_sha256'):
                 artifacts.verify_all(root, baseline)
             jar.unlink()
-            with self.assertRaisesRegex(ValueError, 'exactly 8 unique production JARs'):
+            with self.assertRaisesRegex(ValueError, 'exactly 9 unique production JARs'):
                 artifacts.verify_all(root, baseline)
 
     def test_independent_release_preserves_abi_and_configuration_gates(self):

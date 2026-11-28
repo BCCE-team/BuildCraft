@@ -1,4 +1,4 @@
-//? source if >=26.3
+//? source if >=26.3 || (fabric && >=26.2)
 package buildcraft.builders.compat;
 
 import buildcraft.lib.gui.ItemProvider;

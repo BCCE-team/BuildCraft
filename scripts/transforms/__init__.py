@@ -4,7 +4,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from .java_compat import upgrade_symbols
-from .neoforge263 import relocate_removed_neoforge_apis, upgrade_minecraft_263_apis
+from .neoforge263 import (bridge_internal_power_actions, relocate_removed_neoforge_apis,
+                          upgrade_minecraft_263_apis, uses_internal_storage_contracts)
+from source_preprocessor import version_tuple
 from .gametest import generate_gametest_registry, transform_gametest_source
 from .java_symbols import downport_symbols
 from .lib_symbols import upgrade_lib_symbols
@@ -12,7 +14,8 @@ from .resources import apply_resource_transforms, generate_target_resources
 
 
 def apply_text_transforms(
-    text: str, *, minecraft: str, relative: str, native_source: bool = False
+    text: str, *, minecraft: str, relative: str, native_source: bool = False,
+    platform: str = "neoforge"
 ) -> str:
     # Whole-file source variants are maintained directly against the selected
     # Minecraft API and therefore bypass mechanical upgrade transforms.
@@ -23,8 +26,11 @@ def apply_text_transforms(
     else:
         text = downport_symbols(text, minecraft=minecraft, relative=relative)
     text = upgrade_lib_symbols(text, minecraft=minecraft, relative=relative)
-    text = relocate_removed_neoforge_apis(text, minecraft=minecraft, relative=relative)
+    text = relocate_removed_neoforge_apis(text, minecraft=minecraft, relative=relative, platform=platform)
     text = upgrade_minecraft_263_apis(text, minecraft=minecraft, relative=relative)
+    # Fabric 26.2 needs the internal storage/MJ contracts, not the 26.3 vanilla rewrites.
+    if uses_internal_storage_contracts(minecraft, platform) and version_tuple(minecraft) < version_tuple("26.3"):
+        text = bridge_internal_power_actions(text, relative=relative)
     text = transform_gametest_source(text, minecraft=minecraft, relative=relative)
     return apply_resource_transforms(text, minecraft=minecraft, relative=relative)
 
