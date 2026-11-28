@@ -5,6 +5,7 @@ import java.util.List;
 
 import buildcraft.builders.client.render.LegacyBlueprintGuiRenderer;
 import buildcraft.builders.gui.BlueprintPreviewFrame;
+import buildcraft.builders.item.ItemSchematicSingle;
 import buildcraft.builders.item.ItemSnapshot;
 import buildcraft.builders.snapshot.ClientSnapshots;
 import buildcraft.builders.snapshot.Snapshot;
@@ -22,7 +23,7 @@ import org.joml.Vector2ic;
 //?}
 
 /**
- * Separate 3D panel for used Blueprint and Template items.
+ * Separate 3D panel for used Blueprint, Template and Single Block Schematic items.
  * Forge 1.19.2 / 1.20.1 only expose the Pre and Color tooltip events: there is
  * no PostText event. The preview is drawn outside the main tooltip before it.
  * Never registers on dedicated servers and never changes a saved snapshot.
@@ -35,9 +36,17 @@ public final class LegacyBlueprintTooltipOverlay {
 
     public static void onTooltipPre(RenderTooltipEvent.Pre event) {
         ItemStack stack = event.getItemStack();
-        if (!(stack.getItem() instanceof ItemSnapshot)) return;
-        Snapshot.Header header = ItemSnapshot.getHeader(stack);
-        if (header == null || header.key == null) return;
+        Snapshot.Header header = null;
+        Snapshot singlePreview = null;
+        if (stack.getItem() instanceof ItemSnapshot) {
+            header = ItemSnapshot.getHeader(stack);
+            if (header == null || header.key == null) return;
+        } else if (stack.getItem() instanceof ItemSchematicSingle) {
+            singlePreview = SingleSchematicPreviewCache.previewFor(stack);
+            if (singlePreview == null) return;
+        } else {
+            return;
+        }
         List<ClientTooltipComponent> components = event.getComponents();
         if (components.isEmpty()) return;
 
@@ -101,7 +110,7 @@ public final class LegacyBlueprintTooltipOverlay {
             pose.popPose();
         }
 
-        Snapshot snapshot = ClientSnapshots.INSTANCE.getSnapshot(header.key);
+        Snapshot snapshot = header != null ? ClientSnapshots.INSTANCE.getSnapshot(header.key) : singlePreview;
         if (snapshot != null) LegacyBlueprintGuiRenderer.render(snapshot, pose, x, y, SIZE, SIZE);
     }
 }

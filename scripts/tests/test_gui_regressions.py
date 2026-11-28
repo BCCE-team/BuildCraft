@@ -1035,6 +1035,97 @@ public final class FrameProbe {
 
 
 
+class CoreCreativeAndSingleSchematicRegressions(unittest.TestCase):
+    TARGETS = ('1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge',
+        '1.21.11-neoforge', '26.1.2-neoforge', '26.2-neoforge',
+        '26.3-neoforge', '26.3-fabric')
+
+    def test_core_creative_order_all_targets(self):
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        from source_lookup import read_materialized_java
+        for target in self.TARGETS:
+            with self.subTest(target=target):
+                source = read_materialized_java(target, 'src/main/java/buildcraft/lib/CreativeTabManager.java')
+                order = source.split('addOrder(orders, "buildcraft.main",', 1)[1].split(');', 1)[0]
+                ids = re.findall(r'"([a-z0-9_]+:[a-z0-9_/]+)"', order)
+                self.assertEqual(len(ids), len(set(ids)), 'Duplicate creative order entries')
+                self.assertEqual(ids[:4], ['buildcraftlib:guide', 'buildcraftcore:wrench',
+                    'buildcraftcore:marker_connector', 'buildcraftsilicon:gate_copier'])
+                # Neither item belongs in the explicit rank list: Volume Box stays where
+                # the stable fallback sort put it before this change.
+                self.assertNotIn('buildcraftcore:volume_box', ids)
+                self.assertNotIn('buildcraftbuilders:filler_planner', ids)
+                self.assertIn('CreativeTabOrdering.moveAfter(items, CreativeTabManager::getRegistryName,\n                    "buildcraftcore:volume_box", "buildcraftbuilders:filler_planner");', source)
+                self.assertEqual(ids.index('buildcraftrobotics:zone_planner') + 1, ids.index('buildcraftrobotics:requester'))
+                self.assertGreater(ids.index('buildcraftrobotics:zone_planner'), ids.index('buildcraftfactory:distiller'))
+                engine = ids.index('buildcraftcore:engine_redstone')
+                self.assertEqual(ids[engine:engine + 6], ['buildcraftcore:engine_redstone',
+                    'buildcraftenergy:engine_stone', 'buildcraftenergy:engine_iron',
+                    'buildcraftcore:engine_creative', 'buildcraftenergy:engine_fe',
+                    'buildcraftenergy:mj_dynamo'])
+                self.assertIn('ITEM_ORDERS.get(name)', source)
+                self.assertIn('items.sort(Comparator.comparingInt(stack -> order.getOrDefault(getRegistryName(stack)', source)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK required')
+    def test_relative_creative_placement_preserves_all_other_items(self):
+        helper = ROOT / 'source-shared/src/main/java/buildcraft/lib/CreativeTabOrdering.java'
+        with tempfile.TemporaryDirectory(prefix='bcce-creative-order-') as tmp:
+            probe = Path(tmp) / 'CreativeOrderProbe.java'
+            probe.write_text('''import java.util.*;
+import buildcraft.lib.CreativeTabOrdering;
+public class CreativeOrderProbe {
+    static void check(List<String> input, List<String> expected) {
+        List<String> actual = new ArrayList<>(input);
+        CreativeTabOrdering.moveAfter(actual, s -> s.split(":")[0], "box", "planner");
+        if (!actual.equals(expected)) throw new AssertionError(actual + " != " + expected);
+    }
+    public static void main(String[] args) {
+        check(List.of("guide", "machine", "planner:1", "addon", "box", "other", "planner:2", "last"),
+              List.of("guide", "machine", "addon", "box", "planner:1", "planner:2", "other", "last"));
+        check(List.of("guide", "box:1", "box:2", "other", "planner"),
+              List.of("guide", "box:1", "box:2", "planner", "other"));
+        check(List.of("guide", "planner", "other"), List.of("guide", "planner", "other"));
+        check(List.of("guide", "box", "other"), List.of("guide", "box", "other"));
+    }
+}
+''')
+            subprocess.run(['javac', '-d', tmp, str(helper), str(probe)], check=True, capture_output=True, text=True)
+            subprocess.run(['java', '-cp', tmp, 'CreativeOrderProbe'], check=True, capture_output=True, text=True)
+
+    def test_inventory_single_schematic_uses_local_preview_all_targets(self):
+        sys.path.insert(0, str(ROOT / 'scripts'))
+        from source_lookup import read_materialized_java
+        pkg = 'src/main/java/buildcraft/builders/'
+        for target in self.TARGETS:
+            with self.subTest(target=target):
+                cache = read_materialized_java(target, pkg + 'client/tooltip/SingleSchematicPreviewCache.java')
+                self.assertIn('new BlockPos(1, 1, 1)', cache)
+                self.assertIn('blueprint.palette.add(block)', cache)
+                self.assertNotIn('ClientSnapshots', cache)
+                if target.endswith('-fabric'):
+                    item = read_materialized_java(target, pkg + 'item/ItemSchematicSingle.java')
+                    tooltip = read_materialized_java(target, pkg + 'client/tooltip/BlueprintClientTooltip.java')
+                    self.assertIn('if (!isValidUsed(stack)) return java.util.Optional.empty()', item)
+                    self.assertIn('new BlueprintTooltipData(stack)', item)
+                    self.assertIn('snapshot = SingleSchematicPreviewCache.previewFor(stack)', tooltip)
+                    self.assertIn('BlueprintRenderer.renderSnapshot(graphics, snapshot,', tooltip)
+                else:
+                    legacy = target.endswith('-forge')
+                    filename = 'LegacyBlueprintTooltipOverlay.java' if legacy else 'BlueprintTooltipOverlay.java'
+                    overlay = read_materialized_java(target, pkg + 'client/tooltip/' + filename)
+                    self.assertIn('else if (stack.getItem() instanceof ItemSchematicSingle)', overlay)
+                    self.assertIn('singlePreview = SingleSchematicPreviewCache.previewFor(stack)', overlay)
+                    self.assertIn('if (singlePreview == null) return;', overlay)
+                    self.assertIn('header != null ? ClientSnapshots.INSTANCE.getSnapshot(header.key) : singlePreview', overlay)
+                    renderer = 'LegacyBlueprintGuiRenderer.render(snapshot,' if legacy else 'BlueprintRenderer.renderSnapshot(event.getGraphics(), snapshot,'
+                    self.assertIn(renderer, overlay)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'), 'JDK required')
+    def test_single_schematic_preview_cache_behavior(self):
+        from builders_migration_fixture import run_single_block_schematic_cache
+        run_single_block_schematic_cache(self)
+
+
 class Forge1201LibraryPoseRegression(unittest.TestCase):
     """Keep the legacy/modern merge from reintroducing nonexistent 1.20.1 BCGraphics."""
 

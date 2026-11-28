@@ -86,19 +86,26 @@ public final class CreativeTabManager {
         // BuildCraft 8 main-tab order, limited to items registered by this target.
         // Target-specific items are placed beside the closest original group.
         addOrder(orders, "buildcraft.main",
+            // Guide and frequently used tools
+            "buildcraftlib:guide",
+            "buildcraftcore:wrench",
+            "buildcraftcore:marker_connector",
+            "buildcraftsilicon:gate_copier",
+
             // Core blocks and area-planning tools
             "buildcraftcore:marker_volume",
             "buildcraftcore:marker_path",
             "buildcraftbuilders:marker_construction",
-            "buildcraftrobotics:zone_planner",
+
+            // Engines and energy converters
             "buildcraftcore:engine_redstone",
             "buildcraftenergy:engine_stone",
             "buildcraftenergy:engine_iron",
             "buildcraftcore:engine_creative",
+            "buildcraftenergy:engine_fe",
+            "buildcraftenergy:mj_dynamo",
 
             // Core items
-            "buildcraftlib:guide",
-            "buildcraftcore:wrench",
             "buildcraftcore:gears/gear_wood",
             "buildcraftcore:gears/gear_stone",
             "buildcraftcore:gears/gear_iron",
@@ -123,7 +130,6 @@ public final class CreativeTabManager {
             "buildcraftcore:paintbrush/white",
             "buildcraftcore:list",
             "buildcraftcore:map_location",
-            "buildcraftcore:marker_connector",
 
             // Builders items, then blocks
             "buildcraftbuilders:blueprint",
@@ -151,6 +157,7 @@ public final class CreativeTabManager {
 
             // Transport and logistics blocks
             "buildcrafttransport:filtered_buffer",
+            "buildcraftrobotics:zone_planner",
             "buildcraftrobotics:requester",
 
             // Silicon blocks, then items
@@ -165,8 +172,7 @@ public final class CreativeTabManager {
             "buildcraftsilicon:redstone_chipset/gold",
             "buildcraftsilicon:redstone_chipset/quartz",
             "buildcraftsilicon:redstone_chipset/diamond",
-            "buildcraftsilicon:redstone_crystal",
-            "buildcraftsilicon:gate_copier"
+            "buildcraftsilicon:redstone_crystal"
         );
 
         addOrder(orders, "buildcraft.pipes",
@@ -379,6 +385,11 @@ public final class CreativeTabManager {
             Map<String, Integer> order = ITEM_ORDERS.get(name);
             if (order != null) {
                 items.sort(Comparator.comparingInt(stack -> order.getOrDefault(getRegistryName(stack), Integer.MAX_VALUE)));
+            }
+            if ("buildcraft.main".equals(name)) {
+                // Volume Box retains its original fallback position; move only the planner.
+                CreativeTabOrdering.moveAfter(items, CreativeTabManager::getRegistryName,
+                    "buildcraftcore:volume_box", "buildcraftbuilders:filler_planner");
             }
             items.forEach(output);
         }

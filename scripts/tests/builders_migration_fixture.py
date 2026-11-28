@@ -853,7 +853,7 @@ def run_single_block_schematic_cache(case):
                   }
                 }''',
     }
-    for target in ('1.19.2-forge', '1.21.11-neoforge', '26.3-neoforge'):
+    for target in ('1.19.2-forge', '1.21.11-neoforge', '26.3-neoforge', '26.3-fabric'):
         with case.subTest(target=target), tempfile.TemporaryDirectory(prefix='bcce-single-preview-') as temporary:
             folder = Path(temporary)
             for name, contents in stubs.items():
