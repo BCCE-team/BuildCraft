@@ -107,7 +107,8 @@ def check_addon(target: str, candidate: Path, addon: Path) -> None:
             raise ValueError('Duplicate addon ZIP entries')
         if json.loads(archive.read(BINDING)) != binding(target, candidate):
             raise ValueError('Test addon was not compiled against this exact candidate JAR and target')
-        if archive.read(name) != expected_metadata:
+        actual_metadata = archive.read(name)
+        if (json.loads(actual_metadata) != json.loads(expected_metadata) if target == '1.21.11-fabric' else actual_metadata != expected_metadata):
             raise ValueError('Incorrect loader metadata')
         classes = [n for n in names if n.endswith('.class')]
         for required in ('LoaderEntry.class', 'ApiSmokeProbe.class', 'Ids.class'):
@@ -115,16 +116,19 @@ def check_addon(target: str, candidate: Path, addon: Path) -> None:
                 raise ValueError(f'Missing addon class {required}')
         for cls in classes:
             validate_class_dependency(cls, archive.read(cls), package_prefix=PACKAGE)
-        if any(n not in {name, BINDING} and n not in classes for n in names):
+        allowed_resources = {name, BINDING}
+        if target == '1.21.11-fabric':
+            allowed_resources.add('META-INF/MANIFEST.MF')
+        if any(n not in allowed_resources and n not in classes and not n.endswith('/') for n in names):
             raise ValueError('Unexpected addon resource')
 
 
-def build(target: str, candidate: Path, addon: Path, dependencies: str, javac: str) -> None:
+def build(target: str, candidate: Path, addon: Path, dependencies: str, javac: str, distribution_candidate: Path | None = None) -> None:
     loader, java, _, _ = target_properties(target)
     sources = sorted(SOURCE.rglob('*.java'))
     sources.append(API_TEST_ADDON_LOADER_ROOT / loader / 'LoaderEntry.java')
     ensure_public_sources(sources)
-    expected = binding(target, candidate)
+    expected = binding(target, distribution_candidate or candidate)
     with tempfile.TemporaryDirectory(prefix='bcce-api-test-addon-') as temporary:
         temp = Path(temporary)
         api = temp / 'public-api.jar'
@@ -143,7 +147,7 @@ def build(target: str, candidate: Path, addon: Path, dependencies: str, javac: s
             jar.writestr(BINDING, json.dumps(expected, sort_keys=True))
             for path in verified:
                 jar.write(path, path.relative_to(classes).as_posix())
-        check_addon(target, candidate, result)
+        check_addon(target, distribution_candidate or candidate, result)
         addon.parent.mkdir(parents=True, exist_ok=True)
         # Only expose a new artifact after all validation succeeds.
         staging = addon.with_suffix('.tmp')
@@ -157,13 +161,14 @@ def main() -> int:
     parser.add_argument('command', choices=['build', 'check'])
     parser.add_argument('--target', required=True)
     parser.add_argument('--bcce-jar', type=Path, required=True)
+    parser.add_argument('--distribution-jar', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--dependencies', default='')
     parser.add_argument('--javac', default='javac')
     args = parser.parse_args()
     try:
         if args.command == 'build':
-            build(args.target, args.bcce_jar, args.output, args.dependencies, args.javac)
+            build(args.target, args.bcce_jar, args.output, args.dependencies, args.javac, args.distribution_jar)
         else:
             check_addon(args.target, args.bcce_jar, args.output)
             print(f'{args.target}: test addon/candidate binding verified')

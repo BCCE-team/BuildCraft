@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "buildcraft-fabric-gametest",
+  "version": "1.0.0",
+  "name": "BuildCraft Fabric 1.21.11 GameTests",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-gametest": [
+      "buildcraft.gametest.FabricInfrastructureGameTests",
+      "buildcraft.gametest.FabricTankStorageGameTests",
+      "buildcraft.gametest.FabricRedstoneControlModuleGameTests",
+      "buildcraft.gametest.FabricParityGameTests"
+    ]
+  },
+  "depends": {
+    "buildcraftlib": "*",
+    "fabric-api": "*"
+  }
+}

@@ -12,7 +12,7 @@
     "buildcraftrobotics",
     "buildcraftcompat"
   ],
-  "name": "BuildCraft Community Edition - Fabric 26.3",
+  "name": "BuildCraft Community Edition",
   "description": "BuildCraft Community Edition for Minecraft 26.3 on Fabric.",
   "authors": [
     "CurativeTree, ShipovskijKorp, Memesis414, Smail and many other"

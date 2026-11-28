@@ -38,7 +38,7 @@ public final class MessagePipeAttachmentAttack {
         context.enqueueWork(() -> {
             if (!(context.player() instanceof ServerPlayer player) || player.isSpectator()) return;
             var world = player.level();
-            if (!world.hasChunkAt(message.pos)) return;
+            if (!world.hasChunkAt(message.pos) || !player.mayBuild() || !world.mayInteract(player, message.pos)) return;
             // The client can name a position, but cannot choose a side or bypass
             // distance, ownership or current hit/attachment checks.
             double reach = player.blockInteractionRange() + 1.0D;
@@ -47,6 +47,7 @@ public final class MessagePipeAttachmentAttack {
             if (!(world.getBlockState(message.pos).getBlock() instanceof BlockPipeHolder block)) return;
             if (!(world.getBlockEntity(message.pos) instanceof TilePipeHolder tile)
                 || !tile.canPlayerInteract(player)) return;
+            if (!buildcraft.lib.platform.permission.PlatformWorldActions.canBreakBlock(world, message.pos, player)) return;
             block.removeTargetedAttachment(world, message.pos, player);
         });
     };

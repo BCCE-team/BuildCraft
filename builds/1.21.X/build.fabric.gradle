@@ -1,0 +1,12 @@
+// Thin Fabric Loom shim: canonical metadata and sources live in the repository root.
+plugins {
+    id 'java-library'
+    id 'idea'
+    id 'eclipse'
+    id 'maven-publish'
+    // Pin a published release: the 1.18-SNAPSHOT marker may no longer resolve reliably.
+    id 'net.fabricmc.fabric-loom-remap' version '1.18.4'
+}
+
+ext.bcBuildGeneration = '1.21.X'
+apply from: new File(rootProject.file('../..').canonicalFile, 'build-logic/loaders/fabric-target.gradle')

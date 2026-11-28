@@ -1,0 +1,15 @@
+classTweaker v1 named
+
+# Dynamic BuildCraft menu JSON needs movable vanilla Slot positions.
+mutable field net/minecraft/world/inventory/Slot x I
+mutable field net/minecraft/world/inventory/Slot y I
+# Vanilla item geometry adapter consumes the model wrapper's non-public constructor.
+accessible method net/minecraft/client/renderer/item/BlockModelWrapper <init> (Ljava/util/List;Ljava/util/List;Lnet/minecraft/client/renderer/item/ModelRenderProperties;Ljava/util/function/Function;)V
+# Retain custom item drop lifetime semantics (vanilla ItemEntity default 6000 ticks).
+accessible field net/minecraft/world/entity/item/ItemEntity age I
+
+# Vanilla GUI access for deferred sprite quads and BC8 widget lists.
+accessible field net/minecraft/client/gui/screens/Screen renderables Ljava/util/List;
+accessible class net/minecraft/client/gui/GuiGraphics$ScissorStack
+accessible field net/minecraft/client/gui/GuiGraphics scissorStack Lnet/minecraft/client/gui/GuiGraphics$ScissorStack;
+accessible field net/minecraft/client/gui/GuiGraphics guiRenderState Lnet/minecraft/client/gui/render/state/GuiRenderState;

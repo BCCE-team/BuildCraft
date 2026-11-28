@@ -1,4 +1,4 @@
-/* Production Fabric 26.3 adapter. Source and metadata are materialized by common-target.gradle. */
+/* Production Fabric adapter. Source and metadata are materialized by common-target.gradle. */
 apply from: new File(rootProject.file('../..').canonicalFile, 'build-logic/common-target.gradle')
 
 def bc = project.ext.bcTarget
@@ -24,10 +24,11 @@ if (ciWorldJoin && !(ciWorldJoinClientSlot in ['1', '2'])) {
 if (ciWorldJoinUsername && !(ciWorldJoinUsername ==~ /[A-Za-z0-9_]{1,16}/)) {
     throw new GradleException('Invalid Fabric IT16 username')
 }
-def ciWorldJoinRoot = new File(repositoryRoot, "run-modpack-join/26.X/${targetName}")
+def remapping = minecraftVersion == "1.21.11"
+def ciWorldJoinRoot = new File(repositoryRoot, "run-modpack-join/${bc.buildGeneration}/${targetName}")
 
-if (bc.loaderName != 'fabric' || !(minecraftVersion in ['26.1.2', '26.2', '26.3'])) {
-    throw new GradleException("Fabric adapter supports 26.1.2-fabric, 26.2-fabric and 26.3-fabric, received ${targetName}")
+if (bc.loaderName != 'fabric' || !(minecraftVersion in ['1.21.11', '26.1.2', '26.2', '26.3'])) {
+    throw new GradleException("Fabric adapter supports 1.21.11-fabric, 26.1.2-fabric, 26.2-fabric and 26.3-fabric, received ${targetName}")
 }
 
 repositories {
@@ -128,8 +129,8 @@ loom {
             client()
             runDir = ciWorldJoin
                     ? new File(ciWorldJoinRoot, ciWorldJoinClientSlot == '2' ? 'client-2' : 'client').absolutePath
-                    : new File(repositoryRoot, "run/26.X/${targetName}").absolutePath
-            jvmArguments.add('--sun-misc-unsafe-memory-access=allow')
+                    : new File(repositoryRoot, "run/${bc.buildGeneration}/${targetName}").absolutePath
+            if (!remapping) jvmArguments.add('--sun-misc-unsafe-memory-access=allow')
             if (ciWorldJoin) {
                 programArguments.addAll('--quickPlayMultiplayer', ciWorldJoinAddress)
                 if (ciWorldJoinUsername) programArguments.addAll('--username', ciWorldJoinUsername)
@@ -138,8 +139,8 @@ loom {
         server {
             server()
             runDir = ciWorldJoin ? new File(ciWorldJoinRoot, 'server').absolutePath
-                    : new File(repositoryRoot, "run/26.X/${targetName}").absolutePath
-            jvmArguments.add('--sun-misc-unsafe-memory-access=allow')
+                    : new File(repositoryRoot, "run/${bc.buildGeneration}/${targetName}").absolutePath
+            if (!remapping) jvmArguments.add('--sun-misc-unsafe-memory-access=allow')
         }
     }
 }
@@ -160,27 +161,31 @@ sourceSets.gametest.resources.setSrcDirs(sourceDirs('src/gametest/resources'))
 
 dependencies {
     minecraft "com.mojang:minecraft:${minecraftVersion}"
-    implementation "net.fabricmc:fabric-loader:${requiredProperty('deps.fabric_loader')}"
-    implementation "net.fabricmc.fabric-api:fabric-api:${requiredProperty('deps.fabric_api')}"
-    implementation "teamreborn:energy:${requiredProperty('deps.energy')}"
-    compileOnly requiredProperty('deps.jei')
-    compileOnly requiredProperty('deps.jade')
-    compileOnly requiredProperty('deps.modmenu')
+    if (remapping) mappings loom.officialMojangMappings()
+    def modImpl = remapping ? "modImplementation" : "implementation"
+    def modCompile = remapping ? "modCompileOnly" : "compileOnly"
+    def modRuntime = remapping ? "modRuntimeOnly" : "runtimeOnly"
+    add(modImpl, "net.fabricmc:fabric-loader:${requiredProperty('deps.fabric_loader')}")
+    add(modImpl, "net.fabricmc.fabric-api:fabric-api:${requiredProperty('deps.fabric_api')}")
+    add(modImpl, "teamreborn:energy:${requiredProperty('deps.energy')}")
+    add(modCompile, requiredProperty('deps.jei'))
+    add(modCompile, requiredProperty('deps.jade'))
+    add(modCompile, requiredProperty('deps.modmenu'))
     // Viewer libraries are compile-only unless explicitly selected for dev runtime.
     def selectedRecipeViewer = ciWorldJoin ? 'jei' : bc.recipeViewerMod
     if (selectedRecipeViewer == 'jei') {
-        runtimeOnly requiredProperty('deps.jei')
+        add(modRuntime, requiredProperty('deps.jei'))
     }
     ['deps.rei', 'deps.rei_architectury', 'deps.rei_cloth'].each { key ->
-        compileOnly requiredProperty(key)
-        if (selectedRecipeViewer == 'rei') runtimeOnly requiredProperty(key)
+        add(modCompile, requiredProperty(key))
+        if (selectedRecipeViewer == 'rei') add(modRuntime, requiredProperty(key))
     }
     // REI's widget signatures use Point/Rectangle from Cloth Config's nested jar.
     // Runtime obtains basic-math from Cloth Config itself; do not bundle it twice.
     compileOnly requiredProperty('deps.rei_math')
-    compileOnly requiredProperty('deps.emi')
-    if (selectedRecipeViewer == 'emi') runtimeOnly requiredProperty('deps.emi')
-    runtimeOnly requiredProperty('deps.jade')
+    add(modCompile, requiredProperty('deps.emi'))
+    if (selectedRecipeViewer == 'emi') add(modRuntime, requiredProperty('deps.emi'))
+    add(modRuntime, requiredProperty('deps.jade'))
     compileOnly 'javax.annotation:javax.annotation-api:1.3.2'
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     testImplementation "org.junit.jupiter:junit-jupiter-api:${requiredProperty('deps.junit')}"
@@ -285,12 +290,25 @@ tasks.withType(ProcessResources).configureEach { dependsOn prepareEffectiveSourc
 tasks.withType(JavaCompile).configureEach {
     dependsOn prepareEffectiveSource
     options.encoding = 'UTF-8'
-    options.release = 25
+    options.release = bc.javaVersion
     options.compilerArgs.addAll(['-Xmaxerrs', '800'])
 }
 // The canonical source materializer must also run before GameTest compilation.
 tasks.named('compileApiV2Java') { dependsOn prepareEffectiveSource }
 tasks.named('compileAddonFixtureJava') { dependsOn tasks.named('compileApiV2Java') }
+
+// Loom itself runs on Java 25. For the remapped 1.21.11 target, explicitly
+// launch Minecraft/GameTests on its Java 21 toolchain, not the daemon JVM.
+if (remapping) {
+    def minecraftLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(bc.javaVersion)
+    }
+    tasks.withType(JavaExec).configureEach {
+        if (name in ['runClient', 'runServer', 'runGameTest']) {
+            javaLauncher.set(minecraftLauncher)
+        }
+    }
+}
 
 // CI and local runners share the exact same task names across all loaders.
 tasks.register('runGameTestServer') {
@@ -310,8 +328,8 @@ tasks.named('jar', Jar) {
 }
 
 publishing {
-    publications { register('mavenJava', MavenPublication) { artifact jar } }
-    repositories { maven { url = new File(repositoryRoot, 'mcmodsrepo/26.X').toURI() } }
+    publications { register('mavenJava', MavenPublication) { artifact tasks.named(remapping ? 'remapJar' : 'jar') } }
+    repositories { maven { url = new File(repositoryRoot, "mcmodsrepo/${bc.buildGeneration}").toURI() } }
 }
 tasks.register('buildAndCollect') {
     group = 'build'
@@ -319,4 +337,15 @@ tasks.register('buildAndCollect') {
     dependsOn tasks.named('build')
 }
 
+if (remapping) {
+    tasks.named('jar', Jar) {
+        archiveClassifier.set('dev')
+        destinationDirectory.set(layout.buildDirectory.dir('libs'))
+    }
+    tasks.named('remapJar') {
+        dependsOn tasks.named('cleanCentralJarOutput'), verifyFabricIsolation
+        archiveClassifier.set('')
+        destinationDirectory.set(centralJarOutputDir)
+    }
+}
 apply from: new File(repositoryRoot, 'build-logic/api-v2-gates.gradle')

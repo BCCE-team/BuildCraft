@@ -88,7 +88,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected='1.19.2-forge,1.20.1-forge,1.21.1-neoforge,1.21.11-neoforge,26.1.2-neoforge,26.2-neoforge,26.3-neoforge,26.3-fabric,26.2-fabric,26.1.2-fabric'
+          expected='1.19.2-forge,1.20.1-forge,1.21.1-neoforge,1.21.11-neoforge,26.1.2-neoforge,26.2-neoforge,26.3-neoforge,26.3-fabric,26.2-fabric,26.1.2-fabric,1.21.11-fabric'
           actual="$(sed -n 's/^targets=//p' build-config/targets.properties)"
           if [ "$actual" != "$expected" ]; then
             echo "::error::Publication workflow target list is stale. Expected '$expected', repository has '$actual'."
@@ -126,7 +126,7 @@ jobs:
             targets: '1.19.2-forge,1.20.1-forge'
           - generation: 1.21.X
             java: '21'
-            targets: '1.21.1-neoforge,1.21.11-neoforge'
+            targets: '1.21.1-neoforge,1.21.11-neoforge,1.21.11-fabric'
           - generation: 26.X
             java: '25'
             targets: '26.1.2-neoforge,26.2-neoforge,26.3-neoforge,26.3-fabric,26.2-fabric,26.1.2-fabric'
@@ -153,6 +153,13 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: temurin
+
+      - name: Set up Gradle JVM for 1.21.X
+        if: matrix.generation == '1.21.X'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
 
       - name: Build and collect ${{ matrix.generation }} targets
         working-directory: builds/${{ matrix.generation }}
@@ -478,6 +485,58 @@ jobs:
           version-type: release
           loaders: fabric
           game-versions: 26.2
+          game-version-filter: none
+          environment: client | server
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-changelog: ${{ github.event.release.body }}
+          modrinth-dependencies: 'fabric-api(required)'
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-changelog: ${{ github.event.release.body }}
+          curseforge-dependencies: '306612(required)'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ github.event.release.tag_name }}
+          github-changelog: ''
+
+      - name: Wait 1 minute before 26.1.2 Fabric
+        run: sleep "$PUBLISH_DELAY_SECONDS"
+
+      - name: Publish 26.1.2 Fabric
+        uses: Kira-NT/mc-publish@v3
+        with:
+          files: release/BuildCraft-Community-Edition-${{ github.event.release.tag_name }}+26.1.2+fabric.jar
+          name: ${{ github.event.release.tag_name }}+26.1.2+fabric
+          version: ${{ github.event.release.tag_name }}+26.1.2+fabric
+          version-type: release
+          loaders: fabric
+          game-versions: 26.1.2
+          game-version-filter: none
+          environment: client | server
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-changelog: ${{ github.event.release.body }}
+          modrinth-dependencies: 'fabric-api(required)'
+          curseforge-id: ${{ env.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          curseforge-changelog: ${{ github.event.release.body }}
+          curseforge-dependencies: '306612(required)'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-tag: ${{ github.event.release.tag_name }}
+          github-changelog: ''
+
+      - name: Wait 1 minute before 1.21.11 Fabric
+        run: sleep "$PUBLISH_DELAY_SECONDS"
+
+      - name: Publish 1.21.11 Fabric
+        uses: Kira-NT/mc-publish@v3
+        with:
+          files: release/BuildCraft-Community-Edition-${{ github.event.release.tag_name }}+1.21.11+fabric.jar
+          name: ${{ github.event.release.tag_name }}+1.21.11+fabric
+          version: ${{ github.event.release.tag_name }}+1.21.11+fabric
+          version-type: release
+          loaders: fabric
+          game-versions: 1.21.11
           game-version-filter: none
           environment: client | server
           modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}

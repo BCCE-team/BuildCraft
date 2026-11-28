@@ -261,9 +261,10 @@ PROPERTIES
   : > "$server_log"
   rm -f "$latest_log"
   echo "Starting compatibility userdev server (generation: ${generation}, target: ${target}, profile: ${runtime_profile}, timeout: ${startup_timeout}s)."
+  gradle_java_home="$(select_gradle_java_home "$build_root")"
   (
     cd "$build_root"
-    export JAVA_HOME="$java_home"
+    export JAVA_HOME="$gradle_java_home"
     export PATH="$JAVA_HOME/bin:$PATH"
     exec setsid ./gradlew --no-daemon --console=plain --stacktrace \
       -Pci_runtime_profile="${runtime_profile}" ":${target}:runServer"

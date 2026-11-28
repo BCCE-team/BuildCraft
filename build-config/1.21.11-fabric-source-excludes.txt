@@ -1,0 +1,31 @@
+# NeoForge-only and incompatible source variants.
+# Files belonging to other targets, absent from the Fabric 26.3 port.
+src/main/java/buildcraft/core/BCCoreRecipes.java
+src/main/java/buildcraft/core/client/model/FragileFluidContainerModel.java
+src/main/java/buildcraft/factory/BCFactoryRecipesProvider.java
+src/main/java/buildcraft/lib/BCTagsProvider.java
+src/main/java/buildcraft/lib/compat/jade/mixin/JadeEntrypointDedupMixin.java
+src/main/java/buildcraft/lib/compat/transfer/TransferInterop.java
+src/main/java/buildcraft/lib/fake/FakePlayerBC.java
+src/main/java/buildcraft/lib/fluid/NeoForgeFluidItemAdapter.java
+src/main/java/buildcraft/transport/BCTransportRecipesProvider.java
+src/test/java/buildcraft/BCVersionTest.java
+src/test/java/buildcraft/ReleaseManifestTest.java
+
+src/main/java/buildcraft/core/item/CushionPaintEvents.java
+
+src/main/java/buildcraft/silicon/client/FacadeTintClient2612.java
+
+src/main/java/buildcraft/lib/client/sprite/GuiSpriteRender2612.java
+
+src/main/java/buildcraft/lib/compat/mc2612/client/resources/model/BakedModel.java
+
+src/main/java/buildcraft/lib/compat/neoforge2612/client/model/SimpleModelState.java
+
+src/main/java/buildcraft/lib/compat/neoforge2612/client/model/geometry/IUnbakedGeometry.java
+
+src/main/java/buildcraft/lib/compat/neoforge2612/client/model/geometry/UnbakedGeometryHelper.java
+
+src/main/java/buildcraft/lib/compat/neoforge2612/client/model/geometry/IGeometryBakingContext.java
+
+src/main/java/buildcraft/lib/compat/mc2612/world/item/crafting/SimpleCraftingRecipeSerializer.java

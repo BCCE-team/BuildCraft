@@ -270,7 +270,8 @@ def load_baseline() -> dict:
     direct = set(baseline['sha256'])
     if (set(targets) != direct | set(references) or direct & set(references)
             or len(targets) != len(set(targets))
-            or any(source not in direct or target.split('-')[-1] != source.split('-')[-1]
+            or any(source not in direct or (target.split('-')[-1] != source.split('-')[-1]
+                   and (target, source) != ('1.21.11-fabric', '1.21.11-neoforge'))
                    for target, source in references.items())):
         raise ValueError('ABI baseline must cover exactly the configured target registry')
     if not all(re.fullmatch(r'[0-9a-f]{64}', digest) for digest in baseline['sha256'].values()):
@@ -372,6 +373,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--target', required=True)
     parser.add_argument('--bcce-jar', type=Path, required=True)
+    parser.add_argument('--distribution-jar', type=Path, help='Remapped distribution from the named candidate')
     parser.add_argument('--javac', type=Path, required=True)
     parser.add_argument('--release', type=int, choices=(17, 21, 25), required=True)
     parser.add_argument('--cache-dir', type=Path, default=ROOT / 'build/api-abi/baselines')
@@ -388,7 +390,9 @@ def main() -> int:
         report.update(baseline=baseline['release'], baseline_api=baseline['api'], candidate_api=candidate_api, baseline_sha256=baseline['sha256'][args.target])
         old_jar = baseline_jar(baseline, args.target, args.cache_dir, args.offline)
         old, new = read_jar(old_jar), read_jar(args.bcce_jar)
-        report.update(candidate_sha256=sha256(args.bcce_jar), baseline_exported_classes=sum(exported(n, old) for n in old), candidate_exported_classes=sum(exported(n, new) for n in new))
+        report.update(candidate_sha256=sha256(args.distribution_jar or args.bcce_jar), baseline_exported_classes=sum(exported(n, old) for n in old), candidate_exported_classes=sum(exported(n, new) for n in new))
+        if args.distribution_jar:
+            report['named_candidate_sha256'] = sha256(args.bcce_jar)
         report['violations'] = compare(old, new)
         if report['violations']:
             raise ValueError('\n'.join(report['violations']))

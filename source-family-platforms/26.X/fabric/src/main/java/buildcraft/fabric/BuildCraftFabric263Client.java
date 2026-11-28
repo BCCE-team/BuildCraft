@@ -22,6 +22,8 @@ public final class BuildCraftFabric263Client implements ClientModInitializer {
         FabricFactoryClient.bootstrap();
         FabricBuildersClient.bootstrap();
         FabricRoboticsClient.bootstrap();
+        FabricBlockTransparency.register();
+        PipePartClientInteraction.register();
         MessageManager.registerClientReceivers();
         // All mod and client entrypoints, including addon registrations, are
         // complete by CLIENT_STARTED. Do not seal them in onInitializeClient().

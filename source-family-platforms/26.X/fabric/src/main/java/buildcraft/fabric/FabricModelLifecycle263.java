@@ -2,6 +2,7 @@ package buildcraft.fabric;
 
 import buildcraft.core.client.FluidShardTintSource;
 import buildcraft.lib.client.model.ModelHolderRegistry;
+import buildcraft.lib.client.render.laser.LaserRenderer_BC8;
 import buildcraft.lib.client.model.json.VariablePartLed;
 import buildcraft.lib.client.sprite.SpriteHolderRegistry;
 import buildcraft.lib.platform.client.ClientAtlas;
@@ -13,6 +14,7 @@ import buildcraft.transport.client.model.PipeModelCacheBase;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureAtlas;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.data.AtlasIds;
 
 /**
@@ -22,6 +24,7 @@ import net.minecraft.data.AtlasIds;
  */
 public final class FabricModelLifecycle263 {
     private static TextureAtlas currentAtlas;
+    private static TextureAtlasSprite currentMissingSprite;
 
     private FabricModelLifecycle263() { }
 
@@ -33,22 +36,26 @@ public final class FabricModelLifecycle263 {
         } catch (IllegalArgumentException | IllegalStateException notReady) {
             return;
         }
-        if (atlas == currentAtlas) return;
+        final TextureAtlasSprite missingSprite;
 
         // AtlasManager can publish the atlas object before its sprites are initialized.
         // CLIENT_STARTED (and ticks during F3+T) can run in that window. Do not start
         // resolving any BCCE sprites or mark this atlas as processed until the lookup
         // succeeds. END_CLIENT_TICK retries automatically once loading completes.
         try {
-            if (atlas.getSprite(MissingTextureAtlasSprite.getLocation()) == null) return;
+            missingSprite = atlas.getSprite(MissingTextureAtlasSprite.getLocation());
+            if (missingSprite == null) return;
         } catch (IllegalStateException notYetInitialized) {
             return;
         }
+
+        if (atlas == currentAtlas && missingSprite == currentMissingSprite) return;
 
         // When a resource pack is swapped, no cached quad may keep UVs from the old atlas.
         FluidShardTintSource.clearTextureColors();
         ClientAtlas.After stitched = new ClientAtlas.After(atlas);
         SpriteHolderRegistry.onTextureStitchPost(stitched);
+        LaserRenderer_BC8.clearModels();
         // LED parts use their own shared sprite rather than SpriteHolderRegistry.
         // The pulsar item model bakes them on the first inventory render.
         VariablePartLed.onTextureStitchPost(stitched);
@@ -59,5 +66,6 @@ public final class FabricModelLifecycle263 {
         BCTransportModels.onModelBakeComplete();
         BCSiliconModels.clearAtlasDependentCaches();
         currentAtlas = atlas;
+        currentMissingSprite = missingSprite;
     }
 }

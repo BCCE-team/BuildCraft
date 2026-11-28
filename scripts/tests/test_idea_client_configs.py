@@ -36,7 +36,7 @@ class IdeaClientConfigTests(unittest.TestCase):
 
     def test_all_committed_configs_launch_the_versioned_power_shell_script(self):
         configs = self.generator.validate_client_configs()
-        self.assertEqual(len(configs), 9)
+        self.assertEqual(len(configs), len(self.generator.target_ids(self.props)))
         for c in configs:
             with self.subTest(target=c.target):
                 node = ET.parse(ROOT / ".run" / c.filename).getroot().find("configuration")
@@ -57,7 +57,7 @@ class IdeaClientConfigTests(unittest.TestCase):
         # Both Gradle 8.8 (preview) and 9.8.1 use the same filename.
         configurations = (
             ("old", "8.8", 17),
-            ("1.21.X", "8.8", 21),
+            ("1.21.X", "9.8.1", 25),
             ("26.X", "9.8.1", 25),
         )
         for generation, gradle_version, java_major in configurations:

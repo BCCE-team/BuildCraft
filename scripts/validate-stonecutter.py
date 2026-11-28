@@ -211,7 +211,7 @@ def validate_build_root(generation: str, build_root: Path, targets: list[str], p
             if "id 'net.neoforged.moddev'" not in wrapper_text:
                 fail("NeoForge build must resolve ModDevGradle in its build-root shim")
         elif loader == "fabric":
-            if "id 'net.fabricmc.fabric-loom'" not in wrapper_text:
+            if not any(token in wrapper_text for token in ("id 'net.fabricmc.fabric-loom'", "id 'net.fabricmc.fabric-loom-remap'")):
                 fail("Fabric build must resolve Loom from its build-root shim")
             if "accessWidenerPath" not in adapter_text or "fabricApi" not in adapter_text:
                 fail("Fabric adapter must load native access widener and enable Fabric GameTests")

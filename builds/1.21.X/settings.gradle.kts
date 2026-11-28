@@ -2,12 +2,30 @@ import java.util.Properties
 
 pluginManagement {
     repositories {
+        // Resolve Fabric's own Gradle implementation from its publishing
+        // repository before general plugin repositories. A repository that
+        // serves partial/stale module metadata may prevent later fallbacks.
+        maven("https://maven.fabricmc.net/") {
+            name = "FabricMC"
+            content { includeGroupByRegex("net\\.fabricmc(\\..*)?") }
+        }
+        // Independent Fabric CDN and mirror are fallbacks for transient or
+        // regional failures. Neither changes the pinned Loom version.
+        maven("https://fabricmc.forgecdn.net/") {
+            name = "FabricMC CDN"
+            content { includeGroupByRegex("net\\.fabricmc(\\..*)?") }
+        }
+        maven("https://maven.modmuss50.me/") {
+            name = "FabricMC Mirror"
+            content { includeGroupByRegex("net\\.fabricmc(\\..*)?") }
+        }
         mavenCentral()
         gradlePluginPortal()
         maven("https://maven.kikugie.dev/releases") { name = "KikuGie Releases" }
         maven("https://maven.kikugie.dev/snapshots") { name = "KikuGie Snapshots" }
         maven("https://maven.neoforged.net/releases") { name = "NeoForge" }
     }
+
 }
 
 plugins {

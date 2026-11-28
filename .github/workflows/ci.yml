@@ -303,6 +303,9 @@ jobs:
           - target: 1.21.11-neoforge
             generation: 1.21.X
             java: '21'
+          - target: 1.21.11-fabric
+            generation: 1.21.X
+            java: '21'
           - target: 26.1.2-neoforge
             generation: 26.X
             java: '25'
@@ -344,6 +347,13 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
 
+      - name: Set up Gradle JVM for 1.21.X
+        if: matrix.generation == '1.21.X'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -371,7 +381,7 @@ jobs:
 
       - name: Verify Fabric source/metadata parity
         if: endsWith(matrix.target, '-fabric')
-        run: python scripts/validate-fabric-target.py
+        run: python scripts/validate-fabric-target.py ${{ matrix.target }}
 
       - name: Build and test target
         shell: bash
@@ -411,7 +421,7 @@ jobs:
 
       - name: Collect installed Fabric server dependencies
         if: endsWith(matrix.target, '-fabric')
-        working-directory: builds/26.X
+        working-directory: builds/${{ matrix.generation }}
         run: ./gradlew --no-daemon --console=plain :${{ matrix.target }}:collectFabricServerMods
 
       - name: Verify localizations inside the built JAR

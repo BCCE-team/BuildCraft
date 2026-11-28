@@ -15,7 +15,7 @@ import net.fabricmc.fabric.api.event.player.AttackBlockCallback;
 import net.fabricmc.fabric.api.event.player.PlayerPickItemEvents;
 import net.minecraft.world.InteractionResult;
 import buildcraft.transport.block.BlockPipeHolder;
-import buildcraft.transport.net.MessagePipeAttachmentAttack;
+import buildcraft.transport.net.MessagePipePartInteraction;
 
 /**
  * Fabric 26.3 module bootstrap. Registration is in the native Fabric
@@ -32,24 +32,18 @@ public final class BuildCraftFabric263 implements ModInitializer {
         BCFactory.bootstrap();
         BCBuilders.bootstrap();
         BCRobotics.bootstrap();
-        // A vanilla START_DESTROY_BLOCK packet must never be sent for an attachment.
-        // In Creative it can remove the client-side pipe before the server has only
-        // detached the pluggable, leaving an invisible, partially collidable ghost.
-        // Send an explicit, server-validated attachment request instead. The FAIL
-        // result cancels *both* vanilla mining and the vanilla destruction packet.
+        // A vanilla break must not remove a holder when its attachment is targeted.
+        // ClientPreAttackCallback sends the exact native hit instead of mining the holder.
         AttackBlockCallback.EVENT.register((player, world, hand, pos, face) -> {
-            if (player.isSpectator()) return InteractionResult.PASS;
-            if (!(world.getBlockState(pos).getBlock() instanceof BlockPipeHolder pipe)
-                || !pipe.targetsAttachment(world, pos, player)) return InteractionResult.PASS;
-            if (world.isClientSide()) {
-                MessageManager.sendToServer(new MessagePipeAttachmentAttack(pos));
-                player.swing(hand, net.minecraft.world.item.component.SwingAnimation.DEFAULT, true);
-            }
-            return InteractionResult.FAIL;
+            if (world.isClientSide() || player.isSpectator()) return InteractionResult.PASS;
+            if (world.getBlockState(pos).getBlock() instanceof BlockPipeHolder pipe
+                && pipe.targetsAttachment(world, pos, player)) return InteractionResult.FAIL;
+            return InteractionResult.PASS;
         });
-        // Pick block must resolve its sub-part on the server rather than always cloning the pipe.
         PlayerPickItemEvents.BLOCK.register((player, pos, state, includeData) -> {
             if (state.getBlock() instanceof BlockPipeHolder pipe) {
+                var exact = MessagePipePartInteraction.pickOverride(player, pos);
+                if (exact != null) return exact;
                 return pipe.getCloneItemStack(player.level(), pos, state, includeData, player);
             }
             return null;

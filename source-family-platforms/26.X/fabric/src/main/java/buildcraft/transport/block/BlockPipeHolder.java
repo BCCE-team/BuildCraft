@@ -768,6 +768,18 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
 		return InteractionResult.PASS;
 	}
 
+    /** The native block hit is in the same coordinate system as the pipe shape. */
+    public int targetedPart(Level world, BlockPos pos, @Nullable BlockHitResult hit) {
+        BCBlockHitResult resolved = resolveBlockHit(world, pos, hit);
+        return resolved == null ? -1 : resolved.subHit;
+    }
+
+    public ItemStack pickPart(Level world, BlockPos pos, int subHit) {
+        TilePipeHolder tile = getPipe(world, pos, false);
+        if (tile == null || subHit < 0 || subHit >= getAllShape(world, pos).length) return ItemStack.EMPTY;
+        return getPickStack(tile, subHit);
+    }
+
     /** True only for a *present* attachment, never for the pipe body or an empty face. */
     public boolean targetsAttachment(Level world, BlockPos pos, Player player) {
         TilePipeHolder tile = getPipe(world, pos, false);
@@ -790,16 +802,20 @@ public class BlockPipeHolder extends BlockBCTile_Neptune implements ICustomPaint
      * fall through to super.onDestroyedByPlayer / Level.removeBlock.
      */
     public boolean removeTargetedAttachment(Level world, BlockPos pos, Player player) {
-        if (world.isClientSide() || !(world.getBlockState(pos).getBlock() instanceof BlockPipeHolder)) return false;
-        TilePipeHolder tile = getPipe(world, pos, true);
-        if (tile == null || tile.getPipe() == Pipe.EMPTY) return false;
         BCBlockHitResult hit = rayTrace(world, pos, player);
-        if (hit == null || hit.result == null || hit.subHit <= 6) return false;
+        return hit != null && hit.result != null && removeTargetedAttachment(world, pos, player, hit.subHit);
+    }
+
+    /** Remove only the already validated attachment, never the underlying pipe. */
+    public boolean removeTargetedAttachment(Level world, BlockPos pos, Player player, int subHit) {
+        if (world.isClientSide() || subHit <= 6 || subHit >= getAllShape(world, pos).length
+            || !(world.getBlockState(pos).getBlock() instanceof BlockPipeHolder)) return false;
+        TilePipeHolder tile = getPipe(world, pos, true);
+        if (tile == null || tile.getPipe() == Pipe.EMPTY || !tile.canPlayerInteract(player)) return false;
 
         NonNullList<ItemStack> drops = NonNullList.create();
-        int subHit = hit.subHit;
         if (subHit <= 12) {
-            Direction side = getPartSideHit(hit.result.getDirection(), subHit);
+            Direction side = Direction.values()[subHit - 7];
             if (side == null || tile.getPluggable(side) == PipePluggable.EMPTY) return false;
             removePluggable(side, tile, drops);
         } else {

@@ -1,0 +1,20 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "buildcraft.fabric.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ServerPlayerTickMixin",
+    "FishingHookRobotGuardMixin",
+    "PlayerChunkSenderMixin"
+  ],
+  "client": [
+    "LocalPlayerTickMixin",
+    "GuiGraphicsStateAccess",
+    "FluidFogMixin",
+    "PipePartPickMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

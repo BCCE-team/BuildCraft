@@ -14,6 +14,7 @@ elseif ($GradleArgs[0] -eq "assembly") {
 }
 
 # The build generations require different Gradle JVMs, not just compiler toolchains.
+# Both modern generations use Gradle on 25; 1.21.X compiles/runs on 21.
 # Reuse the JDK discovery from run-ci-local.py (including .jdks and Gradle JDKs).
 $Python = Get-Command python.exe -ErrorAction SilentlyContinue
 $PythonPrefix = @()
@@ -34,12 +35,14 @@ $JavaSelection = $JavaSelectionJson | ConvertFrom-Json
 
 $OriginalJavaHome = [Environment]::GetEnvironmentVariable("JAVA_HOME", "Process")
 $OriginalPath = [Environment]::GetEnvironmentVariable("PATH", "Process")
+$OriginalJava21Home = [Environment]::GetEnvironmentVariable("JAVA_HOME_21_X64", "Process")
 $Result = 0
 
 try {
+    $env:JAVA_HOME_21_X64 = [string]$JavaSelection.PSObject.Properties["21"].Value
     foreach ($Stage in @(
         @{ Generation = "old"; Java = 17 },
-        @{ Generation = "1.21.X"; Java = 21 },
+        @{ Generation = "1.21.X"; Java = 25 },
         @{ Generation = "26.X"; Java = 25 }
     )) {
         $Major = [string]$Stage.Java
@@ -80,6 +83,11 @@ finally {
         $env:JAVA_HOME = $OriginalJavaHome
     }
     $env:PATH = $OriginalPath
+    if ($null -eq $OriginalJava21Home) {
+        Remove-Item Env:JAVA_HOME_21_X64 -ErrorAction SilentlyContinue
+    } else {
+        $env:JAVA_HOME_21_X64 = $OriginalJava21Home
+    }
 }
 
 exit $Result

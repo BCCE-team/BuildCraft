@@ -29,7 +29,7 @@ Support for 1.21.11 and 26.2 neoforge may be dropped
 
 ## Roadmap 
 
-https://roadmap.bcce-team.tech/
+Roadmap and plans you can see on our [website](https://roadmap.bcce-team.tech/)
 
 ## For Modpack Creators
 

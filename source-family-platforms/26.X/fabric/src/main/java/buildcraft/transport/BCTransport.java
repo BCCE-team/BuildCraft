@@ -18,6 +18,7 @@ import buildcraft.transport.api2.TransportApi2;
 import buildcraft.transport.internal.pipe.PipeApi;
 import buildcraft.transport.net.MessageMultiPipeItem;
 import buildcraft.transport.net.MessagePipeAttachmentAttack;
+import buildcraft.transport.net.MessagePipePartInteraction;
 import buildcraft.transport.pipe.SchematicBlockPipe;
 import buildcraft.transport.wire.MessageWireSystems;
 import buildcraft.transport.wire.MessageWireSystemsPowered;
@@ -77,6 +78,10 @@ public final class BCTransport {
         MessageManager.registerMessageClass(BCModules.TRANSPORT,
             MessagePipeAttachmentAttack.class, MessagePipeAttachmentAttack.HANDLER,
             MessagePipeAttachmentAttack::toBytes, MessagePipeAttachmentAttack::new,
+            buildcraft.lib.net.BCNetworkSide.SERVER);
+        MessageManager.registerMessageClass(BCModules.TRANSPORT,
+            MessagePipePartInteraction.class, MessagePipePartInteraction.HANDLER,
+            MessagePipePartInteraction::toBytes, MessagePipePartInteraction::new,
             buildcraft.lib.net.BCNetworkSide.SERVER);
         BCTransportEventDist.registerGameplayEvents();
         SchematicBlockFactoryRegistry.registerFactory("pipe", 300,

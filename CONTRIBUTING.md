@@ -23,11 +23,13 @@ Include the Minecraft version, loader and its version, BCCE version, steps to re
 
 BCCE is a multi-version Java project with **three independent Gradle/Stonecutter build generations**. Use the tools required by the generation you are changing, rather than assuming one JDK works for everything.
 
-| Build generation | Maintained targets | Java |
-| --- | --- | --- |
-| `old` | `1.19.2-forge`, `1.20.1-forge` | 17 |
-| `1.21.X` | `1.21.1-neoforge`, `1.21.11-neoforge` | 21 |
-| `26.X` | `26.1.2-neoforge`, `26.2-neoforge`, `26.3-neoforge`, `26.3-fabric` | 25 |
+| Build generation | Maintained targets | Gradle JVM | Minecraft / compiler JDK |
+| --- | --- | --- | --- |
+| `old` | `1.19.2-forge`, `1.20.1-forge` | 17 | 17 |
+| `1.21.X` | `1.21.1-neoforge`, `1.21.11-neoforge`, `1.21.11-fabric` | 25 | 21 |
+| `26.X` | 26.1.2, 26.2 and 26.3 (NeoForge and Fabric) | 25 | 25 |
+
+Install both JDK 21 and JDK 25 for `1.21.X`. Loom 1.18.4 requires JDK 25 for Gradle, but this does not change the Minecraft runtime or mod bytecode requirements.
 
 You will also need **Python 3.11+** for the local CI runner. Use the Gradle Wrapper included with each build generation; there is no need to install a system-wide Gradle version.
 

@@ -124,6 +124,16 @@
         "ic2": false,
         "create": false
       }
+    },
+    "1.21.11-fabric": {
+      "generation": "1.21.X",
+      "mods": {},
+      "present": {
+        "ae2": false,
+        "forestry": false,
+        "ic2": false,
+        "create": false
+      }
     }
   }
 }

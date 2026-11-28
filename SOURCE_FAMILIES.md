@@ -28,7 +28,9 @@ Current targets:
 - `1.21.1-neoforge`
 - `1.21.11-neoforge`
 
-Planned targets include 1.21.11 Fabric.
+- `1.21.11-fabric` (source port; compilation and runtime verification pending)
+
+The 1.21.11 Fabric target reuses the native Fabric storage and registration base from `source-family-platforms/26.X/fabric`, overridden by `source-family-platforms/1.21.X/fabric` where the older Minecraft API differs. The 1.21.X Gradle daemon uses JDK 25 for Loom 1.18.4; Minecraft and the compiler toolchain remain JDK 21. Fabric uses official mappings and Loom remapping for distribution JARs.
 
 Build root: `builds/1.21.X`
 

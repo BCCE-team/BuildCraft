@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "id": "buildcraftlib",
+  "version": "${version}",
+  "provides": [
+    "buildcraftcore",
+    "buildcraftenergy",
+    "buildcrafttransport",
+    "buildcraftsilicon",
+    "buildcraftfactory",
+    "buildcraftbuilders",
+    "buildcraftrobotics",
+    "buildcraftcompat"
+  ],
+  "name": "BuildCraft Community Edition",
+  "description": "BuildCraft Community Edition for Minecraft 1.21.11 on Fabric.",
+  "authors": [
+    "CurativeTree, ShipovskijKorp, Memesis414, Smail and many other"
+  ],
+  "license": "MPL-2.0",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "buildcraft.fabric.BuildCraftFabric263",
+      "buildcraft.compat.BuildCraftCompat"
+    ],
+    "client": [
+      "buildcraft.fabric.BuildCraftFabric263Client"
+    ],
+    "modmenu": [
+      "buildcraft.fabric.BuildCraftModMenu"
+    ],
+    "jei_mod_plugin": [
+      "buildcraft.compat.jei.BuildCraftJeiPlugin"
+    ],
+    "rei_common": [
+      "buildcraft.compat.rei.BuildCraftReiCommonPlugin"
+    ],
+    "rei_client": [
+      "buildcraft.compat.rei.BuildCraftReiPlugin"
+    ],
+    "jade": [
+      "buildcraft.compat.jade.BuildCraftJadePlugin"
+    ],
+    "emi": [
+      "buildcraft.compat.emi.BuildCraftEmiPlugin"
+    ]
+  },
+  "mixins": [
+    "buildcraft.fabric263.mixins.json"
+  ],
+  "accessWidener": "buildcraft.accesswidener",
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "fabric-api": ">=0.141.6",
+    "minecraft": "1.21.11",
+    "java": ">=21",
+    "team_reborn_energy": ">=4.2.0"
+  },
+  "custom": {
+    "buildcraft:port_target": "1.21.11-fabric"
+  },
+  "suggests": {
+    "jei": "*",
+    "roughlyenoughitems": "*",
+    "jade": "*",
+    "modmenu": "*",
+    "emi": "*"
+  }
+}

@@ -62,7 +62,9 @@ cleanup() {
 trap cleanup EXIT
 
 java_version="$(read_target_property java.version)"
-java_home="$(select_java_home "$java_version")"
+# Check the game toolchain exists, then launch the Gradle wrapper on its own JDK.
+select_java_home "$java_version" >/dev/null
+java_home="$(select_gradle_java_home "$build_root")"
 mkdir -p "$run_dir"
 rm -f "$latest_log"
 : > "$client_log"

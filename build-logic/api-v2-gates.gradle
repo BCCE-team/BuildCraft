@@ -1,6 +1,9 @@
 /* Mandatory public API gates shared by every loader adapter. */
 def bc = project.ext.bcTarget
+// For pre-26.x Fabric, javac consumes named bytecode, while the installed candidate is remapped.
 def productionJar = tasks.named('jar', Jar)
+def remapping = bc.targetName == '1.21.11-fabric'
+def distributionJar = remapping ? tasks.named('remapJar') : productionJar
 def targetCompiler = tasks.named('compileJava', org.gradle.api.tasks.compile.JavaCompile)
 
 def verifyApi2AddonBinary = tasks.register('verifyApi2AddonBinary', Exec) {
@@ -25,7 +28,7 @@ def verifyApi2AddonBinary = tasks.register('verifyApi2AddonBinary', Exec) {
 def verifyApi2Compatibility = tasks.register('verifyApi2Compatibility', Exec) {
     group = 'verification'
     description = "Check released API ABI and old addon binary against ${bc.targetName}"
-    dependsOn productionJar, verifyApi2AddonBinary
+    dependsOn productionJar, distributionJar, verifyApi2AddonBinary
     workingDir bc.repositoryRoot
     environment 'PYTHONDONTWRITEBYTECODE', '1'
     doFirst {
@@ -37,6 +40,9 @@ def verifyApi2Compatibility = tasks.register('verifyApi2Compatibility', Exec) {
             '--release', bc.javaVersion.toString(),
             '--javac', javac,
             '--report', new File(bc.repositoryRoot, "build/api-abi/reports/${bc.targetName}.json").absolutePath]
+        if (remapping) {
+            command.addAll(['--distribution-jar', distributionJar.get().archiveFile.get().asFile.absolutePath])
+        }
         if (gradle.startParameter.offline) {
             command.add('--offline')
         }
@@ -46,21 +52,41 @@ def verifyApi2Compatibility = tasks.register('verifyApi2Compatibility', Exec) {
 
 // Installable test-only addon, compiled separately from public bytecode extracted
 // from the exact production candidate. Never put this JAR in the release folder.
-def buildApiTestAddon = tasks.register('buildApiTestAddon', Exec) {
+def addonOutput = new File(bc.repositoryRoot, "build/addon-fixture/installable/${bc.targetName}/bcce-api-test.jar")
+def namedAddon = remapping ? new File(project.buildDir, 'conformance/bcce-api-test-dev.jar') : addonOutput
+def compileApiTestAddon = tasks.register(remapping ? 'compileNamedApiTestAddon' : 'buildApiTestAddon', Exec) {
     group = 'verification'
     description = "Build independent installable API test addon for ${bc.targetName}"
-    dependsOn productionJar
+    dependsOn productionJar, distributionJar
     workingDir bc.repositoryRoot
     environment 'PYTHONDONTWRITEBYTECODE', '1'
     doFirst {
         def javac = targetCompiler.get().javaCompiler.get().executablePath.asFile.absolutePath
-        commandLine bc.pythonExecutable,
+        def command = [bc.pythonExecutable,
             new File(bc.repositoryRoot, 'scripts/build-api-test-addon.py').absolutePath,
             'build', '--target', bc.targetName,
             '--bcce-jar', productionJar.get().archiveFile.get().asFile.absolutePath,
             '--dependencies', sourceSets.main.compileClasspath.asPath,
             '--javac', javac,
-            '--output', new File(bc.repositoryRoot, "build/addon-fixture/installable/${bc.targetName}/bcce-api-test.jar").absolutePath
+            '--output', namedAddon.absolutePath]
+        if (remapping) {
+            command.addAll(['--distribution-jar', distributionJar.get().archiveFile.get().asFile.absolutePath])
+        }
+        commandLine command
+    }
+}
+def buildApiTestAddon = compileApiTestAddon
+if (remapping) {
+    // Use Loom's actual remap task type only on the Fabric project; other loaders
+    // do not have Loom on their script classpath.
+    def remapTaskType = distributionJar.get().getClass().getSuperclass()
+    buildApiTestAddon = tasks.register('buildApiTestAddon', remapTaskType) {
+        dependsOn compileApiTestAddon
+        inputFile.set(namedAddon)
+        archiveFileName.set(addonOutput.name)
+        destinationDirectory.set(addonOutput.parentFile)
+        addNestedDependencies.set(false)
+        classpath.from(sourceSets.main.compileClasspath)
     }
 }
 

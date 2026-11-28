@@ -77,7 +77,7 @@ SHA-256, in addition to the four semantic gameplay trace comparisons required fr
 
 `publish.yml` independently checks out the release tag and resolves the current
 `BCCE-team/Localizations` main revision once per release. Its three build jobs
-(`old` / Java 17, `1.21.X` / Java 21, `26.X` / Java 25) check out that same
+(`old` / Java 17, `1.21.X` / Java 21 toolchain on Gradle JVM 25, `26.X` / Java 25) check out that same
 localization commit and run `buildAndCollect`. This includes the mandatory ABI
 and independent addon compilation gates. Each finished production JAR is also
 checked for the expected embedded localization resources and staged with its

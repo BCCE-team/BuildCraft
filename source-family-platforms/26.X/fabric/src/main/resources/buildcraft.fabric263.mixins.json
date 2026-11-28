@@ -11,7 +11,8 @@
   "client": [
     "LocalPlayerTickMixin",
     "GuiGraphicsStateAccess",
-    "FluidFogMixin"
+    "FluidFogMixin",
+    "PipePartPickMixin"
   ],
   "injectors": {
     "defaultRequire": 1

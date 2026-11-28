@@ -294,6 +294,8 @@ def materialize_target(
             native_source=any(source_path.is_relative_to(root) for root in downport_roots),
             native_passthrough=(layout.platform == "fabric" and
                                 (source_path.is_relative_to(layout.family_platform_root) or
+                                 (layout.family_platform_base_root is not None and
+                                  source_path.is_relative_to(layout.family_platform_base_root)) or
                                  (layout.family_platform_downport_root is not None and
                                   source_path.is_relative_to(layout.family_platform_downport_root)))),
         )

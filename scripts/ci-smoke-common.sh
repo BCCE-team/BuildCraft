@@ -37,6 +37,17 @@ select_java_home() {
   return 1
 }
 
+# Userdev runs are Gradle processes; installed-server runs use the game JDK.
+select_gradle_java_home() {
+  local build_root="$1" major
+  major="$(read_property_file "${build_root}/gradle/gradle-daemon-jvm.properties" toolchainVersion)"
+  if [[ -z "$major" ]]; then
+    echo "Missing Gradle daemon JVM criteria for ${build_root}." >&2
+    return 1
+  fi
+  select_java_home "$major"
+}
+
 terminate_smoke_process_group() {
   local pid="${1:-}"
   if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then

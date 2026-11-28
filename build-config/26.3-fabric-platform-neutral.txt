@@ -388,3 +388,4 @@ source-family-platforms/26.X/fabric/src/gametest/java/buildcraft/gametest/Workbe
 source-family-platforms/26.X/fabric/src/gametest/java/buildcraft/transport/pipe/behaviour/PipeBehaviourGameTests.java
 source-family-platforms/26.X/fabric/src/gametest/java/buildcraft/transport/pipe/flow/PipeForgeEnergyGameTests.java
 source-family-platforms/26.X/fabric/src/gametest/java/buildcraft/transport/pipe/flow/TravellingItemGameTests.java
+source-family-platforms/26.X/fabric/src/main/java/buildcraft/core/client/FluidShardColors.java

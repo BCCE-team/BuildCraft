@@ -1,6 +1,7 @@
 {
-  "parent": "minecraft:item/generated",
+  "parent": "buildcraftenergy:item/fluid_overlays/gas_bucket",
   "textures": {
-    "layer0": "buildcraftenergy:item/fluid_overlays/fuel_gaseous_hot"
+    "layer0": "minecraft:item/bucket",
+    "layer1": "buildcraftenergy:item/fluid_overlays/fuel_gaseous_hot"
   }
 }

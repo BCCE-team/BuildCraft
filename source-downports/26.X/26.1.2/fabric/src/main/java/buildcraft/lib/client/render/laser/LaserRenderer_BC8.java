@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import buildcraft.lib.client.render.laser.LaserData_BC8.LaserType;
+import buildcraft.core.client.BuildCraftLaserManager;
 import buildcraft.lib.misc.SpriteUtil;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -131,7 +132,14 @@ public class LaserRenderer_BC8 {
     }
 
     private static void makeLaser(LaserData_BC8 data, ILaserRenderer renderer, boolean isStatic) {
-        LaserContext ctx = new LaserContext(renderer, data, data.enableDiffuse, data.doubleFace, isStatic);
+        // The blue marker signal/active volume-box outline must keep its texture colour even when
+        // the Fabric submit pipeline uses coloured lightmaps. Do not change any other laser type.
+        boolean blueSignal = data.laserType == BuildCraftLaserManager.MARKER_VOLUME_SIGNAL;
+        ILaserRenderer output = blueSignal
+            ? (x, y, z, u, v, light, nx, ny, nz, diffuse) ->
+                renderer.vertex(x, y, z, u, v, 0x00F000F0, 0, 1, 0, 1.0F)
+            : renderer;
+        LaserContext ctx = new LaserContext(output, data, !blueSignal && data.enableDiffuse, data.doubleFace, isStatic);
         CompiledLaserType type = compileType(data.laserType);
         type.bakeFor(ctx);
     }

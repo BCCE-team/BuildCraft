@@ -29,6 +29,7 @@ TARGETS = (
     ("1.20.1-forge", "old", 17),
     ("1.21.1-neoforge", "1.21.X", 21),
     ("1.21.11-neoforge", "1.21.X", 21),
+    ("1.21.11-fabric", "1.21.X", 21),
     ("26.1.2-neoforge", "26.X", 25),
     ("26.2-neoforge", "26.X", 25),
     ("26.3-neoforge", "26.X", 25),
@@ -36,6 +37,17 @@ TARGETS = (
     ("26.2-fabric", "26.X", 25),
     ("26.1.2-fabric", "26.X", 25),
 )
+
+
+def gradle_java_major(generation: str) -> int:
+    """The generation daemon may need a newer JDK than the Minecraft toolchain."""
+    criteria = ROOT / "builds" / generation / "gradle" / "gradle-daemon-jvm.properties"
+    for line in criteria.read_text(encoding="utf-8").splitlines():
+        if line.startswith("toolchainVersion="):
+            return int(line.split("=", 1)[1])
+    raise ValueError(f"Missing Gradle daemon toolchainVersion in {criteria}")
+
+
 def _unittest_command(pattern: str) -> tuple[str, ...]:
     """One source of truth for Python unittest discovery in local CI."""
     return (sys.executable, "-m", "unittest", "discover", "-s",
@@ -706,7 +718,7 @@ def write_plan(
         lines.append("Target tests:")
         for index, (target, generation, java) in enumerate(TARGETS):
             prefix = "  - [SKIP] " if index < target_start else "  - "
-            lines.append(f"{prefix}{target} ({generation}, Java {java}): build + AutoTests -> GameTests -> artifacts")
+            lines.append(f"{prefix}{target} ({generation}, Gradle Java {gradle_java_major(generation)}, Minecraft Java {java}): build + AutoTests -> GameTests -> artifacts")
     (run_dir / "plan.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
 
@@ -744,6 +756,7 @@ def main() -> int:
         required_jdks.add(21)
     if not args.validate_only:
         required_jdks.update(java for _, _, java in TARGETS[target_start:])
+        required_jdks.update(gradle_java_major(generation) for _, generation, _ in TARGETS[target_start:])
 
     installations = discover_java_installations()
     jdks: dict[int, Path] = {}
@@ -853,7 +866,7 @@ def main() -> int:
             step_number += 1
             record(f"Run GameTests [{target}]", None, None, skipped=True)
             continue
-        target_env = environment_with_java(base_env, jdks[java])
+        target_env = environment_with_java(base_env, jdks[gradle_java_major(generation)])
         target_env["BUILD_GENERATION"] = generation
         target_env["STONECUTTER_TARGET"] = target
         build_root = ROOT / "builds" / generation

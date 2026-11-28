@@ -25,21 +25,23 @@ $Targets = @{
 
 $Config = $Targets[$Version]
 if ($Loader -eq "fabric") {
-    if ($Version -notin @("26.1.2", "26.2", "26.3")) { throw "Fabric is supported on Minecraft 26.1.2, 26.2 and 26.3" }
-    $Config = @{ Generation = "26.X"; Target = "$Version-fabric" }
+    if ($Version -notin @("1.21.11", "26.1.2", "26.2", "26.3")) { throw "Fabric is supported on Minecraft 1.21.11, 26.1.2, 26.2 and 26.3" }
+    $Config = @{ Generation = $(if ($Version -eq "1.21.11") { "1.21.X" } else { "26.X" }); Target = "$Version-fabric" }
 }
 $BuildRoot = Join-Path $RepositoryRoot "builds/$($Config.Generation)"
 $Task = ":$($Config.Target):runClient"
 $JavaMajor = switch ($Config.Generation) {
     "old" { 17 }
-    "1.21.X" { 21 }
+    "1.21.X" { 25 }
     "26.X" { 25 }
     default { throw "Unsupported BuildCraft build generation: $($Config.Generation)" }
 }
 
-# runClient needs the build-generation JVM, not just a Java compiler toolchain.
-# The IDEA Gradle configurations use per-build daemon criteria as well; this
-# launcher keeps standalone PowerShell runs correct when the default Java is 19/25.
+# The Gradle daemon and the game/compiler toolchain are separate.
+# Loom 1.18.4 needs Java 25 even for Minecraft 1.21.11. All projects
+# in 1.21.X share that daemon, but the game and javac stay on Java 21.
+$RequiredJava = @($JavaMajor)
+if ($Config.Generation -eq "1.21.X") { $RequiredJava += 21 }
 $Python = Get-Command python.exe -ErrorAction SilentlyContinue
 $PythonPrefix = @()
 if (-not $Python) {
@@ -51,9 +53,9 @@ if (-not $Python) {
 }
 
 $Selector = Join-Path $RepositoryRoot "scripts/select-build-java.py"
-$JavaSelectionJson = & $Python.Source @PythonPrefix $Selector $JavaMajor
+$JavaSelectionJson = & $Python.Source @PythonPrefix $Selector @RequiredJava
 if ($LASTEXITCODE -ne 0) {
-    throw "Cannot locate JDK $JavaMajor for $($Config.Target); see the diagnostics above."
+    throw "Cannot locate required JDK(s) $($RequiredJava -join ", ") for $($Config.Target); see the diagnostics above."
 }
 $JavaSelection = $JavaSelectionJson | ConvertFrom-Json
 $SelectedJava = $JavaSelection.PSObject.Properties[[string]$JavaMajor]
@@ -68,6 +70,7 @@ if (-not (Test-Path -LiteralPath $JavaExe -PathType Leaf)) {
 
 $OriginalJavaHome = [Environment]::GetEnvironmentVariable("JAVA_HOME", "Process")
 $OriginalPath = [Environment]::GetEnvironmentVariable("PATH", "Process")
+$OriginalJava21Home = [Environment]::GetEnvironmentVariable("JAVA_HOME_21_X64", "Process")
 $Result = 0
 
 Write-Host "==> Running BuildCraft client $Version ($($Config.Target))"
@@ -75,6 +78,10 @@ Write-Host "==> Gradle task: $Task"
 Write-Host "==> Gradle JVM: Java $JavaMajor ($JavaHome)"
 
 try {
+    if ($Config.Generation -eq "1.21.X") {
+        $env:JAVA_HOME_21_X64 = [string]$JavaSelection.PSObject.Properties["21"].Value
+        Write-Host "==> Minecraft/compiler toolchain: Java 21 ($env:JAVA_HOME_21_X64)"
+    }
     $env:JAVA_HOME = $JavaHome
     $env:PATH = (Join-Path $JavaHome "bin") + [IO.Path]::PathSeparator + $OriginalPath
     Push-Location $BuildRoot
@@ -94,5 +101,10 @@ finally {
         $env:JAVA_HOME = $OriginalJavaHome
     }
     $env:PATH = $OriginalPath
+    if ($null -eq $OriginalJava21Home) {
+        Remove-Item Env:JAVA_HOME_21_X64 -ErrorAction SilentlyContinue
+    } else {
+        $env:JAVA_HOME_21_X64 = $OriginalJava21Home
+    }
 }
 exit $Result
