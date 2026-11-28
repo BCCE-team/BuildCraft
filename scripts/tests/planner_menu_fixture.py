@@ -1,7 +1,8 @@
 """Executable Java fake-network check of the real Filler Planner menu.
 
 Simulates client with NO synced VolumeBox, real server addon, NET_DATA exchanges,
-lock rejection, delayed snapshot redelivery and persistent configuration. No game runtime.
+lock/reach rejection, delayed snapshot redelivery and persistent configuration.
+Compiles the real ship-coordinate bridge with typed Minecraft doubles. No game runtime.
 """
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 
-def execute(real_source: Path, *, level_method: bool) -> str:
+def execute(real_source: Path, *, ship_source: Path, level_method: bool) -> str:
     level_decl='public boolean isClientSide(){return client;}' if level_method else 'public boolean isClientSide;'
     level_constructor='this.client=c;' if level_method else 'this.isClientSide=c;'
     level_property='public final boolean client;' if level_method else ''
@@ -18,13 +19,23 @@ def execute(real_source: Path, *, level_method: bool) -> str:
         'net/minecraft/world/level/Level':f'''package net.minecraft.world.level;
 public class Level{{{level_property} {level_decl} public Level(boolean c){{{level_constructor}}}}}''',
         'net/minecraft/world/phys/Vec3':'''package net.minecraft.world.phys;
-public record Vec3(double x,double y,double z){
-public double distanceToSqr(Vec3 p){return Math.pow(x-p.x(),2)+Math.pow(y-p.y(),2)+Math.pow(z-p.z(),2);}}''',
+public class Vec3 {public final double x,y,z;
+public Vec3(double x,double y,double z){this.x=x;this.y=y;this.z=z;}
+public double distanceToSqr(Vec3 p){return Math.pow(x-p.x,2)+Math.pow(y-p.y,2)+Math.pow(z-p.z,2);}}''',
+        'net/minecraft/core/BlockPos':'''package net.minecraft.core;
+public record BlockPos(int x,int y,int z){
+public int getX(){return x;}public int getY(){return y;}public int getZ(){return z;}}''',
+        'net/minecraft/world/entity/Entity':'''package net.minecraft.world.entity;
+public class Entity {}''',
+        'buildcraft/lib/internal/debug/BCLog':'''package buildcraft.lib.internal.debug;
+public class BCLog {public static final Log logger=new Log();
+public static class Log {public void warn(String message,Object... args){}}}''',
         'net/minecraft/world/entity/player/Player':'''package net.minecraft.world.entity.player;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;import net.minecraft.world.phys.Vec3;
-public class Player {public final Level level;public Vec3 eye=new Vec3(1,2,3);
+public class Player extends Entity {public final Level level;public Vec3 eye=new Vec3(1,2,3);
 public Player(Level l){level=l;}public Level level(){return level;}
-public Vec3 getEyePosition(){return eye;}}''',
+public Vec3 position(){return eye;}public Vec3 getEyePosition(){return eye;}}''',
         'net/minecraft/world/entity/player/Inventory':'''package net.minecraft.world.entity.player;
 public class Inventory{public final Player player;public Inventory(Player p){player=p;}}''',
         'net/minecraft/network/FriendlyByteBuf':'''package net.minecraft.network;
@@ -137,6 +148,7 @@ import buildcraft.lib.net.BCNetworkSide;
 import buildcraft.lib.statement.FullStatement.Pattern;
 import net.minecraft.world.entity.player.*;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.network.FriendlyByteBuf;
 public class Check{
 static int n;static void ok(boolean v){n++;if(!v)throw new AssertionError("check "+n);}
@@ -151,6 +163,16 @@ var client=new ContainerFillerPlanner(1,new Inventory(clientPlayer),box.id,EnumA
 // Client render boxes are completely absent, but the editor must remain valid.
 ok(client.stillValid(clientPlayer));ok(client.isLocked());
 ok(server.stillValid(serverPlayer));ok(server.outgoing.size()==1);
+// Server authority must use the real coordinate bridge and the inclusive 8-block limit.
+ok(!server.stillValid(new Player(level)));
+serverPlayer.eye=new Vec3(9,2,3);ok(server.stillValid(serverPlayer));
+serverPlayer.eye=new Vec3(9.0001,2,3);ok(!server.stillValid(serverPlayer));
+serverPlayer.eye=new Vec3(Double.NaN,2,3);ok(!server.stillValid(serverPlayer));
+serverPlayer.eye=new Vec3(1,2,3);
+var wrongWorld=new VolumeBox(new Level(false));wrongWorld.id=box.id;
+wrongWorld.addons.put(EnumAddonSlot.CORNER,addon);
+WorldSavedDataVolumeBoxes.DATA.box=wrongWorld;ok(!server.stillValid(serverPlayer));
+WorldSavedDataVolumeBoxes.DATA.box=box;ok(server.stillValid(serverPlayer));
 client.readMessage(MenuBC_Neptune.NET_DATA,server.pop(),BCNetworkSide.CLIENT,null);
 ok(!client.isLocked());ok(client.isInverted()==false);
 ok(client.getPatternStatementClient().get()==Pattern.CLEAR);
@@ -166,6 +188,19 @@ ok(addon.updated==1);ok(WorldSavedDataVolumeBoxes.DATA.dirty==1);
 client.readMessage(MenuBC_Neptune.NET_DATA,server.pop(),BCNetworkSide.CLIENT,null);
 ok(client.getPatternStatementClient().get()==Pattern.FILL);
 ok(client.isInverted());ok(!client.isLocked());
+// A stale open menu cannot edit the real planner after the player leaves its reach.
+serverPlayer.eye=new Vec3(9.0001,2,3);
+client.getPatternStatementClient().set(Pattern.CLEAR);
+client.getPatternStatementClient().set(0,7);client.sendInverted(false);
+var remoteEdit=client.pop();
+server.readMessage(MenuBC_Neptune.NET_DATA,remoteEdit,BCNetworkSide.SERVER,null);
+ok(remoteEdit.remaining()==0);
+ok(addon.patternStatement.get()==Pattern.FILL);
+ok(Objects.equals(addon.patternStatement.get(0),3));ok(addon.inverted);
+ok(addon.updated==1);ok(WorldSavedDataVolumeBoxes.DATA.dirty==1);
+client.readMessage(MenuBC_Neptune.NET_DATA,server.pop(),BCNetworkSide.CLIENT,null);
+ok(client.getPatternStatementClient().get()==Pattern.FILL);ok(client.isInverted());
+serverPlayer.eye=new Vec3(1,2,3);
 // Lock a working planner: update must be rejected, and client lock is synced.
 box.locks.add(new Lock.Target.TargetAddon(EnumAddonSlot.CORNER));server.sendData();
 client.readMessage(MenuBC_Neptune.NET_DATA,server.pop(),BCNetworkSide.CLIENT,null);
@@ -195,6 +230,9 @@ System.out.println(n+" assertions PASS");
             p.write_text(body);paths.append(str(p))
         f=root/'src/buildcraft/builders/menu/ContainerFillerPlanner.java'
         f.write_bytes(real_source.read_bytes());paths.append(str(f))
+        bridge=root/'src/buildcraft/lib/misc/ShipWorldAccess.java'
+        bridge.parent.mkdir(parents=True,exist_ok=True)
+        bridge.write_bytes(ship_source.read_bytes());paths.append(str(bridge))
         result=subprocess.run(['javac','--release','21','-encoding','UTF-8','-d',str(root/'classes'),*paths],
             capture_output=True,text=True,timeout=70)
         if result.returncode:raise AssertionError('Planner menu Java compile failed:\n'+result.stdout+'\n'+result.stderr)

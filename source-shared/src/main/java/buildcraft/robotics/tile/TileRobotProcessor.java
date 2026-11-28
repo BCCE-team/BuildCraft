@@ -182,6 +182,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         legacyForcedTicketCleanup.addAll(obsoleteTickets);
         persistedMiningWork = new long[0];
         persistedCatalog = RobotWorkIndex.CatalogSnapshot.empty();
+        persistedCatalogScope = "";
         for (int i = 0; i < layers.length; i++) layers[i] = new ZonePlan();
         super.selectArea(0);
         mapName = "";
@@ -305,6 +306,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     private long[] persistedMiningWork = new long[0];
     /** Catalog survives world reload, but never stores active leases or robot claims. */
     private RobotWorkIndex.CatalogSnapshot persistedCatalog = RobotWorkIndex.CatalogSnapshot.empty();
+    private String persistedCatalogScope = "";
     private boolean schedulerSuspended;
     private final Map<Long, String> robotNames = new LinkedHashMap<>();
     private final Map<StationKey, String> stationNames = new LinkedHashMap<>();
@@ -502,7 +504,15 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
      * the full 7x7 area, matching the initial configuration without a map.
      */
     public boolean allowsWorkPosition(BlockPos target) {
-        if (!isOperational()) return false;
+        return isOperational() && matchesWorkArea(target);
+    }
+
+    /** Loading a tentative catalog must not depend on the processor's MJ buffer. */
+    public boolean allowsCatalogPosition(BlockPos target) {
+        return hasMountedDisk() && linksInThisDimension() && matchesWorkArea(target);
+    }
+
+    private boolean matchesWorkArea(BlockPos target) {
         if (!getDiskLayout().contains(worldPosition, target.getX(), target.getZ())) return false;
         boolean hasPaint = false;
         for (ZonePlan layer : layers) {
@@ -583,6 +593,39 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     private static final String CATALOG_COUNTS_KEY = "discoveryCatalogCounts";
     private static final String CATALOG_POSITIONS_KEY = "discoveryCatalogPositions";
     private static final String CATALOG_VERSION_KEY = "discoveryCatalogVersion";
+    private static final String CATALOG_SCOPE_KEY = "discoveryCatalogScope";
+
+    /** Absolute-coordinate hints belong to this installed disk, dimension and block only. */
+    private static String catalogScope(String disk, String dimension, long origin) {
+        return disk.isEmpty() || dimension.isEmpty() ? "" : disk + "|" + dimension + "|" + origin;
+    }
+
+    private static boolean sameCatalogScope(String saved, String active) {
+        return !saved.isEmpty() && saved.equals(active);
+    }
+
+    private String catalogScope() {
+        return hasMountedDisk() ? catalogScope(diskIdentity, linkDimension, worldPosition.asLong()) : "";
+    }
+
+    /** Cache only: never put absolute targets or active leases on a portable HDD. */
+    private void writeCatalog(CompoundTag tag) {
+        String scope = catalogScope();
+        if (scope.isEmpty()) {
+            tag.remove(CATALOG_SCOPE_KEY);
+            tag.remove(CATALOG_VERSION_KEY);
+            tag.remove(CATALOG_TYPES_KEY);
+            tag.remove(CATALOG_COUNTS_KEY);
+            tag.remove(CATALOG_POSITIONS_KEY);
+            return;
+        }
+        RobotWorkIndex.CatalogSnapshot catalog = savedCatalog();
+        tag.putString(CATALOG_SCOPE_KEY, scope);
+        tag.putInt(CATALOG_VERSION_KEY, RobotWorkIndex.CATALOG_FORMAT);
+        tag.putString(CATALOG_TYPES_KEY, catalog.categories());
+        tag.putIntArray(CATALOG_COUNTS_KEY, catalog.counts());
+        tag.putLongArray(CATALOG_POSITIONS_KEY, catalog.positions());
+    }
 
     private void loadLinks(long[] robotIds, long[] stations, int[] stationSides,
                            long[] knownPositions, long[] forcedIds) {
@@ -658,6 +701,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
                 data.has("maxExecutionQueue") ? data.readInt("maxExecutionQueue") : DEFAULT_EXECUTION_QUEUE));
         restoreNames(data.readString("robotNames"), data.readString("stationNames"));
         persistedMiningWork = data.readLongArray("pendingMiningWork");
+        persistedCatalogScope = data.readString(CATALOG_SCOPE_KEY);
         persistedCatalog = data.has(CATALOG_VERSION_KEY)
                 && data.readInt(CATALOG_VERSION_KEY) == RobotWorkIndex.CATALOG_FORMAT
                 ? new RobotWorkIndex.CatalogSnapshot(data.readString(CATALOG_TYPES_KEY),
@@ -670,6 +714,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         super.writeData(data);
         data.writeLong("processorEnergy", getStoredEnergy());
         removeLegacyMapData(data.tag());
+        writeCatalog(data.tag());
         data.writeLongArray("cleanupTickets", cleanupTicketPositions());
     }
     //?} else {
@@ -685,6 +730,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
                 tag.contains("maxExecutionQueue") ? tag.getInt("maxExecutionQueue") : DEFAULT_EXECUTION_QUEUE));
         restoreNames(tag.getString("robotNames"), tag.getString("stationNames"));
         persistedMiningWork = tag.getLongArray("pendingMiningWork");
+        persistedCatalogScope = tag.getString(CATALOG_SCOPE_KEY);
         persistedCatalog = tag.contains(CATALOG_VERSION_KEY)
                 && tag.getInt(CATALOG_VERSION_KEY) == RobotWorkIndex.CATALOG_FORMAT
                 ? new RobotWorkIndex.CatalogSnapshot(tag.getString(CATALOG_TYPES_KEY),
@@ -697,6 +743,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         super.saveAdditional(tag);
         tag.putLong("processorEnergy", getStoredEnergy());
         removeLegacyMapData(tag);
+        writeCatalog(tag);
         tag.putLongArray("cleanupTickets", cleanupTicketPositions());
     }
     //?}
@@ -867,8 +914,17 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         schedulerSuspended = false;
         schedulerRunning = false;
         requestedPower = consumedPower = 0;
+        // Mounting media clears all runtime state. Capture the saved block-local
+        // cache first and only reuse it after validating the installed identity.
+        RobotWorkIndex.CatalogSnapshot saved = persistedCatalog;
+        String savedScope = persistedCatalogScope;
         restoreMediaOnLoad();
         workScheduler.onLinkChanged();
+        if (linksInThisDimension() && sameCatalogScope(savedScope, catalogScope())) {
+            workScheduler.restoreCatalog(saved);
+        }
+        persistedCatalog = RobotWorkIndex.CatalogSnapshot.empty();
+        persistedCatalogScope = "";
         // Avoid ticket operations inside the owner's chunk load future.
         chunkLoadingStartupDelay = 40;
     }
@@ -954,6 +1010,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
         // Ordinary queue mutations have already called setChanged().
         persistedMiningWork = workScheduler.pendingWorkSnapshot();
         persistedCatalog = workScheduler.catalogSnapshot();
+        persistedCatalogScope = catalogScope();
         schedulerSuspended = true;
         schedulerRunning = false;
         requestedPower = consumedPower = 0;
@@ -965,6 +1022,7 @@ public class TileRobotProcessor extends TileZonePlanner implements IChunkLoading
     public void onRemove(boolean dropSelf) {
         persistedMiningWork = new long[0];
         persistedCatalog = RobotWorkIndex.CatalogSnapshot.empty();
+        persistedCatalogScope = "";
         workScheduler.onRemoved();
         if (level instanceof ServerLevel) ChunkLoaderManager.releaseChunksFor(this);
         super.onRemove(dropSelf);

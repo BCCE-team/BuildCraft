@@ -13,9 +13,7 @@ import net.minecraft.resources.ResourceLocation;
 /** Client only. The key is unbound until the player assigns it in Controls. */
 public final class ConfigurationKey {
     private ConfigurationKey() {}
-//? if fabric {
-    public static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("buildcraft", "controls"));
-//?} else if >=1.21.11 {
+//? if >=1.21.11 {
     public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(Identifier.fromNamespaceAndPath("buildcraft", "controls"));
 //?} else if >=1.21.9 {
     public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(ResourceLocation.fromNamespaceAndPath("buildcraft", "controls"));

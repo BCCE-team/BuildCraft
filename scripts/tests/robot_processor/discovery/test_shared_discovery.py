@@ -80,7 +80,9 @@ public class VerifyWorkIndex {
         code = SCHEDULER.read_text()
         for fragment in ('PER_PANEL_BLOCK_BUDGET = 384', 'PER_LEVEL_BLOCK_BUDGET = 2048',
                          'level.hasChunkAt(pos)', 'level.getBlockState(pos)',
-                         'TileRobotProcessor.WORK_AREA_RADIUS_CHUNKS',
+                         'panel.workMinX() >> 4; x <= (panel.workMinX() + 111) >> 4',
+                         'panel.workMinZ() >> 4; z <= (panel.workMinZ() + 111) >> 4',
+                         'ChunkUtil.getChunk(level, x, z, false)', 'panel.allowsWorkPosition(pos)',
                          'anchor.getX() >> 4', 'index.forgetUnused(List.of())',
                          'boolean backgroundPending = !scanSections.isEmpty()', '&& !passComplete'):
             with self.subTest(feature=fragment): self.assertIn(fragment, code)

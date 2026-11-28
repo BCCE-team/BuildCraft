@@ -651,6 +651,13 @@
     "kind": "ItemRobotController"
   },
   {
+    "id": "buildcraftrobotics:hard_disk",
+    "key": "item.buildcraftrobotics.hard_disk",
+    "name_en_us": "Hard Disk Drive",
+    "source": "buildcraft/robotics/BCRoboticsItems.java",
+    "kind": "ItemHardDisk"
+  },
+  {
     "id": "buildcraftrobotics:redstone_board",
     "key": "item.buildcraftrobotics.redstone_board",
     "name_en_us": "Redstone Board",

@@ -51,6 +51,7 @@ public final class Identifier {
     "fixture/VerifyOilProfiles.java": r"""package fixture;
 import buildcraft.energy.BCEnergy;
 import buildcraft.energy.BCEnergyConfig;
+import buildcraft.energy.OilIndustry;
 import buildcraft.energy.generation.features.OilGenerator;
 import buildcraft.energy.generation.features.OilGenerationProfile;
 import buildcraft.lib.platform.config.BCConfigSpec;
@@ -65,10 +66,12 @@ public final class VerifyOilProfiles {
   }
   static final class Backend implements BCConfigSpec.Backend {
     OilGenerationProfile chosen = OilGenerationProfile.STANDARD;
+    OilIndustry.Mode industryMode = OilIndustry.Mode.MODERN;
     double customRate = 0.3D;
     boolean blockDamage = true;
     boolean restartPending;
     int choices;
+    int modeChoices;
     public void push(String path) {}
     public void pop() {}
     public void comment(String... lines) {}
@@ -99,6 +102,15 @@ public final class VerifyOilProfiles {
     }
     @SuppressWarnings("unchecked")
     public <E extends Enum<E>> Supplier<E> enumeration(String name, E value, E[] allowed) {
+      if ("mode".equals(name) && value instanceof OilIndustry.Mode) {
+        check(restartPending, "Oil industry mode needs a world restart");
+        check(value == OilIndustry.Mode.MODERN, "Wrong default industry mode");
+        check(allowed.length == 0 || java.util.Set.of(allowed).equals(java.util.Set.of(OilIndustry.Mode.values())),
+            "Both industry modes must remain selectable");
+        modeChoices++;
+        restartPending = false;
+        return () -> (E) industryMode;
+      }
       if ("generationProfile".equals(name)) {
         check(restartPending, "Oil profile needs a restart for deterministic generation");
         check(value == OilGenerationProfile.STANDARD, "Wrong default preset");
@@ -127,10 +139,13 @@ public final class VerifyOilProfiles {
     Backend backend = new Backend();
     BCEnergyConfig.config.bind(backend);
     check(backend.choices == 1, "Oil config option was not registered exactly once");
+    check(backend.modeChoices == 1, "Oil industry mode was not registered exactly once");
     for (int i = 0; i < presets.length; i++) {
       backend.chosen = presets[i];
       BCEnergyConfig.onLoadConfig(BCEnergy.MODID);
       check(BCEnergyConfig.oilGenerationProfile == presets[i], "Config reload ignored preset " + i);
+      check(OilIndustry.serverMode() == OilIndustry.Mode.MODERN && !OilIndustry.classic(),
+          "Modern industry mode was not loaded");
       equalsDouble(rates[i], presets[i].rate(), "Wrong frequency");
       equalsDouble(factors[i], presets[i].multiplier(), "Wrong profile multiplier");
       equalsDouble(factors[i], BCEnergyConfig.oilGenerationMultiplier, "Wrong runtime multiplier");
@@ -138,17 +153,26 @@ public final class VerifyOilProfiles {
       equalsDouble(2.0D * rates[i], 0.6D * presets[i].multiplier(), "Custom datapack scaling lost");
     }
     backend.customRate = 0.73D; backend.blockDamage = false;
+    backend.industryMode = OilIndustry.Mode.CLASSIC;
     BCEnergyConfig.onLoadConfig(BCEnergy.MODID);
+    check(OilIndustry.serverMode() == OilIndustry.Mode.CLASSIC && OilIndustry.classic(),
+        "Classic industry mode was not loaded");
     equalsDouble(0.73D, 0.3D * BCEnergyConfig.oilGenerationMultiplier, "Custom rate ignored");
     check(!BCEnergyConfig.engineExplosionBlockDamage, "Explosion block damage toggle ignored");
     backend.customRate = 0D;
     BCEnergyConfig.onLoadConfig(BCEnergy.MODID);
     equalsDouble(0D, BCEnergyConfig.oilGenerationMultiplier, "Custom zero ignored");
     backend.chosen = OilGenerationProfile.HIGH;
-    BCEnergyConfig.onLoadConfig(BCEnergy.MODID);
+    backend.industryMode = OilIndustry.Mode.MODERN;
+    BCEnergyConfig.onReloadConfig("unrelated_mod");
+    check(OilIndustry.serverMode() == OilIndustry.Mode.CLASSIC && OilGenerator.clears == 6,
+        "Unrelated config reload changed the industry mode or generation cache");
+    BCEnergyConfig.onReloadConfig(BCEnergy.MODID);
+    check(OilIndustry.serverMode() == OilIndustry.Mode.MODERN && !OilIndustry.classic(),
+        "Modern industry mode was not restored on config reload");
     equalsDouble(2D, BCEnergyConfig.oilGenerationMultiplier, "Preset affected by custom value");
     check(OilGenerator.clears == 7, "Config reload did not clear cached oil structures");
-    System.out.println("PASS: four profiles, default 0.3, custom rate, independent preset rates, block damage, cache invalidation");
+    System.out.println("PASS: four profiles, default 0.3, custom rate, independent preset rates, block damage, cache invalidation, both oil industry modes");
   }
 }
 """,
@@ -169,6 +193,8 @@ def verify() -> str:
                 sources.append(path)
             for source, target in (
                 (ROOT / config, root / "buildcraft/energy/BCEnergyConfig.java"),
+                (ROOT / "source-shared/src/main/java/buildcraft/energy/OilIndustry.java",
+                 root / "buildcraft/energy/OilIndustry.java"),
                 (ROOT / "source-shared/src/main/java/buildcraft/energy/generation/features/OilGenerationProfile.java",
                  root / "buildcraft/energy/generation/features/OilGenerationProfile.java"),
                 (ROOT / "source-shared/src/main/java/buildcraft/lib/platform/config/BCConfigSpec.java",

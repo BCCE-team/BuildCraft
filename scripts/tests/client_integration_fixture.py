@@ -399,6 +399,14 @@ source('net.neoforged.fml.common.EventBusSubscriber', '''
 public @interface EventBusSubscriber {String modid();net.neoforged.api.distmarker.Dist[] value() default {};}
 ''')
 source('buildcraft.lib.recipe.AssemblyRecipeBasic', 'public class AssemblyRecipeBasic implements net.minecraft.world.item.crafting.Recipe<net.minecraft.world.item.crafting.RecipeInput> {}')
+# Recipe catalog is outside this probe's scope; retain the real EMI callback contract.
+source('buildcraft.lib.recipe.ClientMachineRecipeCatalog', '''
+public final class ClientMachineRecipeCatalog {
+ private static Runnable emiListener;
+ public static void setEmiListener(Runnable callback){emiListener=callback;}
+ public static void notifyEmi(){if(emiListener!=null)emiListener.run();}
+}
+''')
 source('buildcraft.silicon.BCSilicon', 'public class BCSilicon {public static final String MODID="buildcraftsilicon";}')
 source('buildcraft.silicon.BCSiliconRecipes', '''
 public class BCSiliconRecipes {private static final net.minecraft.world.item.crafting.RecipeType<buildcraft.lib.recipe.AssemblyRecipeBasic> TYPE=new net.minecraft.world.item.crafting.RecipeType<>();public static final java.util.function.Supplier<net.minecraft.world.item.crafting.RecipeType<buildcraft.lib.recipe.AssemblyRecipeBasic>> ASSEMBLY_TYPE=()->TYPE;}
@@ -549,20 +557,28 @@ public class JadeDataProbe {public static void run(){
 ''')
 source('probe.SyncProbe', '''
 import static probe.Checks.that;
+import buildcraft.lib.recipe.ClientMachineRecipeCatalog;
 import buildcraft.silicon.*;
 import net.minecraft.world.item.crafting.*;
 import net.neoforged.neoforge.client.event.*;
 import java.util.*;
 public class SyncProbe {public static void run() throws Exception {
+ var emiSizes=new ArrayList<Integer>();
+ ClientMachineRecipeCatalog.setEmiListener(()->emiSizes.add(BCSiliconRecipeSync.Client.assemblyRecipes().size()));
  var request=new net.neoforged.neoforge.event.OnDatapackSyncEvent();BCSiliconRecipeSync.onDatapackSync(request);
  that(request.requested.equals(List.of(BCSiliconRecipes.ASSEMBLY_TYPE.get())),"server requests correct recipe type");
  var entry=new RecipeHolder<>(new net.minecraft.resources.ResourceKey<Recipe<?>>(new net.minecraft.resources.Identifier("test","assembly")),new buildcraft.lib.recipe.AssemblyRecipeBasic());
  var input=new ArrayList<>(List.of(entry));var event=new RecipesReceivedEvent(Set.of(BCSiliconRecipes.ASSEMBLY_TYPE.get()),new RecipeMap(input));
  BCSiliconRecipeSync.Client.onRecipes(event);that(BCSiliconRecipeSync.Client.assemblyRecipes().size()==1,"received recipes");input.clear();that(BCSiliconRecipeSync.Client.assemblyRecipes().size()==1,"detached immutable cache");
+ that(emiSizes.equals(List.of(1)),"EMI sees the published recipe snapshot");
  boolean immutable=false;try{BCSiliconRecipeSync.Client.assemblyRecipes().clear();}catch(UnsupportedOperationException e){immutable=true;}that(immutable,"immutable accessor");
  BCSiliconRecipeSync.Client.onRecipes(new RecipesReceivedEvent(Set.of(),new RecipeMap(List.of())));that(BCSiliconRecipeSync.Client.assemblyRecipes().size()==1,"unrelated types do not clear cache");
  BCSiliconRecipeSync.Client.onRecipes(new RecipesReceivedEvent(Set.of(BCSiliconRecipes.ASSEMBLY_TYPE.get()),new RecipeMap(List.of())));that(BCSiliconRecipeSync.Client.assemblyRecipes().isEmpty(),"reload removals replace old recipes");
- BCSiliconRecipeSync.Client.onRecipes(event);BCSiliconRecipeSync.Client.onLogout(new ClientPlayerNetworkEvent.LoggingOut());that(BCSiliconRecipeSync.Client.assemblyRecipes().isEmpty(),"logout clears recipes");
+ that(emiSizes.equals(List.of(1,0)),"EMI notified for assembly reload only");
+ BCSiliconRecipeSync.Client.onRecipes(new RecipesReceivedEvent(Set.of(BCSiliconRecipes.ASSEMBLY_TYPE.get()),new RecipeMap(List.of(entry))));
+ that(emiSizes.equals(List.of(1,0,1)),"EMI receives the replacement snapshot");
+ ClientMachineRecipeCatalog.setEmiListener(null);
+ BCSiliconRecipeSync.Client.onLogout(new ClientPlayerNetworkEvent.LoggingOut());that(BCSiliconRecipeSync.Client.assemblyRecipes().isEmpty(),"logout clears recipes");
  that(BCSiliconRecipeSync.Client.class.getMethod("onRecipes",RecipesReceivedEvent.class).getAnnotation(net.neoforged.bus.api.SubscribeEvent.class).priority()==net.neoforged.bus.api.EventPriority.HIGHEST,"cache before JEI listener");
  that(BCSiliconRecipeSync.Client.class.getAnnotation(net.neoforged.fml.common.EventBusSubscriber.class).value()[0]==net.neoforged.api.distmarker.Dist.CLIENT,"client side registration");
 }}

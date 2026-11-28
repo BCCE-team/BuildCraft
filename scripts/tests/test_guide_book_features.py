@@ -45,10 +45,15 @@ class GuideBookFeatures(unittest.TestCase):
 
 
     def test_filtering_honours_configured_result_cap(self):
-        for target in self.roots:
-            gui = self.java(target, "buildcraft/lib/client/guide/GuiGuide.java")
-            config = self.java(target, "buildcraft/core/BCCoreConfig.java")
-            self.assertIn("BCLibConfig.maxGuideSearchCount = Mth.clamp(propMaxGuideSearchResults.get(), 500, 5000);", config, target)
+        # Modern guides share the configurable result cap. Legacy Forge guides
+        # have a separate search implementation.
+        targets = ("1.21.1-neoforge", "1.21.11-neoforge", "26.1.2-neoforge",
+                   "26.2-neoforge", "26.3-neoforge", "26.3-fabric")
+        for target in targets:
+            gui = read_materialized_java(target, "src/main/java/buildcraft/lib/client/guide/GuiGuide.java")
+            config = read_materialized_java(target, "src/main/java/buildcraft/core/BCCoreConfig.java")
+            self.assertIn('.defineInRange("maxGuideSearchResults", 1200, 1, 5000)', config, target)
+            self.assertIn("BCLibConfig.maxGuideSearchCount = Mth.clamp(propMaxGuideSearchResults.get(), 1, 5000);", config, target)
             self.assertIn("int maxSearchResults = Math.max(1, BCLibConfig.maxGuideSearchCount);", gui, target)
             self.assertIn("filteredEntries.subList(maxSearchResults, matchCount).clear();", gui, target)
             self.assertIn("realSearchResultCount = matchCount;", gui, target)

@@ -10,6 +10,7 @@ source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/factory/tile/Ti
 source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/factory/tile/TileTank.java
 source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/lib/tile/TileBC_Neptune.java
 source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/robotics/RoboticsNbtUtil.java
+source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/robotics/client/render/preview/RobotPreviewSubmission.java
 source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/silicon/tile/TileChargingTable.java
 source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/silicon/tile/TileLaserTableBase.java
 source-family-platforms/1.21.X/neoforge/src/main/java/buildcraft/transport/client/render/PipeFlowRendererFluids.java

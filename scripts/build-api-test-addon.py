@@ -27,6 +27,7 @@ from addon_fixture_common import (
     validate_class_dependency,
 )
 from source_config import TARGETS_PROPERTIES, read_properties
+from source_preprocessor import version_tuple
 
 SOURCE = API_TEST_ADDON_SOURCE_ROOT
 MOD_ID = 'bcceapitest'
@@ -54,7 +55,8 @@ def target_properties(target: str) -> tuple[str, int, str, str]:
 
 def identifier_source(target: str) -> str:
     loader, _, minecraft, _ = target_properties(target)
-    name = 'Identifier' if minecraft.startswith('26.') else 'ResourceLocation'
+    # Official Minecraft names switched at 1.21.11, not at the 26.x version reset.
+    name = 'Identifier' if version_tuple(minecraft) >= version_tuple('1.21.11') else 'ResourceLocation'
     expression = (f'new {name}(ApiSmokeProbe.MOD_ID, path)' if loader == 'forge'
                   else f'{name}.fromNamespaceAndPath(ApiSmokeProbe.MOD_ID, path)')
     return (f'package dev.bcce.apitest;\nimport net.minecraft.resources.{name};\n'

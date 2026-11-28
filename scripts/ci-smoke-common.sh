@@ -78,7 +78,5 @@ buildcraft_startup_banner_matches() {
 # Require both markers from this invocation's freshly created logs. A startup
 # banner, a partial match, or a successful server without the addon is not a pass.
 api_test_addon_passed() {
-  grep -Eq 'BCCE_API_TEST REGISTERED v1[[:space:]]*$' "$@" &&
-    grep -Eq 'BCCE_API_TEST PASS v1[[:space:]]*$' "$@" &&
-    ! grep -Eq 'BCCE_API_TEST FAIL v1[[:space:]]*$' "$@"
+  python3 "$(dirname "${BASH_SOURCE[0]}")/ci-api-test-markers.py" "$@"
 }

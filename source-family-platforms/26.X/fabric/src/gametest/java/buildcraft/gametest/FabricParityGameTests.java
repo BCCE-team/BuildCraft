@@ -871,8 +871,8 @@ public final class FabricParityGameTests {
     }
 
     @GameTest(structure = "buildcraftlib:empty3x3x3", maxTicks = 20)
-    public void robotDismantleIsNotOwnerLocked(GameTestHelper helper) throws Exception {
-        buildcraft.gametest.PermissionOwnerGameTests.robotDismantleIsNotOwnerLocked(helper);
+    public void robotDismantleRequiresOwnership(GameTestHelper helper) throws Exception {
+        buildcraft.gametest.PermissionOwnerGameTests.robotDismantleRequiresOwnership(helper);
     }
 
     @GameTest(structure = "buildcraftlib:empty3x3x3", maxTicks = 20)

@@ -106,11 +106,29 @@ public class EmiPreviewProbe {
             self.assertIn('ClientMachineRecipeCatalog.notifyEmi()', (ROOT / 'source-family-platforms' / folder / 'src/main/java/buildcraft/silicon/BCSiliconRecipeSync.java').read_text())
 
     def test_fluid_units_and_data(self):
+        logical = 'src/main/java/buildcraft/compat/emi/EmiFluidAdapter.java'
+        raw_plugin = (ROOT / 'source-shared' / PLUGIN).read_text(encoding='utf-8')
+        for loader in ('net.minecraftforge', 'net.neoforged', 'net.fabricmc'):
+            self.assertNotIn(loader, raw_plugin)
+        self.assertNotRegex(raw_plugin, r'(?m)^\s*//\?[^\n]*\b(?:forge|neoforge|fabric)\b')
         for target, code in self.sources.items():
-            method = re.search(r'private static long nativeFluidAmount\(long mb\) \{.*?\n    \}', code, re.S).group()
-            self.assertIn('return mb * 81L;' if target.endswith('-fabric') else 'return mb;', method)
-            self.assertIn('stack.getTag()' if target.endswith('-forge') else 'stack.getComponentsPatch()', code)
-            self.assertIn('entries.add(outputFluid(variant))', code)
+            with self.subTest(target=target):
+                adapter = read_materialized_java(target, logical)
+                owner = resolve_target_source(target, logical).relative_to(ROOT).as_posix()
+                if target.endswith('-fabric'):
+                    self.assertTrue(owner.startswith('source-family-platforms/26.X/fabric/'))
+                    self.assertIn('return mb * (FluidConstants.BUCKET / 1000L);', adapter)
+                    self.assertIn('import net.fabricmc.fabric.api.transfer.v1.fluid.FluidConstants;', adapter)
+                else:
+                    loader = target.rsplit('-', 1)[1]
+                    self.assertTrue(owner.startswith('source-platforms/' + loader + '/'))
+                    self.assertIn('return mb;', adapter)
+                self.assertIn('stack.getTag()' if target.endswith('-forge') else 'stack.getComponentsPatch()', adapter)
+                self.assertIn('entries.add(outputFluid(variant))', adapter)
+                self.assertIn('FluidCompatRegistry.getEquivalentStacks(stack, "buildcraftenergy")', adapter)
+                self.assertIn('EmiIngredient.of(entries, nativeFluidAmount(stack.getAmount()))', adapter)
+                for method in ('fluids', 'outputFluid', 'nativeFluidAmount'):
+                    self.assertIn('import static buildcraft.compat.emi.EmiFluidAdapter.' + method + ';', code)
 
     def test_transfers_and_pipe_replacement(self):
         for code in self.sources.values():

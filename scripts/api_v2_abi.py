@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import hashlib
+from http.client import HTTPException
 import io
 import json
 import os
@@ -21,8 +22,9 @@ import struct
 import subprocess
 import sys
 import tempfile
+from time import time_ns
 from urllib.parse import quote
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 import zipfile
 
 from addon_fixture_common import (ROOT, ABI_CONSUMER_SOURCE, PUBLIC_API_PREFIX,
@@ -268,6 +270,11 @@ def load_baseline() -> dict:
         raise ValueError('ABI baseline must cover exactly the configured target registry')
     if not all(re.fullmatch(r'[0-9a-f]{64}', digest) for digest in baseline['sha256'].values()):
         raise ValueError('Invalid baseline SHA-256')
+    asset_ids = baseline['asset_ids']
+    if (set(asset_ids) != set(targets)
+            or any(type(value) is not int or value <= 0 for value in asset_ids.values())
+            or len(set(asset_ids.values())) != len(targets)):
+        raise ValueError('ABI baseline must pin one distinct release asset ID per target')
     return baseline
 
 
@@ -283,21 +290,48 @@ def baseline_jar(baseline: dict, target: str, cache: Path, offline: bool) -> Pat
     if offline:
         raise ValueError(f'Offline build requires the pinned baseline JAR: {path}')
     path.parent.mkdir(parents=True, exist_ok=True)
-    url = f'https://github.com/{baseline["repository"]}/releases/download/{quote(release, safe="")}/{quote(filename, safe="")}'
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as output:
-            temporary = Path(output.name)
-            with urlopen(url, timeout=120) as response:
-                while chunk := response.read(1024 * 1024):
-                    output.write(chunk)
-        if sha256(temporary) != digest:
-            raise ValueError(f'Downloaded baseline SHA-256 mismatch: {url}')
-        os.replace(temporary, path)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
-    return path
+    # GitHub release redirects (and intervening caches) may return stale,
+    # truncated or non-JAR responses. Retry the public download with a fresh
+    # URL, then use the exact pinned release asset's binary API endpoint.
+    # The committed SHA-256 remains the sole acceptance criterion on every route.
+    repository = baseline['repository']
+    base_url = f'https://github.com/{repository}/releases/download/{quote(release, safe="")}/'
+    retry = f'?download=1&bcce_retry={time_ns()}'
+    routes = (
+        ('release URL', base_url + quote(filename, safe='')),
+        ('uncached release URL', base_url + quote(filename, safe='+') + retry),
+        ('release asset API', f'https://api.github.com/repos/{repository}/releases/assets/{baseline["asset_ids"][target]}' + retry),
+    )
+    errors = []
+    for label, url in routes:
+        temporary = None
+        try:
+            request = Request(url, headers={
+                'User-Agent': 'BCCE-API-ABI/1.0',
+                'Accept': 'application/octet-stream',
+                'Accept-Encoding': 'identity',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+            })
+            with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as output:
+                temporary = Path(output.name)
+                with urlopen(request, timeout=120) as response:
+                    content_type = response.headers.get('Content-Type', 'unknown')
+                    while chunk := response.read(1024 * 1024):
+                        output.write(chunk)
+            actual = sha256(temporary)
+            if actual != digest:
+                raise ValueError(f'Downloaded baseline SHA-256 mismatch: expected {digest}, '
+                                 f'got {actual} ({temporary.stat().st_size} bytes, {content_type})')
+            os.replace(temporary, path)
+            return path
+        except (OSError, HTTPException, ValueError) as error:
+            errors.append(f'{label}: {error}')
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+    raise ValueError(f'Could not download pinned baseline {filename}; expected SHA-256 {digest}. '
+                     + '; '.join(errors) + f'. Supply the exact release JAR at {path} and retry.')
 
 
 def candidate_api_version() -> str:

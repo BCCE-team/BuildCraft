@@ -143,7 +143,13 @@ STUBS = {
   public boolean isRemoved(){return removed;}public List<Long> getLinkedRobotIds(){return linked;}
   public boolean isRobotLinked(long id){return linked.contains(id);}
   public int getMaxExecutionQueue(){return max;}
-  public boolean allowsWorkPosition(BlockPos pos){return allow;}
+  public int workMinX(){return ((pos.getX()>>4)-WORK_AREA_RADIUS_CHUNKS)<<4;}
+  public int workMinZ(){return ((pos.getZ()>>4)-WORK_AREA_RADIUS_CHUNKS)<<4;}
+  public boolean stationInRange(BlockPos p){
+   long dx=(long)p.getX()-workMinX(), dz=(long)p.getZ()-workMinZ();
+   return dx>=0&&dx<112&&dz>=0&&dz<112;
+  }
+  public boolean allowsWorkPosition(BlockPos pos){return allow&&stationInRange(pos);}
  }'''
 }
 

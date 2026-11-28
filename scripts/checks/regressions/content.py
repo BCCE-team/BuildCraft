@@ -267,6 +267,7 @@ ASSEMBLY_JSON_COSTS = {
     "plug_timer.json": 500,
     "light_sensor.json": 500,
     "gate_copier.json": 500,
+    "hard_disk.json": 12_000,  # BCCE Robot Processor HDD
 }
 
 
@@ -335,8 +336,8 @@ for base in (
             )
 
 expected_assembly_layers = {
-    "source-families/old": 84,
-    "source-families/1.21.X": 84,
+    "source-families/old": 85,
+    "source-families/1.21.X": 85,
     "source-family-platforms/1.21.X/neoforge": 2,
     "source-family-platforms/26.X/fabric": 26,
 }

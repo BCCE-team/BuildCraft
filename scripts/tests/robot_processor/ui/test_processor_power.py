@@ -1,11 +1,17 @@
 """Power budget, persistence/wiring, and cross-family gauge contracts."""
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[4]
 JAVA = ROOT / 'source-shared/src/main/java/buildcraft'
+sys.path.insert(0, str(ROOT / 'scripts'))
+from source_config import target_ids
+from source_lookup import read_materialized_java
+
+ROBOTICS = 'src/main/java/buildcraft/robotics/'
 
 
 class ProcessorPowerTests(unittest.TestCase):
@@ -57,21 +63,19 @@ class CheckProcessorPower {
         self.assertIn('SCAN_WAITING, SCAN_NO_POWER',menu)
 
     def test_all_modern_platforms_expose_mj(self):
-        files = [p for p in ROOT.rglob('BCRobotics.java') if 'neoforge' in str(p) or 'fabric' in str(p)]
-        self.assertEqual(len(files),5)
-        for path in files:
-            with self.subTest(path=path):
-                text=path.read_text()
+        for target in target_ids():
+            if target.endswith('-forge'):
+                continue
+            with self.subTest(target=target):
+                text=read_materialized_java(target, ROBOTICS+'BCRobotics.java')
                 for cap in ('CAP_CONNECTOR','CAP_RECEIVER','CAP_REDSTONE_RECEIVER','CAP_READABLE'):
                     self.assertIn('MjCapabilities.'+cap+', processor)',text)
                 self.assertNotIn('event, buildcraft.lib.misc.CapUtil.CAP_FE, processor',text)
 
     def test_map_title_and_power_on_all_gui_variants(self):
-        files=list(ROOT.rglob('GuiRobotProcessor.java'))
-        self.assertEqual(len(files),5)
-        for path in files:
-            with self.subTest(path=path):
-                text=path.read_text()
+        for target in target_ids():
+            with self.subTest(target=target):
+                text=read_materialized_java(target, ROBOTICS+'gui/GuiRobotProcessor.java')
                 self.assertIn('157 - font.width(machineTitle) / 2',text)
                 self.assertIn('6, 202, 0xFF_40_40_40',text)
                 self.assertIn('renderScanProgress(pose);',text)
@@ -85,10 +89,10 @@ class CheckProcessorPower {
                 self.assertNotIn('RobotProcessorPowerOverlay',text)
                 self.assertIn('renderCargo(pose);\n        renderEnergyGauge(pose);',text)
                 self.assertIn('RobotProcessorPowerGauge.ATLAS_SIZE, RobotProcessorPowerGauge.ATLAS_SIZE',text)
-                if 'source-families' in path.parts:
+                if target.startswith(('1.21.11-', '26.')):
                     self.assertIn('BCGraphics.nextLayer(getActiveGraphics());',text)
                     self.assertIn('RenderCompat.blit(getActiveGraphics(), BACKGROUND,',text)
-                elif '1.19.2-forge' in str(path):
+                elif target == '1.19.2-forge':
                     self.assertIn('RenderSystem.setShaderTexture(0, BACKGROUND);',text)
                     self.assertIn('blit(pose, leftPos + x, topPos + y, u, v, w, h,',text)
                 else:
@@ -158,12 +162,10 @@ class CheckGauge {
         from PIL import Image
         with Image.open(ROOT / 'source-shared/src/main/resources/assets/buildcraftrobotics/textures/gui/robot_processor.png') as source:
             atlas = source.convert('RGBA')
-        screens = sorted(ROOT.rglob('GuiRobotProcessor.java'))
-        self.assertEqual(len(screens), 5)
         with tempfile.TemporaryDirectory() as tmp:
-            for path in screens:
-                with self.subTest(path=path):
-                    text = path.read_text()
+            for target in target_ids():
+                with self.subTest(target=target):
+                    text = read_materialized_java(target, ROBOTICS+'gui/GuiRobotProcessor.java')
                     method = text.split('    private void renderEnergyGauge(PoseStack pose) {', 1)[1].split('\n    }', 1)[0]
                     fixture = Path(tmp) / 'CheckGaugeBlit.java'
                     fixture.write_text('''
@@ -231,7 +233,7 @@ class CheckGaugeBlit {
                     for stored, height in ((0,0),(1,1),(890_000_000,16),(2_500_000_000,44),
                                             (4_999_999_999,87),(5_000_000_000,88)):
                         calls = cases[stored]
-                        if height and 'source-families' in path.parts:
+                        if height and target.startswith(('1.21.11-', '26.')):
                             self.assertEqual(calls.pop(0),'layer')
                         composed = atlas.crop((0,0,331,272))
                         for line in calls:

@@ -142,7 +142,13 @@ public class TileRobotProcessor{
  public boolean isRemoved(){return removed;}public boolean isRobotLinked(long id){return linked.contains(id);}
  public List<Long> getLinkedRobotIds(){return linked;}
  public int getMaxExecutionQueue(){return queueLimit;}
- public boolean allowsWorkPosition(BlockPos pos){return Math.abs((pos.getX()>>4)-(this.pos.getX()>>4))<=3&&Math.abs((pos.getZ()>>4)-(this.pos.getZ()>>4))<=3;}
+ public int workMinX(){return ((pos.getX()>>4)-WORK_AREA_RADIUS_CHUNKS)<<4;}
+ public int workMinZ(){return ((pos.getZ()>>4)-WORK_AREA_RADIUS_CHUNKS)<<4;}
+ public boolean stationInRange(BlockPos p){
+  long dx=(long)p.getX()-workMinX(), dz=(long)p.getZ()-workMinZ();
+  return dx>=0&&dx<112&&dz>=0&&dz<112;
+ }
+ public boolean allowsWorkPosition(BlockPos pos){return stationInRange(pos);}
 }'''
 }
 

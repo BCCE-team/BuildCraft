@@ -16,11 +16,14 @@ from source_lookup import read_materialized_java, resolve_target_source
 TARGETS = ('1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge', '1.21.11-neoforge',
            '26.1.2-neoforge', '26.2-neoforge', '26.3-neoforge', '26.3-fabric')
 PLUGIN = 'src/main/java/buildcraft/compat/rei/BuildCraftReiPlugin.java'
+ADAPTER = 'src/main/java/buildcraft/compat/rei/ReiPlatformAdapter.java'
+COMMON_ENTRYPOINT = 'src/main/java/buildcraft/compat/rei/ReiCommonEntrypoint.java'
 
 class ReiIntegrationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.sources = {target: read_materialized_java(target, PLUGIN) for target in TARGETS}
+        cls.adapters = {target: read_materialized_java(target, ADAPTER) for target in TARGETS}
 
     def test_every_target_has_native_categories(self):
         for target, source in self.sources.items():
@@ -30,7 +33,15 @@ class ReiIntegrationTest(unittest.TestCase):
                 for name in ('ASSEMBLY', 'PROGRAMMING', 'INTEGRATION', 'DISTILLATION', 'HEAT_EXCHANGE', 'COMBUSTION_FUEL'):
                     self.assertIn('category(registry, ' + name, source)
                     self.assertIn('dynamic(registry, ' + name, source)
-                self.assertEqual('fabric' not in target, '@me.shedaniel.rei.forge.REIPluginClient' in source)
+                adapter = self.adapters[target]
+                self.assertNotIn('@me.shedaniel.rei.forge.REIPluginClient', source)
+                self.assertEqual('fabric' not in target, '@me.shedaniel.rei.forge.REIPluginClient' in adapter)
+                if 'fabric' not in target:
+                    self.assertIn('extends BuildCraftReiPlugin', adapter)
+                if target not in TARGETS[:3] and target.endswith('-neoforge'):
+                    common = read_materialized_java(target, COMMON_ENTRYPOINT)
+                    self.assertIn('@me.shedaniel.rei.forge.REIPluginCommon', common)
+                    self.assertIn('extends BuildCraftReiCommonPlugin', common)
                 self.assertEqual(target in TARGETS[:3], 'registerRecipeFiller(PipeRecipe.class' in source)
                 self.assertEqual(target not in TARGETS[:3], 'getSerializer()' in source)
 
@@ -45,7 +56,15 @@ class ReiIntegrationTest(unittest.TestCase):
             self.assertIn('OilIndustry.bucketEnabled', source)
             self.assertIn('OilIndustry.fluidEnabled', source)
             self.assertIn('ClientMachineRecipeCatalog.setReiListener', source)
-            self.assertIn('FluidStack.bucketAmount() / 1000', source)
+            self.assertIn('import static buildcraft.compat.rei.ReiPlatformAdapter.fluids;', source)
+        for target, adapter in self.adapters.items():
+            self.assertIn('FluidStack.bucketAmount() / 1000', adapter)
+            self.assertIn('FluidCompatRegistry.getEquivalentStacks(stack, "buildcraftenergy")', adapter)
+            self.assertIn('variants.isEmpty() ? List.of(stack) : variants', adapter)
+            native = ('buildcraft.lib.fluid.FluidStack' if target.endswith('-fabric') else
+                      'net.minecraftforge.fluids.FluidStack' if target.endswith('-forge') else
+                      'net.neoforged.neoforge.fluids.FluidStack')
+            self.assertIn('import ' + native + ';', adapter)
 
     def test_assembly_fixed_output_fallback_and_hdd_recipe(self):
         # Legacy fixed-output recipes deliberately expose no multi-output previews.

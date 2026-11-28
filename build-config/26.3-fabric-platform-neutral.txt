@@ -80,6 +80,7 @@ source-family-platforms/26.X/fabric/src/main/java/buildcraft/energy/tile/TileDyn
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/energy/tile/TileEngineFE.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/energy/tile/TileEngineIron_BC8.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/energy/tile/TileEngineStone_BC8.java
+source-family-platforms/26.X/fabric/src/main/java/buildcraft/fabric/BuildCraftModMenu.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/fabric/FabricModelLifecycle263.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/fabric/mixin/FishingHookRobotGuardMixin.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/fabric/mixin/FluidFogMixin.java
@@ -260,6 +261,7 @@ source-family-platforms/26.X/fabric/src/main/java/buildcraft/robotics/boards/Boa
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/robotics/boards/BoardRobotPump.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/robotics/boards/BoardRobotShovelman.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/robotics/client/FabricRoboticsClient.java
+source-family-platforms/26.X/fabric/src/main/java/buildcraft/robotics/client/render/preview/RobotPreviewSubmission.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/robotics/internal/api2/RobotServiceImpl.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/robotics/internal/legacy/robots/DockingStation.java
 source-family-platforms/26.X/fabric/src/main/java/buildcraft/robotics/plug/RobotStationPluggable.java

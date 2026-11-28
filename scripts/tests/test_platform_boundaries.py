@@ -27,6 +27,7 @@ ROBOT_PROCESSOR_CATALOG_ADDITIONS = {
     'robotics/BCRoboticsItems.java': (
         (5, 'ITEMS:"controller"'),
         (6, 'ITEMS:"robot_processor"'),
+        (7, 'ITEMS:"hard_disk"'),
     ),
     'robotics/BCRoboticsBlocks.java': (
         (2, 'BLOCKS:"robot_processor"'),

@@ -17,7 +17,8 @@ import buildcraft.lib.client.render.fluid.FluidRenderer;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
-import net.neoforged.neoforge.fluids.FluidStack;
+import buildcraft.api.v2.fluid.FluidVariant;
+import buildcraft.lib.fluid.FuelApiBridge;
 
 import buildcraft.lib.compat.RenderCompat;
 import buildcraft.lib.compat.FluidCompat;
@@ -442,7 +443,8 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
         Fluid fluid = cargoFluid(entry.fluidId());
         if (fluid == Fluids.EMPTY) return Component.literal(entry.fluidId());
         // Loader-specific stacks delegate to the registered fluid's localized name.
-        return FluidCompat.getDisplayName(new FluidStack(fluid, Math.max(1, entry.amountMb())));
+        var stack = FuelApiBridge.stackOfVariant(FluidVariant.of(BuiltInRegistries.FLUID.getKey(fluid)), Math.max(1, entry.amountMb()));
+        return FluidCompat.getDisplayName(stack);
     }
 
     private RobotSnapshot selectedRobot() {

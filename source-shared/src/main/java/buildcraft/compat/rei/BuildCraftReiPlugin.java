@@ -1,5 +1,7 @@
 package buildcraft.compat.rei;
 
+import static buildcraft.compat.rei.ReiPlatformAdapter.fluids;
+
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.fluid.FluidVariant;
@@ -13,7 +15,6 @@ import buildcraft.factory.client.gui.ScreenHeatExchange;
 import buildcraft.factory.container.ContainerAutoCraftItems;
 import buildcraft.factory.gui.GuiAutoCraftItems;
 import buildcraft.lib.BCLibConfig;
-import buildcraft.lib.fluid.FluidCompatRegistry;
 import buildcraft.lib.fluid.FuelApiBridge;
 import buildcraft.lib.gui.GuiBC8;
 import buildcraft.lib.gui.ledger.Ledger_Neptune;
@@ -86,10 +87,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /** Optional native REI client integration. No JEI classes are referenced. */
-//? if forge || neoforge {
-@me.shedaniel.rei.forge.REIPluginClient
-//?}
-public final class BuildCraftReiPlugin implements REIClientPlugin {
+public class BuildCraftReiPlugin implements REIClientPlugin {
     private static final CategoryIdentifier<MachineDisplay> ASSEMBLY = id("silicon", "assembly");
     private static final CategoryIdentifier<MachineDisplay> PROGRAMMING = id("silicon", "programming");
     private static final CategoryIdentifier<MachineDisplay> INTEGRATION = id("silicon", "integration");
@@ -391,22 +389,6 @@ public final class BuildCraftReiPlugin implements REIClientPlugin {
                 energy(recipe.requiredMicroJoules(recipe.result()))));
         }
         return result;
-    }
-
-    //? if fabric {
-    private static EntryIngredient fluids(buildcraft.lib.fluid.FluidStack stack) {
-    //?} else if forge {
-    private static EntryIngredient fluids(net.minecraftforge.fluids.FluidStack stack) {
-    //?} else {
-    private static EntryIngredient fluids(net.neoforged.neoforge.fluids.FluidStack stack) {
-    //?}
-        if (stack == null || stack.isEmpty()) return EntryIngredient.empty();
-        var variants = FluidCompatRegistry.getEquivalentStacks(stack, "buildcraftenergy");
-        var entries = EntryIngredient.builder();
-        for (var variant : variants.isEmpty() ? List.of(stack) : variants) {
-            entries.add(EntryStacks.of(variant.getFluid(), (long) variant.getAmount() * FluidStack.bucketAmount() / 1000));
-        }
-        return entries.build();
     }
 
     private static List<EntryIngredient> nonEmpty(EntryIngredient... entries) {

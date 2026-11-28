@@ -104,6 +104,17 @@ public class CheckDisk {
                         return source
                     lang = json.loads(resource('buildcraft/lang/en_us.json').read_text(encoding='utf-8'))
                     self.assertEqual('Hard Disk Drive', lang['item.buildcraftrobotics.hard_disk'])
+                    # Both modern registration scopes must use the canonical HDD key.
+                    if target.startswith(('1.21.11-', '26.')):
+                        name_map = ('ItemNameKeys2612' if target.startswith('26.') else 'ItemNameKeys121111')
+                        java_base = 'src/main/java/buildcraft/lib/compat/'
+                        source = resolve_effective_source(layout, props, java_base + name_map + '.java')
+                        self.assertIsNotNone(source, name_map)
+                        self.assertIn('case "buildcraftrobotics:hard_disk" -> "item.buildcraftrobotics.hard_disk";',
+                                      source.read_text(encoding='utf-8'))
+                        scope = resolve_effective_source(layout, props, java_base + 'minecraft/registry/BCRegistrationScope.java')
+                        self.assertIsNotNone(scope)
+                        self.assertIn(name_map + '.key(id.identifier())', scope.read_text(encoding='utf-8'))
                     model_source = resource('buildcraftrobotics/models/item/hard_disk.json')
                     model = json.loads(model_source.read_text(encoding='utf-8'))
                     self.assertEqual(sprite, model['textures']['layer0'])

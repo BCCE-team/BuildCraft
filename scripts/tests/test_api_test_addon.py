@@ -96,9 +96,23 @@ public interface DeliveryResult { static DeliveryResult failure(DeliveryStatus s
     return files
 
 
+# Keep an independent expected matrix: deriving the doubles from the builder's
+# version predicate previously let both production code and its tests be wrong.
+IDENTIFIER_TYPES = {
+    '1.19.2-forge': 'ResourceLocation',
+    '1.20.1-forge': 'ResourceLocation',
+    '1.21.1-neoforge': 'ResourceLocation',
+    '1.21.11-neoforge': 'Identifier',
+    '26.1.2-neoforge': 'Identifier',
+    '26.2-neoforge': 'Identifier',
+    '26.3-neoforge': 'Identifier',
+    '26.3-fabric': 'Identifier',
+}
+
+
 def dependencies(target):
-    loader, _, mc, _ = BUILDER.target_properties(target)
-    loc = 'Identifier' if mc.startswith('26.') else 'ResourceLocation'
+    loader, _, _, _ = BUILDER.target_properties(target)
+    loc = IDENTIFIER_TYPES[target]
     files = {
         f'net/minecraft/resources/{loc}.java': f'''package net.minecraft.resources;
 public record {loc}(String namespace, String path) {{ public static {loc} tryParse(String s){{String[] p=s.split(":",2);return new {loc}(p[0],p[1]);}}
@@ -142,6 +156,21 @@ public class LevelEvent { public static class Load {public net.minecraft.world.l
 
 
 class ApiTestAddonTests(unittest.TestCase):
+    def test_identifier_for_every_target(self):
+        self.assertEqual(set(target_ids()), set(IDENTIFIER_TYPES))
+        for target, name in IDENTIFIER_TYPES.items():
+            with self.subTest(target=target):
+                # Compare the generated helper against the effective public API,
+                # not just the hand-written Minecraft dependency doubles.
+                module = read_materialized_java(target, 'src/main/java/' + API + 'module/ModuleInfo.java')
+                self.assertIn(f'import net.minecraft.resources.{name};', module)
+                self.assertIn(f'ModuleInfo({name} id,', module)
+                source = BUILDER.identifier_source(target)
+                self.assertIn(f'import net.minecraft.resources.{name};', source)
+                self.assertIn(f'static {name} id(String path)', source)
+                factory = f'new {name}' if target.endswith('-forge') else f'{name}.fromNamespaceAndPath'
+                self.assertIn(f'return {factory}(ApiSmokeProbe.MOD_ID, path);', source)
+
     def test_metadata_for_every_target(self):
         for target in target_ids():
             with self.subTest(target=target):
@@ -162,10 +191,11 @@ class ApiTestAddonTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which('javac'), 'JDK required')
     def test_independent_jar_compile_and_candidate_binding(self):
-        # Four source/adapter families. Lower the classfile target ONLY for this
+        # Cover both sides of the 1.21.11 identifier rename and all loaders. Lower the classfile target ONLY for this
         # offline stub check so the CI validation JDK 21 can also test 26.x source.
         # The real build task always uses the actual target JDK and --release.
-        for target in ('1.19.2-forge', '1.21.1-neoforge', '26.3-neoforge', '26.3-fabric'):
+        for target in ('1.19.2-forge', '1.21.1-neoforge', '1.21.11-neoforge',
+                       '26.3-neoforge', '26.3-fabric'):
             with self.subTest(target=target), tempfile.TemporaryDirectory() as td:
                 root = Path(td)
                 dep, candidate, addon = (root / n for n in ('deps.jar','bcce.jar','addon.jar'))
@@ -211,18 +241,45 @@ class ApiTestAddonTests(unittest.TestCase):
                 BUILDER.check_addon(target, candidate, addon)
 
     def test_runtime_markers_fail_closed(self):
+        # Exercise the production marker checker, without requiring Bash on Windows.
+        command = [sys.executable, str(ROOT/'scripts/ci-api-test-markers.py')]
         with tempfile.TemporaryDirectory() as td:
             log = Path(td)/'server.log'
             for content, expected in [
                 ('Done (1.0s)!\n', False), ('BCCE_API_TEST PASS v1\n', False),
+                ('BCCE_API_TEST REGISTERED v1\n', False),
                 ('BCCE_API_TEST REGISTERED v1\nBCCE_API_TEST PASS v10\n', False),
+                ('BCCE_API_TEST REGISTERED v1\nBCCE_API_TEST PASS v1 extra\n', False),
                 ('[main/INFO]: BCCE_API_TEST REGISTERED v1\n[Server thread/INFO]: BCCE_API_TEST PASS v1\n', True),
+                ('BCCE_API_TEST REGISTERED v1 \r\nBCCE_API_TEST PASS v1\t\r\n', True),
                 ('BCCE_API_TEST REGISTERED v1\nBCCE_API_TEST PASS v1\nBCCE_API_TEST FAIL v1\n', False),
             ]:
-                log.write_text(content)
-                result = subprocess.run(['bash','-c','source "$1"; api_test_addon_passed "$2"','_',
-                    str(ROOT/'scripts/ci-smoke-common.sh'),str(log)], capture_output=True)
-                self.assertEqual(result.returncode == 0, expected, content)
+                log.write_bytes(content.encode('utf-8'))
+                result = subprocess.run([*command, str(log)], capture_output=True)
+                self.assertEqual(result.returncode, 0 if expected else 1, content)
+
+            second = Path(td)/'latest.log'
+            log.write_bytes(b'BCCE_API_TEST REGISTERED v1\r\n')
+            second.write_bytes(b'BCCE_API_TEST PASS v1')
+            self.assertEqual(subprocess.run([*command, str(log), str(second)]).returncode, 0)
+            # Keep checking all logs even after the registration and PASS are found.
+            failure = Path(td)/'failure.log'
+            failure.write_bytes(b'BCCE_API_TEST FAIL v1\n')
+            for files in ([], [log], [log, second, failure], [log, second, Path(td)/'missing.log']):
+                self.assertEqual(subprocess.run([*command, *map(str, files)]).returncode, 1)
+
+    @unittest.skipUnless(os.name == 'posix' and shutil.which('bash'), 'requires POSIX Bash')
+    def test_runtime_marker_shell_wrapper(self):
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td)/'server.log'
+            for content, expected in [
+                (b'BCCE_API_TEST REGISTERED v1\nBCCE_API_TEST PASS v1\n', 0),
+                (b'BCCE_API_TEST REGISTERED v1\nBCCE_API_TEST PASS v1\nBCCE_API_TEST FAIL v1\n', 1),
+            ]:
+                log.write_bytes(content)
+                result = subprocess.run(['bash', '-c', 'source "$1"; api_test_addon_passed "$2"', '_',
+                    str(ROOT/'scripts/ci-smoke-common.sh'), str(log)], capture_output=True)
+                self.assertEqual(result.returncode, expected, result.stderr)
 
     def test_release_pipeline_requires_separate_probe(self):
         gates = (ROOT/'build-logic/api-v2-gates.gradle').read_text()

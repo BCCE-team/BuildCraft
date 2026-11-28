@@ -106,6 +106,7 @@ public final class ItemNameKeys2612 {
             case "buildcraftfactory:water_gel" -> "item.buildcraftfactory.water_gel";
             case "buildcraftlib:guide" -> "item.buildcraft.guide";
             case "buildcraftrobotics:controller" -> "item.buildcraftrobotics.controller";
+            case "buildcraftrobotics:hard_disk" -> "item.buildcraftrobotics.hard_disk";
             case "buildcraftrobotics:redstone_board" -> "item.buildcraftrobotics.redstone_board";
             case "buildcraftrobotics:requester" -> "block.buildcraftrobotics.requester";
             case "buildcraftrobotics:robot" -> "item.buildcraftrobotics.robot";

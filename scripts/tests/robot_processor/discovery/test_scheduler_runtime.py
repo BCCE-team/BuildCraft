@@ -204,12 +204,21 @@ public class TileRobotProcessor {
  public static final int WORK_AREA_RADIUS_CHUNKS=3;
  private final Level world; private final BlockPos pos;
  public boolean removed; public final List<Long> linked=new java.util.ArrayList<>();
- public TileRobotProcessor(Level world,BlockPos pos){this.world=world;this.pos=pos;}
+ public TileRobotProcessor(Level world,BlockPos pos){this.world=world;this.pos=pos;
+  offsetX=-48-Math.floorMod(pos.getX(),16);offsetZ=-48-Math.floorMod(pos.getZ(),16);}
+ public int offsetX, offsetZ;
+ public int workMinX(){return pos.getX()+offsetX;}
+ public int workMinZ(){return pos.getZ()+offsetZ;}
+ public boolean stationInRange(BlockPos p){
+  long dx=(long)p.getX()-workMinX(), dz=(long)p.getZ()-workMinZ();
+  return dx>=0&&dx<112&&dz>=0&&dz<112;
+ }
  public Level getLevel(){return world;}public BlockPos getBlockPos(){return pos;}
  public boolean isRemoved(){return removed;}
  public List<Long> getLinkedRobotIds(){return List.copyOf(linked);}
  public boolean isRobotLinked(long robotId){return linked.contains(robotId);}
- public boolean allowsWorkPosition(BlockPos target){return true;}
+ public boolean allowsWorkPosition(BlockPos target){return stationInRange(target);}
+ public boolean allowsCatalogPosition(BlockPos target){return allowsWorkPosition(target);}
  public static final int MAX_EXECUTION_QUEUE=8;
  public int getMaxExecutionQueue(){return 5;}
  public void setChanged(){}
@@ -380,11 +389,24 @@ public class SchedulerFixture {
    world.time++; next.tick(world);
    check(RobotProcessorWorkScheduler.suggest(b)!=null,"Lease not released on panel removal");
    next.onRemoved();
-   // One robot is not a duplicated scanning workload; don't scan for it.
+   // An explicitly linked single robot also benefits from the panel's catalog.
    panel.linked.remove(1L);
    RobotProcessorWorkScheduler solo = new RobotProcessorWorkScheduler(panel);
-   world.time++; solo.tick(world);
-   check(RobotProcessorWorkScheduler.suggest(b)==null,"Single worker should keep native search");
+   for(int i=0;i<16;i++){world.time++;solo.tick(world);}
+   check(RobotProcessorWorkScheduler.suggest(b)!=null,"Single linked worker lost shared discovery");
+   solo.onRemoved();
+   panel.linked.clear();
+   world.blockReads=0;
+   var empty=new RobotProcessorWorkScheduler(panel);
+   world.time++;empty.tick(world);
+   check(world.blockReads==0,"Unlinked panel scanned without demand");
+   empty.onRemoved();
+   // A moved disk need not be chunk-aligned: the right edge can be in chunk 4.
+   var moved=new TileRobotProcessor(world,new BlockPos(15,65,0));
+   moved.offsetX=-48;
+   check(moved.workMinX()==-33,"Moved HDD lost its block-relative offset");
+   check(moved.stationInRange(new BlockPos(78,65,0)),"Last disk column rejected");
+   check(!moved.stationInRange(new BlockPos(79,65,0)),"Outside disk column accepted");
  }
 }'''
 

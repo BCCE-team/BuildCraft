@@ -12,5 +12,15 @@
     "26.2-neoforge": "5d978187722feffae137c490505b6f6eb0d1578bcee596bd5adb025f835afc75",
     "26.3-neoforge": "83b088505d662103f685b92714748fc1c59eac0211e5734900921a4458c860a2",
     "26.3-fabric": "38b3ebdb7bf0b1f2b145fd82ce23604c123d0c5e5e1e50b8206b81a6e888ae51"
+  },
+  "asset_ids": {
+    "1.19.2-forge": 751674487,
+    "1.20.1-forge": 751677849,
+    "1.21.1-neoforge": 751680847,
+    "1.21.11-neoforge": 751684226,
+    "26.1.2-neoforge": 751687052,
+    "26.2-neoforge": 751690191,
+    "26.3-neoforge": 751692752,
+    "26.3-fabric": 751695580
   }
 }

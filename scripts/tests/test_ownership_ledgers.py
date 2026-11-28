@@ -2,8 +2,8 @@
 """Owner persistence, fake-player, ledger, and copy/place regression tests.
 
 These are source/materialization contracts for both modern targets. They complement the
-existing NeoForge GameTests, which exercise owner round-trips and the no-ACL rule in a
-real game runtime when Gradle/GameTest infrastructure is available.
+NeoForge GameTests for owner round-trips, manual machine access, and robot ownership
+protection in a real game runtime when Gradle/GameTest infrastructure is available.
 """
 from __future__ import annotations
 
@@ -144,7 +144,15 @@ class OwnershipLedgers(unittest.TestCase):
                 self.assertIn("id == null && (name == null || name.isBlank())", robot)
 
                 item_robot = self.java(target, "buildcraft/robotics/item/ItemRobot.java")
-                self.assertIn("robot.setOwner(player.getGameProfile())", item_robot)
+                identity = self.java(target, "buildcraft/robotics/item/RobotItemIdentity.java")
+                self.assertIn("RobotItemIdentity.preparePlacement(currentItem, robot, player)", item_robot)
+                self.assertNotIn("robot.setOwner(player.getGameProfile())", item_robot)
+                # Fresh items take the placing player's profile; packed items retain the saved owner.
+                self.assertIn("if (!isPacked(stack)) {", identity)
+                self.assertIn("robot.setOwner(player.getGameProfile());", identity)
+                self.assertIn("registry.robotIdentities().matches(id, token, ownerKey, name)", identity)
+                self.assertIn("if (!allows(owner, player)) return -1;", identity)
+                self.assertIn("robot.setOwner(owner == null ? player.getGameProfile() : new GameProfile(owner,", identity)
 
                 support = self.java(target, "buildcraft/robotics/internal/api2/RobotAutomationSupport.java")
                 self.assertIn("getOwnerProfile()", support)
@@ -169,11 +177,14 @@ class OwnershipLedgers(unittest.TestCase):
                 self.assertIn("tile.getKnownOwner()", jade)
                 self.assertNotIn("GameProfile owner = tile.getOwner()", jade)
 
-                # Ownership remains attribution, not a theft ACL. Runtime GameTests also enforce
-                # this for machines and robot dismantling.
+                # Manual machine access remains unrestricted by owner attribution.
+                # Robots have a separate ownership check for wrench dismantling.
                 gametest = (ROOT / "source-platforms/neoforge/src/gametest/java/buildcraft/gametest/PermissionOwnerGameTests.java").read_text(encoding="utf-8")
                 self.assertIn("manualInteractionIsNotOwnerLocked", gametest)
-                self.assertIn("robotDismantleIsNotOwnerLocked", gametest)
+                self.assertIn("robotDismantleRequiresOwnership", gametest)
+                self.assertIn("result == InteractionResult.FAIL", gametest)
+                self.assertIn("!robot.isRemoved()", gametest)
+                self.assertIn("ownerResult != InteractionResult.PASS && ownerResult != InteractionResult.FAIL", gametest)
                 self.assertIn("machineOwnerIdentitySurvivesPersistenceRoundTrip", gametest)
                 self.assertIn("blueprintCopyUsesPlacementActorInsteadOfSourceMachineOwner", gametest)
                 self.assertIn("schematic.build(level, targetPos, actor)", gametest)

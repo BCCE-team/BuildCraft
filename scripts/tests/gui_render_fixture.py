@@ -132,6 +132,7 @@ public class GuiPortProbe {
   check(ItemNameKeys121111.key(Identifier.parse("buildcrafttransport:wire/light_gray")).equals("item.pipewire.light_gray"),"wire canonical key");
   check(ItemNameKeys121111.key(Identifier.parse("buildcraftsilicon:redstone_chipset/gold")).equals("item.buildcraftsilicon.redstone_gold_chipset"),"chipset key");
   check(ItemNameKeys121111.key(Identifier.parse("buildcraftrobotics:controller")).equals("item.buildcraftrobotics.controller"),"controller canonical key");
+  check("item.buildcraftrobotics.hard_disk".equals(ItemNameKeys121111.key(Identifier.parse("buildcraftrobotics:hard_disk"))),"HDD canonical key");
   check(ItemNameKeys121111.key(Identifier.parse("buildcraftrobotics:robot_processor")).equals("block.buildcraftrobotics.robot_processor"),"processor canonical key");
   check(ItemNameKeys121111.key(Identifier.parse("addon:unknown"))==null,"addon naming unchanged");
   System.out.println("Headless actual-code probes passed: "+checks+" assertions (no game launched)");

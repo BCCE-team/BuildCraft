@@ -92,7 +92,8 @@ public class WorkCatalogWorldFixture {
   long accepted=at(5,65,5),outOfHeight=at(5,-10,5);
   input.observe("buildcraft:miner",accepted,0);
   input.observe("buildcraft:miner",outOfHeight,0);
-  check(first.restoreCatalog(input.snapshot())==1,"Invalid-height NBT was accepted");
+  input.observe("buildcraft:miner",at(64,65,5),0);
+  check(first.restoreCatalog(input.snapshot())==1,"Out-of-height or out-of-disk NBT was accepted");
   check(world.blockReads==0,"Restore loaded a chunk or read a block");
   first.flushCatalogDirty(1);
   check(panel.changed==0,"Loading the saved catalog caused a redundant chunk save");
@@ -163,20 +164,59 @@ class PersistentWorkCatalogTests(unittest.TestCase):
 
     def test_real_tile_persists_all_fields_in_both_nbt_apis(self):
         code=TILE.read_text()
-        for field in ('discoveryCatalogVersion','discoveryCatalogTypes','discoveryCatalogCounts','discoveryCatalogPositions'):
+        for field in ('discoveryCatalogVersion','discoveryCatalogTypes','discoveryCatalogCounts',
+                      'discoveryCatalogPositions','discoveryCatalogScope'):
             self.assertIn(field,code)
-        for fragment in ('data.writeString(CATALOG_TYPES_KEY, catalog.categories())',
-                         'data.writeIntArray(CATALOG_COUNTS_KEY, catalog.counts())',
-                         'data.writeLongArray(CATALOG_POSITIONS_KEY, catalog.positions())',
+        for fragment in ('writeCatalog(data.tag())', 'writeCatalog(tag)',
+                         'persistedCatalogScope = data.readString(CATALOG_SCOPE_KEY)',
+                         'persistedCatalogScope = tag.getString(CATALOG_SCOPE_KEY)',
+                         'tag.putString(CATALOG_SCOPE_KEY, scope)',
+                         'tag.putInt(CATALOG_VERSION_KEY, RobotWorkIndex.CATALOG_FORMAT)',
                          'tag.putString(CATALOG_TYPES_KEY, catalog.categories())',
                          'tag.putIntArray(CATALOG_COUNTS_KEY, catalog.counts())',
                          'tag.putLongArray(CATALOG_POSITIONS_KEY, catalog.positions())'):
             self.assertIn(fragment,code)
-        self.assertLess(code.index('workScheduler.onLinkChanged();\n        workScheduler.restorePendingWork'),
-                        code.index('workScheduler.restoreCatalog(persistedCatalog);'))
+        load=code.split('public void onLoad() {',1)[1].split('public void update()',1)[0]
+        self.assertLess(load.index('RobotWorkIndex.CatalogSnapshot saved = persistedCatalog'),
+                        load.index('restoreMediaOnLoad();'))
+        self.assertLess(load.index('workScheduler.onLinkChanged();'),
+                        load.index('workScheduler.restoreCatalog(saved);'))
+        self.assertIn('if (linksInThisDimension() && sameCatalogScope(savedScope, catalogScope()))',load)
+        disk=code.split('private void saveDisk(boolean paintChanged)',1)[1].split('private void resetDiskRuntime()',1)[0]
+        self.assertNotIn('CATALOG_',disk)
+        self.assertNotIn('pendingMiningWork',disk)
+        self.assertNotIn('restorePendingWork(',load)
+        self.assertIn('panel.allowsCatalogPosition(pos)',SCHEDULER.read_text())
+        policy=code.split('public boolean allowsCatalogPosition(',1)[1].split('private boolean matchesWorkArea(',1)[0]
+        self.assertIn('hasMountedDisk() && linksInThisDimension() && matchesWorkArea(target)',policy)
+        self.assertNotIn('isOperational()',policy)
         unloading=code.split('public void onChunkUnloaded() {',1)[1].split('public void onRemove(boolean',1)[0]
         self.assertIn('persistedCatalog = workScheduler.catalogSnapshot()',unloading)
+        self.assertIn('persistedCatalogScope = catalogScope()',unloading)
         self.assertNotIn('setChanged();',unloading)
         self.assertIn('workScheduler.flushCatalogDirty(now)',code)
+
+    def test_catalog_binding_rejects_moved_replaced_and_unbound_media(self):
+        code=TILE.read_text()
+        helpers=code.split('    private static String catalogScope(',1)[1].split('    private String catalogScope()',1)[0]
+        program='class CatalogScopeProbe {\n    private static String catalogScope('+helpers+'''
+  static void check(boolean yes){if(!yes)throw new AssertionError("catalog binding");}
+  public static void main(String[] args){
+    String scope=catalogScope("disk-1","minecraft:overworld",123L);
+    check(sameCatalogScope(scope,catalogScope("disk-1","minecraft:overworld",123L)));
+    check(!sameCatalogScope(scope,catalogScope("disk-2","minecraft:overworld",123L)));
+    check(!sameCatalogScope(scope,catalogScope("disk-1","minecraft:overworld",124L)));
+    check(!sameCatalogScope(scope,catalogScope("disk-1","minecraft:the_nether",123L)));
+    check(!sameCatalogScope(scope,catalogScope("","minecraft:overworld",123L)));
+    check(!sameCatalogScope("",scope));
+    check(!sameCatalogScope("",""));
+    check(!sameCatalogScope(scope,catalogScope("disk-1","",123L)));
+  }
+}'''
+        with tempfile.TemporaryDirectory(prefix='bc-catalog-binding-') as tmp:
+            source=Path(tmp)/'CatalogScopeProbe.java'
+            source.write_text(program,encoding='utf-8')
+            subprocess.run(['javac','--release','17','-d',tmp,str(source)],check=True)
+            subprocess.run(['java','-cp',tmp,'CatalogScopeProbe'],check=True)
 
 if __name__=='__main__':unittest.main()

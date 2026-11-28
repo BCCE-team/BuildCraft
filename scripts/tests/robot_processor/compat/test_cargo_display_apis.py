@@ -40,13 +40,15 @@ class CargoDisplayApis(unittest.TestCase):
                 compat = effective_java(target, 'lib/compat/FluidCompat.java', root)
                 stack = ('buildcraft.lib.fluid.FluidStack' if target.endswith('-fabric')
                          else 'net.neoforged.neoforge.fluids.FluidStack')
-                self.assertIn(f'import {stack};', gui)
                 self.assertIn(f'import {stack};', compat)
                 self.assertIn('BuiltInRegistries.FLUID.getOptional(Identifier.parse(id)).orElse(Fluids.EMPTY)', gui)
                 self.assertNotIn('.map(net.minecraft.core.Holder.Reference::value)', gui)
                 name = gui.split('private Component cargoFluidName(', 1)[1].split('\n    }', 1)[0]
                 self.assertIn('cargoFluid(entry.fluidId())', name)
-                self.assertIn('FluidCompat.getDisplayName(new FluidStack(', name)
+                for loader in ('net.minecraftforge', 'net.neoforged', 'net.fabricmc'):
+                    self.assertNotIn(loader, gui)
+                self.assertIn('FuelApiBridge.stackOfVariant(FluidVariant.of(BuiltInRegistries.FLUID.getKey(fluid))', name)
+                self.assertIn('FluidCompat.getDisplayName(stack)', name)
                 self.assertNotIn('getFluidType()', name)
                 self.assertIn('stack.getHoverName()', compat)
 

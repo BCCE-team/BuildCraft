@@ -197,7 +197,7 @@ public final class PermissionOwnerGameTests {
         helper.succeed();
     }
 
-    public static void robotDismantleIsNotOwnerLocked(GameTestHelper helper) {
+    public static void robotDismantleRequiresOwnership(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos absolute = helper.absolutePos(new BlockPos(1, 1, 1));
         EntityRobot robot = new EntityRobot(level, BCRoboticsBoards.EMPTY);
@@ -213,9 +213,18 @@ public final class PermissionOwnerGameTests {
         otherPlayer.setShiftKeyDown(true);
 
         InteractionResult result = robot.interact(otherPlayer, InteractionHand.MAIN_HAND, robot.position());
-        require(helper, result != InteractionResult.PASS,
-            "robot owner became an ACL: another player must still be able to dismantle/steal the robot");
-        require(helper, robot.isRemoved(), "non-owner wrench dismantle did not convert the robot back to items");
+        require(helper, result == InteractionResult.FAIL,
+            "non-owner wrench dismantle must be explicitly denied");
+        require(helper, !robot.isRemoved(), "non-owner wrench dismantle removed the protected robot");
+
+        Player ownerPlayer = FakePlayerProvider.INSTANCE.getFakePlayer(level, DENIED_OWNER, absolute);
+        ownerPlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(BCCoreItems.WRENCH.get()));
+        ownerPlayer.setShiftKeyDown(true);
+
+        InteractionResult ownerResult = robot.interact(ownerPlayer, InteractionHand.MAIN_HAND, robot.position());
+        require(helper, ownerResult != InteractionResult.PASS && ownerResult != InteractionResult.FAIL,
+            "owner wrench dismantle must be accepted");
+        require(helper, robot.isRemoved(), "owner wrench dismantle did not convert the robot back to items");
         helper.succeed();
     }
 

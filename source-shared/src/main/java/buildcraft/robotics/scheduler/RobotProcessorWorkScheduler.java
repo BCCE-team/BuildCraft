@@ -390,7 +390,7 @@ public final class RobotProcessorWorkScheduler {
             BlockPos pos = BlockPos.of(packed);
             return pos.getY() >= level.getMinBuildHeight()
                     && pos.getY() < level.getMaxBuildHeight()
-                    && panel.allowsWorkPosition(pos);
+                    && panel.allowsCatalogPosition(pos);
         });
         lastMarkedCatalogGeneration = index.generation();
         nextCatalogDirtyTick = 0L;

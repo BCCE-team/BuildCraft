@@ -108,16 +108,32 @@ def main() -> int:
                 "DockingStationPipe registry type is not registered")
 
         # Placement must match the known-good 1.21.1 order exactly after mechanical API renames.
+        # New robots acquire the placing player; packed robots retain their verified identity.
         old_item = src(old, "robotics/item/ItemRobot.java")
         new_item = src(new, "robotics/item/ItemRobot.java")
         same_method(old_item, new_item, "public static InteractionResult placeOnStation(", "ItemRobot.placeOnStation")
         place = method(new_item, "public static InteractionResult placeOnStation(")
-        for token in (
+        placement_steps = (
             "pluggable.getStation()", "station.isTaken()", "robot.getRegistry() == null",
-            "robot.setOwner(player.getGameProfile())", "getNextRobotId()", "station.takeAsMain(robot)",
-            "robot.dock(robot.getLinkedStation())", "level.addFreshEntity(robot)", "currentItem.shrink(1)",
-        ):
-            require(token in place, f"Robot placement lost required step: {token}")
+            "RobotItemIdentity.preparePlacement(currentItem, robot, player)",
+            "if (savedId < 0) return InteractionResult.FAIL;",
+            "RobotEventSupport.denied(RobotEventKind.PLACE, robot, player, currentItem)",
+            "if (!RobotItemIdentity.claimPlacement(currentItem, registry, savedId)) return InteractionResult.FAIL;",
+            "robot.setUniqueRobotId(savedId == 0 ? registry.getNextRobotId() : savedId)",
+            "station.takeAsMain(robot)", "robot.dock(robot.getLinkedStation())",
+            "if (level.addFreshEntity(robot))", "placed = true;",
+            "if (savedId > 0 || !player.isCreative()) currentItem.shrink(1);",
+            "finally {", "if (!placed)",
+            "if (registry.getLoadedRobot(robot.getRobotId()) == robot) registry.killRobot(robot);",
+            "RobotItemIdentity.cancelPlacement(currentItem, registry, savedId)",
+        )
+        positions = [place.find(token) for token in placement_steps]
+        for token, position in zip(placement_steps, positions):
+            require(position >= 0, f"Robot placement lost required step: {token}")
+        require(positions == sorted(positions),
+                "Robot identity validation, claiming, placement and rollback are out of order")
+        require("robot.setOwner(player.getGameProfile())" not in place,
+                "Robot placement bypasses the packed identity owner check")
 
         # A placed robot immediately enters the client entity-render pipeline. In 1.21.11 the dispatcher
         # selects the submit renderer from EntityRenderState.entityType, which is populated by

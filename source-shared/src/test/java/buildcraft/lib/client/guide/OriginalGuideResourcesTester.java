@@ -237,34 +237,34 @@ class OriginalGuideResourcesTester {
         Assertions.assertTrue(autoWorkbench.contains("0.2 MJ/t"));
 
         String pump = rendered("buildcraftfactory/block/pump", ENGLISH);
-        Assertions.assertTrue(pump.contains("pumpMaxDistance"));
-        Assertions.assertTrue(pump.contains("pumpsConsumeWater"));
-        Assertions.assertTrue(pump.contains("infinite water"));
+        Assertions.assertTrue(pump.contains("Fluid Scan Range"));
+        Assertions.assertTrue(pump.contains("Consume Water Sources is disabled"));
+        Assertions.assertTrue(pump.contains("preserves a recognised renewable Water source"));
 
         String architect = rendered("buildcraftbuilders/block/architect", ENGLISH);
         Assertions.assertFalse(architect.contains("preview looks correct"));
         Assertions.assertTrue(architect.contains("does not provide a full 3D schematic preview"));
 
         String quarry = rendered("buildcraftbuilders/block/quarry", ENGLISH);
-        Assertions.assertTrue(quarry.contains("chunk loading is enabled"));
-        Assertions.assertTrue(quarry.contains("owner identity"));
+        Assertions.assertTrue(quarry.contains("only when the server allows its chunk tickets"));
+        Assertions.assertTrue(quarry.contains("Protection rules are checked using the Quarry owner"));
 
         String planner = rendered("buildcraftrobotics/block/zone_planner", ENGLISH);
-        Assertions.assertTrue(planner.contains("already loaded/generated"));
-        Assertions.assertTrue(planner.contains("force-generating"));
+        Assertions.assertTrue(planner.contains("clipped to currently loaded chunks"));
+        Assertions.assertTrue(planner.contains("does not generate missing terrain"));
 
         String wrench = rendered("buildcraftcore/item/wrench", ENGLISH);
         Assertions.assertTrue(wrench.contains("c:tools/wrench"));
 
         String markers = rendered("buildcraftcore/item/marker_land", ENGLISH);
-        Assertions.assertTrue(markers.contains("markerMaxDistance"));
+        Assertions.assertTrue(markers.contains("maximum marker connection distance is 64 blocks"));
 
         String filler = rendered("buildcraftbuilders/block/filler", ENGLISH);
-        Assertions.assertTrue(filler.contains("replaceable blocks"));
+        Assertions.assertTrue(filler.contains("Replaceable blocks can be placement targets"));
         Assertions.assertTrue(filler.contains("owner identity"));
 
         String miningWell = rendered("buildcraftfactory/block/mining_well", ENGLISH);
-        Assertions.assertTrue(miningWell.contains("miningMaxDepth"));
+        Assertions.assertTrue(miningWell.contains("Maximum Mining Depth"));
         Assertions.assertTrue(miningWell.contains("owner identity"));
     }
 
@@ -287,13 +287,15 @@ class OriginalGuideResourcesTester {
 
         String obsidian = rendered("buildcrafttransport/pipe/obsidian_item", ENGLISH);
         Assertions.assertTrue(obsidian.contains("up to four blocks"));
-        Assertions.assertTrue(obsidian.contains("opposite, open side"));
+        Assertions.assertTrue(obsidian.contains("exactly one connected transport side"));
+        Assertions.assertTrue(obsidian.contains("pickup face is opposite that connection"));
         Assertions.assertFalse(obsidian.contains("3x4x3"));
 
         String chute = rendered("buildcraftfactory/block/chute", ENGLISH);
         Assertions.assertTrue(chute.contains("facing side"));
         Assertions.assertTrue(chute.contains("other five sides"));
-        Assertions.assertTrue(chute.contains("gravity-assisted"));
+        Assertions.assertTrue(chute.contains("Facing upward provides a small amount of free gravity progress"));
+        Assertions.assertTrue(chute.contains("other facing directions require MJ"));
 
         String quarry = rendered("buildcraftbuilders/block/quarry", ENGLISH);
         Assertions.assertTrue(quarry.contains("does not halt the Quarry"));
@@ -389,8 +391,9 @@ class OriginalGuideResourcesTester {
     }
 
     @Test
-    void deprecatedOriginalGuideShortcutsRemainFunctional() throws Exception {
-        String markdown = rendered("buildcraftlib/item/guide", ENGLISH);
+    void deprecatedOriginalGuideShortcutsRemainFunctional() {
+        // The current guide no longer uses deprecated syntax; test the parser itself.
+        String markdown = "$[special.all_crafting](buildcraftlib:guide)\n$[special.new_page]";
         GuideDocument document = GuideDocument.parse(markdown, true, false, false);
         Assertions.assertTrue(document.blocks.stream().anyMatch(block ->
             block.kind == GuideDocument.Kind.RECIPES
@@ -398,6 +401,16 @@ class OriginalGuideResourcesTester {
                 && "buildcraftlib:guide".equals(block.target)
         ));
         Assertions.assertTrue(document.blocks.stream().anyMatch(block -> block.kind == GuideDocument.Kind.NEW_PAGE));
+    }
+
+    @Test
+    void currentGuidePageLinksToSetupAndSettings() throws Exception {
+        GuideDocument document = GuideDocument.parse(rendered("buildcraftlib/item/guide", ENGLISH), true, false, false);
+        for (String target : List.of("buildcraftlib:config/bcce_settings", "buildcraftrobotics:config/gate_setup",
+                "buildcraftsilicon:item/plug_gate", "buildcraftcore:block/engine_basics")) {
+            Assertions.assertTrue(document.blocks.stream().anyMatch(block ->
+                block.kind == GuideDocument.Kind.LINK && target.equals(block.target)), "Missing guide link: " + target);
+        }
     }
 
     @Test

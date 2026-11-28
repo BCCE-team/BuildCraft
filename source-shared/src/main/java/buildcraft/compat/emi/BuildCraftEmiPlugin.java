@@ -3,6 +3,10 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 package buildcraft.compat.emi;
 
+import static buildcraft.compat.emi.EmiFluidAdapter.fluids;
+import static buildcraft.compat.emi.EmiFluidAdapter.nativeFluidAmount;
+import static buildcraft.compat.emi.EmiFluidAdapter.outputFluid;
+
 import buildcraft.api.v2.BuildCraftApi;
 import buildcraft.api.v2.BuildCraftServices;
 import buildcraft.api.v2.fluid.FluidVariant;
@@ -13,7 +17,6 @@ import buildcraft.energy.OilIndustry;
 import buildcraft.factory.BCFactoryItems;
 import buildcraft.factory.container.ContainerAutoCraftItems;
 import buildcraft.lib.BCLibConfig;
-import buildcraft.lib.fluid.FluidCompatRegistry;
 import buildcraft.lib.fluid.FuelApiBridge;
 import buildcraft.lib.gui.GuiBC8;
 import buildcraft.lib.gui.ledger.Ledger_Neptune;
@@ -345,47 +348,6 @@ public final class BuildCraftEmiPlugin implements EmiPlugin {
             put(recipes, new MachineRecipe(integration, entry.id(), outputKey(recipe.result()), inputs,
                 List.of(EmiStack.of(recipe.result())), true, energy(recipe.requiredMicroJoules(recipe.result()))));
         }
-    }
-
-    //? if fabric {
-    private static EmiIngredient fluids(buildcraft.lib.fluid.FluidStack stack) {
-    //?} else if forge {
-    private static EmiIngredient fluids(net.minecraftforge.fluids.FluidStack stack) {
-    //?} else {
-    private static EmiIngredient fluids(net.neoforged.neoforge.fluids.FluidStack stack) {
-    //?}
-        if (stack == null || stack.isEmpty()) return EmiStack.EMPTY;
-        var variants = FluidCompatRegistry.getEquivalentStacks(stack, "buildcraftenergy");
-        List<EmiStack> entries = new ArrayList<>();
-        for (var variant : variants.isEmpty() ? List.of(stack) : variants) {
-            entries.add(outputFluid(variant));
-        }
-        return EmiIngredient.of(entries, nativeFluidAmount(stack.getAmount()));
-    }
-
-    //? if fabric {
-    private static EmiStack outputFluid(buildcraft.lib.fluid.FluidStack stack) {
-    //?} else if forge {
-    private static EmiStack outputFluid(net.minecraftforge.fluids.FluidStack stack) {
-    //?} else {
-    private static EmiStack outputFluid(net.neoforged.neoforge.fluids.FluidStack stack) {
-    //?}
-        if (stack == null || stack.isEmpty()) return EmiStack.EMPTY;
-        // Equivalent inputs are alternatives, but the machine produces one exact fluid.
-        // Listing equivalent output fluids as separate outputs would double-count the recipe tree.
-        //? if <1.21 {
-        return EmiStack.of(stack.getFluid(), stack.getTag(), nativeFluidAmount(stack.getAmount()));
-        //?} else {
-        return EmiStack.of(stack.getFluid(), stack.getComponentsPatch(), nativeFluidAmount(stack.getAmount()));
-        //?}
-    }
-
-    private static long nativeFluidAmount(long mb) {
-        //? if fabric {
-        return mb * 81L;
-        //?} else {
-        return mb;
-        //?}
     }
 
     private static List<EmiStack> nonEmptyOutputs(EmiStack... stacks) {

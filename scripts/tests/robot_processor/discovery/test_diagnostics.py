@@ -125,9 +125,8 @@ class ProcessorDiagnosticsTests(unittest.TestCase):
         import sys
         sys.path.insert(0, str(ROOT / 'scripts'))
         from source_lookup import read_materialized_java, resolve_target_source
-        versions = ('1.19.2-forge', '1.20.1-forge', '1.21.1-neoforge',
-                    '1.21.11-neoforge', '26.1.2-neoforge',
-                    '26.3-neoforge', '26.3-fabric')
+        from source_config import target_ids
+        versions = target_ids()
         paths = ('gui/GuiRobotProcessor.java', 'container/ContainerRobotProcessor.java',
                  'scheduler/RobotProcessorWorkScheduler.java',
                  'scheduler/RobotMiningPriority.java',
@@ -142,6 +141,9 @@ class ProcessorDiagnosticsTests(unittest.TestCase):
                     if subpath.startswith('gui/'):
                         self.assertEqual(code.count('private List<Component> diagnosticLines('),1)
                     if subpath.endswith('RobotProcessorWorkScheduler.java'):
-                        self.assertIn('index.countMatchingUpTo(',code)
+                        # A full discovery pass must not stop at execution-queue capacity.
+                        self.assertIn('if (queuedCategories.contains(category)) missing = Math.max(1, missing);',code)
+                        self.assertIn('remainingDemand.put(category, missing)',code)
+                        self.assertIn('diagnostics.snapshot(index.totalCandidates()',code)
 
 if __name__=='__main__': unittest.main()

@@ -12,7 +12,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from source_layout import load_properties, materialize_target
-from client_integration_fixture import run_probe
+from client_integration_fixture import run_probe, SOURCES as CLIENT_FIXTURE_SOURCES
 from minecraft_compat_fixture import parse_sources
 
 
@@ -651,6 +651,7 @@ public class PreviewProbe {
         root = Path(self.temp.name) / 'sync-stubs'
         stubs = {
             'buildcraft/lib/recipe/AssemblyRecipeBasic.java': 'package buildcraft.lib.recipe; public class AssemblyRecipeBasic {}',
+            'buildcraft/lib/recipe/ClientMachineRecipeCatalog.java': CLIENT_FIXTURE_SOURCES['buildcraft/lib/recipe/ClientMachineRecipeCatalog.java'],
             'buildcraft/silicon/BCSilicon.java': 'package buildcraft.silicon; public class BCSilicon { public static final String MODID="buildcraftsilicon"; }',
             'buildcraft/silicon/BCSiliconRecipes.java': 'package buildcraft.silicon; import buildcraft.lib.recipe.AssemblyRecipeBasic; import net.minecraft.world.item.crafting.RecipeType; public class BCSiliconRecipes { public static final Entry<RecipeType<AssemblyRecipeBasic>> ASSEMBLY_TYPE = new Entry<>(new RecipeType<>()); public record Entry<T>(T obj){ public T get(){return obj;} }}',
             'net/minecraft/world/item/crafting/RecipeType.java': 'package net.minecraft.world.item.crafting; public class RecipeType<T> {}',
@@ -669,6 +670,7 @@ public class PreviewProbe {
         sources.append(source)
         main = '''import buildcraft.silicon.*;
 import buildcraft.lib.recipe.AssemblyRecipeBasic;
+import buildcraft.lib.recipe.ClientMachineRecipeCatalog;
 import net.minecraft.world.item.crafting.*;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.neoforge.client.event.*;
@@ -680,6 +682,8 @@ public class TestMain{
   @SuppressWarnings("unchecked")
   public static void main(String[] args){
     check(BCSiliconRecipeSync.Client.assemblyRecipes().isEmpty());
+    List<Integer> emiSizes=new ArrayList<>();
+    ClientMachineRecipeCatalog.setEmiListener(()->emiSizes.add(BCSiliconRecipeSync.Client.assemblyRecipes().size()));
     OnDatapackSyncEvent toSend=new OnDatapackSyncEvent();BCSiliconRecipeSync.onDatapackSync(toSend);
     check(toSend.sent==BCSiliconRecipes.ASSEMBLY_TYPE.get());
     var gate=new RecipeHolder<>("assembly/gate",new AssemblyRecipeBasic());
@@ -696,6 +700,10 @@ public class TestMain{
     BCSiliconRecipeSync.Client.setAssemblyRecipesChangedListener(null);
     BCSiliconRecipeSync.Client.onRecipes(event(gate));
     check(changed==3);
+    check(emiSizes.equals(List.of(2,1,0,1))); // EMI observes each published Assembly snapshot
+    BCSiliconRecipeSync.Client.onRecipes(new RecipesReceivedEvent(Set.of(),new RecipeMap(List.of())));
+    check(emiSizes.equals(List.of(2,1,0,1))); // unrelated types do not rebuild EMI
+    ClientMachineRecipeCatalog.setEmiListener(null);
     BCSiliconRecipeSync.Client.setAssemblyRecipesChangedListener(()->changed++);
     check(changed==4);
     BCSiliconRecipeSync.Client.onLogout(new ClientPlayerNetworkEvent.LoggingOut());
@@ -790,6 +798,11 @@ public class JeiRuntimeProbe {
   private static List<Object> publishedDistillation=List.of();
   private static List<Object> publishedHeatExchange=List.of();
   private static List<Object> publishedFuels=List.of();
+  record ItemStack(String id){}
+  record FluidStack(String id){}
+  private static List<ItemStack> hiddenOilBuckets=List.of();
+  private static List<FluidStack> hiddenOilFluids=List.of();
+  private static boolean oilIngredientsHidden;
   // The Assembly-only probe intentionally supplies a no-op for unrelated JEI recipe types.
   // Their production reconciliation contract is asserted against the real source above.
   private static void refreshOtherRecipes(IJeiRuntime runtime) {}
@@ -834,7 +847,12 @@ public class JeiRuntimeProbe {
     check(manager.added==8 && manager.hidden==7);
     BCSiliconRecipeSync.Client.push(); // empty reload or server leaves world
     check(manager.visible.isEmpty() && manager.hidden==8);
+    // Simulate oil ingredients hidden by the current runtime before detach.
+    oilIngredientsHidden=true;
+    hiddenOilBuckets=List.of(new ItemStack("oil_bucket"));
+    hiddenOilFluids=List.of(new FluidStack("oil"));
     probe.onRuntimeUnavailable();
+    check(!oilIngredientsHidden && hiddenOilBuckets.isEmpty() && hiddenOilFluids.isEmpty());
     check(publishedAssemblyApiGeneration==-1);
     check(ClientMachineRecipeCatalog.listener==null);
     ClientMachineRecipeCatalog.emitCatalogUpdate(); // detached catalog cannot change JEI

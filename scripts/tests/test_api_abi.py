@@ -152,6 +152,8 @@ class BaselineAndReleaseGateTest(unittest.TestCase):
         self.assertEqual(baseline['api'], '2.1.0')
         self.assertEqual(len(baseline['sha256']), 8)
         self.assertEqual(len(set(baseline['sha256'].values())), 8)
+        self.assertEqual(set(baseline['asset_ids']), set(baseline['sha256']))
+        self.assertEqual(len(set(baseline['asset_ids'].values())), 8)
 
     def test_offline_cache_fails_closed_on_missing_or_modified_baseline(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -168,6 +170,62 @@ class BaselineAndReleaseGateTest(unittest.TestCase):
             file.write_bytes(b'modified')
             with self.assertRaisesRegex(ValueError, 'SHA-256 mismatch'):
                 abi.baseline_jar(baseline, '1.20.1-forge', cache, True)
+
+    @staticmethod
+    def download_fixture(data):
+        import io
+        response = io.BytesIO(data)
+        response.headers = {'Content-Type': 'application/octet-stream'}
+        return response
+
+    @staticmethod
+    def download_baseline(data):
+        import hashlib
+        return {'repository': 'BCCE-team/BuildCraft', 'release': 'test',
+                'sha256': {'1.20.1-forge': hashlib.sha256(data).hexdigest()},
+                'asset_ids': {'1.20.1-forge': 12345}}
+
+    def test_download_accepts_verified_direct_response_and_reuses_cache(self):
+        data = b'exact pinned baseline'
+        baseline = self.download_baseline(data)
+        with tempfile.TemporaryDirectory() as directory, patch.object(abi, 'urlopen',
+                return_value=self.download_fixture(data)) as download:
+            cache = Path(directory)
+            file = abi.baseline_jar(baseline, '1.20.1-forge', cache, False)
+            self.assertEqual(file.read_bytes(), data)
+            self.assertEqual(abi.baseline_jar(baseline, '1.20.1-forge', cache, False), file)
+            download.assert_called_once()
+            self.assertIn('%2B1.20.1%2Bforge.jar', download.call_args.args[0].full_url)
+            self.assertEqual(list(file.parent.iterdir()), [file])
+
+    def test_download_retries_corrupt_response_via_pinned_asset_api(self):
+        data = b'exact pinned baseline'
+        baseline = self.download_baseline(data)
+        from http.client import IncompleteRead
+        with tempfile.TemporaryDirectory() as directory, patch.object(abi, 'urlopen', side_effect=[
+                self.download_fixture(b'bad cached response'), IncompleteRead(b'partial'),
+                self.download_fixture(data)]) as download:
+            file = abi.baseline_jar(baseline, '1.20.1-forge', Path(directory), False)
+            self.assertEqual(file.read_bytes(), data)
+            self.assertEqual(download.call_count, 3)
+            requests = [call.args[0] for call in download.call_args_list]
+            self.assertIn('bcce_retry=', requests[1].full_url)
+            self.assertIn('/releases/assets/12345?', requests[2].full_url)
+            self.assertEqual(requests[2].get_header('Accept'), 'application/octet-stream')
+            self.assertEqual(list(file.parent.iterdir()), [file])
+
+    def test_download_never_caches_unverified_responses(self):
+        baseline = self.download_baseline(b'exact pinned baseline')
+        with tempfile.TemporaryDirectory() as directory, patch.object(abi, 'urlopen', side_effect=[
+                self.download_fixture(b'wrong'), self.download_fixture(b'wrong again'),
+                self.download_fixture(b'{"message":"not binary"}')]) as download:
+            cache = Path(directory)
+            with self.assertRaisesRegex(ValueError, 'Downloaded baseline SHA-256 mismatch') as error:
+                abi.baseline_jar(baseline, '1.20.1-forge', cache, False)
+            self.assertIn(baseline['sha256']['1.20.1-forge'], str(error.exception))
+            self.assertIn('bytes', str(error.exception))
+            self.assertEqual(download.call_count, 3)
+            self.assertEqual(list((cache / 'test').iterdir()), [])
 
     def test_all_targets_required_and_artifact_tampering_rejected(self):
         baseline = abi.load_baseline()

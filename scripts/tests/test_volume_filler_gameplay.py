@@ -40,6 +40,7 @@ CLASSES={
  'builders/item/ItemFillerPlanner.java','builders/addon/AddonFillerPlanner.java',
  'builders/addon/AddonRendererFillerPlanner.java', 'builders/menu/ContainerFillerPlanner.java',
  'builders/gui/GuiFillerPlanner.java','builders/platform/PlannerMenuOpening.java',
+ 'lib/misc/ShipWorldAccess.java',
 }
 RECIPE_ID={'volume_box':'buildcraftcore:volume_box','filler_planner':'buildcraftbuilders:filler_planner'}
 
@@ -274,8 +275,9 @@ class VolumeFillerGameplayTests(unittest.TestCase):
             with self.subTest(target=target):
                 source = self.outputs[target] / P / 'builders/menu/ContainerFillerPlanner.java'
                 modern = target.startswith(('1.21.11-', '26.'))
-                result = check_menu(source, level_method=modern)
-                self.assertIn('24 assertions PASS', result)
+                ship_source = self.outputs[target] / P / 'lib/misc/ShipWorldAccess.java'
+                result = check_menu(source, ship_source=ship_source, level_method=modern)
+                self.assertIn('38 assertions PASS', result)
                 print(target + ': ' + result, flush=True)
 
     def test_window_id_guards_prevent_phantom_menu_packet_reuse(self):
@@ -322,7 +324,11 @@ class VolumeFillerGameplayTests(unittest.TestCase):
                 self.assertIn('updateBuildingInfo()',menu)
                 self.assertIn('isLocked()',menu)
                 self.assertIn('WorldSavedDataVolumeBoxes.get(',menu)
-                self.assertIn('distanceToSqr(',menu)
+                self.assertIn('box.world == playerLevel() &&',menu)
+                self.assertIn('ShipWorldAccess.distanceSquared(box.world, box.addons.get(addonSlot).getBoundingBox().getCenter(), player.getEyePosition()) <= 64',menu)
+                self.assertIn('if (stillValid(getPlayer()) && !isLocked())',menu)
+                bridge=self.java(target,'lib/misc/ShipWorldAccess.java')
+                self.assertIn('return squared(worldPoint(level, a), worldPoint(level, b));',bridge)
                 self.assertIn('buf.readUUID()',menu)
                 self.assertIn('buf.readEnum(EnumAddonSlot.class)',menu)
 
