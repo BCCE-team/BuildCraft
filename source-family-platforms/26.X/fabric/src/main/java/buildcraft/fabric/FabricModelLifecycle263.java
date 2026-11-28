@@ -1,5 +1,6 @@
 package buildcraft.fabric;
 
+import buildcraft.core.client.FluidShardTintSource;
 import buildcraft.lib.client.model.ModelHolderRegistry;
 import buildcraft.lib.client.model.json.VariablePartLed;
 import buildcraft.lib.client.sprite.SpriteHolderRegistry;
@@ -45,6 +46,7 @@ public final class FabricModelLifecycle263 {
         }
 
         // When a resource pack is swapped, no cached quad may keep UVs from the old atlas.
+        FluidShardTintSource.clearTextureColors();
         ClientAtlas.After stitched = new ClientAtlas.After(atlas);
         SpriteHolderRegistry.onTextureStitchPost(stitched);
         // LED parts use their own shared sprite rather than SpriteHolderRegistry.
