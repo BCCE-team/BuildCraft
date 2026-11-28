@@ -49,7 +49,7 @@ public class BlockTank extends BlockBCTile_Neptune implements ICustomPipeConnect
 	}
 
 	protected static BlockBehaviour.Properties defaultProperties() {
-		return RegistryCompat.blockProperties(RegistryCompat.blockProperties(BlockBehaviour.Properties.of())).mapColor(MapColor.NONE).sound(SoundType.METAL).strength(6.0f, 10.0f).requiresCorrectToolForDrops();
+		return RegistryCompat.blockProperties(RegistryCompat.blockProperties(BlockBehaviour.Properties.of())).mapColor(MapColor.NONE).sound(SoundType.METAL).strength(0.3f, 10.0f);
 	}
 
 	protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> bs) {

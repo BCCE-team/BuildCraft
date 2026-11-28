@@ -33,6 +33,7 @@ body:
       options:
         - Forge
         - NeoForge
+        - Fabric
     validations:
       required: true
 

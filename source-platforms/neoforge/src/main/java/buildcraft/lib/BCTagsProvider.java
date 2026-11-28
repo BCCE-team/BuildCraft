@@ -36,7 +36,6 @@ public class BCTagsProvider {
 			.add(BCFactoryBlocks.HEATEXCHANGE_BLOCK.get())
 			.add(BCFactoryBlocks.MINING_WELL_BLOCK.get())
 			.add(BCFactoryBlocks.PUMP_BLOCK.get())
-			.add(BCFactoryBlocks.TANK_BLOCK.get())
 			.add(BCTransportBlocks.filterBuffer.get())
 			.add(BCTransportBlocks.pipeHolder.get());
 		}

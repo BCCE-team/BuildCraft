@@ -37,6 +37,7 @@ Make sure to download the version matching your Minecraft version and mod loader
 - [x] Port to 26.3 Fabric
 - [x] Extend API v2 to version 2.2
 - [x] Introduce the shared BCCE configuration system and addon configuration API
+- [x] Port to 26.2 Fabric
 - [ ] Port to 1.20.1 Fabric
 - [ ] Port to 1.21.1 Fabric
 - [ ] Port to 1.21.11 Fabric

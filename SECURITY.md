@@ -14,10 +14,11 @@ Security fixes are prioritized for the **latest stable BCCE release** available 
 | 1.21.11 | NeoForge | Supported |
 | 26.1.2 | NeoForge | Supported |
 | 26.2 | NeoForge | Supported |
+| 26.2 | Fabric | Supported |
 | 26.3 | NeoForge | Supported |
 | 26.3 | Fabric | Supported |
 | 1.21.1 | Forge | Discontinued |
-| 1.12.2 | Forge | Discontinued |
+| 1.12.2 | Forge | Paused |
 
 Development builds and older releases may receive fixes at the maintainers' discretion, but are not guaranteed security updates. Planned ports, including other Fabric targets, are not covered until officially released. See the [README](README.md) and [releases](https://github.com/BCCE-team/BuildCraft/releases) for the current support matrix and available versions.
 
