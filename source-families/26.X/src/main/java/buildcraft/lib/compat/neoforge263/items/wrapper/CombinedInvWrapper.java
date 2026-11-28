@@ -1,4 +1,4 @@
-//? source if >=26.3 || (fabric && >=26.2)
+//? source if >=26.3 || (fabric && >=26.1.2)
 package buildcraft.lib.compat.neoforge263.items.wrapper;
 
 import buildcraft.lib.compat.neoforge263.items.IItemHandlerModifiable;

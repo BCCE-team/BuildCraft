@@ -1,4 +1,4 @@
-//? source if >=26.2
+//? source if >=26.1.2
 /* Copyright (c) 2017 SpaceToad and the BuildCraft team
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
  */

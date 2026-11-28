@@ -26,8 +26,8 @@ if (ciWorldJoinUsername && !(ciWorldJoinUsername ==~ /[A-Za-z0-9_]{1,16}/)) {
 }
 def ciWorldJoinRoot = new File(repositoryRoot, "run-modpack-join/26.X/${targetName}")
 
-if (bc.loaderName != 'fabric' || !(minecraftVersion in ['26.2', '26.3'])) {
-    throw new GradleException("Fabric adapter supports 26.2-fabric and 26.3-fabric, received ${targetName}")
+if (bc.loaderName != 'fabric' || !(minecraftVersion in ['26.1.2', '26.2', '26.3'])) {
+    throw new GradleException("Fabric adapter supports 26.1.2-fabric, 26.2-fabric and 26.3-fabric, received ${targetName}")
 }
 
 repositories {
@@ -37,6 +37,13 @@ repositories {
             maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' }
         }
         filter { includeGroup 'maven.modrinth' }
+    }
+    // The pinned PF-EMI 26.1.2 Fabric file is distributed on CurseForge.
+    exclusiveContent {
+        forRepository {
+            maven { name = 'CurseMaven'; url = 'https://cursemaven.com' }
+        }
+        filter { includeModule 'curse.maven', 'pf-emi-1654612' }
     }
     // Cloth Config's Fabric distribution nests basic-math; expose it to javac.
     exclusiveContent {

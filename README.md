@@ -12,37 +12,24 @@ The goal of the project is to preserve and continue the classic BuildCraft exper
 
 Make sure to download the version matching your Minecraft version and mod loader.
 
-## Supported versions
+## Supported versions (including planned)
 
-| Minecraft | Loader |
-| --- | --- |
-| 1.19.2 | Forge |
-| 1.20.1 | Forge |
-| 1.21.1 | NeoForge |
-| 1.21.11 | NeoForge |
-| 26.1.2 | NeoForge |
-| 26.2 | NeoForge |
-| 26.2 | Fabric (port candidate; build verification pending) |
-| 26.3 | NeoForge |
-| 26.3 | Fabric |
+| Minecraft | Forge | NeoForge | Fabric |
+| --- | --- |--- | --- |
+| 1.19.2 | Core |❌ |❌ |
+| 1.20.1 | Core |❌ |Medium |
+| 1.21.1 | ❌ | Core | Medium |
+| 1.21.11 | ❌ | Low | High |
+| 26.1.2 | ❌ | Medium | Low |
+| 26.2 | ❌ | Low | Low |
+| 26.3 | ❌ | Medium | High |
+| 26.4 | ❌ | Planned | Planned |
 
-## Roadmap 2.1 / 2.2
+Support for 1.21.11 and 26.2 neoforge may be dropped
 
-- [x] Drop support for 1.21.1 Forge
-- [x] Introduce the new API v2 system
-- [x] Add Forge Energy (FE) compatibility
-- [x] Port to 1.21.11 NeoForge
-- [x] Port to 26.x NeoForge
-- [x] Extend API v2 to version 2.1
-- [x] Port to 26.3 Fabric
-- [x] Extend API v2 to version 2.2
-- [x] Introduce the shared BCCE configuration system and addon configuration API
-- [x] Port to 26.2 Fabric
-- [ ] Port to 1.20.1 Fabric
-- [ ] Port to 1.21.1 Fabric
-- [ ] Port to 1.21.11 Fabric
-- [ ] Port 26.1.2 to Fabric
-- [ ] Verify and release the 26.2 Fabric port
+## Roadmap 
+
+https://roadmap.bcce-team.tech/
 
 ## For Modpack Creators
 

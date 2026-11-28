@@ -28,7 +28,7 @@ _RELOCATIONS = {
 
 def uses_internal_storage_contracts(minecraft: str, platform: str) -> bool:
     return (version_tuple(minecraft) >= version_tuple('26.3')
-            or (platform == 'fabric' and version_tuple(minecraft) >= version_tuple('26.2')))
+            or (platform == 'fabric' and version_tuple(minecraft) >= version_tuple('26.1.2')))
 
 
 def relocate_removed_neoforge_apis(text: str, *, minecraft: str, relative: str,

@@ -1,4 +1,4 @@
-//? source if >=26.2
+//? source if >=26.1.2
 package buildcraft.robotics.ai;
 
 import java.util.ArrayList;

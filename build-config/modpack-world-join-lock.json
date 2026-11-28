@@ -114,6 +114,16 @@
         "ic2": false,
         "create": false
       }
+    },
+    "26.1.2-fabric": {
+      "generation": "26.X",
+      "mods": {},
+      "present": {
+        "ae2": false,
+        "forestry": false,
+        "ic2": false,
+        "create": false
+      }
     }
   }
 }

@@ -214,7 +214,7 @@ def validate(target: str = "26.3-fabric") -> None:
             require("Enum<?> action" in content and
                     "buildcraft.lib.compat.neoforge263.fluids.IFluidHandler.FluidAction" in content,
                     f"Fabric MJ action bridge missing: {name}")
-        if TARGET == "26.2-fabric":
+        if TARGET in ("26.1.2-fabric", "26.2-fabric"):
             for name, old, forbidden in (
                 ("builders/client/render/pip/BlueprintPipRenderState.java",
                  "getBounds(x0, y0, x1, y1, scissorArea)", "getBounds(x0, y0, x1, y1, pose,"),
@@ -226,7 +226,19 @@ def validate(target: str = "26.3-fabric") -> None:
             ):
                 content = (java / "buildcraft" / name).read_text(encoding="utf-8")
                 require(old in content and (not forbidden or forbidden not in content),
-                        f"26.2 Fabric vanilla downport missing: {name}")
+                        f"{TARGET} vanilla downport missing: {name}")
+        if TARGET == "26.1.2-fabric":
+            for name, required, forbidden in (
+                ("builders/client/FabricBuildersClient.java", "context.bufferSource()", "new BlueprintPipRenderer()"),
+                ("robotics/client/FabricRoboticsClient.java", "context.bufferSource()", "new RobotPreviewPipRenderer()"),
+                ("core/client/CoreWorldGeometry.java", "LevelRenderEvents.END_EXTRACTION", "LevelExtractionEvents"),
+                ("builders/client/render/pip/PreviewPipeModel.java", "MultiBufferSource buffers", "BCVertexBuffers"),
+                ("builders/snapshot/SchematicEntityDefault.java", "level, EntitySpawnReason.LOAD", "EntitySpawnRequest"),
+                ("robotics/SimpleRobotRegistryProvider.java", "SavedDataCompat.migrateLegacyFlatFile", "SavedDataStorage storage"),
+            ):
+                content = (java / "buildcraft" / name).read_text(encoding="utf-8")
+                require(required in content and forbidden not in content,
+                        f"26.1.2 Fabric API downport missing: {name}")
         # Dedicated-server class loading must not resolve client-only types from
         # the Builders item registry or entity schematic factory. This is a
         # verified runGameTest startup regression on Fabric 26.3.
@@ -309,7 +321,7 @@ def validate(target: str = "26.3-fabric") -> None:
 
 if __name__ == "__main__":
     try:
-        for target in ("26.3-fabric", "26.2-fabric"):
+        for target in ("26.3-fabric", "26.2-fabric", "26.1.2-fabric"):
             validate(target)
     except (ValueError, FileNotFoundError, KeyError, OSError) as error:
         print(f"ERROR: {error}", file=sys.stderr)

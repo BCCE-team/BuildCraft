@@ -40,6 +40,7 @@ TARGETS = {
     "26.3-neoforge": "26.X",
     "26.3-fabric": "26.X",
     "26.2-fabric": "26.X",
+    "26.1.2-fabric": "26.X",
 }
 # Supported upstream releases, not a claim that BCCE integration has been implemented.
 # These expectations are intentionally independent of the lock contents: removing
@@ -54,6 +55,7 @@ EXPECTED_PRESENCE = {
     "26.3-neoforge": (True, False, False, False),
     "26.3-fabric": (False, False, False, False),
     "26.2-fabric": (False, False, False, False),
+    "26.1.2-fabric": (False, False, False, False),
 }
 OPTIONAL_NAMES = ("ae2", "forestry", "ic2", "create")
 MODRINTH_PROJECTS = {"ae2": "XxWD5pD3", "forestry": "2oORTOi2", "guideme": "Ck4E7v7R",

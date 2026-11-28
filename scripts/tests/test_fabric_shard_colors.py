@@ -16,7 +16,7 @@ from source_layout import resolve_effective_source, _materialize_text_file
 
 JAVA = 'src/main/java/buildcraft/'
 ASSETS = 'src/main/resources/assets/'
-TARGETS = ('26.2-fabric', '26.3-fabric')
+TARGETS = ('26.1.2-fabric', '26.2-fabric', '26.3-fabric')
 FAMILIES = ('oil', 'oil_residue', 'oil_heavy', 'oil_dense', 'oil_distilled',
             'fuel_dense', 'fuel_mixed_heavy', 'fuel_light', 'fuel_mixed_light', 'fuel_gaseous')
 

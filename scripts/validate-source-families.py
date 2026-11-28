@@ -206,7 +206,7 @@ def validate_source_selector_policy(
                 }
                 if (path.is_relative_to(internal_root)
                         and path.relative_to(internal_root).as_posix() in storage_paths
-                        and condition == ">=26.3 || (fabric && >=26.2)"):
+                        and condition == ">=26.3 || (fabric && >=26.1.2)"):
                     continue
                 fail(
                     f"loader predicate in source selector {path.relative_to(ROOT)}; "

@@ -318,15 +318,8 @@ public class GuiRobotProcessor extends GuiZonePlanner<ContainerRobotProcessor> {
     }
 
     private void renderCargoFluid(PoseStack pose, Fluid fluid, int x, int y) {
-        //? if >=26.2 {
         FluidRenderer.drawFlowingFluidForGui(fluid, leftPos + x, topPos + y + 16,
                 leftPos + x + 16, topPos + y, getActiveGraphics());
-        //?} else {
-        /*?
-        FluidRenderer.drawFlowingFluidForGui(fluid, leftPos + x, topPos + y + 16,
-                leftPos + x + 16, topPos + y, pose.last());
-        ?*/
-        //?}
     }
 
     @Override

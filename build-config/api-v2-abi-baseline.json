@@ -24,6 +24,7 @@
     "26.3-fabric": 751695580
   },
   "first_release_reference": {
-    "26.2-fabric": "26.3-fabric"
+    "26.2-fabric": "26.3-fabric",
+    "26.1.2-fabric": "26.3-fabric"
   }
 }

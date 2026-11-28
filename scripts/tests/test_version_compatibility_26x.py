@@ -739,5 +739,122 @@ public class VerifyPower263 {
 }
 """
 
+
+class Fabric2612CompilerRegressions(unittest.TestCase):
+    """Guard the actual 26.1.2 Fabric compiler failures, not just NeoForge."""
+
+    ROBOT_SOURCES = (
+        'robotics/ai/AIRobotSearchBlock.java',
+        'robotics/container/ContainerRequester.java',
+        'robotics/gui/GuiRequester.java',
+        'robotics/gui/GuiZonePlanner.java',
+        'robotics/gui/GuiZonePlannerLegacy.java',
+        'robotics/zone/ZonePlannerMapChunk.java',
+        'robotics/zone/ZonePlannerMapChunkKey.java',
+        'robotics/zone/MessageZoneMapRequest.java',
+        'robotics/zone/ZonePlannerMapDataServer.java',
+    )
+    SOURCES = ROBOT_SOURCES + (
+        'robotics/client/render/RenderRobot.java',
+        'robotics/client/render/RenderZonePlanner.java',
+        'robotics/gui/GuiRobotProcessor.java',
+        'factory/client/render/RenderHeatExchange.java',
+        'lib/compat/BlockEntityTypeCompat.java',
+        'lib/gui/widget/WidgetPhantomSlot.java',
+        'lib/compat/minecraft/render/BCGeometryRenderer.java',
+        'lib/client/render/fluid/FluidRenderer.java',
+    )
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory(prefix='bc-fabric2612-compile-')
+        cls.root = Path(cls.tmp.name)
+        cls.props = load_properties()
+        cls.layout = target_layout('26.1.2-fabric', cls.props)
+        downports = tuple(root for root in (cls.layout.family_downport_root,
+                         cls.layout.family_platform_downport_root) if root is not None)
+        for name in cls.SOURCES:
+            rel = 'src/main/java/buildcraft/' + name
+            source = resolve_effective_source(cls.layout, cls.props, rel)
+            if source is None:
+                raise AssertionError('missing effective source: ' + rel)
+            _materialize_text_file(source, cls.root / rel, logical_relative=rel,
+                minecraft='26.1.2', family=cls.layout.family, platform='fabric',
+                preprocess=True,
+                native_source=any(source.is_relative_to(root) for root in downports),
+                native_passthrough=(source.is_relative_to(cls.layout.family_platform_root)
+                    or (cls.layout.family_platform_downport_root is not None
+                        and source.is_relative_to(cls.layout.family_platform_downport_root))))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def source(self, name):
+        return (self.root / 'src/main/java/buildcraft' / name).read_text(encoding='utf-8')
+
+    def test_native_robot_sources_are_selected_not_121x_fallbacks(self):
+        for name in self.ROBOT_SOURCES:
+            relative = 'src/main/java/buildcraft/' + name
+            with self.subTest(name=name):
+                path = resolve_effective_source(self.layout, self.props, relative)
+                self.assertEqual(ROOT / 'source-families/26.X' / relative, path)
+                # The existing NeoForge 26.1.2 target retains its explicit overrides.
+                neo = target_layout('26.1.2-neoforge', self.props)
+                self.assertEqual(ROOT / 'version-src/26.1.2-neoforge' / relative,
+                                 resolve_effective_source(neo, self.props, relative))
+
+    def test_chunk_records_and_container_input(self):
+        for name in self.ROBOT_SOURCES:
+            code = self.source(name)
+            with self.subTest(name=name):
+                self.assertNotRegex(code, r'\b(?:chunkPos|plannerChunk|chunk)\.(?:x|z)\b(?!\()')
+        requester = self.source('robotics/container/ContainerRequester.java')
+        self.assertIn('import net.minecraft.world.inventory.ContainerInput;', requester)
+        self.assertIn('ContainerInput.CLONE', requester)
+        self.assertNotIn('ClickType', requester)
+        request = self.source('robotics/zone/MessageZoneMapRequest.java')
+        self.assertIn('new ChunkPos(menu.tile.getBlockPos().getX() >> 4, menu.tile.getBlockPos().getZ() >> 4)', request)
+
+    def test_gui_extraction_and_constructor_sizes(self):
+        for name in ('GuiRequester.java', 'GuiZonePlanner.java', 'GuiZonePlannerLegacy.java'):
+            code = self.source('robotics/gui/' + name)
+            with self.subTest(name=name):
+                self.assertNotIn('import net.minecraft.client.gui.GuiGraphics;', code)
+                self.assertNotRegex(code, r'(?m)^\s*image(?:Width|Height)\s*=')
+                self.assertNotIn('CharacterEvent(codePoint, modifiers)', code)
+        self.assertIn('super(container, inv, title, SIZE_X, SIZE_Y)', self.source('robotics/gui/GuiRequester.java'))
+        self.assertIn('super(container, inv, title, processorMode ? PROCESSOR_WIDTH : SIZE_X, processorMode ? 272 : SIZE_Y)',
+                      self.source('robotics/gui/GuiZonePlanner.java'))
+        processor = self.source('robotics/gui/GuiRobotProcessor.java')
+        self.assertIn('leftPos + x + 16, topPos + y, getActiveGraphics());', processor)
+        self.assertRegex(self.source('lib/client/render/fluid/FluidRenderer.java'),
+                         r'drawFlowingFluidForGui\(Fluid fluid,[\s\S]*?GuiGraphicsExtractor graphics\)')
+
+    def test_public_fabric_registration_and_mouse_events(self):
+        builder = self.source('lib/compat/BlockEntityTypeCompat.java')
+        self.assertIn('FabricBlockEntityTypeBuilder.Factory<? extends T>', builder)
+        self.assertIn('FabricBlockEntityTypeBuilder.<T>create(factory, blocks).build()', builder)
+        self.assertNotIn('BlockEntityType.BlockEntitySupplier', builder)
+        widget = self.source('lib/gui/widget/WidgetPhantomSlot.java')
+        self.assertIn('keyPickItem.matchesMouse(new MouseButtonEvent(', widget)
+        self.assertNotIn('keyPickItem.matches(InputConstants', widget)
+
+    def test_render_buffer_and_light_contracts(self):
+        render = self.source('factory/client/render/RenderHeatExchange.java')
+        self.assertIn('net.minecraft.client.renderer.MultiBufferSource buffer', render)
+        self.assertNotIn('buildcraft.lib.compat.minecraft.render.MultiBufferSource', render)
+        self.assertIn('import net.minecraft.client.renderer.MultiBufferSource;',
+                      self.source('lib/compat/minecraft/render/BCGeometryRenderer.java'))
+        for name in ('RenderRobot.java', 'RenderZonePlanner.java'):
+            code = self.source('robotics/client/render/' + name)
+            self.assertNotIn('LightTexture', code)
+            self.assertIn('0xF000F0', code)
+
+    def test_effective_source_syntax(self):
+        result = parse_sources([self.root / 'src/main/java/buildcraft'])
+        self.assertIn(f'{len(self.SOURCES)} units, 0 errors', result)
+        print(result, flush=True)
+
 if __name__ == "__main__":
     unittest.main()

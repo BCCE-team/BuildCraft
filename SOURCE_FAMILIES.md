@@ -42,6 +42,7 @@ Current targets:
 
 - `26.1.2-neoforge`
 - `26.2-neoforge`
+- `26.1.2-fabric`
 - `26.2-fabric`
 - `26.3-neoforge`
 - `26.3-fabric`
